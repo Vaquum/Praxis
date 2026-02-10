@@ -1,0 +1,20 @@
+name: Ruff Linting
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  pr_checks_ruff:
+    name: PR Checks Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Run ruff linting
+      - uses: astral-sh/ruff-action@v3
