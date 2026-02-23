@@ -1,4 +1,4 @@
-'''Verify Binance Spot testnet WebSocket connectivity.'''
+"""Verify Binance Spot testnet WebSocket connectivity."""
 
 from __future__ import annotations
 
@@ -25,13 +25,13 @@ from tests.testnet.conftest import (
     skip_no_creds,
 )
 
-__all__ = ['pytestmark']
+__all__ = ["pytestmark"]
 
 
 @skip_no_creds
 @pytest.mark.asyncio
 async def test_create_listen_key() -> None:
-    '''Verify POST /api/v3/userDataStream returns a listenKey.'''
+    """Verify POST /api/v3/userDataStream returns a listenKey."""
 
     async with (
         aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
@@ -39,20 +39,20 @@ async def test_create_listen_key() -> None:
     ):
         assert r.status == HTTP_OK
         data = await r.json()
-    assert len(data.get('listenKey', '')) > 0
+    assert len(data.get("listenKey", "")) > 0
 
 
 @skip_no_creds
 @pytest.mark.asyncio
 async def test_ws_connect() -> None:
-    '''Verify WebSocket connection to user data stream opens and closes cleanly.'''
+    """Verify WebSocket connection to user data stream opens and closes cleanly."""
 
     async with (
         aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
         s.post(f"{REST_BASE}/api/v3/userDataStream", headers=auth_headers()) as r,
     ):
         assert r.status == HTTP_OK
-        listen_key = (await r.json())['listenKey']
+        listen_key = (await r.json())["listenKey"]
     async with websockets.connect(
         f"{WS_BASE}/ws/{listen_key}", close_timeout=WS_CLOSE_TIMEOUT
     ):
@@ -62,18 +62,18 @@ async def test_ws_connect() -> None:
 @skip_no_creds
 @pytest.mark.asyncio
 async def test_listen_key_keepalive() -> None:
-    '''Verify PUT /api/v3/userDataStream keepalive returns 200.'''
+    """Verify PUT /api/v3/userDataStream keepalive returns 200."""
 
     async with aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s:
         async with s.post(
             f"{REST_BASE}/api/v3/userDataStream", headers=auth_headers()
         ) as r:
             assert r.status == HTTP_OK
-            listen_key = (await r.json())['listenKey']
+            listen_key = (await r.json())["listenKey"]
         async with s.put(
             f"{REST_BASE}/api/v3/userDataStream",
             headers=auth_headers(),
-            params={'listenKey': listen_key},
+            params={"listenKey": listen_key},
         ) as r:
             assert r.status == HTTP_OK
 
@@ -81,22 +81,22 @@ async def test_listen_key_keepalive() -> None:
 @skip_no_creds
 @pytest.mark.asyncio
 async def test_e2e_fill() -> None:
-    '''Verify market order submission and executionReport arrival on WebSocket.'''
+    """Verify market order submission and executionReport arrival on WebSocket."""
 
     async with aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s:
         async with s.post(
             f"{REST_BASE}/api/v3/userDataStream", headers=auth_headers()
         ) as r:
             assert r.status == HTTP_OK
-            listen_key = (await r.json())['listenKey']
+            listen_key = (await r.json())["listenKey"]
 
         async with websockets.connect(
             f"{WS_BASE}/ws/{listen_key}", close_timeout=WS_CLOSE_TIMEOUT
         ) as ws:
             params = signed_params(
                 symbol=SYMBOL,
-                side='BUY',
-                type='MARKET',
+                side="BUY",
+                type="MARKET",
                 quoteOrderQty=MIN_ORDER_QUOTE_QTY,
             )
             async with s.post(
@@ -104,9 +104,9 @@ async def test_e2e_fill() -> None:
                 params=params,
                 headers=auth_headers(),
             ) as r:
+                assert r.status == HTTP_OK, f"Order rejected: {await r.text()}"
                 order_data = await r.json()
-                assert r.status == HTTP_OK, f"Order rejected: {order_data}"
-            order_id = order_data['orderId']
+            order_id = order_data["orderId"]
 
             deadline = time.time() + WS_RECV_TIMEOUT
             while True:
@@ -119,9 +119,9 @@ async def test_e2e_fill() -> None:
                     break
                 event = json.loads(msg)
                 if (
-                    event.get('e') == 'executionReport'
-                    and event.get('i') == order_id
-                    and event.get('X') == 'FILLED'
+                    event.get("e") == "executionReport"
+                    and event.get("i") == order_id
+                    and event.get("X") == "FILLED"
                 ):
                     return
 
