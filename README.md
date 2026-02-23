@@ -24,7 +24,7 @@ The template for creating new repositories.
 
 ## Owner
 
-- [@mikkokotila](https://github.com/mikkokotila)
+- arun@vaquum.fi
 
 <!-- This section lists the owners of the repo -->
 
