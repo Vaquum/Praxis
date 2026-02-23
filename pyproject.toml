@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "new-repository-template"
+name = "vaquum-praxis"
 version = "0.0.1"
-description = "A repo for the template that governs how new repos are created."
+description = "Execution system for Vaquum — Trading sub-system + Account sub-system."
 readme = "README.md"
 authors = [
   { name = "Mikko Kotila", email = "mailme@mikkokotila.com" },
@@ -20,14 +20,18 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "mypy>=1.10",
+]
 
 [project.urls]
 Homepage = "https://vaquum.fi"
-Repository = "https://github.com/vaquum/new-repository-template"
+Repository = "https://github.com/Vaquum/Praxis"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["new-repository-template*"]
+include = ["praxis*"]
 exclude = ["tests*", "scripts*"]
 
 [tool.ruff]
@@ -99,7 +103,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 max-statements = 50
 
 [tool.ruff.lint.isort]
-known-first-party = ["new-repository-template"]
+known-first-party = ["praxis"]
 section-order = [
   "future",
   "standard-library",
@@ -110,3 +114,18 @@ section-order = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

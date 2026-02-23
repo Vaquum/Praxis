@@ -24,7 +24,7 @@ The template for creating new repositories.
 
 ## Owner
 
-- [@mikkokotila](https://github.com/mikkokotila)
+- [@blahmonkey](https://github.com/blahmonkey)
 
 <!-- This section lists the owners of the repo -->
 

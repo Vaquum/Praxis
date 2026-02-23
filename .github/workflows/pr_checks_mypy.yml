@@ -1,4 +1,4 @@
-name: Tests
+name: Type Check
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  pr_checks_tests:
-    name: PR Checks Tests
+  pr_checks_mypy:
+    name: PR Checks Mypy
     runs-on: ubuntu-latest
 
     steps:
@@ -28,5 +28,5 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -e ".[dev]"
 
-      - name: Run tests
-        run: pytest -v
+      - name: Run mypy
+        run: mypy praxis/ --ignore-missing-imports
