@@ -4,16 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vaquum-praxis"
-version = "0.0.1"
+version = "0.1.0"
 description = "Execution system for Vaquum — Trading sub-system + Account sub-system."
 readme = "README.md"
 authors = [
-  { name = "Mikko Kotila", email = "mailme@mikkokotila.com" },
-  { name = "Prasenjit Dey" },
-  { name = "Arun Raguraman" },
-  { name = "Jatin Thakur" },
-  { name = "Soujanyaa Boruah" },
-  { name = "Ng Wei Da" },
+  { name = "Arun Raguraman", email = "arun@vaquum.fi" },
 ]
 license = { text = "MIT" }
 requires-python = ">=3.10"
