@@ -24,7 +24,7 @@ The template for creating new repositories.
 
 ## Owner
 
-- arun@vaquum.fi
+- [@blahmonkey](https://github.com/blahmonkey)
 
 <!-- This section lists the owners of the repo -->
 
