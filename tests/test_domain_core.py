@@ -218,7 +218,6 @@ def test_position_financial_values_are_decimal() -> None:
     assert isinstance(pos.avg_entry_price, Decimal)
 
 
-
 def test_fill_rejects_naive_timestamp() -> None:
     with pytest.raises(ValueError, match='timezone-aware'):
         Fill(
@@ -274,6 +273,27 @@ def test_order_rejects_naive_created_at() -> None:
         )
 
 
+
+
+def test_order_rejects_naive_updated_at() -> None:
+    with pytest.raises(ValueError, match='timezone-aware'):
+        Order(
+            client_order_id='new_order-cmd1-0',
+            venue_order_id=None,
+            account_id='acc-1',
+            command_id='cmd-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=Decimal('1.0'),
+            filled_qty=Decimal('0'),
+            price=Decimal('50000.00'),
+            stop_price=None,
+            status=OrderStatus.SUBMITTING,
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 1),
+        )
+
 def test_order_rejects_negative_qty() -> None:
     with pytest.raises(ValueError, match='non-negative'):
         _order(qty=Decimal('-1'))
@@ -287,7 +307,6 @@ def test_order_rejects_negative_filled_qty() -> None:
 def test_position_rejects_negative_qty() -> None:
     with pytest.raises(ValueError, match='non-negative'):
         _position(qty=Decimal('-1'))
-
 
 
 def test_order_rejects_negative_price() -> None:
