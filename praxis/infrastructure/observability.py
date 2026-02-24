@@ -6,6 +6,8 @@ variable binding, and ISO 8601 UTC timestamps. Call configure_logging()
 once at process startup before any other initialization.
 '''
 
+from __future__ import annotations
+
 import logging
 import sys
 from typing import Any
