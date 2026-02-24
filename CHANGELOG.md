@@ -16,3 +16,14 @@
 - Exclude testnet tests from default `pytest` collection via `addopts`
 - Update README with setup instructions, testnet verification guide, and integrations
 - Remove template `docs/Developer/` placeholder
+
+## v0.2.0 on 24th of February, 2026
+
+- Add `structlog>=24.1` and `orjson>=3.10` as runtime dependencies
+- Add [`observability.py`](praxis/infrastructure/observability.py) with `configure_logging`, `bind_context`, `clear_context`, `get_logger`
+- Add `praxis/infrastructure/` package
+- Add stdlib logging integration through structlog `ProcessorFormatter`
+- Add asyncio-safe context variable binding for `epoch_id`, `account_id`, `command_id`, `client_order_id`, `event_seq`
+- Add [`test_observability.py`](tests/test_observability.py) with 10 tests covering JSON output, context binding, level filtering, and stdlib integration
+- Add `praxis-journals/` to `.gitignore`
+- Remove placeholder test file `tests/test_placeholder.py`
