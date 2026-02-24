@@ -33,8 +33,8 @@ class Fill:
         command_id (str): Originating command identifier.
         symbol (str): Trading pair symbol.
         side (OrderSide): Fill direction.
-        qty (Decimal): Filled quantity, must be non-negative.
-        price (Decimal): Execution price, must be non-negative.
+        qty (Decimal): Filled quantity, must be positive.
+        price (Decimal): Execution price, must be positive.
         fee (Decimal): Transaction fee charged, must be non-negative.
         fee_asset (str): Asset in which the fee is denominated.
         is_maker (bool): Whether the fill was a maker trade.

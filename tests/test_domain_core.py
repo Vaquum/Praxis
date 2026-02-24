@@ -329,7 +329,6 @@ def test_position_rejects_negative_avg_entry_price() -> None:
         _position(avg_entry_price=Decimal('-1'))
 
 
-
 def test_fill_rejects_zero_qty() -> None:
     with pytest.raises(ValueError, match='positive'):
         _fill(qty=Decimal('0'))

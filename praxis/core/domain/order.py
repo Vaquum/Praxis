@@ -39,7 +39,7 @@ class Order:
         symbol (str): Trading pair symbol.
         side (OrderSide): Order direction.
         order_type (OrderType): Order type.
-        qty (Decimal): Requested quantity, must be non-negative.
+        qty (Decimal): Requested quantity, must be positive.
         filled_qty (Decimal): Cumulative filled quantity, must be non-negative.
         price (Decimal | None): Limit price, None for market orders.
         stop_price (Decimal | None): Stop trigger price, None when not applicable.
