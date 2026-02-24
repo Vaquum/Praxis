@@ -1,5 +1,5 @@
 '''
-Domain dataclasses for the Praxis trading execution system.
+Domain dataclasses for the Praxis Trading sub-system.
 
 Re-exports all domain types: enums, Fill, Order, and Position.
 '''

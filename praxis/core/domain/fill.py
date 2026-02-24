@@ -59,7 +59,7 @@ class Fill:
     def __post_init__(self) -> None:
         '''Validate invariants at construction time.'''
 
-        if self.timestamp.tzinfo is None:
+        if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
             msg = 'Fill.timestamp must be timezone-aware'
             raise ValueError(msg)
         for field in ('qty', 'price', 'fee'):

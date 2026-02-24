@@ -67,7 +67,8 @@ class Order:
         '''Validate invariants at construction time.'''
 
         for field in ('created_at', 'updated_at'):
-            if getattr(self, field).tzinfo is None:
+            dt = getattr(self, field)
+            if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
                 msg = f'Order.{field} must be timezone-aware'
                 raise ValueError(msg)
         for field in ('qty', 'filled_qty'):

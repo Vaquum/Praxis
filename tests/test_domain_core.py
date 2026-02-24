@@ -274,7 +274,6 @@ def test_order_rejects_naive_created_at() -> None:
 
 
 
-
 def test_order_rejects_naive_updated_at() -> None:
     with pytest.raises(ValueError, match='timezone-aware'):
         Order(
@@ -293,6 +292,7 @@ def test_order_rejects_naive_updated_at() -> None:
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
             updated_at=datetime(2026, 1, 1),
         )
+
 
 def test_order_rejects_negative_qty() -> None:
     with pytest.raises(ValueError, match='non-negative'):

@@ -36,4 +36,4 @@
 - Add mutable `Order` dataclass with `is_terminal` and `remaining_qty` properties
 - Add mutable `Position` dataclass with `is_closed` property
 - Add domain package re-exports in `praxis/core/domain/__init__.py`
-- Add [`test_domain_core.py`](tests/test_domain_core.py) with 19 tests covering enums, dataclass creation, immutability, properties, and Decimal precision
+- Add [`test_domain_core.py`](tests/test_domain_core.py) with 32 tests covering enums, dataclass creation, immutability, properties, Decimal precision, and construction-time validation
