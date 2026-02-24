@@ -26,3 +26,4 @@
 - Add asyncio-safe context variable binding for `epoch_id`, `account_id`, `command_id`, `client_order_id`, `event_seq`
 - Add [`test_observability.py`](tests/test_observability.py) with 10 tests covering JSON output, context binding, level filtering, and stdlib integration
 - Add `praxis-journals/` to `.gitignore`
+- Remove placeholder test file `tests/test_placeholder.py`

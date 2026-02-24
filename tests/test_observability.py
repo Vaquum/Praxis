@@ -65,12 +65,7 @@ def _capture_stdlib(func: Any) -> dict[str, Any]:
     buf = io.StringIO()
     configure_logging('DEBUG')
     root = logging.getLogger()
-    root.handlers.clear()
     handler = logging.StreamHandler(buf)
-    handler.setFormatter(root.handlers[0].formatter if root.handlers else None)
-
-    configure_logging('DEBUG')
-    root = logging.getLogger()
     for h in root.handlers:
         if hasattr(h, 'formatter') and h.formatter is not None:
             handler.setFormatter(h.formatter)
