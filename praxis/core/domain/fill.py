@@ -62,10 +62,15 @@ class Fill:
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
             msg = 'Fill.timestamp must be timezone-aware'
             raise ValueError(msg)
-        for field in ('qty', 'price', 'fee'):
-            if getattr(self, field) < _ZERO:
-                msg = f'Fill.{field} must be non-negative'
-                raise ValueError(msg)
+        if self.qty <= _ZERO:
+            msg = 'Fill.qty must be positive'
+            raise ValueError(msg)
+        if self.price <= _ZERO:
+            msg = 'Fill.price must be positive'
+            raise ValueError(msg)
+        if self.fee < _ZERO:
+            msg = 'Fill.fee must be non-negative'
+            raise ValueError(msg)
 
     @property
     def dedup_key(self) -> str | tuple[str, Decimal, Decimal, datetime]:

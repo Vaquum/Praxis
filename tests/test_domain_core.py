@@ -51,6 +51,7 @@ def _order(
     filled_qty: Decimal = Decimal('0'),
     price: Decimal | None = Decimal('50000.00'),
     stop_price: Decimal | None = None,
+    order_type: OrderType = OrderType.LIMIT,
 ) -> Order:
     return Order(
         client_order_id='new_order-cmd1-0',
@@ -59,7 +60,7 @@ def _order(
         command_id='cmd-1',
         symbol='BTCUSDT',
         side=OrderSide.BUY,
-        order_type=OrderType.LIMIT,
+        order_type=order_type,
         qty=qty,
         filled_qty=filled_qty,
         price=price,
@@ -239,12 +240,12 @@ def test_fill_rejects_naive_timestamp() -> None:
 
 
 def test_fill_rejects_negative_qty() -> None:
-    with pytest.raises(ValueError, match='non-negative'):
+    with pytest.raises(ValueError, match='positive'):
         _fill(qty=Decimal('-1'))
 
 
 def test_fill_rejects_negative_price() -> None:
-    with pytest.raises(ValueError, match='non-negative'):
+    with pytest.raises(ValueError, match='positive'):
         _fill(price=Decimal('-1'))
 
 
@@ -273,7 +274,6 @@ def test_order_rejects_naive_created_at() -> None:
         )
 
 
-
 def test_order_rejects_naive_updated_at() -> None:
     with pytest.raises(ValueError, match='timezone-aware'):
         Order(
@@ -295,7 +295,7 @@ def test_order_rejects_naive_updated_at() -> None:
 
 
 def test_order_rejects_negative_qty() -> None:
-    with pytest.raises(ValueError, match='non-negative'):
+    with pytest.raises(ValueError, match='positive'):
         _order(qty=Decimal('-1'))
 
 
@@ -327,3 +327,25 @@ def test_order_rejects_filled_qty_exceeding_qty() -> None:
 def test_position_rejects_negative_avg_entry_price() -> None:
     with pytest.raises(ValueError, match='non-negative'):
         _position(avg_entry_price=Decimal('-1'))
+
+
+
+def test_fill_rejects_zero_qty() -> None:
+    with pytest.raises(ValueError, match='positive'):
+        _fill(qty=Decimal('0'))
+
+
+def test_fill_rejects_zero_price() -> None:
+    with pytest.raises(ValueError, match='positive'):
+        _fill(price=Decimal('0'))
+
+
+def test_order_rejects_zero_qty() -> None:
+    with pytest.raises(ValueError, match='positive'):
+        _order(qty=Decimal('0'))
+
+
+def test_order_creation_market_with_no_price() -> None:
+    order = _order(order_type=OrderType.MARKET, price=None)
+    assert order.price is None
+    assert order.order_type == OrderType.MARKET

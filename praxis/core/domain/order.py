@@ -71,10 +71,12 @@ class Order:
             if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
                 msg = f'Order.{field} must be timezone-aware'
                 raise ValueError(msg)
-        for field in ('qty', 'filled_qty'):
-            if getattr(self, field) < _ZERO:
-                msg = f'Order.{field} must be non-negative'
-                raise ValueError(msg)
+        if self.qty <= _ZERO:
+            msg = 'Order.qty must be positive'
+            raise ValueError(msg)
+        if self.filled_qty < _ZERO:
+            msg = 'Order.filled_qty must be non-negative'
+            raise ValueError(msg)
         for field in ('price', 'stop_price'):
             value = getattr(self, field)
             if value is not None and value < _ZERO:
