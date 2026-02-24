@@ -16,6 +16,8 @@ from praxis.core.domain.enums import OrderSide
 
 __all__ = ['Fill']
 
+_ZERO = Decimal(0)
+
 
 @dataclass(frozen=True)
 class Fill:
@@ -31,12 +33,12 @@ class Fill:
         command_id (str): Originating command identifier.
         symbol (str): Trading pair symbol.
         side (OrderSide): Fill direction.
-        qty (Decimal): Filled quantity.
-        price (Decimal): Execution price.
-        fee (Decimal): Transaction fee charged.
+        qty (Decimal): Filled quantity, must be non-negative.
+        price (Decimal): Execution price, must be non-negative.
+        fee (Decimal): Transaction fee charged, must be non-negative.
         fee_asset (str): Asset in which the fee is denominated.
         is_maker (bool): Whether the fill was a maker trade.
-        timestamp (datetime): Venue-reported execution time.
+        timestamp (datetime): Venue-reported execution time, must be timezone-aware.
     '''
 
     venue_trade_id: str
@@ -53,6 +55,17 @@ class Fill:
     fee_asset: str
     is_maker: bool
     timestamp: datetime
+
+    def __post_init__(self) -> None:
+        '''Validate invariants at construction time.'''
+
+        if self.timestamp.tzinfo is None:
+            msg = 'Fill.timestamp must be timezone-aware'
+            raise ValueError(msg)
+        for field in ('qty', 'price', 'fee'):
+            if getattr(self, field) < _ZERO:
+                msg = f'Fill.{field} must be non-negative'
+                raise ValueError(msg)
 
     @property
     def dedup_key(self) -> str | tuple[str, Decimal, Decimal, datetime]:

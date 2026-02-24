@@ -16,6 +16,8 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 
 __all__ = ['Order']
 
+_ZERO = Decimal(0)
+
 _TERMINAL_STATUSES: frozenset[OrderStatus] = frozenset({
     OrderStatus.FILLED,
     OrderStatus.CANCELED,
@@ -37,13 +39,13 @@ class Order:
         symbol (str): Trading pair symbol.
         side (OrderSide): Order direction.
         order_type (OrderType): Order type.
-        qty (Decimal): Requested quantity.
-        filled_qty (Decimal): Cumulative filled quantity.
+        qty (Decimal): Requested quantity, must be non-negative.
+        filled_qty (Decimal): Cumulative filled quantity, must be non-negative.
         price (Decimal | None): Limit price, None for market orders.
         stop_price (Decimal | None): Stop trigger price, None when not applicable.
         status (OrderStatus): Current lifecycle state.
-        created_at (datetime): Order creation time.
-        updated_at (datetime): Last state change time.
+        created_at (datetime): Order creation time, must be timezone-aware.
+        updated_at (datetime): Last state change time, must be timezone-aware.
     '''
 
     client_order_id: str
@@ -60,6 +62,18 @@ class Order:
     status: OrderStatus
     created_at: datetime
     updated_at: datetime
+
+    def __post_init__(self) -> None:
+        '''Validate invariants at construction time.'''
+
+        for field in ('created_at', 'updated_at'):
+            if getattr(self, field).tzinfo is None:
+                msg = f'Order.{field} must be timezone-aware'
+                raise ValueError(msg)
+        for field in ('qty', 'filled_qty'):
+            if getattr(self, field) < _ZERO:
+                msg = f'Order.{field} must be non-negative'
+                raise ValueError(msg)
 
     @property
     def is_terminal(self) -> bool:

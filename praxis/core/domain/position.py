@@ -15,6 +15,8 @@ from praxis.core.domain.enums import OrderSide
 
 __all__ = ['Position']
 
+_ZERO = Decimal(0)
+
 
 @dataclass
 class Position:
@@ -26,7 +28,7 @@ class Position:
         trade_id (str): Manager correlation identifier.
         symbol (str): Trading pair symbol.
         side (OrderSide): Position direction.
-        qty (Decimal): Current position size.
+        qty (Decimal): Current position size, must be non-negative.
         avg_entry_price (Decimal): Volume-weighted average entry price.
     '''
 
@@ -37,8 +39,15 @@ class Position:
     qty: Decimal
     avg_entry_price: Decimal
 
+    def __post_init__(self) -> None:
+        '''Validate invariants at construction time.'''
+
+        if self.qty < _ZERO:
+            msg = 'Position.qty must be non-negative'
+            raise ValueError(msg)
+
     @property
     def is_closed(self) -> bool:
         '''Return True if position quantity has reached zero.'''
 
-        return self.qty == Decimal(0)
+        return self.qty == _ZERO

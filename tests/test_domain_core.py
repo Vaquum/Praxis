@@ -24,6 +24,8 @@ _TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 def _fill(
     venue_trade_id: str = 'vt-001',
     qty: Decimal = Decimal('0.5'),
+    price: Decimal = Decimal('50000.00'),
+    fee: Decimal = Decimal('0.001'),
 ) -> Fill:
     return Fill(
         venue_trade_id=venue_trade_id,
@@ -35,8 +37,8 @@ def _fill(
         symbol='BTCUSDT',
         side=OrderSide.BUY,
         qty=qty,
-        price=Decimal('50000.00'),
-        fee=Decimal('0.001'),
+        price=price,
+        fee=fee,
         fee_asset='BTC',
         is_maker=True,
         timestamp=_TS,
@@ -212,3 +214,74 @@ def test_position_financial_values_are_decimal() -> None:
     pos = _position()
     assert isinstance(pos.qty, Decimal)
     assert isinstance(pos.avg_entry_price, Decimal)
+
+
+
+def test_fill_rejects_naive_timestamp() -> None:
+    with pytest.raises(ValueError, match='timezone-aware'):
+        Fill(
+            venue_trade_id='vt-001',
+            venue_order_id='vo-001',
+            client_order_id='new_order-cmd1-0',
+            account_id='acc-1',
+            trade_id='trade-1',
+            command_id='cmd-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('0.5'),
+            price=Decimal('50000.00'),
+            fee=Decimal('0.001'),
+            fee_asset='BTC',
+            is_maker=True,
+            timestamp=datetime(2026, 1, 1),
+        )
+
+
+def test_fill_rejects_negative_qty() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _fill(qty=Decimal('-1'))
+
+
+def test_fill_rejects_negative_price() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _fill(price=Decimal('-1'))
+
+
+def test_fill_rejects_negative_fee() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _fill(fee=Decimal('-1'))
+
+
+def test_order_rejects_naive_created_at() -> None:
+    with pytest.raises(ValueError, match='timezone-aware'):
+        Order(
+            client_order_id='new_order-cmd1-0',
+            venue_order_id=None,
+            account_id='acc-1',
+            command_id='cmd-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=Decimal('1.0'),
+            filled_qty=Decimal('0'),
+            price=Decimal('50000.00'),
+            stop_price=None,
+            status=OrderStatus.SUBMITTING,
+            created_at=datetime(2026, 1, 1),
+            updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+
+def test_order_rejects_negative_qty() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _order(qty=Decimal('-1'))
+
+
+def test_order_rejects_negative_filled_qty() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _order(filled_qty=Decimal('-1'))
+
+
+def test_position_rejects_negative_qty() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _position(qty=Decimal('-1'))
