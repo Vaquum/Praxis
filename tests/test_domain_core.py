@@ -49,6 +49,8 @@ def _order(
     status: OrderStatus = OrderStatus.SUBMITTING,
     qty: Decimal = Decimal('1.0'),
     filled_qty: Decimal = Decimal('0'),
+    price: Decimal | None = Decimal('50000.00'),
+    stop_price: Decimal | None = None,
 ) -> Order:
     return Order(
         client_order_id='new_order-cmd1-0',
@@ -60,22 +62,22 @@ def _order(
         order_type=OrderType.LIMIT,
         qty=qty,
         filled_qty=filled_qty,
-        price=Decimal('50000.00'),
-        stop_price=None,
+        price=price,
+        stop_price=stop_price,
         status=status,
         created_at=_TS,
         updated_at=_TS,
     )
 
 
-def _position(qty: Decimal = Decimal('1.0')) -> Position:
+def _position(qty: Decimal = Decimal('1.0'), avg_entry_price: Decimal = Decimal('50000.00')) -> Position:
     return Position(
         account_id='acc-1',
         trade_id='trade-1',
         symbol='BTCUSDT',
         side=OrderSide.BUY,
         qty=qty,
-        avg_entry_price=Decimal('50000.00'),
+        avg_entry_price=avg_entry_price,
     )
 
 
@@ -285,3 +287,24 @@ def test_order_rejects_negative_filled_qty() -> None:
 def test_position_rejects_negative_qty() -> None:
     with pytest.raises(ValueError, match='non-negative'):
         _position(qty=Decimal('-1'))
+
+
+
+def test_order_rejects_negative_price() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _order(price=Decimal('-1'))
+
+
+def test_order_rejects_negative_stop_price() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _order(stop_price=Decimal('-1'))
+
+
+def test_order_rejects_filled_qty_exceeding_qty() -> None:
+    with pytest.raises(ValueError, match='cannot exceed'):
+        _order(qty=Decimal('1.0'), filled_qty=Decimal('2.0'))
+
+
+def test_position_rejects_negative_avg_entry_price() -> None:
+    with pytest.raises(ValueError, match='non-negative'):
+        _position(avg_entry_price=Decimal('-1'))

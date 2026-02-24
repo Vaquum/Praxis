@@ -45,6 +45,9 @@ class Position:
         if self.qty < _ZERO:
             msg = 'Position.qty must be non-negative'
             raise ValueError(msg)
+        if self.avg_entry_price < _ZERO:
+            msg = 'Position.avg_entry_price must be non-negative'
+            raise ValueError(msg)
 
     @property
     def is_closed(self) -> bool:

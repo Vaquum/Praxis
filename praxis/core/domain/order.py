@@ -74,6 +74,14 @@ class Order:
             if getattr(self, field) < _ZERO:
                 msg = f'Order.{field} must be non-negative'
                 raise ValueError(msg)
+        for field in ('price', 'stop_price'):
+            value = getattr(self, field)
+            if value is not None and value < _ZERO:
+                msg = f'Order.{field} must be non-negative'
+                raise ValueError(msg)
+        if self.filled_qty > self.qty:
+            msg = 'Order.filled_qty cannot exceed qty'
+            raise ValueError(msg)
 
     @property
     def is_terminal(self) -> bool:
