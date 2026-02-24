@@ -13,6 +13,8 @@ from typing import Any
 import orjson
 import structlog
 
+__all__ = ['bind_context', 'clear_context', 'configure_logging', 'get_logger']
+
 
 def _orjson_dumps_str(*args: Any, **kwargs: Any) -> str:
 
@@ -74,3 +76,45 @@ def configure_logging(log_level: str = 'INFO') -> None:
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
     root_logger.setLevel(numeric_level)
+
+
+def bind_context(**kwargs: Any) -> None:
+
+    '''
+    Bind key-value pairs to the asyncio-safe structlog context.
+
+    Args:
+        **kwargs (Any): Context fields (epoch_id, account_id, command_id, etc.)
+
+    Returns:
+        None
+    '''
+
+    structlog.contextvars.bind_contextvars(**kwargs)
+
+
+def clear_context() -> None:
+
+    '''
+    Clear all bound context variables.
+
+    Returns:
+        None
+    '''
+
+    structlog.contextvars.clear_contextvars()
+
+
+def get_logger(name: str) -> Any:
+
+    '''
+    Return a structlog logger bound to the given name.
+
+    Args:
+        name (str): Logger name, typically __name__
+
+    Returns:
+        Any: Configured structlog bound logger
+    '''
+
+    return structlog.get_logger(name)
