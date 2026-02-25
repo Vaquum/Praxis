@@ -1,5 +1,5 @@
 '''
-Trade-level execution outcome reported to Manager.
+Represent trade-level execution outcome reported to Manager.
 
 Frozen dataclass representing a point-in-time snapshot of trade
 execution status. Both intermediate progress and terminal completion
@@ -30,7 +30,7 @@ _TERMINAL = frozenset({
 @dataclass(frozen=True)
 class TradeOutcome:
     '''
-    Execution outcome pushed from Trading sub-system to Manager.
+    Represent execution outcome pushed from Trading sub-system to Manager.
 
     Args:
         command_id (str): Originating TradeCommand identifier.
@@ -63,7 +63,6 @@ class TradeOutcome:
     missed_reason: str | None = None
 
     def __post_init__(self) -> None:
-        '''Validate invariants at construction time.'''
 
         if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
             msg = 'TradeOutcome.created_at must be timezone-aware'

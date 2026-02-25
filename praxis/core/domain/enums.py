@@ -90,7 +90,7 @@ class STPMode(Enum):
 
 class TradeStatus(Enum):
     '''
-    Trade-level execution status per Consensus #22.
+    Define trade-level execution status per Consensus #22.
 
     Non-terminal: PENDING, PARTIAL, PAUSED.
     Terminal: FILLED, CANCELED, REJECTED, EXPIRED.
