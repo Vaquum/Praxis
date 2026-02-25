@@ -262,16 +262,18 @@ def test_fill_rejects_naive_timestamp() -> None:
         )
 
 
-def test_fill_rejects_negative_qty() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_fill_rejects_non_positive_qty(bad: Decimal) -> None:
 
     with pytest.raises(ValueError, match='positive'):
-        _fill(qty=Decimal('-1'))
+        _fill(qty=bad)
 
 
-def test_fill_rejects_negative_price() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_fill_rejects_non_positive_price(bad: Decimal) -> None:
 
     with pytest.raises(ValueError, match='positive'):
-        _fill(price=Decimal('-1'))
+        _fill(price=bad)
 
 
 def test_fill_rejects_negative_fee() -> None:
@@ -322,10 +324,11 @@ def test_order_rejects_naive_updated_at() -> None:
         )
 
 
-def test_order_rejects_negative_qty() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_order_rejects_non_positive_qty(bad: Decimal) -> None:
 
     with pytest.raises(ValueError, match='positive'):
-        _order(qty=Decimal('-1'))
+        _order(qty=bad)
 
 
 def test_order_rejects_negative_filled_qty() -> None:
@@ -340,16 +343,18 @@ def test_position_rejects_negative_qty() -> None:
         _position(qty=Decimal('-1'))
 
 
-def test_order_rejects_negative_price() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_order_rejects_non_positive_price(bad: Decimal) -> None:
 
     with pytest.raises(ValueError, match='positive'):
-        _order(price=Decimal('-1'))
+        _order(price=bad)
 
 
-def test_order_rejects_negative_stop_price() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_order_rejects_non_positive_stop_price(bad: Decimal) -> None:
 
     with pytest.raises(ValueError, match='positive'):
-        _order(stop_price=Decimal('-1'))
+        _order(stop_price=bad)
 
 
 def test_order_rejects_filled_qty_exceeding_qty() -> None:
@@ -364,24 +369,6 @@ def test_position_rejects_negative_avg_entry_price() -> None:
         _position(avg_entry_price=Decimal('-1'))
 
 
-def test_fill_rejects_zero_qty() -> None:
-
-    with pytest.raises(ValueError, match='positive'):
-        _fill(qty=Decimal('0'))
-
-
-def test_fill_rejects_zero_price() -> None:
-
-    with pytest.raises(ValueError, match='positive'):
-        _fill(price=Decimal('0'))
-
-
-def test_order_rejects_zero_qty() -> None:
-
-    with pytest.raises(ValueError, match='positive'):
-        _order(qty=Decimal('0'))
-
-
 def test_order_creation_market_with_no_price() -> None:
 
     order = _order(order_type=OrderType.MARKET, price=None)
@@ -393,15 +380,3 @@ def test_order_rejects_market_with_price() -> None:
 
     with pytest.raises(ValueError, match='MARKET'):
         _order(order_type=OrderType.MARKET, price=Decimal('50000.00'))
-
-
-def test_order_rejects_zero_price() -> None:
-
-    with pytest.raises(ValueError, match='positive'):
-        _order(price=Decimal('0'))
-
-
-def test_order_rejects_zero_stop_price() -> None:
-
-    with pytest.raises(ValueError, match='positive'):
-        _order(stop_price=Decimal('0'))

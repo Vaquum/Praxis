@@ -2,7 +2,7 @@
 Enumerated types for the Praxis trading domain.
 
 Defines order side, order type, and order lifecycle status enums
-used across Position, Order, and Fill dataclasses.
+used across Position, Order, Fill, TradeCommand, and TradeAbort dataclasses.
 '''
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['OrderSide', 'OrderStatus', 'OrderType']
+__all__ = ['ExecutionMode', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode']
 
 
 class OrderSide(Enum):
@@ -52,3 +52,37 @@ class OrderStatus(Enum):
     CANCELED = 'CANCELED'
     REJECTED = 'REJECTED'
     EXPIRED = 'EXPIRED'
+
+
+class ExecutionMode(Enum):
+
+    '''
+    Define execution modes per RFC.
+    SingleShot submits as a single unit. Other modes slice
+    or schedule orders across time or price levels.
+    '''
+
+    SINGLE_SHOT = 'SINGLE_SHOT'
+    BRACKET = 'BRACKET'
+    TWAP = 'TWAP'
+    SCHEDULED_VWAP = 'SCHEDULED_VWAP'
+    ICEBERG = 'ICEBERG'
+    TIME_DCA = 'TIME_DCA'
+    LADDER_DCA = 'LADDER_DCA'
+
+
+class MakerPreference(Enum):
+    '''Define maker/taker preference for order placement.'''
+
+    MAKER_ONLY = 'MAKER_ONLY'
+    MAKER_PREFERRED = 'MAKER_PREFERRED'
+    NO_PREFERENCE = 'NO_PREFERENCE'
+
+
+class STPMode(Enum):
+    '''Define self-trade prevention mode per venue specification.'''
+
+    EXPIRE_TAKER = 'EXPIRE_TAKER'
+    EXPIRE_MAKER = 'EXPIRE_MAKER'
+    EXPIRE_BOTH = 'EXPIRE_BOTH'
+    NONE = 'NONE'
