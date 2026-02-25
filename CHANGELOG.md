@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.0 on 25th of February, 2026
+
+- Add `ExecutionMode`, `MakerPreference`, `STPMode` enums in [`enums.py`](praxis/core/domain/enums.py)
+- Add frozen `SingleShotParams` dataclass with positive price validation in [`single_shot_params.py`](praxis/core/domain/single_shot_params.py)
+- Add frozen `TradeCommand` dataclass with qty, timeout, price, and timezone validation in [`trade_command.py`](praxis/core/domain/trade_command.py)
+- Add frozen `TradeAbort` dataclass with timezone-aware validation in [`trade_abort.py`](praxis/core/domain/trade_abort.py)
+- Add domain package re-exports for all 12 domain types in `praxis/core/domain/__init__.py`
+- Add [`test_domain_commands.py`](tests/test_domain_commands.py) with 25 tests covering enums, dataclass creation, immutability, Decimal precision, and construction-time validation
+
 ## v0.1.0 on 23rd of February, 2026
 
 - Add Binance Spot testnet connectivity verification tests in [`tests/testnet/`](tests/testnet/)
