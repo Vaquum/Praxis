@@ -54,4 +54,4 @@
 - Add frozen `TradeOutcome` dataclass with `is_terminal` and `fill_ratio` properties in [`trade_outcome.py`](praxis/core/domain/trade_outcome.py)
 - Add construction-time validation for target_qty, filled_qty, avg_fill_price, slices, missed_iterations, and timezone-aware created_at
 - Add domain package re-exports for all 14 domain types in `praxis/core/domain/__init__.py`
-- Add [`test_domain_outcome.py`](tests/test_domain_outcome.py) with 27 tests covering enum membership, dataclass creation, immutability, properties, Decimal precision, and construction-time validation
+- Add [`test_domain_outcome.py`](tests/test_domain_outcome.py) with 29 tests covering enum membership, dataclass creation, immutability, properties, Decimal precision, and construction-time validation

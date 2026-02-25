@@ -15,7 +15,10 @@ from decimal import Decimal
 
 from praxis.core.domain.enums import TradeStatus
 
-_ZERO = Decimal('0')
+__all__ = ['TradeOutcome']
+
+_ZERO = Decimal(0)
+
 _TERMINAL = frozenset({
     TradeStatus.FILLED,
     TradeStatus.CANCELED,
@@ -62,27 +65,42 @@ class TradeOutcome:
     def __post_init__(self) -> None:
         '''Validate invariants at construction time.'''
 
-        if self.created_at.tzinfo is None or self.created_at.tzinfo.utcoffset(self.created_at) is None:
+        if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
             msg = 'TradeOutcome.created_at must be timezone-aware'
             raise ValueError(msg)
+
         if self.target_qty <= _ZERO:
             msg = 'TradeOutcome.target_qty must be positive'
             raise ValueError(msg)
+
         if self.filled_qty < _ZERO:
             msg = 'TradeOutcome.filled_qty must be non-negative'
             raise ValueError(msg)
+
+        if self.filled_qty > self.target_qty:
+            msg = 'TradeOutcome.filled_qty cannot exceed target_qty'
+            raise ValueError(msg)
+
         if self.avg_fill_price is not None and self.avg_fill_price <= _ZERO:
             msg = 'TradeOutcome.avg_fill_price must be positive'
             raise ValueError(msg)
+
         if self.filled_qty == _ZERO and self.avg_fill_price is not None:
             msg = 'TradeOutcome.avg_fill_price must be None when filled_qty is zero'
             raise ValueError(msg)
+
         if self.slices_completed < 0:
             msg = 'TradeOutcome.slices_completed must be non-negative'
             raise ValueError(msg)
+
         if self.slices_total <= 0:
             msg = 'TradeOutcome.slices_total must be positive'
             raise ValueError(msg)
+
+        if self.slices_completed > self.slices_total:
+            msg = 'TradeOutcome.slices_completed cannot exceed slices_total'
+            raise ValueError(msg)
+
         if self.missed_iterations is not None and self.missed_iterations < 0:
             msg = 'TradeOutcome.missed_iterations must be non-negative'
             raise ValueError(msg)

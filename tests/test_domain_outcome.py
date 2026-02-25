@@ -27,6 +27,7 @@ def _outcome(
     slices_total: int = 5,
     missed_iterations: int | None = None,
 ) -> TradeOutcome:
+
     return TradeOutcome(
         command_id='cmd-001',
         trade_id='trade-001',
@@ -44,6 +45,7 @@ def _outcome(
 
 
 def test_trade_status_members() -> None:
+
     expected = {
         TradeStatus.PENDING,
         TradeStatus.PARTIAL,
@@ -57,11 +59,13 @@ def test_trade_status_members() -> None:
 
 
 def test_trade_status_values_are_strings() -> None:
+
     for member in TradeStatus:
         assert isinstance(member.value, str)
 
 
 def test_trade_outcome_creation() -> None:
+
     outcome = _outcome()
     assert outcome.command_id == 'cmd-001'
     assert outcome.trade_id == 'trade-001'
@@ -78,12 +82,14 @@ def test_trade_outcome_creation() -> None:
 
 
 def test_trade_outcome_frozen() -> None:
+
     outcome = _outcome()
     with pytest.raises(AttributeError):
         outcome.status = TradeStatus.CANCELED  # type: ignore[misc]
 
 
 def test_trade_outcome_zero_filled_qty_valid() -> None:
+
     outcome = _outcome(
         status=TradeStatus.PENDING,
         filled_qty=Decimal('0'),
@@ -95,6 +101,7 @@ def test_trade_outcome_zero_filled_qty_valid() -> None:
 
 
 def test_trade_outcome_financial_values_are_decimal() -> None:
+
     outcome = _outcome()
     assert isinstance(outcome.target_qty, Decimal)
     assert isinstance(outcome.filled_qty, Decimal)
@@ -103,43 +110,63 @@ def test_trade_outcome_financial_values_are_decimal() -> None:
 
 @pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
 def test_trade_outcome_rejects_non_positive_target_qty(bad: Decimal) -> None:
+
     with pytest.raises(ValueError, match='positive'):
         _outcome(target_qty=bad)
 
 
 def test_trade_outcome_rejects_negative_filled_qty() -> None:
+
     with pytest.raises(ValueError, match='non-negative'):
         _outcome(filled_qty=Decimal('-1'))
 
 
+def test_trade_outcome_rejects_filled_qty_exceeds_target_qty() -> None:
+
+    with pytest.raises(ValueError, match='cannot exceed target_qty'):
+        _outcome(target_qty=Decimal('10'), filled_qty=Decimal('11'))
+
+
 @pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
 def test_trade_outcome_rejects_non_positive_avg_fill_price(bad: Decimal) -> None:
+
     with pytest.raises(ValueError, match='positive'):
         _outcome(avg_fill_price=bad)
 
 
 def test_trade_outcome_rejects_avg_fill_price_when_no_fills() -> None:
+
     with pytest.raises(ValueError, match='None when filled_qty is zero'):
         _outcome(filled_qty=Decimal('0'), avg_fill_price=Decimal('100'))
 
 
 def test_trade_outcome_rejects_negative_slices_completed() -> None:
+
     with pytest.raises(ValueError, match='non-negative'):
         _outcome(slices_completed=-1)
 
 
 @pytest.mark.parametrize('bad', [0, -1])
 def test_trade_outcome_rejects_non_positive_slices_total(bad: int) -> None:
+
     with pytest.raises(ValueError, match='positive'):
         _outcome(slices_total=bad)
 
 
+def test_trade_outcome_rejects_slices_completed_exceeds_slices_total() -> None:
+
+    with pytest.raises(ValueError, match='cannot exceed slices_total'):
+        _outcome(slices_completed=6, slices_total=5)
+
+
 def test_trade_outcome_rejects_negative_missed_iterations() -> None:
+
     with pytest.raises(ValueError, match='non-negative'):
         _outcome(missed_iterations=-1)
 
 
 def test_trade_outcome_rejects_naive_created_at() -> None:
+
     with pytest.raises(ValueError, match='timezone-aware'):
         TradeOutcome(
             command_id='cmd-001',
@@ -158,6 +185,7 @@ def test_trade_outcome_rejects_naive_created_at() -> None:
 
 @pytest.mark.parametrize('status', _TERMINAL)
 def test_trade_outcome_is_terminal(status: TradeStatus) -> None:
+
     price = Decimal('50000') if status == TradeStatus.FILLED else None
     filled = Decimal('10') if status == TradeStatus.FILLED else Decimal('0')
     outcome = _outcome(status=status, filled_qty=filled, avg_fill_price=price)
@@ -166,6 +194,7 @@ def test_trade_outcome_is_terminal(status: TradeStatus) -> None:
 
 @pytest.mark.parametrize('status', _NON_TERMINAL)
 def test_trade_outcome_is_not_terminal(status: TradeStatus) -> None:
+
     outcome = _outcome(
         status=status,
         filled_qty=Decimal('0'),
@@ -176,11 +205,13 @@ def test_trade_outcome_is_not_terminal(status: TradeStatus) -> None:
 
 
 def test_trade_outcome_fill_ratio() -> None:
+
     outcome = _outcome(target_qty=Decimal('10'), filled_qty=Decimal('7'))
     assert outcome.fill_ratio == Decimal('0.7')
 
 
 def test_trade_outcome_fill_ratio_zero() -> None:
+
     outcome = _outcome(
         status=TradeStatus.PENDING,
         filled_qty=Decimal('0'),
@@ -191,5 +222,6 @@ def test_trade_outcome_fill_ratio_zero() -> None:
 
 
 def test_trade_outcome_missed_iterations_zero_valid() -> None:
+
     outcome = _outcome(missed_iterations=0)
     assert outcome.missed_iterations == 0
