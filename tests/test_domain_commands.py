@@ -88,6 +88,13 @@ def test_stp_mode_members() -> None:
     assert set(STPMode) == expected
 
 
+
+
+def test_enum_values_are_strings() -> None:
+    for enum_cls in (ExecutionMode, MakerPreference, STPMode):
+        for member in enum_cls:
+            assert isinstance(member.value, str)
+
 def test_single_shot_params_creation() -> None:
     params = SingleShotParams(price=Decimal('50000.00'))
     assert params.price == Decimal('50000.00')

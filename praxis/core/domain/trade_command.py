@@ -39,7 +39,7 @@ class TradeCommand:
         qty (Decimal): Total quantity to execute, must be positive.
         order_type (OrderType): Order type.
         execution_mode (ExecutionMode): Execution strategy.
-        execution_params (SingleShotParams): Mode-specific parameters.
+        execution_params (SingleShotParams): Execution parameters for single-shot mode.
         timeout (int): Execution deadline in seconds, must be positive.
         reference_price (Decimal | None): Optional reference price from Manager, must be positive if set.
         maker_preference (MakerPreference): Maker/taker preference.
