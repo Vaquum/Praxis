@@ -30,6 +30,18 @@ __all__ = [
     'TradeClosed',
 ]
 
+_ZERO = Decimal(0)
+
+
+def _require_str(cls: str, field: str, value: str | None, *, optional: bool = False) -> None:
+
+    if value is None and optional:
+        return
+
+    if not value:
+        msg = f'{cls}.{field} must be a non-empty string'
+        raise ValueError(msg)
+
 
 @dataclass(frozen=True)
 class _EventBase:
@@ -47,14 +59,12 @@ class _EventBase:
 
     def __post_init__(self) -> None:
 
-        '''Validate invariants at construction time.'''
+        name = type(self).__name__
+        _require_str(name, 'account_id', self.account_id)
 
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
-            msg = f'{type(self).__name__}.timestamp must be timezone-aware'
+            msg = f'{name}.timestamp must be timezone-aware'
             raise ValueError(msg)
-
-
-_ZERO = Decimal(0)
 
 
 @dataclass(frozen=True)
@@ -72,6 +82,14 @@ class CommandAccepted(_EventBase):
 
     command_id: str
     trade_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'trade_id', self.trade_id)
 
 
 @dataclass(frozen=True)
@@ -106,9 +124,13 @@ class OrderSubmitIntent(_EventBase):
 
     def __post_init__(self) -> None:
 
-        '''Validate invariants at construction time.'''
-
         super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'trade_id', self.trade_id)
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'symbol', self.symbol)
 
         if self.qty <= _ZERO:
             msg = 'OrderSubmitIntent.qty must be positive'
@@ -139,6 +161,14 @@ class OrderSubmitted(_EventBase):
     client_order_id: str
     venue_order_id: str
 
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'venue_order_id', self.venue_order_id)
+
 
 @dataclass(frozen=True)
 class OrderSubmitFailed(_EventBase):
@@ -156,6 +186,14 @@ class OrderSubmitFailed(_EventBase):
     client_order_id: str
     reason: str
 
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'reason', self.reason)
+
 
 @dataclass(frozen=True)
 class OrderAcked(_EventBase):
@@ -172,6 +210,14 @@ class OrderAcked(_EventBase):
 
     client_order_id: str
     venue_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'venue_order_id', self.venue_order_id)
 
 
 @dataclass(frozen=True)
@@ -212,9 +258,16 @@ class FillReceived(_EventBase):
 
     def __post_init__(self) -> None:
 
-        '''Validate invariants at construction time.'''
-
         super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'venue_order_id', self.venue_order_id)
+        _require_str(name, 'venue_trade_id', self.venue_trade_id)
+        _require_str(name, 'trade_id', self.trade_id)
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'symbol', self.symbol)
+        _require_str(name, 'fee_asset', self.fee_asset)
 
         if self.qty <= _ZERO:
             msg = 'FillReceived.qty must be positive'
@@ -247,6 +300,15 @@ class OrderRejected(_EventBase):
     venue_order_id: str | None
     reason: str
 
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'venue_order_id', self.venue_order_id, optional=True)
+        _require_str(name, 'reason', self.reason)
+
 
 @dataclass(frozen=True)
 class OrderCanceled(_EventBase):
@@ -266,6 +328,15 @@ class OrderCanceled(_EventBase):
     venue_order_id: str | None
     reason: str | None
 
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'venue_order_id', self.venue_order_id, optional=True)
+        _require_str(name, 'reason', self.reason, optional=True)
+
 
 @dataclass(frozen=True)
 class OrderExpired(_EventBase):
@@ -283,6 +354,14 @@ class OrderExpired(_EventBase):
     client_order_id: str
     venue_order_id: str | None
 
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'venue_order_id', self.venue_order_id, optional=True)
+
 
 @dataclass(frozen=True)
 class TradeClosed(_EventBase):
@@ -299,6 +378,14 @@ class TradeClosed(_EventBase):
 
     trade_id: str
     command_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'trade_id', self.trade_id)
+        _require_str(name, 'command_id', self.command_id)
 
 
 Event: TypeAlias = (
