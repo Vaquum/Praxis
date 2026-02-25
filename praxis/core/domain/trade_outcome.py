@@ -19,7 +19,7 @@ __all__ = ['TradeOutcome']
 
 _ZERO = Decimal(0)
 
-_TERMINAL = frozenset({
+_TERMINAL: frozenset[TradeStatus] = frozenset({
     TradeStatus.FILLED,
     TradeStatus.CANCELED,
     TradeStatus.REJECTED,
@@ -29,6 +29,7 @@ _TERMINAL = frozenset({
 
 @dataclass(frozen=True)
 class TradeOutcome:
+
     '''
     Represent execution outcome pushed from Trading sub-system to Manager.
 
