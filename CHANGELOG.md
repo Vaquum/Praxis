@@ -7,7 +7,8 @@
 - Add frozen `TradeCommand` dataclass with qty, timeout, price, and timezone validation in [`trade_command.py`](praxis/core/domain/trade_command.py)
 - Add frozen `TradeAbort` dataclass with timezone-aware validation in [`trade_abort.py`](praxis/core/domain/trade_abort.py)
 - Add domain package re-exports for all 12 domain types in `praxis/core/domain/__init__.py`
-- Add [`test_domain_commands.py`](tests/test_domain_commands.py) with 25 tests covering enums, dataclass creation, immutability, Decimal precision, and construction-time validation
+- Add [`test_domain_commands.py`](tests/test_domain_commands.py) with 27 tests covering enums, dataclass creation, immutability, Decimal precision, and construction-time validation
+- Combine zero/negative validation tests into parametrized functions across both test files
 
 ## v0.1.0 on 23rd of February, 2026
 
