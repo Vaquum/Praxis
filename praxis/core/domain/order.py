@@ -71,20 +71,25 @@ class Order:
             if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
                 msg = f'Order.{field} must be timezone-aware'
                 raise ValueError(msg)
+
         if self.qty <= _ZERO:
             msg = 'Order.qty must be positive'
             raise ValueError(msg)
+
         if self.filled_qty < _ZERO:
             msg = 'Order.filled_qty must be non-negative'
             raise ValueError(msg)
+
         for field in ('price', 'stop_price'):
             value = getattr(self, field)
             if value is not None and value <= _ZERO:
                 msg = f'Order.{field} must be positive'
                 raise ValueError(msg)
+
         if self.filled_qty > self.qty:
             msg = 'Order.filled_qty cannot exceed qty'
             raise ValueError(msg)
+
         if self.order_type == OrderType.MARKET and self.price is not None:
             msg = 'Order.price must be None for MARKET orders'
             raise ValueError(msg)
