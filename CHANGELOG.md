@@ -27,3 +27,13 @@
 - Add [`test_observability.py`](tests/test_observability.py) with 10 tests covering JSON output, context binding, level filtering, and stdlib integration
 - Add `praxis-journals/` to `.gitignore`
 - Remove placeholder test file `tests/test_placeholder.py`
+
+## v0.3.0 on 24th of February, 2026
+
+- Add `praxis/core/domain/` package with `Position`, `Order`, `Fill` dataclasses
+- Add `OrderSide`, `OrderType`, `OrderStatus` enums in [`enums.py`](praxis/core/domain/enums.py)
+- Add frozen `Fill` dataclass with `dedup_key` property per RFC fill deduplication spec
+- Add mutable `Order` dataclass with `is_terminal` and `remaining_qty` properties
+- Add mutable `Position` dataclass with `is_closed` property
+- Add domain package re-exports in `praxis/core/domain/__init__.py`
+- Add [`test_domain_core.py`](tests/test_domain_core.py) with 36 tests covering enums, dataclass creation, immutability, properties, Decimal precision, and construction-time validation
