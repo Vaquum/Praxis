@@ -2,7 +2,7 @@
 Enumerated types for the Praxis trading domain.
 
 Defines order side, order type, and order lifecycle status enums
-used across Position, Order, Fill, TradeCommand, and TradeAbort dataclasses.
+used across Position, Order, Fill, TradeCommand, TradeAbort, and TradeOutcome dataclasses.
 '''
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['ExecutionMode', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode']
+__all__ = ['ExecutionMode', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'TradeStatus']
 
 
 class OrderSide(Enum):
@@ -86,3 +86,20 @@ class STPMode(Enum):
     EXPIRE_MAKER = 'EXPIRE_MAKER'
     EXPIRE_BOTH = 'EXPIRE_BOTH'
     NONE = 'NONE'
+
+
+class TradeStatus(Enum):
+    '''
+    Define trade-level execution status per Consensus #22.
+
+    Non-terminal: PENDING, PARTIAL, PAUSED.
+    Terminal: FILLED, CANCELED, REJECTED, EXPIRED.
+    '''
+
+    PENDING = 'PENDING'
+    PARTIAL = 'PARTIAL'
+    PAUSED = 'PAUSED'
+    FILLED = 'FILLED'
+    CANCELED = 'CANCELED'
+    REJECTED = 'REJECTED'
+    EXPIRED = 'EXPIRED'
