@@ -14,6 +14,7 @@ from praxis.core.domain.enums import (
     OrderStatus,
     OrderType,
     STPMode,
+    TradeStatus,
 )
 from praxis.core.domain.fill import Fill
 from praxis.core.domain.order import Order
@@ -21,6 +22,7 @@ from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.domain.trade_outcome import TradeOutcome
 
 __all__ = [
     'ExecutionMode',
@@ -35,4 +37,6 @@ __all__ = [
     'SingleShotParams',
     'TradeAbort',
     'TradeCommand',
+    'TradeOutcome',
+    'TradeStatus',
 ]
