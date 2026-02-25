@@ -350,6 +350,11 @@ def test_order_creation_market_with_no_price() -> None:
     assert order.order_type == OrderType.MARKET
 
 
+def test_order_rejects_market_with_price() -> None:
+    with pytest.raises(ValueError, match='MARKET'):
+        _order(order_type=OrderType.MARKET, price=Decimal('50000.00'))
+
+
 def test_order_rejects_zero_price() -> None:
     with pytest.raises(ValueError, match='positive'):
         _order(price=Decimal('0'))

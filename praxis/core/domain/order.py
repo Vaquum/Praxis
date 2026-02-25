@@ -85,6 +85,9 @@ class Order:
         if self.filled_qty > self.qty:
             msg = 'Order.filled_qty cannot exceed qty'
             raise ValueError(msg)
+        if self.order_type == OrderType.MARKET and self.price is not None:
+            msg = 'Order.price must be None for MARKET orders'
+            raise ValueError(msg)
 
     @property
     def is_terminal(self) -> bool:
