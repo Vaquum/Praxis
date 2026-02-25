@@ -35,6 +35,16 @@ _ZERO = Decimal(0)
 
 def _require_str(cls: str, field: str, value: str | None, *, optional: bool = False) -> None:
 
+    '''
+    Validate that a string field is non-empty.
+
+    Args:
+        cls (str): Class name for error context.
+        field (str): Field name for error context.
+        value (str | None): Value to validate.
+        optional (bool): Allow None values when True.
+    '''
+
     if value is None and optional:
         return
 

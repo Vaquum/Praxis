@@ -55,3 +55,13 @@
 - Add construction-time validation for target_qty, filled_qty, avg_fill_price, slices, missed_iterations, and timezone-aware created_at
 - Add domain package re-exports for all 14 domain types in `praxis/core/domain/__init__.py`
 - Add [`test_domain_outcome.py`](tests/test_domain_outcome.py) with 29 tests covering enum membership, dataclass creation, immutability, properties, Decimal precision, and construction-time validation
+
+## v0.6.0 on 25th of February, 2026
+
+- Add 10 frozen event dataclasses (`CommandAccepted`, `OrderSubmitIntent`, `OrderSubmitted`, `OrderSubmitFailed`, `OrderAcked`, `FillReceived`, `OrderRejected`, `OrderCanceled`, `OrderExpired`, `TradeClosed`) with `Event` type alias in [`events.py`](praxis/core/domain/events.py)
+- Add `_EventBase` base class with shared `account_id` and timezone-aware `timestamp` validation
+- Add non-empty string validation via `_require_str` helper on all event identifier fields
+- Add `TradingState` projection class with `apply()` dispatch, VWAP position tracking, and order lifecycle management in [`trading_state.py`](praxis/core/trading_state.py)
+- Add `TradingState` re-export from `praxis.core` package
+- Add domain package re-exports for all 25 domain types in `praxis/core/domain/__init__.py`
+- Add [`test_trading_state.py`](tests/test_trading_state.py) with 27 tests covering construction validation, apply dispatch, order lifecycle, position VWAP, exit fills, warning logs, and full lifecycle

@@ -186,7 +186,10 @@ class _UnknownEvent:
     timestamp: datetime = _TS
 
 
-# --- apply dispatch ---
+def test_rejects_empty_account_id() -> None:
+
+    with pytest.raises(ValueError, match='non-empty'):
+        TradingState(account_id='')
 
 
 def test_command_accepted_is_noop() -> None:
@@ -195,9 +198,6 @@ def test_command_accepted_is_noop() -> None:
     state.apply(_command_accepted())
     assert state.orders == {}
     assert state.positions == {}
-
-
-# --- order lifecycle ---
 
 
 def test_submit_intent_creates_submitting_order() -> None:
@@ -330,10 +330,7 @@ def test_order_updated_at_tracks_latest_event() -> None:
     assert state.orders[_ORDER].updated_at == _TS2
 
 
-# --- position tracking ---
-
-
-def test_first_fill_creates_position() -> None:
+def test_position_created_on_first_fill() -> None:
 
     state = _state()
     state.apply(_submit_intent())
@@ -346,7 +343,7 @@ def test_first_fill_creates_position() -> None:
     assert pos.avg_entry_price == Decimal('50000')
 
 
-def test_same_side_fill_computes_vwap() -> None:
+def test_position_vwap_on_same_side_fill() -> None:
 
     state = _state()
     state.apply(_submit_intent(qty=Decimal('3')))
@@ -358,7 +355,7 @@ def test_same_side_fill_computes_vwap() -> None:
     assert pos.avg_entry_price == Decimal('110')
 
 
-def test_opposite_side_fill_decreases_qty() -> None:
+def test_position_qty_decreases_on_opposite_fill() -> None:
 
     state = _state()
     state.apply(_submit_intent(qty=Decimal('2')))
@@ -369,7 +366,7 @@ def test_opposite_side_fill_decreases_qty() -> None:
     assert state.positions[(_TRADE, _ACCT)].qty == Decimal('1')
 
 
-def test_exit_fill_preserves_avg_entry_price() -> None:
+def test_position_avg_price_preserved_on_exit_fill() -> None:
 
     state = _state()
     state.apply(_submit_intent(qty=Decimal('2')))
@@ -387,7 +384,7 @@ def test_exit_fill_preserves_avg_entry_price() -> None:
     assert state.positions[(_TRADE, _ACCT)].avg_entry_price == Decimal('50000')
 
 
-def test_trade_closed_removes_position() -> None:
+def test_position_removed_on_trade_closed() -> None:
 
     state = _state()
     state.apply(_submit_intent())
@@ -396,9 +393,6 @@ def test_trade_closed_removes_position() -> None:
     assert key in state.positions
     state.apply(_trade_closed())
     assert key not in state.positions
-
-
-# --- warning logs ---
 
 
 def test_warns_unknown_order_on_submitted(caplog: pytest.LogCaptureFixture) -> None:
@@ -443,9 +437,6 @@ def test_warns_unhandled_event_type(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         state.apply(_UnknownEvent())  # type: ignore[arg-type]
     assert 'unhandled event type' in caplog.text
-
-
-# --- full lifecycle ---
 
 
 def test_full_lifecycle_submit_fill_close() -> None:

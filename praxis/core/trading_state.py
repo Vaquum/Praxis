@@ -46,6 +46,9 @@ class TradingState:
 
     def __init__(self, account_id: str) -> None:
 
+        if not account_id:
+            msg = 'TradingState.account_id must be a non-empty string'
+            raise ValueError(msg)
         self.account_id = account_id
         self.positions: dict[tuple[str, str], Position] = {}
         self.orders: dict[str, Order] = {}
