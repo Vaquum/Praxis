@@ -28,7 +28,7 @@ _ZERO = Decimal(0)
 @dataclass(frozen=True)
 class TradeCommand:
     '''
-    An execution instruction from Manager to the Trading sub-system.
+    Represent an execution instruction from Manager to the Trading sub-system.
 
     Args:
         command_id (str): UUID assigned by the Trading sub-system.
@@ -63,7 +63,6 @@ class TradeCommand:
     created_at: datetime
 
     def __post_init__(self) -> None:
-        '''Validate invariants at construction time.'''
 
         if self.qty <= _ZERO:
             msg = 'TradeCommand.qty must be positive'

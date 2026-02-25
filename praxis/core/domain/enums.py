@@ -54,11 +54,10 @@ class OrderStatus(Enum):
     EXPIRED = 'EXPIRED'
 
 
-
 class ExecutionMode(Enum):
-    '''
-    Supported execution modes per RFC.
 
+    '''
+    Define execution modes per RFC.
     SingleShot submits as a single unit. Other modes slice
     or schedule orders across time or price levels.
     '''
@@ -73,7 +72,7 @@ class ExecutionMode(Enum):
 
 
 class MakerPreference(Enum):
-    '''Maker/taker preference for order placement.'''
+    '''Define maker/taker preference for order placement.'''
 
     MAKER_ONLY = 'MAKER_ONLY'
     MAKER_PREFERRED = 'MAKER_PREFERRED'
@@ -81,7 +80,7 @@ class MakerPreference(Enum):
 
 
 class STPMode(Enum):
-    '''Self-trade prevention mode per venue specification.'''
+    '''Define self-trade prevention mode per venue specification.'''
 
     EXPIRE_TAKER = 'EXPIRE_TAKER'
     EXPIRE_MAKER = 'EXPIRE_MAKER'
