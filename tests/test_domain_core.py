@@ -310,12 +310,12 @@ def test_position_rejects_negative_qty() -> None:
 
 
 def test_order_rejects_negative_price() -> None:
-    with pytest.raises(ValueError, match='non-negative'):
+    with pytest.raises(ValueError, match='positive'):
         _order(price=Decimal('-1'))
 
 
 def test_order_rejects_negative_stop_price() -> None:
-    with pytest.raises(ValueError, match='non-negative'):
+    with pytest.raises(ValueError, match='positive'):
         _order(stop_price=Decimal('-1'))
 
 
@@ -348,3 +348,13 @@ def test_order_creation_market_with_no_price() -> None:
     order = _order(order_type=OrderType.MARKET, price=None)
     assert order.price is None
     assert order.order_type == OrderType.MARKET
+
+
+def test_order_rejects_zero_price() -> None:
+    with pytest.raises(ValueError, match='positive'):
+        _order(price=Decimal('0'))
+
+
+def test_order_rejects_zero_stop_price() -> None:
+    with pytest.raises(ValueError, match='positive'):
+        _order(stop_price=Decimal('0'))

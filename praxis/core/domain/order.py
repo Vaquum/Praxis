@@ -41,8 +41,8 @@ class Order:
         order_type (OrderType): Order type.
         qty (Decimal): Requested quantity, must be positive.
         filled_qty (Decimal): Cumulative filled quantity, must be non-negative.
-        price (Decimal | None): Limit price, None for market orders.
-        stop_price (Decimal | None): Stop trigger price, None when not applicable.
+        price (Decimal | None): Limit price, must be positive if set. None for market orders.
+        stop_price (Decimal | None): Stop trigger price, must be positive if set.
         status (OrderStatus): Current lifecycle state.
         created_at (datetime): Order creation time, must be timezone-aware.
         updated_at (datetime): Last state change time, must be timezone-aware.
@@ -79,8 +79,8 @@ class Order:
             raise ValueError(msg)
         for field in ('price', 'stop_price'):
             value = getattr(self, field)
-            if value is not None and value < _ZERO:
-                msg = f'Order.{field} must be non-negative'
+            if value is not None and value <= _ZERO:
+                msg = f'Order.{field} must be positive'
                 raise ValueError(msg)
         if self.filled_qty > self.qty:
             msg = 'Order.filled_qty cannot exceed qty'
