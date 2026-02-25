@@ -68,12 +68,15 @@ class TradeCommand:
         if self.qty <= _ZERO:
             msg = 'TradeCommand.qty must be positive'
             raise ValueError(msg)
+
         if self.timeout <= 0:
             msg = 'TradeCommand.timeout must be positive'
             raise ValueError(msg)
+
         if self.reference_price is not None and self.reference_price <= _ZERO:
             msg = 'TradeCommand.reference_price must be positive'
             raise ValueError(msg)
+
         if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
             msg = 'TradeCommand.created_at must be timezone-aware'
             raise ValueError(msg)
