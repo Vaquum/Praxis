@@ -24,6 +24,11 @@
 </how_to_avoid_harm>
 <KEEP_COMING_BACK_TO_THESE_POINTS_OR_RISK_CAUSING_SERIOUS_HARM---!!!>
 
+
+<dev_docs>
+Before committing code, pushing code, or opening PRs, check https://github.com/Vaquum/dev-docs for the latest guidelines on writing code, docstrings, tests, changelogs, and pull requests.
+</dev_docs>
+
 <code_style>
 <code_style_philohopy>
 
