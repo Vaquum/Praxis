@@ -111,24 +111,22 @@ def test_single_shot_params_frozen() -> None:
         params.price = Decimal('999')  # type: ignore[misc]
 
 
-def test_single_shot_params_rejects_zero_price() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_single_shot_params_rejects_non_positive_price(bad: Decimal) -> None:
     with pytest.raises(ValueError, match='positive'):
-        SingleShotParams(price=Decimal('0'))
+        SingleShotParams(price=bad)
 
 
-def test_single_shot_params_rejects_negative_price() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_single_shot_params_rejects_non_positive_stop_price(bad: Decimal) -> None:
     with pytest.raises(ValueError, match='positive'):
-        SingleShotParams(price=Decimal('-1'))
+        SingleShotParams(stop_price=bad)
 
 
-def test_single_shot_params_rejects_negative_stop_price() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_single_shot_params_rejects_non_positive_stop_limit_price(bad: Decimal) -> None:
     with pytest.raises(ValueError, match='positive'):
-        SingleShotParams(stop_price=Decimal('-1'))
-
-
-def test_single_shot_params_rejects_negative_stop_limit_price() -> None:
-    with pytest.raises(ValueError, match='positive'):
-        SingleShotParams(stop_limit_price=Decimal('-1'))
+        SingleShotParams(stop_limit_price=bad)
 
 
 def test_single_shot_params_none_prices_valid() -> None:
@@ -153,34 +151,22 @@ def test_trade_command_frozen() -> None:
         cmd.qty = Decimal('999')  # type: ignore[misc]
 
 
-def test_trade_command_rejects_zero_qty() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_trade_command_rejects_non_positive_qty(bad: Decimal) -> None:
     with pytest.raises(ValueError, match='positive'):
-        _command(qty=Decimal('0'))
+        _command(qty=bad)
 
 
-def test_trade_command_rejects_negative_qty() -> None:
+@pytest.mark.parametrize('bad', [0, -1])
+def test_trade_command_rejects_non_positive_timeout(bad: int) -> None:
     with pytest.raises(ValueError, match='positive'):
-        _command(qty=Decimal('-1'))
+        _command(timeout=bad)
 
 
-def test_trade_command_rejects_zero_timeout() -> None:
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_trade_command_rejects_non_positive_reference_price(bad: Decimal) -> None:
     with pytest.raises(ValueError, match='positive'):
-        _command(timeout=0)
-
-
-def test_trade_command_rejects_negative_timeout() -> None:
-    with pytest.raises(ValueError, match='positive'):
-        _command(timeout=-1)
-
-
-def test_trade_command_rejects_zero_reference_price() -> None:
-    with pytest.raises(ValueError, match='positive'):
-        _command(reference_price=Decimal('0'))
-
-
-def test_trade_command_rejects_negative_reference_price() -> None:
-    with pytest.raises(ValueError, match='positive'):
-        _command(reference_price=Decimal('-1'))
+        _command(reference_price=bad)
 
 
 def test_trade_command_none_reference_price_valid() -> None:
