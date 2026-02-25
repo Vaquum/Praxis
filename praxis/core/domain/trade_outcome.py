@@ -107,12 +107,14 @@ class TradeOutcome:
 
     @property
     def is_terminal(self) -> bool:
+
         '''Return True if the outcome represents a terminal state.'''
 
         return self.status in _TERMINAL
 
     @property
     def fill_ratio(self) -> Decimal:
+
         '''Return the ratio of filled quantity to target quantity.'''
 
         return self.filled_qty / self.target_qty

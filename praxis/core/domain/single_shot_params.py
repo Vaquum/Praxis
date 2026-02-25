@@ -17,6 +17,7 @@ _ZERO = Decimal(0)
 
 @dataclass(frozen=True)
 class SingleShotParams:
+
     '''
     Parameters for SingleShot execution mode.
 
@@ -31,6 +32,7 @@ class SingleShotParams:
     stop_limit_price: Decimal | None = None
 
     def __post_init__(self) -> None:
+
         '''Validate invariants at construction time.'''
 
         for field in ('price', 'stop_price', 'stop_limit_price'):

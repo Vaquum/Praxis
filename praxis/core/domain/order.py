@@ -28,6 +28,7 @@ _TERMINAL_STATUSES: frozenset[OrderStatus] = frozenset({
 
 @dataclass
 class Order:
+
     '''
     A trading order tracked from submission through terminal state.
 
@@ -64,6 +65,7 @@ class Order:
     updated_at: datetime
 
     def __post_init__(self) -> None:
+
         '''Validate invariants at construction time.'''
 
         for field in ('created_at', 'updated_at'):
@@ -96,12 +98,14 @@ class Order:
 
     @property
     def is_terminal(self) -> bool:
+
         '''Return True if the order is in a terminal lifecycle state.'''
 
         return self.status in _TERMINAL_STATUSES
 
     @property
     def remaining_qty(self) -> Decimal:
+
         '''Return the unfilled quantity.'''
 
         return self.qty - self.filled_qty

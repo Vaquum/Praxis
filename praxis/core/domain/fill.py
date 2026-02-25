@@ -21,6 +21,7 @@ _ZERO = Decimal(0)
 
 @dataclass(frozen=True)
 class Fill:
+
     '''
     A single order execution (partial or full) reported by the venue.
 
@@ -57,6 +58,7 @@ class Fill:
     timestamp: datetime
 
     def __post_init__(self) -> None:
+
         '''Validate invariants at construction time.'''
 
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
@@ -74,6 +76,7 @@ class Fill:
 
     @property
     def dedup_key(self) -> str | tuple[str, Decimal, Decimal, datetime]:
+
         '''
         Return the deduplication key for this fill.
 

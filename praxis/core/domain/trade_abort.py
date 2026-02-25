@@ -15,6 +15,7 @@ __all__ = ['TradeAbort']
 
 @dataclass(frozen=True)
 class TradeAbort:
+
     '''
     A cancel instruction targeting a specific TradeCommand.
 
@@ -31,6 +32,7 @@ class TradeAbort:
     created_at: datetime
 
     def __post_init__(self) -> None:
+
         '''Validate invariants at construction time.'''
 
         if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
