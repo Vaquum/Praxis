@@ -27,6 +27,7 @@ _ZERO = Decimal(0)
 
 @dataclass(frozen=True)
 class TradeCommand:
+
     '''
     Represent an execution instruction from Manager to the Trading sub-system.
 

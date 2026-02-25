@@ -20,6 +20,7 @@ _ZERO = Decimal(0)
 
 @dataclass
 class Position:
+
     '''
     An open position tracked per trade_id per account_id.
 
@@ -40,6 +41,7 @@ class Position:
     avg_entry_price: Decimal
 
     def __post_init__(self) -> None:
+
         '''Validate invariants at construction time.'''
 
         if self.qty < _ZERO:
@@ -52,6 +54,7 @@ class Position:
 
     @property
     def is_closed(self) -> bool:
+
         '''Return True if position quantity has reached zero.'''
 
         return self.qty == _ZERO

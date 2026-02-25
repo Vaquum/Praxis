@@ -8,6 +8,7 @@ __all__ = ['pytestmark']
 
 
 def test_testnet_urls() -> None:
+
     '''Verify URL constants point at testnet, not mainnet.'''
 
     assert REST_BASE == 'https://testnet.binance.vision'

@@ -14,6 +14,7 @@ __all__ = ['ExecutionMode', 'MakerPreference', 'OrderSide', 'OrderStatus', 'Orde
 
 
 class OrderSide(Enum):
+
     '''Buy or sell direction for orders and positions.'''
 
     BUY = 'BUY'
@@ -21,6 +22,7 @@ class OrderSide(Enum):
 
 
 class OrderType(Enum):
+
     '''
     Supported order types per venue adapter specification.
 
@@ -39,6 +41,7 @@ class OrderType(Enum):
 
 
 class OrderStatus(Enum):
+
     '''
     Order lifecycle states per RFC order submission protocol.
 
@@ -72,6 +75,7 @@ class ExecutionMode(Enum):
 
 
 class MakerPreference(Enum):
+
     '''Define maker/taker preference for order placement.'''
 
     MAKER_ONLY = 'MAKER_ONLY'
@@ -80,6 +84,7 @@ class MakerPreference(Enum):
 
 
 class STPMode(Enum):
+
     '''Define self-trade prevention mode per venue specification.'''
 
     EXPIRE_TAKER = 'EXPIRE_TAKER'
@@ -89,6 +94,7 @@ class STPMode(Enum):
 
 
 class TradeStatus(Enum):
+
     '''
     Define trade-level execution status per Consensus #22.
 
