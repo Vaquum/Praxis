@@ -142,7 +142,10 @@ def _hydrate(event_type: str, payload: bytes) -> Event:
         Event: Hydrated domain event dataclass
     '''
 
-    cls = _EVENT_REGISTRY[event_type]
+    cls = _EVENT_REGISTRY.get(event_type)
+    if cls is None:
+        msg = f"Unknown event_type: {event_type!r}"
+        raise ValueError(msg)
     raw: dict[str, Any] = orjson.loads(payload)
     hints = get_type_hints(cls)
     coerced = {k: _coerce(v, hints[k]) for k, v in raw.items()}
@@ -200,7 +203,9 @@ class EventSpine:
         cursor = await self._conn.execute(
             _INSERT, (epoch_id, timestamp, event_type, payload)
         )
-        assert cursor.lastrowid is not None
+        if cursor.lastrowid is None:
+            msg = 'cursor.lastrowid was None after INSERT'
+            raise RuntimeError(msg)
         return cursor.lastrowid
 
     async def read(self, epoch_id: int, after_seq: int = 0) -> list[tuple[int, Event]]:
