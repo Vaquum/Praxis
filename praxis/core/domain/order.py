@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from praxis.core.domain._require_str import _require_str
 from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 
 
@@ -67,6 +68,9 @@ class Order:
     def __post_init__(self) -> None:
 
         '''Validate invariants at construction time.'''
+
+        for field in ('client_order_id', 'account_id', 'command_id', 'symbol'):
+            _require_str('Order', field, getattr(self, field))
 
         for field in ('created_at', 'updated_at'):
             dt = getattr(self, field)

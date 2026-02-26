@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
+from praxis.core.domain._require_str import _require_str
 from praxis.core.domain.enums import OrderSide
 
 
@@ -43,6 +44,9 @@ class Position:
     def __post_init__(self) -> None:
 
         '''Validate invariants at construction time.'''
+
+        for field in ('account_id', 'trade_id', 'symbol'):
+            _require_str('Position', field, getattr(self, field))
 
         if self.qty < _ZERO:
             msg = 'Position.qty must be non-negative'

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from praxis.core.domain._require_str import _require_str
 from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
@@ -64,6 +65,11 @@ class TradeCommand:
     created_at: datetime
 
     def __post_init__(self) -> None:
+
+        '''Validate invariants at construction time.'''
+
+        for field in ('command_id', 'trade_id', 'account_id', 'symbol'):
+            _require_str('TradeCommand', field, getattr(self, field))
 
         if self.qty <= _ZERO:
             msg = 'TradeCommand.qty must be positive'

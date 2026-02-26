@@ -225,3 +225,24 @@ def test_trade_outcome_missed_iterations_zero_valid() -> None:
 
     outcome = _outcome(missed_iterations=0)
     assert outcome.missed_iterations == 0
+
+
+@pytest.mark.parametrize('field', ['command_id', 'trade_id', 'account_id'])
+def test_trade_outcome_rejects_empty_string(field: str) -> None:
+
+    kwargs = {
+        'command_id': 'cmd-001',
+        'trade_id': 'trade-001',
+        'account_id': 'acc-1',
+        'status': TradeStatus.FILLED,
+        'target_qty': Decimal('10.0'),
+        'filled_qty': Decimal('10.0'),
+        'avg_fill_price': Decimal('50000.00'),
+        'slices_completed': 5,
+        'slices_total': 5,
+        'reason': 'done',
+        'created_at': _TS,
+    }
+    kwargs[field] = ''
+    with pytest.raises(ValueError, match='non-empty string'):
+        TradeOutcome(**kwargs)

@@ -65,3 +65,12 @@
 - Add `TradingState` re-export from `praxis.core` package
 - Add domain package re-exports for all 25 domain types in `praxis/core/domain/__init__.py`
 - Add [`test_trading_state.py`](tests/test_trading_state.py) with 27 tests covering construction validation, apply dispatch, order lifecycle, position VWAP, exit fills, warning logs, and full lifecycle
+
+## v0.6.1 on 26th of February, 2026
+
+- Add [`_require_str.py`](praxis/core/domain/_require_str.py) shared non-empty string validation helper extracted from `events.py`
+- Add non-empty string validation to `Position` (`account_id`, `trade_id`, `symbol`), `Order` (`client_order_id`, `account_id`, `command_id`, `symbol`), `Fill` (`venue_order_id`, `client_order_id`, `account_id`, `trade_id`, `command_id`, `symbol`, `fee_asset`), `TradeCommand` (`command_id`, `trade_id`, `account_id`, `symbol`), `TradeAbort` (`command_id`, `account_id`, `reason`), and `TradeOutcome` (`command_id`, `trade_id`, `account_id`)
+- Add parametrized empty-string validation tests to [`test_domain_core.py`](tests/test_domain_core.py), [`test_domain_commands.py`](tests/test_domain_commands.py), and [`test_domain_outcome.py`](tests/test_domain_outcome.py)
+- Add `__post_init__` docstrings to `TradeCommand` and `TradeOutcome` for consistency with other domain dataclasses
+- Add `.claude/` to `.gitignore`
+- Refactor `events.py` to import `_require_str` from shared module instead of defining it locally
