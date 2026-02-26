@@ -181,8 +181,10 @@ class EventSpine:
             None
         '''
 
-        await self._conn.execute(_CREATE_TABLE)
-        await self._conn.execute(_CREATE_INDEX)
+        async with self._conn.execute(_CREATE_TABLE):
+            pass
+        async with self._conn.execute(_CREATE_INDEX):
+            pass
 
     async def append(self, event: Event, epoch_id: int) -> int:
 
@@ -198,15 +200,18 @@ class EventSpine:
         '''
 
         event_type = type(event).__name__
+        if event_type not in _EVENT_REGISTRY:
+            msg = f'Unregistered event type "{event_type}" cannot be appended'
+            raise ValueError(msg)
         timestamp = event.timestamp.isoformat()
         payload = orjson.dumps(dataclasses.asdict(event), default=_serialize_default)
-        cursor = await self._conn.execute(
+        async with self._conn.execute(
             _INSERT, (epoch_id, timestamp, event_type, payload)
-        )
-        if cursor.lastrowid is None:
-            msg = 'cursor.lastrowid was None after INSERT'
-            raise RuntimeError(msg)
-        return cursor.lastrowid
+        ) as cursor:
+            if cursor.lastrowid is None:
+                msg = 'cursor.lastrowid was None after INSERT'
+                raise RuntimeError(msg)
+            return cursor.lastrowid
 
     async def read(self, epoch_id: int, after_seq: int = 0) -> list[tuple[int, Event]]:
 
@@ -221,8 +226,8 @@ class EventSpine:
             list[tuple[int, Event]]: Pairs of (event_seq, hydrated Event)
         '''
 
-        cursor = await self._conn.execute(_SELECT, (epoch_id, after_seq))
-        rows = await cursor.fetchall()
+        async with self._conn.execute(_SELECT, (epoch_id, after_seq)) as cursor:
+            rows = await cursor.fetchall()
         return [(row[0], _hydrate(row[1], row[2])) for row in rows]
 
     async def last_event_seq(self, epoch_id: int) -> int | None:
@@ -237,6 +242,6 @@ class EventSpine:
             int | None: Highest event_seq, or None if epoch has no events
         '''
 
-        cursor = await self._conn.execute(_LAST_SEQ, (epoch_id,))
-        row = await cursor.fetchone()
+        async with self._conn.execute(_LAST_SEQ, (epoch_id,)) as cursor:
+            row = await cursor.fetchone()
         return row[0] if row else None
