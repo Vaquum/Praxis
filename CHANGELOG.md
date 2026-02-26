@@ -67,10 +67,15 @@
 - Add [`test_trading_state.py`](tests/test_trading_state.py) with 27 tests covering construction validation, apply dispatch, order lifecycle, position VWAP, exit fills, warning logs, and full lifecycle
 
 ## v0.6.1 on 26th of February, 2026
-
-- Add [`_require_str.py`](praxis/core/domain/_require_str.py) shared non-empty string validation helper extracted from `events.py`
 - Add non-empty string validation to `Position` (`account_id`, `trade_id`, `symbol`), `Order` (`client_order_id`, `account_id`, `command_id`, `symbol`), `Fill` (`venue_order_id`, `client_order_id`, `account_id`, `trade_id`, `command_id`, `symbol`, `fee_asset`), `TradeCommand` (`command_id`, `trade_id`, `account_id`, `symbol`), `TradeAbort` (`command_id`, `account_id`, `reason`), and `TradeOutcome` (`command_id`, `trade_id`, `account_id`)
 - Add parametrized empty-string validation tests to [`test_domain_core.py`](tests/test_domain_core.py), [`test_domain_commands.py`](tests/test_domain_commands.py), and [`test_domain_outcome.py`](tests/test_domain_outcome.py)
 - Add `__post_init__` docstrings to `TradeCommand` and `TradeOutcome` for consistency with other domain dataclasses
 - Add `.claude/` to `.gitignore`
 - Refactor `events.py` to import `_require_str` from shared module instead of defining it locally
+## v0.7.0 on 26th of February, 2026
+- Add `aiosqlite>=0.20` as runtime dependency
+- Add `EventSpine` class in [`event_spine.py`](praxis/infrastructure/event_spine.py) with append-only SQLite event log, epoch-scoped reads, and event type registry hydration
+- Add `append()` method serializing domain events via orjson with Decimal, datetime, and enum support
+- Add `read()` method hydrating stored payloads back into domain Event dataclasses via `get_type_hints`-based coercion
+- Add `last_event_seq()` method returning highest sequence number per epoch
+- Add [`test_event_spine.py`](tests/test_event_spine.py) with 19 tests covering round-trip for all 10 event types, epoch isolation, ordering, Decimal precision, datetime timezone, enum preservation, and after_seq filtering
