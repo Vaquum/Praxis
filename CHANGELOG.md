@@ -72,7 +72,9 @@
 - Add `__post_init__` docstrings to `TradeCommand` and `TradeOutcome` for consistency with other domain dataclasses
 - Add `.claude/` to `.gitignore`
 - Refactor `events.py` to import `_require_str` from shared module instead of defining it locally
+
 ## v0.7.0 on 26th of February, 2026
+
 - Add `aiosqlite>=0.20` as runtime dependency
 - Add `EventSpine` class in [`event_spine.py`](praxis/infrastructure/event_spine.py) with append-only SQLite event log, epoch-scoped reads, and event type registry hydration
 - Add `append()` method serializing domain events via orjson with Decimal, datetime, and enum support
