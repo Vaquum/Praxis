@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from praxis.core.domain._require_str import _require_str
 from praxis.core.domain.enums import OrderSide
 
 
@@ -60,6 +61,12 @@ class Fill:
     def __post_init__(self) -> None:
 
         '''Validate invariants at construction time.'''
+
+        for field in (
+            'venue_order_id', 'client_order_id',
+            'account_id', 'trade_id', 'command_id', 'symbol', 'fee_asset',
+        ):
+            _require_str('Fill', field, getattr(self, field))
 
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
             msg = 'Fill.timestamp must be timezone-aware'

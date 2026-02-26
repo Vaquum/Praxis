@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from praxis.core.domain._require_str import _require_str
+
 __all__ = ['TradeAbort']
 
 
@@ -34,6 +36,9 @@ class TradeAbort:
     def __post_init__(self) -> None:
 
         '''Validate invariants at construction time.'''
+
+        for field in ('command_id', 'account_id', 'reason'):
+            _require_str('TradeAbort', field, getattr(self, field))
 
         if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
             msg = 'TradeAbort.created_at must be timezone-aware'

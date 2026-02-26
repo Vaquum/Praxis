@@ -251,3 +251,41 @@ def test_trade_abort_rejects_naive_created_at() -> None:
             reason='test',
             created_at=datetime(2026, 1, 1),
         )
+
+
+@pytest.mark.parametrize('field', ['command_id', 'trade_id', 'account_id', 'symbol'])
+def test_trade_command_rejects_empty_string(field: str) -> None:
+
+    kwargs = {
+        'command_id': 'cmd-001',
+        'trade_id': 'trade-001',
+        'account_id': 'acc-1',
+        'symbol': 'BTCUSDT',
+        'side': OrderSide.BUY,
+        'qty': Decimal('1.0'),
+        'order_type': OrderType.LIMIT,
+        'execution_mode': ExecutionMode.SINGLE_SHOT,
+        'execution_params': SingleShotParams(price=Decimal('50000.00')),
+        'timeout': 60,
+        'reference_price': None,
+        'maker_preference': MakerPreference.NO_PREFERENCE,
+        'stp_mode': STPMode.NONE,
+        'created_at': _TS,
+    }
+    kwargs[field] = ''
+    with pytest.raises(ValueError, match='non-empty string'):
+        TradeCommand(**kwargs)
+
+
+@pytest.mark.parametrize('field', ['command_id', 'account_id', 'reason'])
+def test_trade_abort_rejects_empty_string(field: str) -> None:
+
+    kwargs = {
+        'command_id': 'cmd-001',
+        'account_id': 'acc-1',
+        'reason': 'operator_cancel',
+        'created_at': _TS,
+    }
+    kwargs[field] = ''
+    with pytest.raises(ValueError, match='non-empty string'):
+        TradeAbort(**kwargs)

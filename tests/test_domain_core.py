@@ -380,3 +380,70 @@ def test_order_rejects_market_with_price() -> None:
 
     with pytest.raises(ValueError, match='MARKET'):
         _order(order_type=OrderType.MARKET, price=Decimal('50000.00'))
+
+
+@pytest.mark.parametrize('field', ['account_id', 'trade_id', 'symbol'])
+def test_position_rejects_empty_string(field: str) -> None:
+
+    kwargs = {
+        'account_id': 'acc-1',
+        'trade_id': 'trade-1',
+        'symbol': 'BTCUSDT',
+        'side': OrderSide.BUY,
+        'qty': Decimal('1.0'),
+        'avg_entry_price': Decimal('50000.00'),
+    }
+    kwargs[field] = ''
+    with pytest.raises(ValueError, match='non-empty string'):
+        Position(**kwargs)
+
+
+@pytest.mark.parametrize('field', ['client_order_id', 'account_id', 'command_id', 'symbol'])
+def test_order_rejects_empty_string(field: str) -> None:
+
+    kwargs = {
+        'client_order_id': 'new_order-cmd1-0',
+        'venue_order_id': None,
+        'account_id': 'acc-1',
+        'command_id': 'cmd-1',
+        'symbol': 'BTCUSDT',
+        'side': OrderSide.BUY,
+        'order_type': OrderType.LIMIT,
+        'qty': Decimal('1.0'),
+        'filled_qty': Decimal('0'),
+        'price': Decimal('50000.00'),
+        'stop_price': None,
+        'status': OrderStatus.SUBMITTING,
+        'created_at': _TS,
+        'updated_at': _TS,
+    }
+    kwargs[field] = ''
+    with pytest.raises(ValueError, match='non-empty string'):
+        Order(**kwargs)
+
+
+@pytest.mark.parametrize('field', [
+    'venue_order_id', 'client_order_id',
+    'account_id', 'trade_id', 'command_id', 'symbol', 'fee_asset',
+])
+def test_fill_rejects_empty_string(field: str) -> None:
+
+    kwargs = {
+        'venue_trade_id': 'vt-001',
+        'venue_order_id': 'vo-001',
+        'client_order_id': 'new_order-cmd1-0',
+        'account_id': 'acc-1',
+        'trade_id': 'trade-1',
+        'command_id': 'cmd-1',
+        'symbol': 'BTCUSDT',
+        'side': OrderSide.BUY,
+        'qty': Decimal('0.5'),
+        'price': Decimal('50000.00'),
+        'fee': Decimal('0.001'),
+        'fee_asset': 'BTC',
+        'is_maker': True,
+        'timestamp': _TS,
+    }
+    kwargs[field] = ''
+    with pytest.raises(ValueError, match='non-empty string'):
+        Fill(**kwargs)

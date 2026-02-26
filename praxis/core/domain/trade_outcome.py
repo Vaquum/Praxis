@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from praxis.core.domain._require_str import _require_str
 from praxis.core.domain.enums import TradeStatus
 
 __all__ = ['TradeOutcome']
@@ -64,6 +65,11 @@ class TradeOutcome:
     missed_reason: str | None = None
 
     def __post_init__(self) -> None:
+
+        '''Validate invariants at construction time.'''
+
+        for field in ('command_id', 'trade_id', 'account_id'):
+            _require_str('TradeOutcome', field, getattr(self, field))
 
         if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
             msg = 'TradeOutcome.created_at must be timezone-aware'
