@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vaquum-praxis"
-version = "0.6.1"
+version = "0.7.0"
 description = "Execution system for Vaquum — Trading sub-system + Account sub-system."
 readme = "README.md"
 authors = [
@@ -12,7 +12,7 @@ authors = [
 ]
 license = { text = "MIT" }
 requires-python = ">=3.10"
-dependencies = ["structlog>=24.1", "orjson>=3.10"]
+dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20"]
 
 [project.optional-dependencies]
 dev = [
