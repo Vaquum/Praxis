@@ -162,7 +162,7 @@ def _hydrate(event_type: str, payload: bytes) -> Event:
         raise ValueError(msg)
     raw: dict[str, Any] = orjson.loads(payload)
     hints = get_type_hints(cls)
-    coerced = {k: _coerce(v, hints[k]) for k, v in raw.items()}
+    coerced = {k: _coerce(v, hints[k]) for k, v in raw.items() if k in hints}
     return cls(**coerced)  # type: ignore[no-any-return]
 
 
