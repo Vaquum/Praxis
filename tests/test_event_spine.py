@@ -3,6 +3,7 @@ Tests for praxis.infrastructure.event_spine.EventSpine.
 '''
 
 from __future__ import annotations
+from dataclasses import replace
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -73,7 +74,7 @@ _ALL_EVENTS = [
         command_id=_CMD, symbol=_SYMBOL,
         side=OrderSide.BUY, qty=Decimal('1.5'),
         price=Decimal('50000.25'), fee=Decimal('0.001'),
-        fee_asset='BNB', is_maker=True,
+        fee_asset='USDT', is_maker=True,
     ),
 
     OrderRejected(
@@ -100,6 +101,15 @@ _ALL_EVENTS = [
 
 ]
 
+_FILL = FillReceived(
+    account_id=_ACCT, timestamp=_TS,
+    client_order_id=_ORDER, venue_order_id=_VORD,
+    venue_trade_id=_VTRD, trade_id=_TRADE,
+    command_id=_CMD, symbol=_SYMBOL,
+    side=OrderSide.BUY, qty=Decimal('1.5'),
+    price=Decimal('50000.25'), fee=Decimal('0.001'),
+    fee_asset='USDT', is_maker=True,
+)
 
 @pytest_asyncio.fixture
 async def spine():
@@ -186,7 +196,7 @@ async def test_event_spine_decimal_precision(spine: EventSpine):
         qty=Decimal('0.00000001'),
         price=Decimal('99999.99999999'),
         fee=Decimal('0.00000000001'),
-        fee_asset='BTC', is_maker=False,
+        fee_asset='USDT', is_maker=False,
     )
     await spine.append(event, epoch_id=_EPOCH)
     results = await spine.read(epoch_id=_EPOCH)
@@ -249,3 +259,80 @@ async def test_event_spine_after_seq_filtering(spine: EventSpine):
     assert len(results) == len(seqs) - 3
     assert results[0][0] == seqs[3]
     assert results[1][0] == seqs[4]
+
+
+@pytest.mark.asyncio
+async def test_fill_dedup_first_append_returns_seq(spine: EventSpine):
+
+    seq = await spine.append(_FILL, epoch_id=_EPOCH)
+    assert isinstance(seq, int)
+
+
+@pytest.mark.asyncio
+async def test_fill_dedup_duplicate_returns_none(spine: EventSpine):
+
+    await spine.append(_FILL, epoch_id=_EPOCH)
+    result = await spine.append(_FILL, epoch_id=_EPOCH)
+    assert result is None
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 1
+
+
+@pytest.mark.asyncio
+async def test_fill_dedup_different_trade_ids_both_append(spine: EventSpine):
+
+    fill_b = replace(_FILL, venue_trade_id='vt-002')
+    seq_a = await spine.append(_FILL, epoch_id=_EPOCH)
+    seq_b = await spine.append(fill_b, epoch_id=_EPOCH)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 2
+
+
+@pytest.mark.asyncio
+async def test_fill_dedup_same_trade_id_different_accounts(spine: EventSpine):
+
+    fill_b = replace(_FILL, account_id='acc-2', side=OrderSide.SELL, is_maker=False)
+    seq_a = await spine.append(_FILL, epoch_id=_EPOCH)
+    seq_b = await spine.append(fill_b, epoch_id=_EPOCH)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 2
+
+
+@pytest.mark.asyncio
+async def test_fill_dedup_epoch_scoped(spine: EventSpine):
+
+    seq_1 = await spine.append(_FILL, epoch_id=1)
+    seq_2 = await spine.append(_FILL, epoch_id=2)
+    assert isinstance(seq_1, int)
+    assert isinstance(seq_2, int)
+
+
+@pytest.mark.asyncio
+async def test_fill_dedup_non_fill_events_unaffected(spine: EventSpine):
+
+    event = CommandAccepted(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, trade_id=_TRADE,
+    )
+    seq_1 = await spine.append(event, epoch_id=_EPOCH)
+    seq_2 = await spine.append(event, epoch_id=_EPOCH)
+    assert isinstance(seq_1, int)
+    assert isinstance(seq_2, int)
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 2
+
+
+@pytest.mark.asyncio
+async def test_fill_dedup_table_populated(spine: EventSpine):
+
+    await spine.append(_FILL, epoch_id=_EPOCH)
+    cursor = await spine._conn.execute(
+        'SELECT epoch_id, account_id, dedup_key FROM fill_dedup'
+    )
+    rows = await cursor.fetchall()
+    assert len(rows) == 1
+    assert rows[0] == (_EPOCH, _ACCT, _VTRD)

@@ -81,3 +81,12 @@
 - Add `read()` method hydrating stored payloads back into domain Event dataclasses via `get_type_hints`-based coercion
 - Add `last_event_seq()` method returning highest sequence number per epoch
 - Add [`test_event_spine.py`](tests/test_event_spine.py) with 19 tests covering round-trip for all 10 event types, epoch isolation, ordering, Decimal precision, datetime timezone, enum preservation, and after_seq filtering
+
+## v0.8.0 on 26th of February, 2026
+
+- Add `fill_dedup` table with `UNIQUE(epoch_id, account_id, dedup_key)` constraint for epoch-scoped fill deduplication in [`event_spine.py`](praxis/infrastructure/event_spine.py)
+- Add fill deduplication to `EventSpine.append()` — duplicate `FillReceived` events silently dropped per RFC, scoped by (account_id, venue_trade_id) per epoch
+- Add `PLR2004` to test file ruff ignores in [`pyproject.toml`](pyproject.toml)
+- Add 7 fill deduplication tests to [`test_event_spine.py`](tests/test_event_spine.py) covering duplicate detection, cross-account correctness, epoch scoping, and non-fill event passthrough
+- Harden `_hydrate` forward-compatibility by filtering payload keys against declared type hints, silently ignoring extra fields from older event schemas
+- Add [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md) tracking 5 known debt items (TD-001 through TD-005) mined from PR review history

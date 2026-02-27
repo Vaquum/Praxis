@@ -49,6 +49,14 @@ _CREATE_INDEX = (
     'ON events (epoch_id, event_seq)'
 )
 
+_CREATE_FILL_DEDUP = '''
+CREATE TABLE IF NOT EXISTS fill_dedup (
+    epoch_id INTEGER NOT NULL,
+    account_id TEXT NOT NULL,
+    dedup_key TEXT NOT NULL,
+    UNIQUE(epoch_id, account_id, dedup_key)
+)'''
+
 _INSERT = (
     'INSERT INTO events (epoch_id, timestamp, event_type, payload) '
     'VALUES (?, ?, ?, ?)'
@@ -60,6 +68,12 @@ _SELECT = (
 )
 
 _LAST_SEQ = 'SELECT MAX(event_seq) FROM events WHERE epoch_id = ?'
+
+
+_DEDUP_INSERT = (
+    'INSERT OR IGNORE INTO fill_dedup (epoch_id, account_id, dedup_key) '
+    'VALUES (?, ?, ?)'
+)
 
 _EVENT_REGISTRY: dict[str, type] = {
     cls.__name__: cls
@@ -148,7 +162,7 @@ def _hydrate(event_type: str, payload: bytes) -> Event:
         raise ValueError(msg)
     raw: dict[str, Any] = orjson.loads(payload)
     hints = get_type_hints(cls)
-    coerced = {k: _coerce(v, hints[k]) for k, v in raw.items()}
+    coerced = {k: _coerce(v, hints[k]) for k, v in raw.items() if k in hints}
     return cls(**coerced)  # type: ignore[no-any-return]
 
 
@@ -175,7 +189,7 @@ class EventSpine:
     async def ensure_schema(self) -> None:
 
         '''
-        Create the events table and epoch index if they do not exist.
+        Create the events table, epoch index, and fill dedup table if they do not exist.
 
         Returns:
             None
@@ -185,19 +199,33 @@ class EventSpine:
             pass
         async with self._conn.execute(_CREATE_INDEX):
             pass
+        async with self._conn.execute(_CREATE_FILL_DEDUP):
+            pass
 
-    async def append(self, event: Event, epoch_id: int) -> int:
+    async def append(self, event: Event, epoch_id: int) -> int | None:
 
         '''
         Serialize and append a domain event to the log.
+
+        Deduplicate FillReceived events by (account_id, venue_trade_id)
+        within the epoch. Duplicate fills are silently dropped per RFC.
+        Caller must manage transaction boundaries to ensure atomicity
+        between the dedup check and event insertion.
 
         Args:
             event (Event): Domain event dataclass to persist
             epoch_id (int): Current epoch identifier
 
         Returns:
-            int: Assigned monotonic event sequence number
+            int | None: Assigned event_seq, or None if duplicate fill dropped
         '''
+
+        if isinstance(event, FillReceived):
+            cursor = await self._conn.execute(
+                _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
+            )
+            if cursor.rowcount == 0:
+                return None
 
         event_type = type(event).__name__
         if event_type not in _EVENT_REGISTRY:
