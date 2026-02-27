@@ -53,3 +53,16 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 **When to fix**: Before production use with real fill data.
 **Migration**: Enforce transaction context via `SAVEPOINT`, or validate that a transaction is active before executing the dual-insert path.
+
+---
+
+## TD-005: _hydrate calls get_type_hints per row on every read
+
+**Origin**: PR #31 (review comments)
+**Severity**: Low (epochs are small currently)
+**Module**: `praxis/infrastructure/event_spine.py`
+
+`_hydrate()` calls `get_type_hints(cls)` for every row returned by `read()`. This is repeated reflection work that scales linearly with epoch size. For large epochs the cost dominates `read()` time.
+
+**When to fix**: Before epochs grow to thousands of events.
+**Migration**: Precompute a `{event_type: hints}` map alongside `_EVENT_REGISTRY` at module load time and reuse it in `_hydrate`.
