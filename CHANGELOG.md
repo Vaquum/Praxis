@@ -90,3 +90,11 @@
 - Add 7 fill deduplication tests to [`test_event_spine.py`](tests/test_event_spine.py) covering duplicate detection, cross-account correctness, epoch scoping, and non-fill event passthrough
 - Harden `_hydrate` forward-compatibility by filtering payload keys against declared type hints, silently ignoring extra fields from older event schemas
 - Add [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md) tracking 5 known debt items (TD-001 through TD-005) mined from PR review history
+
+## v0.9.0 on 27th of February, 2026
+
+- Add `VenueAdapter` runtime-checkable `Protocol` with 9 async methods (`submit_order`, `cancel_order`, `query_order`, `query_open_orders`, `query_balance`, `query_trades`, `query_order_book`, `get_exchange_info`, `get_server_time`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add 9 frozen response dataclasses (`ImmediateFill`, `SubmitResult`, `CancelResult`, `VenueOrder`, `VenueTrade`, `BalanceEntry`, `OrderBookLevel`, `OrderBookSnapshot`, `SymbolFilters`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `VenueError` base exception with 5 typed subclasses (`OrderRejectedError`, `RateLimitError`, `AuthenticationError`, `TransientError`, `NotFoundError`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `account_id` parameter to all authenticated Protocol methods for multi-account API key routing
+- Add [`test_venue_adapter.py`](tests/test_venue_adapter.py) with 23 tests covering dataclass immutability, error hierarchy, and Protocol conformance
