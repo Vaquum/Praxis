@@ -417,7 +417,7 @@ class VenueAdapter(Protocol):
         Args:
             account_id (str): Account identifier for API key routing
             symbol (str): Trading pair symbol
-            start_time (datetime | None): Return trades after this time
+            start_time (datetime | None): Return trades after this time, must be timezone-aware
 
         Returns:
             list[VenueTrade]: Trade records from the venue
