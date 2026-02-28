@@ -11,6 +11,7 @@ import pytest
 from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from tests.testnet.conftest import (
+    HTTP_OK,
     MIN_ORDER_QUOTE_QTY,
     REST_BASE,
     SESSION_TIMEOUT,
@@ -60,6 +61,7 @@ async def _current_price() -> Decimal:
             params={'symbol': SYMBOL},
         ) as r,
     ):
+        assert r.status == HTTP_OK
         data = await r.json()
     return Decimal(data['price'])
 

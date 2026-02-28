@@ -87,7 +87,7 @@ class BinanceAdapter:
             BinanceAdapter: Self for use in async with block
         '''
 
-        self._session = aiohttp.ClientSession(timeout=_SESSION_TIMEOUT)
+        await self._ensure_session()
         return self
 
     async def __aexit__(
@@ -421,7 +421,7 @@ class BinanceAdapter:
             ) as response:
                 await self._raise_on_error(response)
                 data = await response.json()
-        except (aiohttp.ClientError, TimeoutError) as exc:
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
             msg = f"Request failed: {exc}"
             raise TransientError(msg) from exc
 
