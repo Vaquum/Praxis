@@ -127,19 +127,20 @@ async def test_limit_buy_rests_at_far_below_price() -> None:
             price=far_below,
         )
 
-    assert result.status == OrderStatus.OPEN
-    assert len(result.immediate_fills) == 0
-    assert result.venue_order_id
-
-    async with (
-        aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
-        s.delete(
-            f"{REST_BASE}/api/v3/order",
-            params=signed_params(symbol=SYMBOL, orderId=result.venue_order_id),
-            headers=auth_headers(),
-        ) as r,
-    ):
-        assert r.status == HTTP_OK
+    try:
+        assert result.status == OrderStatus.OPEN
+        assert len(result.immediate_fills) == 0
+        assert result.venue_order_id
+    finally:
+        async with (
+            aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
+            s.delete(
+                f"{REST_BASE}/api/v3/order",
+                params=signed_params(symbol=SYMBOL, orderId=result.venue_order_id),
+                headers=auth_headers(),
+            ) as r,
+        ):
+            assert r.status == HTTP_OK
 
 
 @skip_no_creds
