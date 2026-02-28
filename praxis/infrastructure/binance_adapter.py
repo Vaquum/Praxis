@@ -315,7 +315,7 @@ class BinanceAdapter:
             SubmitResult: Normalised submission result
         '''
 
-        fills = [
+        fills = tuple(
             ImmediateFill(
                 venue_trade_id=str(f['tradeId']),
                 qty=Decimal(f['qty']),
@@ -325,7 +325,7 @@ class BinanceAdapter:
                 is_maker=False,
             )
             for f in data.get('fills', [])
-        ]
+        )
         return SubmitResult(
             venue_order_id=str(data['orderId']),
             status=self._map_order_status(data['status']),

@@ -101,3 +101,16 @@
 - Add docstring notes for `cancel_order` and `query_order` requiring at least one order identifier
 - Rename `SubmitResult.fills` to `immediate_fills` with corrected docstring
 - Add [`test_venue_adapter.py`](tests/test_venue_adapter.py) with 24 tests covering dataclass immutability, timestamp validation, error hierarchy, pickle safety, and Protocol conformance
+
+## v0.10.0 on 28th of February, 2026
+
+- Add `BinanceAdapter` class in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py) implementing `VenueAdapter.submit_order()` via Binance `POST /api/v3/order` with `newOrderRespType=FULL`
+- Add HMAC-SHA256 request signing and `X-MBX-APIKEY` header authentication
+- Add order parameter building for `OrderType.MARKET`, `OrderType.LIMIT`, and `OrderType.LIMIT_IOC` with automatic `timeInForce` handling and Decimal serialization
+- Add response normalization mapping Binance statuses to `OrderStatus` and fills to `ImmediateFill` tuple
+- Add HTTP error mapping: 400 → `OrderRejectedError`, 401 → `AuthenticationError`, 403/418/429 → `RateLimitError`, 5xx → `TransientError`
+- Add credential management via constructor injection with runtime `register_account`/`unregister_account`
+- Add async context manager session lifecycle with explicit `close()`
+- Move `aiohttp>=3.10` from dev to runtime dependencies in [`pyproject.toml`](pyproject.toml)
+- Add [`test_binance_adapter.py`](tests/test_binance_adapter.py) with 47 unit tests covering credentials, signing, param building, status mapping, response parsing, error handling, session lifecycle, and end-to-end submit flow
+- Add [`test_binance_adapter.py`](tests/testnet/test_binance_adapter.py) with 3 testnet integration tests for market buy (filled), limit resting (open), and limit IOC (expired)
