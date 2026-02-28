@@ -37,6 +37,7 @@ _HTTP_FORBIDDEN = 403
 _HTTP_TEAPOT = 418
 _HTTP_TOO_MANY = 429
 _HTTP_SERVER_ERROR = 500
+_UNKNOWN_VENUE_CODE = -1
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -47,6 +48,7 @@ _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'EXPIRED': OrderStatus.EXPIRED,
     'EXPIRED_IN_MATCH': OrderStatus.EXPIRED,
 }
+
 
 class BinanceAdapter:
 
@@ -364,7 +366,7 @@ class BinanceAdapter:
             venue_code = int(body['code'])
             reason = str(body['msg'])
         except (ValueError, KeyError, TypeError):
-            venue_code = -1
+            venue_code = _UNKNOWN_VENUE_CODE
             reason = f"HTTP {response.status}"
 
         msg = f"Order rejected: {reason} (code {venue_code})"

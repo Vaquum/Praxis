@@ -16,7 +16,9 @@ from tests.testnet.conftest import (
     REST_BASE,
     SESSION_TIMEOUT,
     SYMBOL,
+    auth_headers,
     pytestmark,
+    signed_params,
     skip_no_creds,
 )
 
@@ -129,6 +131,15 @@ async def test_limit_buy_rests_at_far_below_price() -> None:
     assert len(result.immediate_fills) == 0
     assert result.venue_order_id
 
+    async with (
+        aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
+        s.delete(
+            f"{REST_BASE}/api/v3/order",
+            params=signed_params(symbol=SYMBOL, orderId=result.venue_order_id),
+            headers=auth_headers(),
+        ) as r,
+    ):
+        assert r.status == HTTP_OK
 
 @skip_no_creds
 @pytest.mark.asyncio
