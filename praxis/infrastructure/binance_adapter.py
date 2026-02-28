@@ -38,6 +38,7 @@ _HTTP_TEAPOT = 418
 _HTTP_TOO_MANY = 429
 _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
+_MS_PER_SECOND = 1000
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -197,7 +198,7 @@ class BinanceAdapter:
         '''
 
         signed = dict(params)
-        signed['timestamp'] = str(int(time.time() * 1000))
+        signed['timestamp'] = str(int(time.time() * _MS_PER_SECOND))
         query = urlencode(signed)
         signed['signature'] = hmac.new(
             api_secret.encode(),
@@ -405,7 +406,7 @@ class BinanceAdapter:
         '''
 
         session = await self._ensure_session()
-        _, api_secret = self._get_credentials(account_id)
+        api_key, api_secret = self._get_credentials(account_id)
         params = self._build_order_params(
             symbol, side, order_type, qty,
             price=price, stop_price=stop_price,
@@ -413,7 +414,7 @@ class BinanceAdapter:
             time_in_force=time_in_force,
         )
         signed = self._sign_params(params, api_secret)
-        headers = self._auth_headers(account_id)
+        headers = {_API_KEY_HEADER: api_key}
 
         try:
             async with session.post(
