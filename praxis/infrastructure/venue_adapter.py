@@ -135,7 +135,7 @@ class VenueTrade:
         fee (Decimal): Transaction fee charged
         fee_asset (str): Asset in which the fee is denominated
         is_maker (bool): Whether the trade was a maker trade
-        timestamp (datetime): Venue-reported execution time
+        timestamp (datetime): Venue-reported execution time, must be timezone-aware
     '''
 
     venue_trade_id: str
