@@ -93,8 +93,11 @@
 
 ## v0.9.0 on 27th of February, 2026
 
-- Add `VenueAdapter` runtime-checkable `Protocol` with 9 async methods (`submit_order`, `cancel_order`, `query_order`, `query_open_orders`, `query_balance`, `query_trades`, `query_order_book`, `get_exchange_info`, `get_server_time`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
-- Add 9 frozen response dataclasses (`ImmediateFill`, `SubmitResult`, `CancelResult`, `VenueOrder`, `VenueTrade`, `BalanceEntry`, `OrderBookLevel`, `OrderBookSnapshot`, `SymbolFilters`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `VenueAdapter` runtime-checkable `Protocol` with 8 async methods (`submit_order`, `cancel_order`, `query_order`, `query_open_orders`, `query_balance`, `query_trades`, `get_exchange_info`, `get_server_time`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add 7 frozen response dataclasses (`ImmediateFill`, `SubmitResult`, `CancelResult`, `VenueOrder`, `VenueTrade`, `BalanceEntry`, `SymbolFilters`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
 - Add `VenueError` base exception with 5 typed subclasses (`OrderRejectedError`, `RateLimitError`, `AuthenticationError`, `TransientError`, `NotFoundError`) in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `VenueTrade.__post_init__` timezone validation matching codebase pattern (`Fill`, `_EventBase`, `TradeCommand`)
 - Add `account_id` parameter to all authenticated Protocol methods for multi-account API key routing
-- Add [`test_venue_adapter.py`](tests/test_venue_adapter.py) with 23 tests covering dataclass immutability, error hierarchy, and Protocol conformance
+- Add docstring notes for `cancel_order` and `query_order` requiring at least one order identifier
+- Rename `SubmitResult.fills` to `immediate_fills` with corrected docstring
+- Add [`test_venue_adapter.py`](tests/test_venue_adapter.py) with 22 tests covering dataclass immutability, timestamp validation, error hierarchy, and Protocol conformance

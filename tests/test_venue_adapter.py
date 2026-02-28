@@ -142,6 +142,7 @@ class TestResponseDataclasses:
                 is_maker=True,
                 timestamp=datetime(2026, 1, 1),
             )
+
     def test_balance_entry_frozen(self) -> None:
         entry = BalanceEntry(
             asset='BTC',

@@ -425,7 +425,6 @@ class VenueAdapter(Protocol):
 
         ...
 
-
     async def get_exchange_info(
         self,
         symbol: str,
