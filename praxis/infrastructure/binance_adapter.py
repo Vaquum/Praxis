@@ -57,8 +57,8 @@ class BinanceAdapter:
 
     Args:
         base_url (str): Binance REST API base URL (testnet or mainnet)
-        credentials (dict[str, tuple[str, str]]): Mapping of account_id
-            to (api_key, api_secret) pairs
+        credentials (dict[str, tuple[str, str]] | None): Mapping of account_id
+            to (api_key, api_secret) pairs, defaults to empty
     '''
 
     def __init__(

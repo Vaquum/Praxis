@@ -141,6 +141,7 @@ async def test_limit_buy_rests_at_far_below_price() -> None:
     ):
         assert r.status == HTTP_OK
 
+
 @skip_no_creds
 @pytest.mark.asyncio
 async def test_limit_ioc_expires_at_far_below_price() -> None:
