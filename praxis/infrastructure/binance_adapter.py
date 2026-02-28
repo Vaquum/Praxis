@@ -252,7 +252,7 @@ class BinanceAdapter:
         params: dict[str, str] = {
             'symbol': symbol,
             'side': side.value,
-            'quantity': str(qty),
+            'quantity': format(qty, 'f'),
             'newOrderRespType': 'FULL',
         }
 
@@ -264,7 +264,7 @@ class BinanceAdapter:
             if price is None:
                 msg = 'price is required for LIMIT orders'
                 raise ValueError(msg)
-            params['price'] = str(price)
+            params['price'] = format(price, 'f')
             params['timeInForce'] = time_in_force or 'GTC'
 
         elif order_type == OrderType.LIMIT_IOC:
@@ -272,7 +272,7 @@ class BinanceAdapter:
             if price is None:
                 msg = 'price is required for LIMIT_IOC orders'
                 raise ValueError(msg)
-            params['price'] = str(price)
+            params['price'] = format(price, 'f')
             params['timeInForce'] = 'IOC'
 
         else:

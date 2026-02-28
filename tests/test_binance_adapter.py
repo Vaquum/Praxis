@@ -281,6 +281,16 @@ class TestBuildOrderParams:
         assert params['quantity'] == '0.00100'
         assert params['price'] == '50000.50'
 
+    def test_decimal_scientific_notation_avoided(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.BUY, OrderType.LIMIT, Decimal('1E-7'),
+            price=Decimal('1E+4'),
+        )
+        assert params['quantity'] == '0.0000001'
+        assert params['price'] == '10000'
+
 
 class TestMapOrderStatus:
 
