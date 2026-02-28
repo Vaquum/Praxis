@@ -22,8 +22,6 @@ __all__ = [
     'CancelResult',
     'ImmediateFill',
     'NotFoundError',
-    'OrderBookLevel',
-    'OrderBookSnapshot',
     'OrderRejectedError',
     'RateLimitError',
     'SubmitResult',
@@ -68,12 +66,12 @@ class SubmitResult:
     Args:
         venue_order_id (str): Venue-assigned order identifier
         status (OrderStatus): Order status after submission
-        fills (list[ImmediateFill]): Immediate fills for market orders
+        immediate_fills (list[ImmediateFill]): Fills returned inline with the submission response
     '''
 
     venue_order_id: str
     status: OrderStatus
-    fills: list[ImmediateFill]
+    immediate_fills: list[ImmediateFill]
 
 
 @dataclass(frozen=True)
@@ -95,7 +93,7 @@ class CancelResult:
 class VenueOrder:
 
     '''
-    Represent an order as reported by the venue.
+    Represent an order as reported by the venue on query.
 
     Args:
         venue_order_id (str): Venue-assigned order identifier
@@ -152,6 +150,14 @@ class VenueTrade:
     is_maker: bool
     timestamp: datetime
 
+    def __post_init__(self) -> None:
+
+        '''Validate invariants at construction time.'''
+
+        if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
+            msg = 'VenueTrade.timestamp must be timezone-aware'
+            raise ValueError(msg)
+
 
 @dataclass(frozen=True)
 class BalanceEntry:
@@ -168,38 +174,6 @@ class BalanceEntry:
     asset: str
     free: Decimal
     locked: Decimal
-
-
-@dataclass(frozen=True)
-class OrderBookLevel:
-
-    '''
-    Represent a single price level in the order book.
-
-    Args:
-        price (Decimal): Price at this level
-        qty (Decimal): Aggregate quantity at this level
-    '''
-
-    price: Decimal
-    qty: Decimal
-
-
-@dataclass(frozen=True)
-class OrderBookSnapshot:
-
-    '''
-    Represent a point-in-time snapshot of the venue order book.
-
-    Args:
-        bids (list[OrderBookLevel]): Bid levels sorted by descending price
-        asks (list[OrderBookLevel]): Ask levels sorted by ascending price
-        timestamp (datetime): Time the snapshot was taken
-    '''
-
-    bids: list[OrderBookLevel]
-    asks: list[OrderBookLevel]
-    timestamp: datetime
 
 
 @dataclass(frozen=True)
@@ -318,6 +292,7 @@ class VenueAdapter(Protocol):
         client_order_id: str | None = None,
         time_in_force: str | None = None,
     ) -> SubmitResult:
+
         '''
         Submit an order to the venue.
 
@@ -346,6 +321,7 @@ class VenueAdapter(Protocol):
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> CancelResult:
+
         '''
         Cancel an open order on the venue.
 
@@ -354,6 +330,9 @@ class VenueAdapter(Protocol):
             symbol (str): Trading pair symbol
             venue_order_id (str | None): Venue-assigned order identifier
             client_order_id (str | None): Deterministic client order identifier
+
+        Note:
+            At least one of venue_order_id or client_order_id must be provided.
 
         Returns:
             CancelResult: Venue response with order ID and terminal status
@@ -369,6 +348,7 @@ class VenueAdapter(Protocol):
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> VenueOrder:
+
         '''
         Query the current state of an order on the venue.
 
@@ -377,6 +357,9 @@ class VenueAdapter(Protocol):
             symbol (str): Trading pair symbol
             venue_order_id (str | None): Venue-assigned order identifier
             client_order_id (str | None): Deterministic client order identifier
+
+        Note:
+            At least one of venue_order_id or client_order_id must be provided.
 
         Returns:
             VenueOrder: Current order state from the venue
@@ -389,6 +372,7 @@ class VenueAdapter(Protocol):
         account_id: str,
         symbol: str,
     ) -> list[VenueOrder]:
+
         '''
         Query all open orders for a symbol on the venue.
 
@@ -406,6 +390,7 @@ class VenueAdapter(Protocol):
         self,
         account_id: str,
     ) -> list[BalanceEntry]:
+
         '''
         Query account balances from the venue.
 
@@ -425,6 +410,7 @@ class VenueAdapter(Protocol):
         *,
         start_time: datetime | None = None,
     ) -> list[VenueTrade]:
+
         '''
         Query historical trade records from the venue.
 
@@ -439,29 +425,12 @@ class VenueAdapter(Protocol):
 
         ...
 
-    async def query_order_book(
-        self,
-        symbol: str,
-        *,
-        limit: int = 20,
-    ) -> OrderBookSnapshot:
-        '''
-        Query order book depth from the venue.
-
-        Args:
-            symbol (str): Trading pair symbol
-            limit (int): Number of price levels per side
-
-        Returns:
-            OrderBookSnapshot: Bid and ask levels with timestamp
-        '''
-
-        ...
 
     async def get_exchange_info(
         self,
         symbol: str,
     ) -> SymbolFilters:
+
         '''
         Query trading filters for a symbol from the venue.
 
