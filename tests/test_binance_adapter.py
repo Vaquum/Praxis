@@ -343,14 +343,14 @@ class TestParseSubmitResponse:
         result = adapter._parse_submit_response(_BINANCE_NEW_RESPONSE)
         assert result.venue_order_id == _VENUE_ORDER_ID
         assert result.status == OrderStatus.OPEN
-        assert result.immediate_fills == []
+        assert result.immediate_fills == ()
 
     def test_expired_no_fills(self) -> None:
 
         adapter = _make_adapter()
         result = adapter._parse_submit_response(_BINANCE_EXPIRED_RESPONSE)
         assert result.status == OrderStatus.EXPIRED
-        assert result.immediate_fills == []
+        assert result.immediate_fills == ()
 
 
 class TestRaiseOnError:
@@ -473,7 +473,7 @@ class TestSubmitOrder:
         )
         assert result.venue_order_id == _VENUE_ORDER_ID
         assert result.status == OrderStatus.OPEN
-        assert result.immediate_fills == []
+        assert result.immediate_fills == ()
 
     @pytest.mark.asyncio
     async def test_limit_ioc_expired(self) -> None:
