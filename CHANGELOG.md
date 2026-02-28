@@ -100,4 +100,4 @@
 - Add `account_id` parameter to all authenticated Protocol methods for multi-account API key routing
 - Add docstring notes for `cancel_order` and `query_order` requiring at least one order identifier
 - Rename `SubmitResult.fills` to `immediate_fills` with corrected docstring
-- Add [`test_venue_adapter.py`](tests/test_venue_adapter.py) with 22 tests covering dataclass immutability, timestamp validation, error hierarchy, and Protocol conformance
+- Add [`test_venue_adapter.py`](tests/test_venue_adapter.py) with 24 tests covering dataclass immutability, timestamp validation, error hierarchy, pickle safety, and Protocol conformance
