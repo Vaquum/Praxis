@@ -113,4 +113,4 @@
 - Add async context manager session lifecycle with explicit `close()`
 - Move `aiohttp>=3.10` from dev to runtime dependencies in [`pyproject.toml`](pyproject.toml)
 - Add [`test_binance_adapter.py`](tests/test_binance_adapter.py) with 47 unit tests covering credentials, signing, param building, status mapping, response parsing, error handling, session lifecycle, and end-to-end submit flow
-- Add [`test_binance_adapter.py`](tests/testnet/test_binance_adapter.py) with 3 testnet integration tests for market buy (filled), limit resting (open), and limit IOC (expired)
+- Add [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py) with 3 testnet integration tests for market buy (filled), limit resting (open), and limit IOC (expired)

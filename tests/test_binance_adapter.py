@@ -159,11 +159,12 @@ class TestSigningAndAuth:
     def test_sign_params_preserves_original_params(self) -> None:
 
         adapter = _make_adapter()
-        params = adapter._sign_params(
-            {'symbol': 'BTCUSDT', 'side': 'BUY'}, _API_SECRET,
-        )
+        original = {'symbol': 'BTCUSDT', 'side': 'BUY'}
+        params = adapter._sign_params(original, _API_SECRET)
         assert params['symbol'] == 'BTCUSDT'
         assert params['side'] == 'BUY'
+        assert 'timestamp' not in original
+        assert 'signature' not in original
 
     def test_auth_headers_contains_api_key(self) -> None:
 
@@ -252,14 +253,14 @@ class TestBuildOrderParams:
                 'BTCUSDT', OrderSide.BUY, OrderType.STOP, Decimal('1.0'),
             )
 
-    def test_stop_price_included(self) -> None:
+    def test_stop_price_raises(self) -> None:
 
         adapter = _make_adapter()
-        params = adapter._build_order_params(
-            'BTCUSDT', OrderSide.BUY, OrderType.MARKET, Decimal('1.0'),
-            stop_price=Decimal('49000'),
-        )
-        assert params['stopPrice'] == '49000'
+        with pytest.raises(ValueError, match='stop_price is not supported'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.MARKET, Decimal('1.0'),
+                stop_price=Decimal('49000'),
+            )
 
     def test_client_order_id_included(self) -> None:
 

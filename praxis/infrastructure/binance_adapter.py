@@ -1,5 +1,5 @@
 '''
-Binance Spot REST adapter implementing the VenueAdapter protocol.
+Binance Spot REST adapter for order submission via the VenueAdapter protocol.
 
 Handle authentication, request signing, order submission, and response
 normalization for the Binance Spot API. All Binance-specific logic is
@@ -51,7 +51,7 @@ _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
 class BinanceAdapter:
 
     '''
-    Binance Spot REST adapter conforming to the VenueAdapter protocol.
+    Binance Spot REST adapter implementing submit_order from VenueAdapter.
 
     Args:
         base_url (str): Binance REST API base URL (testnet or mainnet)
@@ -103,11 +103,13 @@ class BinanceAdapter:
 
     async def close(self) -> None:
 
-        '''Close the HTTP session if open.'''
+        '''Close the HTTP session if it exists.'''
 
-        if self._session and not self._session.closed:
-            await self._session.close()
+        if self._session:
+            session = self._session
             self._session = None
+            if not session.closed:
+                await session.close()
 
     def register_account(
         self,
@@ -192,15 +194,15 @@ class BinanceAdapter:
             dict[str, str]: Parameters with timestamp and signature appended
         '''
 
-        params['timestamp'] = str(int(time.time() * 1000))
-        query = urlencode(params)
-        signature = hmac.new(
+        signed = dict(params)
+        signed['timestamp'] = str(int(time.time() * 1000))
+        query = urlencode(signed)
+        signed['signature'] = hmac.new(
             api_secret.encode(),
             query.encode(),
             hashlib.sha256,
         ).hexdigest()
-        params['signature'] = signature
-        return params
+        return signed
 
     def _auth_headers(self, account_id: str) -> dict[str, str]:
 
@@ -278,7 +280,8 @@ class BinanceAdapter:
             raise ValueError(msg)
 
         if stop_price is not None:
-            params['stopPrice'] = str(stop_price)
+            msg = 'stop_price is not supported for MARKET, LIMIT, or LIMIT_IOC orders'
+            raise ValueError(msg)
 
         if client_order_id is not None:
             params['newClientOrderId'] = client_order_id
