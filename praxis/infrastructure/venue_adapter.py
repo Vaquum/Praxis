@@ -66,12 +66,12 @@ class SubmitResult:
     Args:
         venue_order_id (str): Venue-assigned order identifier
         status (OrderStatus): Order status after submission
-        immediate_fills (list[ImmediateFill]): Fills returned inline with the submission response
+        immediate_fills (tuple[ImmediateFill, ...]): Fills returned inline with the submission response
     '''
 
     venue_order_id: str
     status: OrderStatus
-    immediate_fills: list[ImmediateFill]
+    immediate_fills: tuple[ImmediateFill, ...]
 
 
 @dataclass(frozen=True)
@@ -246,6 +246,7 @@ class OrderRejectedError(VenueError):
         self.venue_code = venue_code
         self.reason = reason
         super().__init__(message)
+        self.args = (message, venue_code, reason)
 
 
 class RateLimitError(VenueError):

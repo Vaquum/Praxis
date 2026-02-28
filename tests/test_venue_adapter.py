@@ -51,7 +51,7 @@ class TestResponseDataclasses:
         result = SubmitResult(
             venue_order_id='vo-001',
             status=OrderStatus.FILLED,
-            immediate_fills=[],
+            immediate_fills=(),
         )
         with pytest.raises(AttributeError):
             result.status = OrderStatus.OPEN  # type: ignore[misc]
@@ -68,10 +68,28 @@ class TestResponseDataclasses:
         result = SubmitResult(
             venue_order_id='vo-001',
             status=OrderStatus.FILLED,
-            immediate_fills=[fill],
+            immediate_fills=(fill,),
         )
         assert len(result.immediate_fills) == 1
         assert result.immediate_fills[0].venue_trade_id == 'vt-001'
+
+    def test_submit_result_fills_immutable(self) -> None:
+
+        fill = ImmediateFill(
+            venue_trade_id='vt-001',
+            qty=Decimal('0.5'),
+            price=Decimal('50000'),
+            fee=Decimal('0.001'),
+            fee_asset='BTC',
+            is_maker=False,
+        )
+        result = SubmitResult(
+            venue_order_id='vo-001',
+            status=OrderStatus.FILLED,
+            immediate_fills=(fill,),
+        )
+        with pytest.raises(AttributeError):
+            result.immediate_fills.append(fill)  # type: ignore[attr-defined]
 
     def test_cancel_result_frozen(self) -> None:
         result = CancelResult(
@@ -197,6 +215,20 @@ class TestErrorHierarchy:
         assert err.message == 'rejected'
         assert err.venue_code == _BINANCE_DUPLICATE_ORDER_CODE
         assert err.reason == 'Duplicate order'
+
+    def test_order_rejected_error_picklable(self) -> None:
+
+        import pickle
+
+        err = OrderRejectedError(
+            'rejected',
+            venue_code=_BINANCE_DUPLICATE_ORDER_CODE,
+            reason='Duplicate order',
+        )
+        restored = pickle.loads(pickle.dumps(err))  # noqa: S301
+        assert restored.venue_code == _BINANCE_DUPLICATE_ORDER_CODE
+        assert restored.reason == 'Duplicate order'
+        assert restored.message == 'rejected'
 
     def test_catch_venue_error_catches_subclass(self) -> None:
         with pytest.raises(VenueError):
