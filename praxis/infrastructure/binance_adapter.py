@@ -622,6 +622,9 @@ class BinanceAdapter:
             list[BalanceEntry]: Per-asset balance entries for requested assets
         '''
 
+        if not assets:
+            return []
+
         data = await self._signed_request('GET', '/api/v3/account', {}, account_id)
 
         return [

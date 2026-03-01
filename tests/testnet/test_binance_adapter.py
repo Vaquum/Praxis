@@ -188,6 +188,7 @@ async def test_cancel_order_cancels_resting_limit() -> None:
             price=far_below,
         )
 
+        canceled = False
         try:
             result = await adapter.cancel_order(
                 _ACCOUNT_ID, SYMBOL,
@@ -195,16 +196,18 @@ async def test_cancel_order_cancels_resting_limit() -> None:
             )
             assert result.status == OrderStatus.CANCELED
             assert result.venue_order_id == submit.venue_order_id
+            canceled = True
         finally:
-            async with (
-                aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
-                s.delete(
-                    f"{REST_BASE}/api/v3/order",
-                    params=signed_params(symbol=SYMBOL, orderId=submit.venue_order_id),
-                    headers=auth_headers(),
-                ) as r,
-            ):
-                _ = r.status
+            if not canceled:
+                async with (
+                    aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
+                    s.delete(
+                        f"{REST_BASE}/api/v3/order",
+                        params=signed_params(symbol=SYMBOL, orderId=submit.venue_order_id),
+                        headers=auth_headers(),
+                    ) as r,
+                ):
+                    _ = r.status
 
 
 @skip_no_creds

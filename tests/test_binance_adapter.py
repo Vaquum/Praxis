@@ -247,7 +247,7 @@ class TestSignedRequest:
         _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
         await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
         call_args = adapter._session.request.call_args  # type: ignore[union-attr]
-        headers = call_args[1].get('headers') or call_args[0][2] if len(call_args[0]) > 2 else call_args[1]['headers']
+        headers = call_args.kwargs['headers']
         assert headers['X-MBX-APIKEY'] == _API_KEY
 
     @pytest.mark.asyncio
