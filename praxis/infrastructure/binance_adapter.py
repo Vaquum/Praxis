@@ -367,7 +367,6 @@ class BinanceAdapter:
                 return OrderType.LIMIT_IOC
             return OrderType.LIMIT
         msg = f"Unknown Binance order type: '{binance_type}'"
-
         raise ValueError(msg)
 
     def _parse_submit_response(self, data: dict[str, Any]) -> SubmitResult:
@@ -413,6 +412,7 @@ class BinanceAdapter:
 
         order_type = self._map_order_type(data['type'], data.get('timeInForce', ''))
         price = None if order_type == OrderType.MARKET else Decimal(data['price'])
+
         return VenueOrder(
             venue_order_id=str(data['orderId']),
             client_order_id=str(data['clientOrderId']),
