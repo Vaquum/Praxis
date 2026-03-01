@@ -636,11 +636,46 @@ class TestMapOrderType:
         adapter = _make_adapter()
         assert adapter._map_order_type('LIMIT', 'IOC') == OrderType.LIMIT_IOC
 
+    def test_limit_fok(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT', 'FOK') == OrderType.LIMIT_IOC
+
+    def test_limit_maker(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT_MAKER', 'GTC') == OrderType.LIMIT
+
+    def test_stop_loss(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('STOP_LOSS', 'GTC') == OrderType.STOP
+
+    def test_stop_loss_limit(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('STOP_LOSS_LIMIT', 'GTC') == OrderType.STOP_LIMIT
+
+    def test_take_profit(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('TAKE_PROFIT', 'GTC') == OrderType.TAKE_PROFIT
+
+    def test_take_profit_limit(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('TAKE_PROFIT_LIMIT', 'GTC') == OrderType.TP_LIMIT
+
+    def test_oco(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('OCO', '') == OrderType.OCO
+
     def test_unknown_type_raises(self) -> None:
 
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='Unknown Binance order type'):
-            adapter._map_order_type('STOP_LOSS', 'GTC')
+            adapter._map_order_type('TRAILING_STOP', 'GTC')
 
 
 class TestParseSubmitResponse:
@@ -1127,3 +1162,14 @@ class TestQueryBalance:
         )
         assert len(result) == 1
         assert result[0].asset == 'ETH'
+
+    @pytest.mark.asyncio
+    async def test_empty_assets_skips_api_call(self) -> None:
+
+        adapter = _make_adapter()
+        session = MagicMock()
+        session.closed = False
+        adapter._session = session
+        result = await adapter.query_balance(_ACCOUNT_ID, frozenset())
+        assert result == []
+        session.request.assert_not_called()

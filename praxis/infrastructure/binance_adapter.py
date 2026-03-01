@@ -63,6 +63,16 @@ _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'EXPIRED_IN_MATCH': OrderStatus.EXPIRED,
 }
 
+_BINANCE_TYPE_MAP: dict[str, OrderType] = {
+    'MARKET': OrderType.MARKET,
+    'LIMIT_MAKER': OrderType.LIMIT,
+    'STOP_LOSS': OrderType.STOP,
+    'STOP_LOSS_LIMIT': OrderType.STOP_LIMIT,
+    'TAKE_PROFIT': OrderType.TAKE_PROFIT,
+    'TAKE_PROFIT_LIMIT': OrderType.TP_LIMIT,
+    'OCO': OrderType.OCO,
+}
+
 
 class BinanceAdapter:
 
@@ -400,12 +410,16 @@ class BinanceAdapter:
             OrderType: Corresponding domain order type
         '''
 
-        if binance_type == 'MARKET':
-            return OrderType.MARKET
         if binance_type == 'LIMIT':
-            if time_in_force == 'IOC':
+            # FOK mapped to LIMIT_IOC: no dedicated enum value; both are non-resting
+            if time_in_force in ('IOC', 'FOK'):
                 return OrderType.LIMIT_IOC
             return OrderType.LIMIT
+
+        result = _BINANCE_TYPE_MAP.get(binance_type)
+        if result is not None:
+            return result
+
         msg = f"Unknown Binance order type: '{binance_type}'"
         raise ValueError(msg)
 
