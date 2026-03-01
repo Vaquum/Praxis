@@ -214,7 +214,60 @@ class TestSigningAndAuth:
         assert 'timestamp' not in original
         assert 'signature' not in original
 
+class TestSignedRequest:
 
+    @pytest.mark.asyncio
+    async def test_url_contains_path_and_signed_params(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
+        await adapter._signed_request('GET', '/api/v3/order', {'symbol': 'BTCUSDT'}, _ACCOUNT_ID)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        method = call_args[0][0]
+        url = call_args[0][1]
+        assert method == 'GET'
+        assert url.startswith(f'{_BASE_URL}/api/v3/order?')
+        assert 'symbol=BTCUSDT' in url
+        assert 'timestamp=' in url
+        assert 'signature=' in url
+
+    @pytest.mark.asyncio
+    async def test_delete_method_dispatched(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'orderId': 1, 'status': 'CANCELED'}))
+        await adapter._signed_request('DELETE', '/api/v3/order', {'symbol': 'BTCUSDT'}, _ACCOUNT_ID)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        assert call_args[0][0] == 'DELETE'
+
+    @pytest.mark.asyncio
+    async def test_api_key_header_sent(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        headers = call_args[1].get('headers') or call_args[0][2] if len(call_args[0]) > 2 else call_args[1]['headers']
+        assert headers['X-MBX-APIKEY'] == _API_KEY
+
+    @pytest.mark.asyncio
+    async def test_venue_error_not_wrapped(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(401))
+        with pytest.raises(AuthenticationError):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_transport_error_wrapped_as_transient(self) -> None:
+
+        adapter = _make_adapter()
+        session = MagicMock()
+        session.request = MagicMock(side_effect=aiohttp.ClientError())
+        session.closed = False
+        adapter._session = session
+        with pytest.raises(TransientError, match='Request failed'):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
 
 class TestBuildOrderParams:
 
