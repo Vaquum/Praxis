@@ -473,6 +473,7 @@ class TestRetry:
         assert session.request.call_count == 2
         mock_sleep.assert_called_once()
 
+
 class TestBuildOrderParams:
 
     def test_market_order(self) -> None:
