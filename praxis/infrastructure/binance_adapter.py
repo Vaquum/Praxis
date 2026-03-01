@@ -249,7 +249,7 @@ class BinanceAdapter:
         try:
             async with session.request(
                 method,
-                f'{self._base_url}{path}?{query_string}',
+                f"{self._base_url}{path}?{query_string}",
                 headers=headers,
             ) as response:
                 await self._raise_on_error(response)

@@ -199,7 +199,7 @@ async def test_cancel_order_cancels_resting_limit() -> None:
             async with (
                 aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
                 s.delete(
-                    f'{REST_BASE}/api/v3/order',
+                    f"{REST_BASE}/api/v3/order",
                     params=signed_params(symbol=SYMBOL, orderId=submit.venue_order_id),
                     headers=auth_headers(),
                 ) as r,

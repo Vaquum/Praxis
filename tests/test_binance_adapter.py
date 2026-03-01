@@ -226,7 +226,7 @@ class TestSignedRequest:
         method = call_args[0][0]
         url = call_args[0][1]
         assert method == 'GET'
-        assert url.startswith(f'{_BASE_URL}/api/v3/order?')
+        assert url.startswith(f"{_BASE_URL}/api/v3/order?")
         assert 'symbol=BTCUSDT' in url
         assert 'timestamp=' in url
         assert 'signature=' in url
