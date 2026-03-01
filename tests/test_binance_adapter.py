@@ -5,7 +5,7 @@ Tests for praxis.infrastructure.binance_adapter.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -15,6 +15,7 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
+    BalanceEntry,
     CancelResult,
     NotFoundError,
     OrderRejectedError,
@@ -811,3 +812,61 @@ class TestQueryOpenOrders:
         _patch_session(adapter, _mock_response(200, []))
         result = await adapter.query_open_orders(_ACCOUNT_ID, 'BTCUSDT')
         assert result == []
+
+
+class TestQueryBalance:
+
+    _ACCOUNT_RESPONSE: ClassVar[dict[str, Any]] = {
+        'balances': [
+            {'asset': 'BTC', 'free': '1.50000000', 'locked': '0.25000000'},
+            {'asset': 'USDT', 'free': '10000.00', 'locked': '500.00'},
+            {'asset': 'ETH', 'free': '0.00000000', 'locked': '0.00000000'},
+            {'asset': 'BNB', 'free': '5.00000000', 'locked': '0.00000000'},
+        ],
+    }
+
+    @pytest.mark.asyncio
+    async def test_returns_only_requested_assets(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'BTC', 'USDT'}),
+        )
+        assert len(result) == 2
+        assets = {e.asset for e in result}
+        assert assets == {'BTC', 'USDT'}
+
+    @pytest.mark.asyncio
+    async def test_balance_values_are_decimal(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'BTC'}),
+        )
+        assert len(result) == 1
+        assert isinstance(result[0], BalanceEntry)
+        assert result[0].free == Decimal('1.5')
+        assert result[0].locked == Decimal('0.25')
+
+    @pytest.mark.asyncio
+    async def test_asset_not_in_response_omitted(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'DOGE'}),
+        )
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_filters_exclude_unrequested(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'ETH'}),
+        )
+        assert len(result) == 1
+        assert result[0].asset == 'ETH'

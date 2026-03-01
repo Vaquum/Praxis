@@ -20,6 +20,7 @@ import aiohttp
 from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
+    BalanceEntry,
     CancelResult,
     ImmediateFill,
     NotFoundError,
@@ -603,3 +604,32 @@ class BinanceAdapter:
         data = await self._signed_request('GET', '/api/v3/openOrders', params, account_id)
 
         return [self._parse_venue_order(entry) for entry in data]
+
+    async def query_balance(
+        self,
+        account_id: str,
+        assets: frozenset[str],
+    ) -> list[BalanceEntry]:
+
+        '''
+        Query account balances for specific assets from the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            assets (frozenset[str]): Asset symbols to retrieve balances for
+
+        Returns:
+            list[BalanceEntry]: Per-asset balance entries for requested assets
+        '''
+
+        data = await self._signed_request('GET', '/api/v3/account', {}, account_id)
+
+        return [
+            BalanceEntry(
+                asset=entry['asset'],
+                free=Decimal(entry['free']),
+                locked=Decimal(entry['locked']),
+            )
+            for entry in data['balances']
+            if entry['asset'] in assets
+        ]

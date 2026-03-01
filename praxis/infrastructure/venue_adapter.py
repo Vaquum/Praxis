@@ -390,16 +390,18 @@ class VenueAdapter(Protocol):
     async def query_balance(
         self,
         account_id: str,
+        assets: frozenset[str],
     ) -> list[BalanceEntry]:
 
         '''
-        Query account balances from the venue.
+        Query account balances for specific assets from the venue.
 
         Args:
             account_id (str): Account identifier for API key routing
+            assets (frozenset[str]): Asset symbols to retrieve balances for
 
         Returns:
-            list[BalanceEntry]: Per-asset balance entries
+            list[BalanceEntry]: Per-asset balance entries for requested assets
         '''
 
         ...
