@@ -8,8 +8,11 @@ encapsulated here.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
+import logging
+import random
 import time
 from decimal import Decimal
 from typing import Any
@@ -45,6 +48,10 @@ _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 0.5
+
+_log = logging.getLogger(__name__)
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -229,7 +236,8 @@ class BinanceAdapter:
         Execute a signed HTTP request against the Binance REST API.
 
         Handles credential lookup, query string signing, URL construction,
-        HTTP dispatch, error checking, and JSON parsing.
+        HTTP dispatch, error checking, and JSON parsing. Retries on
+        TransientError with exponential backoff and jitter.
 
         Args:
             method (str): HTTP method (GET, POST, DELETE)
@@ -239,27 +247,49 @@ class BinanceAdapter:
 
         Returns:
             Any: Parsed JSON response body
+
+        Raises:
+            TransientError: After all retry attempts are exhausted
         '''
 
         session = await self._ensure_session()
         api_key, api_secret = self._get_credentials(account_id)
-        query_string = self._sign_params(params, api_secret)
         headers = {_API_KEY_HEADER: api_key}
+        last_error: TransientError | None = None
 
-        try:
-            async with session.request(
-                method,
-                f"{self._base_url}{path}?{query_string}",
-                headers=headers,
-            ) as response:
-                await self._raise_on_error(response)
-                data: Any = await response.json()
-                return data
-        except VenueError:
-            raise
-        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-            msg = f"Request failed: {exc}"
-            raise TransientError(msg) from exc
+        for attempt in range(_MAX_RETRIES):
+            query_string = self._sign_params(params, api_secret)
+
+            try:
+                async with session.request(
+                    method,
+                    f"{self._base_url}{path}?{query_string}",
+                    headers=headers,
+                ) as response:
+                    await self._raise_on_error(response)
+                    data: Any = await response.json()
+                    return data
+            except TransientError as exc:
+                last_error = exc
+                if attempt + 1 == _MAX_RETRIES:
+                    break
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
+                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+            except VenueError:
+                raise
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+                msg = f"Request failed: {exc}"
+                raise TransientError(msg) from exc
+
+        _log.error(
+            'Exhausted %d retries on %s %s: %s',
+            _MAX_RETRIES, method, path, last_error,
+        )
+        raise last_error  # type: ignore[misc]
 
     def _build_order_params(
         self,
