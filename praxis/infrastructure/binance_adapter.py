@@ -284,7 +284,6 @@ class BinanceAdapter:
             except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
                 msg = f"Request failed: {exc}"
                 last_error = TransientError(msg)
-                last_error.__cause__ = exc
                 if attempt + 1 == _MAX_RETRIES:
                     break
                 delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
@@ -295,7 +294,7 @@ class BinanceAdapter:
                 await asyncio.sleep(delay)
 
         _log.error(
-            'Exhausted %d retries on %s %s: %s',
+            'All %d attempts exhausted on %s %s: %s',
             _MAX_RETRIES, method, path, last_error,
         )
         assert last_error is not None
