@@ -530,13 +530,54 @@ class BinanceAdapter:
         if venue_order_id is None and client_order_id is None:
             msg = 'At least one of venue_order_id or client_order_id must be provided'
             raise ValueError(msg)
+
         params: dict[str, str] = {'symbol': symbol}
+
         if venue_order_id is not None:
             params['orderId'] = venue_order_id
+
         if client_order_id is not None:
             params['origClientOrderId'] = client_order_id
+
         data = await self._signed_request('DELETE', '/api/v3/order', params, account_id)
         return CancelResult(
             venue_order_id=str(data['orderId']),
             status=self._map_order_status(data['status']),
         )
+
+    async def query_order(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> VenueOrder:
+
+        '''
+        Query the current state of an order on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            venue_order_id (str | None): Venue-assigned order identifier
+            client_order_id (str | None): Deterministic client order identifier
+
+        Returns:
+            VenueOrder: Current order state from the venue
+        '''
+
+        if venue_order_id is None and client_order_id is None:
+            msg = 'At least one of venue_order_id or client_order_id must be provided'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {'symbol': symbol}
+
+        if venue_order_id is not None:
+            params['orderId'] = venue_order_id
+
+        if client_order_id is not None:
+            params['origClientOrderId'] = client_order_id
+
+        data = await self._signed_request('GET', '/api/v3/order', params, account_id)
+        return self._parse_venue_order(data)

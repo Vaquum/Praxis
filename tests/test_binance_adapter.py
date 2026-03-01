@@ -717,3 +717,74 @@ class TestCancelOrder:
             await adapter.cancel_order(
                 _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
             )
+
+
+class TestQueryOrder:
+
+    @pytest.mark.asyncio
+    async def test_query_limit_order(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_LIMIT_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert isinstance(result, VenueOrder)
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.client_order_id == 'my-client-id'
+        assert result.status == OrderStatus.OPEN
+        assert result.symbol == 'BTCUSDT'
+        assert result.side == OrderSide.BUY
+        assert result.order_type == OrderType.LIMIT
+        assert result.price == Decimal('50000.0')
+
+    @pytest.mark.asyncio
+    async def test_query_market_order_price_none(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_MARKET_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert result.order_type == OrderType.MARKET
+        assert result.price is None
+
+    @pytest.mark.asyncio
+    async def test_query_limit_ioc_order(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_LIMIT_IOC_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert result.order_type == OrderType.LIMIT_IOC
+
+    @pytest.mark.asyncio
+    async def test_query_with_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_LIMIT_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', client_order_id='my-client-id',
+        )
+        assert result.venue_order_id == _VENUE_ORDER_ID
+
+    @pytest.mark.asyncio
+    async def test_query_with_neither_identifier_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='At least one'):
+            await adapter.query_order(_ACCOUNT_ID, 'BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_query_not_found_raises(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+        with pytest.raises(NotFoundError):
+            await adapter.query_order(
+                _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+            )
