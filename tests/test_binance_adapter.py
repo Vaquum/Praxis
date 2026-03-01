@@ -142,7 +142,7 @@ def _mock_response(
 
     resp = AsyncMock()
     resp.status = status
-    resp.json = AsyncMock(return_value=data or {})
+    resp.json = AsyncMock(return_value=data if data is not None else {})
     return resp
 
 
