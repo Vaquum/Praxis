@@ -128,3 +128,8 @@
 - Refactor `_signed_request` return type from `dict[str, Any]` to `Any` to support array responses
 - Add 25 unit tests for `_signed_request`, `cancel_order`, `query_order`, `query_open_orders`, and `query_balance` in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
 - Add 4 testnet integration tests for cancel, query order, query open orders, and query balance in [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)
+
+## v0.12.0 on 1st of March, 2026
+
+- Add transient HTTP retry with exponential backoff and full jitter in `_signed_request` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add 7 unit tests for retry success, exhaustion, non-retryable errors, sleep delay, and log output in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
