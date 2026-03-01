@@ -289,7 +289,6 @@ async def test_query_balance_returns_requested_assets() -> None:
         result = await adapter.query_balance(
             _ACCOUNT_ID, frozenset({'BTC', 'USDT'}),
         )
-
-    assets = {e.asset for e in result}
-    assert 'BTC' in assets
-    assert 'USDT' in assets
+        assets = {e.asset for e in result}
+        assert 'BTC' in assets
+        assert 'USDT' in assets
