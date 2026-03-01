@@ -26,7 +26,7 @@
 
 
 <dev_docs>
-Before committing code, pushing code, or opening PRs, check https://github.com/Vaquum/dev-docs for the latest guidelines on writing code, docstrings, tests, changelogs, and pull requests.
+Before starting to write code, committing code, pushing code, or opening PRs, check https://github.com/Vaquum/dev-docs for the latest guidelines on writing code, docstrings, tests, changelogs, and pull requests.
 </dev_docs>
 
 <code_style>
