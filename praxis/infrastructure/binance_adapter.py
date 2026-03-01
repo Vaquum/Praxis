@@ -21,11 +21,13 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     ImmediateFill,
+    NotFoundError,
     OrderRejectedError,
     RateLimitError,
     SubmitResult,
     TransientError,
     VenueError,
+    VenueOrder,
 )
 
 __all__ = ['BinanceAdapter']
@@ -40,6 +42,7 @@ _HTTP_TOO_MANY = 429
 _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
+_NOT_FOUND_CODES = frozenset({-2013, -2011})
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -343,6 +346,29 @@ class BinanceAdapter:
             msg = f"Unknown Binance order status: '{binance_status}'"
             raise ValueError(msg) from None
 
+    def _map_order_type(self, binance_type: str, time_in_force: str) -> OrderType:
+
+        '''
+        Map a Binance order type and time-in-force to an OrderType enum.
+
+        Args:
+            binance_type (str): Binance order type value
+            time_in_force (str): Binance time-in-force value
+
+        Returns:
+            OrderType: Corresponding domain order type
+        '''
+
+        if binance_type == 'MARKET':
+            return OrderType.MARKET
+        if binance_type == 'LIMIT':
+            if time_in_force == 'IOC':
+                return OrderType.LIMIT_IOC
+            return OrderType.LIMIT
+        msg = f"Unknown Binance order type: '{binance_type}'"
+
+        raise ValueError(msg)
+
     def _parse_submit_response(self, data: dict[str, Any]) -> SubmitResult:
 
         '''
@@ -370,6 +396,32 @@ class BinanceAdapter:
             venue_order_id=str(data['orderId']),
             status=self._map_order_status(data['status']),
             immediate_fills=fills,
+        )
+
+    def _parse_venue_order(self, data: dict[str, Any]) -> VenueOrder:
+
+        '''
+        Parse a Binance order query response into a VenueOrder.
+
+        Args:
+            data (dict[str, Any]): Binance JSON response body
+
+        Returns:
+            VenueOrder: Normalised order representation
+        '''
+
+        order_type = self._map_order_type(data['type'], data.get('timeInForce', ''))
+        price = None if order_type == OrderType.MARKET else Decimal(data['price'])
+        return VenueOrder(
+            venue_order_id=str(data['orderId']),
+            client_order_id=str(data['clientOrderId']),
+            status=self._map_order_status(data['status']),
+            symbol=data['symbol'],
+            side=OrderSide(data['side']),
+            order_type=order_type,
+            qty=Decimal(data['origQty']),
+            filled_qty=Decimal(data['executedQty']),
+            price=price,
         )
 
     async def _raise_on_error(self, response: aiohttp.ClientResponse) -> None:
@@ -403,6 +455,10 @@ class BinanceAdapter:
         except (ValueError, KeyError, TypeError):
             venue_code = _UNKNOWN_VENUE_CODE
             reason = f"HTTP {response.status}"
+
+        if venue_code in _NOT_FOUND_CODES:
+            msg = f"Not found: {reason} (code {venue_code})"
+            raise NotFoundError(msg)
 
         msg = f"Order rejected: {reason} (code {venue_code})"
         raise OrderRejectedError(msg, venue_code=venue_code, reason=reason)

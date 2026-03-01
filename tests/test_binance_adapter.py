@@ -15,9 +15,11 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
+    NotFoundError,
     OrderRejectedError,
     RateLimitError,
     TransientError,
+    VenueOrder,
 )
 
 
@@ -31,6 +33,10 @@ _BINANCE_REJECTION_CODE = -1013
 _BINANCE_REJECTION_MSG = 'Filter failure: MIN_NOTIONAL'
 _SHA256_HEX_LENGTH = 64
 _FALLBACK_VENUE_CODE = -1
+_BINANCE_ORDER_NOT_EXIST_CODE = -2013
+_BINANCE_UNKNOWN_ORDER_CODE = -2011
+_BINANCE_ORDER_NOT_EXIST_MSG = 'Order does not exist.'
+_BINANCE_UNKNOWN_ORDER_MSG = 'Unknown order sent.'
 
 _BINANCE_FILLED_RESPONSE: dict[str, Any] = {
     'orderId': 12345,
@@ -56,6 +62,45 @@ _BINANCE_EXPIRED_RESPONSE: dict[str, Any] = {
     'orderId': 12345,
     'status': 'EXPIRED',
     'fills': [],
+}
+
+_BINANCE_LIMIT_ORDER_RESPONSE: dict[str, Any] = {
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'status': 'NEW',
+    'symbol': 'BTCUSDT',
+    'side': 'BUY',
+    'type': 'LIMIT',
+    'timeInForce': 'GTC',
+    'origQty': '1.00000000',
+    'executedQty': '0.00000000',
+    'price': '50000.00000000',
+}
+
+_BINANCE_MARKET_ORDER_RESPONSE: dict[str, Any] = {
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'status': 'FILLED',
+    'symbol': 'BTCUSDT',
+    'side': 'SELL',
+    'type': 'MARKET',
+    'timeInForce': 'GTC',
+    'origQty': '0.50000000',
+    'executedQty': '0.50000000',
+    'price': '0.00000000',
+}
+
+_BINANCE_LIMIT_IOC_ORDER_RESPONSE: dict[str, Any] = {
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'status': 'EXPIRED',
+    'symbol': 'BTCUSDT',
+    'side': 'BUY',
+    'type': 'LIMIT',
+    'timeInForce': 'IOC',
+    'origQty': '1.00000000',
+    'executedQty': '0.30000000',
+    'price': '50000.00000000',
 }
 
 
@@ -315,6 +360,29 @@ class TestMapOrderStatus:
         with pytest.raises(ValueError, match='Unknown Binance order status'):
             adapter._map_order_status('IMAGINARY')
 
+class TestMapOrderType:
+
+    def test_market(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('MARKET', 'GTC') == OrderType.MARKET
+
+    def test_limit_gtc(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT', 'GTC') == OrderType.LIMIT
+
+    def test_limit_ioc(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT', 'IOC') == OrderType.LIMIT_IOC
+
+    def test_unknown_type_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='Unknown Binance order type'):
+            adapter._map_order_type('STOP_LOSS', 'GTC')
+
 
 class TestParseSubmitResponse:
 
@@ -347,6 +415,42 @@ class TestParseSubmitResponse:
         result = adapter._parse_submit_response(_BINANCE_EXPIRED_RESPONSE)
         assert result.status == OrderStatus.EXPIRED
         assert result.immediate_fills == ()
+
+class TestParseVenueOrder:
+
+    def test_limit_order(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order(_BINANCE_LIMIT_ORDER_RESPONSE)
+        assert isinstance(result, VenueOrder)
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.client_order_id == 'my-client-id'
+        assert result.status == OrderStatus.OPEN
+        assert result.symbol == 'BTCUSDT'
+        assert result.side == OrderSide.BUY
+        assert result.order_type == OrderType.LIMIT
+        assert result.qty == Decimal('1.0')
+        assert result.filled_qty == Decimal('0.0')
+        assert result.price == Decimal('50000.0')
+
+    def test_market_order_price_is_none(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order(_BINANCE_MARKET_ORDER_RESPONSE)
+        assert result.order_type == OrderType.MARKET
+        assert result.price is None
+        assert result.side == OrderSide.SELL
+        assert result.status == OrderStatus.FILLED
+        assert result.filled_qty == Decimal('0.5')
+
+    def test_limit_ioc_order(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order(_BINANCE_LIMIT_IOC_ORDER_RESPONSE)
+        assert result.order_type == OrderType.LIMIT_IOC
+        assert result.status == OrderStatus.EXPIRED
+        assert result.filled_qty == Decimal('0.3')
+        assert result.price == Decimal('50000.0')
 
 
 class TestRaiseOnError:
@@ -413,6 +517,27 @@ class TestRaiseOnError:
             await adapter._raise_on_error(_mock_response(400))
         assert exc_info.value.venue_code == _FALLBACK_VENUE_CODE
 
+    @pytest.mark.asyncio
+    async def test_400_order_not_exist_raises_not_found(self) -> None:
+
+        adapter = _make_adapter()
+        response = _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        })
+        with pytest.raises(NotFoundError, match='Not found'):
+            await adapter._raise_on_error(response)
+
+    @pytest.mark.asyncio
+    async def test_400_unknown_order_raises_not_found(self) -> None:
+
+        adapter = _make_adapter()
+        response = _mock_response(400, {
+            'code': _BINANCE_UNKNOWN_ORDER_CODE,
+            'msg': _BINANCE_UNKNOWN_ORDER_MSG,
+        })
+        with pytest.raises(NotFoundError, match='Not found'):
+            await adapter._raise_on_error(response)
 
 class TestSessionLifecycle:
 
