@@ -5,7 +5,7 @@ Tests for praxis.infrastructure.binance_adapter.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -15,9 +15,13 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
+    BalanceEntry,
+    CancelResult,
+    NotFoundError,
     OrderRejectedError,
     RateLimitError,
     TransientError,
+    VenueOrder,
 )
 
 
@@ -31,6 +35,10 @@ _BINANCE_REJECTION_CODE = -1013
 _BINANCE_REJECTION_MSG = 'Filter failure: MIN_NOTIONAL'
 _SHA256_HEX_LENGTH = 64
 _FALLBACK_VENUE_CODE = -1
+_BINANCE_ORDER_NOT_EXIST_CODE = -2013
+_BINANCE_UNKNOWN_ORDER_CODE = -2011
+_BINANCE_ORDER_NOT_EXIST_MSG = 'Order does not exist.'
+_BINANCE_UNKNOWN_ORDER_MSG = 'Unknown order sent.'
 
 _BINANCE_FILLED_RESPONSE: dict[str, Any] = {
     'orderId': 12345,
@@ -58,6 +66,45 @@ _BINANCE_EXPIRED_RESPONSE: dict[str, Any] = {
     'fills': [],
 }
 
+_BINANCE_LIMIT_ORDER_RESPONSE: dict[str, Any] = {
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'status': 'NEW',
+    'symbol': 'BTCUSDT',
+    'side': 'BUY',
+    'type': 'LIMIT',
+    'timeInForce': 'GTC',
+    'origQty': '1.00000000',
+    'executedQty': '0.00000000',
+    'price': '50000.00000000',
+}
+
+_BINANCE_MARKET_ORDER_RESPONSE: dict[str, Any] = {
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'status': 'FILLED',
+    'symbol': 'BTCUSDT',
+    'side': 'SELL',
+    'type': 'MARKET',
+    'timeInForce': 'GTC',
+    'origQty': '0.50000000',
+    'executedQty': '0.50000000',
+    'price': '0.00000000',
+}
+
+_BINANCE_LIMIT_IOC_ORDER_RESPONSE: dict[str, Any] = {
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'status': 'EXPIRED',
+    'symbol': 'BTCUSDT',
+    'side': 'BUY',
+    'type': 'LIMIT',
+    'timeInForce': 'IOC',
+    'origQty': '1.00000000',
+    'executedQty': '0.30000000',
+    'price': '50000.00000000',
+}
+
 
 def _make_adapter(
     credentials: dict[str, tuple[str, str]] | None = None,
@@ -79,7 +126,7 @@ def _make_adapter(
 
 def _mock_response(
     status: int,
-    data: dict[str, Any] | None = None,
+    data: Any = None,
 ) -> AsyncMock:
 
     '''
@@ -87,7 +134,7 @@ def _mock_response(
 
     Args:
         status (int): HTTP status code
-        data (dict[str, Any] | None): JSON response body
+        data (Any): JSON response body
 
     Returns:
         AsyncMock: Mock response with status and json()
@@ -95,7 +142,7 @@ def _mock_response(
 
     resp = AsyncMock()
     resp.status = status
-    resp.json = AsyncMock(return_value=data or {})
+    resp.json = AsyncMock(return_value=data if data is not None else {})
     return resp
 
 
@@ -106,14 +153,14 @@ def _patch_session(adapter: BinanceAdapter, response: AsyncMock) -> None:
 
     Args:
         adapter (BinanceAdapter): Adapter to patch
-        response (AsyncMock): Mock response for session.post()
+        response (AsyncMock): Mock response for session.request()
     '''
 
     session = MagicMock()
     ctx = MagicMock()
     ctx.__aenter__ = AsyncMock(return_value=response)
     ctx.__aexit__ = AsyncMock(return_value=False)
-    session.post = MagicMock(return_value=ctx)
+    session.request = MagicMock(return_value=ctx)
     session.closed = False
     adapter._session = session
 
@@ -167,12 +214,60 @@ class TestSigningAndAuth:
         assert 'timestamp' not in original
         assert 'signature' not in original
 
-    def test_auth_headers_contains_api_key(self) -> None:
+class TestSignedRequest:
+
+    @pytest.mark.asyncio
+    async def test_url_contains_path_and_signed_params(self) -> None:
 
         adapter = _make_adapter()
-        headers = adapter._auth_headers(_ACCOUNT_ID)
-        assert headers == {'X-MBX-APIKEY': _API_KEY}
+        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
+        await adapter._signed_request('GET', '/api/v3/order', {'symbol': 'BTCUSDT'}, _ACCOUNT_ID)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        method = call_args[0][0]
+        url = call_args[0][1]
+        assert method == 'GET'
+        assert url.startswith(f"{_BASE_URL}/api/v3/order?")
+        assert 'symbol=BTCUSDT' in url
+        assert 'timestamp=' in url
+        assert 'signature=' in url
 
+    @pytest.mark.asyncio
+    async def test_delete_method_dispatched(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'orderId': 1, 'status': 'CANCELED'}))
+        await adapter._signed_request('DELETE', '/api/v3/order', {'symbol': 'BTCUSDT'}, _ACCOUNT_ID)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        assert call_args[0][0] == 'DELETE'
+
+    @pytest.mark.asyncio
+    async def test_api_key_header_sent(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        headers = call_args.kwargs['headers']
+        assert headers['X-MBX-APIKEY'] == _API_KEY
+
+    @pytest.mark.asyncio
+    async def test_venue_error_not_wrapped(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(401))
+        with pytest.raises(AuthenticationError):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_transport_error_wrapped_as_transient(self) -> None:
+
+        adapter = _make_adapter()
+        session = MagicMock()
+        session.request = MagicMock(side_effect=aiohttp.ClientError())
+        session.closed = False
+        adapter._session = session
+        with pytest.raises(TransientError, match='Request failed'):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
 
 class TestBuildOrderParams:
 
@@ -320,6 +415,29 @@ class TestMapOrderStatus:
         with pytest.raises(ValueError, match='Unknown Binance order status'):
             adapter._map_order_status('IMAGINARY')
 
+class TestMapOrderType:
+
+    def test_market(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('MARKET', 'GTC') == OrderType.MARKET
+
+    def test_limit_gtc(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT', 'GTC') == OrderType.LIMIT
+
+    def test_limit_ioc(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT', 'IOC') == OrderType.LIMIT_IOC
+
+    def test_unknown_type_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='Unknown Binance order type'):
+            adapter._map_order_type('STOP_LOSS', 'GTC')
+
 
 class TestParseSubmitResponse:
 
@@ -352,6 +470,42 @@ class TestParseSubmitResponse:
         result = adapter._parse_submit_response(_BINANCE_EXPIRED_RESPONSE)
         assert result.status == OrderStatus.EXPIRED
         assert result.immediate_fills == ()
+
+class TestParseVenueOrder:
+
+    def test_limit_order(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order(_BINANCE_LIMIT_ORDER_RESPONSE)
+        assert isinstance(result, VenueOrder)
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.client_order_id == 'my-client-id'
+        assert result.status == OrderStatus.OPEN
+        assert result.symbol == 'BTCUSDT'
+        assert result.side == OrderSide.BUY
+        assert result.order_type == OrderType.LIMIT
+        assert result.qty == Decimal('1.0')
+        assert result.filled_qty == Decimal('0.0')
+        assert result.price == Decimal('50000.0')
+
+    def test_market_order_price_is_none(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order(_BINANCE_MARKET_ORDER_RESPONSE)
+        assert result.order_type == OrderType.MARKET
+        assert result.price is None
+        assert result.side == OrderSide.SELL
+        assert result.status == OrderStatus.FILLED
+        assert result.filled_qty == Decimal('0.5')
+
+    def test_limit_ioc_order(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order(_BINANCE_LIMIT_IOC_ORDER_RESPONSE)
+        assert result.order_type == OrderType.LIMIT_IOC
+        assert result.status == OrderStatus.EXPIRED
+        assert result.filled_qty == Decimal('0.3')
+        assert result.price == Decimal('50000.0')
 
 
 class TestRaiseOnError:
@@ -418,6 +572,27 @@ class TestRaiseOnError:
             await adapter._raise_on_error(_mock_response(400))
         assert exc_info.value.venue_code == _FALLBACK_VENUE_CODE
 
+    @pytest.mark.asyncio
+    async def test_400_order_not_exist_raises_not_found(self) -> None:
+
+        adapter = _make_adapter()
+        response = _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        })
+        with pytest.raises(NotFoundError, match='Not found'):
+            await adapter._raise_on_error(response)
+
+    @pytest.mark.asyncio
+    async def test_400_unknown_order_raises_not_found(self) -> None:
+
+        adapter = _make_adapter()
+        response = _mock_response(400, {
+            'code': _BINANCE_UNKNOWN_ORDER_CODE,
+            'msg': _BINANCE_UNKNOWN_ORDER_MSG,
+        })
+        with pytest.raises(NotFoundError, match='Not found'):
+            await adapter._raise_on_error(response)
 
 class TestSessionLifecycle:
 
@@ -502,7 +677,7 @@ class TestSubmitOrder:
 
         adapter = _make_adapter()
         session = MagicMock()
-        session.post = MagicMock(side_effect=aiohttp.ClientError())
+        session.request = MagicMock(side_effect=aiohttp.ClientError())
         session.closed = False
         adapter._session = session
         with pytest.raises(TransientError, match='Request failed'):
@@ -535,3 +710,216 @@ class TestSubmitOrder:
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
                 Decimal('1.0'),
             )
+
+
+class TestCancelOrder:
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_venue_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = {'orderId': 12345, 'status': 'CANCELED'}
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.cancel_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert isinstance(result, CancelResult)
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.status == OrderStatus.CANCELED
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = {'orderId': 12345, 'status': 'CANCELED'}
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.cancel_order(
+            _ACCOUNT_ID, 'BTCUSDT', client_order_id='my-client-id',
+        )
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.status == OrderStatus.CANCELED
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_both_identifiers(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = {'orderId': 12345, 'status': 'CANCELED'}
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.cancel_order(
+            _ACCOUNT_ID, 'BTCUSDT',
+            venue_order_id=_VENUE_ORDER_ID,
+            client_order_id='my-client-id',
+        )
+        assert result.venue_order_id == _VENUE_ORDER_ID
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_neither_identifier_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='At least one'):
+            await adapter.cancel_order(_ACCOUNT_ID, 'BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_cancel_not_found_raises(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+        with pytest.raises(NotFoundError):
+            await adapter.cancel_order(
+                _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+            )
+
+
+class TestQueryOrder:
+
+    @pytest.mark.asyncio
+    async def test_query_limit_order(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_LIMIT_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert isinstance(result, VenueOrder)
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.client_order_id == 'my-client-id'
+        assert result.status == OrderStatus.OPEN
+        assert result.symbol == 'BTCUSDT'
+        assert result.side == OrderSide.BUY
+        assert result.order_type == OrderType.LIMIT
+        assert result.price == Decimal('50000.0')
+
+    @pytest.mark.asyncio
+    async def test_query_market_order_price_none(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_MARKET_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert result.order_type == OrderType.MARKET
+        assert result.price is None
+
+    @pytest.mark.asyncio
+    async def test_query_limit_ioc_order(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_LIMIT_IOC_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert result.order_type == OrderType.LIMIT_IOC
+
+    @pytest.mark.asyncio
+    async def test_query_with_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_LIMIT_ORDER_RESPONSE))
+        result = await adapter.query_order(
+            _ACCOUNT_ID, 'BTCUSDT', client_order_id='my-client-id',
+        )
+        assert result.venue_order_id == _VENUE_ORDER_ID
+
+    @pytest.mark.asyncio
+    async def test_query_with_neither_identifier_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='At least one'):
+            await adapter.query_order(_ACCOUNT_ID, 'BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_query_not_found_raises(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+        with pytest.raises(NotFoundError):
+            await adapter.query_order(
+                _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+            )
+
+
+class TestQueryOpenOrders:
+
+    @pytest.mark.asyncio
+    async def test_returns_list_of_venue_orders(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = [_BINANCE_LIMIT_ORDER_RESPONSE, _BINANCE_MARKET_ORDER_RESPONSE]
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.query_open_orders(_ACCOUNT_ID, 'BTCUSDT')
+        assert len(result) == 2
+        assert isinstance(result[0], VenueOrder)
+        assert result[0].order_type == OrderType.LIMIT
+        assert result[1].order_type == OrderType.MARKET
+
+    @pytest.mark.asyncio
+    async def test_empty_response_returns_empty_list(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        result = await adapter.query_open_orders(_ACCOUNT_ID, 'BTCUSDT')
+        assert result == []
+
+
+class TestQueryBalance:
+
+    _ACCOUNT_RESPONSE: ClassVar[dict[str, Any]] = {
+        'balances': [
+            {'asset': 'BTC', 'free': '1.50000000', 'locked': '0.25000000'},
+            {'asset': 'USDT', 'free': '10000.00', 'locked': '500.00'},
+            {'asset': 'ETH', 'free': '0.00000000', 'locked': '0.00000000'},
+            {'asset': 'BNB', 'free': '5.00000000', 'locked': '0.00000000'},
+        ],
+    }
+
+    @pytest.mark.asyncio
+    async def test_returns_only_requested_assets(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'BTC', 'USDT'}),
+        )
+        assert len(result) == 2
+        assets = {e.asset for e in result}
+        assert assets == {'BTC', 'USDT'}
+
+    @pytest.mark.asyncio
+    async def test_balance_values_are_decimal(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'BTC'}),
+        )
+        assert len(result) == 1
+        assert isinstance(result[0], BalanceEntry)
+        assert result[0].free == Decimal('1.5')
+        assert result[0].locked == Decimal('0.25')
+
+    @pytest.mark.asyncio
+    async def test_asset_not_in_response_omitted(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'DOGE'}),
+        )
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_filters_exclude_unrequested(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, self._ACCOUNT_RESPONSE))
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'ETH'}),
+        )
+        assert len(result) == 1
+        assert result[0].asset == 'ETH'

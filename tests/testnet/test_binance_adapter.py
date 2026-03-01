@@ -166,3 +166,130 @@ async def test_limit_ioc_expires_at_far_below_price() -> None:
     assert result.status == OrderStatus.EXPIRED
     assert len(result.immediate_fills) == 0
     assert result.venue_order_id
+
+
+@skip_no_creds
+@pytest.mark.asyncio
+async def test_cancel_order_cancels_resting_limit() -> None:
+
+    '''Submit a resting limit order then cancel it via the adapter.'''
+
+    price = await _current_price()
+    far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
+    qty = _min_qty(far_below)
+
+    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+        submit = await adapter.submit_order(
+            account_id=_ACCOUNT_ID,
+            symbol=SYMBOL,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=qty,
+            price=far_below,
+        )
+
+        canceled = False
+        try:
+            result = await adapter.cancel_order(
+                _ACCOUNT_ID, SYMBOL,
+                venue_order_id=submit.venue_order_id,
+            )
+            assert result.status == OrderStatus.CANCELED
+            assert result.venue_order_id == submit.venue_order_id
+            canceled = True
+        finally:
+            if not canceled:
+                async with (
+                    aiohttp.ClientSession(timeout=SESSION_TIMEOUT) as s,
+                    s.delete(
+                        f"{REST_BASE}/api/v3/order",
+                        params=signed_params(symbol=SYMBOL, orderId=submit.venue_order_id),
+                        headers=auth_headers(),
+                    ) as r,
+                ):
+                    _ = r.status
+
+
+@skip_no_creds
+@pytest.mark.asyncio
+async def test_query_order_returns_resting_limit() -> None:
+
+    '''Submit a resting limit order then query it via the adapter.'''
+
+    price = await _current_price()
+    far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
+    qty = _min_qty(far_below)
+
+    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+        submit = await adapter.submit_order(
+            account_id=_ACCOUNT_ID,
+            symbol=SYMBOL,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=qty,
+            price=far_below,
+        )
+
+        try:
+            order = await adapter.query_order(
+                _ACCOUNT_ID, SYMBOL,
+                venue_order_id=submit.venue_order_id,
+            )
+            assert order.venue_order_id == submit.venue_order_id
+            assert order.symbol == SYMBOL
+            assert order.side == OrderSide.BUY
+            assert order.order_type == OrderType.LIMIT
+            assert order.status == OrderStatus.OPEN
+            assert order.price == far_below
+        finally:
+            await adapter.cancel_order(
+                _ACCOUNT_ID, SYMBOL,
+                venue_order_id=submit.venue_order_id,
+            )
+
+
+@skip_no_creds
+@pytest.mark.asyncio
+async def test_query_open_orders_contains_resting_limit() -> None:
+
+    '''Submit a resting limit order then verify it appears in open orders.'''
+
+    price = await _current_price()
+    far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
+    qty = _min_qty(far_below)
+
+    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+        submit = await adapter.submit_order(
+            account_id=_ACCOUNT_ID,
+            symbol=SYMBOL,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            qty=qty,
+            price=far_below,
+        )
+
+        try:
+            orders = await adapter.query_open_orders(_ACCOUNT_ID, SYMBOL)
+            ids = {o.venue_order_id for o in orders}
+            assert submit.venue_order_id in ids
+        finally:
+            await adapter.cancel_order(
+                _ACCOUNT_ID, SYMBOL,
+                venue_order_id=submit.venue_order_id,
+            )
+
+
+@skip_no_creds
+@pytest.mark.asyncio
+async def test_query_balance_returns_requested_assets() -> None:
+
+    '''Query balance for BTC and USDT and verify both are returned.'''
+
+    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+        result = await adapter.query_balance(
+            _ACCOUNT_ID, frozenset({'BTC', 'USDT'}),
+        )
+
+    assets = {e.asset for e in result}
+    assert 'BTC' in assets
+    assert 'USDT' in assets

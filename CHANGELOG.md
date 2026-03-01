@@ -114,3 +114,17 @@
 - Move `aiohttp>=3.10` from dev to runtime dependencies in [`pyproject.toml`](pyproject.toml)
 - Add [`test_binance_adapter.py`](tests/test_binance_adapter.py) with 47 unit tests covering credentials, signing, param building, status mapping, response parsing, error handling, session lifecycle, and end-to-end submit flow
 - Add [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py) with 3 testnet integration tests for market buy (filled), limit resting (open), and limit IOC (expired)
+
+## v0.11.0 on 1st of March, 2026
+
+- Add `_signed_request` helper extracting auth and dispatch from `submit_order` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_map_order_type` mapping Binance `type`/`timeInForce` strings to `OrderType` and `_parse_venue_order` response-to-`VenueOrder` helper in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `cancel_order` via `DELETE /api/v3/order` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `query_order` via `GET /api/v3/order` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `query_open_orders` via `GET /api/v3/openOrders` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `query_balance` via `GET /api/v3/account` with asset filtering in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `assets: frozenset[str]` parameter to `VenueAdapter.query_balance` Protocol in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `NotFoundError` mapping for Binance error codes -2013 and -2011 in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Refactor `_signed_request` return type from `dict[str, Any]` to `Any` to support array responses
+- Add 25 unit tests for `_signed_request`, `cancel_order`, `query_order`, `query_open_orders`, and `query_balance` in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Add 4 testnet integration tests for cancel, query order, query open orders, and query balance in [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)

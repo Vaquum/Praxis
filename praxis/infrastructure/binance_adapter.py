@@ -20,12 +20,16 @@ import aiohttp
 from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
+    BalanceEntry,
+    CancelResult,
     ImmediateFill,
+    NotFoundError,
     OrderRejectedError,
     RateLimitError,
     SubmitResult,
     TransientError,
     VenueError,
+    VenueOrder,
 )
 
 __all__ = ['BinanceAdapter']
@@ -40,6 +44,7 @@ _HTTP_TOO_MANY = 429
 _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
+_NOT_FOUND_CODES = frozenset({-2013, -2011})
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -212,20 +217,49 @@ class BinanceAdapter:
         ).hexdigest()
         return f'{query}&signature={signature}'
 
-    def _auth_headers(self, account_id: str) -> dict[str, str]:
+    async def _signed_request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, str],
+        account_id: str,
+    ) -> Any:
 
         '''
-        Compute HTTP headers for an authenticated request.
+        Execute a signed HTTP request against the Binance REST API.
+
+        Handles credential lookup, query string signing, URL construction,
+        HTTP dispatch, error checking, and JSON parsing.
 
         Args:
+            method (str): HTTP method (GET, POST, DELETE)
+            path (str): API endpoint path
+            params (dict[str, str]): Request parameters to sign and send
             account_id (str): Account identifier for credential lookup
 
         Returns:
-            dict[str, str]: Headers with API key set
+            Any: Parsed JSON response body
         '''
 
-        api_key, _ = self._get_credentials(account_id)
-        return {_API_KEY_HEADER: api_key}
+        session = await self._ensure_session()
+        api_key, api_secret = self._get_credentials(account_id)
+        query_string = self._sign_params(params, api_secret)
+        headers = {_API_KEY_HEADER: api_key}
+
+        try:
+            async with session.request(
+                method,
+                f"{self._base_url}{path}?{query_string}",
+                headers=headers,
+            ) as response:
+                await self._raise_on_error(response)
+                data: Any = await response.json()
+                return data
+        except VenueError:
+            raise
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            msg = f"Request failed: {exc}"
+            raise TransientError(msg) from exc
 
     def _build_order_params(
         self,
@@ -314,6 +348,28 @@ class BinanceAdapter:
             msg = f"Unknown Binance order status: '{binance_status}'"
             raise ValueError(msg) from None
 
+    def _map_order_type(self, binance_type: str, time_in_force: str) -> OrderType:
+
+        '''
+        Map a Binance order type and time-in-force to an OrderType enum.
+
+        Args:
+            binance_type (str): Binance order type value
+            time_in_force (str): Binance time-in-force value
+
+        Returns:
+            OrderType: Corresponding domain order type
+        '''
+
+        if binance_type == 'MARKET':
+            return OrderType.MARKET
+        if binance_type == 'LIMIT':
+            if time_in_force == 'IOC':
+                return OrderType.LIMIT_IOC
+            return OrderType.LIMIT
+        msg = f"Unknown Binance order type: '{binance_type}'"
+        raise ValueError(msg)
+
     def _parse_submit_response(self, data: dict[str, Any]) -> SubmitResult:
 
         '''
@@ -341,6 +397,33 @@ class BinanceAdapter:
             venue_order_id=str(data['orderId']),
             status=self._map_order_status(data['status']),
             immediate_fills=fills,
+        )
+
+    def _parse_venue_order(self, data: dict[str, Any]) -> VenueOrder:
+
+        '''
+        Parse a Binance order query response into a VenueOrder.
+
+        Args:
+            data (dict[str, Any]): Binance JSON response body
+
+        Returns:
+            VenueOrder: Normalised order representation
+        '''
+
+        order_type = self._map_order_type(data['type'], data.get('timeInForce', ''))
+        price = None if order_type == OrderType.MARKET else Decimal(data['price'])
+
+        return VenueOrder(
+            venue_order_id=str(data['orderId']),
+            client_order_id=str(data['clientOrderId']),
+            status=self._map_order_status(data['status']),
+            symbol=data['symbol'],
+            side=OrderSide(data['side']),
+            order_type=order_type,
+            qty=Decimal(data['origQty']),
+            filled_qty=Decimal(data['executedQty']),
+            price=price,
         )
 
     async def _raise_on_error(self, response: aiohttp.ClientResponse) -> None:
@@ -374,6 +457,10 @@ class BinanceAdapter:
         except (ValueError, KeyError, TypeError):
             venue_code = _UNKNOWN_VENUE_CODE
             reason = f"HTTP {response.status}"
+
+        if venue_code in _NOT_FOUND_CODES:
+            msg = f"Not found: {reason} (code {venue_code})"
+            raise NotFoundError(msg)
 
         msg = f"Order rejected: {reason} (code {venue_code})"
         raise OrderRejectedError(msg, venue_code=venue_code, reason=reason)
@@ -410,28 +497,142 @@ class BinanceAdapter:
             SubmitResult: Venue response with order ID, status, and immediate fills
         '''
 
-        session = await self._ensure_session()
-        api_key, api_secret = self._get_credentials(account_id)
         params = self._build_order_params(
             symbol, side, order_type, qty,
             price=price, stop_price=stop_price,
             client_order_id=client_order_id,
             time_in_force=time_in_force,
         )
-        query_string = self._sign_params(params, api_secret)
-        headers = {_API_KEY_HEADER: api_key}
-
-        try:
-            async with session.post(
-                f'{self._base_url}/api/v3/order?{query_string}',
-                headers=headers,
-            ) as response:
-                await self._raise_on_error(response)
-                data = await response.json()
-        except VenueError:
-            raise
-        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-            msg = f"Request failed: {exc}"
-            raise TransientError(msg) from exc
-
+        data = await self._signed_request('POST', '/api/v3/order', params, account_id)
         return self._parse_submit_response(data)
+
+    async def cancel_order(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+
+        '''
+        Cancel an open order on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            venue_order_id (str | None): Venue-assigned order identifier
+            client_order_id (str | None): Deterministic client order identifier
+
+        Returns:
+            CancelResult: Venue response with order ID and terminal status
+        '''
+
+        if venue_order_id is None and client_order_id is None:
+            msg = 'At least one of venue_order_id or client_order_id must be provided'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {'symbol': symbol}
+
+        if venue_order_id is not None:
+            params['orderId'] = venue_order_id
+
+        if client_order_id is not None:
+            params['origClientOrderId'] = client_order_id
+
+        data = await self._signed_request('DELETE', '/api/v3/order', params, account_id)
+        return CancelResult(
+            venue_order_id=str(data['orderId']),
+            status=self._map_order_status(data['status']),
+        )
+
+    async def query_order(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> VenueOrder:
+
+        '''
+        Query the current state of an order on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            venue_order_id (str | None): Venue-assigned order identifier
+            client_order_id (str | None): Deterministic client order identifier
+
+        Returns:
+            VenueOrder: Current order state from the venue
+        '''
+
+        if venue_order_id is None and client_order_id is None:
+            msg = 'At least one of venue_order_id or client_order_id must be provided'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {'symbol': symbol}
+
+        if venue_order_id is not None:
+            params['orderId'] = venue_order_id
+
+        if client_order_id is not None:
+            params['origClientOrderId'] = client_order_id
+
+        data = await self._signed_request('GET', '/api/v3/order', params, account_id)
+        return self._parse_venue_order(data)
+
+    async def query_open_orders(
+        self,
+        account_id: str,
+        symbol: str,
+    ) -> list[VenueOrder]:
+
+        '''
+        Query all open orders for a symbol on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+
+        Returns:
+            list[VenueOrder]: Open orders from the venue
+        '''
+
+        params: dict[str, str] = {'symbol': symbol}
+        data = await self._signed_request('GET', '/api/v3/openOrders', params, account_id)
+
+        return [self._parse_venue_order(entry) for entry in data]
+
+    async def query_balance(
+        self,
+        account_id: str,
+        assets: frozenset[str],
+    ) -> list[BalanceEntry]:
+
+        '''
+        Query account balances for specific assets from the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            assets (frozenset[str]): Asset symbols to retrieve balances for
+
+        Returns:
+            list[BalanceEntry]: Per-asset balance entries for requested assets
+        '''
+
+        if not assets:
+            return []
+
+        data = await self._signed_request('GET', '/api/v3/account', {}, account_id)
+
+        return [
+            BalanceEntry(
+                asset=entry['asset'],
+                free=Decimal(entry['free']),
+                locked=Decimal(entry['locked']),
+            )
+            for entry in data['balances']
+            if entry['asset'] in assets
+        ]
