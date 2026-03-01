@@ -15,6 +15,7 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
+    CancelResult,
     NotFoundError,
     OrderRejectedError,
     RateLimitError,
@@ -654,4 +655,65 @@ class TestSubmitOrder:
             await adapter.submit_order(
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
                 Decimal('1.0'),
+            )
+
+
+class TestCancelOrder:
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_venue_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = {'orderId': 12345, 'status': 'CANCELED'}
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.cancel_order(
+            _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
+        )
+        assert isinstance(result, CancelResult)
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.status == OrderStatus.CANCELED
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = {'orderId': 12345, 'status': 'CANCELED'}
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.cancel_order(
+            _ACCOUNT_ID, 'BTCUSDT', client_order_id='my-client-id',
+        )
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.status == OrderStatus.CANCELED
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_both_identifiers(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = {'orderId': 12345, 'status': 'CANCELED'}
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.cancel_order(
+            _ACCOUNT_ID, 'BTCUSDT',
+            venue_order_id=_VENUE_ORDER_ID,
+            client_order_id='my-client-id',
+        )
+        assert result.venue_order_id == _VENUE_ORDER_ID
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_neither_identifier_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='At least one'):
+            await adapter.cancel_order(_ACCOUNT_ID, 'BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_cancel_not_found_raises(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+        with pytest.raises(NotFoundError):
+            await adapter.cancel_order(
+                _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
             )
