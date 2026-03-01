@@ -448,6 +448,27 @@ class TestRetry:
 
         mock_log.error.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_transport_error_retried(self) -> None:
+
+        adapter = _make_adapter()
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[aiohttp.ClientError('conn reset'), ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            result = await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert result == {'result': 'ok'}
+        assert session.request.call_count == 2
+        mock_sleep.assert_called_once()
 
 class TestBuildOrderParams:
 
