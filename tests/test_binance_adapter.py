@@ -919,7 +919,10 @@ class TestSubmitOrder:
         session.request = MagicMock(side_effect=aiohttp.ClientError())
         session.closed = False
         adapter._session = session
-        with pytest.raises(TransientError, match='Request failed'):
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            pytest.raises(TransientError, match='Request failed'),
+        ):
             await adapter.submit_order(
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
                 Decimal('1.0'),
