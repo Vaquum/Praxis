@@ -128,3 +128,12 @@
 - Refactor `_signed_request` return type from `dict[str, Any]` to `Any` to support array responses
 - Add 25 unit tests for `_signed_request`, `cancel_order`, `query_order`, `query_open_orders`, and `query_balance` in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
 - Add 4 testnet integration tests for cancel, query order, query open orders, and query balance in [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)
+
+## v0.11.1 on 2nd of March, 2026
+
+- Add `STOP_LOSS`, `STOP_LOSS_LIMIT`, `TAKE_PROFIT`, `TAKE_PROFIT_LIMIT`, `LIMIT_MAKER`, and `OCO` mappings to `_map_order_type` via `_BINANCE_TYPE_MAP` lookup in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `LIMIT`+`FOK` handling mapping to `OrderType.LIMIT_IOC` in `_map_order_type` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Refactor `_map_order_type` from chained if-statements to dict lookup to satisfy `PLR0911` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add 8 unit tests for new `_map_order_type` mappings in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Add `test_empty_assets_skips_api_call` verifying `query_balance` short-circuits without API call in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Fix testnet `test_query_balance_returns_requested_assets` assertions to run inside context manager in [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)
