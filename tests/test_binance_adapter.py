@@ -125,7 +125,7 @@ def _make_adapter(
 
 def _mock_response(
     status: int,
-    data: dict[str, Any] | None = None,
+    data: Any = None,
 ) -> AsyncMock:
 
     '''
@@ -133,7 +133,7 @@ def _mock_response(
 
     Args:
         status (int): HTTP status code
-        data (dict[str, Any] | None): JSON response body
+        data (Any): JSON response body
 
     Returns:
         AsyncMock: Mock response with status and json()
@@ -788,3 +788,26 @@ class TestQueryOrder:
             await adapter.query_order(
                 _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
             )
+
+
+class TestQueryOpenOrders:
+
+    @pytest.mark.asyncio
+    async def test_returns_list_of_venue_orders(self) -> None:
+
+        adapter = _make_adapter()
+        response_data = [_BINANCE_LIMIT_ORDER_RESPONSE, _BINANCE_MARKET_ORDER_RESPONSE]
+        _patch_session(adapter, _mock_response(200, response_data))
+        result = await adapter.query_open_orders(_ACCOUNT_ID, 'BTCUSDT')
+        assert len(result) == 2
+        assert isinstance(result[0], VenueOrder)
+        assert result[0].order_type == OrderType.LIMIT
+        assert result[1].order_type == OrderType.MARKET
+
+    @pytest.mark.asyncio
+    async def test_empty_response_returns_empty_list(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        result = await adapter.query_open_orders(_ACCOUNT_ID, 'BTCUSDT')
+        assert result == []

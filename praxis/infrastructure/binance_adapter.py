@@ -222,7 +222,7 @@ class BinanceAdapter:
         path: str,
         params: dict[str, str],
         account_id: str,
-    ) -> dict[str, Any]:
+    ) -> Any:
 
         '''
         Execute a signed HTTP request against the Binance REST API.
@@ -237,7 +237,7 @@ class BinanceAdapter:
             account_id (str): Account identifier for credential lookup
 
         Returns:
-            dict[str, Any]: Parsed JSON response body
+            Any: Parsed JSON response body
         '''
 
         session = await self._ensure_session()
@@ -252,7 +252,7 @@ class BinanceAdapter:
                 headers=headers,
             ) as response:
                 await self._raise_on_error(response)
-                data: dict[str, Any] = await response.json()
+                data: Any = await response.json()
                 return data
         except VenueError:
             raise
@@ -581,3 +581,25 @@ class BinanceAdapter:
 
         data = await self._signed_request('GET', '/api/v3/order', params, account_id)
         return self._parse_venue_order(data)
+
+    async def query_open_orders(
+        self,
+        account_id: str,
+        symbol: str,
+    ) -> list[VenueOrder]:
+
+        '''
+        Query all open orders for a symbol on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+
+        Returns:
+            list[VenueOrder]: Open orders from the venue
+        '''
+
+        params: dict[str, str] = {'symbol': symbol}
+        data = await self._signed_request('GET', '/api/v3/openOrders', params, account_id)
+
+        return [self._parse_venue_order(entry) for entry in data]
