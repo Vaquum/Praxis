@@ -148,21 +148,22 @@ class TestCredentialManagement:
 
 class TestSigningAndAuth:
 
-    def test_sign_params_adds_timestamp_and_signature(self) -> None:
+    def test_sign_params_returns_signed_query_string(self) -> None:
 
         adapter = _make_adapter()
-        params = adapter._sign_params({'symbol': 'BTCUSDT'}, _API_SECRET)
-        assert 'timestamp' in params
-        assert 'signature' in params
-        assert len(params['signature']) == _SHA256_HEX_LENGTH
+        query = adapter._sign_params({'symbol': 'BTCUSDT'}, _API_SECRET)
+        assert 'timestamp=' in query
+        assert '&signature=' in query
+        signature = query.split('signature=')[1]
+        assert len(signature) == _SHA256_HEX_LENGTH
 
     def test_sign_params_preserves_original_params(self) -> None:
 
         adapter = _make_adapter()
         original = {'symbol': 'BTCUSDT', 'side': 'BUY'}
-        params = adapter._sign_params(original, _API_SECRET)
-        assert params['symbol'] == 'BTCUSDT'
-        assert params['side'] == 'BUY'
+        query = adapter._sign_params(original, _API_SECRET)
+        assert 'symbol=BTCUSDT' in query
+        assert 'side=BUY' in query
         assert 'timestamp' not in original
         assert 'signature' not in original
 
@@ -516,6 +517,20 @@ class TestSubmitOrder:
         adapter = _make_adapter()
         _patch_session(adapter, _mock_response(429))
         with pytest.raises(RateLimitError):
+            await adapter.submit_order(
+                _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
+                Decimal('1.0'),
+            )
+
+    @pytest.mark.asyncio
+    async def test_domain_errors_not_wrapped_as_transient(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_REJECTION_CODE,
+            'msg': _BINANCE_REJECTION_MSG,
+        }))
+        with pytest.raises(OrderRejectedError):
             await adapter.submit_order(
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
                 Decimal('1.0'),

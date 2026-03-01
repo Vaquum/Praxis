@@ -25,6 +25,7 @@ from praxis.infrastructure.venue_adapter import (
     RateLimitError,
     SubmitResult,
     TransientError,
+    VenueError,
 )
 
 __all__ = ['BinanceAdapter']
@@ -184,28 +185,32 @@ class BinanceAdapter:
         self,
         params: dict[str, str],
         api_secret: str,
-    ) -> dict[str, str]:
+    ) -> str:
 
         '''
-        Compute signed query parameters for an authenticated request.
+        Build a signed query string for an authenticated request.
+
+        Computes the full URL-encoded query string including timestamp and
+        HMAC-SHA256 signature. The caller must embed this directly in the
+        request URL to avoid re-encoding by the HTTP client.
 
         Args:
             params (dict[str, str]): Request parameters to sign
             api_secret (str): API secret used as HMAC key
 
         Returns:
-            dict[str, str]: Parameters with timestamp and signature appended
+            str: URL-encoded query string with timestamp and signature appended
         '''
 
         signed = dict(params)
         signed['timestamp'] = str(int(time.time() * _MS_PER_SECOND))
         query = urlencode(signed)
-        signed['signature'] = hmac.new(
+        signature = hmac.new(
             api_secret.encode(),
             query.encode(),
             hashlib.sha256,
         ).hexdigest()
-        return signed
+        return f'{query}&signature={signature}'
 
     def _auth_headers(self, account_id: str) -> dict[str, str]:
 
@@ -413,17 +418,18 @@ class BinanceAdapter:
             client_order_id=client_order_id,
             time_in_force=time_in_force,
         )
-        signed = self._sign_params(params, api_secret)
+        query_string = self._sign_params(params, api_secret)
         headers = {_API_KEY_HEADER: api_key}
 
         try:
             async with session.post(
-                f"{self._base_url}/api/v3/order",
-                params=signed,
+                f'{self._base_url}/api/v3/order?{query_string}',
                 headers=headers,
             ) as response:
                 await self._raise_on_error(response)
                 data = await response.json()
+        except VenueError:
+            raise
         except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
             msg = f"Request failed: {exc}"
             raise TransientError(msg) from exc
