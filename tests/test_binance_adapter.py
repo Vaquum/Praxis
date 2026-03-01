@@ -106,14 +106,14 @@ def _patch_session(adapter: BinanceAdapter, response: AsyncMock) -> None:
 
     Args:
         adapter (BinanceAdapter): Adapter to patch
-        response (AsyncMock): Mock response for session.post()
+        response (AsyncMock): Mock response for session.request()
     '''
 
     session = MagicMock()
     ctx = MagicMock()
     ctx.__aenter__ = AsyncMock(return_value=response)
     ctx.__aexit__ = AsyncMock(return_value=False)
-    session.post = MagicMock(return_value=ctx)
+    session.request = MagicMock(return_value=ctx)
     session.closed = False
     adapter._session = session
 
@@ -167,11 +167,6 @@ class TestSigningAndAuth:
         assert 'timestamp' not in original
         assert 'signature' not in original
 
-    def test_auth_headers_contains_api_key(self) -> None:
-
-        adapter = _make_adapter()
-        headers = adapter._auth_headers(_ACCOUNT_ID)
-        assert headers == {'X-MBX-APIKEY': _API_KEY}
 
 
 class TestBuildOrderParams:
@@ -502,7 +497,7 @@ class TestSubmitOrder:
 
         adapter = _make_adapter()
         session = MagicMock()
-        session.post = MagicMock(side_effect=aiohttp.ClientError())
+        session.request = MagicMock(side_effect=aiohttp.ClientError())
         session.closed = False
         adapter._session = session
         with pytest.raises(TransientError, match='Request failed'):

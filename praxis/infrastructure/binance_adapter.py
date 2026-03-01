@@ -212,20 +212,49 @@ class BinanceAdapter:
         ).hexdigest()
         return f'{query}&signature={signature}'
 
-    def _auth_headers(self, account_id: str) -> dict[str, str]:
+    async def _signed_request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, str],
+        account_id: str,
+    ) -> dict[str, Any]:
 
         '''
-        Compute HTTP headers for an authenticated request.
+        Execute a signed HTTP request against the Binance REST API.
+
+        Handles credential lookup, query string signing, URL construction,
+        HTTP dispatch, error checking, and JSON parsing.
 
         Args:
+            method (str): HTTP method (GET, POST, DELETE)
+            path (str): API endpoint path
+            params (dict[str, str]): Request parameters to sign and send
             account_id (str): Account identifier for credential lookup
 
         Returns:
-            dict[str, str]: Headers with API key set
+            dict[str, Any]: Parsed JSON response body
         '''
 
-        api_key, _ = self._get_credentials(account_id)
-        return {_API_KEY_HEADER: api_key}
+        session = await self._ensure_session()
+        api_key, api_secret = self._get_credentials(account_id)
+        query_string = self._sign_params(params, api_secret)
+        headers = {_API_KEY_HEADER: api_key}
+
+        try:
+            async with session.request(
+                method,
+                f'{self._base_url}{path}?{query_string}',
+                headers=headers,
+            ) as response:
+                await self._raise_on_error(response)
+                data: dict[str, Any] = await response.json()
+                return data
+        except VenueError:
+            raise
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            msg = f"Request failed: {exc}"
+            raise TransientError(msg) from exc
 
     def _build_order_params(
         self,
@@ -410,28 +439,11 @@ class BinanceAdapter:
             SubmitResult: Venue response with order ID, status, and immediate fills
         '''
 
-        session = await self._ensure_session()
-        api_key, api_secret = self._get_credentials(account_id)
         params = self._build_order_params(
             symbol, side, order_type, qty,
             price=price, stop_price=stop_price,
             client_order_id=client_order_id,
             time_in_force=time_in_force,
         )
-        query_string = self._sign_params(params, api_secret)
-        headers = {_API_KEY_HEADER: api_key}
-
-        try:
-            async with session.post(
-                f'{self._base_url}/api/v3/order?{query_string}',
-                headers=headers,
-            ) as response:
-                await self._raise_on_error(response)
-                data = await response.json()
-        except VenueError:
-            raise
-        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-            msg = f"Request failed: {exc}"
-            raise TransientError(msg) from exc
-
+        data = await self._signed_request('POST', '/api/v3/order', params, account_id)
         return self._parse_submit_response(data)
