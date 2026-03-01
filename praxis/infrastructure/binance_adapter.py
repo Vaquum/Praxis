@@ -60,12 +60,9 @@ _BINANCE_TYPE_MAP: dict[str, OrderType] = {
     'MARKET': OrderType.MARKET,
     'LIMIT_MAKER': OrderType.LIMIT,
     'STOP_LOSS': OrderType.STOP,
-    'STOP': OrderType.STOP,
     'STOP_LOSS_LIMIT': OrderType.STOP_LIMIT,
-    'STOP_LIMIT': OrderType.STOP_LIMIT,
     'TAKE_PROFIT': OrderType.TAKE_PROFIT,
     'TAKE_PROFIT_LIMIT': OrderType.TP_LIMIT,
-    'TP_LIMIT': OrderType.TP_LIMIT,
     'OCO': OrderType.OCO,
 }
 
@@ -375,6 +372,7 @@ class BinanceAdapter:
         '''
 
         if binance_type == 'LIMIT':
+            # FOK mapped to LIMIT_IOC: no dedicated enum value; both are non-resting
             if time_in_force in ('IOC', 'FOK'):
                 return OrderType.LIMIT_IOC
             return OrderType.LIMIT

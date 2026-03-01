@@ -473,6 +473,7 @@ class TestMapOrderType:
         with pytest.raises(ValueError, match='Unknown Binance order type'):
             adapter._map_order_type('TRAILING_STOP', 'GTC')
 
+
 class TestParseSubmitResponse:
 
     def test_filled_with_fills(self) -> None:
