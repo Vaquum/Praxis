@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
@@ -30,6 +31,7 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueError,
     VenueOrder,
+    VenueTrade,
 )
 
 __all__ = ['BinanceAdapter']
@@ -389,7 +391,7 @@ class BinanceAdapter:
                 price=Decimal(f['price']),
                 fee=Decimal(f['commission']),
                 fee_asset=f['commissionAsset'],
-                is_maker=False,
+                is_maker=False,  # Binance FULL fills omit isMaker; always taker
             )
             for f in data.get('fills', [])
         )
@@ -424,6 +426,34 @@ class BinanceAdapter:
             qty=Decimal(data['origQty']),
             filled_qty=Decimal(data['executedQty']),
             price=price,
+        )
+
+    def _parse_venue_trade(self, data: dict[str, Any]) -> VenueTrade:
+
+        '''
+        Parse a Binance myTrades response entry into a VenueTrade.
+
+        Args:
+            data (dict[str, Any]): Single trade entry from Binance myTrades response
+
+        Returns:
+            VenueTrade: Normalised trade representation
+        '''
+
+        return VenueTrade(
+            venue_trade_id=str(data['id']),
+            venue_order_id=str(data['orderId']),
+            client_order_id=str(data['clientOrderId']),
+            symbol=data['symbol'],
+            side=OrderSide(data['side']),
+            qty=Decimal(data['qty']),
+            price=Decimal(data['price']),
+            fee=Decimal(data['commission']),
+            fee_asset=data['commissionAsset'],
+            is_maker=data['isMaker'],
+            timestamp=datetime.fromtimestamp(
+                data['time'] / _MS_PER_SECOND, tz=timezone.utc,
+            ),
         )
 
     async def _raise_on_error(self, response: aiohttp.ClientResponse) -> None:
@@ -636,3 +666,36 @@ class BinanceAdapter:
             for entry in data['balances']
             if entry['asset'] in assets
         ]
+
+    async def query_trades(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        start_time: datetime | None = None,
+    ) -> list[VenueTrade]:
+
+        '''
+        Query historical trade records from the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            start_time (datetime | None): Return trades after this time, must be timezone-aware
+
+        Returns:
+            list[VenueTrade]: Trade records from the venue
+        '''
+
+        if start_time is not None and (start_time.tzinfo is None or start_time.utcoffset() is None):
+            msg = 'start_time must be timezone-aware'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {'symbol': symbol}
+
+        if start_time is not None:
+            params['startTime'] = str(int(start_time.timestamp() * _MS_PER_SECOND))
+
+        data = await self._signed_request('GET', '/api/v3/myTrades', params, account_id)
+
+        return [self._parse_venue_trade(entry) for entry in data]

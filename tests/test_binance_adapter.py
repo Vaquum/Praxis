@@ -4,6 +4,7 @@ Tests for praxis.infrastructure.binance_adapter.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock
@@ -22,6 +23,7 @@ from praxis.infrastructure.venue_adapter import (
     RateLimitError,
     TransientError,
     VenueOrder,
+    VenueTrade,
 )
 
 
@@ -103,6 +105,20 @@ _BINANCE_LIMIT_IOC_ORDER_RESPONSE: dict[str, Any] = {
     'origQty': '1.00000000',
     'executedQty': '0.30000000',
     'price': '50000.00000000',
+}
+
+_BINANCE_TRADE_RESPONSE: dict[str, Any] = {
+    'id': 99,
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'symbol': 'BTCUSDT',
+    'side': 'BUY',
+    'qty': '0.50000000',
+    'price': '50000.12345678',
+    'commission': '0.00050000',
+    'commissionAsset': 'BTC',
+    'isMaker': True,
+    'time': 1700000000000,
 }
 
 
@@ -923,3 +939,89 @@ class TestQueryBalance:
         )
         assert len(result) == 1
         assert result[0].asset == 'ETH'
+
+
+
+class TestParseVenueTrade:
+
+    def test_field_mapping(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert isinstance(result, VenueTrade)
+        assert result.venue_trade_id == _VENUE_TRADE_ID
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.client_order_id == 'my-client-id'
+        assert result.symbol == 'BTCUSDT'
+        assert result.side == OrderSide.BUY
+        assert result.fee_asset == 'BTC'
+
+    def test_decimal_precision_preserved(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert str(result.qty) == '0.50000000'
+        assert str(result.price) == '50000.12345678'
+        assert str(result.fee) == '0.00050000'
+
+    def test_timestamp_is_utc(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert result.timestamp.tzinfo == timezone.utc
+        expected = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        assert result.timestamp == expected
+
+    def test_is_maker_true(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert result.is_maker is True
+
+    def test_is_maker_false(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_TRADE_RESPONSE)
+        data['isMaker'] = False
+        result = adapter._parse_venue_trade(data)
+        assert result.is_maker is False
+
+
+class TestQueryTrades:
+
+    @pytest.mark.asyncio
+    async def test_returns_list_of_venue_trades(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, [_BINANCE_TRADE_RESPONSE]))
+        result = await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT')
+        assert len(result) == 1
+        assert isinstance(result[0], VenueTrade)
+        assert result[0].venue_trade_id == _VENUE_TRADE_ID
+
+    @pytest.mark.asyncio
+    async def test_empty_response_returns_empty_list(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        result = await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT')
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_start_time_converted_to_ms(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        start = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=start)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        url = call_args[0][1]
+        assert 'startTime=1700000000000' in url
+
+    @pytest.mark.asyncio
+    async def test_naive_start_time_raises(self) -> None:
+
+        adapter = _make_adapter()
+        naive = datetime(2023, 11, 14, 22, 13, 20)
+        with pytest.raises(ValueError, match='timezone-aware'):
+            await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=naive)
