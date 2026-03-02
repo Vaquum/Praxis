@@ -294,6 +294,7 @@ class BinanceAdapter:
             except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
                 msg = f"Request failed: {exc}"
                 last_error = TransientError(msg)
+                last_error.__cause__ = exc
                 if attempt + 1 == _MAX_RETRIES:
                     break
                 delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
@@ -307,7 +308,8 @@ class BinanceAdapter:
             'All %d attempts exhausted on %s %s: %s',
             _MAX_RETRIES, method, path, last_error,
         )
-        assert last_error is not None
+        if last_error is None:
+            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
         raise last_error
 
     def _build_order_params(
