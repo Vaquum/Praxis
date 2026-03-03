@@ -4,9 +4,10 @@ Tests for praxis.infrastructure.binance_adapter.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, ClassVar
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
@@ -22,6 +23,7 @@ from praxis.infrastructure.venue_adapter import (
     RateLimitError,
     TransientError,
     VenueOrder,
+    VenueTrade,
 )
 
 
@@ -103,6 +105,20 @@ _BINANCE_LIMIT_IOC_ORDER_RESPONSE: dict[str, Any] = {
     'origQty': '1.00000000',
     'executedQty': '0.30000000',
     'price': '50000.00000000',
+}
+
+_BINANCE_TRADE_RESPONSE: dict[str, Any] = {
+    'id': 99,
+    'orderId': 12345,
+    'clientOrderId': 'my-client-id',
+    'symbol': 'BTCUSDT',
+    'side': 'BUY',
+    'qty': '0.50000000',
+    'price': '50000.12345678',
+    'commission': '0.00050000',
+    'commissionAsset': 'BTC',
+    'isMaker': True,
+    'time': 1700000000000,
 }
 
 
@@ -266,8 +282,213 @@ class TestSignedRequest:
         session.request = MagicMock(side_effect=aiohttp.ClientError())
         session.closed = False
         adapter._session = session
-        with pytest.raises(TransientError, match='Request failed'):
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            pytest.raises(TransientError, match='Request failed'),
+        ):
             await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+
+class TestRetry:
+
+    @pytest.mark.asyncio
+    async def test_succeeds_on_second_attempt(self) -> None:
+
+        adapter = _make_adapter()
+        fail_resp = _mock_response(500)
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        fail_ctx = MagicMock()
+        fail_ctx.__aenter__ = AsyncMock(return_value=fail_resp)
+        fail_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[fail_ctx, ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            result = await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert result == {'result': 'ok'}
+        assert session.request.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_exhaustion_raises_transient_error(self) -> None:
+
+        adapter = _make_adapter()
+        fail_resp = _mock_response(500)
+
+        contexts = []
+        for _ in range(3):
+            ctx = MagicMock()
+            ctx.__aenter__ = AsyncMock(return_value=fail_resp)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            contexts.append(ctx)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=contexts)
+        session.closed = False
+        adapter._session = session
+
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            pytest.raises(TransientError, match='Venue server error'),
+        ):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert session.request.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_auth_error_not_retried(self) -> None:
+
+        adapter = _make_adapter()
+        fail_resp = _mock_response(401)
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=fail_resp)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(return_value=ctx)
+        session.closed = False
+        adapter._session = session
+
+        with pytest.raises(AuthenticationError):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert session.request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_order_rejected_not_retried(self) -> None:
+
+        adapter = _make_adapter()
+        fail_resp = _mock_response(400, {'code': -1013, 'msg': 'Invalid quantity'})
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=fail_resp)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(return_value=ctx)
+        session.closed = False
+        adapter._session = session
+
+        with pytest.raises(OrderRejectedError):
+            await adapter._signed_request('POST', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert session.request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_retry_calls_asyncio_sleep(self) -> None:
+
+        adapter = _make_adapter()
+        fail_resp = _mock_response(500)
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        fail_ctx = MagicMock()
+        fail_ctx.__aenter__ = AsyncMock(return_value=fail_resp)
+        fail_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[fail_ctx, ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        mock_sleep.assert_called_once()
+        delay = mock_sleep.call_args[0][0]
+        assert 0 <= delay <= 0.5
+
+    @pytest.mark.asyncio
+    async def test_retry_logs_warning(self) -> None:
+
+        adapter = _make_adapter()
+        fail_resp = _mock_response(500)
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        fail_ctx = MagicMock()
+        fail_ctx.__aenter__ = AsyncMock(return_value=fail_resp)
+        fail_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[fail_ctx, ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            patch('praxis.infrastructure.binance_adapter._log') as mock_log,
+        ):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        mock_log.warning.assert_called_once()
+        assert 'attempt 1/3' in mock_log.warning.call_args[0][0] % mock_log.warning.call_args[0][1:]
+
+    @pytest.mark.asyncio
+    async def test_exhaustion_logs_error(self) -> None:
+
+        adapter = _make_adapter()
+        fail_resp = _mock_response(500)
+
+        contexts = []
+        for _ in range(3):
+            ctx = MagicMock()
+            ctx.__aenter__ = AsyncMock(return_value=fail_resp)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            contexts.append(ctx)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=contexts)
+        session.closed = False
+        adapter._session = session
+
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            patch('praxis.infrastructure.binance_adapter._log') as mock_log,
+            pytest.raises(TransientError),
+        ):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        mock_log.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_transport_error_retried(self) -> None:
+
+        adapter = _make_adapter()
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[aiohttp.ClientError('conn reset'), ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            result = await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert result == {'result': 'ok'}
+        assert session.request.call_count == 2
+        mock_sleep.assert_called_once()
+
 
 class TestBuildOrderParams:
 
@@ -432,11 +653,46 @@ class TestMapOrderType:
         adapter = _make_adapter()
         assert adapter._map_order_type('LIMIT', 'IOC') == OrderType.LIMIT_IOC
 
+    def test_limit_fok(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT', 'FOK') == OrderType.LIMIT_IOC
+
+    def test_limit_maker(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('LIMIT_MAKER', 'GTC') == OrderType.LIMIT
+
+    def test_stop_loss(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('STOP_LOSS', 'GTC') == OrderType.STOP
+
+    def test_stop_loss_limit(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('STOP_LOSS_LIMIT', 'GTC') == OrderType.STOP_LIMIT
+
+    def test_take_profit(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('TAKE_PROFIT', 'GTC') == OrderType.TAKE_PROFIT
+
+    def test_take_profit_limit(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('TAKE_PROFIT_LIMIT', 'GTC') == OrderType.TP_LIMIT
+
+    def test_oco(self) -> None:
+
+        adapter = _make_adapter()
+        assert adapter._map_order_type('OCO', '') == OrderType.OCO
+
     def test_unknown_type_raises(self) -> None:
 
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='Unknown Binance order type'):
-            adapter._map_order_type('STOP_LOSS', 'GTC')
+            adapter._map_order_type('TRAILING_STOP', 'GTC')
 
 
 class TestParseSubmitResponse:
@@ -680,7 +936,10 @@ class TestSubmitOrder:
         session.request = MagicMock(side_effect=aiohttp.ClientError())
         session.closed = False
         adapter._session = session
-        with pytest.raises(TransientError, match='Request failed'):
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            pytest.raises(TransientError, match='Request failed'),
+        ):
             await adapter.submit_order(
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
                 Decimal('1.0'),
@@ -923,3 +1182,99 @@ class TestQueryBalance:
         )
         assert len(result) == 1
         assert result[0].asset == 'ETH'
+
+    @pytest.mark.asyncio
+    async def test_empty_assets_skips_api_call(self) -> None:
+
+        adapter = _make_adapter()
+        session = MagicMock()
+        session.closed = False
+        adapter._session = session
+        result = await adapter.query_balance(_ACCOUNT_ID, frozenset())
+        assert result == []
+        session.request.assert_not_called()
+
+
+class TestParseVenueTrade:
+
+    def test_field_mapping(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert isinstance(result, VenueTrade)
+        assert result.venue_trade_id == _VENUE_TRADE_ID
+        assert result.venue_order_id == _VENUE_ORDER_ID
+        assert result.client_order_id == 'my-client-id'
+        assert result.symbol == 'BTCUSDT'
+        assert result.side == OrderSide.BUY
+        assert result.fee_asset == 'BTC'
+
+    def test_decimal_precision_preserved(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert str(result.qty) == '0.50000000'
+        assert str(result.price) == '50000.12345678'
+        assert str(result.fee) == '0.00050000'
+
+    def test_timestamp_is_utc(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert result.timestamp.tzinfo == timezone.utc
+        expected = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        assert result.timestamp == expected
+
+    def test_is_maker_true(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
+        assert result.is_maker is True
+
+    def test_is_maker_false(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_TRADE_RESPONSE)
+        data['isMaker'] = False
+        result = adapter._parse_venue_trade(data)
+        assert result.is_maker is False
+
+
+class TestQueryTrades:
+
+    @pytest.mark.asyncio
+    async def test_returns_list_of_venue_trades(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, [_BINANCE_TRADE_RESPONSE]))
+        result = await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT')
+        assert len(result) == 1
+        assert isinstance(result[0], VenueTrade)
+        assert result[0].venue_trade_id == _VENUE_TRADE_ID
+
+    @pytest.mark.asyncio
+    async def test_empty_response_returns_empty_list(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        result = await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT')
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_start_time_converted_to_ms(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        start = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=start)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        url = call_args[0][1]
+        assert 'startTime=1700000000000' in url
+
+    @pytest.mark.asyncio
+    async def test_naive_start_time_raises(self) -> None:
+
+        adapter = _make_adapter()
+        naive = datetime(2023, 11, 14, 22, 13, 20)
+        with pytest.raises(ValueError, match='timezone-aware'):
+            await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=naive)

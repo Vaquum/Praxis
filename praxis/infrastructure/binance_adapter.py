@@ -8,9 +8,13 @@ encapsulated here.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
+import logging
+import random
 import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
@@ -30,6 +34,7 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueError,
     VenueOrder,
+    VenueTrade,
 )
 
 __all__ = ['BinanceAdapter']
@@ -45,6 +50,10 @@ _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 0.5
+
+_log = logging.getLogger(__name__)
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -54,6 +63,16 @@ _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'REJECTED': OrderStatus.REJECTED,
     'EXPIRED': OrderStatus.EXPIRED,
     'EXPIRED_IN_MATCH': OrderStatus.EXPIRED,
+}
+
+_BINANCE_TYPE_MAP: dict[str, OrderType] = {
+    'MARKET': OrderType.MARKET,
+    'LIMIT_MAKER': OrderType.LIMIT,
+    'STOP_LOSS': OrderType.STOP,
+    'STOP_LOSS_LIMIT': OrderType.STOP_LIMIT,
+    'TAKE_PROFIT': OrderType.TAKE_PROFIT,
+    'TAKE_PROFIT_LIMIT': OrderType.TP_LIMIT,
+    'OCO': OrderType.OCO,
 }
 
 
@@ -229,7 +248,8 @@ class BinanceAdapter:
         Execute a signed HTTP request against the Binance REST API.
 
         Handles credential lookup, query string signing, URL construction,
-        HTTP dispatch, error checking, and JSON parsing.
+        HTTP dispatch, error checking, and JSON parsing. Retries on
+        TransientError with exponential backoff and jitter.
 
         Args:
             method (str): HTTP method (GET, POST, DELETE)
@@ -239,27 +259,60 @@ class BinanceAdapter:
 
         Returns:
             Any: Parsed JSON response body
+
+        Raises:
+            TransientError: After all retry attempts are exhausted
         '''
 
         session = await self._ensure_session()
         api_key, api_secret = self._get_credentials(account_id)
-        query_string = self._sign_params(params, api_secret)
         headers = {_API_KEY_HEADER: api_key}
+        last_error: TransientError | None = None
 
-        try:
-            async with session.request(
-                method,
-                f"{self._base_url}{path}?{query_string}",
-                headers=headers,
-            ) as response:
-                await self._raise_on_error(response)
-                data: Any = await response.json()
-                return data
-        except VenueError:
-            raise
-        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-            msg = f"Request failed: {exc}"
-            raise TransientError(msg) from exc
+        for attempt in range(_MAX_RETRIES):
+            query_string = self._sign_params(params, api_secret)
+
+            try:
+                async with session.request(
+                    method,
+                    f"{self._base_url}{path}?{query_string}",
+                    headers=headers,
+                ) as response:
+                    await self._raise_on_error(response)
+                    data: Any = await response.json()
+                    return data
+            except TransientError as exc:
+                last_error = exc
+                if attempt + 1 == _MAX_RETRIES:
+                    break
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
+                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+            except VenueError:
+                raise
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+                msg = f"Request failed: {exc}"
+                last_error = TransientError(msg)
+                last_error.__cause__ = exc
+                if attempt + 1 == _MAX_RETRIES:
+                    break
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
+                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+
+        _log.error(
+            'All %d attempts exhausted on %s %s: %s',
+            _MAX_RETRIES, method, path, last_error,
+        )
+        if last_error is None:
+            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
+        raise last_error
 
     def _build_order_params(
         self,
@@ -361,12 +414,16 @@ class BinanceAdapter:
             OrderType: Corresponding domain order type
         '''
 
-        if binance_type == 'MARKET':
-            return OrderType.MARKET
         if binance_type == 'LIMIT':
-            if time_in_force == 'IOC':
+            # FOK mapped to LIMIT_IOC: no dedicated enum value; both are non-resting
+            if time_in_force in ('IOC', 'FOK'):
                 return OrderType.LIMIT_IOC
             return OrderType.LIMIT
+
+        result = _BINANCE_TYPE_MAP.get(binance_type)
+        if result is not None:
+            return result
+
         msg = f"Unknown Binance order type: '{binance_type}'"
         raise ValueError(msg)
 
@@ -389,7 +446,7 @@ class BinanceAdapter:
                 price=Decimal(f['price']),
                 fee=Decimal(f['commission']),
                 fee_asset=f['commissionAsset'],
-                is_maker=False,
+                is_maker=False,  # Binance FULL fills omit isMaker; always taker
             )
             for f in data.get('fills', [])
         )
@@ -424,6 +481,34 @@ class BinanceAdapter:
             qty=Decimal(data['origQty']),
             filled_qty=Decimal(data['executedQty']),
             price=price,
+        )
+
+    def _parse_venue_trade(self, data: dict[str, Any]) -> VenueTrade:
+
+        '''
+        Parse a Binance myTrades response entry into a VenueTrade.
+
+        Args:
+            data (dict[str, Any]): Single trade entry from Binance myTrades response
+
+        Returns:
+            VenueTrade: Normalised trade representation
+        '''
+
+        return VenueTrade(
+            venue_trade_id=str(data['id']),
+            venue_order_id=str(data['orderId']),
+            client_order_id=str(data['clientOrderId']),
+            symbol=data['symbol'],
+            side=OrderSide(data['side']),
+            qty=Decimal(data['qty']),
+            price=Decimal(data['price']),
+            fee=Decimal(data['commission']),
+            fee_asset=data['commissionAsset'],
+            is_maker=data['isMaker'],
+            timestamp=datetime.fromtimestamp(
+                data['time'] / _MS_PER_SECOND, tz=timezone.utc,
+            ),
         )
 
     async def _raise_on_error(self, response: aiohttp.ClientResponse) -> None:
@@ -636,3 +721,36 @@ class BinanceAdapter:
             for entry in data['balances']
             if entry['asset'] in assets
         ]
+
+    async def query_trades(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        start_time: datetime | None = None,
+    ) -> list[VenueTrade]:
+
+        '''
+        Query historical trade records from the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            start_time (datetime | None): Return trades after this time, must be timezone-aware
+
+        Returns:
+            list[VenueTrade]: Trade records from the venue
+        '''
+
+        if start_time is not None and (start_time.tzinfo is None or start_time.utcoffset() is None):
+            msg = 'start_time must be timezone-aware'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {'symbol': symbol}
+
+        if start_time is not None:
+            params['startTime'] = str(int(start_time.timestamp() * _MS_PER_SECOND))
+
+        data = await self._signed_request('GET', '/api/v3/myTrades', params, account_id)
+
+        return [self._parse_venue_trade(entry) for entry in data]
