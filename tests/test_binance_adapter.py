@@ -1344,6 +1344,14 @@ class TestGetExchangeInfo:
         with pytest.raises(VenueError, match='Missing required filters'):
             await adapter.get_exchange_info('BTCUSDT')
 
+    @pytest.mark.asyncio
+    async def test_empty_symbols_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'symbols': []}))
+        with pytest.raises(VenueError, match="missing or empty 'symbols'"):
+            await adapter.get_exchange_info('BTCUSDT')
+
 
 class TestLoadFilters:
 

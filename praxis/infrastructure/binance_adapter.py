@@ -566,9 +566,10 @@ class BinanceAdapter:
         '''
         Validate order parameters against cached venue filters.
 
-        Checks quantity step, quantity range, price tick, and minimum
-        notional value. Logs a warning and returns without validation
-        if filters are not cached for the symbol.
+        Checks quantity step, quantity range, and price tick for all
+        orders, and minimum notional only for priced, non-market orders.
+        Logs a warning and returns without validation if filters are not
+        cached for the symbol.
 
         Args:
             symbol (str): Trading pair symbol
@@ -848,18 +849,37 @@ class BinanceAdapter:
         try:
             async with session.request(
                 'GET',
-                f"{self._base_url}/api/v3/exchangeInfo?symbol={symbol}",
+                f"{self._base_url}/api/v3/exchangeInfo",
+                params={'symbol': symbol},
             ) as response:
                 await self._raise_on_error(response)
                 data: Any = await response.json()
+        except OrderRejectedError as exc:
+            msg = f"exchangeInfo failed for {symbol!r}: {exc}"
+            raise VenueError(msg) from exc
         except VenueError:
             raise
         except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
             msg = f"Request failed: {exc}"
             raise TransientError(msg) from exc
 
+        symbols_list = data.get('symbols') if isinstance(data, dict) else None
+
+        if not isinstance(symbols_list, list) or not symbols_list:
+            msg = f"Unexpected exchangeInfo payload for {symbol!r}: missing or empty 'symbols'"
+            raise VenueError(msg)
+
+        symbol_info = symbols_list[0]
+        filters_list = symbol_info.get('filters') if isinstance(symbol_info, dict) else None
+
+        if not isinstance(filters_list, list) or not filters_list:
+            msg = f"Unexpected exchangeInfo payload for {symbol!r}: missing or empty 'filters'"
+            raise VenueError(msg)
+
         filters: dict[str, dict[str, Any]] = {
-            f['filterType']: f for f in data['symbols'][0]['filters']
+            f['filterType']: f
+            for f in filters_list
+            if isinstance(f, dict) and 'filterType' in f
         }
 
         required = ('PRICE_FILTER', 'LOT_SIZE', 'NOTIONAL')
