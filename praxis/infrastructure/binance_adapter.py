@@ -892,11 +892,15 @@ class BinanceAdapter:
             msg = f"Missing required filters for {symbol}: {', '.join(missing)}"
             raise VenueError(msg)
 
-        return SymbolFilters(
-            symbol=symbol,
-            tick_size=Decimal(filters['PRICE_FILTER']['tickSize']),
-            lot_step=Decimal(filters['LOT_SIZE']['stepSize']),
-            lot_min=Decimal(filters['LOT_SIZE']['minQty']),
-            lot_max=Decimal(filters['LOT_SIZE']['maxQty']),
-            min_notional=Decimal(filters['NOTIONAL']['minNotional']),
-        )
+        try:
+            return SymbolFilters(
+                symbol=symbol,
+                tick_size=Decimal(filters['PRICE_FILTER']['tickSize']),
+                lot_step=Decimal(filters['LOT_SIZE']['stepSize']),
+                lot_min=Decimal(filters['LOT_SIZE']['minQty']),
+                lot_max=Decimal(filters['LOT_SIZE']['maxQty']),
+                min_notional=Decimal(filters['NOTIONAL']['minNotional']),
+            )
+        except (KeyError, ArithmeticError) as exc:
+            msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"
+            raise VenueError(msg) from exc

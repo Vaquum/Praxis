@@ -1352,6 +1352,26 @@ class TestGetExchangeInfo:
         with pytest.raises(VenueError, match="missing or empty 'symbols'"):
             await adapter.get_exchange_info('BTCUSDT')
 
+    @pytest.mark.asyncio
+    async def test_missing_inner_field_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        payload: dict[str, Any] = {
+            'symbols': [
+                {
+                    'symbol': 'BTCUSDT',
+                    'filters': [
+                        {'filterType': 'PRICE_FILTER', 'tickSize': '0.01'},
+                        {'filterType': 'LOT_SIZE'},
+                        {'filterType': 'NOTIONAL', 'minNotional': '5.0'},
+                    ],
+                },
+            ],
+        }
+        _patch_session(adapter, _mock_response(200, payload))
+        with pytest.raises(VenueError, match='Malformed exchangeInfo payload'):
+            await adapter.get_exchange_info('BTCUSDT')
+
 
 class TestLoadFilters:
 
@@ -1373,6 +1393,13 @@ class TestLoadFilters:
         await adapter.load_filters(['BTCUSDT', 'ETHUSDT'])
         assert adapter._filters['BTCUSDT'] == filters_btc
         assert adapter._filters['ETHUSDT'] == filters_eth
+
+    @pytest.mark.asyncio
+    async def test_bare_string_raises_type_error(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(TypeError, match='not a single string'):
+            await adapter.load_filters('BTCUSDT')
 
 
 class TestValidateOrder:
