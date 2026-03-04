@@ -565,8 +565,8 @@ class BinanceAdapter:
         '''
         Validate order parameters against cached venue filters.
 
-        Checks quantity step, quantity range, and price tick for all
-        orders, and minimum notional only for priced, non-market orders.
+        Checks quantity step and quantity range for all orders, and price
+        tick and minimum notional only for priced, non-market orders.
         Logs a warning and returns without validation if filters are not
         cached for the symbol.
 
