@@ -14,6 +14,7 @@ import hmac
 import logging
 import random
 import time
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -31,6 +32,7 @@ from praxis.infrastructure.venue_adapter import (
     OrderRejectedError,
     RateLimitError,
     SubmitResult,
+    SymbolFilters,
     TransientError,
     VenueError,
     VenueOrder,
@@ -54,6 +56,7 @@ _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
 
 _log = logging.getLogger(__name__)
+
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -105,6 +108,7 @@ class BinanceAdapter:
         self._base_url = base_url.rstrip('/')
         self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
+        self._filters: dict[str, SymbolFilters] = {}
 
     async def __aenter__(self) -> BinanceAdapter:
 
@@ -550,6 +554,57 @@ class BinanceAdapter:
         msg = f"Order rejected: {reason} (code {venue_code})"
         raise OrderRejectedError(msg, venue_code=venue_code, reason=reason)
 
+    def _validate_order(
+        self,
+        symbol: str,
+        order_type: OrderType,
+        qty: Decimal,
+        price: Decimal | None,
+    ) -> None:
+
+        '''
+        Validate order parameters against cached venue filters.
+
+        Checks quantity step and quantity range for all orders, and price
+        tick and minimum notional only for priced, non-market orders.
+        Logs a warning and returns without validation if filters are not
+        cached for the symbol.
+
+        Args:
+            symbol (str): Trading pair symbol
+            order_type (OrderType): Order type
+            qty (Decimal): Order quantity
+            price (Decimal | None): Limit price
+        '''
+
+        filters = self._filters.get(symbol)
+
+        if filters is None:
+            _log.warning('No cached filters for %s, skipping validation', symbol)
+            return
+
+        if qty % filters.lot_step != 0:
+            msg = f"qty {qty} is not a multiple of lot step {filters.lot_step}"
+            raise ValueError(msg)
+
+        if qty < filters.lot_min:
+            msg = f"qty {qty} is below lot minimum {filters.lot_min}"
+            raise ValueError(msg)
+
+        if qty > filters.lot_max:
+            msg = f"qty {qty} is above lot maximum {filters.lot_max}"
+            raise ValueError(msg)
+
+        if price is not None and order_type != OrderType.MARKET:
+            if price % filters.tick_size != 0:
+                msg = f"price {price} is not a multiple of tick size {filters.tick_size}"
+                raise ValueError(msg)
+
+            if price * qty < filters.min_notional:
+                msg = f"notional {price * qty} is below minimum {filters.min_notional}"
+                raise ValueError(msg)
+
+
     async def submit_order(
         self,
         account_id: str,
@@ -581,6 +636,8 @@ class BinanceAdapter:
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
         '''
+
+        self._validate_order(symbol, order_type, qty, price)
 
         params = self._build_order_params(
             symbol, side, order_type, qty,
@@ -754,3 +811,96 @@ class BinanceAdapter:
         data = await self._signed_request('GET', '/api/v3/myTrades', params, account_id)
 
         return [self._parse_venue_trade(entry) for entry in data]
+
+    async def load_filters(self, symbols: Sequence[str]) -> None:
+
+        '''
+        Pre-load trading filters for one or more symbols.
+
+        Calls get_exchange_info for each symbol and caches the result.
+        Intended to be called once on startup before trading begins.
+        Raises on first failure to ensure filters are available.
+
+        Args:
+            symbols (Sequence[str]): Trading pair symbols to load
+        '''
+
+        if isinstance(symbols, str):
+            msg = 'load_filters expects a sequence of symbols, not a single string'
+            raise TypeError(msg)
+
+        for symbol in symbols:
+            self._filters[symbol] = await self.get_exchange_info(symbol)
+
+    async def get_exchange_info(self, symbol: str) -> SymbolFilters:
+
+        '''
+        Query trading filters for a symbol from the venue.
+
+        Fetches symbol filters from the unauthenticated exchangeInfo
+        endpoint. Parses PRICE_FILTER, LOT_SIZE, and NOTIONAL filters.
+
+        Args:
+            symbol (str): Trading pair symbol
+
+        Returns:
+            SymbolFilters: Venue-imposed trading constraints
+        '''
+
+        session = await self._ensure_session()
+
+        try:
+            async with session.request(
+                'GET',
+                f"{self._base_url}/api/v3/exchangeInfo",
+                params={'symbol': symbol},
+            ) as response:
+                await self._raise_on_error(response)
+                data: Any = await response.json()
+        except OrderRejectedError as exc:
+            msg = f"exchangeInfo failed for {symbol!r}: {exc}"
+            raise VenueError(msg) from exc
+        except VenueError:
+            raise
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            msg = f"Request failed: {exc}"
+            raise TransientError(msg) from exc
+
+        symbols_list = data.get('symbols') if isinstance(data, dict) else None
+
+        if not isinstance(symbols_list, list) or not symbols_list:
+            msg = f"Unexpected exchangeInfo payload for {symbol!r}: missing or empty 'symbols'"
+            raise VenueError(msg)
+
+        symbol_info = symbols_list[0]
+        filters_list = symbol_info.get('filters') if isinstance(symbol_info, dict) else None
+
+        if not isinstance(filters_list, list) or not filters_list:
+            msg = f"Unexpected exchangeInfo payload for {symbol!r}: missing or empty 'filters'"
+            raise VenueError(msg)
+
+        filters: dict[str, dict[str, Any]] = {
+            f['filterType']: f
+            for f in filters_list
+            if isinstance(f, dict) and 'filterType' in f
+        }
+
+        required = ('PRICE_FILTER', 'LOT_SIZE', 'NOTIONAL')
+        missing = [name for name in required if name not in filters]
+
+        if missing:
+            msg = f"Missing required filters for {symbol}: {', '.join(missing)}"
+            raise VenueError(msg)
+
+        try:
+            return SymbolFilters(
+                symbol=symbol,
+                tick_size=Decimal(filters['PRICE_FILTER']['tickSize']),
+                lot_step=Decimal(filters['LOT_SIZE']['stepSize']),
+                lot_min=Decimal(filters['LOT_SIZE']['minQty']),
+                lot_max=Decimal(filters['LOT_SIZE']['maxQty']),
+                min_notional=Decimal(filters['NOTIONAL']['minNotional']),
+            )
+        except (KeyError, ArithmeticError) as exc:
+            msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"
+            raise VenueError(msg) from exc

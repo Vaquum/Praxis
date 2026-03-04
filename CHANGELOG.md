@@ -142,3 +142,11 @@
 - Add `test_empty_assets_skips_api_call` verifying `query_balance` short-circuits without API call in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
 - Add 7 unit tests for retry success, exhaustion, non-retryable errors, sleep delay, and log output in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
 - Add 9 unit tests for `_parse_venue_trade` and `query_trades` covering field mapping, Decimal precision, UTC timestamps, `isMaker`, `startTime` conversion, and naive datetime rejection in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+
+## v0.13.0 on 4th of March, 2026
+
+- Add `get_exchange_info` method parsing `PRICE_FILTER`, `LOT_SIZE`, and `NOTIONAL` from unauthenticated `GET /api/v3/exchangeInfo` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `load_filters` startup method for explicit per-symbol filter caching in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_validate_order` helper checking lot step, lot range, tick size, and min notional with graceful degradation when filters not cached in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add pre-submission validation in `submit_order` before `_build_order_params` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add 13 unit tests for `get_exchange_info`, `load_filters`, and `_validate_order` in [`test_binance_adapter.py`](tests/test_binance_adapter.py)

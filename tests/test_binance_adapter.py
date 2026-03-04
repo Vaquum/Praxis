@@ -4,6 +4,7 @@ Tests for praxis.infrastructure.binance_adapter.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, ClassVar
@@ -21,7 +22,9 @@ from praxis.infrastructure.venue_adapter import (
     NotFoundError,
     OrderRejectedError,
     RateLimitError,
+    SymbolFilters,
     TransientError,
+    VenueError,
     VenueOrder,
     VenueTrade,
 )
@@ -120,6 +123,44 @@ _BINANCE_TRADE_RESPONSE: dict[str, Any] = {
     'isMaker': True,
     'time': 1700000000000,
 }
+
+
+_BINANCE_EXCHANGE_INFO_RESPONSE: dict[str, Any] = {
+    'symbols': [
+        {
+            'symbol': 'BTCUSDT',
+            'filters': [
+                {'filterType': 'PRICE_FILTER', 'tickSize': '0.01'},
+                {'filterType': 'LOT_SIZE', 'stepSize': '0.00001', 'minQty': '0.00001', 'maxQty': '9000.0'},
+                {'filterType': 'NOTIONAL', 'minNotional': '5.0'},
+                {'filterType': 'ICEBERG_PARTS', 'limit': '10'},
+            ],
+        },
+    ],
+}
+
+
+_BINANCE_EXCHANGE_INFO_MISSING_FILTER: dict[str, Any] = {
+    'symbols': [
+        {
+            'symbol': 'BTCUSDT',
+            'filters': [
+                {'filterType': 'PRICE_FILTER', 'tickSize': '0.01'},
+                {'filterType': 'LOT_SIZE', 'stepSize': '0.00001', 'minQty': '0.00001', 'maxQty': '9000.0'},
+            ],
+        },
+    ],
+}
+
+
+_TEST_FILTERS = SymbolFilters(
+    symbol='BTCUSDT',
+    tick_size=Decimal('0.01'),
+    lot_step=Decimal('0.00001'),
+    lot_min=Decimal('0.001'),
+    lot_max=Decimal('9000.0'),
+    min_notional=Decimal('5.0'),
+)
 
 
 def _make_adapter(
@@ -1278,3 +1319,160 @@ class TestQueryTrades:
         naive = datetime(2023, 11, 14, 22, 13, 20)
         with pytest.raises(ValueError, match='timezone-aware'):
             await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=naive)
+
+
+class TestGetExchangeInfo:
+
+    @pytest.mark.asyncio
+    async def test_parses_filters_correctly(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_EXCHANGE_INFO_RESPONSE))
+        result = await adapter.get_exchange_info('BTCUSDT')
+        assert result.symbol == 'BTCUSDT'
+        assert result.tick_size == Decimal('0.01')
+        assert result.lot_step == Decimal('0.00001')
+        assert result.lot_min == Decimal('0.00001')
+        assert result.lot_max == Decimal('9000.0')
+        assert result.min_notional == Decimal('5.0')
+
+    @pytest.mark.asyncio
+    async def test_missing_filter_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_EXCHANGE_INFO_MISSING_FILTER))
+        with pytest.raises(VenueError, match='Missing required filters'):
+            await adapter.get_exchange_info('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_empty_symbols_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'symbols': []}))
+        with pytest.raises(VenueError, match="missing or empty 'symbols'"):
+            await adapter.get_exchange_info('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_missing_inner_field_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        payload: dict[str, Any] = {
+            'symbols': [
+                {
+                    'symbol': 'BTCUSDT',
+                    'filters': [
+                        {'filterType': 'PRICE_FILTER', 'tickSize': '0.01'},
+                        {'filterType': 'LOT_SIZE'},
+                        {'filterType': 'NOTIONAL', 'minNotional': '5.0'},
+                    ],
+                },
+            ],
+        }
+        _patch_session(adapter, _mock_response(200, payload))
+        with pytest.raises(VenueError, match='Malformed exchangeInfo payload'):
+            await adapter.get_exchange_info('BTCUSDT')
+
+
+class TestLoadFilters:
+
+    @pytest.mark.asyncio
+    async def test_caches_multiple_symbols(self) -> None:
+
+        adapter = _make_adapter()
+        filters_btc = SymbolFilters(
+            symbol='BTCUSDT', tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'), lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'), min_notional=Decimal('5.0'),
+        )
+        filters_eth = SymbolFilters(
+            symbol='ETHUSDT', tick_size=Decimal('0.1'),
+            lot_step=Decimal('0.0001'), lot_min=Decimal('0.001'),
+            lot_max=Decimal('10000.0'), min_notional=Decimal('10.0'),
+        )
+        adapter.get_exchange_info = AsyncMock(side_effect=[filters_btc, filters_eth])  # type: ignore[method-assign]
+        await adapter.load_filters(['BTCUSDT', 'ETHUSDT'])
+        assert adapter._filters['BTCUSDT'] == filters_btc
+        assert adapter._filters['ETHUSDT'] == filters_eth
+
+    @pytest.mark.asyncio
+    async def test_bare_string_raises_type_error(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(TypeError, match='not a single string'):
+            await adapter.load_filters('BTCUSDT')
+
+
+class TestValidateOrder:
+
+    def test_valid_limit_order_passes(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('1.0'), Decimal('50000.00'))
+
+    def test_valid_market_order_passes(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        adapter._validate_order('BTCUSDT', OrderType.MARKET, Decimal('1.0'), None)
+
+    def test_price_not_multiple_of_tick_size_raises(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        with pytest.raises(ValueError, match='not a multiple of tick size'):
+            adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('1.0'), Decimal('50000.005'))
+
+    def test_qty_not_multiple_of_lot_step_raises(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        with pytest.raises(ValueError, match='not a multiple of lot step'):
+            adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('0.000012'), Decimal('50000.00'))
+
+    def test_qty_below_lot_min_raises(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        with pytest.raises(ValueError, match='below lot minimum'):
+            adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('0.0001'), Decimal('50000.00'))
+
+    def test_qty_above_lot_max_raises(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        with pytest.raises(ValueError, match='above lot maximum'):
+            adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('10000.0'), Decimal('50000.00'))
+
+    def test_below_min_notional_raises(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        with pytest.raises(ValueError, match='below minimum'):
+            adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('0.001'), Decimal('100.00'))
+
+    def test_skips_notional_check_for_market_orders(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        adapter._validate_order('BTCUSDT', OrderType.MARKET, Decimal('0.001'), None)
+
+    def test_warns_when_filters_not_cached(self, caplog: pytest.LogCaptureFixture) -> None:
+
+        adapter = _make_adapter()
+        with caplog.at_level(logging.WARNING):
+            adapter._validate_order('UNKNOWN', OrderType.LIMIT, Decimal('1.0'), Decimal('50000'))
+        assert 'No cached filters for UNKNOWN' in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_submit_order_validates_before_request(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        _patch_session(adapter, _mock_response(200, _BINANCE_FILLED_RESPONSE))
+        with pytest.raises(ValueError, match='not a multiple of tick size'):
+            await adapter.submit_order(
+                _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.LIMIT,
+                Decimal('1.0'), price=Decimal('50000.005'),
+            )
+        adapter._session.request.assert_not_called()  # type: ignore[union-attr]
