@@ -57,7 +57,6 @@ _RETRY_BASE_DELAY = 0.5
 
 _log = logging.getLogger(__name__)
 
-_logger = logging.getLogger(__name__)
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
@@ -581,7 +580,7 @@ class BinanceAdapter:
         filters = self._filters.get(symbol)
 
         if filters is None:
-            _logger.warning('No cached filters for %s, skipping validation', symbol)
+            _log.warning('No cached filters for %s, skipping validation', symbol)
             return
 
         if qty % filters.lot_step != 0:
@@ -825,6 +824,10 @@ class BinanceAdapter:
         Args:
             symbols (Sequence[str]): Trading pair symbols to load
         '''
+
+        if isinstance(symbols, str):
+            msg = 'load_filters expects a sequence of symbols, not a single string'
+            raise TypeError(msg)
 
         for symbol in symbols:
             self._filters[symbol] = await self.get_exchange_info(symbol)
