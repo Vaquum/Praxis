@@ -150,3 +150,14 @@
 - Add `_validate_order` helper checking lot step, lot range, tick size, and min notional with graceful degradation when filters not cached in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Add pre-submission validation in `submit_order` before `_build_order_params` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Add 13 unit tests for `get_exchange_info`, `load_filters`, and `_validate_order` in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+
+## v0.14.0 on 5th of March, 2026
+
+- Add `retry_after` field to `RateLimitError` and parse `Retry-After` header in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `_DEFAULT_WEIGHT_LIMIT`, `_DEFAULT_ORDER_COUNT_LIMIT`, and `_RATE_LIMIT_WARN_THRESHOLD` constants in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_update_weight_from_headers` parsing `X-MBX-USED-WEIGHT-1M` and `X-MBX-ORDER-COUNT-10S` with per-account order count tracking in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_parse_rate_limits` extracting `REQUEST_WEIGHT` and `ORDERS` limits from `exchangeInfo` response in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `RateLimitError` retry with `Retry-After` support in `_signed_request` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `weight_headroom` property and `order_count_headroom` method returning normalized 0.0–1.0 headroom in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add 16 unit tests for rate limit state tracking, header parsing, retry, and headroom in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Add 2 unit tests for `RateLimitError` `retry_after` field in [`test_venue_adapter.py`](tests/test_venue_adapter.py)
