@@ -337,6 +337,41 @@ class TestSignedRequest:
         ):
             await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
 
+    @pytest.mark.asyncio
+    async def test_updates_weight_from_headers(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-USED-WEIGHT-1M': '150'},
+        ))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._used_weight == 150
+
+    @pytest.mark.asyncio
+    async def test_updates_order_count_from_headers(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-ORDER-COUNT-10S': '7'},
+        ))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._order_count[_ACCOUNT_ID] == 7
+
+    @pytest.mark.asyncio
+    async def test_logs_warning_on_low_headroom(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-USED-WEIGHT-1M': '900'},
+        ))
+        with patch('praxis.infrastructure.binance_adapter._log') as mock_log:
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+            mock_log.warning.assert_called_once()
+            assert 'headroom low' in mock_log.warning.call_args[0][0]
 
 class TestRetry:
 

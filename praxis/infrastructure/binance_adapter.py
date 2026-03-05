@@ -57,6 +57,7 @@ _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
 _DEFAULT_WEIGHT_LIMIT = 6000
 _DEFAULT_ORDER_COUNT_LIMIT = 10
+_RATE_LIMIT_WARN_THRESHOLD = 0.2
 
 _log = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class BinanceAdapter:
         self._filters: dict[str, SymbolFilters] = {}
         self._used_weight: int = 0
         self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
-        self._order_count: int = 0
+        self._order_count: dict[str, int] = {}
         self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
 
     async def __aenter__(self) -> BinanceAdapter:
@@ -290,6 +291,7 @@ class BinanceAdapter:
                     headers=headers,
                 ) as response:
                     await self._raise_on_error(response)
+                    self._update_weight_from_headers(response, account_id)
                     data: Any = await response.json()
                     return data
             except TransientError as exc:
@@ -922,23 +924,46 @@ class BinanceAdapter:
             msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"
             raise VenueError(msg) from exc
 
-    def _update_weight_from_headers(self, response: aiohttp.ClientResponse) -> None:
+    def _update_weight_from_headers(
+        self,
+        response: aiohttp.ClientResponse,
+        account_id: str | None = None,
+    ) -> None:
 
         '''
-        Update used weight from response headers.
+        Update rate limit counters from response headers.
 
-        Reads X-MBX-USED-WEIGHT-1M and stores the latest value.
+        Reads X-MBX-USED-WEIGHT-1M (per-IP) and X-MBX-ORDER-COUNT-10S
+        (per-API-key, keyed by account_id). Logs a warning when
+        weight headroom drops below the configured threshold.
         Silently ignores missing or unparseable headers.
 
         Args:
             response (aiohttp.ClientResponse): HTTP response
+            account_id (str | None): Account identifier for order count tracking
         '''
 
-        raw = response.headers.get('X-MBX-USED-WEIGHT-1M')
+        weight_raw = response.headers.get('X-MBX-USED-WEIGHT-1M')
 
-        if raw is not None:
+        if weight_raw is not None:
             with contextlib.suppress(ValueError):
-                self._used_weight = int(raw)
+                self._used_weight = int(weight_raw)
+
+        if account_id is not None:
+            order_raw = response.headers.get('X-MBX-ORDER-COUNT-10S')
+
+            if order_raw is not None:
+                with contextlib.suppress(ValueError):
+                    self._order_count[account_id] = int(order_raw)
+
+        if self._weight_limit > 0:
+            headroom = (self._weight_limit - self._used_weight) / self._weight_limit
+
+            if headroom < _RATE_LIMIT_WARN_THRESHOLD:
+                _log.warning(
+                    'Rate limit headroom low: %d/%d used (%.1f%% remaining)',
+                    self._used_weight, self._weight_limit, headroom * 100,
+                )
 
     def _parse_rate_limits(self, data: Any) -> None:
 
