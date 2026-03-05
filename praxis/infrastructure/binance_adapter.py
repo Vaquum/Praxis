@@ -131,7 +131,7 @@ class BinanceAdapter:
         if self._weight_limit <= 0:
             return 1.0
 
-        return (self._weight_limit - self._used_weight) / self._weight_limit
+        return max(0.0, (self._weight_limit - self._used_weight) / self._weight_limit)
 
     def order_count_headroom(self, account_id: str) -> float:
 
@@ -150,7 +150,7 @@ class BinanceAdapter:
         if self._order_count_limit <= 0:
             return 1.0
 
-        return (self._order_count_limit - used) / self._order_count_limit
+        return max(0.0, (self._order_count_limit - used) / self._order_count_limit)
 
     async def __aenter__(self) -> BinanceAdapter:
 
@@ -914,8 +914,8 @@ class BinanceAdapter:
                 f"{self._base_url}/api/v3/exchangeInfo",
                 params={'symbol': symbol},
             ) as response:
-                await self._raise_on_error(response)
                 self._update_weight_from_headers(response)
+                await self._raise_on_error(response)
                 data: Any = await response.json()
         except OrderRejectedError as exc:
             msg = f"exchangeInfo failed for {symbol!r}: {exc}"

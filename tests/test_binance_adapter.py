@@ -1623,6 +1623,21 @@ class TestHeadroom:
         adapter = _make_adapter()
         adapter._order_count_limit = 0
         assert adapter.order_count_headroom(_ACCOUNT_ID) == 1.0
+
+    def test_weight_headroom_clamps_negative_to_zero(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        adapter._used_weight = 1200
+        assert adapter.weight_headroom == 0.0
+
+    def test_order_count_headroom_clamps_negative_to_zero(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 10
+        adapter._order_count[_ACCOUNT_ID] = 15
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == 0.0
+
 class TestLoadFilters:
 
     @pytest.mark.asyncio
