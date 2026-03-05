@@ -373,6 +373,28 @@ class TestSignedRequest:
             mock_log.warning.assert_called_once()
             assert 'headroom low' in mock_log.warning.call_args[0][0]
 
+    @pytest.mark.asyncio
+    async def test_unparseable_weight_header_ignored(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._used_weight = 50
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-USED-WEIGHT-1M': 'garbage'},
+        ))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._used_weight == 50
+
+    @pytest.mark.asyncio
+    async def test_missing_headers_preserve_state(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._used_weight = 100
+        adapter._order_count[_ACCOUNT_ID] = 5
+        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._used_weight == 100
+        assert adapter._order_count[_ACCOUNT_ID] == 5
 class TestRetry:
 
     @pytest.mark.asyncio
@@ -626,6 +648,32 @@ class TestRetry:
 
         assert session.request.call_count == 3
 
+    @pytest.mark.asyncio
+    async def test_rate_limit_retry_without_retry_after_uses_backoff(self) -> None:
+
+        adapter = _make_adapter()
+        rate_resp = _mock_response(429)
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        rate_ctx = MagicMock()
+        rate_ctx.__aenter__ = AsyncMock(return_value=rate_resp)
+        rate_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[rate_ctx, ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        mock_sleep.assert_called_once()
+        delay = mock_sleep.call_args[0][0]
+        assert 0 <= delay <= 0.5
 class TestBuildOrderParams:
 
     def test_market_order(self) -> None:
@@ -1570,6 +1618,11 @@ class TestHeadroom:
         assert adapter.order_count_headroom('acct_a') == pytest.approx(0.1)
         assert adapter.order_count_headroom('acct_b') == pytest.approx(0.9)
 
+    def test_order_count_headroom_zero_limit(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 0
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == 1.0
 class TestLoadFilters:
 
     @pytest.mark.asyncio
