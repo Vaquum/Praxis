@@ -1519,6 +1519,57 @@ class TestGetExchangeInfo:
         assert adapter._order_count_limit == 10
 
 
+class TestHeadroom:
+
+    def test_weight_headroom_full(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1200
+        adapter._used_weight = 0
+        assert adapter.weight_headroom == 1.0
+
+    def test_weight_headroom_partial(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        adapter._used_weight = 800
+        assert adapter.weight_headroom == pytest.approx(0.2)
+
+    def test_weight_headroom_exhausted(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        adapter._used_weight = 1000
+        assert adapter.weight_headroom == 0.0
+
+    def test_weight_headroom_zero_limit(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 0
+        assert adapter.weight_headroom == 1.0
+
+    def test_order_count_headroom_full(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 100
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == 1.0
+
+    def test_order_count_headroom_partial(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 10
+        adapter._order_count[_ACCOUNT_ID] = 8
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == pytest.approx(0.2)
+
+    def test_order_count_headroom_per_account(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 100
+        adapter._order_count['acct_a'] = 90
+        adapter._order_count['acct_b'] = 10
+        assert adapter.order_count_headroom('acct_a') == pytest.approx(0.1)
+        assert adapter.order_count_headroom('acct_b') == pytest.approx(0.9)
+
 class TestLoadFilters:
 
     @pytest.mark.asyncio

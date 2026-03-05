@@ -118,6 +118,40 @@ class BinanceAdapter:
         self._order_count: dict[str, int] = {}
         self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
 
+    @property
+    def weight_headroom(self) -> float:
+
+        '''
+        Remaining request weight as a fraction of the limit.
+
+        Returns:
+            float: Value between 0.0 (exhausted) and 1.0 (fully available)
+        '''
+
+        if self._weight_limit <= 0:
+            return 1.0
+
+        return (self._weight_limit - self._used_weight) / self._weight_limit
+
+    def order_count_headroom(self, account_id: str) -> float:
+
+        '''
+        Remaining order count as a fraction of the limit for an account.
+
+        Args:
+            account_id (str): Account identifier
+
+        Returns:
+            float: Value between 0.0 (exhausted) and 1.0 (fully available)
+        '''
+
+        used = self._order_count.get(account_id, 0)
+
+        if self._order_count_limit <= 0:
+            return 1.0
+
+        return (self._order_count_limit - used) / self._order_count_limit
+
     async def __aenter__(self) -> BinanceAdapter:
 
         '''
