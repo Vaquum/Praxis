@@ -9,6 +9,7 @@ encapsulated here.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import logging
@@ -532,8 +533,15 @@ class BinanceAdapter:
             raise AuthenticationError(msg)
 
         if response.status in (_HTTP_FORBIDDEN, _HTTP_TEAPOT, _HTTP_TOO_MANY):
+            raw = response.headers.get('Retry-After')
+            retry_after: float | None = None
+
+            if raw is not None:
+                with contextlib.suppress(ValueError, OverflowError):
+                    retry_after = float(raw)
+
             msg = f"Rate limited: HTTP {response.status}"
-            raise RateLimitError(msg)
+            raise RateLimitError(msg, retry_after=retry_after)
 
         if response.status >= _HTTP_SERVER_ERROR:
             msg = f"Venue server error: HTTP {response.status}"

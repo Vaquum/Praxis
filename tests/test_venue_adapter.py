@@ -234,6 +234,17 @@ class TestErrorHierarchy:
         with pytest.raises(VenueError):
             raise RateLimitError('rate limited')
 
+    def test_rate_limit_error_retry_after(self) -> None:
+
+        err = RateLimitError('rate limited', retry_after=30.0)
+        assert err.retry_after == 30.0
+        assert err.message == 'rate limited'
+
+    def test_rate_limit_error_retry_after_default_none(self) -> None:
+
+        err = RateLimitError('rate limited')
+        assert err.retry_after is None
+
 
 class TestVenueAdapterProtocol:
 

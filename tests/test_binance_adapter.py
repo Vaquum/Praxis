@@ -184,6 +184,7 @@ def _make_adapter(
 def _mock_response(
     status: int,
     data: Any = None,
+    headers: dict[str, str] | None = None,
 ) -> AsyncMock:
 
     '''
@@ -192,14 +193,16 @@ def _mock_response(
     Args:
         status (int): HTTP status code
         data (Any): JSON response body
+        headers (dict[str, str] | None): Response headers
 
     Returns:
-        AsyncMock: Mock response with status and json()
+        AsyncMock: Mock response with status, json(), and headers
     '''
 
     resp = AsyncMock()
     resp.status = status
     resp.json = AsyncMock(return_value=data if data is not None else {})
+    resp.headers = headers or {}
     return resp
 
 
@@ -840,6 +843,23 @@ class TestRaiseOnError:
         adapter = _make_adapter()
         with pytest.raises(RateLimitError, match='Rate limited'):
             await adapter._raise_on_error(_mock_response(429))
+
+    @pytest.mark.asyncio
+    async def test_429_parses_retry_after_header(self) -> None:
+
+        adapter = _make_adapter()
+        resp = _mock_response(429, headers={'Retry-After': '45'})
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(resp)
+        assert exc_info.value.retry_after == 45.0
+
+    @pytest.mark.asyncio
+    async def test_429_without_retry_after_sets_none(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(_mock_response(429))
+        assert exc_info.value.retry_after is None
 
     @pytest.mark.asyncio
     async def test_500_raises_transient_error(self) -> None:

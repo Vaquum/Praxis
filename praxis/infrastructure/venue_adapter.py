@@ -251,7 +251,28 @@ class OrderRejectedError(VenueError):
 
 class RateLimitError(VenueError):
 
-    '''Raised when retries are exhausted after HTTP 429 responses.'''
+    '''
+    Raised on HTTP 429/418 rate limit responses.
+
+    Args:
+        message (str): Human-readable error description
+        retry_after (float | None): Seconds to wait before retrying,
+            parsed from the Retry-After response header
+    '''
+
+    def __init__(self, message: str, retry_after: float | None = None) -> None:
+
+        '''
+        Store the rate limit details.
+
+        Args:
+            message (str): Human-readable error description
+            retry_after (float | None): Seconds to wait before retrying
+        '''
+
+        self.retry_after = retry_after
+        super().__init__(message)
+        self.args = (message, retry_after)
 
 
 class AuthenticationError(VenueError):
