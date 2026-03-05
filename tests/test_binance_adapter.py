@@ -573,6 +573,58 @@ class TestRetry:
         assert session.request.call_count == 2
         mock_sleep.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_rate_limit_retried_with_retry_after(self) -> None:
+
+        adapter = _make_adapter()
+        rate_resp = _mock_response(429, headers={'Retry-After': '3'})
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        rate_ctx = MagicMock()
+        rate_ctx.__aenter__ = AsyncMock(return_value=rate_resp)
+        rate_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[rate_ctx, ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            result = await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert result == {'result': 'ok'}
+        assert session.request.call_count == 2
+        mock_sleep.assert_called_once_with(3.0)
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_exhaustion_raises(self) -> None:
+
+        adapter = _make_adapter()
+        rate_resp = _mock_response(429)
+
+        contexts = []
+        for _ in range(3):
+            ctx = MagicMock()
+            ctx.__aenter__ = AsyncMock(return_value=rate_resp)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            contexts.append(ctx)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=contexts)
+        session.closed = False
+        adapter._session = session
+
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            pytest.raises(RateLimitError),
+        ):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert session.request.call_count == 3
 
 class TestBuildOrderParams:
 

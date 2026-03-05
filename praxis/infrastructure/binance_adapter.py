@@ -290,8 +290,8 @@ class BinanceAdapter:
                     f"{self._base_url}{path}?{query_string}",
                     headers=headers,
                 ) as response:
-                    await self._raise_on_error(response)
                     self._update_weight_from_headers(response, account_id)
+                    await self._raise_on_error(response)
                     data: Any = await response.json()
                     return data
             except TransientError as exc:
@@ -302,6 +302,15 @@ class BinanceAdapter:
                 _log.warning(
                     'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
                     method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+            except RateLimitError as exc:
+                if attempt + 1 == _MAX_RETRIES:
+                    raise
+                delay = exc.retry_after if exc.retry_after is not None else _RETRY_BASE_DELAY * 2 ** attempt
+                _log.warning(
+                    'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
+                    method, path, attempt + 1, _MAX_RETRIES, delay,
                 )
                 await asyncio.sleep(delay)
             except VenueError:
