@@ -55,6 +55,8 @@ _MS_PER_SECOND = 1000
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
+_DEFAULT_WEIGHT_LIMIT = 6000
+_DEFAULT_ORDER_COUNT_LIMIT = 10
 
 _log = logging.getLogger(__name__)
 
@@ -110,6 +112,10 @@ class BinanceAdapter:
         self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
         self._filters: dict[str, SymbolFilters] = {}
+        self._used_weight: int = 0
+        self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
+        self._order_count: int = 0
+        self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
 
     async def __aenter__(self) -> BinanceAdapter:
 
@@ -864,6 +870,7 @@ class BinanceAdapter:
                 params={'symbol': symbol},
             ) as response:
                 await self._raise_on_error(response)
+                self._update_weight_from_headers(response)
                 data: Any = await response.json()
         except OrderRejectedError as exc:
             msg = f"exchangeInfo failed for {symbol!r}: {exc}"
@@ -873,6 +880,8 @@ class BinanceAdapter:
         except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
             msg = f"Request failed: {exc}"
             raise TransientError(msg) from exc
+
+        self._parse_rate_limits(data)
 
         symbols_list = data.get('symbols') if isinstance(data, dict) else None
 
@@ -912,3 +921,57 @@ class BinanceAdapter:
         except (KeyError, ArithmeticError) as exc:
             msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"
             raise VenueError(msg) from exc
+
+    def _update_weight_from_headers(self, response: aiohttp.ClientResponse) -> None:
+
+        '''
+        Update used weight from response headers.
+
+        Reads X-MBX-USED-WEIGHT-1M and stores the latest value.
+        Silently ignores missing or unparseable headers.
+
+        Args:
+            response (aiohttp.ClientResponse): HTTP response
+        '''
+
+        raw = response.headers.get('X-MBX-USED-WEIGHT-1M')
+
+        if raw is not None:
+            with contextlib.suppress(ValueError):
+                self._used_weight = int(raw)
+
+    def _parse_rate_limits(self, data: Any) -> None:
+
+        '''
+        Parse rateLimits array from exchangeInfo response.
+
+        Extracts REQUEST_WEIGHT and ORDERS limits and updates
+        the cached limit values. Warns and keeps defaults on
+        parse failure.
+
+        Args:
+            data (Any): Parsed exchangeInfo JSON payload
+        '''
+
+        rate_limits = data.get('rateLimits') if isinstance(data, dict) else None
+
+        if not isinstance(rate_limits, list):
+            _log.warning('exchangeInfo missing rateLimits array, using defaults')
+            return
+
+        for entry in rate_limits:
+            if not isinstance(entry, dict):
+                continue
+
+            limit_type = entry.get('rateLimitType')
+            interval = entry.get('interval')
+            limit_val = entry.get('limit')
+
+            if not isinstance(limit_val, int):
+                continue
+
+            if limit_type == 'REQUEST_WEIGHT' and interval == 'MINUTE':
+                self._weight_limit = limit_val
+
+            if limit_type == 'ORDERS' and interval == 'SECOND':
+                self._order_count_limit = limit_val

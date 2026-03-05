@@ -126,6 +126,11 @@ _BINANCE_TRADE_RESPONSE: dict[str, Any] = {
 
 
 _BINANCE_EXCHANGE_INFO_RESPONSE: dict[str, Any] = {
+    'rateLimits': [
+        {'rateLimitType': 'REQUEST_WEIGHT', 'interval': 'MINUTE', 'intervalNum': 1, 'limit': 1200},
+        {'rateLimitType': 'ORDERS', 'interval': 'SECOND', 'intervalNum': 10, 'limit': 100},
+        {'rateLimitType': 'ORDERS', 'interval': 'DAY', 'intervalNum': 1, 'limit': 200000},
+    ],
     'symbols': [
         {
             'symbol': 'BTCUSDT',
@@ -1391,6 +1396,40 @@ class TestGetExchangeInfo:
         _patch_session(adapter, _mock_response(200, payload))
         with pytest.raises(VenueError, match='Malformed exchangeInfo payload'):
             await adapter.get_exchange_info('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_parses_rate_limits_from_response(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(
+            200, _BINANCE_EXCHANGE_INFO_RESPONSE,
+            headers={'X-MBX-USED-WEIGHT-1M': '42'},
+        ))
+        await adapter.get_exchange_info('BTCUSDT')
+        assert adapter._weight_limit == 1200
+        assert adapter._order_count_limit == 100
+        assert adapter._used_weight == 42
+
+    @pytest.mark.asyncio
+    async def test_missing_rate_limits_keeps_defaults(self) -> None:
+
+        adapter = _make_adapter()
+        payload: dict[str, Any] = {
+            'symbols': [
+                {
+                    'symbol': 'BTCUSDT',
+                    'filters': [
+                        {'filterType': 'PRICE_FILTER', 'tickSize': '0.01'},
+                        {'filterType': 'LOT_SIZE', 'stepSize': '0.00001', 'minQty': '0.00001', 'maxQty': '9000.0'},
+                        {'filterType': 'NOTIONAL', 'minNotional': '5.0'},
+                    ],
+                },
+            ],
+        }
+        _patch_session(adapter, _mock_response(200, payload))
+        await adapter.get_exchange_info('BTCUSDT')
+        assert adapter._weight_limit == 6000
+        assert adapter._order_count_limit == 10
 
 
 class TestLoadFilters:
