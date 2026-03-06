@@ -675,6 +675,7 @@ class TestRetry:
         mock_sleep.assert_called_once()
         delay = mock_sleep.call_args[0][0]
         assert 0 <= delay <= 0.5
+
 class TestBuildOrderParams:
 
     def test_market_order(self) -> None:

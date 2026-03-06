@@ -298,7 +298,9 @@ class BinanceAdapter:
 
         Handles credential lookup, query string signing, URL construction,
         HTTP dispatch, error checking, and JSON parsing. Retries on
-        TransientError with exponential backoff and jitter.
+        TransientError and HTTP 429 RateLimitError with exponential backoff
+        and jitter. Non-429 rate limit responses (403, 418) propagate
+        immediately without retry.
 
         Args:
             method (str): HTTP method (GET, POST, DELETE)
@@ -311,6 +313,7 @@ class BinanceAdapter:
 
         Raises:
             TransientError: After all retry attempts are exhausted
+            RateLimitError: On non-429 rate limit responses, or after retry exhaustion
         '''
 
         session = await self._ensure_session()
@@ -344,7 +347,7 @@ class BinanceAdapter:
             except RateLimitError as exc:
                 if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
                     raise
-                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else _RETRY_BASE_DELAY * 2 ** attempt
+                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
                 _log.warning(
                     'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
                     method, path, attempt + 1, _MAX_RETRIES, delay,
@@ -1022,7 +1025,8 @@ class BinanceAdapter:
 
         Extracts REQUEST_WEIGHT and ORDERS limits and updates
         the cached limit values when successfully parsed. Warns
-        and leaves existing cached values unchanged on parse failure.
+        and leaves existing cached values unchanged when the
+        rateLimits array is absent from the response.
 
         Args:
             data (Any): Parsed exchangeInfo JSON payload
