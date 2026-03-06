@@ -1042,7 +1042,7 @@ class BinanceAdapter:
         rate_limits = data.get('rateLimits') if isinstance(data, dict) else None
 
         if not isinstance(rate_limits, list):
-            _log.warning('exchangeInfo missing rateLimits array, using defaults')
+            _log.warning('exchangeInfo missing rateLimits array, keeping cached limits')
             return
 
         for entry in rate_limits:
