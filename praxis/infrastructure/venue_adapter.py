@@ -280,7 +280,6 @@ class RateLimitError(VenueError):
         self.retry_after = retry_after
         self.status_code = status_code
         super().__init__(message)
-        self.args = (message, retry_after, status_code)
 
 
 class AuthenticationError(VenueError):
