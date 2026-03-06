@@ -13,6 +13,7 @@ import contextlib
 import hashlib
 import hmac
 import logging
+import math
 import random
 import time
 from collections.abc import Sequence
@@ -595,7 +596,9 @@ class BinanceAdapter:
 
             if raw is not None:
                 with contextlib.suppress(ValueError, OverflowError):
-                    retry_after = float(raw)
+                    parsed = float(raw)
+                    if math.isfinite(parsed) and parsed >= 0:
+                        retry_after = parsed
 
             msg = f"Rate limited: HTTP {response.status}"
             raise RateLimitError(msg, retry_after=retry_after, status_code=response.status)
