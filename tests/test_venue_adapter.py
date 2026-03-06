@@ -17,6 +17,8 @@ from praxis.infrastructure.venue_adapter import (
     CancelResult,
     ImmediateFill,
     NotFoundError,
+    OrderBookLevel,
+    OrderBookSnapshot,
     OrderRejectedError,
     RateLimitError,
     SubmitResult,
@@ -182,6 +184,33 @@ class TestResponseDataclasses:
         with pytest.raises(AttributeError):
             filters.tick_size = Decimal('0.001')  # type: ignore[misc]
 
+    def test_order_book_level_frozen(self) -> None:
+        level = OrderBookLevel(price=Decimal('50000'), qty=Decimal('1.5'))
+        with pytest.raises(AttributeError):
+            level.price = Decimal('49999')  # type: ignore[misc]
+
+    def test_order_book_level_fields(self) -> None:
+        level = OrderBookLevel(price=Decimal('50000.01'), qty=Decimal('0.5'))
+        assert level.price == Decimal('50000.01')
+        assert level.qty == Decimal('0.5')
+
+    def test_order_book_snapshot_frozen(self) -> None:
+        snap = OrderBookSnapshot(bids=(), asks=(), last_update_id=100)
+        with pytest.raises(AttributeError):
+            snap.last_update_id = 200  # type: ignore[misc]
+
+    def test_order_book_snapshot_fields(self) -> None:
+        bid = OrderBookLevel(price=Decimal('50000'), qty=Decimal('1.0'))
+        ask = OrderBookLevel(price=Decimal('50001'), qty=Decimal('2.0'))
+        snap = OrderBookSnapshot(
+            bids=(bid,), asks=(ask,), last_update_id=42,
+        )
+        assert len(snap.bids) == 1
+        assert len(snap.asks) == 1
+        assert snap.bids[0].price == Decimal('50000')
+        assert snap.asks[0].qty == Decimal('2.0')
+        assert snap.last_update_id == 42
+
 
 class TestErrorHierarchy:
 
@@ -279,6 +308,8 @@ class TestVenueAdapterProtocol:
             async def get_exchange_info(self, *_args: Any, **_kwargs: Any) -> None: ...
 
             async def get_server_time(self, *_args: Any, **_kwargs: Any) -> None: ...
+
+            async def query_order_book(self, *_args: Any, **_kwargs: Any) -> None: ...
 
         assert isinstance(_FakeAdapter(), VenueAdapter)
 

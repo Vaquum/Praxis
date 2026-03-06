@@ -22,6 +22,8 @@ __all__ = [
     'CancelResult',
     'ImmediateFill',
     'NotFoundError',
+    'OrderBookLevel',
+    'OrderBookSnapshot',
     'OrderRejectedError',
     'RateLimitError',
     'SubmitResult',
@@ -198,6 +200,37 @@ class SymbolFilters:
     lot_max: Decimal
     min_notional: Decimal
 
+
+@dataclass(frozen=True)
+class OrderBookLevel:
+
+    '''
+    Single price level in an order book snapshot.
+
+    Args:
+        price (Decimal): Price at this level
+        qty (Decimal): Available quantity at this level
+    '''
+
+    price: Decimal
+    qty: Decimal
+
+
+@dataclass(frozen=True)
+class OrderBookSnapshot:
+
+    '''
+    Point-in-time order book snapshot from the venue.
+
+    Args:
+        bids (tuple[OrderBookLevel, ...]): Bid levels, best (highest) first
+        asks (tuple[OrderBookLevel, ...]): Ask levels, best (lowest) first
+        last_update_id (int): Venue sequence number for this snapshot
+    '''
+
+    bids: tuple[OrderBookLevel, ...]
+    asks: tuple[OrderBookLevel, ...]
+    last_update_id: int
 
 class VenueError(Exception):
 
@@ -469,6 +502,26 @@ class VenueAdapter(Protocol):
 
         Returns:
             SymbolFilters: Venue-imposed trading constraints
+        '''
+
+        ...
+
+    async def query_order_book(
+        self,
+        symbol: str,
+        *,
+        limit: int = 20,
+    ) -> OrderBookSnapshot:
+
+        '''
+        Query order book depth for a symbol from the venue.
+
+        Args:
+            symbol (str): Trading pair symbol
+            limit (int): Number of price levels per side (default 20)
+
+        Returns:
+            OrderBookSnapshot: Point-in-time order book snapshot
         '''
 
         ...

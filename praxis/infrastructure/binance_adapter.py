@@ -31,6 +31,8 @@ from praxis.infrastructure.venue_adapter import (
     CancelResult,
     ImmediateFill,
     NotFoundError,
+    OrderBookLevel,
+    OrderBookSnapshot,
     OrderRejectedError,
     RateLimitError,
     SubmitResult,
@@ -974,6 +976,70 @@ class BinanceAdapter:
             )
         except (KeyError, ArithmeticError) as exc:
             msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"
+            raise VenueError(msg) from exc
+
+    async def query_order_book(
+        self,
+        symbol: str,
+        *,
+        limit: int = 20,
+    ) -> OrderBookSnapshot:
+
+        '''
+        Query order book depth from Binance.
+
+        Fetches bid and ask levels via the public /api/v3/depth endpoint.
+        No authentication required. Tracks request weight from response
+        headers.
+
+        Args:
+            symbol (str): Trading pair symbol
+            limit (int): Number of price levels per side (default 20)
+
+        Returns:
+            OrderBookSnapshot: Parsed order book with bid/ask levels
+
+        Raises:
+            VenueError: On malformed response payload or venue rejection
+            TransientError: On network, timeout, or JSON decode failures
+        '''
+
+        session = await self._ensure_session()
+
+        try:
+            async with session.request(
+                'GET',
+                f"{self._base_url}/api/v3/depth",
+                params={'symbol': symbol, 'limit': str(limit)},
+            ) as response:
+                self._update_weight_from_headers(response)
+                await self._raise_on_error(response)
+                data: Any = await response.json()
+        except OrderRejectedError as exc:
+            msg = f"depth query failed for {symbol!r}: {exc}"
+            raise VenueError(msg) from exc
+        except VenueError:
+            raise
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            msg = f"Request failed: {exc}"
+            raise TransientError(msg) from exc
+
+        try:
+            bids = tuple(
+                OrderBookLevel(price=Decimal(p), qty=Decimal(q))
+                for p, q in data['bids']
+            )
+            asks = tuple(
+                OrderBookLevel(price=Decimal(p), qty=Decimal(q))
+                for p, q in data['asks']
+            )
+            return OrderBookSnapshot(
+                bids=bids,
+                asks=asks,
+                last_update_id=int(data['lastUpdateId']),
+            )
+        except (KeyError, TypeError, ArithmeticError, ValueError) as exc:
+            msg = f"Malformed depth payload for {symbol!r}: {exc}"
             raise VenueError(msg) from exc
 
     def _update_weight_from_headers(

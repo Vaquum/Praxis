@@ -1811,3 +1811,129 @@ class TestValidateOrder:
                 Decimal('1.0'), price=Decimal('50000.005'),
             )
         adapter._session.request.assert_not_called()  # type: ignore[union-attr]
+
+
+class TestQueryOrderBook:
+
+    @pytest.mark.asyncio
+    async def test_parses_bids_and_asks(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {
+            'lastUpdateId': 1027024,
+            'bids': [['50000.00', '1.5'], ['49999.00', '2.0']],
+            'asks': [['50001.00', '0.8'], ['50002.00', '1.2']],
+        }
+        _patch_session(adapter, _mock_response(200, payload))
+        result = await adapter.query_order_book('BTCUSDT')
+        assert result.last_update_id == 1027024
+        assert len(result.bids) == 2
+        assert len(result.asks) == 2
+        assert result.bids[0].price == Decimal('50000.00')
+        assert result.bids[0].qty == Decimal('1.5')
+        assert result.bids[1].price == Decimal('49999.00')
+        assert result.asks[0].price == Decimal('50001.00')
+        assert result.asks[1].qty == Decimal('1.2')
+
+    @pytest.mark.asyncio
+    async def test_empty_book(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {'lastUpdateId': 100, 'bids': [], 'asks': []}
+        _patch_session(adapter, _mock_response(200, payload))
+        result = await adapter.query_order_book('BTCUSDT')
+        assert result.bids == ()
+        assert result.asks == ()
+        assert result.last_update_id == 100
+
+    @pytest.mark.asyncio
+    async def test_custom_limit_passed_as_param(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {'lastUpdateId': 1, 'bids': [], 'asks': []}
+        _patch_session(adapter, _mock_response(200, payload))
+        await adapter.query_order_book('ETHUSDT', limit=50)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        url = call_args[0][1]
+        params = call_args[1].get('params', {})
+        assert 'depth' in url
+        assert params.get('limit') == '50'
+        assert params.get('symbol') == 'ETHUSDT'
+
+    @pytest.mark.asyncio
+    async def test_updates_weight_from_headers(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {'lastUpdateId': 1, 'bids': [], 'asks': []}
+        _patch_session(adapter, _mock_response(
+            200, payload,
+            headers={'X-MBX-USED-WEIGHT-1M': '55'},
+        ))
+        await adapter.query_order_book('BTCUSDT')
+        assert adapter._used_weight == 55
+
+    @pytest.mark.asyncio
+    async def test_malformed_payload_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'broken': True}))
+        with pytest.raises(VenueError, match='Malformed depth payload'):
+            await adapter.query_order_book('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_malformed_level_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {
+            'lastUpdateId': 1,
+            'bids': [['not_a_number', '1.0']],
+            'asks': [],
+        }
+        _patch_session(adapter, _mock_response(200, payload))
+        with pytest.raises(VenueError, match='Malformed depth payload'):
+            await adapter.query_order_book('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_network_error_raises_transient(self) -> None:
+
+        adapter = _make_adapter()
+        session = MagicMock()
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(side_effect=aiohttp.ClientError('timeout'))
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        session.request = MagicMock(return_value=ctx)
+        session.closed = False
+        adapter._session = session
+        with pytest.raises(TransientError, match='Request failed'):
+            await adapter.query_order_book('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_http_error_propagates(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(500))
+        with pytest.raises(TransientError, match='Venue server error'):
+            await adapter.query_order_book('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_invalid_symbol_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {'code': -1121, 'msg': 'Invalid symbol.'}
+        _patch_session(adapter, _mock_response(400, payload))
+        with pytest.raises(VenueError, match='depth query failed'):
+            await adapter.query_order_book('INVALID')
+
+    @pytest.mark.asyncio
+    async def test_snapshot_is_immutable(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {
+            'lastUpdateId': 1,
+            'bids': [['100.0', '1.0']],
+            'asks': [['101.0', '2.0']],
+        }
+        _patch_session(adapter, _mock_response(200, payload))
+        result = await adapter.query_order_book('BTCUSDT')
+        with pytest.raises(AttributeError):
+            result.last_update_id = 999  # type: ignore[misc]
