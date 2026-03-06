@@ -280,6 +280,8 @@ class TestVenueAdapterProtocol:
 
             async def get_server_time(self, *_args: Any, **_kwargs: Any) -> None: ...
 
+            async def query_order_book(self, *_args: Any, **_kwargs: Any) -> None: ...
+
         assert isinstance(_FakeAdapter(), VenueAdapter)
 
     def test_non_conforming_class_not_isinstance(self) -> None:
