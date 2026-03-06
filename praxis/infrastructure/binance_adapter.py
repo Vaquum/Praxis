@@ -999,14 +999,18 @@ class BinanceAdapter:
 
         if weight_raw is not None:
             with contextlib.suppress(ValueError):
-                self._used_weight = int(weight_raw)
+                parsed_weight = int(weight_raw)
+                if parsed_weight >= 0:
+                    self._used_weight = parsed_weight
 
         if account_id is not None:
             order_raw = response.headers.get('X-MBX-ORDER-COUNT-10S')
 
             if order_raw is not None:
                 with contextlib.suppress(ValueError):
-                    self._order_count[account_id] = int(order_raw)
+                    parsed_count = int(order_raw)
+                    if parsed_count >= 0:
+                        self._order_count[account_id] = parsed_count
 
         if self._weight_limit > 0:
             headroom = (self._weight_limit - self._used_weight) / self._weight_limit
@@ -1050,7 +1054,7 @@ class BinanceAdapter:
             limit_val = entry.get('limit')
             interval_num = entry.get('intervalNum')
 
-            if not isinstance(limit_val, int):
+            if not isinstance(limit_val, int) or limit_val <= 0:
                 continue
 
             if (

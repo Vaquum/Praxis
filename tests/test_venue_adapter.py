@@ -245,6 +245,16 @@ class TestErrorHierarchy:
         err = RateLimitError('rate limited')
         assert err.retry_after is None
 
+    def test_rate_limit_error_status_code(self) -> None:
+
+        err = RateLimitError('rate limited', status_code=429)
+        assert err.status_code == 429
+
+    def test_rate_limit_error_status_code_default_none(self) -> None:
+
+        err = RateLimitError('rate limited')
+        assert err.status_code is None
+
 
 class TestVenueAdapterProtocol:
 

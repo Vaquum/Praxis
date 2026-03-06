@@ -676,6 +676,46 @@ class TestRetry:
         delay = mock_sleep.call_args[0][0]
         assert 0 <= delay <= 0.5
 
+    @pytest.mark.asyncio
+    async def test_403_rate_limit_not_retried(self) -> None:
+
+        adapter = _make_adapter()
+        resp_403 = _mock_response(403)
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=resp_403)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[ctx])
+        session.closed = False
+        adapter._session = session
+
+        with pytest.raises(RateLimitError, match='Rate limited'):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        session.request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_418_rate_limit_not_retried(self) -> None:
+
+        adapter = _make_adapter()
+        resp_418 = _mock_response(418)
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=resp_418)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[ctx])
+        session.closed = False
+        adapter._session = session
+
+        with pytest.raises(RateLimitError, match='Rate limited'):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        session.request.assert_called_once()
+
 class TestBuildOrderParams:
 
     def test_market_order(self) -> None:
@@ -1001,6 +1041,33 @@ class TestRaiseOnError:
         adapter = _make_adapter()
         with pytest.raises(RateLimitError) as exc_info:
             await adapter._raise_on_error(_mock_response(429))
+        assert exc_info.value.retry_after is None
+
+    @pytest.mark.asyncio
+    async def test_429_sets_status_code(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(_mock_response(429))
+        assert exc_info.value.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_non_finite_retry_after_treated_as_none(self) -> None:
+
+        adapter = _make_adapter()
+        for val in ['NaN', 'inf', '-inf']:
+            resp = _mock_response(429, headers={'Retry-After': val})
+            with pytest.raises(RateLimitError) as exc_info:
+                await adapter._raise_on_error(resp)
+            assert exc_info.value.retry_after is None, f"Expected None for Retry-After={val!r}"
+
+    @pytest.mark.asyncio
+    async def test_negative_retry_after_treated_as_none(self) -> None:
+
+        adapter = _make_adapter()
+        resp = _mock_response(429, headers={'Retry-After': '-5'})
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(resp)
         assert exc_info.value.retry_after is None
 
     @pytest.mark.asyncio
