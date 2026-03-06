@@ -126,6 +126,11 @@ _BINANCE_TRADE_RESPONSE: dict[str, Any] = {
 
 
 _BINANCE_EXCHANGE_INFO_RESPONSE: dict[str, Any] = {
+    'rateLimits': [
+        {'rateLimitType': 'REQUEST_WEIGHT', 'interval': 'MINUTE', 'intervalNum': 1, 'limit': 1200},
+        {'rateLimitType': 'ORDERS', 'interval': 'SECOND', 'intervalNum': 10, 'limit': 100},
+        {'rateLimitType': 'ORDERS', 'interval': 'DAY', 'intervalNum': 1, 'limit': 200000},
+    ],
     'symbols': [
         {
             'symbol': 'BTCUSDT',
@@ -184,6 +189,7 @@ def _make_adapter(
 def _mock_response(
     status: int,
     data: Any = None,
+    headers: dict[str, str] | None = None,
 ) -> AsyncMock:
 
     '''
@@ -192,14 +198,16 @@ def _mock_response(
     Args:
         status (int): HTTP status code
         data (Any): JSON response body
+        headers (dict[str, str] | None): Response headers
 
     Returns:
-        AsyncMock: Mock response with status and json()
+        AsyncMock: Mock response with status, json(), and headers
     '''
 
     resp = AsyncMock()
     resp.status = status
     resp.json = AsyncMock(return_value=data if data is not None else {})
+    resp.headers = headers or {}
     return resp
 
 
@@ -329,6 +337,64 @@ class TestSignedRequest:
         ):
             await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
 
+    @pytest.mark.asyncio
+    async def test_updates_weight_from_headers(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-USED-WEIGHT-1M': '150'},
+        ))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._used_weight == 150
+
+    @pytest.mark.asyncio
+    async def test_updates_order_count_from_headers(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-ORDER-COUNT-10S': '7'},
+        ))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._order_count[_ACCOUNT_ID] == 7
+
+    @pytest.mark.asyncio
+    async def test_logs_warning_on_low_headroom(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-USED-WEIGHT-1M': '900'},
+        ))
+        with patch('praxis.infrastructure.binance_adapter._log') as mock_log:
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+            mock_log.warning.assert_called_once()
+            assert 'headroom low' in mock_log.warning.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_unparseable_weight_header_ignored(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._used_weight = 50
+        _patch_session(adapter, _mock_response(
+            200, {'result': 'ok'},
+            headers={'X-MBX-USED-WEIGHT-1M': 'garbage'},
+        ))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._used_weight == 50
+
+    @pytest.mark.asyncio
+    async def test_missing_headers_preserve_state(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._used_weight = 100
+        adapter._order_count[_ACCOUNT_ID] = 5
+        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
+        await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+        assert adapter._used_weight == 100
+        assert adapter._order_count[_ACCOUNT_ID] == 5
 
 class TestRetry:
 
@@ -530,6 +596,125 @@ class TestRetry:
         assert session.request.call_count == 2
         mock_sleep.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_rate_limit_retried_with_retry_after(self) -> None:
+
+        adapter = _make_adapter()
+        rate_resp = _mock_response(429, headers={'Retry-After': '3'})
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        rate_ctx = MagicMock()
+        rate_ctx.__aenter__ = AsyncMock(return_value=rate_resp)
+        rate_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[rate_ctx, ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            result = await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert result == {'result': 'ok'}
+        assert session.request.call_count == 2
+        mock_sleep.assert_called_once_with(3.0)
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_exhaustion_raises(self) -> None:
+
+        adapter = _make_adapter()
+        rate_resp = _mock_response(429)
+
+        contexts = []
+        for _ in range(3):
+            ctx = MagicMock()
+            ctx.__aenter__ = AsyncMock(return_value=rate_resp)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            contexts.append(ctx)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=contexts)
+        session.closed = False
+        adapter._session = session
+
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            pytest.raises(RateLimitError),
+        ):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        assert session.request.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_retry_without_retry_after_uses_backoff(self) -> None:
+
+        adapter = _make_adapter()
+        rate_resp = _mock_response(429)
+        ok_resp = _mock_response(200, {'result': 'ok'})
+
+        rate_ctx = MagicMock()
+        rate_ctx.__aenter__ = AsyncMock(return_value=rate_resp)
+        rate_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        ok_ctx = MagicMock()
+        ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+        ok_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[rate_ctx, ok_ctx])
+        session.closed = False
+        adapter._session = session
+
+        with patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        mock_sleep.assert_called_once()
+        delay = mock_sleep.call_args[0][0]
+        assert 0 <= delay <= 0.5
+
+    @pytest.mark.asyncio
+    async def test_403_rate_limit_not_retried(self) -> None:
+
+        adapter = _make_adapter()
+        resp_403 = _mock_response(403)
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=resp_403)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[ctx])
+        session.closed = False
+        adapter._session = session
+
+        with pytest.raises(RateLimitError, match='Rate limited'):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        session.request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_418_rate_limit_not_retried(self) -> None:
+
+        adapter = _make_adapter()
+        resp_418 = _mock_response(418)
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=resp_418)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[ctx])
+        session.closed = False
+        adapter._session = session
+
+        with pytest.raises(RateLimitError, match='Rate limited'):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        session.request.assert_called_once()
 
 class TestBuildOrderParams:
 
@@ -840,6 +1025,50 @@ class TestRaiseOnError:
         adapter = _make_adapter()
         with pytest.raises(RateLimitError, match='Rate limited'):
             await adapter._raise_on_error(_mock_response(429))
+
+    @pytest.mark.asyncio
+    async def test_429_parses_retry_after_header(self) -> None:
+
+        adapter = _make_adapter()
+        resp = _mock_response(429, headers={'Retry-After': '45'})
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(resp)
+        assert exc_info.value.retry_after == 45.0
+
+    @pytest.mark.asyncio
+    async def test_429_without_retry_after_sets_none(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(_mock_response(429))
+        assert exc_info.value.retry_after is None
+
+    @pytest.mark.asyncio
+    async def test_429_sets_status_code(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(_mock_response(429))
+        assert exc_info.value.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_non_finite_retry_after_treated_as_none(self) -> None:
+
+        adapter = _make_adapter()
+        for val in ['NaN', 'inf', '-inf']:
+            resp = _mock_response(429, headers={'Retry-After': val})
+            with pytest.raises(RateLimitError) as exc_info:
+                await adapter._raise_on_error(resp)
+            assert exc_info.value.retry_after is None, f"Expected None for Retry-After={val!r}"
+
+    @pytest.mark.asyncio
+    async def test_negative_retry_after_treated_as_none(self) -> None:
+
+        adapter = _make_adapter()
+        resp = _mock_response(429, headers={'Retry-After': '-5'})
+        with pytest.raises(RateLimitError) as exc_info:
+            await adapter._raise_on_error(resp)
+        assert exc_info.value.retry_after is None
 
     @pytest.mark.asyncio
     async def test_500_raises_transient_error(self) -> None:
@@ -1371,6 +1600,112 @@ class TestGetExchangeInfo:
         _patch_session(adapter, _mock_response(200, payload))
         with pytest.raises(VenueError, match='Malformed exchangeInfo payload'):
             await adapter.get_exchange_info('BTCUSDT')
+
+    @pytest.mark.asyncio
+    async def test_parses_rate_limits_from_response(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(
+            200, _BINANCE_EXCHANGE_INFO_RESPONSE,
+            headers={'X-MBX-USED-WEIGHT-1M': '42'},
+        ))
+        await adapter.get_exchange_info('BTCUSDT')
+        assert adapter._weight_limit == 1200
+        assert adapter._order_count_limit == 100
+        assert adapter._used_weight == 42
+
+    @pytest.mark.asyncio
+    async def test_missing_rate_limits_keeps_defaults(self) -> None:
+
+        adapter = _make_adapter()
+        payload: dict[str, Any] = {
+            'symbols': [
+                {
+                    'symbol': 'BTCUSDT',
+                    'filters': [
+                        {'filterType': 'PRICE_FILTER', 'tickSize': '0.01'},
+                        {'filterType': 'LOT_SIZE', 'stepSize': '0.00001', 'minQty': '0.00001', 'maxQty': '9000.0'},
+                        {'filterType': 'NOTIONAL', 'minNotional': '5.0'},
+                    ],
+                },
+            ],
+        }
+        _patch_session(adapter, _mock_response(200, payload))
+        await adapter.get_exchange_info('BTCUSDT')
+        assert adapter._weight_limit == 6000
+        assert adapter._order_count_limit == 10
+
+
+class TestHeadroom:
+
+    def test_weight_headroom_full(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1200
+        adapter._used_weight = 0
+        assert adapter.weight_headroom == 1.0
+
+    def test_weight_headroom_partial(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        adapter._used_weight = 800
+        assert adapter.weight_headroom == pytest.approx(0.2)
+
+    def test_weight_headroom_exhausted(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        adapter._used_weight = 1000
+        assert adapter.weight_headroom == 0.0
+
+    def test_weight_headroom_zero_limit(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 0
+        assert adapter.weight_headroom == 1.0
+
+    def test_order_count_headroom_full(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 100
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == 1.0
+
+    def test_order_count_headroom_partial(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 10
+        adapter._order_count[_ACCOUNT_ID] = 8
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == pytest.approx(0.2)
+
+    def test_order_count_headroom_per_account(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 100
+        adapter._order_count['acct_a'] = 90
+        adapter._order_count['acct_b'] = 10
+        assert adapter.order_count_headroom('acct_a') == pytest.approx(0.1)
+        assert adapter.order_count_headroom('acct_b') == pytest.approx(0.9)
+
+    def test_order_count_headroom_zero_limit(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 0
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == 1.0
+
+    def test_weight_headroom_clamps_negative_to_zero(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._weight_limit = 1000
+        adapter._used_weight = 1200
+        assert adapter.weight_headroom == 0.0
+
+    def test_order_count_headroom_clamps_negative_to_zero(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._order_count_limit = 10
+        adapter._order_count[_ACCOUNT_ID] = 15
+        assert adapter.order_count_headroom(_ACCOUNT_ID) == 0.0
 
 
 class TestLoadFilters:

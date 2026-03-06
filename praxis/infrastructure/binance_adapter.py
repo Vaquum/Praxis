@@ -9,9 +9,11 @@ encapsulated here.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import logging
+import math
 import random
 import time
 from collections.abc import Sequence
@@ -54,6 +56,11 @@ _MS_PER_SECOND = 1000
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
+_DEFAULT_WEIGHT_LIMIT = 6000
+_DEFAULT_ORDER_COUNT_LIMIT = 10
+_RATE_LIMIT_WARN_THRESHOLD = 0.2
+_WEIGHT_INTERVAL_NUM = 1
+_ORDER_COUNT_INTERVAL_NUM = 10
 
 _log = logging.getLogger(__name__)
 
@@ -109,6 +116,45 @@ class BinanceAdapter:
         self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
         self._filters: dict[str, SymbolFilters] = {}
+        self._used_weight: int = 0
+        self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
+        self._order_count: dict[str, int] = {}
+        self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
+        self._prev_headroom_above_threshold: bool = True
+
+    @property
+    def weight_headroom(self) -> float:
+
+        '''
+        Remaining request weight as a fraction of the limit.
+
+        Returns:
+            float: Value between 0.0 (exhausted) and 1.0 (fully available)
+        '''
+
+        if self._weight_limit <= 0:
+            return 1.0
+
+        return min(1.0, max(0.0, (self._weight_limit - self._used_weight) / self._weight_limit))
+
+    def order_count_headroom(self, account_id: str) -> float:
+
+        '''
+        Remaining order count as a fraction of the limit for an account.
+
+        Args:
+            account_id (str): Account identifier
+
+        Returns:
+            float: Value between 0.0 (exhausted) and 1.0 (fully available)
+        '''
+
+        used = self._order_count.get(account_id, 0)
+
+        if self._order_count_limit <= 0:
+            return 1.0
+
+        return min(1.0, max(0.0, (self._order_count_limit - used) / self._order_count_limit))
 
     async def __aenter__(self) -> BinanceAdapter:
 
@@ -253,7 +299,9 @@ class BinanceAdapter:
 
         Handles credential lookup, query string signing, URL construction,
         HTTP dispatch, error checking, and JSON parsing. Retries on
-        TransientError with exponential backoff and jitter.
+        TransientError and HTTP 429 RateLimitError with exponential backoff
+        and jitter. Non-429 rate limit responses (403, 418) propagate
+        immediately without retry.
 
         Args:
             method (str): HTTP method (GET, POST, DELETE)
@@ -266,6 +314,7 @@ class BinanceAdapter:
 
         Raises:
             TransientError: After all retry attempts are exhausted
+            RateLimitError: On non-429 rate limit responses, or after retry exhaustion
         '''
 
         session = await self._ensure_session()
@@ -282,6 +331,7 @@ class BinanceAdapter:
                     f"{self._base_url}{path}?{query_string}",
                     headers=headers,
                 ) as response:
+                    self._update_weight_from_headers(response, account_id)
                     await self._raise_on_error(response)
                     data: Any = await response.json()
                     return data
@@ -293,6 +343,15 @@ class BinanceAdapter:
                 _log.warning(
                     'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
                     method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+            except RateLimitError as exc:
+                if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
+                    raise
+                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
+                    method, path, attempt + 1, _MAX_RETRIES, delay,
                 )
                 await asyncio.sleep(delay)
             except VenueError:
@@ -532,8 +591,17 @@ class BinanceAdapter:
             raise AuthenticationError(msg)
 
         if response.status in (_HTTP_FORBIDDEN, _HTTP_TEAPOT, _HTTP_TOO_MANY):
+            raw = response.headers.get('Retry-After')
+            retry_after: float | None = None
+
+            if raw is not None:
+                with contextlib.suppress(ValueError, OverflowError):
+                    parsed = float(raw)
+                    if math.isfinite(parsed) and parsed >= 0:
+                        retry_after = parsed
+
             msg = f"Rate limited: HTTP {response.status}"
-            raise RateLimitError(msg)
+            raise RateLimitError(msg, retry_after=retry_after, status_code=response.status)
 
         if response.status >= _HTTP_SERVER_ERROR:
             msg = f"Venue server error: HTTP {response.status}"
@@ -855,6 +923,7 @@ class BinanceAdapter:
                 f"{self._base_url}/api/v3/exchangeInfo",
                 params={'symbol': symbol},
             ) as response:
+                self._update_weight_from_headers(response)
                 await self._raise_on_error(response)
                 data: Any = await response.json()
         except OrderRejectedError as exc:
@@ -865,6 +934,8 @@ class BinanceAdapter:
         except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
             msg = f"Request failed: {exc}"
             raise TransientError(msg) from exc
+
+        self._parse_rate_limits(data)
 
         symbols_list = data.get('symbols') if isinstance(data, dict) else None
 
@@ -904,3 +975,98 @@ class BinanceAdapter:
         except (KeyError, ArithmeticError) as exc:
             msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"
             raise VenueError(msg) from exc
+
+    def _update_weight_from_headers(
+        self,
+        response: aiohttp.ClientResponse,
+        account_id: str | None = None,
+    ) -> None:
+
+        '''
+        Update rate limit counters from response headers.
+
+        Reads X-MBX-USED-WEIGHT-1M (per-IP) and X-MBX-ORDER-COUNT-10S
+        (per-API-key, keyed by account_id). Logs a warning when
+        weight headroom drops below the configured threshold.
+        Silently ignores missing or unparseable headers.
+
+        Args:
+            response (aiohttp.ClientResponse): HTTP response
+            account_id (str | None): Account identifier for order count tracking
+        '''
+
+        weight_raw = response.headers.get('X-MBX-USED-WEIGHT-1M')
+
+        if weight_raw is not None:
+            with contextlib.suppress(ValueError):
+                parsed_weight = int(weight_raw)
+                if parsed_weight >= 0:
+                    self._used_weight = parsed_weight
+
+        if account_id is not None:
+            order_raw = response.headers.get('X-MBX-ORDER-COUNT-10S')
+
+            if order_raw is not None:
+                with contextlib.suppress(ValueError):
+                    parsed_count = int(order_raw)
+                    if parsed_count >= 0:
+                        self._order_count[account_id] = parsed_count
+
+        if self._weight_limit > 0:
+            headroom = (self._weight_limit - self._used_weight) / self._weight_limit
+            below = headroom < _RATE_LIMIT_WARN_THRESHOLD
+
+            if below and self._prev_headroom_above_threshold:
+                log_headroom = max(0.0, headroom)
+                _log.warning(
+                    'Rate limit headroom low: %d/%d used (%.1f%% remaining)',
+                    self._used_weight, self._weight_limit, log_headroom * 100,
+                )
+
+            self._prev_headroom_above_threshold = not below
+
+    def _parse_rate_limits(self, data: Any) -> None:
+
+        '''
+        Parse rateLimits array from exchangeInfo response.
+
+        Extracts REQUEST_WEIGHT and ORDERS limits and updates
+        the cached limit values when successfully parsed. Warns
+        and leaves existing cached values unchanged when the
+        rateLimits array is absent from the response.
+
+        Args:
+            data (Any): Parsed exchangeInfo JSON payload
+        '''
+
+        rate_limits = data.get('rateLimits') if isinstance(data, dict) else None
+
+        if not isinstance(rate_limits, list):
+            _log.warning('exchangeInfo missing rateLimits array, keeping cached limits')
+            return
+
+        for entry in rate_limits:
+            if not isinstance(entry, dict):
+                continue
+
+            limit_type = entry.get('rateLimitType')
+            interval = entry.get('interval')
+            limit_val = entry.get('limit')
+            interval_num = entry.get('intervalNum')
+
+            if not isinstance(limit_val, int) or limit_val <= 0:
+                continue
+
+            if (
+                limit_type == 'REQUEST_WEIGHT'
+                and interval == 'MINUTE'
+                and interval_num == _WEIGHT_INTERVAL_NUM
+            ):
+                self._weight_limit = limit_val
+
+            if (
+                limit_type == 'ORDERS'
+                and interval == 'SECOND'
+                and interval_num == _ORDER_COUNT_INTERVAL_NUM
+            ):
+                self._order_count_limit = limit_val
