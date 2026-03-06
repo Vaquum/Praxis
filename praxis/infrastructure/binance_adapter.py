@@ -1000,8 +1000,8 @@ class BinanceAdapter:
             OrderBookSnapshot: Parsed order book with bid/ask levels
 
         Raises:
-            VenueError: On malformed response payload
-            TransientError: On network or timeout failures
+            VenueError: On malformed response payload or venue rejection
+            TransientError: On network, timeout, or JSON decode failures
         '''
 
         session = await self._ensure_session()

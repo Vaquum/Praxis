@@ -167,4 +167,4 @@
 - Add `OrderBookLevel` and `OrderBookSnapshot` frozen dataclasses to [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
 - Add `query_order_book` to `VenueAdapter` protocol with default limit=20 in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
 - Implement `query_order_book` in `BinanceAdapter` via unauthenticated `GET /api/v3/depth` with response parsing and weight tracking in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
-- Add 8 unit tests for order book parsing, error handling, weight tracking, and immutability in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Add unit tests for order book parsing, error handling, weight tracking, and immutability in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
