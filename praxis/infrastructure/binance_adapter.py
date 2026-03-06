@@ -1015,6 +1015,9 @@ class BinanceAdapter:
                 self._update_weight_from_headers(response)
                 await self._raise_on_error(response)
                 data: Any = await response.json()
+        except OrderRejectedError as exc:
+            msg = f"depth query failed for {symbol!r}: {exc}"
+            raise VenueError(msg) from exc
         except VenueError:
             raise
         except (aiohttp.ClientError, TimeoutError, ValueError) as exc:

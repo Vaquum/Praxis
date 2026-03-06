@@ -1916,6 +1916,15 @@ class TestQueryOrderBook:
             await adapter.query_order_book('BTCUSDT')
 
     @pytest.mark.asyncio
+    async def test_invalid_symbol_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        payload = {'code': -1121, 'msg': 'Invalid symbol.'}
+        _patch_session(adapter, _mock_response(400, payload))
+        with pytest.raises(VenueError, match='depth query failed'):
+            await adapter.query_order_book('INVALID')
+
+    @pytest.mark.asyncio
     async def test_snapshot_is_immutable(self) -> None:
 
         adapter = _make_adapter()
