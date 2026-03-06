@@ -258,9 +258,15 @@ class RateLimitError(VenueError):
         message (str): Human-readable error description
         retry_after (float | None): Seconds to wait before retrying,
             parsed from the Retry-After response header
+        status_code (int | None): HTTP status code that triggered the error
     '''
 
-    def __init__(self, message: str, retry_after: float | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        retry_after: float | None = None,
+        status_code: int | None = None,
+    ) -> None:
 
         '''
         Store the rate limit details.
@@ -268,11 +274,13 @@ class RateLimitError(VenueError):
         Args:
             message (str): Human-readable error description
             retry_after (float | None): Seconds to wait before retrying
+            status_code (int | None): HTTP status code that triggered the error
         '''
 
         self.retry_after = retry_after
+        self.status_code = status_code
         super().__init__(message)
-        self.args = (message, retry_after)
+        self.args = (message, retry_after, status_code)
 
 
 class AuthenticationError(VenueError):

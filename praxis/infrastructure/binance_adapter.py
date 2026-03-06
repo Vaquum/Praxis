@@ -134,7 +134,7 @@ class BinanceAdapter:
         if self._weight_limit <= 0:
             return 1.0
 
-        return max(0.0, (self._weight_limit - self._used_weight) / self._weight_limit)
+        return min(1.0, max(0.0, (self._weight_limit - self._used_weight) / self._weight_limit))
 
     def order_count_headroom(self, account_id: str) -> float:
 
@@ -153,7 +153,7 @@ class BinanceAdapter:
         if self._order_count_limit <= 0:
             return 1.0
 
-        return max(0.0, (self._order_count_limit - used) / self._order_count_limit)
+        return min(1.0, max(0.0, (self._order_count_limit - used) / self._order_count_limit))
 
     async def __aenter__(self) -> BinanceAdapter:
 
@@ -342,9 +342,9 @@ class BinanceAdapter:
                 )
                 await asyncio.sleep(delay)
             except RateLimitError as exc:
-                if attempt + 1 == _MAX_RETRIES:
+                if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
                     raise
-                delay = exc.retry_after if exc.retry_after is not None else _RETRY_BASE_DELAY * 2 ** attempt
+                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else _RETRY_BASE_DELAY * 2 ** attempt
                 _log.warning(
                     'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
                     method, path, attempt + 1, _MAX_RETRIES, delay,
@@ -595,7 +595,7 @@ class BinanceAdapter:
                     retry_after = float(raw)
 
             msg = f"Rate limited: HTTP {response.status}"
-            raise RateLimitError(msg, retry_after=retry_after)
+            raise RateLimitError(msg, retry_after=retry_after, status_code=response.status)
 
         if response.status >= _HTTP_SERVER_ERROR:
             msg = f"Venue server error: HTTP {response.status}"
