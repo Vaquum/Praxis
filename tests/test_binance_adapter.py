@@ -395,6 +395,7 @@ class TestSignedRequest:
         await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
         assert adapter._used_weight == 100
         assert adapter._order_count[_ACCOUNT_ID] == 5
+
 class TestRetry:
 
     @pytest.mark.asyncio
@@ -1637,6 +1638,7 @@ class TestHeadroom:
         adapter._order_count_limit = 10
         adapter._order_count[_ACCOUNT_ID] = 15
         assert adapter.order_count_headroom(_ACCOUNT_ID) == 0.0
+
 
 class TestLoadFilters:
 

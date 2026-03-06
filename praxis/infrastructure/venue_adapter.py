@@ -252,7 +252,7 @@ class OrderRejectedError(VenueError):
 class RateLimitError(VenueError):
 
     '''
-    Raised on HTTP 429/418 rate limit responses.
+    Raised when the venue indicates a rate limit has been exceeded.
 
     Args:
         message (str): Human-readable error description

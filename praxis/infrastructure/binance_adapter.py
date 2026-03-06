@@ -58,6 +58,8 @@ _RETRY_BASE_DELAY = 0.5
 _DEFAULT_WEIGHT_LIMIT = 6000
 _DEFAULT_ORDER_COUNT_LIMIT = 10
 _RATE_LIMIT_WARN_THRESHOLD = 0.2
+_WEIGHT_INTERVAL_NUM = 1
+_ORDER_COUNT_INTERVAL_NUM = 10
 
 _log = logging.getLogger(__name__)
 
@@ -117,6 +119,7 @@ class BinanceAdapter:
         self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
         self._order_count: dict[str, int] = {}
         self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
+        self._prev_headroom_above_threshold: bool = True
 
     @property
     def weight_headroom(self) -> float:
@@ -1001,12 +1004,16 @@ class BinanceAdapter:
 
         if self._weight_limit > 0:
             headroom = (self._weight_limit - self._used_weight) / self._weight_limit
+            below = headroom < _RATE_LIMIT_WARN_THRESHOLD
 
-            if headroom < _RATE_LIMIT_WARN_THRESHOLD:
+            if below and self._prev_headroom_above_threshold:
+                log_headroom = max(0.0, headroom)
                 _log.warning(
                     'Rate limit headroom low: %d/%d used (%.1f%% remaining)',
-                    self._used_weight, self._weight_limit, headroom * 100,
+                    self._used_weight, self._weight_limit, log_headroom * 100,
                 )
+
+            self._prev_headroom_above_threshold = not below
 
     def _parse_rate_limits(self, data: Any) -> None:
 
@@ -1014,8 +1021,8 @@ class BinanceAdapter:
         Parse rateLimits array from exchangeInfo response.
 
         Extracts REQUEST_WEIGHT and ORDERS limits and updates
-        the cached limit values. Warns and keeps defaults on
-        parse failure.
+        the cached limit values when successfully parsed. Warns
+        and leaves existing cached values unchanged on parse failure.
 
         Args:
             data (Any): Parsed exchangeInfo JSON payload
@@ -1034,12 +1041,21 @@ class BinanceAdapter:
             limit_type = entry.get('rateLimitType')
             interval = entry.get('interval')
             limit_val = entry.get('limit')
+            interval_num = entry.get('intervalNum')
 
             if not isinstance(limit_val, int):
                 continue
 
-            if limit_type == 'REQUEST_WEIGHT' and interval == 'MINUTE':
+            if (
+                limit_type == 'REQUEST_WEIGHT'
+                and interval == 'MINUTE'
+                and interval_num == _WEIGHT_INTERVAL_NUM
+            ):
                 self._weight_limit = limit_val
 
-            if limit_type == 'ORDERS' and interval == 'SECOND':
+            if (
+                limit_type == 'ORDERS'
+                and interval == 'SECOND'
+                and interval_num == _ORDER_COUNT_INTERVAL_NUM
+            ):
                 self._order_count_limit = limit_val
