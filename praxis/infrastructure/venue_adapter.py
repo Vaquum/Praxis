@@ -200,6 +200,7 @@ class SymbolFilters:
     lot_max: Decimal
     min_notional: Decimal
 
+
 @dataclass(frozen=True)
 class OrderBookLevel:
 
