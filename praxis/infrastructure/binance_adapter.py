@@ -379,6 +379,155 @@ class BinanceAdapter:
             raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
         raise last_error
 
+    async def _api_key_request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, str],
+        account_id: str,
+    ) -> Any:
+
+        '''
+        Execute an API-key-authenticated HTTP request without HMAC signing.
+
+        Used for endpoints that require the API key header but no
+        query string signature (e.g. user data stream management).
+        Retries on TransientError and HTTP 429 with the same policy
+        as _signed_request.
+
+        Args:
+            method (str): HTTP method (GET, POST, PUT, DELETE)
+            path (str): API endpoint path
+            params (dict[str, str]): Query parameters
+            account_id (str): Account identifier for credential lookup
+
+        Returns:
+            Any: Parsed JSON response body
+
+        Raises:
+            TransientError: After all retry attempts are exhausted
+            RateLimitError: On non-429 rate limit responses, or after retry exhaustion
+        '''
+
+        session = await self._ensure_session()
+        api_key, _ = self._get_credentials(account_id)
+        headers = {_API_KEY_HEADER: api_key}
+        last_error: TransientError | None = None
+
+        for attempt in range(_MAX_RETRIES):
+            try:
+                async with session.request(
+                    method,
+                    f"{self._base_url}{path}",
+                    params=params,
+                    headers=headers,
+                ) as response:
+                    self._update_weight_from_headers(response, account_id)
+                    await self._raise_on_error(response)
+                    data: Any = await response.json()
+                    return data
+            except TransientError as exc:
+                last_error = exc
+                if attempt + 1 == _MAX_RETRIES:
+                    break
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
+                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+            except RateLimitError as exc:
+                if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
+                    raise
+                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
+                    method, path, attempt + 1, _MAX_RETRIES, delay,
+                )
+                await asyncio.sleep(delay)
+            except VenueError:
+                raise
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+                msg = f"Request failed: {exc}"
+                last_error = TransientError(msg)
+                last_error.__cause__ = exc
+                if attempt + 1 == _MAX_RETRIES:
+                    break
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
+                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+
+        _log.error(
+            'All %d attempts exhausted on %s %s: %s',
+            _MAX_RETRIES, method, path, last_error,
+        )
+        if last_error is None:
+            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
+        raise last_error
+
+    async def _create_listen_key(self, account_id: str) -> str:
+
+        '''
+        Create a new user data stream listen key.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+
+        Returns:
+            str: Listen key for WebSocket connection
+        '''
+
+        data = await self._api_key_request(
+            'POST', '/api/v3/userDataStream', {}, account_id,
+        )
+        listen_key = data.get('listenKey') if isinstance(data, dict) else None
+
+        if not isinstance(listen_key, str) or not listen_key:
+            msg = f"Missing listenKey in userDataStream response for {account_id!r}"
+            raise VenueError(msg)
+
+        return listen_key
+
+    async def _keepalive_listen_key(
+        self, account_id: str, listen_key: str,
+    ) -> None:
+
+        '''
+        Extend the validity of a user data stream listen key.
+
+        Must be called at least every 60 minutes to prevent expiry.
+        Recommended interval is 30 minutes.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            listen_key (str): Active listen key to keep alive
+        '''
+
+        await self._api_key_request(
+            'PUT', '/api/v3/userDataStream',
+            {'listenKey': listen_key}, account_id,
+        )
+
+    async def _close_listen_key(
+        self, account_id: str, listen_key: str,
+    ) -> None:
+
+        '''
+        Close a user data stream and invalidate its listen key.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            listen_key (str): Listen key to close
+        '''
+
+        await self._api_key_request(
+            'DELETE', '/api/v3/userDataStream',
+            {'listenKey': listen_key}, account_id,
+        )
+
     def _build_order_params(
         self,
         symbol: str,

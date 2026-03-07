@@ -1937,3 +1937,113 @@ class TestQueryOrderBook:
         result = await adapter.query_order_book('BTCUSDT')
         with pytest.raises(AttributeError):
             result.last_update_id = 999  # type: ignore[misc]
+
+
+class TestApiKeyRequest:
+
+    @pytest.mark.asyncio
+    async def test_sends_api_key_header_without_signature(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
+        await adapter._api_key_request('POST', '/api/v3/userDataStream', {}, _ACCOUNT_ID)
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        method = call_args[0][0]
+        url = call_args[0][1]
+        headers = call_args.kwargs['headers']
+        assert method == 'POST'
+        assert url == f"{_BASE_URL}/api/v3/userDataStream"
+        assert headers['X-MBX-APIKEY'] == _API_KEY
+        assert 'signature' not in url
+
+    @pytest.mark.asyncio
+    async def test_passes_query_params(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {}))
+        await adapter._api_key_request(
+            'PUT', '/api/v3/userDataStream',
+            {'listenKey': 'abc123'}, _ACCOUNT_ID,
+        )
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        params = call_args.kwargs['params']
+        assert params == {'listenKey': 'abc123'}
+
+    @pytest.mark.asyncio
+    async def test_transport_error_retried_and_raises_transient(self) -> None:
+
+        adapter = _make_adapter()
+        session = MagicMock()
+        session.request = MagicMock(side_effect=aiohttp.ClientError())
+        session.closed = False
+        adapter._session = session
+        with (
+            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
+            pytest.raises(TransientError, match='Request failed'),
+        ):
+            await adapter._api_key_request('POST', '/api/v3/userDataStream', {}, _ACCOUNT_ID)
+
+
+class TestCreateListenKey:
+
+    @pytest.mark.asyncio
+    async def test_returns_listen_key_string(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'listenKey': 'abc123'}))
+        result = await adapter._create_listen_key(_ACCOUNT_ID)
+        assert result == 'abc123'
+
+    @pytest.mark.asyncio
+    async def test_missing_listen_key_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {}))
+        with pytest.raises(VenueError, match='Missing listenKey'):
+            await adapter._create_listen_key(_ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_empty_listen_key_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'listenKey': ''}))
+        with pytest.raises(VenueError, match='Missing listenKey'):
+            await adapter._create_listen_key(_ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_non_dict_response_raises_venue_error(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, 'not-a-dict'))
+        with pytest.raises(VenueError, match='Missing listenKey'):
+            await adapter._create_listen_key(_ACCOUNT_ID)
+
+
+class TestKeepaliveListenKey:
+
+    @pytest.mark.asyncio
+    async def test_sends_put_with_listen_key(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {}))
+        await adapter._keepalive_listen_key(_ACCOUNT_ID, 'abc123')
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        method = call_args[0][0]
+        params = call_args.kwargs['params']
+        assert method == 'PUT'
+        assert params == {'listenKey': 'abc123'}
+
+
+class TestCloseListenKey:
+
+    @pytest.mark.asyncio
+    async def test_sends_delete_with_listen_key(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {}))
+        await adapter._close_listen_key(_ACCOUNT_ID, 'abc123')
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        method = call_args[0][0]
+        params = call_args.kwargs['params']
+        assert method == 'DELETE'
+        assert params == {'listenKey': 'abc123'}
