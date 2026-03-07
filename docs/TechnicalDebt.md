@@ -80,3 +80,16 @@ RFC-4001 specifies a walk-the-book slippage estimator: simulate executing slice 
 
 **When to fix**: When implementing Execution Manager slice submission.
 **Migration**: Add a `walk_the_book(snapshot, side, qty) -> SlippageEstimate` helper in Execution Manager that consumes `OrderBookSnapshot` from Venue Adapter.
+
+---
+
+## TD-007: Duplicated retry loop in _signed_request and _api_key_request
+
+**Origin**: §2.9 implementation
+**Severity**: Low (two copies, no third expected)
+**Module**: `praxis/infrastructure/binance_adapter.py`
+
+`_signed_request` and `_api_key_request` share ~80 lines of identical retry/backoff/rate-limit logic. The only difference is URL construction (HMAC-signed query string vs plain params). This is manageable at two copies but would become a maintenance risk if a third request style is added.
+
+**When to fix**: Before adding a third request method variant, or during post-WP-0003 cleanup.
+**Migration**: Extract a `_request_with_retry(method, path, *, build_request, account_id)` that owns the retry loop, and have both methods delegate to it.

@@ -168,3 +168,13 @@
 - Add `query_order_book` to `VenueAdapter` protocol with default limit=20 in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
 - Implement `query_order_book` in `BinanceAdapter` via unauthenticated `GET /api/v3/depth` with response parsing and weight tracking in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Add unit tests for order book parsing, error handling, weight tracking, and immutability in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+
+## v0.16.0 on 6th of March, 2026
+
+- Add `_api_key_request` helper for API-key-only REST calls without HMAC signing in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_create_listen_key`, `_keepalive_listen_key`, and `_close_listen_key` methods for user data stream lifecycle in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `BinanceUserStream` class with connect, close, keepalive loop, `_listen` dispatch, and async context manager in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
+- Add `on_message` callback dispatch in `_listen()` with JSON parsing, non-JSON skip, callback error resilience, and CLOSED/ERROR break in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
+- Add 9 unit tests for `_api_key_request` and listen key methods in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Add 18 unit tests for `BinanceUserStream` covering URL building, connect/close lifecycle, keepalive, context manager, and `_listen` dispatch in [`test_binance_ws.py`](tests/test_binance_ws.py)
+- Add TD-007 tracking duplicated retry loop between `_signed_request` and `_api_key_request` in [`TechnicalDebt.md`](docs/TechnicalDebt.md)
