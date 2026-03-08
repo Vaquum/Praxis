@@ -32,6 +32,7 @@ _log = logging.getLogger(__name__)
 _DEFAULT_KEEPALIVE_INTERVAL_SECONDS = 1800
 _DEFAULT_RECONNECT_BASE_DELAY = 1.0
 _DEFAULT_RECONNECT_MAX_DELAY = 60.0
+_MAX_BACKOFF_EXPONENT = 30
 
 
 class BinanceUserStream:
@@ -40,7 +41,8 @@ class BinanceUserStream:
     Manage a single Binance user data WebSocket stream lifecycle.
 
     This class owns one listen key and one WebSocket connection for a single
-    account_id. On disconnect, automatically reconnects with exponential backoff.
+    account_id. When on_message is provided, automatically reconnects with
+    exponential backoff on disconnect.
 
     Args:
         adapter (BinanceAdapter): Binance REST adapter used for credentials,
@@ -116,7 +118,9 @@ class BinanceUserStream:
     async def initiate_connection(self) -> None:
 
         '''
-        Open WebSocket connection. Start auto-reconnect loop if on_message set.
+        Create listen key, open WebSocket, start keepalive and auto-reconnect loop.
+
+        Auto-reconnect loop is only started when on_message callback is set.
 
         Raises:
             aiohttp.ClientError: If WebSocket connection fails
@@ -268,7 +272,7 @@ class BinanceUserStream:
             attempts += 1
             while True:
                 delay = min(
-                    self._reconnect_base_delay * (2 ** (attempts - 1)),
+                    self._reconnect_base_delay * (2 ** min(attempts - 1, _MAX_BACKOFF_EXPONENT)),
                     self._reconnect_max_delay,
                 ) * (0.5 + random.random() * 0.5)
                 _log.warning(

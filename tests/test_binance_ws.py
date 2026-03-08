@@ -5,6 +5,7 @@ Tests for praxis.infrastructure.binance_ws.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -126,31 +127,21 @@ class TestBinanceUserStream:
     @pytest.mark.asyncio
     async def test_connect_skips_when_reconnect_task_running(self) -> None:
         adapter = _make_adapter()
-        ws = AsyncMock()
-        ws.closed = False
-        ws.__aiter__ = MagicMock(return_value=_AsyncIter([]))
-        session = MagicMock()
-        session.ws_connect = AsyncMock(return_value=ws)
-        adapter._ensure_session.return_value = session
-
-        callback = AsyncMock()
         stream = BinanceUserStream(
             adapter=adapter,
             account_id=_ACCOUNT_ID,
-            on_message=callback,
             keepalive_interval_seconds=9999,
         )
-        await stream.initiate_connection()
-        assert stream._reconnect_task is not None
-
-        stream._ws = None
-        adapter._create_listen_key.reset_mock()
+        stream._reconnect_task = asyncio.create_task(asyncio.sleep(999))
 
         await stream.initiate_connection()
 
         adapter._create_listen_key.assert_not_awaited()
 
-        await stream.close()
+        stream._reconnect_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await stream._reconnect_task
+
     @pytest.mark.asyncio
     async def test_connect_cleans_stale_listen_key_on_closed_ws(self) -> None:
 
