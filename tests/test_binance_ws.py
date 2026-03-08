@@ -87,7 +87,7 @@ class TestBinanceUserStream:
             account_id=_ACCOUNT_ID,
             keepalive_interval_seconds=9999,
         )
-        await stream.connect()
+        await stream.initiate_connection()
 
         adapter._create_listen_key.assert_awaited_once_with(_ACCOUNT_ID)
         session.ws_connect.assert_awaited_once_with(
@@ -114,10 +114,10 @@ class TestBinanceUserStream:
             account_id=_ACCOUNT_ID,
             keepalive_interval_seconds=9999,
         )
-        await stream.connect()
+        await stream.initiate_connection()
         adapter._create_listen_key.reset_mock()
 
-        await stream.connect()
+        await stream.initiate_connection()
 
         adapter._create_listen_key.assert_not_awaited()
 
@@ -138,7 +138,7 @@ class TestBinanceUserStream:
             account_id=_ACCOUNT_ID,
             keepalive_interval_seconds=9999,
         )
-        await stream.connect()
+        await stream.initiate_connection()
         assert stream._listen_key == 'listen-key'
 
         ws.closed = True
@@ -148,7 +148,7 @@ class TestBinanceUserStream:
         session.ws_connect.return_value = new_ws
         adapter._create_listen_key.return_value = 'new-listen-key'
 
-        await stream.connect()
+        await stream.initiate_connection()
 
         adapter._close_listen_key.assert_any_await(_ACCOUNT_ID, 'listen-key')
         assert stream._listen_key == 'new-listen-key'
@@ -164,7 +164,7 @@ class TestBinanceUserStream:
 
         stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         with pytest.raises(aiohttp.ClientError, match='boom'):
-            await stream.connect()
+            await stream.initiate_connection()
 
         adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
 
@@ -182,7 +182,7 @@ class TestBinanceUserStream:
             account_id=_ACCOUNT_ID,
             keepalive_interval_seconds=9999,
         )
-        await stream.connect()
+        await stream.initiate_connection()
         await stream.close()
 
         ws.close.assert_awaited_once()
@@ -221,7 +221,7 @@ class TestBinanceUserStream:
         adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
 
     @pytest.mark.asyncio
-    async def test_connect_with_on_message_starts_listen_task(self) -> None:
+    async def test_initiate_connection_with_on_message_starts_reconnect_task(self) -> None:
         adapter = _make_adapter()
         ws = AsyncMock()
         ws.closed = False
@@ -237,13 +237,13 @@ class TestBinanceUserStream:
             on_message=callback,
             keepalive_interval_seconds=9999,
         )
-        await stream.connect()
+        await stream.initiate_connection()
 
-        assert stream._listen_task is not None
+        assert stream._reconnect_task is not None
         await stream.close()
 
     @pytest.mark.asyncio
-    async def test_listen_dispatches_json_text_frame(self) -> None:
+    async def test_receive_loop_dispatches_json_text_frame(self) -> None:
         adapter = _make_adapter()
         payload = {'e': 'executionReport', 's': 'BTCUSDT'}
         msg = MagicMock()
@@ -260,11 +260,11 @@ class TestBinanceUserStream:
         )
         stream._ws = ws  # type: ignore[assignment]
 
-        await stream._listen()
+        await stream._receive_loop()
         callback.assert_awaited_once_with(payload)
 
     @pytest.mark.asyncio
-    async def test_listen_skips_non_json_frame(self) -> None:
+    async def test_receive_loop_skips_non_json_frame(self) -> None:
         adapter = _make_adapter()
         msg = MagicMock()
         msg.type = aiohttp.WSMsgType.TEXT
@@ -281,13 +281,13 @@ class TestBinanceUserStream:
         stream._ws = ws  # type: ignore[assignment]
 
         with patch('praxis.infrastructure.binance_ws._log') as mock_logger:
-            await stream._listen()
+            await stream._receive_loop()
             mock_logger.warning.assert_called_once()
 
         callback.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_listen_survives_callback_exception(self) -> None:
+    async def test_receive_loop_survives_callback_exception(self) -> None:
         adapter = _make_adapter()
         payload_1 = {'e': 'first'}
         payload_2 = {'e': 'second'}
@@ -308,11 +308,11 @@ class TestBinanceUserStream:
         )
         stream._ws = ws  # type: ignore[assignment]
 
-        await stream._listen()
+        await stream._receive_loop()
         assert callback.await_count == 2
 
     @pytest.mark.asyncio
-    async def test_listen_breaks_on_closed_message(self) -> None:
+    async def test_receive_loop_breaks_on_closed_message(self) -> None:
         adapter = _make_adapter()
         close_msg = MagicMock()
         close_msg.type = aiohttp.WSMsgType.CLOSED
@@ -330,11 +330,11 @@ class TestBinanceUserStream:
         )
         stream._ws = ws  # type: ignore[assignment]
 
-        await stream._listen()
+        await stream._receive_loop()
         callback.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_listen_breaks_on_error_message(self) -> None:
+    async def test_receive_loop_breaks_on_error_message(self) -> None:
         adapter = _make_adapter()
         error_msg = MagicMock()
         error_msg.type = aiohttp.WSMsgType.ERROR
@@ -349,7 +349,7 @@ class TestBinanceUserStream:
         )
         stream._ws = ws  # type: ignore[assignment]
 
-        await stream._listen()
+        await stream._receive_loop()
         callback.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -379,7 +379,7 @@ class TestBinanceUserStream:
 
         stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         with pytest.raises(ValueError, match='Unsupported base URL scheme'):
-            await stream.connect()
+            await stream.initiate_connection()
 
         adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
 
