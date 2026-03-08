@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import random
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,9 @@ _log = logging.getLogger(__name__)
 
 
 _DEFAULT_KEEPALIVE_INTERVAL_SECONDS = 1800
+_DEFAULT_RECONNECT_BASE_DELAY = 1.0
+_DEFAULT_RECONNECT_MAX_DELAY = 60.0
+_MAX_BACKOFF_EXPONENT = 30
 
 
 class BinanceUserStream:
@@ -37,7 +41,8 @@ class BinanceUserStream:
     Manage a single Binance user data WebSocket stream lifecycle.
 
     This class owns one listen key and one WebSocket connection for a single
-    account_id. Reconnection and event parsing are handled in later work items.
+    account_id. When on_message is provided, automatically reconnects with
+    exponential backoff on disconnect.
 
     Args:
         adapter (BinanceAdapter): Binance REST adapter used for credentials,
@@ -47,6 +52,8 @@ class BinanceUserStream:
             invoked with each parsed JSON frame from the stream
         keepalive_interval_seconds (int): Listen key keepalive interval
             in seconds
+        reconnect_base_delay (float): Initial reconnect delay in seconds
+        reconnect_max_delay (float): Maximum reconnect delay in seconds
     '''
 
     def __init__(
@@ -55,6 +62,8 @@ class BinanceUserStream:
         account_id: str,
         on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
         keepalive_interval_seconds: int = _DEFAULT_KEEPALIVE_INTERVAL_SECONDS,
+        reconnect_base_delay: float = _DEFAULT_RECONNECT_BASE_DELAY,
+        reconnect_max_delay: float = _DEFAULT_RECONNECT_MAX_DELAY,
     ) -> None:
 
         '''
@@ -66,6 +75,8 @@ class BinanceUserStream:
             on_message (Callable[[dict], Awaitable[None]] | None): Async
                 callback for incoming JSON frames
             keepalive_interval_seconds (int): Keepalive interval in seconds
+            reconnect_base_delay (float): Initial reconnect delay in seconds
+            reconnect_max_delay (float): Maximum reconnect delay in seconds
         '''
 
         self._adapter = adapter
@@ -75,7 +86,9 @@ class BinanceUserStream:
         self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._keepalive_task: asyncio.Task[None] | None = None
         self._on_message = on_message
-        self._listen_task: asyncio.Task[None] | None = None
+        self._reconnect_task: asyncio.Task[None] | None = None
+        self._reconnect_base_delay = reconnect_base_delay
+        self._reconnect_max_delay = reconnect_max_delay
 
     @property
     def listen_key(self) -> str | None:
@@ -102,10 +115,12 @@ class BinanceUserStream:
 
         return self._ws
 
-    async def connect(self) -> None:
+    async def initiate_connection(self) -> None:
 
         '''
-        Create listen key, open WebSocket, and start keepalive and listen loops.
+        Create listen key, open WebSocket, start keepalive and auto-reconnect loop.
+
+        Auto-reconnect loop is only started when on_message callback is set.
 
         Raises:
             aiohttp.ClientError: If WebSocket connection fails
@@ -116,23 +131,42 @@ class BinanceUserStream:
 
         if self._ws is not None and not self._ws.closed:
             return
+        if self._reconnect_task is not None and not self._reconnect_task.done():
+            return
 
-        if self._ws is not None and self._ws.closed:
-            if self._listen_task is not None:
-                self._listen_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._listen_task
-                self._listen_task = None
-            if self._keepalive_task is not None:
-                self._keepalive_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._keepalive_task
-                self._keepalive_task = None
+        await self._clean_setup_connection()
+        if self._on_message is not None:
+            self._reconnect_task = asyncio.create_task(self._auto_reconnect())
+
+    async def _clean_setup_connection(self) -> None:
+
+        '''
+        Clean up stale state, create listen key, open WebSocket, start keepalive.
+
+        Called by initiate_connection() on initial connection and by _auto_reconnect() on
+        reconnection. Handles full teardown of previous connection state before
+        setting up a new one.
+
+        Raises:
+            aiohttp.ClientError: If WebSocket connection fails
+            TimeoutError: If network operations time out
+            ValueError: If adapter base URL scheme is not https
+            VenueError: If listen key management fails via adapter methods
+        '''
+
+        if self._keepalive_task is not None:
+            self._keepalive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._keepalive_task
+            self._keepalive_task = None
+        if self._ws is not None:
+            with contextlib.suppress(aiohttp.ClientError):
+                await self._ws.close()
             self._ws = None
-            if self._listen_key is not None:
-                with contextlib.suppress(VenueError):
-                    await self._adapter._close_listen_key(self._account_id, self._listen_key)
-                self._listen_key = None
+        if self._listen_key is not None:
+            with contextlib.suppress(VenueError):
+                await self._adapter._close_listen_key(self._account_id, self._listen_key)
+            self._listen_key = None
 
         listen_key = await self._adapter._create_listen_key(self._account_id)
 
@@ -148,20 +182,18 @@ class BinanceUserStream:
         self._listen_key = listen_key
         self._ws = ws
         self._keepalive_task = asyncio.create_task(self._keepalive_loop())
-        if self._on_message is not None:
-            self._listen_task = asyncio.create_task(self._listen())
 
     async def close(self) -> None:
 
         '''
-        Stop listen loop, keepalive, close WebSocket, and invalidate listen key.
+        Stop reconnect loop, keepalive, close WebSocket, and invalidate listen key.
         '''
 
-        if self._listen_task is not None:
-            self._listen_task.cancel()
+        if self._reconnect_task is not None:
+            self._reconnect_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await self._listen_task
-            self._listen_task = None
+                await self._reconnect_task
+            self._reconnect_task = None
 
         if self._keepalive_task is not None:
             self._keepalive_task.cancel()
@@ -189,7 +221,7 @@ class BinanceUserStream:
             BinanceUserStream: Connected stream manager
         '''
 
-        await self.connect()
+        await self.initiate_connection()
         return self
 
     async def __aexit__(
@@ -223,7 +255,43 @@ class BinanceUserStream:
             except (VenueError, aiohttp.ClientError, TimeoutError):
                 _log.warning('keepalive failed for %s', self._account_id, exc_info=True)
 
-    async def _listen(self) -> None:
+    async def _auto_reconnect(self) -> None:
+
+        '''
+        Run receive loop with automatic reconnection on disconnect.
+
+        Calls _receive_loop() to read frames. When _receive_loop() returns (WebSocket
+        closed or errored), waits with exponential backoff and calls
+        _clean_setup_connection() to reconnect. Resets attempt counter on successful
+        reconnection. Exits cleanly on CancelledError from close().
+        '''
+
+        attempts = 0
+        while True:
+            await self._receive_loop()
+            attempts += 1
+            while True:
+                delay = min(
+                    self._reconnect_base_delay * (2 ** min(attempts - 1, _MAX_BACKOFF_EXPONENT)),
+                    self._reconnect_max_delay,
+                ) * (0.5 + random.random() * 0.5)
+                _log.warning(
+                    'WebSocket disconnected for %s, reconnecting in %.1fs (attempt %d)',
+                    self._account_id, delay, attempts,
+                )
+                await asyncio.sleep(delay)
+                try:
+                    await self._clean_setup_connection()
+                    attempts = 0
+                    break
+                except (VenueError, aiohttp.ClientError, TimeoutError):
+                    _log.warning(
+                        'reconnect failed for %s (attempt %d)',
+                        self._account_id, attempts, exc_info=True,
+                    )
+                    attempts += 1
+
+    async def _receive_loop(self) -> None:
 
         '''
         Read WebSocket frames and dispatch parsed JSON to the on_message callback.
