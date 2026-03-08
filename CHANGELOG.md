@@ -178,3 +178,10 @@
 - Add 9 unit tests for `_api_key_request` and listen key methods in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
 - Add 18 unit tests for `BinanceUserStream` covering URL building, connect/close lifecycle, keepalive, context manager, and `_listen` dispatch in [`test_binance_ws.py`](tests/test_binance_ws.py)
 - Add TD-007 tracking duplicated retry loop between `_signed_request` and `_api_key_request` in [`TechnicalDebt.md`](docs/TechnicalDebt.md)
+
+## v0.17.0 on 8th of March, 2026
+
+- Add `ExecutionType` enum (NEW, TRADE, CANCELED, REPLACED, REJECTED, EXPIRED, TRADE_PREVENTION) to [`enums.py`](praxis/core/domain/enums.py)
+- Add `ExecutionReport` frozen dataclass with 19 typed fields and timezone-aware validation to [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `_BINANCE_EXECUTION_TYPE_MAP` constant and `_parse_execution_report` method mapping single-letter Binance keys to domain types in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add 14 unit tests for execution report parsing covering trade fill, NEW/CANCELED/REJECTED/EXPIRED/TRADE_PREVENTION, market order, unknown value errors, decimal precision, and UTC timestamps in [`test_binance_adapter.py`](tests/test_binance_adapter.py)

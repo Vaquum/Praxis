@@ -13,12 +13,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 
-from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
+from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
     CancelResult,
+    ExecutionReport,
     NotFoundError,
     OrderRejectedError,
     RateLimitError,
@@ -2047,3 +2048,201 @@ class TestCloseListenKey:
         params = call_args.kwargs['params']
         assert method == 'DELETE'
         assert params == {'listenKey': 'abc123'}
+
+
+_BINANCE_EXECUTION_REPORT_TRADE: dict[str, Any] = {
+    'e': 'executionReport',
+    'E': 1700000000000,
+    's': 'BTCUSDT',
+    'c': 'my-client-id',
+    'S': 'BUY',
+    'o': 'LIMIT',
+    'f': 'GTC',
+    'q': '1.00000000',
+    'p': '50000.00000000',
+    'x': 'TRADE',
+    'X': 'PARTIALLY_FILLED',
+    'r': 'NONE',
+    'i': 12345,
+    'l': '0.50000000',
+    'L': '50000.00000000',
+    'z': '0.50000000',
+    'n': '0.00050000',
+    'N': 'BTC',
+    'T': 1700000001000,
+    't': 99,
+    'm': True,
+}
+
+
+class TestParseExecutionReport:
+
+    def test_trade_fill(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        assert isinstance(result, ExecutionReport)
+        assert result.symbol == 'BTCUSDT'
+        assert result.client_order_id == 'my-client-id'
+        assert result.side == OrderSide.BUY
+        assert result.order_type == OrderType.LIMIT
+        assert result.original_qty == Decimal('1.00000000')
+        assert result.original_price == Decimal('50000.00000000')
+        assert result.execution_type == ExecutionType.TRADE
+        assert result.order_status == OrderStatus.PARTIALLY_FILLED
+        assert result.reject_reason == 'NONE'
+        assert result.venue_order_id == '12345'
+        assert result.last_filled_qty == Decimal('0.50000000')
+        assert result.last_filled_price == Decimal('50000.00000000')
+        assert result.cumulative_filled_qty == Decimal('0.50000000')
+        assert result.commission == Decimal('0.00050000')
+        assert result.commission_asset == 'BTC'
+        assert result.venue_trade_id == '99'
+        assert result.is_maker is True
+
+    def test_event_time_is_utc(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        assert result.event_time.tzinfo == timezone.utc
+        expected = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        assert result.event_time == expected
+
+    def test_transaction_time_is_utc(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        assert result.transaction_time.tzinfo == timezone.utc
+        expected = datetime.fromtimestamp(1700000001, tz=timezone.utc)
+        assert result.transaction_time == expected
+
+    def test_new_order_no_fill(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'NEW'
+        data['X'] = 'NEW'
+        data['l'] = '0.00000000'
+        data['L'] = '0.00000000'
+        data['z'] = '0.00000000'
+        data['n'] = '0.00000000'
+        data['N'] = None
+        data['t'] = -1
+        data['m'] = False
+        result = adapter._parse_execution_report(data)
+        assert result.execution_type == ExecutionType.NEW
+        assert result.order_status == OrderStatus.OPEN
+        assert result.last_filled_qty == Decimal('0')
+        assert result.last_filled_price == Decimal('0')
+        assert result.cumulative_filled_qty == Decimal('0')
+        assert result.commission_asset is None
+        assert result.venue_trade_id is None
+        assert result.is_maker is False
+
+    def test_canceled_order(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'CANCELED'
+        data['X'] = 'CANCELED'
+        result = adapter._parse_execution_report(data)
+        assert result.execution_type == ExecutionType.CANCELED
+        assert result.order_status == OrderStatus.CANCELED
+
+    def test_replaced_order(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'REPLACED'
+        data['X'] = 'CANCELED'
+        result = adapter._parse_execution_report(data)
+        assert result.execution_type == ExecutionType.REPLACED
+        assert result.order_status == OrderStatus.CANCELED
+
+    def test_rejected_order(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'REJECTED'
+        data['X'] = 'REJECTED'
+        data['r'] = 'INSUFFICIENT_BALANCE'
+        result = adapter._parse_execution_report(data)
+        assert result.execution_type == ExecutionType.REJECTED
+        assert result.order_status == OrderStatus.REJECTED
+        assert result.reject_reason == 'INSUFFICIENT_BALANCE'
+
+    def test_expired_ioc(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'EXPIRED'
+        data['X'] = 'EXPIRED'
+        data['o'] = 'LIMIT'
+        data['f'] = 'IOC'
+        result = adapter._parse_execution_report(data)
+        assert result.execution_type == ExecutionType.EXPIRED
+        assert result.order_status == OrderStatus.EXPIRED
+        assert result.order_type == OrderType.LIMIT_IOC
+
+    def test_trade_prevention(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'TRADE_PREVENTION'
+        data['X'] = 'EXPIRED'
+        result = adapter._parse_execution_report(data)
+        assert result.execution_type == ExecutionType.TRADE_PREVENTION
+        assert result.order_status == OrderStatus.EXPIRED
+
+    def test_market_order(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['o'] = 'MARKET'
+        data['f'] = ''
+        data['p'] = '0.00000000'
+        result = adapter._parse_execution_report(data)
+        assert result.order_type == OrderType.MARKET
+        assert result.original_price == Decimal('0')
+
+    def test_unknown_execution_type_raises(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'UNKNOWN_TYPE'
+        with pytest.raises(ValueError, match='Unknown Binance execution type'):
+            adapter._parse_execution_report(data)
+
+    def test_unknown_order_status_raises(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['X'] = 'UNKNOWN_STATUS'
+        with pytest.raises(ValueError, match='Unknown Binance order status'):
+            adapter._parse_execution_report(data)
+
+    def test_unknown_order_type_raises(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['o'] = 'UNKNOWN_ORDER_TYPE'
+        with pytest.raises(ValueError, match='Unknown Binance order type'):
+            adapter._parse_execution_report(data)
+
+    def test_is_maker_false(self) -> None:
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['m'] = False
+        result = adapter._parse_execution_report(data)
+        assert result.is_maker is False
+
+    def test_decimal_precision_preserved(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        assert str(result.original_qty) == '1.00000000'
+        assert str(result.original_price) == '50000.00000000'
+        assert str(result.last_filled_qty) == '0.50000000'
+        assert str(result.last_filled_price) == '50000.00000000'
+        assert str(result.commission) == '0.00050000'
