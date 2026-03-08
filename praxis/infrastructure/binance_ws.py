@@ -116,7 +116,7 @@ class BinanceUserStream:
     async def initiate_connection(self) -> None:
 
         '''
-        Open WebSocket connection and start auto-reconnect loop.
+        Open WebSocket connection. Start auto-reconnect loop if on_message set.
 
         Raises:
             aiohttp.ClientError: If WebSocket connection fails
