@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['ExecutionMode', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'TradeStatus']
+__all__ = ['ExecutionMode', 'ExecutionType', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'TradeStatus']
 
 
 class OrderSide(Enum):
@@ -55,6 +55,24 @@ class OrderStatus(Enum):
     CANCELED = 'CANCELED'
     REJECTED = 'REJECTED'
     EXPIRED = 'EXPIRED'
+
+
+class ExecutionType(Enum):
+
+    '''
+    Execution type reported by venue WebSocket executionReport.
+
+    Describes what triggered the report: order acceptance, fill,
+    cancellation, rejection, expiry, or self-trade prevention.
+    '''
+
+    NEW = 'NEW'
+    TRADE = 'TRADE'
+    CANCELED = 'CANCELED'
+    REPLACED = 'REPLACED'
+    REJECTED = 'REJECTED'
+    EXPIRED = 'EXPIRED'
+    TRADE_PREVENTION = 'TRADE_PREVENTION'
 
 
 class ExecutionMode(Enum):

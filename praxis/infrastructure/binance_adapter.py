@@ -24,11 +24,12 @@ from urllib.parse import urlencode
 
 import aiohttp
 
-from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
+from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
     CancelResult,
+    ExecutionReport,
     ImmediateFill,
     NotFoundError,
     OrderBookLevel,
@@ -86,6 +87,18 @@ _BINANCE_TYPE_MAP: dict[str, OrderType] = {
     'TAKE_PROFIT_LIMIT': OrderType.TP_LIMIT,
     'OCO': OrderType.OCO,
 }
+
+_BINANCE_EXECUTION_TYPE_MAP: dict[str, ExecutionType] = {
+    'NEW': ExecutionType.NEW,
+    'TRADE': ExecutionType.TRADE,
+    'CANCELED': ExecutionType.CANCELED,
+    'REPLACED': ExecutionType.REPLACED,
+    'REJECTED': ExecutionType.REJECTED,
+    'EXPIRED': ExecutionType.EXPIRED,
+    'TRADE_PREVENTION': ExecutionType.TRADE_PREVENTION,
+}
+
+_BINANCE_NO_TRADE_ID = -1
 
 
 class BinanceAdapter:
@@ -1285,3 +1298,50 @@ class BinanceAdapter:
                 and interval_num == _ORDER_COUNT_INTERVAL_NUM
             ):
                 self._order_count_limit = limit_val
+
+    def _parse_execution_report(self, data: dict[str, Any]) -> ExecutionReport:
+
+        '''
+        Parse a Binance executionReport WebSocket payload into an ExecutionReport.
+
+        Args:
+            data (dict[str, Any]): Raw JSON dict from the user data stream
+
+        Returns:
+            ExecutionReport: Normalized execution report
+        '''
+
+        execution_type_str = data['x']
+        try:
+            execution_type = _BINANCE_EXECUTION_TYPE_MAP[execution_type_str]
+        except KeyError:
+            msg = f"Unknown Binance execution type: '{execution_type_str}'"
+            raise ValueError(msg) from None
+
+        order_type = self._map_order_type(data['o'], data.get('f', ''))
+
+        return ExecutionReport(
+            event_time=datetime.fromtimestamp(
+                data['E'] / _MS_PER_SECOND, tz=timezone.utc,
+            ),
+            symbol=data['s'],
+            client_order_id=data['c'],
+            side=OrderSide(data['S']),
+            order_type=order_type,
+            original_qty=Decimal(data['q']),
+            original_price=Decimal(data['p']),
+            execution_type=execution_type,
+            order_status=self._map_order_status(data['X']),
+            reject_reason=data['r'],
+            venue_order_id=str(data['i']),
+            last_filled_qty=Decimal(data['l']),
+            last_filled_price=Decimal(data['L']),
+            cumulative_filled_qty=Decimal(data['z']),
+            commission=Decimal(data['n']),
+            commission_asset=data.get('N'),
+            transaction_time=datetime.fromtimestamp(
+                data['T'] / _MS_PER_SECOND, tz=timezone.utc,
+            ),
+            venue_trade_id=str(data['t']) if data['t'] != _BINANCE_NO_TRADE_ID else None,
+            is_maker=data['m'],
+        )

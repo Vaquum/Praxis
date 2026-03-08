@@ -13,13 +13,14 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
-from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
+from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 
 
 __all__ = [
     'AuthenticationError',
     'BalanceEntry',
     'CancelResult',
+    'ExecutionReport',
     'ImmediateFill',
     'NotFoundError',
     'OrderBookLevel',
@@ -231,6 +232,70 @@ class OrderBookSnapshot:
     bids: tuple[OrderBookLevel, ...]
     asks: tuple[OrderBookLevel, ...]
     last_update_id: int
+
+
+@dataclass(frozen=True)
+class ExecutionReport:
+
+    '''
+    Venue-reported order execution event from WebSocket stream.
+
+    Normalized from venue-specific payloads into domain types.
+    Used by Execution Manager to update order state and emit domain events.
+
+    Args:
+        event_time (datetime): Venue event timestamp, timezone-aware
+        symbol (str): Trading pair symbol
+        client_order_id (str): User-assigned client order identifier
+        side (OrderSide): Order direction
+        order_type (OrderType): Order type
+        original_qty (Decimal): Original order quantity
+        original_price (Decimal): Original order price
+        execution_type (ExecutionType): What triggered this report
+        order_status (OrderStatus): Current order lifecycle status
+        reject_reason (str): Rejection reason, 'NONE' if not rejected
+        venue_order_id (str): Venue-assigned order identifier
+        last_filled_qty (Decimal): Last fill quantity, 0 if no fill
+        last_filled_price (Decimal): Last fill price, 0 if no fill
+        cumulative_filled_qty (Decimal): Total filled quantity so far
+        commission (Decimal): Commission charged on this execution
+        commission_asset (str | None): Asset of commission, None if no fill
+        transaction_time (datetime): Venue transaction timestamp, timezone-aware
+        venue_trade_id (str | None): Venue trade identifier, None if no fill
+        is_maker (bool): Whether this fill was on the maker side
+    '''
+
+    event_time: datetime
+    symbol: str
+    client_order_id: str
+    side: OrderSide
+    order_type: OrderType
+    original_qty: Decimal
+    original_price: Decimal
+    execution_type: ExecutionType
+    order_status: OrderStatus
+    reject_reason: str
+    venue_order_id: str
+    last_filled_qty: Decimal
+    last_filled_price: Decimal
+    cumulative_filled_qty: Decimal
+    commission: Decimal
+    commission_asset: str | None
+    transaction_time: datetime
+    venue_trade_id: str | None
+    is_maker: bool
+
+    def __post_init__(self) -> None:
+
+        '''Validate timezone-aware timestamps at construction time.'''
+
+        if self.event_time.tzinfo is None or self.event_time.utcoffset() is None:
+            msg = 'ExecutionReport.event_time must be timezone-aware'
+            raise ValueError(msg)
+        if self.transaction_time.tzinfo is None or self.transaction_time.utcoffset() is None:
+            msg = 'ExecutionReport.transaction_time must be timezone-aware'
+            raise ValueError(msg)
+
 
 class VenueError(Exception):
 
