@@ -256,7 +256,7 @@ class BinanceUserStream:
 
         Calls _receive_loop() to read frames. When _receive_loop() returns (WebSocket
         closed or errored), waits with exponential backoff and calls
-        _establish() to reconnect. Resets attempt counter on successful
+        _clean_setup_connection() to reconnect. Resets attempt counter on successful
         reconnection. Exits cleanly on CancelledError from close().
         '''
 

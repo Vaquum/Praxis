@@ -403,3 +403,113 @@ class TestBinanceUserStream:
                 await stream._keepalive_loop()
 
         assert adapter._keepalive_listen_key.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_auto_reconnect_reconnects_after_ws_disconnect(self) -> None:
+        adapter = _make_adapter()
+        callback = AsyncMock()
+        stream = BinanceUserStream(
+            adapter=adapter,
+            account_id=_ACCOUNT_ID,
+            on_message=callback,
+            reconnect_base_delay=1.0,
+        )
+
+        receive_mock = AsyncMock(side_effect=[None, asyncio.CancelledError])
+
+        with (
+            patch.object(stream, '_receive_loop', receive_mock),
+            patch.object(
+                stream, '_clean_setup_connection', new_callable=AsyncMock,
+            ) as mock_setup,
+            patch('praxis.infrastructure.binance_ws.asyncio.sleep', new_callable=AsyncMock),
+            patch('praxis.infrastructure.binance_ws.random.random', return_value=0.5),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await stream._auto_reconnect()
+
+        mock_setup.assert_awaited_once()
+        assert receive_mock.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_auto_reconnect_uses_exponential_backoff(self) -> None:
+        adapter = _make_adapter()
+        callback = AsyncMock()
+        stream = BinanceUserStream(
+            adapter=adapter,
+            account_id=_ACCOUNT_ID,
+            on_message=callback,
+            reconnect_base_delay=1.0,
+            reconnect_max_delay=60.0,
+        )
+
+        receive_mock = AsyncMock(side_effect=[None, asyncio.CancelledError])
+        setup_mock = AsyncMock(side_effect=[
+            VenueError('fail-1'),
+            VenueError('fail-2'),
+            None,
+        ])
+
+        with (
+            patch.object(stream, '_receive_loop', receive_mock),
+            patch.object(stream, '_clean_setup_connection', setup_mock),
+            patch('praxis.infrastructure.binance_ws.asyncio.sleep', new_callable=AsyncMock) as mock_sleep,
+            patch('praxis.infrastructure.binance_ws.random.random', return_value=0.5),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await stream._auto_reconnect()
+
+        assert mock_sleep.await_count == 3
+        delays = [call.args[0] for call in mock_sleep.call_args_list]
+        assert delays == [0.75, 1.5, 3.0]
+
+    @pytest.mark.asyncio
+    async def test_auto_reconnect_resets_attempts_after_successful_reconnect(self) -> None:
+        adapter = _make_adapter()
+        callback = AsyncMock()
+        stream = BinanceUserStream(
+            adapter=adapter,
+            account_id=_ACCOUNT_ID,
+            on_message=callback,
+            reconnect_base_delay=1.0,
+        )
+
+        receive_mock = AsyncMock(side_effect=[None, None, asyncio.CancelledError])
+        setup_mock = AsyncMock()
+
+        with (
+            patch.object(stream, '_receive_loop', receive_mock),
+            patch.object(stream, '_clean_setup_connection', setup_mock),
+            patch('praxis.infrastructure.binance_ws.asyncio.sleep', new_callable=AsyncMock) as mock_sleep,
+            patch('praxis.infrastructure.binance_ws.random.random', return_value=0.5),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await stream._auto_reconnect()
+
+        assert mock_sleep.await_count == 2
+        delays = [call.args[0] for call in mock_sleep.call_args_list]
+        assert delays[0] == delays[1]
+
+    @pytest.mark.asyncio
+    async def test_auto_reconnect_exits_on_cancel_during_backoff(self) -> None:
+        adapter = _make_adapter()
+        callback = AsyncMock()
+        stream = BinanceUserStream(
+            adapter=adapter,
+            account_id=_ACCOUNT_ID,
+            on_message=callback,
+            reconnect_base_delay=1.0,
+        )
+
+        receive_mock = AsyncMock(return_value=None)
+        sleep_mock = AsyncMock(side_effect=asyncio.CancelledError)
+
+        with (
+            patch.object(stream, '_receive_loop', receive_mock),
+            patch('praxis.infrastructure.binance_ws.asyncio.sleep', sleep_mock),
+            patch('praxis.infrastructure.binance_ws.random.random', return_value=0.5),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await stream._auto_reconnect()
+
+        receive_mock.assert_awaited_once()
