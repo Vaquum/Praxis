@@ -127,6 +127,8 @@ class BinanceUserStream:
 
         if self._ws is not None and not self._ws.closed:
             return
+        if self._reconnect_task is not None and not self._reconnect_task.done():
+            return
 
         await self._clean_setup_connection()
         if self._on_message is not None:
