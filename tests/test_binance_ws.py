@@ -20,20 +20,20 @@ from praxis.infrastructure.venue_adapter import VenueError
 _ACCOUNT_ID = 'test-account'
 
 
-def _make_adapter(base_url: str = 'https://testnet.binance.vision') -> Any:
+def _make_adapter(ws_base_url: str = 'wss://stream.testnet.binance.vision') -> Any:
 
     '''
     Create a mock BinanceAdapter with stubbed listen key methods.
 
     Args:
-        base_url (str): Base URL for the adapter
+        ws_base_url (str): WebSocket base URL for the adapter
 
     Returns:
         Any: Mock adapter with async listen key method stubs
     '''
 
     adapter = MagicMock()
-    adapter._base_url = base_url
+    adapter._ws_base_url = ws_base_url
     adapter._create_listen_key = AsyncMock(return_value='listen-key')
     adapter._keepalive_listen_key = AsyncMock()
     adapter._close_listen_key = AsyncMock()
@@ -63,15 +63,15 @@ class _AsyncIter:
 class TestBinanceUserStream:
 
     def test_build_ws_url_https(self) -> None:
-        adapter = _make_adapter('https://testnet.binance.vision')
+        adapter = _make_adapter('wss://stream.testnet.binance.vision')
         stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         result = stream._build_ws_url('abc123')
-        assert result == 'wss://testnet.binance.vision/ws/abc123'
+        assert result == 'wss://stream.testnet.binance.vision/ws/abc123'
 
     def test_build_ws_url_invalid_scheme_raises(self) -> None:
         adapter = _make_adapter('ftp://example.com')
         stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
-        with pytest.raises(ValueError, match='Unsupported base URL scheme'):
+        with pytest.raises(ValueError, match='Unsupported WS base URL scheme'):
             stream._build_ws_url('abc123')
 
     @pytest.mark.asyncio
@@ -92,7 +92,7 @@ class TestBinanceUserStream:
 
         adapter._create_listen_key.assert_awaited_once_with(_ACCOUNT_ID)
         session.ws_connect.assert_awaited_once_with(
-            'wss://testnet.binance.vision/ws/listen-key',
+            'wss://stream.testnet.binance.vision/ws/listen-key',
         )
         assert stream.listen_key == 'listen-key'
         assert stream.websocket is ws
@@ -397,7 +397,7 @@ class TestBinanceUserStream:
         adapter._ensure_session.return_value = session
 
         stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
-        with pytest.raises(ValueError, match='Unsupported base URL scheme'):
+        with pytest.raises(ValueError, match='Unsupported WS base URL scheme'):
             await stream.initiate_connection()
 
         adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')

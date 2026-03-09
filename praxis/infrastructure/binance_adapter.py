@@ -44,7 +44,13 @@ from praxis.infrastructure.venue_adapter import (
     VenueTrade,
 )
 
-__all__ = ['BinanceAdapter']
+__all__ = [
+    'MAINNET_REST_URL',
+    'MAINNET_WS_URL',
+    'TESTNET_REST_URL',
+    'TESTNET_WS_URL',
+    'BinanceAdapter',
+]
 
 _API_KEY_HEADER = 'X-MBX-APIKEY'
 _SESSION_TIMEOUT = aiohttp.ClientTimeout(total=30)
@@ -100,6 +106,11 @@ _BINANCE_EXECUTION_TYPE_MAP: dict[str, ExecutionType] = {
 
 _BINANCE_NO_TRADE_ID = -1
 
+MAINNET_REST_URL = 'https://api.binance.com'
+MAINNET_WS_URL = 'wss://stream.binance.com:9443'
+TESTNET_REST_URL = 'https://testnet.binance.vision'
+TESTNET_WS_URL = 'wss://stream.testnet.binance.vision'
+
 
 class BinanceAdapter:
 
@@ -107,14 +118,16 @@ class BinanceAdapter:
     Binance Spot REST adapter implementing submit_order from VenueAdapter.
 
     Args:
-        base_url (str): Binance REST API base URL (testnet or mainnet)
+        base_url (str): Binance REST API base URL
+        ws_base_url (str): Binance WebSocket base URL
         credentials (dict[str, tuple[str, str]] | None): Mapping of account_id
-            to (api_key, api_secret) pairs, defaults to empty
+            to (api_key, api_secret) pairs
     '''
 
     def __init__(
         self,
         base_url: str,
+        ws_base_url: str,
         credentials: dict[str, tuple[str, str]] | None = None,
     ) -> None:
 
@@ -123,11 +136,13 @@ class BinanceAdapter:
 
         Args:
             base_url (str): Binance REST API base URL
+            ws_base_url (str): Binance WebSocket base URL
             credentials (dict[str, tuple[str, str]] | None): Initial
-                account credentials, defaults to empty
+                account credentials
         '''
 
         self._base_url = base_url.rstrip('/')
+        self._ws_base_url = ws_base_url.rstrip('/')
         self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
         self._filters: dict[str, SymbolFilters] = {}
