@@ -30,13 +30,13 @@ class TestModePrefix:
         self, mode: ExecutionMode, prefix: str
     ) -> None:
         result = generate_client_order_id(mode, _UUID, 0)
-        assert result.startswith(f'{prefix}-')
+        assert result.startswith(f"{prefix}-")
 
 
 class TestFormat:
     def test_output_matches_expected_pattern(self) -> None:
         result = generate_client_order_id(ExecutionMode.TWAP, _UUID, 47)
-        assert result == f'TW-{_HEX16}-047'
+        assert result == f"TW-{_HEX16}-047"
 
     def test_deterministic_same_inputs_same_output(self) -> None:
         a = generate_client_order_id(ExecutionMode.BRACKET, _UUID, 5, retry=1)
@@ -67,15 +67,15 @@ class TestSequence:
 class TestRetry:
     def test_retry_zero_no_suffix(self) -> None:
         result = generate_client_order_id(ExecutionMode.TWAP, _UUID, 1, retry=0)
-        assert result == f'TW-{_HEX16}-001'
+        assert result == f"TW-{_HEX16}-001"
 
     def test_retry_positive_appends_suffix(self) -> None:
         result = generate_client_order_id(ExecutionMode.TWAP, _UUID, 1, retry=3)
-        assert result == f'TW-{_HEX16}-001r3'
+        assert result == f"TW-{_HEX16}-001r3"
 
     def test_retry_double_digit(self) -> None:
         result = generate_client_order_id(ExecutionMode.TWAP, _UUID, 1, retry=12)
-        assert result == f'TW-{_HEX16}-001r12'
+        assert result == f"TW-{_HEX16}-001r12"
 
 
 class TestLength:

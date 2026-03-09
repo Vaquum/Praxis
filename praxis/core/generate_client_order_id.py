@@ -50,11 +50,11 @@ def generate_client_order_id(
     '''
 
     if mode not in _MODE_PREFIX:
-        msg = f'no prefix defined for execution mode: {mode!r}'
+        msg = f"no prefix defined for execution mode: {mode!r}"
         raise ValueError(msg)
 
     if sequence < 0 or sequence > _MAX_SEQUENCE:
-        msg = f'sequence must be between 0 and {_MAX_SEQUENCE}'
+        msg = f"sequence must be between 0 and {_MAX_SEQUENCE}"
         raise ValueError(msg)
 
     if retry < 0:
@@ -64,15 +64,15 @@ def generate_client_order_id(
     prefix = _MODE_PREFIX[mode]
     cmd_hex = command_id.replace('-', '')[:_CMD_ID_HEX_LENGTH]
     if len(cmd_hex) < _CMD_ID_HEX_LENGTH:
-        msg = f'command_id must contain at least {_CMD_ID_HEX_LENGTH} hex characters after stripping hyphens'
+        msg = f"command_id must contain at least {_CMD_ID_HEX_LENGTH} hex characters after stripping hyphens"
         raise ValueError(msg)
-    seq_str = f'{sequence:03d}'
-    retry_str = f'r{retry}' if retry > 0 else ''
+    seq_str = f"{sequence:03d}"
+    retry_str = f"r{retry}" if retry > 0 else ''
 
-    result = f'{prefix}-{cmd_hex}-{seq_str}{retry_str}'
+    result = f"{prefix}-{cmd_hex}-{seq_str}{retry_str}"
 
     if len(result) > _MAX_LENGTH:
-        msg = f'client order ID exceeds {_MAX_LENGTH} characters: {result!r}'
+        msg = f"client order ID exceeds {_MAX_LENGTH} characters: {result!r}"
         raise ValueError(msg)
 
     return result
