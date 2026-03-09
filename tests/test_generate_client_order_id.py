@@ -97,3 +97,9 @@ class TestValidation:
     def test_negative_retry_raises(self) -> None:
         with pytest.raises(ValueError, match='retry must be non-negative'):
             generate_client_order_id(ExecutionMode.TWAP, _UUID, 0, retry=-1)
+
+    def test_short_command_id_raises(self) -> None:
+        with pytest.raises(
+            ValueError, match='command_id must contain at least 16 hex characters'
+        ):
+            generate_client_order_id(ExecutionMode.TWAP, 'abc', 0)

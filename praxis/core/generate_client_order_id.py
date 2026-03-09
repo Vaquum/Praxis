@@ -46,7 +46,7 @@ def generate_client_order_id(
         str: Client order ID of at most 36 characters
 
     Raises:
-        ValueError: If mode has no prefix, sequence or retry is out of range, or result exceeds 36 characters
+        ValueError: If mode has no prefix, command_id too short, sequence or retry out of range, or result exceeds 36 characters
     '''
 
     if mode not in _MODE_PREFIX:
@@ -63,6 +63,9 @@ def generate_client_order_id(
 
     prefix = _MODE_PREFIX[mode]
     cmd_hex = command_id.replace('-', '')[:_CMD_ID_HEX_LENGTH]
+    if len(cmd_hex) < _CMD_ID_HEX_LENGTH:
+        msg = f'command_id must contain at least {_CMD_ID_HEX_LENGTH} hex characters after stripping hyphens'
+        raise ValueError(msg)
     seq_str = f'{sequence:03d}'
     retry_str = f'r{retry}' if retry > 0 else ''
 

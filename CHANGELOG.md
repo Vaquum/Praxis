@@ -223,5 +223,5 @@
 - Add `_MODE_PREFIX` mapping all 7 `ExecutionMode` variants to 2-character prefixes (SS, BK, TW, SV, IC, TD, LD) in [`generate_client_order_id.py`](praxis/core/generate_client_order_id.py)
 - Add UUID4 truncation to first 16 hex characters (64-bit entropy) for Binance 36-character `newClientOrderId` limit in [`generate_client_order_id.py`](praxis/core/generate_client_order_id.py)
 - Add `generate_client_order_id` re-export from `praxis.core` package in [`__init__.py`](praxis/core/__init__.py)
-- Add [`test_generate_client_order_id.py`](tests/test_generate_client_order_id.py) with 26 tests covering all mode prefixes, format, sequence padding, retry suffix, length validation, and error cases
+- Add [`test_generate_client_order_id.py`](tests/test_generate_client_order_id.py) with 27 tests covering all mode prefixes, format, sequence padding, retry suffix, length validation, and error cases
 - Bump version to 0.21.0 in [`pyproject.toml`](pyproject.toml)
