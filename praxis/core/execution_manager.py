@@ -155,6 +155,30 @@ class ExecutionManager:
 
         _log.info('account unregistered: %s', account_id)
 
+    def submit_abort(self, abort: TradeAbort) -> None:
+
+        '''
+        Enqueue a TradeAbort to the priority queue for its account.
+
+        Args:
+            abort (TradeAbort): Abort instruction targeting a command.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(abort.account_id)
+        if runtime is None:
+            msg = f"account_id '{abort.account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        runtime.priority_queue.put_nowait(abort)
+        _log.info(
+            'abort enqueued: command_id=%s account_id=%s',
+            abort.command_id,
+            abort.account_id,
+        )
+
     async def submit_command(
         self,
         *,
@@ -256,12 +280,26 @@ class ExecutionManager:
         try:
             while True:
                 while not runtime.priority_queue.empty():
-                    runtime.priority_queue.get_nowait()
+                    abort = runtime.priority_queue.get_nowait()
+                    _log.info(
+                        'abort received: command_id=%s account_id=%s',
+                        abort.command_id,
+                        runtime.account_id,
+                    )
 
                 try:
-                    await asyncio.wait_for(runtime.command_queue.get(), timeout=0.1)
+                    cmd = await asyncio.wait_for(
+                        runtime.command_queue.get(), timeout=0.1,
+                    )
                 except TimeoutError:
                     continue
+
+                _log.info(
+                    'command dequeued: command_id=%s trade_id=%s account_id=%s',
+                    cmd.command_id,
+                    cmd.trade_id,
+                    runtime.account_id,
+                )
         except asyncio.CancelledError:
             _log.info('account loop cancelled: %s', runtime.account_id)
         finally:
