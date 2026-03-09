@@ -216,6 +216,4 @@ class TestIsolation:
 
         rt1 = mgr._accounts[_ACCT]
         rt2 = mgr._accounts[_ACCT2]
-        assert rt1.command_queue.qsize() >= 0
-        assert rt2.command_queue.qsize() >= 0
         assert rt1.command_queue is not rt2.command_queue
