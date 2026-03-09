@@ -33,8 +33,12 @@ __all__ = ['AccountNotRegisteredError', 'ExecutionManager']
 
 _log = logging.getLogger(__name__)
 
+_QUEUE_POLL_INTERVAL = 0.1
+
+
 class AccountNotRegisteredError(Exception):
     '''Raised when a command targets an unregistered account_id.'''
+
 
 class _AccountRuntime:
     '''
@@ -85,7 +89,6 @@ class ExecutionManager:
         event_spine: EventSpine,
         epoch_id: int,
     ) -> None:
-
         '''
         Store dependencies and initialize empty account registry.
 
@@ -99,7 +102,6 @@ class ExecutionManager:
         self._accounts: dict[str, _AccountRuntime] = {}
 
     def register_account(self, account_id: str) -> None:
-
         '''
         Create per-account queues and start account coroutine.
 
@@ -132,7 +134,6 @@ class ExecutionManager:
         _log.info('account registered: %s', account_id)
 
     async def unregister_account(self, account_id: str) -> None:
-
         '''
         Cancel account coroutine and remove per-account state.
 
@@ -156,7 +157,6 @@ class ExecutionManager:
         _log.info('account unregistered: %s', account_id)
 
     def submit_abort(self, abort: TradeAbort) -> None:
-
         '''
         Enqueue a TradeAbort to the priority queue for its account.
 
@@ -196,7 +196,6 @@ class ExecutionManager:
         stp_mode: STPMode,
         created_at: datetime,
     ) -> str:
-
         '''
         Accept a command, assign command_id, persist, and enqueue.
 
@@ -266,7 +265,6 @@ class ExecutionManager:
         return command_id
 
     async def _account_loop(self, runtime: _AccountRuntime) -> None:
-
         '''
         Drain priority and command queues for a single account.
 
@@ -289,7 +287,8 @@ class ExecutionManager:
 
                 try:
                     cmd = await asyncio.wait_for(
-                        runtime.command_queue.get(), timeout=0.1,
+                        runtime.command_queue.get(),
+                        timeout=_QUEUE_POLL_INTERVAL,
                     )
                 except TimeoutError:
                     continue

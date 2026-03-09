@@ -202,3 +202,17 @@
 - Refactor `BinanceUserStream._build_ws_url` to use `_ws_base_url` directly, removing broken `https→wss` scheme-swap hack in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
 - Update testnet conftest to import URL constants from production code instead of duplicating them in [`conftest.py`](tests/testnet/conftest.py)
 - Update all unit and testnet tests for new `BinanceAdapter` constructor signature in [`test_binance_adapter.py`](tests/test_binance_adapter.py), [`test_binance_ws.py`](tests/test_binance_ws.py), [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)
+
+## v0.20.0 on 9th of March, 2026
+
+- Add `ExecutionManager` class with per-account unbounded command and priority queues in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_AccountRuntime` internal dataclass holding per-account queue pair, `TradingState` projection, and asyncio task in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `register_account` and `unregister_account` methods with coroutine lifecycle management in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `submit_command` method with UUID generation, `CommandAccepted` event persistence, and queue routing in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `submit_abort` method enqueuing `TradeAbort` to per-account priority queue in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_account_loop` coroutine draining priority queue before command queue on each iteration in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `AccountNotRegisteredError` exception for unregistered account_id targeting in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_QUEUE_POLL_INTERVAL` constant for account loop poll timeout in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `ExecutionManager` and `AccountNotRegisteredError` re-exports from `praxis.core` package in [`__init__.py`](praxis/core/__init__.py)
+- Add [`test_execution_manager.py`](tests/test_execution_manager.py) with 13 tests covering registration, unregistration, command submission, abort submission, priority drain ordering, and account isolation
+- Bump version to 0.20.0 in [`pyproject.toml`](pyproject.toml)

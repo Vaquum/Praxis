@@ -9,6 +9,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import aiosqlite
 import pytest
@@ -21,6 +23,7 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.events import CommandAccepted
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
@@ -32,7 +35,7 @@ _ACCT2 = 'acc-2'
 _TRADE = 'trade-1'
 _EPOCH = 1
 
-_CMD_KWARGS: dict = {
+_CMD_KWARGS: dict[str, Any] = {
     'trade_id': _TRADE,
     'account_id': _ACCT,
     'symbol': 'BTCUSDT',
@@ -50,41 +53,39 @@ _CMD_KWARGS: dict = {
 
 
 @pytest_asyncio.fixture
-async def spine() -> EventSpine:
+async def spine() -> AsyncGenerator[EventSpine, None]:
     conn = await aiosqlite.connect(':memory:')
     es = EventSpine(conn)
     await es.ensure_schema()
-    yield es  # type: ignore[misc]
+    yield es
     await conn.close()
 
 
 @pytest_asyncio.fixture
-async def mgr(spine: EventSpine) -> ExecutionManager:
+async def mgr(spine: EventSpine) -> AsyncGenerator[ExecutionManager, None]:
     em = ExecutionManager(event_spine=spine, epoch_id=_EPOCH)
-    yield em  # type: ignore[misc]
+    yield em
     for account_id in list(em._accounts):
         await em.unregister_account(account_id)
 
 
 class TestRegisterAccount:
-
     @pytest.mark.asyncio
     async def test_register_starts_task(self, mgr: ExecutionManager) -> None:
-
         mgr.register_account(_ACCT)
         runtime = mgr._accounts[_ACCT]
         assert runtime.task is not None
         assert not runtime.task.done()
 
     @pytest.mark.asyncio
-    async def test_register_empty_account_id_raises(self, mgr: ExecutionManager) -> None:
-
+    async def test_register_empty_account_id_raises(
+        self, mgr: ExecutionManager
+    ) -> None:
         with pytest.raises(ValueError, match='non-empty'):
             mgr.register_account('')
 
     @pytest.mark.asyncio
     async def test_register_duplicate_raises(self, mgr: ExecutionManager) -> None:
-
         mgr.register_account(_ACCT)
         with pytest.raises(ValueError, match='already registered'):
             mgr.register_account(_ACCT)
@@ -129,7 +130,7 @@ class TestSubmitCommand:
         events = await spine.read(_EPOCH, after_seq=0)
         assert len(events) == 1
         _seq, event = events[0]
-        assert type(event).__name__ == 'CommandAccepted'
+        assert isinstance(event, CommandAccepted)
         assert event.command_id == command_id
         assert event.trade_id == _TRADE
 
@@ -138,13 +139,12 @@ class TestSubmitCommand:
         mgr.register_account(_ACCT)
         await mgr.submit_command(**_CMD_KWARGS)
         runtime = mgr._accounts[_ACCT]
-        assert runtime.command_queue.qsize() >= 0
+        assert runtime.command_queue.qsize() >= 1
 
 
 class TestSubmitAbort:
     @pytest.mark.asyncio
     async def test_enqueues_to_priority_queue(self, mgr: ExecutionManager) -> None:
-
         mgr.register_account(_ACCT)
         abort = TradeAbort(
             command_id='cmd-1',
@@ -157,7 +157,6 @@ class TestSubmitAbort:
 
     @pytest.mark.asyncio
     async def test_unregistered_account_raises(self, mgr: ExecutionManager) -> None:
-
         abort = TradeAbort(
             command_id='cmd-1',
             account_id='unknown',
