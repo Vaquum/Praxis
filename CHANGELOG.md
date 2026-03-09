@@ -201,4 +201,4 @@
 - Add `ws_base_url` parameter to `BinanceAdapter.__init__` for independent REST and WS URL configuration in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Refactor `BinanceUserStream._build_ws_url` to use `_ws_base_url` directly, removing broken `https→wss` scheme-swap hack in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
 - Update testnet conftest to import URL constants from production code instead of duplicating them in [`conftest.py`](tests/testnet/conftest.py)
-- Update all unit and testnet tests for new `BinanceAdapter` constructor signature in [`test_binance_adapter.py`](tests/test_binance_adapter.py), [`test_binance_ws.py`](tests/test_binance_ws.py), [`test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)
+- Update all unit and testnet tests for new `BinanceAdapter` constructor signature in [`test_binance_adapter.py`](tests/test_binance_adapter.py), [`test_binance_ws.py`](tests/test_binance_ws.py), [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)
