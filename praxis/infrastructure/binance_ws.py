@@ -125,7 +125,7 @@ class BinanceUserStream:
         Raises:
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If network operations time out
-            ValueError: If adapter base URL scheme is not https
+            ValueError: If adapter WS base URL scheme is not wss
             VenueError: If listen key management fails via adapter methods
         '''
 
@@ -150,7 +150,7 @@ class BinanceUserStream:
         Raises:
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If network operations time out
-            ValueError: If adapter base URL scheme is not https
+            ValueError: If adapter WS base URL scheme is not wss
             VenueError: If listen key management fails via adapter methods
         '''
 
