@@ -62,7 +62,7 @@ class _AsyncIter:
 
 class TestBinanceUserStream:
 
-    def test_build_ws_url_https(self) -> None:
+    def test_build_ws_url_wss_base(self) -> None:
         adapter = _make_adapter('wss://stream.testnet.binance.vision')
         stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         result = stream._build_ws_url('abc123')
