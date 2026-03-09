@@ -58,15 +58,7 @@ class _AccountRuntime:
         priority_queue: asyncio.Queue[TradeAbort],
         trading_state: TradingState,
     ) -> None:
-        '''
-        Store per-account queues and projection.
-
-        Args:
-            account_id (str): Account identifier.
-            command_queue (asyncio.Queue[TradeCommand]): Unbounded queue for commands.
-            priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
-            trading_state (TradingState): Per-account state projection.
-        '''
+        '''Store per-account queues and projection.'''
 
         self.account_id = account_id
         self.command_queue = command_queue
@@ -89,13 +81,7 @@ class ExecutionManager:
         event_spine: EventSpine,
         epoch_id: int,
     ) -> None:
-        '''
-        Store dependencies and initialize empty account registry.
-
-        Args:
-            event_spine (EventSpine): Append-only event log for persistence.
-            epoch_id (int): Current epoch identifier.
-        '''
+        '''Store dependencies and initialize empty account registry.'''
 
         self._event_spine = event_spine
         self._epoch_id = epoch_id
@@ -301,5 +287,6 @@ class ExecutionManager:
                 )
         except asyncio.CancelledError:
             _log.info('account loop cancelled: %s', runtime.account_id)
+            raise
         finally:
             _log.info('account loop exited: %s', runtime.account_id)

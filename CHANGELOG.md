@@ -206,7 +206,7 @@
 ## v0.20.0 on 9th of March, 2026
 
 - Add `ExecutionManager` class with per-account unbounded command and priority queues in [`execution_manager.py`](praxis/core/execution_manager.py)
-- Add `_AccountRuntime` internal dataclass holding per-account queue pair, `TradingState` projection, and asyncio task in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_AccountRuntime` internal class holding per-account queue pair, `TradingState` projection, and asyncio task in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `register_account` and `unregister_account` methods with coroutine lifecycle management in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `submit_command` method with UUID generation, `CommandAccepted` event persistence, and queue routing in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `submit_abort` method enqueuing `TradeAbort` to per-account priority queue in [`execution_manager.py`](praxis/core/execution_manager.py)

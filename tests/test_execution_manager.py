@@ -214,5 +214,8 @@ class TestIsolation:
         await mgr.submit_command(**_CMD_KWARGS)
         await mgr.submit_command(**kwargs2)
 
-        assert _ACCT in mgr._accounts
-        assert _ACCT2 in mgr._accounts
+        rt1 = mgr._accounts[_ACCT]
+        rt2 = mgr._accounts[_ACCT2]
+        assert rt1.command_queue.qsize() >= 0
+        assert rt2.command_queue.qsize() >= 0
+        assert rt1.command_queue is not rt2.command_queue
