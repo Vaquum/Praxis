@@ -9,6 +9,7 @@ queue, and asyncio task.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 
 from praxis.core.domain.trade_abort import TradeAbort
@@ -99,3 +100,86 @@ class ExecutionManager:
         self._epoch_id = epoch_id
         self._max_queue_depth = max_queue_depth
         self._accounts: dict[str, _AccountRuntime] = {}
+
+    def register_account(self, account_id: str) -> None:
+
+        '''
+        Create per-account queues and start account coroutine.
+
+        Args:
+            account_id (str): Account identifier to register.
+
+        Raises:
+            ValueError: If account_id is empty or already registered.
+        '''
+
+        if not account_id:
+            msg = 'account_id must be a non-empty string'
+            raise ValueError(msg)
+
+        if account_id in self._accounts:
+            msg = f"account_id '{account_id}' is already registered"
+            raise ValueError(msg)
+
+        runtime = _AccountRuntime(
+            account_id=account_id,
+            command_queue=asyncio.Queue(maxsize=self._max_queue_depth),
+            priority_queue=asyncio.Queue(),
+            trading_state=TradingState(account_id),
+        )
+        runtime.task = asyncio.create_task(
+            self._account_loop(runtime),
+            name=f"account-{account_id}",
+        )
+        self._accounts[account_id] = runtime
+        _log.info('account registered: %s', account_id)
+
+    async def unregister_account(self, account_id: str) -> None:
+
+        '''
+        Cancel account coroutine and remove per-account state.
+
+        Args:
+            account_id (str): Account identifier to unregister.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.pop(account_id, None)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        if runtime.task is not None:
+            runtime.task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await runtime.task
+
+        _log.info('account unregistered: %s', account_id)
+
+    async def _account_loop(self, runtime: _AccountRuntime) -> None:
+
+        '''
+        Drain priority and command queues for a single account.
+
+        Runs until cancelled. Priority queue is drained fully on each
+        iteration before taking one item from the command queue.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to process.
+        '''
+
+        try:
+            while True:
+                while not runtime.priority_queue.empty():
+                    runtime.priority_queue.get_nowait()
+
+                try:
+                    await asyncio.wait_for(runtime.command_queue.get(), timeout=0.1)
+                except TimeoutError:
+                    continue
+        except asyncio.CancelledError:
+            _log.info('account loop cancelled: %s', runtime.account_id)
+        finally:
+            _log.info('account loop exited: %s', runtime.account_id)
