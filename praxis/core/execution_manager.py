@@ -271,13 +271,11 @@ class ExecutionManager:
                         runtime.account_id,
                     )
 
-                try:
-                    cmd = await asyncio.wait_for(
-                        runtime.command_queue.get(),
-                        timeout=_QUEUE_POLL_INTERVAL,
-                    )
-                except TimeoutError:
+                if runtime.command_queue.empty():
+                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
+
+                cmd = runtime.command_queue.get_nowait()
 
                 _log.info(
                     'command dequeued: command_id=%s trade_id=%s account_id=%s',
