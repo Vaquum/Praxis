@@ -194,3 +194,11 @@
 - Wire `initiate_connection` to start `_reconnect_task` running `_auto_reconnect`, `close` to cancel it in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
 - Rename `_listen` to `_receive_loop` and `connect` to `initiate_connection` for clearer client/server nomenclature in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
 - Add 4 unit tests for auto-reconnect, exponential backoff, attempt reset, and cancel-during-backoff in [`test_binance_ws.py`](tests/test_binance_ws.py)
+
+## v0.19.0 on 9th of March, 2026
+
+- Add `MAINNET_REST_URL`, `MAINNET_WS_URL`, `TESTNET_REST_URL`, `TESTNET_WS_URL` public constants to [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `ws_base_url` parameter to `BinanceAdapter.__init__` for independent REST and WS URL configuration in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Refactor `BinanceUserStream._build_ws_url` to use `_ws_base_url` directly, removing broken `https→wss` scheme-swap hack in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
+- Update testnet conftest to import URL constants from production code instead of duplicating them in [`conftest.py`](tests/testnet/conftest.py)
+- Update all unit and testnet tests for new `BinanceAdapter` constructor signature in [`test_binance_adapter.py`](tests/test_binance_adapter.py), [`test_binance_ws.py`](tests/test_binance_ws.py), [`tests/testnet/test_binance_adapter.py`](tests/testnet/test_binance_adapter.py)

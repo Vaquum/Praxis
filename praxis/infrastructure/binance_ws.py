@@ -125,7 +125,7 @@ class BinanceUserStream:
         Raises:
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If network operations time out
-            ValueError: If adapter base URL scheme is not https
+            ValueError: If adapter WS base URL scheme is not wss
             VenueError: If listen key management fails via adapter methods
         '''
 
@@ -150,7 +150,7 @@ class BinanceUserStream:
         Raises:
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If network operations time out
-            ValueError: If adapter base URL scheme is not https
+            ValueError: If adapter WS base URL scheme is not wss
             VenueError: If listen key management fails via adapter methods
         '''
 
@@ -317,7 +317,7 @@ class BinanceUserStream:
     def _build_ws_url(self, listen_key: str) -> str:
 
         '''
-        Build user data stream WebSocket URL from adapter base URL.
+        Build user data stream WebSocket URL from adapter WS base URL.
 
         Args:
             listen_key (str): Active listen key
@@ -326,15 +326,13 @@ class BinanceUserStream:
             str: WebSocket URL for the stream
 
         Raises:
-            ValueError: If adapter base URL scheme is not https
+            ValueError: If adapter WS base URL scheme is not wss
         '''
 
-        base_url = self._adapter._base_url
+        ws_base_url = self._adapter._ws_base_url
 
-        if not base_url.startswith('https://'):
-            msg = f"Unsupported base URL scheme: {base_url!r}"
+        if not ws_base_url.startswith('wss://'):
+            msg = f"Unsupported WS base URL scheme: {ws_base_url!r}"
             raise ValueError(msg)
 
-        ws_base = f"wss://{base_url[len('https://') :]}"
-
-        return f"{ws_base}/ws/{listen_key}"
+        return f"{ws_base_url}/ws/{listen_key}"

@@ -32,6 +32,7 @@ from praxis.infrastructure.venue_adapter import (
 
 
 _BASE_URL = 'https://testnet.binance.vision'
+_WS_BASE_URL = 'wss://stream.testnet.binance.vision'
 _ACCOUNT_ID = 'test-account'
 _API_KEY = 'test-api-key'
 _API_SECRET = 'test-api-secret'  # noqa: S105
@@ -184,7 +185,7 @@ def _make_adapter(
     '''
 
     creds = credentials or {_ACCOUNT_ID: (_API_KEY, _API_SECRET)}
-    return BinanceAdapter(_BASE_URL, creds)
+    return BinanceAdapter(_BASE_URL, _WS_BASE_URL, creds)
 
 
 def _mock_response(
@@ -235,7 +236,7 @@ class TestCredentialManagement:
 
     def test_register_account(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
         adapter.register_account('acc1', 'key1', 'secret1')
         assert adapter._get_credentials('acc1') == ('key1', 'secret1')
 
@@ -248,13 +249,13 @@ class TestCredentialManagement:
 
     def test_unregister_unknown_raises_key_error(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
         with pytest.raises(KeyError):
             adapter.unregister_account('nonexistent')
 
     def test_get_credentials_unknown_raises_auth_error(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
         with pytest.raises(AuthenticationError, match='No credentials'):
             adapter._get_credentials('unknown')
 
@@ -1126,14 +1127,14 @@ class TestSessionLifecycle:
     @pytest.mark.asyncio
     async def test_context_manager_creates_and_closes_session(self) -> None:
 
-        async with BinanceAdapter(_BASE_URL) as adapter:
+        async with BinanceAdapter(_BASE_URL, _WS_BASE_URL) as adapter:
             assert adapter._session is not None
         assert adapter._session is None
 
     @pytest.mark.asyncio
     async def test_close_cleans_up_session(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
         mock_session = AsyncMock()
         mock_session.closed = False
         adapter._session = mock_session
@@ -1144,7 +1145,7 @@ class TestSessionLifecycle:
     @pytest.mark.asyncio
     async def test_ensure_session_creates_if_none(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
         session = await adapter._ensure_session()
         assert session is not None
         await session.close()
@@ -1192,7 +1193,7 @@ class TestSubmitOrder:
     @pytest.mark.asyncio
     async def test_unregistered_account_raises_auth_error(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
         with pytest.raises(AuthenticationError, match='No credentials'):
             await adapter.submit_order(
                 'unknown', 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,

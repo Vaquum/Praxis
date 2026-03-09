@@ -14,6 +14,7 @@ from tests.testnet.conftest import (
     HTTP_OK,
     MIN_ORDER_QUOTE_QTY,
     REST_BASE,
+    WS_BASE,
     SESSION_TIMEOUT,
     SYMBOL,
     auth_headers,
@@ -93,7 +94,7 @@ async def test_market_buy_filled() -> None:
     price = await _current_price()
     qty = _min_qty(price)
 
-    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+    async with BinanceAdapter(REST_BASE, WS_BASE, _credentials()) as adapter:
         result = await adapter.submit_order(
             account_id=_ACCOUNT_ID,
             symbol=SYMBOL,
@@ -117,7 +118,7 @@ async def test_limit_buy_rests_at_far_below_price() -> None:
     far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
     qty = _min_qty(far_below)
 
-    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+    async with BinanceAdapter(REST_BASE, WS_BASE, _credentials()) as adapter:
         result = await adapter.submit_order(
             account_id=_ACCOUNT_ID,
             symbol=SYMBOL,
@@ -153,7 +154,7 @@ async def test_limit_ioc_expires_at_far_below_price() -> None:
     far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
     qty = _min_qty(far_below)
 
-    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+    async with BinanceAdapter(REST_BASE, WS_BASE, _credentials()) as adapter:
         result = await adapter.submit_order(
             account_id=_ACCOUNT_ID,
             symbol=SYMBOL,
@@ -178,7 +179,7 @@ async def test_cancel_order_cancels_resting_limit() -> None:
     far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
     qty = _min_qty(far_below)
 
-    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+    async with BinanceAdapter(REST_BASE, WS_BASE, _credentials()) as adapter:
         submit = await adapter.submit_order(
             account_id=_ACCOUNT_ID,
             symbol=SYMBOL,
@@ -220,7 +221,7 @@ async def test_query_order_returns_resting_limit() -> None:
     far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
     qty = _min_qty(far_below)
 
-    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+    async with BinanceAdapter(REST_BASE, WS_BASE, _credentials()) as adapter:
         submit = await adapter.submit_order(
             account_id=_ACCOUNT_ID,
             symbol=SYMBOL,
@@ -258,7 +259,7 @@ async def test_query_open_orders_contains_resting_limit() -> None:
     far_below = (price * _PRICE_MULTIPLIER).quantize(_PRICE_STEP)
     qty = _min_qty(far_below)
 
-    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+    async with BinanceAdapter(REST_BASE, WS_BASE, _credentials()) as adapter:
         submit = await adapter.submit_order(
             account_id=_ACCOUNT_ID,
             symbol=SYMBOL,
@@ -285,7 +286,7 @@ async def test_query_balance_returns_requested_assets() -> None:
 
     '''Query balance for BTC and USDT and verify both are returned.'''
 
-    async with BinanceAdapter(REST_BASE, _credentials()) as adapter:
+    async with BinanceAdapter(REST_BASE, WS_BASE, _credentials()) as adapter:
         result = await adapter.query_balance(
             _ACCOUNT_ID, frozenset({'BTC', 'USDT'}),
         )
