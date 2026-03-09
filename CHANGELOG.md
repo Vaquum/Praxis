@@ -216,3 +216,12 @@
 - Add `ExecutionManager` and `AccountNotRegisteredError` re-exports from `praxis.core` package in [`__init__.py`](praxis/core/__init__.py)
 - Add [`test_execution_manager.py`](tests/test_execution_manager.py) with 13 tests covering registration, unregistration, command submission, abort submission, priority drain ordering, and account isolation
 - Bump version to 0.20.0 in [`pyproject.toml`](pyproject.toml)
+
+## v0.21.0 on 9th of March, 2026
+
+- Add `generate_client_order_id` pure function producing deterministic `{prefix}-{hex16}-{seq}[rN]` client order IDs for venue submission in [`generate_client_order_id.py`](praxis/core/generate_client_order_id.py)
+- Add `_MODE_PREFIX` mapping all 7 `ExecutionMode` variants to 2-character prefixes (SS, BK, TW, SV, IC, TD, LD) in [`generate_client_order_id.py`](praxis/core/generate_client_order_id.py)
+- Add UUID4 truncation to first 16 hex characters (64-bit entropy) for Binance 36-character `newClientOrderId` limit in [`generate_client_order_id.py`](praxis/core/generate_client_order_id.py)
+- Add `generate_client_order_id` re-export from `praxis.core` package in [`__init__.py`](praxis/core/__init__.py)
+- Add [`test_generate_client_order_id.py`](tests/test_generate_client_order_id.py) with 27 tests covering all mode prefixes, format, sequence padding, retry suffix, length validation, and error cases
+- Bump version to 0.21.0 in [`pyproject.toml`](pyproject.toml)
