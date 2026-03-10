@@ -166,7 +166,7 @@ class ExecutionManager:
         should_enqueue = validate_trade_abort(
             abort,
             self._accepted_commands,
-            frozenset(self._terminal_commands),
+            self._terminal_commands,
         )
 
         if not should_enqueue:

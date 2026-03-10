@@ -6,6 +6,7 @@ already terminal before enqueueing.
 '''
 
 from __future__ import annotations
+from collections.abc import Set as AbstractSet
 
 from praxis.core.domain.trade_abort import TradeAbort
 
@@ -15,7 +16,7 @@ __all__ = ['validate_trade_abort']
 def validate_trade_abort(
     abort: TradeAbort,
     accepted_commands: dict[str, str],
-    terminal_command_ids: frozenset[str],
+    terminal_command_ids: AbstractSet[str],
 ) -> bool:
     '''
     Validate a TradeAbort at acceptance time before enqueueing.
@@ -24,7 +25,7 @@ def validate_trade_abort(
         abort (TradeAbort): Abort instruction to validate.
         accepted_commands (dict[str, str]): Mapping of command_id to
             account_id for all accepted commands.
-        terminal_command_ids (frozenset[str]): Set of command_ids that
+        terminal_command_ids (AbstractSet[str]): Set of command_ids that
             have reached a terminal state.
 
     Returns:
