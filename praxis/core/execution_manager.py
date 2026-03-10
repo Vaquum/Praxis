@@ -27,6 +27,8 @@ from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.trading_state import TradingState
+from praxis.core.validate_trade_abort import validate_trade_abort
+from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
 
 __all__ = ['AccountNotRegisteredError', 'ExecutionManager']
@@ -86,6 +88,8 @@ class ExecutionManager:
         self._event_spine = event_spine
         self._epoch_id = epoch_id
         self._accounts: dict[str, _AccountRuntime] = {}
+        self._accepted_commands: dict[str, str] = {}
+        self._terminal_commands: set[str] = set()
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -144,19 +148,33 @@ class ExecutionManager:
 
     def submit_abort(self, abort: TradeAbort) -> None:
         '''
-        Enqueue a TradeAbort to the priority queue for its account.
+        Validate and enqueue a TradeAbort to the priority queue.
 
         Args:
             abort (TradeAbort): Abort instruction targeting a command.
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            ValueError: If command_id is unknown or account_id mismatches.
         '''
 
         runtime = self._accounts.get(abort.account_id)
         if runtime is None:
             msg = f"account_id '{abort.account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
+
+        should_enqueue = validate_trade_abort(
+            abort,
+            self._accepted_commands,
+            self._terminal_commands,
+        )
+
+        if not should_enqueue:
+            _log.info(
+                'abort no-op (command already terminal): command_id=%s',
+                abort.command_id,
+            )
+            return
 
         runtime.priority_queue.put_nowait(abort)
         _log.info(
@@ -205,6 +223,7 @@ class ExecutionManager:
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            ValueError: If command fails inbound validation.
         '''
 
         runtime = self._accounts.get(account_id)
@@ -231,6 +250,8 @@ class ExecutionManager:
             created_at=created_at,
         )
 
+        validate_trade_command(cmd)
+
         event = CommandAccepted(
             account_id=account_id,
             timestamp=datetime.now(timezone.utc),
@@ -240,6 +261,7 @@ class ExecutionManager:
         await self._event_spine.append(event, self._epoch_id)
 
         runtime.command_queue.put_nowait(cmd)
+        self._accepted_commands[command_id] = account_id
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',

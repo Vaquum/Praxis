@@ -141,13 +141,40 @@ class TestSubmitCommand:
         runtime = mgr._accounts[_ACCT]
         assert runtime.command_queue.qsize() >= 1
 
+    @pytest.mark.asyncio
+    async def test_disallowed_order_type_raises_and_does_not_append_event(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        bad = {
+            **_CMD_KWARGS,
+            'execution_mode': ExecutionMode.ICEBERG,
+            'order_type': OrderType.MARKET,
+            'execution_params': SingleShotParams(),
+        }
+        with pytest.raises(ValueError, match='ICEBERG does not support'):
+            await mgr.submit_command(**bad)
+        events = await spine.read(_EPOCH, after_seq=0)
+        assert len(events) == 0
+
+    @pytest.mark.asyncio
+    async def test_records_accepted_command_mapping(
+        self, mgr: ExecutionManager
+    ) -> None:
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        assert mgr._accepted_commands[command_id] == _ACCT
+
 
 class TestSubmitAbort:
     @pytest.mark.asyncio
     async def test_enqueues_to_priority_queue(self, mgr: ExecutionManager) -> None:
         mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
         abort = TradeAbort(
-            command_id='cmd-1',
+            command_id=command_id,
             account_id=_ACCT,
             reason='test',
             created_at=_TS,
@@ -165,6 +192,32 @@ class TestSubmitAbort:
         )
         with pytest.raises(AccountNotRegisteredError, match='not registered'):
             mgr.submit_abort(abort)
+
+    @pytest.mark.asyncio
+    async def test_unknown_command_id_raises(self, mgr: ExecutionManager) -> None:
+        mgr.register_account(_ACCT)
+        abort = TradeAbort(
+            command_id='cmd-unknown',
+            account_id=_ACCT,
+            reason='test',
+            created_at=_TS,
+        )
+        with pytest.raises(ValueError, match='unknown command_id'):
+            mgr.submit_abort(abort)
+
+    @pytest.mark.asyncio
+    async def test_terminal_command_is_noop(self, mgr: ExecutionManager) -> None:
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        mgr._terminal_commands.add(command_id)
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='test',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
+        assert mgr._accounts[_ACCT].priority_queue.qsize() == 0
 
 
 class TestAccountLoop:

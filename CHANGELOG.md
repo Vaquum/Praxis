@@ -225,3 +225,14 @@
 - Add `generate_client_order_id` re-export from `praxis.core` package in [`__init__.py`](praxis/core/__init__.py)
 - Add [`test_generate_client_order_id.py`](tests/test_generate_client_order_id.py) with 27 tests covering all mode prefixes, format, sequence padding, retry suffix, length validation, and error cases
 - Bump version to 0.21.0 in [`pyproject.toml`](pyproject.toml)
+
+## v0.22.0 on 10th of March, 2026
+
+- Add `validate_trade_command` inbound validator with mode/order-type gating, SingleShot parameter coherence checks, maker-only compatibility checks, and optional venue filter checks in [`validate_trade_command.py`](praxis/core/validate_trade_command.py)
+- Add `validate_trade_abort` inbound validator with unknown-command rejection, account ownership checks, and terminal-command no-op behavior in [`validate_trade_abort.py`](praxis/core/validate_trade_abort.py)
+- Add `validate_trade_command` and `validate_trade_abort` re-exports from the core package in [`__init__.py`](praxis/core/__init__.py)
+- Update `ExecutionManager.submit_command` and `ExecutionManager.submit_abort` with inbound validation and accepted/terminal command ID tracking in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add [`test_validate_trade_abort.py`](tests/test_validate_trade_abort.py) with 8 tests covering valid abort, unknown command_id, terminal no-op, and account_id mismatch
+- Add [`test_validate_trade_command.py`](tests/test_validate_trade_command.py) with 83 tests covering allowed/disallowed mode-order pairs, SingleShot param requirements, maker preference rules, and venue filter boundaries
+- Add integration tests to [`test_execution_manager.py`](tests/test_execution_manager.py) for inbound validation rejection/no-op behavior and accepted command tracking
+- Bump version to 0.22.0 in [`pyproject.toml`](pyproject.toml)
