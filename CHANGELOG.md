@@ -241,3 +241,11 @@
 
 - Fix 66 mypy strict-mode errors across 5 test files by adding `dict[str, Any]` annotations, `-> None` return types, `Event` type alias usage, and `bool()` wrapper in [`test_domain_commands.py`](tests/test_domain_commands.py), [`test_domain_core.py`](tests/test_domain_core.py), [`test_domain_outcome.py`](tests/test_domain_outcome.py), [`test_event_spine.py`](tests/test_event_spine.py), [`conftest.py`](tests/testnet/conftest.py)
 - Bump version to 0.22.1 in [`pyproject.toml`](pyproject.toml)
+
+## v0.23.0 on 10th of March, 2026
+
+- Add `venue_adapter: VenueAdapter` parameter to `ExecutionManager.__init__` for venue order submission in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_process_command` method with deterministic client order ID generation, `OrderSubmitIntent` persistence for crash durability, venue submission via `VenueAdapter.submit_order`, `OrderSubmitted` and `FillReceived` event persistence with fill deduplication, and `OrderSubmitFailed` on `VenueError` in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_process_command` call in `_account_loop` after command dequeue in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add 9 `TestProcessCommand` tests covering market fill, limit no-fill, venue rejection, transient failure, multiple fills, fill deduplication, client order ID determinism, trading state projection, and loop resilience in [`test_execution_manager.py`](tests/test_execution_manager.py)
+- Bump version to 0.23.0 in [`pyproject.toml`](pyproject.toml)
