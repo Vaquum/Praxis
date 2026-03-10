@@ -236,3 +236,8 @@
 - Add [`test_validate_trade_command.py`](tests/test_validate_trade_command.py) with 83 tests covering allowed/disallowed mode-order pairs, SingleShot param requirements, maker preference rules, and venue filter boundaries
 - Add integration tests to [`test_execution_manager.py`](tests/test_execution_manager.py) for inbound validation rejection/no-op behavior and accepted command tracking
 - Bump version to 0.22.0 in [`pyproject.toml`](pyproject.toml)
+
+## v0.22.1 on 10th of March, 2026
+
+- Fix 66 mypy strict-mode errors across 5 test files by adding `dict[str, Any]` annotations, `-> None` return types, `Event` type alias usage, and `bool()` wrapper in [`test_domain_commands.py`](tests/test_domain_commands.py), [`test_domain_core.py`](tests/test_domain_core.py), [`test_domain_outcome.py`](tests/test_domain_outcome.py), [`test_event_spine.py`](tests/test_event_spine.py), [`conftest.py`](tests/testnet/conftest.py)
+- Bump version to 0.22.1 in [`pyproject.toml`](pyproject.toml)

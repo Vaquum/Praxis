@@ -3,8 +3,9 @@ Tests for praxis.infrastructure.event_spine.EventSpine.
 '''
 
 from __future__ import annotations
-from dataclasses import replace
 
+from collections.abc import AsyncGenerator
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -15,6 +16,7 @@ import pytest_asyncio
 from praxis.core.domain.enums import OrderSide, OrderType
 from praxis.core.domain.events import (
     CommandAccepted,
+    Event,
     FillReceived,
     OrderAcked,
     OrderCanceled,
@@ -37,7 +39,7 @@ _VORD = 'vo-001'
 _VTRD = 'vt-001'
 _EPOCH = 1
 
-_ALL_EVENTS = [
+_ALL_EVENTS: list[Event] = [
 
     CommandAccepted(
         account_id=_ACCT, timestamp=_TS,
@@ -112,7 +114,7 @@ _FILL = FillReceived(
 )
 
 @pytest_asyncio.fixture
-async def spine():
+async def spine() -> AsyncGenerator[EventSpine, None]:
 
     async with aiosqlite.connect(':memory:') as conn:
         s = EventSpine(conn)
@@ -126,7 +128,7 @@ async def spine():
     _ALL_EVENTS,
     ids=[type(e).__name__ for e in _ALL_EVENTS],
 )
-async def test_event_spine_round_trip(event: object, spine: EventSpine):
+async def test_event_spine_round_trip(event: Event, spine: EventSpine) -> None:
 
     seq = await spine.append(event, epoch_id=_EPOCH)
     results = await spine.read(epoch_id=_EPOCH)
@@ -138,7 +140,7 @@ async def test_event_spine_round_trip(event: object, spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_event_spine_epoch_isolation(spine: EventSpine):
+async def test_event_spine_epoch_isolation(spine: EventSpine) -> None:
 
     e = _ALL_EVENTS[0]
     await spine.append(e, epoch_id=1)
@@ -152,7 +154,7 @@ async def test_event_spine_epoch_isolation(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_event_spine_ordering(spine: EventSpine):
+async def test_event_spine_ordering(spine: EventSpine) -> None:
 
     for event in _ALL_EVENTS:
         await spine.append(event, epoch_id=_EPOCH)
@@ -164,7 +166,7 @@ async def test_event_spine_ordering(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_event_spine_last_event_seq(spine: EventSpine):
+async def test_event_spine_last_event_seq(spine: EventSpine) -> None:
 
     assert await spine.last_event_seq(_EPOCH) is None
 
@@ -178,14 +180,14 @@ async def test_event_spine_last_event_seq(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_event_spine_last_event_seq_empty_epoch(spine: EventSpine):
+async def test_event_spine_last_event_seq_empty_epoch(spine: EventSpine) -> None:
 
     await spine.append(_ALL_EVENTS[0], epoch_id=1)
     assert await spine.last_event_seq(99) is None
 
 
 @pytest.mark.asyncio
-async def test_event_spine_decimal_precision(spine: EventSpine):
+async def test_event_spine_decimal_precision(spine: EventSpine) -> None:
 
     event = FillReceived(
         account_id=_ACCT, timestamp=_TS,
@@ -208,7 +210,7 @@ async def test_event_spine_decimal_precision(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_event_spine_datetime_timezone_preserved(spine: EventSpine):
+async def test_event_spine_datetime_timezone_preserved(spine: EventSpine) -> None:
 
     event = CommandAccepted(
         account_id=_ACCT, timestamp=_TS,
@@ -224,7 +226,7 @@ async def test_event_spine_datetime_timezone_preserved(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_event_spine_enum_preserved(spine: EventSpine):
+async def test_event_spine_enum_preserved(spine: EventSpine) -> None:
 
     event = OrderSubmitIntent(
         account_id=_ACCT, timestamp=_TS,
@@ -242,14 +244,14 @@ async def test_event_spine_enum_preserved(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_event_spine_empty_read(spine: EventSpine):
+async def test_event_spine_empty_read(spine: EventSpine) -> None:
 
     results = await spine.read(epoch_id=_EPOCH)
     assert results == []
 
 
 @pytest.mark.asyncio
-async def test_event_spine_after_seq_filtering(spine: EventSpine):
+async def test_event_spine_after_seq_filtering(spine: EventSpine) -> None:
 
     for event in _ALL_EVENTS[:5]:
         await spine.append(event, epoch_id=_EPOCH)
@@ -262,14 +264,14 @@ async def test_event_spine_after_seq_filtering(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_fill_dedup_first_append_returns_seq(spine: EventSpine):
+async def test_fill_dedup_first_append_returns_seq(spine: EventSpine) -> None:
 
     seq = await spine.append(_FILL, epoch_id=_EPOCH)
     assert isinstance(seq, int)
 
 
 @pytest.mark.asyncio
-async def test_fill_dedup_duplicate_returns_none(spine: EventSpine):
+async def test_fill_dedup_duplicate_returns_none(spine: EventSpine) -> None:
 
     await spine.append(_FILL, epoch_id=_EPOCH)
     result = await spine.append(_FILL, epoch_id=_EPOCH)
@@ -279,7 +281,7 @@ async def test_fill_dedup_duplicate_returns_none(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_fill_dedup_different_trade_ids_both_append(spine: EventSpine):
+async def test_fill_dedup_different_trade_ids_both_append(spine: EventSpine) -> None:
 
     fill_b = replace(_FILL, venue_trade_id='vt-002')
     seq_a = await spine.append(_FILL, epoch_id=_EPOCH)
@@ -291,7 +293,7 @@ async def test_fill_dedup_different_trade_ids_both_append(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_fill_dedup_same_trade_id_different_accounts(spine: EventSpine):
+async def test_fill_dedup_same_trade_id_different_accounts(spine: EventSpine) -> None:
 
     fill_b = replace(_FILL, account_id='acc-2', side=OrderSide.SELL, is_maker=False)
     seq_a = await spine.append(_FILL, epoch_id=_EPOCH)
@@ -303,7 +305,7 @@ async def test_fill_dedup_same_trade_id_different_accounts(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_fill_dedup_epoch_scoped(spine: EventSpine):
+async def test_fill_dedup_epoch_scoped(spine: EventSpine) -> None:
 
     seq_1 = await spine.append(_FILL, epoch_id=1)
     seq_2 = await spine.append(_FILL, epoch_id=2)
@@ -312,7 +314,7 @@ async def test_fill_dedup_epoch_scoped(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_fill_dedup_non_fill_events_unaffected(spine: EventSpine):
+async def test_fill_dedup_non_fill_events_unaffected(spine: EventSpine) -> None:
 
     event = CommandAccepted(
         account_id=_ACCT, timestamp=_TS,
@@ -327,12 +329,12 @@ async def test_fill_dedup_non_fill_events_unaffected(spine: EventSpine):
 
 
 @pytest.mark.asyncio
-async def test_fill_dedup_table_populated(spine: EventSpine):
+async def test_fill_dedup_table_populated(spine: EventSpine) -> None:
 
     await spine.append(_FILL, epoch_id=_EPOCH)
     cursor = await spine._conn.execute(
         'SELECT epoch_id, account_id, dedup_key FROM fill_dedup'
     )
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert len(rows) == 1
     assert rows[0] == (_EPOCH, _ACCT, _VTRD)

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -230,7 +231,7 @@ def test_trade_outcome_missed_iterations_zero_valid() -> None:
 @pytest.mark.parametrize('field', ['command_id', 'trade_id', 'account_id'])
 def test_trade_outcome_rejects_empty_string(field: str) -> None:
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         'command_id': 'cmd-001',
         'trade_id': 'trade-001',
         'account_id': 'acc-1',
