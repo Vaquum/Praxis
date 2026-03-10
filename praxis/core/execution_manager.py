@@ -375,6 +375,7 @@ class ExecutionManager:
                 stop_price=cmd.execution_params.stop_price,
                 client_order_id=client_order_id,
             )
+            post_venue_ts = datetime.now(timezone.utc)
         except VenueError as exc:
             failed = OrderSubmitFailed(
                 account_id=cmd.account_id,
@@ -393,7 +394,7 @@ class ExecutionManager:
 
         submitted = OrderSubmitted(
             account_id=cmd.account_id,
-            timestamp=now,
+            timestamp=post_venue_ts,
             client_order_id=client_order_id,
             venue_order_id=result.venue_order_id,
         )
@@ -403,7 +404,7 @@ class ExecutionManager:
         for fill in result.immediate_fills:
             fill_event = FillReceived(
                 account_id=cmd.account_id,
-                timestamp=now,
+                timestamp=post_venue_ts,
                 client_order_id=client_order_id,
                 venue_order_id=result.venue_order_id,
                 venue_trade_id=fill.venue_trade_id,
