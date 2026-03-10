@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -14,8 +15,8 @@ from praxis.core.domain import (
     MakerPreference,
     OrderSide,
     OrderType,
-    STPMode,
     SingleShotParams,
+    STPMode,
     TradeAbort,
     TradeCommand,
 )
@@ -256,7 +257,7 @@ def test_trade_abort_rejects_naive_created_at() -> None:
 @pytest.mark.parametrize('field', ['command_id', 'trade_id', 'account_id', 'symbol'])
 def test_trade_command_rejects_empty_string(field: str) -> None:
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         'command_id': 'cmd-001',
         'trade_id': 'trade-001',
         'account_id': 'acc-1',
@@ -280,7 +281,7 @@ def test_trade_command_rejects_empty_string(field: str) -> None:
 @pytest.mark.parametrize('field', ['command_id', 'account_id', 'reason'])
 def test_trade_abort_rejects_empty_string(field: str) -> None:
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         'command_id': 'cmd-001',
         'account_id': 'acc-1',
         'reason': 'operator_cancel',

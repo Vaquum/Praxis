@@ -59,7 +59,7 @@ def _testnet_reachable() -> bool:
         with urllib.request.urlopen(  # noqa: S310
             f"{REST_BASE}/api/v3/ping", timeout=5
         ) as resp:
-            return resp.status == HTTP_OK
+            return bool(resp.status == HTTP_OK)
     except (urllib.error.URLError, OSError):
         return False
 

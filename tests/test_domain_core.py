@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -385,7 +386,7 @@ def test_order_rejects_market_with_price() -> None:
 @pytest.mark.parametrize('field', ['account_id', 'trade_id', 'symbol'])
 def test_position_rejects_empty_string(field: str) -> None:
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         'account_id': 'acc-1',
         'trade_id': 'trade-1',
         'symbol': 'BTCUSDT',
@@ -401,7 +402,7 @@ def test_position_rejects_empty_string(field: str) -> None:
 @pytest.mark.parametrize('field', ['client_order_id', 'account_id', 'command_id', 'symbol'])
 def test_order_rejects_empty_string(field: str) -> None:
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         'client_order_id': 'new_order-cmd1-0',
         'venue_order_id': None,
         'account_id': 'acc-1',
@@ -428,7 +429,7 @@ def test_order_rejects_empty_string(field: str) -> None:
 ])
 def test_fill_rejects_empty_string(field: str) -> None:
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         'venue_trade_id': 'vt-001',
         'venue_order_id': 'vo-001',
         'client_order_id': 'new_order-cmd1-0',
