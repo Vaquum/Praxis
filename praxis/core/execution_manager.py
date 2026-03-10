@@ -26,6 +26,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
     OrderSubmitFailed,
+    OrderSubmitIntent,
     OrderSubmitted,
 )
 from praxis.core.domain.single_shot_params import SingleShotParams
@@ -331,9 +332,9 @@ class ExecutionManager:
         '''
         Submit a single order to the venue and emit resulting events.
 
-        Generate a deterministic client order ID, call the venue adapter,
-        and append OrderSubmitted + FillReceived events on success or
-        OrderSubmitFailed on venue error.
+        Persist an OrderSubmitIntent before the venue call for crash
+        durability, then append OrderSubmitted + FillReceived events
+        on success or OrderSubmitFailed on venue error.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -346,6 +347,22 @@ class ExecutionManager:
             sequence=0,
         )
         now = datetime.now(timezone.utc)
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=cmd.order_type,
+            qty=cmd.qty,
+            price=cmd.execution_params.price,
+            stop_price=cmd.execution_params.stop_price,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
 
         try:
             result = await self._venue_adapter.submit_order(

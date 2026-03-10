@@ -325,7 +325,12 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitted', 'FillReceived']
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'FillReceived',
+        ]
 
     @pytest.mark.asyncio
     async def test_limit_no_fill_produces_submitted_only(
@@ -337,7 +342,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitted']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitted']
 
     @pytest.mark.asyncio
     async def test_venue_rejection_produces_submit_failed(
@@ -355,7 +360,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitFailed']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed']
 
     @pytest.mark.asyncio
     async def test_transient_failure_produces_submit_failed(
@@ -371,7 +376,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitFailed']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed']
 
     @pytest.mark.asyncio
     async def test_multiple_fills(
@@ -418,6 +423,7 @@ class TestProcessCommand:
         types = [type(e).__name__ for _, e in events]
         assert types == [
             'CommandAccepted',
+            'OrderSubmitIntent',
             'OrderSubmitted',
             'FillReceived',
             'FillReceived',
@@ -459,7 +465,12 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitted', 'FillReceived']
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'FillReceived',
+        ]
 
     @pytest.mark.asyncio
     async def test_client_order_id_matches_generator(
@@ -502,6 +513,7 @@ class TestProcessCommand:
 
         runtime = mgr._accounts[_ACCT]
         assert len(runtime.trading_state.positions) > 0
+        assert runtime.trading_state.orders or runtime.trading_state.closed_orders
 
     @pytest.mark.asyncio
     async def test_loop_continues_after_failure(
@@ -527,3 +539,4 @@ class TestProcessCommand:
         types = [type(e).__name__ for _, e in events]
         assert 'OrderSubmitFailed' in types
         assert 'OrderSubmitted' in types
+        assert 'OrderSubmitIntent' in types
