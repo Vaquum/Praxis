@@ -22,14 +22,21 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
-from praxis.core.domain.events import CommandAccepted
+from praxis.core.domain.events import (
+    CommandAccepted,
+    FillReceived,
+    OrderSubmitFailed,
+    OrderSubmitted,
+)
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.venue_adapter import VenueAdapter, VenueError
 
 __all__ = ['AccountNotRegisteredError', 'ExecutionManager']
 
@@ -76,17 +83,20 @@ class ExecutionManager:
     Args:
         event_spine (EventSpine): Append-only event log for persistence.
         epoch_id (int): Current epoch identifier.
+        venue_adapter (VenueAdapter): Venue interface for order submission.
     '''
 
     def __init__(
         self,
         event_spine: EventSpine,
         epoch_id: int,
+        venue_adapter: VenueAdapter,
     ) -> None:
         '''Store dependencies and initialize empty account registry.'''
 
         self._event_spine = event_spine
         self._epoch_id = epoch_id
+        self._venue_adapter = venue_adapter
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
@@ -305,8 +315,98 @@ class ExecutionManager:
                     cmd.trade_id,
                     runtime.account_id,
                 )
+
+                await self._process_command(runtime, cmd)
         except asyncio.CancelledError:
             _log.info('account loop cancelled: %s', runtime.account_id)
             raise
         finally:
             _log.info('account loop exited: %s', runtime.account_id)
+
+    async def _process_command(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''
+        Submit a single order to the venue and emit resulting events.
+
+        Generate a deterministic client order ID, call the venue adapter,
+        and append OrderSubmitted + FillReceived events on success or
+        OrderSubmitFailed on venue error.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            cmd (TradeCommand): Command to execute.
+        '''
+
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode,
+            cmd.command_id,
+            sequence=0,
+        )
+        now = datetime.now(timezone.utc)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                cmd.order_type,
+                cmd.qty,
+                price=cmd.execution_params.price,
+                stop_price=cmd.execution_params.stop_price,
+                client_order_id=client_order_id,
+            )
+        except VenueError as exc:
+            failed = OrderSubmitFailed(
+                account_id=cmd.account_id,
+                timestamp=datetime.now(timezone.utc),
+                client_order_id=client_order_id,
+                reason=str(exc),
+            )
+            await self._event_spine.append(failed, self._epoch_id)
+            runtime.trading_state.apply(failed)
+            _log.warning(
+                'order submit failed: client_order_id=%s reason=%s',
+                client_order_id,
+                str(exc),
+            )
+            return
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=now,
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=now,
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                runtime.trading_state.apply(fill_event)
+
+        _log.info(
+            'order submitted: client_order_id=%s venue_order_id=%s fills=%d',
+            client_order_id,
+            result.venue_order_id,
+            len(result.immediate_fills),
+        )

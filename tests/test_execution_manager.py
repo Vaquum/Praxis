@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from collections.abc import AsyncGenerator
 from typing import Any
+from unittest.mock import AsyncMock
 
 import aiosqlite
 import pytest
@@ -20,14 +21,23 @@ from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
     OrderSide,
+    OrderStatus,
     OrderType,
     STPMode,
 )
-from praxis.core.domain.events import CommandAccepted
+from praxis.core.domain.events import CommandAccepted, OrderSubmitted
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
+from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.venue_adapter import (
+    ImmediateFill,
+    OrderRejectedError,
+    SubmitResult,
+    TransientError,
+    VenueAdapter,
+)
 
 _TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 _ACCT = 'acc-1'
@@ -61,9 +71,24 @@ async def spine() -> AsyncGenerator[EventSpine, None]:
     await conn.close()
 
 
+@pytest.fixture
+def adapter() -> AsyncMock:
+    '''Venue adapter mock with default no-fill success response.'''
+
+    mock = AsyncMock(spec=VenueAdapter)
+    mock.submit_order.return_value = SubmitResult(
+        venue_order_id='venue-1',
+        status=OrderStatus.OPEN,
+        immediate_fills=(),
+    )
+    return mock
+
+
 @pytest_asyncio.fixture
-async def mgr(spine: EventSpine) -> AsyncGenerator[ExecutionManager, None]:
-    em = ExecutionManager(event_spine=spine, epoch_id=_EPOCH)
+async def mgr(
+    spine: EventSpine, adapter: AsyncMock
+) -> AsyncGenerator[ExecutionManager, None]:
+    em = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
     yield em
     for account_id in list(em._accounts):
         await em.unregister_account(account_id)
@@ -270,3 +295,235 @@ class TestIsolation:
         rt1 = mgr._accounts[_ACCT]
         rt2 = mgr._accounts[_ACCT2]
         assert rt1.command_queue is not rt2.command_queue
+
+
+class TestProcessCommand:
+    @pytest.mark.asyncio
+    async def test_market_fill_produces_submitted_and_fill(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-100',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-100',
+                    qty=Decimal('1'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.001'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == ['CommandAccepted', 'OrderSubmitted', 'FillReceived']
+
+    @pytest.mark.asyncio
+    async def test_limit_no_fill_produces_submitted_only(
+        self, mgr: ExecutionManager, spine: EventSpine
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == ['CommandAccepted', 'OrderSubmitted']
+
+    @pytest.mark.asyncio
+    async def test_venue_rejection_produces_submit_failed(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.side_effect = OrderRejectedError(
+            'insufficient balance', venue_code=-1013, reason='insufficient balance'
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == ['CommandAccepted', 'OrderSubmitFailed']
+
+    @pytest.mark.asyncio
+    async def test_transient_failure_produces_submit_failed(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.side_effect = TransientError('network timeout')
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == ['CommandAccepted', 'OrderSubmitFailed']
+
+    @pytest.mark.asyncio
+    async def test_multiple_fills(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-200',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-201',
+                    qty=Decimal('0.3'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0003'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+                ImmediateFill(
+                    venue_trade_id='t-202',
+                    qty=Decimal('0.3'),
+                    price=Decimal('50010'),
+                    fee=Decimal('0.0003'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+                ImmediateFill(
+                    venue_trade_id='t-203',
+                    qty=Decimal('0.4'),
+                    price=Decimal('50020'),
+                    fee=Decimal('0.0004'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitted',
+            'FillReceived',
+            'FillReceived',
+            'FillReceived',
+        ]
+
+    @pytest.mark.asyncio
+    async def test_fill_dedup_skips_duplicate(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-300',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='dup-1',
+                    qty=Decimal('0.5'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0005'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+                ImmediateFill(
+                    venue_trade_id='dup-1',
+                    qty=Decimal('0.5'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0005'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == ['CommandAccepted', 'OrderSubmitted', 'FillReceived']
+
+    @pytest.mark.asyncio
+    async def test_client_order_id_matches_generator(
+        self, mgr: ExecutionManager, spine: EventSpine
+    ) -> None:
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        submitted = next(e for _, e in events if isinstance(e, OrderSubmitted))
+        expected = generate_client_order_id(
+            ExecutionMode.SINGLE_SHOT, command_id, sequence=0
+        )
+        assert submitted.client_order_id == expected
+
+    @pytest.mark.asyncio
+    async def test_trading_state_has_position_after_fill(
+        self,
+        mgr: ExecutionManager,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-400',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-400',
+                    qty=Decimal('1'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.001'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        runtime = mgr._accounts[_ACCT]
+        assert len(runtime.trading_state.positions) > 0
+
+    @pytest.mark.asyncio
+    async def test_loop_continues_after_failure(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.side_effect = [
+            TransientError('network down'),
+            SubmitResult(
+                venue_order_id='v-500',
+                status=OrderStatus.OPEN,
+                immediate_fills=(),
+            ),
+        ]
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await mgr.submit_command(**{**_CMD_KWARGS, 'trade_id': 'trade-2'})
+        await asyncio.sleep(0.5)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitFailed' in types
+        assert 'OrderSubmitted' in types
