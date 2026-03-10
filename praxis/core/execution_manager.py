@@ -317,7 +317,18 @@ class ExecutionManager:
                     runtime.account_id,
                 )
 
-                await self._process_command(runtime, cmd)
+                try:
+                    await self._process_command(runtime, cmd)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001
+                    _log.exception(
+                        'unhandled exception while processing command: '
+                        'command_id=%s trade_id=%s account_id=%s',
+                        cmd.command_id,
+                        cmd.trade_id,
+                        runtime.account_id,
+                    )
         except asyncio.CancelledError:
             _log.info('account loop cancelled: %s', runtime.account_id)
             raise
