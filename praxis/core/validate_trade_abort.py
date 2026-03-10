@@ -43,9 +43,6 @@ def validate_trade_abort(
         msg = f"unknown command_id '{abort.command_id}'"
         raise ValueError(msg)
 
-    if abort.command_id in terminal_command_ids:
-        return False
-
     if abort.account_id != owner:
         msg = (
             f"account_id mismatch: abort has '{abort.account_id}', "
@@ -53,4 +50,4 @@ def validate_trade_abort(
         )
         raise ValueError(msg)
 
-    return True
+    return abort.command_id not in terminal_command_ids

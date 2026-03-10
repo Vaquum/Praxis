@@ -70,6 +70,14 @@ class TestTerminalNoOp:
             is False
         )
 
+    def test_raises_for_mismatched_account_on_terminal(self) -> None:
+        with pytest.raises(ValueError, match='account_id mismatch'):
+            validate_trade_abort(
+                _abort(command_id='cmd-003', account_id='acct-B'),
+                _ACCEPTED,
+                _TERMINAL,
+            )
+
 
 class TestAccountIdMismatch:
     def test_raises_for_mismatched_account_id(self) -> None:

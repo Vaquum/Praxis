@@ -146,7 +146,11 @@ def _validate_mode_order_type(cmd: TradeCommand) -> None:
         ValueError: If order_type is not in the allowed set for the mode.
     '''
 
-    allowed = _ALLOWED_ORDER_TYPES[cmd.execution_mode]
+    allowed = _ALLOWED_ORDER_TYPES.get(cmd.execution_mode)
+
+    if allowed is None:
+        msg = f"no allowed order types configured for mode {cmd.execution_mode.value}"
+        raise ValueError(msg)
 
     if cmd.order_type not in allowed:
         msg = (
