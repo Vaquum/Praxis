@@ -12,9 +12,10 @@ import asyncio
 import contextlib
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from decimal import Decimal
-from collections.abc import Awaitable, Callable
+
 from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
@@ -459,6 +460,15 @@ class ExecutionManager:
         )
 
         filled_qty = sum((f.qty for f in result.immediate_fills), _ZERO)
+        if filled_qty > cmd.qty:
+            _log.warning(
+                'overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
+                cmd.command_id,
+                filled_qty,
+                cmd.qty,
+            )
+            filled_qty = cmd.qty
+
         if filled_qty > _ZERO:
             total_notional = sum(
                 (f.qty * f.price for f in result.immediate_fills), _ZERO,
@@ -522,14 +532,17 @@ class ExecutionManager:
         )
 
         if outcome.is_terminal:
-            closed = TradeClosed(
-                account_id=cmd.account_id,
-                timestamp=ts,
-                trade_id=cmd.trade_id,
-                command_id=cmd.command_id,
-            )
-            await self._event_spine.append(closed, self._epoch_id)
-            runtime.trading_state.apply(closed)
+            self._terminal_commands.add(cmd.command_id)
+
+            if filled_qty > _ZERO:
+                closed = TradeClosed(
+                    account_id=cmd.account_id,
+                    timestamp=ts,
+                    trade_id=cmd.trade_id,
+                    command_id=cmd.command_id,
+                )
+                await self._event_spine.append(closed, self._epoch_id)
+                runtime.trading_state.apply(closed)
 
         produced = TradeOutcomeProduced(
             account_id=cmd.account_id,
@@ -543,6 +556,12 @@ class ExecutionManager:
         runtime.trading_state.apply(produced)
 
         if self._on_trade_outcome is not None:
-            await self._on_trade_outcome(outcome)
+            try:
+                await self._on_trade_outcome(outcome)
+            except Exception:  # noqa: BLE001
+                _log.exception(
+                    'on_trade_outcome callback failed: command_id=%s',
+                    cmd.command_id,
+                )
 
         return outcome

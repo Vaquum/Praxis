@@ -364,7 +364,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed', 'TradeClosed', 'TradeOutcomeProduced']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed', 'TradeOutcomeProduced']
 
     @pytest.mark.asyncio
     async def test_transient_failure_produces_submit_failed(
@@ -380,7 +380,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed', 'TradeClosed', 'TradeOutcomeProduced']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed', 'TradeOutcomeProduced']
 
     @pytest.mark.asyncio
     async def test_multiple_fills(
@@ -496,7 +496,7 @@ class TestProcessCommand:
         assert submitted.client_order_id == expected
 
     @pytest.mark.asyncio
-    async def test_trading_state_has_position_after_fill(
+    async def test_trading_state_has_closed_order_after_fill(
         self,
         mgr: ExecutionManager,
         adapter: AsyncMock,
