@@ -115,7 +115,7 @@ class ExecutionManager:
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
         self._commands: dict[str, TradeCommand] = {}
-        self._aborted_commands: set[str] = set()
+        self._aborted_commands: dict[str, str] = {}
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -411,8 +411,8 @@ class ExecutionManager:
             TradeOutcome: Execution outcome for this command.
         '''
 
-        if cmd.command_id in self._aborted_commands:
-            self._aborted_commands.discard(cmd.command_id)
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        if abort_reason is not None:
             _log.info(
                 'command pre-aborted: command_id=%s trade_id=%s',
                 cmd.command_id,
@@ -421,7 +421,7 @@ class ExecutionManager:
             return await self._build_outcome(
                 runtime, cmd, TradeStatus.CANCELED,
                 filled_qty=_ZERO, avg_fill_price=None,
-                reason='pre-submission abort',
+                reason=abort_reason,
             )
 
         client_order_id = generate_client_order_id(
@@ -622,7 +622,7 @@ class ExecutionManager:
                 break
 
         if order is None or client_order_id is None:
-            self._aborted_commands.add(abort.command_id)
+            self._aborted_commands[abort.command_id] = abort.reason
             _log.info(
                 'abort marked for pre-submission: command_id=%s',
                 abort.command_id,
@@ -717,7 +717,7 @@ class ExecutionManager:
         if outcome.is_terminal:
             self._terminal_commands.add(cmd.command_id)
             self._commands.pop(cmd.command_id, None)
-            self._aborted_commands.discard(cmd.command_id)
+            self._aborted_commands.pop(cmd.command_id, None)
 
             if filled_qty > _ZERO:
                 closed = TradeClosed(

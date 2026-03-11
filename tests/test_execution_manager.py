@@ -1253,7 +1253,7 @@ class TestProcessAbort:
         abort = TradeAbort(
             command_id=command_id,
             account_id=_ACCT,
-            reason='pre-submission abort',
+            reason='user cancelled before submission',
             created_at=_TS,
         )
         mgr.submit_abort(abort)
@@ -1266,7 +1266,7 @@ class TestProcessAbort:
         outcome: TradeOutcome = callback.call_args[0][0]
         assert outcome.status == TradeStatus.CANCELED
         assert outcome.filled_qty == Decimal(0)
-        assert outcome.reason == 'pre-submission abort'
+        assert outcome.reason == 'user cancelled before submission'
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
