@@ -356,7 +356,7 @@ class ExecutionManager:
         Persist an OrderSubmitIntent before the venue call for crash
         durability, then append OrderSubmitted + FillReceived events
         on success or OrderSubmitFailed on venue error. Emit TradeClosed
-        for terminal outcomes, TradeOutcomeProduced for all outcomes,
+        for terminal outcomes with fills, TradeOutcomeProduced for all
         and invoke the on_trade_outcome callback if set.
 
         Args:

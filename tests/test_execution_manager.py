@@ -715,7 +715,11 @@ class TestTradeOutcome:
         await asyncio.sleep(0.3)
 
         outcome: TradeOutcome = callback.call_args[0][0]
-        expected_vwap = (Decimal('0.6') * Decimal('50000') + Decimal('0.4') * Decimal('50100')) / Decimal('1')
+        notional = (
+            Decimal('0.6') * Decimal('50000')
+            + Decimal('0.4') * Decimal('50100')
+        )
+        expected_vwap = notional / Decimal('1')
         assert outcome.avg_fill_price == expected_vwap
         assert outcome.filled_qty == Decimal('1')
 
