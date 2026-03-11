@@ -407,19 +407,19 @@ class ExecutionManager:
                 account_id=cmd.account_id,
                 timestamp=datetime.now(timezone.utc),
                 client_order_id=client_order_id,
-                reason=str(exc),
+                reason=str(exc.args[0]),
             )
             await self._event_spine.append(failed, self._epoch_id)
             runtime.trading_state.apply(failed)
             _log.warning(
                 'order submit failed: client_order_id=%s reason=%s',
                 client_order_id,
-                str(exc),
+                str(exc.args[0]),
             )
             return await self._build_outcome(
                 runtime, cmd, TradeStatus.REJECTED,
                 filled_qty=_ZERO, avg_fill_price=None,
-                reason=str(exc),
+                reason=str(exc.args[0]),
             )
 
         submitted = OrderSubmitted(
