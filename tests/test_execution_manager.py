@@ -1031,7 +1031,8 @@ class TestDeadlineHandling:
             created_at=datetime.now(timezone.utc),
         )
         mgr.submit_abort(abort)
-
+        callback.assert_awaited_once()
+        adapter.cancel_order.assert_awaited_once()
         await mgr.unregister_account(_ACCT)
 
     @pytest.mark.asyncio

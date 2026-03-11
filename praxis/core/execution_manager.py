@@ -516,8 +516,7 @@ class ExecutionManager:
         if status in (
             TradeStatus.PENDING,
             TradeStatus.PARTIAL,
-            TradeStatus.PAUSED,
-        ) and self._deadline_exceeded(datetime.now(timezone.utc), cmd):
+        ) and self._deadline_exceeded(post_venue_ts, cmd):
             status = TradeStatus.EXPIRED
             reason = 'deadline exceeded'
             cancel_confirmed = True
@@ -535,7 +534,7 @@ class ExecutionManager:
             if cancel_confirmed:
                 expired = OrderExpired(
                     account_id=cmd.account_id,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=post_venue_ts,
                     client_order_id=client_order_id,
                     venue_order_id=result.venue_order_id,
                 )
