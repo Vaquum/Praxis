@@ -13,7 +13,7 @@ import contextlib
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from praxis.core.domain.enums import (
@@ -27,6 +27,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
+    OrderExpired,
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
@@ -42,7 +43,7 @@ from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
-from praxis.infrastructure.venue_adapter import VenueAdapter, VenueError
+from praxis.infrastructure.venue_adapter import NotFoundError, VenueAdapter, VenueError
 
 __all__ = ['AccountNotRegisteredError', 'ExecutionManager']
 
@@ -143,6 +144,12 @@ class ExecutionManager:
         )
         self._accounts[account_id] = runtime
         _log.info('account registered: %s', account_id)
+
+    def _deadline_at(self, cmd: TradeCommand) -> datetime:
+        return cmd.created_at + timedelta(seconds=cmd.timeout)
+
+    def _deadline_exceeded(self, now: datetime, cmd: TradeCommand) -> bool:
+        return now >= self._deadline_at(cmd)
 
     async def unregister_account(self, account_id: str) -> None:
         '''
@@ -484,10 +491,40 @@ class ExecutionManager:
         else:
             status = TradeStatus.PENDING
 
+        reason: str | None = None
+        if status in (
+            TradeStatus.PENDING,
+            TradeStatus.PARTIAL,
+            TradeStatus.PAUSED,
+        ) and self._deadline_exceeded(datetime.now(timezone.utc), cmd):
+            status = TradeStatus.EXPIRED
+            reason = 'deadline exceeded'
+            cancel_confirmed = True
+            try:
+                await self._venue_adapter.cancel_order(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=client_order_id,
+                )
+            except NotFoundError:
+                pass
+            except VenueError as exc:
+                reason = f"deadline exceeded; cancel failed: {exc.args[0]}"
+                cancel_confirmed = False
+            if cancel_confirmed:
+                expired = OrderExpired(
+                    account_id=cmd.account_id,
+                    timestamp=datetime.now(timezone.utc),
+                    client_order_id=client_order_id,
+                    venue_order_id=result.venue_order_id,
+                )
+                await self._event_spine.append(expired, self._epoch_id)
+                runtime.trading_state.apply(expired)
+
         return await self._build_outcome(
             runtime, cmd, status,
             filled_qty=filled_qty, avg_fill_price=avg_fill_price,
-            reason=None,
+            reason=reason,
         )
 
     async def _build_outcome(
