@@ -460,14 +460,6 @@ class ExecutionManager:
         )
 
         filled_qty = sum((f.qty for f in result.immediate_fills), _ZERO)
-        if filled_qty > cmd.qty:
-            _log.warning(
-                'overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
-                cmd.command_id,
-                filled_qty,
-                cmd.qty,
-            )
-            filled_qty = cmd.qty
 
         if filled_qty > _ZERO:
             total_notional = sum(
@@ -477,6 +469,14 @@ class ExecutionManager:
         else:
             avg_fill_price = None
 
+        if filled_qty > cmd.qty:
+            _log.warning(
+                'overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
+                cmd.command_id,
+                filled_qty,
+                cmd.qty,
+            )
+            filled_qty = cmd.qty
         if filled_qty >= cmd.qty:
             status = TradeStatus.FILLED
         elif filled_qty > _ZERO:

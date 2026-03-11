@@ -798,3 +798,52 @@ class TestTradeOutcome:
         assert produced[0].status == TradeStatus.PENDING
 
         await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_overfill_clamped_with_correct_vwap(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-of',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-of1',
+                    qty=Decimal('0.7'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0007'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+                ImmediateFill(
+                    venue_trade_id='t-of2',
+                    qty=Decimal('0.5'),
+                    price=Decimal('50200'),
+                    fee=Decimal('0.0005'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.filled_qty == Decimal('1')
+        assert outcome.status == TradeStatus.FILLED
+        unclamped_qty = Decimal('0.7') + Decimal('0.5')
+        expected_vwap = (
+            Decimal('0.7') * Decimal('50000')
+            + Decimal('0.5') * Decimal('50200')
+        ) / unclamped_qty
+        assert outcome.avg_fill_price == expected_vwap
+
+        await mgr.unregister_account(_ACCT)
