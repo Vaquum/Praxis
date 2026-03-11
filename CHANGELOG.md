@@ -274,7 +274,7 @@
 ## v0.25.0 on 11th of March, 2026
 
 - Add `_deadline_at` and `_deadline_exceeded` deadline computation helpers in [`execution_manager.py`](praxis/core/execution_manager.py)
-- Add timeout enforcement transitioning non-terminal statuses (`PENDING`, `PARTIAL`, `PAUSED`) to `EXPIRED` with `reason='deadline exceeded'` in `_process_command` in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add timeout enforcement transitioning non-terminal statuses (`PENDING`, `PARTIAL`) to `EXPIRED` with `reason='deadline exceeded'` in `_process_command` in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add order expiry eventing on timeout with `cancel_order` call, `OrderExpired` event emission on cancel success or `NotFoundError`, and `cancel_confirmed=False` fallback on other `VenueError` in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add 8 `TestDeadlineHandling` tests covering pending expiry, partial fill expiry, `TradeOutcomeProduced` with EXPIRED status, `OrderExpired` emission, `NotFoundError` fallback, `VenueError` skip, terminal abort no-op, and non-expired control case in [`test_execution_manager.py`](tests/test_execution_manager.py)
 - Fix `_TS` test constant from `datetime(2026, 1, 1)` to `datetime(2099, 1, 1)` preventing false deadline triggers in existing tests in [`test_execution_manager.py`](tests/test_execution_manager.py)
