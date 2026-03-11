@@ -1057,3 +1057,214 @@ class TestDeadlineHandling:
         adapter.cancel_order.assert_not_awaited()
 
         await mgr.unregister_account(_ACCT)
+
+
+class TestProcessAbort:
+    @pytest.mark.asyncio
+    async def test_abort_pending_order_produces_canceled(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='user requested',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'TradeOutcomeProduced',
+            'OrderCanceled',
+            'TradeOutcomeProduced',
+        ]
+
+        outcomes = [call.args[0] for call in callback.call_args_list]
+        assert len(outcomes) == 2
+        assert outcomes[0].status == TradeStatus.PENDING
+        assert outcomes[1].status == TradeStatus.CANCELED
+        assert outcomes[1].is_terminal
+        assert outcomes[1].filled_qty == Decimal(0)
+        assert outcomes[1].avg_fill_price is None
+
+        adapter.cancel_order.assert_awaited_once()
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_abort_partial_fill_preserves_fill_data(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-pf',
+            status=OrderStatus.PARTIALLY_FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-pf1',
+                    qty=Decimal('0.3'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0003'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='timeout',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'FillReceived',
+            'TradeOutcomeProduced',
+            'OrderCanceled',
+            'TradeClosed',
+            'TradeOutcomeProduced',
+        ]
+
+        outcomes = [call.args[0] for call in callback.call_args_list]
+        canceled = outcomes[1]
+        assert canceled.status == TradeStatus.CANCELED
+        assert canceled.filled_qty == Decimal('0.3')
+        assert canceled.avg_fill_price == Decimal('50000')
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_abort_not_found_still_emits_order_canceled(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        adapter.cancel_order.side_effect = NotFoundError('order gone')
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='stale cancel',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderCanceled' in types
+
+        outcomes = [call.args[0] for call in callback.call_args_list]
+        assert outcomes[1].status == TradeStatus.CANCELED
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_abort_venue_error_skips_order_canceled(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        adapter.cancel_order.side_effect = TransientError('cancel timeout')
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='abort reason',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderCanceled' not in types
+
+        outcomes = [call.args[0] for call in callback.call_args_list]
+        canceled = outcomes[1]
+        assert canceled.status == TradeStatus.CANCELED
+        assert 'abort reason' in canceled.reason
+        assert 'cancel failed' in canceled.reason
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_pre_submission_abort_skips_venue_call(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        mgr._aborted_commands.add(command_id)
+        await asyncio.sleep(0.3)
+
+        adapter.submit_order.assert_not_awaited()
+        adapter.cancel_order.assert_not_awaited()
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.CANCELED
+        assert outcome.filled_qty == Decimal(0)
+        assert outcome.reason == 'pre-submission abort'
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitIntent' not in types
+        assert 'OrderSubmitted' not in types
+
+        await mgr.unregister_account(_ACCT)

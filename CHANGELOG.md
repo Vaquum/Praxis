@@ -279,3 +279,12 @@
 - Add 8 `TestDeadlineHandling` tests covering pending expiry, partial fill expiry, `TradeOutcomeProduced` with EXPIRED status, `OrderExpired` emission, `NotFoundError` fallback, `VenueError` skip, terminal abort no-op, and non-expired control case in [`test_execution_manager.py`](tests/test_execution_manager.py)
 - Fix `_TS` test constant from `datetime(2026, 1, 1)` to `datetime(2099, 1, 1)` preventing false deadline triggers in existing tests in [`test_execution_manager.py`](tests/test_execution_manager.py)
 - Bump version to 0.25.0 in [`pyproject.toml`](pyproject.toml)
+
+## v0.26.0 on 11th of March, 2026
+
+- Add `_commands` and `_aborted_commands` state to `ExecutionManager.__init__` for abort command lookup and pre-submission tracking in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_process_abort` method with venue cancel dispatch, `OrderCanceled` emission on success or `NotFoundError`, VWAP-preserving `CANCELED` outcome, and pre-submission marker fallback in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_process_abort` call with error guard in `_account_loop` priority queue drain in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add pre-submission abort guard in `_process_command` short-circuiting to `CANCELED` without venue call in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add 5 `TestProcessAbort` tests covering pending order abort, partial fill VWAP preservation, `NotFoundError` resilience, `VenueError` cancel failure, and pre-submission short-circuit in [`test_execution_manager.py`](tests/test_execution_manager.py)
+- Bump version to 0.26.0 in [`pyproject.toml`](pyproject.toml)
