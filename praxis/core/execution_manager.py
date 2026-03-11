@@ -716,6 +716,8 @@ class ExecutionManager:
 
         if outcome.is_terminal:
             self._terminal_commands.add(cmd.command_id)
+            self._commands.pop(cmd.command_id, None)
+            self._aborted_commands.discard(cmd.command_id)
 
             if filled_qty > _ZERO:
                 closed = TradeClosed(

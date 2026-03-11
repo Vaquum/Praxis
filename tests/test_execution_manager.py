@@ -1250,7 +1250,13 @@ class TestProcessAbort:
         )
         mgr.register_account(_ACCT)
         command_id = await mgr.submit_command(**_CMD_KWARGS)
-        mgr._aborted_commands.add(command_id)
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='pre-submission abort',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
         await asyncio.sleep(0.3)
 
         adapter.submit_order.assert_not_awaited()
