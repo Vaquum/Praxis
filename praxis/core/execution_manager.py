@@ -27,6 +27,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
+    OrderCanceled,
     OrderExpired,
     OrderSubmitFailed,
     OrderSubmitIntent,
@@ -34,6 +35,7 @@ from praxis.core.domain.events import (
     TradeClosed,
     TradeOutcomeProduced,
 )
+from praxis.core.domain.order import Order
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
@@ -112,6 +114,8 @@ class ExecutionManager:
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
+        self._commands: dict[str, TradeCommand] = {}
+        self._aborted_commands: set[str] = set()
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -311,6 +315,7 @@ class ExecutionManager:
 
         runtime.command_queue.put_nowait(cmd)
         self._accepted_commands[command_id] = account_id
+        self._commands[command_id] = cmd
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',
@@ -341,6 +346,17 @@ class ExecutionManager:
                         abort.command_id,
                         runtime.account_id,
                     )
+                    try:
+                        await self._process_abort(runtime, abort)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        _log.exception(
+                            'unhandled exception while processing abort: '
+                            'command_id=%s account_id=%s',
+                            abort.command_id,
+                            runtime.account_id,
+                        )
 
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
@@ -394,6 +410,19 @@ class ExecutionManager:
         Returns:
             TradeOutcome: Execution outcome for this command.
         '''
+
+        if cmd.command_id in self._aborted_commands:
+            self._aborted_commands.discard(cmd.command_id)
+            _log.info(
+                'command pre-aborted: command_id=%s trade_id=%s',
+                cmd.command_id,
+                cmd.trade_id,
+            )
+            return await self._build_outcome(
+                runtime, cmd, TradeStatus.CANCELED,
+                filled_qty=_ZERO, avg_fill_price=None,
+                reason='pre-submission abort',
+            )
 
         client_order_id = generate_client_order_id(
             cmd.execution_mode,
@@ -543,6 +572,103 @@ class ExecutionManager:
 
         return await self._build_outcome(
             runtime, cmd, status,
+            filled_qty=filled_qty, avg_fill_price=avg_fill_price,
+            reason=reason,
+        )
+
+    async def _process_abort(
+        self,
+        runtime: _AccountRuntime,
+        abort: TradeAbort,
+    ) -> TradeOutcome | None:
+        '''
+        Cancel an active order and report CANCELED outcome.
+
+        Look up the target order by command_id. If found, cancel via
+        venue adapter, emit OrderCanceled on success or NotFoundError,
+        and build a CANCELED TradeOutcome with cumulative fill data.
+        If no order exists yet, mark for pre-submission short-circuit.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            abort (TradeAbort): Abort instruction to process.
+
+        Returns:
+            TradeOutcome | None: CANCELED outcome, or None if deferred
+                or already terminal.
+        '''
+
+        if abort.command_id in self._terminal_commands:
+            _log.info(
+                'abort no-op (command already terminal): command_id=%s',
+                abort.command_id,
+            )
+            return None
+
+        cmd = self._commands.get(abort.command_id)
+        if cmd is None:
+            _log.warning(
+                'abort for unknown command: command_id=%s',
+                abort.command_id,
+            )
+            return None
+
+        order: Order | None = None
+        client_order_id: str | None = None
+        for coid, o in runtime.trading_state.orders.items():
+            if o.command_id == abort.command_id:
+                order = o
+                client_order_id = coid
+                break
+
+        if order is None or client_order_id is None:
+            self._aborted_commands.add(abort.command_id)
+            _log.info(
+                'abort marked for pre-submission: command_id=%s',
+                abort.command_id,
+            )
+            return None
+
+        filled_qty = order.filled_qty
+        venue_order_id = order.venue_order_id
+
+        reason = abort.reason
+        cancel_confirmed = True
+        try:
+            await self._venue_adapter.cancel_order(
+                cmd.account_id,
+                cmd.symbol,
+                client_order_id=client_order_id,
+            )
+        except NotFoundError:
+            pass
+        except VenueError as exc:
+            reason = f"{abort.reason}; cancel failed: {exc.args[0]}"
+            cancel_confirmed = False
+
+        if cancel_confirmed:
+            canceled = OrderCanceled(
+                account_id=cmd.account_id,
+                timestamp=datetime.now(timezone.utc),
+                client_order_id=client_order_id,
+                venue_order_id=venue_order_id,
+                reason=abort.reason,
+            )
+            await self._event_spine.append(canceled, self._epoch_id)
+            runtime.trading_state.apply(canceled)
+
+        avg_fill_price: Decimal | None = None
+        if filled_qty > _ZERO:
+            events = await self._event_spine.read(self._epoch_id, after_seq=0)
+            fills = [
+                e for _, e in events
+                if isinstance(e, FillReceived) and e.client_order_id == client_order_id
+            ]
+            total_notional = sum((f.qty * f.price for f in fills), _ZERO)
+            avg_fill_price = total_notional / filled_qty
+
+        return await self._build_outcome(
+            runtime, cmd, TradeStatus.CANCELED,
             filled_qty=filled_qty, avg_fill_price=avg_fill_price,
             reason=reason,
         )
