@@ -93,3 +93,29 @@ RFC-4001 specifies a walk-the-book slippage estimator: simulate executing slice 
 
 **When to fix**: Before adding a third request method variant, or during post-WP-0003 cleanup.
 **Migration**: Extract a `_request_with_retry(method, path, *, build_request, account_id)` that owns the retry loop, and have both methods delegate to it.
+
+---
+
+## TD-008: Linear order scan in _process_abort
+
+**Origin**: PR #52 (Copilot review)
+**Severity**: Low (typically 1-2 orders per account)
+**Module**: `praxis/core/execution_manager.py`
+
+`_process_abort` iterates `runtime.trading_state.orders` to find the order matching `abort.command_id`. This is O(n) in the number of open orders. For SingleShot mode with `sequence=0`, the `client_order_id` is deterministic and could be computed via `generate_client_order_id` for an O(1) dict lookup. However, this couples abort to the ID generation convention and the `sequence=0` assumption, which will not hold for multi-slice execution modes.
+
+**When to fix**: When multi-slice modes (TWAP, ICEBERG) are implemented and order counts per account grow.
+**Migration**: Add a `command_id → client_order_id` index in `_AccountRuntime` populated by `_process_command` on order submission, enabling O(1) lookup in `_process_abort`.
+
+---
+
+## TD-009: VWAP re-read from spine on abort
+
+**Origin**: PR #52 (Copilot review)
+**Severity**: Low (epochs are small currently)
+**Module**: `praxis/core/execution_manager.py`
+
+`_process_abort` computes VWAP by calling `EventSpine.read()` and filtering for `FillReceived` events matching the `client_order_id`. This re-reads and rehydrates the entire epoch for every abort with fills, scaling as O(events_in_epoch). The `Order` dataclass tracks `filled_qty` but not `avg_fill_price`.
+
+**When to fix**: Before epochs grow to thousands of events or abort frequency increases.
+**Migration**: Either add cumulative notional tracking to `Order`/`TradingState` so VWAP is available without spine re-read, or add a spine query method that fetches only `FillReceived` rows for a given `client_order_id`.
