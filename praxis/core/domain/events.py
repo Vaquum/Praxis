@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import TypeAlias
 
 from praxis.core.domain._require_str import _require_str
-from praxis.core.domain.enums import OrderSide, OrderType
+from praxis.core.domain.enums import OrderSide, OrderType, TradeStatus
 
 __all__ = [
     'CommandAccepted',
@@ -29,6 +29,7 @@ __all__ = [
     'OrderSubmitIntent',
     'OrderSubmitted',
     'TradeClosed',
+    'TradeOutcomeProduced',
 ]
 
 _ZERO = Decimal(0)
@@ -379,6 +380,35 @@ class TradeClosed(_EventBase):
         _require_str(name, 'command_id', self.command_id)
 
 
+@dataclass(frozen=True)
+class TradeOutcomeProduced(_EventBase):
+
+    '''
+    Represent production of a TradeOutcome for audit and replay.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Originating TradeCommand identifier.
+        trade_id (str): Trade correlation identifier.
+        status (TradeStatus): Outcome status at time of production.
+        reason (str | None): Descriptive reason for status.
+    '''
+
+    command_id: str
+    trade_id: str
+    status: TradeStatus
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'trade_id', self.trade_id)
+        _require_str(name, 'reason', self.reason, optional=True)
+
 Event: TypeAlias = (
     CommandAccepted
     | OrderSubmitIntent
@@ -390,4 +420,5 @@ Event: TypeAlias = (
     | OrderCanceled
     | OrderExpired
     | TradeClosed
+    | TradeOutcomeProduced
 )

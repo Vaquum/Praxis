@@ -249,3 +249,16 @@
 - Add `_process_command` call in `_account_loop` after command dequeue in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add 9 `TestProcessCommand` tests covering market fill, limit no-fill, venue rejection, transient failure, multiple fills, fill deduplication, client order ID determinism, trading state projection, and loop resilience in [`test_execution_manager.py`](tests/test_execution_manager.py)
 - Bump version to 0.23.0 in [`pyproject.toml`](pyproject.toml)
+
+## v0.24.0 on 11th of March, 2026
+
+- Add `TradeOutcomeProduced` frozen event dataclass with `command_id`, `trade_id`, `status`, and `reason` fields in [`events.py`](praxis/core/domain/events.py)
+- Add `TradeOutcomeProduced` to `Event` type alias and `__all__` in [`events.py`](praxis/core/domain/events.py)
+- Add `TradeOutcomeProduced` handler with debug logging in `TradingState.apply()` in [`trading_state.py`](praxis/core/trading_state.py)
+- Add `TradeOutcomeProduced` to `_EVENT_REGISTRY` for hydration in [`event_spine.py`](praxis/infrastructure/event_spine.py)
+- Add `on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None` parameter to `ExecutionManager.__init__` in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `_build_outcome` method constructing `TradeOutcome`, emitting `TradeClosed` for terminal outcomes and `TradeOutcomeProduced` for all outcomes, and invoking the async callback in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add filled quantity summation, VWAP computation, and status determination (`FILLED`, `PARTIAL`, `PENDING`, `REJECTED`) to `_process_command` in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add 8 `TestTradeOutcome` tests covering callback delivery, rejected with reason, pending, partial fill, VWAP computation, no-callback, field correctness, and spine event verification in [`test_execution_manager.py`](tests/test_execution_manager.py)
+- Update 9 existing `TestProcessCommand` test assertions for `TradeClosed` and `TradeOutcomeProduced` event sequences in [`test_execution_manager.py`](tests/test_execution_manager.py)
+- Bump version to 0.24.0 in [`pyproject.toml`](pyproject.toml)

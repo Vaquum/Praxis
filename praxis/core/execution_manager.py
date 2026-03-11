@@ -14,13 +14,14 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-
+from collections.abc import Awaitable, Callable
 from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
     OrderSide,
     OrderType,
     STPMode,
+    TradeStatus,
 )
 from praxis.core.domain.events import (
     CommandAccepted,
@@ -28,7 +29,10 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    TradeClosed,
+    TradeOutcomeProduced,
 )
+from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
@@ -44,6 +48,7 @@ __all__ = ['AccountNotRegisteredError', 'ExecutionManager']
 _log = logging.getLogger(__name__)
 
 _QUEUE_POLL_INTERVAL = 0.1
+_ZERO = Decimal(0)
 
 
 class AccountNotRegisteredError(Exception):
@@ -85,6 +90,8 @@ class ExecutionManager:
         event_spine (EventSpine): Append-only event log for persistence.
         epoch_id (int): Current epoch identifier.
         venue_adapter (VenueAdapter): Venue interface for order submission.
+        on_trade_outcome (Callable[[TradeOutcome], Awaitable[None]] | None):
+            Async callback invoked with each TradeOutcome. None to skip.
     '''
 
     def __init__(
@@ -92,12 +99,14 @@ class ExecutionManager:
         event_spine: EventSpine,
         epoch_id: int,
         venue_adapter: VenueAdapter,
+        on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None,
     ) -> None:
         '''Store dependencies and initialize empty account registry.'''
 
         self._event_spine = event_spine
         self._epoch_id = epoch_id
         self._venue_adapter = venue_adapter
+        self._on_trade_outcome = on_trade_outcome
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
@@ -339,17 +348,22 @@ class ExecutionManager:
         self,
         runtime: _AccountRuntime,
         cmd: TradeCommand,
-    ) -> None:
+    ) -> TradeOutcome:
         '''
-        Submit a single order to the venue and emit resulting events.
+        Submit a single order to the venue and report outcome.
 
         Persist an OrderSubmitIntent before the venue call for crash
         durability, then append OrderSubmitted + FillReceived events
-        on success or OrderSubmitFailed on venue error.
+        on success or OrderSubmitFailed on venue error. Emit TradeClosed
+        for terminal outcomes, TradeOutcomeProduced for all outcomes,
+        and invoke the on_trade_outcome callback if set.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
             cmd (TradeCommand): Command to execute.
+
+        Returns:
+            TradeOutcome: Execution outcome for this command.
         '''
 
         client_order_id = generate_client_order_id(
@@ -401,7 +415,11 @@ class ExecutionManager:
                 client_order_id,
                 str(exc),
             )
-            return
+            return await self._build_outcome(
+                runtime, cmd, TradeStatus.REJECTED,
+                filled_qty=_ZERO, avg_fill_price=None,
+                reason=str(exc),
+            )
 
         submitted = OrderSubmitted(
             account_id=cmd.account_id,
@@ -439,3 +457,92 @@ class ExecutionManager:
             result.venue_order_id,
             len(result.immediate_fills),
         )
+
+        filled_qty = sum((f.qty for f in result.immediate_fills), _ZERO)
+        if filled_qty > _ZERO:
+            total_notional = sum(
+                (f.qty * f.price for f in result.immediate_fills), _ZERO,
+            )
+            avg_fill_price: Decimal | None = total_notional / filled_qty
+        else:
+            avg_fill_price = None
+
+        if filled_qty >= cmd.qty:
+            status = TradeStatus.FILLED
+        elif filled_qty > _ZERO:
+            status = TradeStatus.PARTIAL
+        else:
+            status = TradeStatus.PENDING
+
+        return await self._build_outcome(
+            runtime, cmd, status,
+            filled_qty=filled_qty, avg_fill_price=avg_fill_price,
+            reason=None,
+        )
+
+    async def _build_outcome(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        status: TradeStatus,
+        *,
+        filled_qty: Decimal,
+        avg_fill_price: Decimal | None,
+        reason: str | None,
+    ) -> TradeOutcome:
+        '''
+        Construct TradeOutcome, emit spine events, and invoke callback.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            cmd (TradeCommand): Originating command.
+            status (TradeStatus): Outcome status.
+            filled_qty (Decimal): Cumulative filled quantity.
+            avg_fill_price (Decimal | None): VWAP of fills.
+            reason (str | None): Descriptive reason for status.
+
+        Returns:
+            TradeOutcome: The constructed outcome.
+        '''
+
+        ts = datetime.now(timezone.utc)
+
+        outcome = TradeOutcome(
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            status=status,
+            target_qty=cmd.qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=1,
+            slices_total=1,
+            reason=reason,
+            created_at=ts,
+        )
+
+        if outcome.is_terminal:
+            closed = TradeClosed(
+                account_id=cmd.account_id,
+                timestamp=ts,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+            )
+            await self._event_spine.append(closed, self._epoch_id)
+            runtime.trading_state.apply(closed)
+
+        produced = TradeOutcomeProduced(
+            account_id=cmd.account_id,
+            timestamp=ts,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            status=status,
+            reason=reason,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+
+        if self._on_trade_outcome is not None:
+            await self._on_trade_outcome(outcome)
+
+        return outcome
