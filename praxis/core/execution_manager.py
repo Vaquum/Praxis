@@ -146,9 +146,30 @@ class ExecutionManager:
         _log.info('account registered: %s', account_id)
 
     def _deadline_at(self, cmd: TradeCommand) -> datetime:
+        '''
+        Compute the absolute deadline timestamp for a command.
+
+        Args:
+            cmd (TradeCommand): Command with timeout and created_at fields
+
+        Returns:
+            datetime: Timezone-aware deadline timestamp
+        '''
+
         return cmd.created_at + timedelta(seconds=cmd.timeout)
 
     def _deadline_exceeded(self, now: datetime, cmd: TradeCommand) -> bool:
+        '''
+        Determine whether a command deadline has been exceeded.
+
+        Args:
+            now (datetime): Current UTC timestamp
+            cmd (TradeCommand): Command to check deadline for
+
+        Returns:
+            bool: True if current time is at or past the deadline
+        '''
+
         return now >= self._deadline_at(cmd)
 
     async def unregister_account(self, account_id: str) -> None:

@@ -26,7 +26,7 @@ from praxis.core.domain.enums import (
     STPMode,
     TradeStatus,
 )
-from praxis.core.domain.events import CommandAccepted, OrderSubmitted, TradeOutcomeProduced
+from praxis.core.domain.events import CommandAccepted, OrderExpired, OrderSubmitted, TradeOutcomeProduced
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -35,13 +35,15 @@ from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
+    NotFoundError,
     OrderRejectedError,
     SubmitResult,
     TransientError,
     VenueAdapter,
 )
 
-_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_PAST_TS = datetime(2020, 1, 1, tzinfo=timezone.utc)
 _ACCT = 'acc-1'
 _ACCT2 = 'acc-2'
 _TRADE = 'trade-1'
@@ -849,5 +851,208 @@ class TestTradeOutcome:
             + Decimal('0.5') * Decimal('50200')
         ) / unclamped_qty
         assert outcome.avg_fill_price == expected_vwap
+
+        await mgr.unregister_account(_ACCT)
+
+
+class TestDeadlineHandling:
+    @pytest.mark.asyncio
+    async def test_pending_order_past_deadline_expires(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**{**_CMD_KWARGS, 'created_at': _PAST_TS})
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.EXPIRED
+        assert outcome.is_terminal
+        assert outcome.reason == 'deadline exceeded'
+        assert outcome.filled_qty == Decimal(0)
+        assert outcome.avg_fill_price is None
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_partial_fill_past_deadline_preserves_fill_data(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-dl',
+            status=OrderStatus.PARTIALLY_FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-dl1',
+                    qty=Decimal('0.3'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0003'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**{**_CMD_KWARGS, 'created_at': _PAST_TS})
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.EXPIRED
+        assert outcome.is_terminal
+        assert outcome.filled_qty == Decimal('0.3')
+        assert outcome.avg_fill_price == Decimal('50000')
+        assert outcome.reason == 'deadline exceeded'
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_expired_outcome_produced_event_in_spine(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**{**_CMD_KWARGS, 'created_at': _PAST_TS})
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        produced = [e for _, e in events if isinstance(e, TradeOutcomeProduced)]
+        assert len(produced) == 1
+        assert produced[0].status == TradeStatus.EXPIRED
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_expired_path_appends_order_expired(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**{**_CMD_KWARGS, 'created_at': _PAST_TS})
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        expired_events = [e for _, e in events if isinstance(e, OrderExpired)]
+        assert len(expired_events) == 1
+        adapter.cancel_order.assert_awaited_once()
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_expired_path_not_found_still_emits_order_expired(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.cancel_order.side_effect = NotFoundError('order not found')
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**{**_CMD_KWARGS, 'created_at': _PAST_TS})
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        expired_events = [e for _, e in events if isinstance(e, OrderExpired)]
+        assert len(expired_events) == 1
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_expired_path_venue_error_skips_order_expired(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        adapter.cancel_order.side_effect = TransientError('network timeout')
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**{**_CMD_KWARGS, 'created_at': _PAST_TS})
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        expired_events = [e for _, e in events if isinstance(e, OrderExpired)]
+        assert len(expired_events) == 0
+
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.EXPIRED
+        assert 'cancel failed' in (outcome.reason or '')
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_expired_command_is_terminal_for_abort(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**{**_CMD_KWARGS, 'created_at': _PAST_TS})
+        await asyncio.sleep(0.3)
+
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.EXPIRED
+
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='user cancel',
+            created_at=datetime.now(timezone.utc),
+        )
+        mgr.submit_abort(abort)
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_non_expired_command_within_deadline(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.PENDING
+        assert not outcome.is_terminal
+        adapter.cancel_order.assert_not_awaited()
 
         await mgr.unregister_account(_ACCT)
