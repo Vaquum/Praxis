@@ -24,10 +24,12 @@ from praxis.core.domain.enums import (
     OrderStatus,
     OrderType,
     STPMode,
+    TradeStatus,
 )
-from praxis.core.domain.events import CommandAccepted, OrderSubmitted
+from praxis.core.domain.events import CommandAccepted, OrderSubmitted, TradeOutcomeProduced
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
@@ -330,6 +332,8 @@ class TestProcessCommand:
             'OrderSubmitIntent',
             'OrderSubmitted',
             'FillReceived',
+            'TradeClosed',
+            'TradeOutcomeProduced',
         ]
 
     @pytest.mark.asyncio
@@ -342,7 +346,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitted']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitted', 'TradeOutcomeProduced']
 
     @pytest.mark.asyncio
     async def test_venue_rejection_produces_submit_failed(
@@ -360,7 +364,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed', 'TradeOutcomeProduced']
 
     @pytest.mark.asyncio
     async def test_transient_failure_produces_submit_failed(
@@ -376,7 +380,7 @@ class TestProcessCommand:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed']
+        assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed', 'TradeOutcomeProduced']
 
     @pytest.mark.asyncio
     async def test_multiple_fills(
@@ -428,6 +432,8 @@ class TestProcessCommand:
             'FillReceived',
             'FillReceived',
             'FillReceived',
+            'TradeClosed',
+            'TradeOutcomeProduced',
         ]
 
     @pytest.mark.asyncio
@@ -470,6 +476,8 @@ class TestProcessCommand:
             'OrderSubmitIntent',
             'OrderSubmitted',
             'FillReceived',
+            'TradeClosed',
+            'TradeOutcomeProduced',
         ]
 
     @pytest.mark.asyncio
@@ -488,7 +496,7 @@ class TestProcessCommand:
         assert submitted.client_order_id == expected
 
     @pytest.mark.asyncio
-    async def test_trading_state_has_position_after_fill(
+    async def test_trading_state_has_closed_order_after_fill(
         self,
         mgr: ExecutionManager,
         adapter: AsyncMock,
@@ -512,8 +520,7 @@ class TestProcessCommand:
         await asyncio.sleep(0.3)
 
         runtime = mgr._accounts[_ACCT]
-        assert len(runtime.trading_state.positions) > 0
-        assert runtime.trading_state.orders or runtime.trading_state.closed_orders
+        assert len(runtime.trading_state.closed_orders) > 0
 
     @pytest.mark.asyncio
     async def test_loop_continues_after_failure(
@@ -540,3 +547,307 @@ class TestProcessCommand:
         assert 'OrderSubmitFailed' in types
         assert 'OrderSubmitted' in types
         assert 'OrderSubmitIntent' in types
+
+
+class TestTradeOutcome:
+    @pytest.mark.asyncio
+    async def test_filled_outcome_delivered_via_callback(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-o1',
+                    qty=Decimal('1'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.001'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.FILLED
+        assert outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_rejected_outcome_has_reason(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.side_effect = OrderRejectedError(
+            'bad qty', venue_code=-1013, reason='bad qty'
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.REJECTED
+        assert outcome.is_terminal
+        assert outcome.reason is not None
+        assert 'bad qty' in outcome.reason
+        assert outcome.filled_qty == Decimal(0)
+        assert outcome.avg_fill_price is None
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_pending_outcome_for_limit_no_fill(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.PENDING
+        assert not outcome.is_terminal
+        assert outcome.filled_qty == Decimal(0)
+        assert outcome.avg_fill_price is None
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_partial_fill_outcome(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-p1',
+            status=OrderStatus.PARTIALLY_FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-p1',
+                    qty=Decimal('0.3'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0003'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.PARTIAL
+        assert not outcome.is_terminal
+        assert outcome.filled_qty == Decimal('0.3')
+        assert outcome.avg_fill_price == Decimal('50000')
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_vwap_computation_multiple_fills(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-vw',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-vw1',
+                    qty=Decimal('0.6'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0006'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+                ImmediateFill(
+                    venue_trade_id='t-vw2',
+                    qty=Decimal('0.4'),
+                    price=Decimal('50100'),
+                    fee=Decimal('0.0004'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        outcome: TradeOutcome = callback.call_args[0][0]
+        notional = (
+            Decimal('0.6') * Decimal('50000')
+            + Decimal('0.4') * Decimal('50100')
+        )
+        expected_vwap = notional / Decimal('1')
+        assert outcome.avg_fill_price == expected_vwap
+        assert outcome.filled_qty == Decimal('1')
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_no_callback_does_not_raise(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'TradeOutcomeProduced' in types
+
+    @pytest.mark.asyncio
+    async def test_outcome_field_correctness(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-fc',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-fc',
+                    qty=Decimal('1'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.001'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.command_id == command_id
+        assert outcome.trade_id == _TRADE
+        assert outcome.account_id == _ACCT
+        assert outcome.target_qty == Decimal('1')
+        assert outcome.slices_completed == 1
+        assert outcome.slices_total == 1
+        assert outcome.missed_iterations is None
+        assert outcome.missed_reason is None
+        assert outcome.created_at.tzinfo is not None
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_outcome_produced_event_in_spine(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        produced = [e for _, e in events if isinstance(e, TradeOutcomeProduced)]
+        assert len(produced) == 1
+        assert produced[0].command_id is not None
+        assert produced[0].trade_id == _TRADE
+        assert produced[0].status == TradeStatus.PENDING
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_overfill_clamped_with_correct_vwap(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-of',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-of1',
+                    qty=Decimal('0.7'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.0007'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+                ImmediateFill(
+                    venue_trade_id='t-of2',
+                    qty=Decimal('0.5'),
+                    price=Decimal('50200'),
+                    fee=Decimal('0.0005'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.filled_qty == Decimal('1')
+        assert outcome.status == TradeStatus.FILLED
+        unclamped_qty = Decimal('0.7') + Decimal('0.5')
+        expected_vwap = (
+            Decimal('0.7') * Decimal('50000')
+            + Decimal('0.5') * Decimal('50200')
+        ) / unclamped_qty
+        assert outcome.avg_fill_price == expected_vwap
+
+        await mgr.unregister_account(_ACCT)

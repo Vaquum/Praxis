@@ -24,6 +24,7 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
     TradeClosed,
+    TradeOutcomeProduced,
 )
 from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
@@ -84,6 +85,13 @@ class TradingState:
             self._on_order_expired(event)
         elif isinstance(event, TradeClosed):
             self._on_trade_closed(event)
+        elif isinstance(event, TradeOutcomeProduced):
+            _log.debug(
+                'trade outcome produced: command_id=%s trade_id=%s account=%s',
+                event.command_id,
+                event.trade_id,
+                self.account_id,
+            )
         else:
             _log.warning(
                 'unhandled event type in apply: %s account=%s',
