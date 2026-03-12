@@ -72,7 +72,10 @@ class TradingInbound:
         self._venue_adapter.register_account(account_id, api_key, api_secret)
         try:
             self._execution_manager.register_account(account_id)
-        except ValueError:
+        except Exception as exc:
+            reason = exc.args[0] if exc.args else str(exc)
+            if isinstance(exc, ValueError) and 'already registered' in str(reason):
+                raise
             with contextlib.suppress(KeyError):
                 self._venue_adapter.unregister_account(account_id)
             raise
@@ -85,5 +88,8 @@ class TradingInbound:
             account_id (str): Account identifier.
         '''
 
-        await self._execution_manager.unregister_account(account_id)
-        self._venue_adapter.unregister_account(account_id)
+        try:
+            await self._execution_manager.unregister_account(account_id)
+        finally:
+            with contextlib.suppress(KeyError):
+                self._venue_adapter.unregister_account(account_id)
