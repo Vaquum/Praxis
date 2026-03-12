@@ -2446,6 +2446,35 @@ class TestParseOcoResponse:
         assert result.status == OrderStatus.CANCELED
         assert result.immediate_fills == ()
 
+    def test_all_done_partially_filled(self) -> None:
+
+        adapter = _make_adapter()
+        partial_response: dict[str, Any] = {
+            'orderListId': 99999,
+            'contingencyType': 'OCO',
+            'listStatusType': 'ALL_DONE',
+            'listOrderStatus': 'ALL_DONE',
+            'listClientOrderId': 'oco-list-4',
+            'transactionTime': 1700000000000,
+            'symbol': 'BTCUSDT',
+            'orders': [],
+            'orderReports': [
+                {'status': 'PARTIALLY_FILLED', 'fills': [
+                    {
+                        'tradeId': 301,
+                        'qty': '0.005',
+                        'price': '49000.00',
+                        'commission': '0.000005',
+                        'commissionAsset': 'BTC',
+                    },
+                ]},
+                {'status': 'CANCELED', 'fills': []},
+            ],
+        }
+        result = adapter._parse_oco_response(partial_response)
+        assert result.status == OrderStatus.PARTIALLY_FILLED
+        assert len(result.immediate_fills) == 1
+
     def test_is_maker_read_from_payload(self) -> None:
 
         adapter = _make_adapter()

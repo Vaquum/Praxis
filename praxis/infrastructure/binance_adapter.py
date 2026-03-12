@@ -782,8 +782,10 @@ class BinanceAdapter:
         list_status = data['listOrderStatus']
         if list_status == 'ALL_DONE':
             leg_statuses = {r.get('status') for r in data.get('orderReports', [])}
-            if 'FILLED' in leg_statuses or 'PARTIALLY_FILLED' in leg_statuses:
+            if 'FILLED' in leg_statuses:
                 status = OrderStatus.FILLED
+            elif 'PARTIALLY_FILLED' in leg_statuses:
+                status = OrderStatus.PARTIALLY_FILLED
             else:
                 status = OrderStatus.CANCELED
         else:

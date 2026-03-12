@@ -295,7 +295,7 @@
 - Add `stop_limit_price: Decimal | None` field to `OrderSubmitIntent` with positive-value validation in [`events.py`](praxis/core/domain/events.py)
 - Add `stop_limit_price` passthrough from `SingleShotParams` through `OrderSubmitIntent` to `VenueAdapter.submit_order` in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `stop_limit_price` keyword parameter to `VenueAdapter.submit_order` protocol in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
-- Add `_BINANCE_OCO_STATUS_MAP` constant mapping Binance OCO list statuses (`EXECUTING`, `ALL_DONE`, `REJECT`) to `OrderStatus` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_BINANCE_OCO_STATUS_MAP` constant mapping Binance OCO list statuses (`EXECUTING`, `REJECT`) to `OrderStatus` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Add `_build_oco_params` helper building Binance `POST /api/v3/order/oco` request parameters with symbol, side, qty, price, stopPrice, stopLimitPrice, and listClientOrderId in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Add `_parse_oco_response` helper extracting `orderListId` as venue_order_id, mapping `listOrderStatus`, and collecting fills from both `orderReports` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Add OCO order dispatch in `submit_order` routing `OrderType.OCO` to `/api/v3/order/oco` with dedicated params builder and response parser in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
