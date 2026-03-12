@@ -475,7 +475,7 @@ class ExecutionManager:
                 'slippage estimate skipped: command_id=%s trade_id=%s reason=%s',
                 cmd.command_id,
                 cmd.trade_id,
-                str(exc),
+                exc.args[0] if exc.args else str(exc),
             )
 
         client_order_id = generate_client_order_id(

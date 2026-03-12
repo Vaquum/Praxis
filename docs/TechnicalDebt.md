@@ -67,6 +67,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 **When to fix**: Before epochs grow to thousands of events.
 **Migration**: Precompute a `{event_type: hints}` map alongside `_EVENT_REGISTRY` at module load time and reuse it in `_hydrate`.
 
+---
 
 ## TD-007: Duplicated retry loop in _signed_request and _api_key_request
 
