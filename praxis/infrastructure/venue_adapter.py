@@ -416,6 +416,7 @@ class VenueAdapter(Protocol):
         *,
         price: Decimal | None = None,
         stop_price: Decimal | None = None,
+        stop_limit_price: Decimal | None = None,
         client_order_id: str | None = None,
         time_in_force: str | None = None,
     ) -> SubmitResult:
@@ -431,6 +432,7 @@ class VenueAdapter(Protocol):
             qty (Decimal): Order quantity
             price (Decimal | None): Limit price, required for limit orders
             stop_price (Decimal | None): Stop trigger price
+            stop_limit_price (Decimal | None): Stop-limit price for OCO orders
             client_order_id (str | None): Deterministic client order identifier
             time_in_force (str | None): Time-in-force policy
 
@@ -467,6 +469,32 @@ class VenueAdapter(Protocol):
 
         ...
 
+    async def cancel_order_list(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+
+        '''
+        Cancel an open order list on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            venue_order_id (str | None): Venue-assigned order list identifier
+            client_order_id (str | None): Deterministic client order list identifier
+
+        Note:
+            At least one of venue_order_id or client_order_id must be provided.
+
+        Returns:
+            CancelResult: Venue response with order list ID and terminal status
+        '''
+
+        ...
     async def query_order(
         self,
         account_id: str,

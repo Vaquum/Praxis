@@ -424,6 +424,19 @@ class ExecutionManager:
                 reason=abort_reason,
             )
 
+        if cmd.execution_mode != ExecutionMode.SINGLE_SHOT:
+            reject_reason = f"execution mode {cmd.execution_mode.value} is not yet supported"
+            _log.warning(
+                'unsupported execution mode: command_id=%s mode=%s',
+                cmd.command_id,
+                cmd.execution_mode.value,
+            )
+            return await self._build_outcome(
+                runtime, cmd, TradeStatus.REJECTED,
+                filled_qty=_ZERO, avg_fill_price=None,
+                reason=reject_reason,
+            )
+
         client_order_id = generate_client_order_id(
             cmd.execution_mode,
             cmd.command_id,
@@ -443,6 +456,7 @@ class ExecutionManager:
             qty=cmd.qty,
             price=cmd.execution_params.price,
             stop_price=cmd.execution_params.stop_price,
+            stop_limit_price=cmd.execution_params.stop_limit_price,
         )
         await self._event_spine.append(intent, self._epoch_id)
         runtime.trading_state.apply(intent)
@@ -456,6 +470,7 @@ class ExecutionManager:
                 cmd.qty,
                 price=cmd.execution_params.price,
                 stop_price=cmd.execution_params.stop_price,
+                stop_limit_price=cmd.execution_params.stop_limit_price,
                 client_order_id=client_order_id,
             )
             post_venue_ts = datetime.now(timezone.utc)
@@ -550,11 +565,18 @@ class ExecutionManager:
             reason = 'deadline exceeded'
             cancel_confirmed = True
             try:
-                await self._venue_adapter.cancel_order(
-                    cmd.account_id,
-                    cmd.symbol,
-                    client_order_id=client_order_id,
-                )
+                if cmd.order_type == OrderType.OCO:
+                    await self._venue_adapter.cancel_order_list(
+                        cmd.account_id,
+                        cmd.symbol,
+                        client_order_id=client_order_id,
+                    )
+                else:
+                    await self._venue_adapter.cancel_order(
+                        cmd.account_id,
+                        cmd.symbol,
+                        client_order_id=client_order_id,
+                    )
             except NotFoundError:
                 pass
             except VenueError as exc:
@@ -635,11 +657,18 @@ class ExecutionManager:
         reason = abort.reason
         cancel_confirmed = True
         try:
-            await self._venue_adapter.cancel_order(
-                cmd.account_id,
-                cmd.symbol,
-                client_order_id=client_order_id,
-            )
+            if cmd.order_type == OrderType.OCO:
+                await self._venue_adapter.cancel_order_list(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=client_order_id,
+                )
+            else:
+                await self._venue_adapter.cancel_order(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=client_order_id,
+                )
         except NotFoundError:
             pass
         except VenueError as exc:
