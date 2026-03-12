@@ -2470,6 +2470,7 @@ class TestParseOcoResponse:
         }
         result = adapter._parse_oco_response(response_with_maker)
         assert result.immediate_fills[0].is_maker is True
+
     def test_unknown_list_status_raises(self) -> None:
 
         adapter = _make_adapter()
