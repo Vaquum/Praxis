@@ -34,6 +34,7 @@ from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionMa
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
+    CancelResult,
     ImmediateFill,
     NotFoundError,
     OrderRejectedError,
@@ -1353,5 +1354,54 @@ class TestStopLimitPassthrough:
         assert intents[0].stop_limit_price == Decimal('47500')
         assert intents[0].stop_price == Decimal('48000')
         assert intents[0].price == Decimal('50000')
+
+        await mgr.unregister_account(_ACCT)
+
+
+class TestOcoAbortRouting:
+    @pytest.mark.asyncio
+    async def test_abort_oco_calls_cancel_order_list(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-oco',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        adapter.cancel_order_list.return_value = CancelResult(
+            venue_order_id='v-oco',
+            status=OrderStatus.CANCELED,
+        )
+        mgr.register_account(_ACCT)
+        oco_params = SingleShotParams(
+            price=Decimal('50000'),
+            stop_price=Decimal('48000'),
+            stop_limit_price=Decimal('47500'),
+        )
+        command_id = await mgr.submit_command(
+            **{**_CMD_KWARGS, 'order_type': OrderType.OCO, 'execution_params': oco_params},
+        )
+
+        await asyncio.sleep(0.3)
+
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='oco abort',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
+
+        await asyncio.sleep(0.3)
+
+        adapter.cancel_order_list.assert_awaited_once()
+        adapter.cancel_order.assert_not_awaited()
 
         await mgr.unregister_account(_ACCT)

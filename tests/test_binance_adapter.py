@@ -2379,6 +2379,17 @@ class TestBuildOcoParams:
         assert params['stopLimitPrice'] == '47500'
         assert params['stopLimitTimeInForce'] == 'GTC'
 
+    def test_time_in_force_passed_through(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_oco_params(
+            'BTCUSDT', OrderSide.SELL, Decimal('0.01'),
+            price=Decimal('50000'), stop_price=Decimal('48000'),
+            stop_limit_price=Decimal('47500'),
+            time_in_force='IOC',
+        )
+        assert params['stopLimitTimeInForce'] == 'IOC'
+
     def test_client_order_id_as_list_client_order_id(self) -> None:
 
         adapter = _make_adapter()
@@ -2414,6 +2425,51 @@ class TestParseOcoResponse:
         assert fill.fee == Decimal('0.00001')
         assert fill.fee_asset == 'BTC'
 
+    def test_all_done_canceled_no_fills(self) -> None:
+
+        adapter = _make_adapter()
+        canceled_response: dict[str, Any] = {
+            'orderListId': 99999,
+            'contingencyType': 'OCO',
+            'listStatusType': 'ALL_DONE',
+            'listOrderStatus': 'ALL_DONE',
+            'listClientOrderId': 'oco-list-3',
+            'transactionTime': 1700000000000,
+            'symbol': 'BTCUSDT',
+            'orders': [],
+            'orderReports': [
+                {'status': 'CANCELED', 'fills': []},
+                {'status': 'CANCELED', 'fills': []},
+            ],
+        }
+        result = adapter._parse_oco_response(canceled_response)
+        assert result.status == OrderStatus.CANCELED
+        assert result.immediate_fills == ()
+
+    def test_is_maker_read_from_payload(self) -> None:
+
+        adapter = _make_adapter()
+        response_with_maker: dict[str, Any] = {
+            **_BINANCE_OCO_RESPONSE_WITH_FILLS,
+            'orderReports': [
+                {
+                    **_BINANCE_OCO_RESPONSE_WITH_FILLS['orderReports'][0],
+                    'fills': [
+                        {
+                            'tradeId': 201,
+                            'qty': '0.01',
+                            'price': '50000.00',
+                            'commission': '0.00001',
+                            'commissionAsset': 'BTC',
+                            'isMaker': True,
+                        },
+                    ],
+                },
+                _BINANCE_OCO_RESPONSE_WITH_FILLS['orderReports'][1],
+            ],
+        }
+        result = adapter._parse_oco_response(response_with_maker)
+        assert result.immediate_fills[0].is_maker is True
     def test_unknown_list_status_raises(self) -> None:
 
         adapter = _make_adapter()
@@ -2460,3 +2516,62 @@ class TestSubmitOcoOrder:
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.SELL, OrderType.OCO,
                 Decimal('0.01'), price=Decimal('50000'),
             )
+
+
+class TestCancelOrderList:
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_list_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        cancel_response: dict[str, Any] = {
+            'orderListId': 99999,
+            'contingencyType': 'OCO',
+            'listStatusType': 'ALL_DONE',
+            'listOrderStatus': 'ALL_DONE',
+            'listClientOrderId': 'oco-list-1',
+            'transactionTime': 1700000000000,
+            'symbol': 'BTCUSDT',
+            'orders': [],
+            'orderReports': [],
+        }
+        _patch_session(adapter, _mock_response(200, cancel_response))
+        result = await adapter.cancel_order_list(
+            _ACCOUNT_ID, 'BTCUSDT',
+            client_order_id='oco-list-1',
+        )
+        assert result.venue_order_id == '99999'
+        assert result.status == OrderStatus.CANCELED
+
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        assert '/api/v3/orderList?' in call_args.args[1]
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_order_list_id(self) -> None:
+
+        adapter = _make_adapter()
+        cancel_response: dict[str, Any] = {
+            'orderListId': 99999,
+            'contingencyType': 'OCO',
+            'listStatusType': 'ALL_DONE',
+            'listOrderStatus': 'ALL_DONE',
+            'listClientOrderId': 'oco-list-1',
+            'transactionTime': 1700000000000,
+            'symbol': 'BTCUSDT',
+            'orders': [],
+            'orderReports': [],
+        }
+        _patch_session(adapter, _mock_response(200, cancel_response))
+        result = await adapter.cancel_order_list(
+            _ACCOUNT_ID, 'BTCUSDT',
+            venue_order_id='99999',
+        )
+        assert result.venue_order_id == '99999'
+        assert result.status == OrderStatus.CANCELED
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_neither_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='At least one of'):
+            await adapter.cancel_order_list(_ACCOUNT_ID, 'BTCUSDT')

@@ -106,7 +106,6 @@ _BINANCE_EXECUTION_TYPE_MAP: dict[str, ExecutionType] = {
 
 _BINANCE_OCO_STATUS_MAP: dict[str, OrderStatus] = {
     'EXECUTING': OrderStatus.OPEN,
-    'ALL_DONE': OrderStatus.FILLED,
     'REJECT': OrderStatus.REJECTED,
 }
 
@@ -641,6 +640,7 @@ class BinanceAdapter:
         stop_price: Decimal,
         stop_limit_price: Decimal | None = None,
         client_order_id: str | None = None,
+        time_in_force: str | None = None,
     ) -> dict[str, str]:
 
         '''
@@ -654,6 +654,7 @@ class BinanceAdapter:
             stop_price (Decimal): Stop trigger price
             stop_limit_price (Decimal | None): Stop-limit leg price
             client_order_id (str | None): OCO list client order identifier
+            time_in_force (str | None): Time-in-force for stop-limit leg
 
         Returns:
             dict[str, str]: Binance OCO API query parameters
@@ -670,7 +671,7 @@ class BinanceAdapter:
 
         if stop_limit_price is not None:
             params['stopLimitPrice'] = format(stop_limit_price, 'f')
-            params['stopLimitTimeInForce'] = 'GTC'
+            params['stopLimitTimeInForce'] = time_in_force or 'GTC'
 
         if client_order_id is not None:
             params['listClientOrderId'] = client_order_id
@@ -772,18 +773,25 @@ class BinanceAdapter:
                 price=Decimal(f['price']),
                 fee=Decimal(f['commission']),
                 fee_asset=f['commissionAsset'],
-                is_maker=False,  # Binance OCO fills omit isMaker; always taker
+                is_maker=bool(f.get('isMaker', False)),
             )
             for report in data.get('orderReports', [])
             for f in report.get('fills', [])
         )
 
         list_status = data['listOrderStatus']
-        try:
-            status = _BINANCE_OCO_STATUS_MAP[list_status]
-        except KeyError:
-            msg = f"Unknown Binance OCO list status: '{list_status}'"
-            raise ValueError(msg) from None
+        if list_status == 'ALL_DONE':
+            leg_statuses = {r.get('status') for r in data.get('orderReports', [])}
+            if 'FILLED' in leg_statuses or 'PARTIALLY_FILLED' in leg_statuses:
+                status = OrderStatus.FILLED
+            else:
+                status = OrderStatus.CANCELED
+        else:
+            try:
+                status = _BINANCE_OCO_STATUS_MAP[list_status]
+            except KeyError:
+                msg = f"Unknown Binance OCO list status: '{list_status}'"
+                raise ValueError(msg) from None
 
         return SubmitResult(
             venue_order_id=str(data['orderListId']),
@@ -990,6 +998,7 @@ class BinanceAdapter:
                 price=price, stop_price=stop_price,
                 stop_limit_price=stop_limit_price,
                 client_order_id=client_order_id,
+                time_in_force=time_in_force,
             )
             data = await self._signed_request(
                 'POST', '/api/v3/order/oco', params, account_id,
@@ -1043,6 +1052,51 @@ class BinanceAdapter:
         return CancelResult(
             venue_order_id=str(data['orderId']),
             status=self._map_order_status(data['status']),
+        )
+
+    async def cancel_order_list(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+
+        '''
+        Cancel an open order list on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            venue_order_id (str | None): Venue-assigned order list identifier
+            client_order_id (str | None): Deterministic client order list identifier
+
+        Note:
+            At least one of venue_order_id or client_order_id must be provided.
+
+        Returns:
+            CancelResult: Venue response with order list ID and terminal status
+        '''
+
+        if venue_order_id is None and client_order_id is None:
+            msg = 'At least one of venue_order_id or client_order_id must be provided'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {'symbol': symbol}
+
+        if venue_order_id is not None:
+            params['orderListId'] = venue_order_id
+
+        if client_order_id is not None:
+            params['listClientOrderId'] = client_order_id
+
+        data = await self._signed_request(
+            'DELETE', '/api/v3/orderList', params, account_id,
+        )
+        return CancelResult(
+            venue_order_id=str(data['orderListId']),
+            status=OrderStatus.CANCELED,
         )
 
     async def query_order(

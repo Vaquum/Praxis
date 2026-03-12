@@ -469,6 +469,32 @@ class VenueAdapter(Protocol):
 
         ...
 
+    async def cancel_order_list(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+
+        '''
+        Cancel an open order list on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            symbol (str): Trading pair symbol
+            venue_order_id (str | None): Venue-assigned order list identifier
+            client_order_id (str | None): Deterministic client order list identifier
+
+        Note:
+            At least one of venue_order_id or client_order_id must be provided.
+
+        Returns:
+            CancelResult: Venue response with order list ID and terminal status
+        '''
+
+        ...
     async def query_order(
         self,
         account_id: str,

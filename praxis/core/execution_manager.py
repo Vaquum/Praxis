@@ -565,11 +565,18 @@ class ExecutionManager:
             reason = 'deadline exceeded'
             cancel_confirmed = True
             try:
-                await self._venue_adapter.cancel_order(
-                    cmd.account_id,
-                    cmd.symbol,
-                    client_order_id=client_order_id,
-                )
+                if cmd.order_type == OrderType.OCO:
+                    await self._venue_adapter.cancel_order_list(
+                        cmd.account_id,
+                        cmd.symbol,
+                        client_order_id=client_order_id,
+                    )
+                else:
+                    await self._venue_adapter.cancel_order(
+                        cmd.account_id,
+                        cmd.symbol,
+                        client_order_id=client_order_id,
+                    )
             except NotFoundError:
                 pass
             except VenueError as exc:
@@ -650,11 +657,18 @@ class ExecutionManager:
         reason = abort.reason
         cancel_confirmed = True
         try:
-            await self._venue_adapter.cancel_order(
-                cmd.account_id,
-                cmd.symbol,
-                client_order_id=client_order_id,
-            )
+            if cmd.order_type == OrderType.OCO:
+                await self._venue_adapter.cancel_order_list(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=client_order_id,
+                )
+            else:
+                await self._venue_adapter.cancel_order(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=client_order_id,
+                )
         except NotFoundError:
             pass
         except VenueError as exc:
