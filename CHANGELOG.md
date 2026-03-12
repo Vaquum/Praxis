@@ -315,3 +315,11 @@
 - Add post-fill slippage logging in `_process_command` for `execution_slippage_bps` (vs estimated mid-price) and conditional `arrival_slippage_bps` (vs `reference_price`) in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add slippage-focused `ExecutionManager` tests for estimate logging, order-book-query failure fallback, execution slippage logging, and arrival slippage logging in [`test_execution_manager_slippage.py`](tests/test_execution_manager_slippage.py)
 - Add `estimate_slippage` and `SlippageEstimate` re-exports in [`__init__.py`](praxis/core/__init__.py)
+
+## v0.29.0 on 13th of March, 2026
+
+- Add `register_account(account_id, api_key, api_secret)` and `unregister_account(account_id)` methods to `VenueAdapter` protocol in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `TradingInbound` service providing basic inbound account registration orchestration with hardcoded account credential mapping in [`trading_inbound.py`](praxis/trading_inbound.py)
+- Add rollback behavior in `TradingInbound.register_account` to remove venue credentials when execution account registration fails in [`trading_inbound.py`](praxis/trading_inbound.py)
+- Add `TradingInbound` tests covering happy path, unknown credentials, empty account id rejection, rollback behavior, and unregister orchestration in [`test_trading_inbound.py`](tests/test_trading_inbound.py)
+- Add protocol conformance coverage for the new account registration methods in [`test_venue_adapter.py`](tests/test_venue_adapter.py)

@@ -406,6 +406,35 @@ class VenueAdapter(Protocol):
     response normalization internally.
     '''
 
+    def register_account(
+        self,
+        account_id: str,
+        api_key: str,
+        api_secret: str,
+    ) -> None:
+
+        '''
+        Register credentials for an account.
+
+        Args:
+            account_id (str): Account identifier.
+            api_key (str): Venue API key.
+            api_secret (str): Venue API secret.
+        '''
+
+        ...
+
+    def unregister_account(self, account_id: str) -> None:
+
+        '''
+        Remove credentials for an account.
+
+        Args:
+            account_id (str): Account identifier.
+        '''
+
+        ...
+
     async def submit_order(
         self,
         account_id: str,
