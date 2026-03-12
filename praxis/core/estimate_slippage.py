@@ -59,7 +59,7 @@ def estimate_slippage(
 
     Returns:
         SlippageEstimate | None: Estimate with mid-price, simulated VWAP,
-            and slippage in bps. None when the book lacks both a bid and
+            and slippage in bps. None when the book lacks either a bid or
             an ask (mid-price cannot be computed).
     '''
 

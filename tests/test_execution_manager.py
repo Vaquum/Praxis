@@ -213,7 +213,7 @@ class TestSubmitAbort:
         assert mgr._accounts[_ACCT].priority_queue.qsize() == 1
 
     @pytest.mark.asyncio
-    async def test_unregistered_account_raises(self, mgr: ExecutionManager) -> None:
+    async def test_unregistered_abort_account_raises(self, mgr: ExecutionManager) -> None:
         abort = TradeAbort(
             command_id='cmd-1',
             account_id='unknown',

@@ -600,20 +600,21 @@ class ExecutionManager:
                 estimate.mid_price,
                 avg_fill_price,
             )
-            if cmd.reference_price is not None:
-                arrival_slippage_bps = (
-                    (avg_fill_price - cmd.reference_price)
-                    / cmd.reference_price
-                    * _BPS_MULTIPLIER
-                )
-                _log.info(
-                    'arrival slippage computed: command_id=%s trade_id=%s arrival_slippage_bps=%s reference_price=%s avg_fill_price=%s',
-                    cmd.command_id,
-                    cmd.trade_id,
-                    arrival_slippage_bps,
-                    cmd.reference_price,
-                    avg_fill_price,
-                )
+
+        if avg_fill_price is not None and cmd.reference_price is not None:
+            arrival_slippage_bps = (
+                (avg_fill_price - cmd.reference_price)
+                / cmd.reference_price
+                * _BPS_MULTIPLIER
+            )
+            _log.info(
+                'arrival slippage computed: command_id=%s trade_id=%s arrival_slippage_bps=%s reference_price=%s avg_fill_price=%s',
+                cmd.command_id,
+                cmd.trade_id,
+                arrival_slippage_bps,
+                cmd.reference_price,
+                avg_fill_price,
+            )
 
         if filled_qty > cmd.qty:
             _log.warning(

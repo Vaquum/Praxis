@@ -134,6 +134,50 @@ async def test_submission_proceeds_when_order_book_query_fails(
 
 
 @pytest.mark.asyncio
+async def test_logs_arrival_slippage_when_estimate_is_unavailable(
+    spine: EventSpine,
+    adapter: AsyncMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    adapter.query_order_book.side_effect = TransientError('depth unavailable')
+    adapter.submit_order.return_value = SubmitResult(
+        venue_order_id='venue-3',
+        status=OrderStatus.FILLED,
+        immediate_fills=(
+            ImmediateFill(
+                venue_trade_id='t-4',
+                qty=Decimal('1'),
+                price=Decimal('50020'),
+                fee=Decimal('0.001'),
+                fee_asset='BTC',
+                is_maker=False,
+            ),
+        ),
+    )
+    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
+    mgr.register_account(_ACCT)
+
+    with caplog.at_level(logging.INFO):
+        await mgr.submit_command(
+            **{**_CMD_KWARGS, 'reference_price': Decimal('49950')},
+        )
+        await asyncio.sleep(0.3)
+
+    arrival_records = [
+        record
+        for record in caplog.records
+        if record.msg.startswith('arrival slippage computed:')
+    ]
+    execution_records = [
+        record
+        for record in caplog.records
+        if record.msg.startswith('execution slippage computed:')
+    ]
+    assert len(arrival_records) == 1
+    assert len(execution_records) == 0
+
+
+@pytest.mark.asyncio
 async def test_logs_execution_slippage_bps_after_fill(
     spine: EventSpine,
     adapter: AsyncMock,
