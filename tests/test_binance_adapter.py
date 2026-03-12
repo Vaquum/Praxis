@@ -126,6 +126,107 @@ _BINANCE_TRADE_RESPONSE: dict[str, Any] = {
     'time': 1700000000000,
 }
 
+_BINANCE_OCO_RESPONSE: dict[str, Any] = {
+    'orderListId': 99999,
+    'contingencyType': 'OCO',
+    'listStatusType': 'EXEC_STARTED',
+    'listOrderStatus': 'EXECUTING',
+    'listClientOrderId': 'oco-list-1',
+    'transactionTime': 1700000000000,
+    'symbol': 'BTCUSDT',
+    'orders': [
+        {'symbol': 'BTCUSDT', 'orderId': 10, 'clientOrderId': 'limit-leg'},
+        {'symbol': 'BTCUSDT', 'orderId': 11, 'clientOrderId': 'stop-leg'},
+    ],
+    'orderReports': [
+        {
+            'symbol': 'BTCUSDT',
+            'orderId': 10,
+            'orderListId': 99999,
+            'clientOrderId': 'limit-leg',
+            'transactTime': 1700000000000,
+            'price': '50000.00',
+            'origQty': '0.01',
+            'executedQty': '0.00',
+            'status': 'NEW',
+            'timeInForce': 'GTC',
+            'type': 'LIMIT_MAKER',
+            'side': 'SELL',
+            'fills': [],
+        },
+        {
+            'symbol': 'BTCUSDT',
+            'orderId': 11,
+            'orderListId': 99999,
+            'clientOrderId': 'stop-leg',
+            'transactTime': 1700000000000,
+            'price': '47500.00',
+            'origQty': '0.01',
+            'executedQty': '0.00',
+            'status': 'NEW',
+            'timeInForce': 'GTC',
+            'type': 'STOP_LOSS_LIMIT',
+            'side': 'SELL',
+            'stopPrice': '48000.00',
+            'fills': [],
+        },
+    ],
+}
+
+_BINANCE_OCO_RESPONSE_WITH_FILLS: dict[str, Any] = {
+    'orderListId': 99999,
+    'contingencyType': 'OCO',
+    'listStatusType': 'ALL_DONE',
+    'listOrderStatus': 'ALL_DONE',
+    'listClientOrderId': 'oco-list-2',
+    'transactionTime': 1700000000000,
+    'symbol': 'BTCUSDT',
+    'orders': [
+        {'symbol': 'BTCUSDT', 'orderId': 20, 'clientOrderId': 'limit-leg-2'},
+        {'symbol': 'BTCUSDT', 'orderId': 21, 'clientOrderId': 'stop-leg-2'},
+    ],
+    'orderReports': [
+        {
+            'symbol': 'BTCUSDT',
+            'orderId': 20,
+            'orderListId': 99999,
+            'clientOrderId': 'limit-leg-2',
+            'transactTime': 1700000000000,
+            'price': '50000.00',
+            'origQty': '0.01',
+            'executedQty': '0.01',
+            'status': 'FILLED',
+            'timeInForce': 'GTC',
+            'type': 'LIMIT_MAKER',
+            'side': 'SELL',
+            'fills': [
+                {
+                    'tradeId': 201,
+                    'qty': '0.01',
+                    'price': '50000.00',
+                    'commission': '0.00001',
+                    'commissionAsset': 'BTC',
+                },
+            ],
+        },
+        {
+            'symbol': 'BTCUSDT',
+            'orderId': 21,
+            'orderListId': 99999,
+            'clientOrderId': 'stop-leg-2',
+            'transactTime': 1700000000000,
+            'price': '47500.00',
+            'origQty': '0.01',
+            'executedQty': '0.00',
+            'status': 'CANCELED',
+            'timeInForce': 'GTC',
+            'type': 'STOP_LOSS_LIMIT',
+            'side': 'SELL',
+            'stopPrice': '48000.00',
+            'fills': [],
+        },
+    ],
+}
 
 _BINANCE_EXCHANGE_INFO_RESPONSE: dict[str, Any] = {
     'rateLimits': [
@@ -2247,3 +2348,115 @@ class TestParseExecutionReport:
         assert str(result.last_filled_qty) == '0.50000000'
         assert str(result.last_filled_price) == '50000.00000000'
         assert str(result.commission) == '0.00050000'
+
+
+class TestBuildOcoParams:
+
+    def test_required_params(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_oco_params(
+            'BTCUSDT', OrderSide.SELL, Decimal('0.01'),
+            price=Decimal('50000'), stop_price=Decimal('48000'),
+        )
+        assert params['symbol'] == 'BTCUSDT'
+        assert params['side'] == 'SELL'
+        assert params['quantity'] == '0.01'
+        assert params['price'] == '50000'
+        assert params['stopPrice'] == '48000'
+        assert params['newOrderRespType'] == 'FULL'
+        assert 'stopLimitPrice' not in params
+        assert 'stopLimitTimeInForce' not in params
+
+    def test_stop_limit_price_included(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_oco_params(
+            'BTCUSDT', OrderSide.SELL, Decimal('0.01'),
+            price=Decimal('50000'), stop_price=Decimal('48000'),
+            stop_limit_price=Decimal('47500'),
+        )
+        assert params['stopLimitPrice'] == '47500'
+        assert params['stopLimitTimeInForce'] == 'GTC'
+
+    def test_client_order_id_as_list_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_oco_params(
+            'BTCUSDT', OrderSide.BUY, Decimal('1'),
+            price=Decimal('50000'), stop_price=Decimal('48000'),
+            client_order_id='ss-cmd1-0',
+        )
+        assert params['listClientOrderId'] == 'ss-cmd1-0'
+
+
+class TestParseOcoResponse:
+
+    def test_executing_maps_to_open(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_oco_response(_BINANCE_OCO_RESPONSE)
+        assert result.venue_order_id == '99999'
+        assert result.status == OrderStatus.OPEN
+        assert result.immediate_fills == ()
+
+    def test_all_done_with_fills(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_oco_response(_BINANCE_OCO_RESPONSE_WITH_FILLS)
+        assert result.venue_order_id == '99999'
+        assert result.status == OrderStatus.FILLED
+        assert len(result.immediate_fills) == 1
+        fill = result.immediate_fills[0]
+        assert fill.venue_trade_id == '201'
+        assert fill.qty == Decimal('0.01')
+        assert fill.price == Decimal('50000.00')
+        assert fill.fee == Decimal('0.00001')
+        assert fill.fee_asset == 'BTC'
+
+    def test_unknown_list_status_raises(self) -> None:
+
+        adapter = _make_adapter()
+        bad = {**_BINANCE_OCO_RESPONSE, 'listOrderStatus': 'UNKNOWN'}
+        with pytest.raises(ValueError, match='Unknown Binance OCO list status'):
+            adapter._parse_oco_response(bad)
+
+
+class TestSubmitOcoOrder:
+
+    @pytest.mark.asyncio
+    async def test_oco_dispatches_to_oco_endpoint(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_OCO_RESPONSE))
+        result = await adapter.submit_order(
+            _ACCOUNT_ID, 'BTCUSDT', OrderSide.SELL, OrderType.OCO,
+            Decimal('0.01'),
+            price=Decimal('50000'), stop_price=Decimal('48000'),
+            stop_limit_price=Decimal('47500'),
+        )
+        assert result.venue_order_id == '99999'
+        assert result.status == OrderStatus.OPEN
+
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        assert '/api/v3/order/oco?' in call_args.args[1]
+
+    @pytest.mark.asyncio
+    async def test_oco_missing_price_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price and stop_price are required'):
+            await adapter.submit_order(
+                _ACCOUNT_ID, 'BTCUSDT', OrderSide.SELL, OrderType.OCO,
+                Decimal('0.01'), stop_price=Decimal('48000'),
+            )
+
+    @pytest.mark.asyncio
+    async def test_oco_missing_stop_price_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price and stop_price are required'):
+            await adapter.submit_order(
+                _ACCOUNT_ID, 'BTCUSDT', OrderSide.SELL, OrderType.OCO,
+                Decimal('0.01'), price=Decimal('50000'),
+            )

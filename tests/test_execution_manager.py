@@ -26,7 +26,7 @@ from praxis.core.domain.enums import (
     STPMode,
     TradeStatus,
 )
-from praxis.core.domain.events import CommandAccepted, OrderExpired, OrderSubmitted, TradeOutcomeProduced
+from praxis.core.domain.events import CommandAccepted, OrderExpired, OrderSubmitIntent, OrderSubmitted, TradeOutcomeProduced
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -1272,5 +1272,86 @@ class TestProcessAbort:
         types = [type(e).__name__ for _, e in events]
         assert 'OrderSubmitIntent' not in types
         assert 'OrderSubmitted' not in types
+
+        await mgr.unregister_account(_ACCT)
+
+
+class TestModeDispatch:
+    @pytest.mark.asyncio
+    async def test_unsupported_mode_produces_rejected_outcome(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+        kwargs = {**_CMD_KWARGS, 'execution_mode': ExecutionMode.TWAP}
+        await mgr.submit_command(**kwargs)
+
+        await asyncio.sleep(0.3)
+
+        adapter.submit_order.assert_not_awaited()
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.REJECTED
+        assert outcome.filled_qty == Decimal(0)
+        assert outcome.reason is not None
+        assert 'TWAP' in outcome.reason
+        assert 'not yet supported' in outcome.reason
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'TradeOutcomeProduced' in types
+        assert 'OrderSubmitIntent' not in types
+
+        await mgr.unregister_account(_ACCT)
+
+
+class TestStopLimitPassthrough:
+    @pytest.mark.asyncio
+    async def test_oco_stop_limit_price_reaches_intent_and_venue(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-oco',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        oco_params = SingleShotParams(
+            price=Decimal('50000'),
+            stop_price=Decimal('48000'),
+            stop_limit_price=Decimal('47500'),
+        )
+        await mgr.submit_command(
+            **{**_CMD_KWARGS, 'order_type': OrderType.OCO, 'execution_params': oco_params},
+        )
+
+        await asyncio.sleep(0.3)
+
+        adapter.submit_order.assert_awaited_once()
+        call_kwargs = adapter.submit_order.call_args
+        assert call_kwargs.kwargs['stop_limit_price'] == Decimal('47500')
+        assert call_kwargs.kwargs['stop_price'] == Decimal('48000')
+        assert call_kwargs.kwargs['price'] == Decimal('50000')
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        intents = [e for _, e in events if isinstance(e, OrderSubmitIntent)]
+        assert len(intents) == 1
+        assert intents[0].stop_limit_price == Decimal('47500')
+        assert intents[0].stop_price == Decimal('48000')
+        assert intents[0].price == Decimal('50000')
 
         await mgr.unregister_account(_ACCT)

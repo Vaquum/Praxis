@@ -102,6 +102,7 @@ class OrderSubmitIntent(_EventBase):
         qty (Decimal): Order quantity, must be positive.
         price (Decimal | None): Limit price, must be positive when set.
         stop_price (Decimal | None): Stop trigger price, must be positive when set.
+        stop_limit_price (Decimal | None): Stop-limit price for OCO orders, must be positive when set.
     '''
 
     command_id: str
@@ -113,6 +114,7 @@ class OrderSubmitIntent(_EventBase):
     qty: Decimal
     price: Decimal | None = None
     stop_price: Decimal | None = None
+    stop_limit_price: Decimal | None = None
 
     def __post_init__(self) -> None:
 
@@ -134,6 +136,10 @@ class OrderSubmitIntent(_EventBase):
 
         if self.stop_price is not None and self.stop_price <= _ZERO:
             msg = 'OrderSubmitIntent.stop_price must be positive'
+            raise ValueError(msg)
+
+        if self.stop_limit_price is not None and self.stop_limit_price <= _ZERO:
+            msg = 'OrderSubmitIntent.stop_limit_price must be positive'
             raise ValueError(msg)
 
 

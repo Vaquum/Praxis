@@ -288,3 +288,20 @@
 - Add pre-submission abort guard in `_process_command` short-circuiting to `CANCELED` without venue call in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add 5 `TestProcessAbort` tests covering pending order abort, partial fill VWAP preservation, `NotFoundError` resilience, `VenueError` cancel failure, and pre-submission short-circuit in [`test_execution_manager.py`](tests/test_execution_manager.py)
 - Bump version to 0.26.0 in [`pyproject.toml`](pyproject.toml)
+
+## v0.27.0 on 12th of March, 2026
+
+- Add mode dispatch guard in `_process_command` rejecting unsupported `ExecutionMode` with `REJECTED` outcome instead of raising `NotImplementedError` in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `stop_limit_price: Decimal | None` field to `OrderSubmitIntent` with positive-value validation in [`events.py`](praxis/core/domain/events.py)
+- Add `stop_limit_price` passthrough from `SingleShotParams` through `OrderSubmitIntent` to `VenueAdapter.submit_order` in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `stop_limit_price` keyword parameter to `VenueAdapter.submit_order` protocol in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `_BINANCE_OCO_STATUS_MAP` constant mapping Binance OCO list statuses (`EXECUTING`, `ALL_DONE`, `REJECT`) to `OrderStatus` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_build_oco_params` helper building Binance `POST /api/v3/order/oco` request parameters with symbol, side, qty, price, stopPrice, stopLimitPrice, and listClientOrderId in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `_parse_oco_response` helper extracting `orderListId` as venue_order_id, mapping `listOrderStatus`, and collecting fills from both `orderReports` in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add OCO order dispatch in `submit_order` routing `OrderType.OCO` to `/api/v3/order/oco` with dedicated params builder and response parser in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `TestModeDispatch` test verifying unsupported mode produces `REJECTED` outcome via callback in [`test_execution_manager.py`](tests/test_execution_manager.py)
+- Add `TestStopLimitPassthrough` test verifying `stop_limit_price` flows from params to `OrderSubmitIntent` and `venue_adapter.submit_order` in [`test_execution_manager.py`](tests/test_execution_manager.py)
+- Add 3 `TestBuildOcoParams` tests covering required params, stop_limit_price inclusion, and client_order_id mapping in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Add 3 `TestParseOcoResponse` tests covering EXECUTING→OPEN mapping, ALL_DONE with fills, and unknown list status rejection in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Add 3 `TestSubmitOcoOrder` tests covering OCO endpoint dispatch, missing price rejection, and missing stop_price rejection in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
+- Update version to 0.27.0 in [`pyproject.toml`](pyproject.toml)

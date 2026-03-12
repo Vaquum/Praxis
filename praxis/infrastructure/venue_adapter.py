@@ -416,6 +416,7 @@ class VenueAdapter(Protocol):
         *,
         price: Decimal | None = None,
         stop_price: Decimal | None = None,
+        stop_limit_price: Decimal | None = None,
         client_order_id: str | None = None,
         time_in_force: str | None = None,
     ) -> SubmitResult:
@@ -431,6 +432,7 @@ class VenueAdapter(Protocol):
             qty (Decimal): Order quantity
             price (Decimal | None): Limit price, required for limit orders
             stop_price (Decimal | None): Stop trigger price
+            stop_limit_price (Decimal | None): Stop-limit price for OCO orders
             client_order_id (str | None): Deterministic client order identifier
             time_in_force (str | None): Time-in-force policy
 
