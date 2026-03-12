@@ -40,6 +40,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.estimate_slippage import estimate_slippage
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
@@ -53,6 +54,8 @@ _log = logging.getLogger(__name__)
 
 _QUEUE_POLL_INTERVAL = 0.1
 _ZERO = Decimal(0)
+_BPS_MULTIPLIER = Decimal('10000')
+_SLIPPAGE_BOOK_LIMIT = 20
 
 
 class AccountNotRegisteredError(Exception):
@@ -419,22 +422,60 @@ class ExecutionManager:
                 cmd.trade_id,
             )
             return await self._build_outcome(
-                runtime, cmd, TradeStatus.CANCELED,
-                filled_qty=_ZERO, avg_fill_price=None,
+                runtime,
+                cmd,
+                TradeStatus.CANCELED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
                 reason=abort_reason,
             )
 
         if cmd.execution_mode != ExecutionMode.SINGLE_SHOT:
-            reject_reason = f"execution mode {cmd.execution_mode.value} is not yet supported"
+            reject_reason = (
+                f"execution mode {cmd.execution_mode.value} is not yet supported"
+            )
             _log.warning(
                 'unsupported execution mode: command_id=%s mode=%s',
                 cmd.command_id,
                 cmd.execution_mode.value,
             )
             return await self._build_outcome(
-                runtime, cmd, TradeStatus.REJECTED,
-                filled_qty=_ZERO, avg_fill_price=None,
+                runtime,
+                cmd,
+                TradeStatus.REJECTED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
                 reason=reject_reason,
+            )
+
+        estimate = None
+        try:
+            book = await self._venue_adapter.query_order_book(
+                cmd.symbol,
+                limit=_SLIPPAGE_BOOK_LIMIT,
+            )
+            estimate = estimate_slippage(book, cmd.qty, cmd.side, symbol=cmd.symbol)
+            if estimate is None:
+                _log.warning(
+                    'slippage estimate unavailable: command_id=%s trade_id=%s',
+                    cmd.command_id,
+                    cmd.trade_id,
+                )
+            else:
+                _log.info(
+                    'slippage estimate computed: command_id=%s trade_id=%s slippage_estimate_bps=%s mid_price=%s simulated_vwap=%s',
+                    cmd.command_id,
+                    cmd.trade_id,
+                    estimate.slippage_estimate_bps,
+                    estimate.mid_price,
+                    estimate.simulated_vwap,
+                )
+        except VenueError as exc:
+            _log.warning(
+                'slippage estimate skipped: command_id=%s trade_id=%s reason=%s',
+                cmd.command_id,
+                cmd.trade_id,
+                exc.args[0] if exc.args else str(exc),
             )
 
         client_order_id = generate_client_order_id(
@@ -489,8 +530,11 @@ class ExecutionManager:
                 str(exc.args[0]),
             )
             return await self._build_outcome(
-                runtime, cmd, TradeStatus.REJECTED,
-                filled_qty=_ZERO, avg_fill_price=None,
+                runtime,
+                cmd,
+                TradeStatus.REJECTED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
                 reason=str(exc.args[0]),
             )
 
@@ -535,11 +579,42 @@ class ExecutionManager:
 
         if filled_qty > _ZERO:
             total_notional = sum(
-                (f.qty * f.price for f in result.immediate_fills), _ZERO,
+                (f.qty * f.price for f in result.immediate_fills),
+                _ZERO,
             )
             avg_fill_price: Decimal | None = total_notional / filled_qty
         else:
             avg_fill_price = None
+
+        if estimate is not None and avg_fill_price is not None:
+            execution_slippage_bps = (
+                (avg_fill_price - estimate.mid_price)
+                / estimate.mid_price
+                * _BPS_MULTIPLIER
+            )
+            _log.info(
+                'execution slippage computed: command_id=%s trade_id=%s execution_slippage_bps=%s mid_price=%s avg_fill_price=%s',
+                cmd.command_id,
+                cmd.trade_id,
+                execution_slippage_bps,
+                estimate.mid_price,
+                avg_fill_price,
+            )
+
+        if avg_fill_price is not None and cmd.reference_price is not None:
+            arrival_slippage_bps = (
+                (avg_fill_price - cmd.reference_price)
+                / cmd.reference_price
+                * _BPS_MULTIPLIER
+            )
+            _log.info(
+                'arrival slippage computed: command_id=%s trade_id=%s arrival_slippage_bps=%s reference_price=%s avg_fill_price=%s',
+                cmd.command_id,
+                cmd.trade_id,
+                arrival_slippage_bps,
+                cmd.reference_price,
+                avg_fill_price,
+            )
 
         if filled_qty > cmd.qty:
             _log.warning(
@@ -593,8 +668,11 @@ class ExecutionManager:
                 runtime.trading_state.apply(expired)
 
         return await self._build_outcome(
-            runtime, cmd, status,
-            filled_qty=filled_qty, avg_fill_price=avg_fill_price,
+            runtime,
+            cmd,
+            status,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
             reason=reason,
         )
 
@@ -690,15 +768,19 @@ class ExecutionManager:
         if filled_qty > _ZERO:
             events = await self._event_spine.read(self._epoch_id, after_seq=0)
             fills = [
-                e for _, e in events
+                e
+                for _, e in events
                 if isinstance(e, FillReceived) and e.client_order_id == client_order_id
             ]
             total_notional = sum((f.qty * f.price for f in fills), _ZERO)
             avg_fill_price = total_notional / filled_qty
 
         return await self._build_outcome(
-            runtime, cmd, TradeStatus.CANCELED,
-            filled_qty=filled_qty, avg_fill_price=avg_fill_price,
+            runtime,
+            cmd,
+            TradeStatus.CANCELED,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
             reason=reason,
         )
 

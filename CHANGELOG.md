@@ -215,7 +215,6 @@
 - Add `_QUEUE_POLL_INTERVAL` constant for account loop poll timeout in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `ExecutionManager` and `AccountNotRegisteredError` re-exports from `praxis.core` package in [`__init__.py`](praxis/core/__init__.py)
 - Add [`test_execution_manager.py`](tests/test_execution_manager.py) with 13 tests covering registration, unregistration, command submission, abort submission, priority drain ordering, and account isolation
-- Bump version to 0.20.0 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.21.0 on 9th of March, 2026
 
@@ -224,7 +223,6 @@
 - Add UUID4 truncation to first 16 hex characters (64-bit entropy) for Binance 36-character `newClientOrderId` limit in [`generate_client_order_id.py`](praxis/core/generate_client_order_id.py)
 - Add `generate_client_order_id` re-export from `praxis.core` package in [`__init__.py`](praxis/core/__init__.py)
 - Add [`test_generate_client_order_id.py`](tests/test_generate_client_order_id.py) with 27 tests covering all mode prefixes, format, sequence padding, retry suffix, length validation, and error cases
-- Bump version to 0.21.0 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.22.0 on 10th of March, 2026
 
@@ -235,12 +233,10 @@
 - Add [`test_validate_trade_abort.py`](tests/test_validate_trade_abort.py) with 8 tests covering valid abort, unknown command_id, terminal no-op, and account_id mismatch
 - Add [`test_validate_trade_command.py`](tests/test_validate_trade_command.py) with 83 tests covering allowed/disallowed mode-order pairs, SingleShot param requirements, maker preference rules, and venue filter boundaries
 - Add integration tests to [`test_execution_manager.py`](tests/test_execution_manager.py) for inbound validation rejection/no-op behavior and accepted command tracking
-- Bump version to 0.22.0 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.22.1 on 10th of March, 2026
 
 - Fix 66 mypy strict-mode errors across 5 test files by adding `dict[str, Any]` annotations, `-> None` return types, `Event` type alias usage, and `bool()` wrapper in [`test_domain_commands.py`](tests/test_domain_commands.py), [`test_domain_core.py`](tests/test_domain_core.py), [`test_domain_outcome.py`](tests/test_domain_outcome.py), [`test_event_spine.py`](tests/test_event_spine.py), [`conftest.py`](tests/testnet/conftest.py)
-- Bump version to 0.22.1 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.23.0 on 10th of March, 2026
 
@@ -248,7 +244,6 @@
 - Add `_process_command` method with deterministic client order ID generation, `OrderSubmitIntent` persistence for crash durability, venue submission via `VenueAdapter.submit_order`, `OrderSubmitted` and `FillReceived` event persistence with fill deduplication, and `OrderSubmitFailed` on `VenueError` in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `_process_command` call in `_account_loop` after command dequeue in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add 9 `TestProcessCommand` tests covering market fill, limit no-fill, venue rejection, transient failure, multiple fills, fill deduplication, client order ID determinism, trading state projection, and loop resilience in [`test_execution_manager.py`](tests/test_execution_manager.py)
-- Bump version to 0.23.0 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.24.0 on 11th of March, 2026
 
@@ -269,7 +264,6 @@
 - Fix import ordering for `collections.abc` in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Fix `reason=str(exc)` producing tuple-like strings for `OrderRejectedError` by using `exc.args[0]` in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Update 9 existing `TestProcessCommand` test assertions for `TradeClosed` and `TradeOutcomeProduced` event sequences in [`test_execution_manager.py`](tests/test_execution_manager.py)
-- Bump version to 0.24.0 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.25.0 on 11th of March, 2026
 
@@ -278,7 +272,6 @@
 - Add order expiry eventing on timeout with `cancel_order` call, `OrderExpired` event emission on cancel success or `NotFoundError`, and `cancel_confirmed=False` fallback on other `VenueError` in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add 8 `TestDeadlineHandling` tests covering pending expiry, partial fill expiry, `TradeOutcomeProduced` with EXPIRED status, `OrderExpired` emission, `NotFoundError` fallback, `VenueError` skip, terminal abort no-op, and non-expired control case in [`test_execution_manager.py`](tests/test_execution_manager.py)
 - Fix `_TS` test constant from `datetime(2026, 1, 1)` to `datetime(2099, 1, 1)` preventing false deadline triggers in existing tests in [`test_execution_manager.py`](tests/test_execution_manager.py)
-- Bump version to 0.25.0 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.26.0 on 11th of March, 2026
 
@@ -287,7 +280,6 @@
 - Add `_process_abort` call with error guard in `_account_loop` priority queue drain in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add pre-submission abort guard in `_process_command` short-circuiting to `CANCELED` without venue call in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add 5 `TestProcessAbort` tests covering pending order abort, partial fill VWAP preservation, `NotFoundError` resilience, `VenueError` cancel failure, and pre-submission short-circuit in [`test_execution_manager.py`](tests/test_execution_manager.py)
-- Bump version to 0.26.0 in [`pyproject.toml`](pyproject.toml)
 
 ## v0.27.0 on 12th of March, 2026
 
@@ -315,4 +307,11 @@
 - Add `TestBuildOcoParams::test_time_in_force_passed_through` test in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
 - Add `TestParseOcoResponse::test_all_done_canceled_no_fills` test verifying `ALL_DONE` with only canceled legs produces `CANCELED` status in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
 - Add `TestParseOcoResponse::test_is_maker_read_from_payload` test in [`test_binance_adapter.py`](tests/test_binance_adapter.py)
-- Update version to 0.27.0 in [`pyproject.toml`](pyproject.toml)
+
+## v0.28.0 on 12th of March, 2026
+
+- Add `SlippageEstimate` dataclass and `estimate_slippage` pure function with walk-the-book VWAP and bps computation in [`estimate_slippage.py`](praxis/core/estimate_slippage.py)
+- Add pre-submission slippage estimation in `_process_command` with order book query (`limit=20`) and non-fatal fallback logging on estimation/query failures in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add post-fill slippage logging in `_process_command` for `execution_slippage_bps` (vs estimated mid-price) and conditional `arrival_slippage_bps` (vs `reference_price`) in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add slippage-focused `ExecutionManager` tests for estimate logging, order-book-query failure fallback, execution slippage logging, and arrival slippage logging in [`test_execution_manager_slippage.py`](tests/test_execution_manager_slippage.py)
+- Add `estimate_slippage` and `SlippageEstimate` re-exports in [`__init__.py`](praxis/core/__init__.py)

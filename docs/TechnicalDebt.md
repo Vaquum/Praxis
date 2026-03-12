@@ -67,20 +67,6 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 **When to fix**: Before epochs grow to thousands of events.
 **Migration**: Precompute a `{event_type: hints}` map alongside `_EVENT_REGISTRY` at module load time and reuse it in `_hydrate`.
 
-
----
-
-## TD-006: Walk-the-book slippage estimation not yet implemented
-
-**Origin**: §2.8 scope decision (PR #38 review)
-**Severity**: Low (Execution Manager not yet built)
-**Module**: Execution Manager (future)
-
-RFC-4001 specifies a walk-the-book slippage estimator: simulate executing slice quantity against order book levels, compute VWAP, derive expected slippage in bps, then compare against actual fill price post-execution. §2.8 delivers only the Venue Adapter plumbing (`query_order_book`). The simulation logic belongs in Execution Manager.
-
-**When to fix**: When implementing Execution Manager slice submission.
-**Migration**: Add a `walk_the_book(snapshot, side, qty) -> SlippageEstimate` helper in Execution Manager that consumes `OrderBookSnapshot` from Venue Adapter.
-
 ---
 
 ## TD-007: Duplicated retry loop in _signed_request and _api_key_request
@@ -119,3 +105,16 @@ RFC-4001 specifies a walk-the-book slippage estimator: simulate executing slice 
 
 **When to fix**: Before epochs grow to thousands of events or abort frequency increases.
 **Migration**: Either add cumulative notional tracking to `Order`/`TradingState` so VWAP is available without spine re-read, or add a spine query method that fetches only `FillReceived` rows for a given `client_order_id`.
+
+---
+
+## TD-010: No venue LTP benchmark support for slippage analytics
+
+**Origin**: §6.2 assessment follow-up
+**Severity**: Low (RFC primary benchmark is mid-price)
+**Module**: `praxis/core/execution_manager.py`, `praxis/infrastructure/venue_adapter.py`
+
+RFC §6.2 defines walk-the-book slippage with mid-price as the primary benchmark and `reference_price` as supplementary. Praxis currently has no Venue Adapter API for last traded price (LTP), so slippage analytics cannot include a venue-LTP benchmark without caller-supplied price data.
+
+**When to fix**: If Manager or analytics consumers require venue-native LTP-based slippage benchmarking.
+**Migration**: Add a venue-agnostic LTP query method to `VenueAdapter` (with Binance implementation), compute and log optional LTP-based slippage metric alongside existing mid-price and reference-price metrics.
