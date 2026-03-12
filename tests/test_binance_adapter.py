@@ -2475,6 +2475,27 @@ class TestParseOcoResponse:
         assert result.status == OrderStatus.PARTIALLY_FILLED
         assert len(result.immediate_fills) == 1
 
+    def test_all_done_expired_legs(self) -> None:
+
+        adapter = _make_adapter()
+        expired_response: dict[str, Any] = {
+            'orderListId': 99999,
+            'contingencyType': 'OCO',
+            'listStatusType': 'ALL_DONE',
+            'listOrderStatus': 'ALL_DONE',
+            'listClientOrderId': 'oco-list-5',
+            'transactionTime': 1700000000000,
+            'symbol': 'BTCUSDT',
+            'orders': [],
+            'orderReports': [
+                {'status': 'EXPIRED', 'fills': []},
+                {'status': 'CANCELED', 'fills': []},
+            ],
+        }
+        result = adapter._parse_oco_response(expired_response)
+        assert result.status == OrderStatus.EXPIRED
+        assert result.immediate_fills == ()
+
     def test_is_maker_read_from_payload(self) -> None:
 
         adapter = _make_adapter()
@@ -2545,6 +2566,17 @@ class TestSubmitOcoOrder:
             await adapter.submit_order(
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.SELL, OrderType.OCO,
                 Decimal('0.01'), price=Decimal('50000'),
+            )
+
+    @pytest.mark.asyncio
+    async def test_stop_limit_price_rejected_for_non_oco(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_limit_price is only supported for OCO'):
+            await adapter.submit_order(
+                _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.LIMIT,
+                Decimal('0.01'), price=Decimal('50000'),
+                stop_limit_price=Decimal('49000'),
             )
 
 

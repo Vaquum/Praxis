@@ -786,6 +786,10 @@ class BinanceAdapter:
                 status = OrderStatus.FILLED
             elif 'PARTIALLY_FILLED' in leg_statuses:
                 status = OrderStatus.PARTIALLY_FILLED
+            elif 'EXPIRED' in leg_statuses:
+                status = OrderStatus.EXPIRED
+            elif 'REJECTED' in leg_statuses:
+                status = OrderStatus.REJECTED
             else:
                 status = OrderStatus.CANCELED
         else:
@@ -1006,6 +1010,10 @@ class BinanceAdapter:
                 'POST', '/api/v3/order/oco', params, account_id,
             )
             return self._parse_oco_response(data)
+
+        if stop_limit_price is not None:
+            msg = 'stop_limit_price is only supported for OCO orders'
+            raise ValueError(msg)
 
         params = self._build_order_params(
             symbol, side, order_type, qty,
