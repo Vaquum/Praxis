@@ -68,9 +68,15 @@ def test_estimate_slippage_partial_depth_logs_warning(
     )
 
     with caplog.at_level(logging.WARNING):
-        result = estimate_slippage(book, qty=Decimal('2'), side=OrderSide.BUY)
+        result = estimate_slippage(
+            book,
+            qty=Decimal('2'),
+            side=OrderSide.BUY,
+            symbol='BTCUSDT',
+        )
 
     assert result is not None
     assert result.simulated_vwap == Decimal('101')
     messages = [r.message for r in caplog.records]
     assert any('book depth insufficient:' in message for message in messages)
+    assert any('symbol=BTCUSDT' in message for message in messages)

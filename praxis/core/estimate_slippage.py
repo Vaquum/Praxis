@@ -44,6 +44,7 @@ def estimate_slippage(
     book: OrderBookSnapshot,
     qty: Decimal,
     side: OrderSide,
+    symbol: str | None = None,
 ) -> SlippageEstimate | None:
     '''
     Compute expected slippage by walking the order book.
@@ -56,11 +57,14 @@ def estimate_slippage(
         book (OrderBookSnapshot): Current order book snapshot.
         qty (Decimal): Target quantity to simulate.
         side (OrderSide): Order side determining which book side to walk.
+        symbol (str | None): Symbol used for warning-log correlation.
 
     Returns:
         SlippageEstimate | None: Estimate with mid-price, simulated VWAP,
-            and slippage in bps. None when the book lacks either a bid or
-            an ask (mid-price cannot be computed).
+            and slippage in bps. When available depth is insufficient to
+            fill qty, the estimate still returns and uses only filled
+            quantity (with a warning log). None when the book lacks either
+            a bid or an ask (mid-price cannot be computed).
     '''
 
     if not book.bids or not book.asks:
@@ -89,7 +93,8 @@ def estimate_slippage(
 
     if remaining > _ZERO:
         _log.warning(
-            'book depth insufficient: needed=%s available=%s side=%s',
+            'book depth insufficient: symbol=%s needed=%s available=%s side=%s',
+            symbol,
             qty,
             filled,
             side.value,

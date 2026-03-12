@@ -454,7 +454,7 @@ class ExecutionManager:
                 cmd.symbol,
                 limit=_SLIPPAGE_BOOK_LIMIT,
             )
-            estimate = estimate_slippage(book, cmd.qty, cmd.side)
+            estimate = estimate_slippage(book, cmd.qty, cmd.side, symbol=cmd.symbol)
             if estimate is None:
                 _log.warning(
                     'slippage estimate unavailable: command_id=%s trade_id=%s',
