@@ -85,13 +85,24 @@ def adapter() -> AsyncMock:
     return mock
 
 
-@pytest.mark.asyncio
-async def test_logs_slippage_estimate_metrics(
+@pytest_asyncio.fixture
+async def mgr(
     spine: EventSpine,
     adapter: AsyncMock,
+) -> AsyncGenerator[ExecutionManager, None]:
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter
+    )
+    yield manager
+    for account_id in list(manager._accounts.keys()):
+        await manager.unregister_account(account_id)
+
+
+@pytest.mark.asyncio
+async def test_logs_slippage_estimate_metrics(
+    mgr: ExecutionManager,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
     mgr.register_account(_ACCT)
     with caplog.at_level(logging.INFO):
         await mgr.submit_command(**_CMD_KWARGS)
@@ -110,11 +121,11 @@ async def test_logs_slippage_estimate_metrics(
 @pytest.mark.asyncio
 async def test_submission_proceeds_when_order_book_query_fails(
     spine: EventSpine,
+    mgr: ExecutionManager,
     adapter: AsyncMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     adapter.query_order_book.side_effect = TransientError('depth unavailable')
-    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
     mgr.register_account(_ACCT)
 
     with caplog.at_level(logging.WARNING):
@@ -135,7 +146,7 @@ async def test_submission_proceeds_when_order_book_query_fails(
 
 @pytest.mark.asyncio
 async def test_logs_arrival_slippage_when_estimate_is_unavailable(
-    spine: EventSpine,
+    mgr: ExecutionManager,
     adapter: AsyncMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -154,7 +165,6 @@ async def test_logs_arrival_slippage_when_estimate_is_unavailable(
             ),
         ),
     )
-    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
     mgr.register_account(_ACCT)
 
     with caplog.at_level(logging.INFO):
@@ -179,7 +189,7 @@ async def test_logs_arrival_slippage_when_estimate_is_unavailable(
 
 @pytest.mark.asyncio
 async def test_logs_execution_slippage_bps_after_fill(
-    spine: EventSpine,
+    mgr: ExecutionManager,
     adapter: AsyncMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -197,7 +207,6 @@ async def test_logs_execution_slippage_bps_after_fill(
             ),
         ),
     )
-    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
     mgr.register_account(_ACCT)
     with caplog.at_level(logging.INFO):
         await mgr.submit_command(**_CMD_KWARGS)
@@ -215,7 +224,7 @@ async def test_logs_execution_slippage_bps_after_fill(
 
 @pytest.mark.asyncio
 async def test_logs_arrival_slippage_bps_when_reference_price_present(
-    spine: EventSpine,
+    mgr: ExecutionManager,
     adapter: AsyncMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -233,7 +242,6 @@ async def test_logs_arrival_slippage_bps_when_reference_price_present(
             ),
         ),
     )
-    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
     mgr.register_account(_ACCT)
     with caplog.at_level(logging.INFO):
         await mgr.submit_command(
@@ -253,7 +261,7 @@ async def test_logs_arrival_slippage_bps_when_reference_price_present(
 
 @pytest.mark.asyncio
 async def test_logs_execution_slippage_for_sell_side(
-    spine: EventSpine,
+    mgr: ExecutionManager,
     adapter: AsyncMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -271,7 +279,6 @@ async def test_logs_execution_slippage_for_sell_side(
             ),
         ),
     )
-    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
     mgr.register_account(_ACCT)
     with caplog.at_level(logging.INFO):
         await mgr.submit_command(
