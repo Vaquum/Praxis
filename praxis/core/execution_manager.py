@@ -152,6 +152,19 @@ class ExecutionManager:
         self._accounts[account_id] = runtime
         _log.info('account registered: %s', account_id)
 
+    def has_account(self, account_id: str) -> bool:
+        '''
+        Check whether an account runtime is currently registered.
+
+        Args:
+            account_id (str): Account identifier to check.
+
+        Returns:
+            bool: True when account_id is currently registered.
+        '''
+
+        return account_id in self._accounts
+
     def _deadline_at(self, cmd: TradeCommand) -> datetime:
         '''
         Compute the absolute deadline timestamp for a command.
