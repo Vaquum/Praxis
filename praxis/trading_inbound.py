@@ -57,6 +57,7 @@ class TradingInbound:
         Raises:
             ValueError: If account_id is empty, credentials are missing,
                 or execution account registration fails.
+            RuntimeError: If execution account registration cannot start.
         '''
 
         if not account_id:
@@ -72,10 +73,10 @@ class TradingInbound:
         self._venue_adapter.register_account(account_id, api_key, api_secret)
         try:
             self._execution_manager.register_account(account_id)
-        except Exception as exc:
+        except (ValueError, RuntimeError) as exc:
             reason = exc.args[0] if exc.args else str(exc)
             if isinstance(exc, ValueError) and 'already registered' in str(reason):
-                raise
+                return
             with contextlib.suppress(KeyError):
                 self._venue_adapter.unregister_account(account_id)
             raise

@@ -118,8 +118,7 @@ def test_register_account_already_registered_does_not_rollback() -> None:
         account_credentials={'acc-1': ('key-1', 'secret-1')},
     )
 
-    with pytest.raises(ValueError, match='already registered'):
-        trading.register_account('acc-1')
+    trading.register_account('acc-1')
 
     assert venue.credentials['acc-1'] == ('key-1', 'secret-1')
 
