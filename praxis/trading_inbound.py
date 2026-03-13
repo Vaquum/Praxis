@@ -7,6 +7,12 @@ from typing import Protocol
 __all__ = ['TradingInbound']
 
 
+def _is_already_registered_error(account_id: str, error: ValueError) -> bool:
+    reason = error.args[0] if error.args else str(error)
+    expected = f"account_id '{account_id}' is already registered"
+    return str(reason) == expected
+
+
 class _ExecutionAccountRegistry(Protocol):
     def register_account(self, account_id: str) -> None: ...
 
@@ -58,6 +64,10 @@ class TradingInbound:
             ValueError: If account_id is empty, credentials are missing,
                 or execution account registration fails.
             RuntimeError: If execution account registration cannot start.
+
+        Note:
+            If execution runtime is already registered for account_id,
+            registration is treated as idempotent success.
         '''
 
         if not account_id:
@@ -74,8 +84,10 @@ class TradingInbound:
         try:
             self._execution_manager.register_account(account_id)
         except (ValueError, RuntimeError) as exc:
-            reason = exc.args[0] if exc.args else str(exc)
-            if isinstance(exc, ValueError) and 'already registered' in str(reason):
+            if isinstance(exc, ValueError) and _is_already_registered_error(
+                account_id,
+                exc,
+            ):
                 return
             with contextlib.suppress(KeyError):
                 self._venue_adapter.unregister_account(account_id)
@@ -87,6 +99,15 @@ class TradingInbound:
 
         Args:
             account_id (str): Account identifier.
+
+        Raises:
+            AccountNotRegisteredError: If execution runtime is not registered.
+            ValueError: If execution unregister fails for a non-registration
+                reason.
+
+        Note:
+            Venue credentials are cleaned up in a finally block even when
+            execution unregister raises.
         '''
 
         try:

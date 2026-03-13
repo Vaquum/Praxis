@@ -39,7 +39,6 @@ __all__ = [
 
 @dataclass(frozen=True)
 class ImmediateFill:
-
     '''
     Represent a fill returned inline with an order submission response.
 
@@ -62,7 +61,6 @@ class ImmediateFill:
 
 @dataclass(frozen=True)
 class SubmitResult:
-
     '''
     Represent the venue response to an order submission.
 
@@ -79,7 +77,6 @@ class SubmitResult:
 
 @dataclass(frozen=True)
 class CancelResult:
-
     '''
     Represent the venue response to an order cancellation.
 
@@ -94,7 +91,6 @@ class CancelResult:
 
 @dataclass(frozen=True)
 class VenueOrder:
-
     '''
     Represent an order as reported by the venue on query.
 
@@ -123,7 +119,6 @@ class VenueOrder:
 
 @dataclass(frozen=True)
 class VenueTrade:
-
     '''
     Represent a historical trade record from the venue.
 
@@ -154,7 +149,6 @@ class VenueTrade:
     timestamp: datetime
 
     def __post_init__(self) -> None:
-
         '''Validate invariants at construction time.'''
 
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
@@ -164,7 +158,6 @@ class VenueTrade:
 
 @dataclass(frozen=True)
 class BalanceEntry:
-
     '''
     Represent a single asset balance from the venue account.
 
@@ -181,7 +174,6 @@ class BalanceEntry:
 
 @dataclass(frozen=True)
 class SymbolFilters:
-
     '''
     Represent venue-imposed trading filters for a symbol.
 
@@ -204,7 +196,6 @@ class SymbolFilters:
 
 @dataclass(frozen=True)
 class OrderBookLevel:
-
     '''
     Single price level in an order book snapshot.
 
@@ -219,7 +210,6 @@ class OrderBookLevel:
 
 @dataclass(frozen=True)
 class OrderBookSnapshot:
-
     '''
     Point-in-time order book snapshot from the venue.
 
@@ -236,7 +226,6 @@ class OrderBookSnapshot:
 
 @dataclass(frozen=True)
 class ExecutionReport:
-
     '''
     Venue-reported order execution event from WebSocket stream.
 
@@ -286,19 +275,20 @@ class ExecutionReport:
     is_maker: bool
 
     def __post_init__(self) -> None:
-
         '''Validate timezone-aware timestamps at construction time.'''
 
         if self.event_time.tzinfo is None or self.event_time.utcoffset() is None:
             msg = 'ExecutionReport.event_time must be timezone-aware'
             raise ValueError(msg)
-        if self.transaction_time.tzinfo is None or self.transaction_time.utcoffset() is None:
+        if (
+            self.transaction_time.tzinfo is None
+            or self.transaction_time.utcoffset() is None
+        ):
             msg = 'ExecutionReport.transaction_time must be timezone-aware'
             raise ValueError(msg)
 
 
 class VenueError(Exception):
-
     '''
     Base exception for all venue adapter failures.
 
@@ -307,7 +297,6 @@ class VenueError(Exception):
     '''
 
     def __init__(self, message: str) -> None:
-
         '''
         Store the error message.
 
@@ -320,7 +309,6 @@ class VenueError(Exception):
 
 
 class OrderRejectedError(VenueError):
-
     '''
     Raised when the venue rejects an order submission.
 
@@ -331,7 +319,6 @@ class OrderRejectedError(VenueError):
     '''
 
     def __init__(self, message: str, venue_code: int, reason: str) -> None:
-
         '''
         Store the venue rejection details.
 
@@ -348,7 +335,6 @@ class OrderRejectedError(VenueError):
 
 
 class RateLimitError(VenueError):
-
     '''
     Raised when the venue indicates a rate limit has been exceeded.
 
@@ -365,7 +351,6 @@ class RateLimitError(VenueError):
         retry_after: float | None = None,
         status_code: int | None = None,
     ) -> None:
-
         '''
         Store the rate limit details.
 
@@ -381,23 +366,19 @@ class RateLimitError(VenueError):
 
 
 class AuthenticationError(VenueError):
-
     '''Raised when the venue rejects API key or signature.'''
 
 
 class TransientError(VenueError):
-
     '''Raised when retries are exhausted on HTTP 5xx or timeout.'''
 
 
 class NotFoundError(VenueError):
-
     '''Raised when the requested order or resource does not exist on the venue.'''
 
 
 @runtime_checkable
 class VenueAdapter(Protocol):
-
     '''
     Venue-agnostic interface for exchange interaction.
 
@@ -412,25 +393,23 @@ class VenueAdapter(Protocol):
         api_key: str,
         api_secret: str,
     ) -> None:
-
         '''
         Register credentials for an account.
 
         Args:
-            account_id (str): Account identifier.
-            api_key (str): Venue API key.
-            api_secret (str): Venue API secret.
+            account_id (str): Account identifier
+            api_key (str): Venue API key
+            api_secret (str): Venue API secret
         '''
 
         ...
 
     def unregister_account(self, account_id: str) -> None:
-
         '''
         Remove credentials for an account.
 
         Args:
-            account_id (str): Account identifier.
+            account_id (str): Account identifier
         '''
 
         ...
@@ -449,7 +428,6 @@ class VenueAdapter(Protocol):
         client_order_id: str | None = None,
         time_in_force: str | None = None,
     ) -> SubmitResult:
-
         '''
         Submit an order to the venue.
 
@@ -479,7 +457,6 @@ class VenueAdapter(Protocol):
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> CancelResult:
-
         '''
         Cancel an open order on the venue.
 
@@ -506,7 +483,6 @@ class VenueAdapter(Protocol):
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> CancelResult:
-
         '''
         Cancel an open order list on the venue.
 
@@ -524,6 +500,7 @@ class VenueAdapter(Protocol):
         '''
 
         ...
+
     async def query_order(
         self,
         account_id: str,
@@ -532,7 +509,6 @@ class VenueAdapter(Protocol):
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> VenueOrder:
-
         '''
         Query the current state of an order on the venue.
 
@@ -556,7 +532,6 @@ class VenueAdapter(Protocol):
         account_id: str,
         symbol: str,
     ) -> list[VenueOrder]:
-
         '''
         Query all open orders for a symbol on the venue.
 
@@ -575,7 +550,6 @@ class VenueAdapter(Protocol):
         account_id: str,
         assets: frozenset[str],
     ) -> list[BalanceEntry]:
-
         '''
         Query account balances for specific assets from the venue.
 
@@ -596,7 +570,6 @@ class VenueAdapter(Protocol):
         *,
         start_time: datetime | None = None,
     ) -> list[VenueTrade]:
-
         '''
         Query historical trade records from the venue.
 
@@ -615,7 +588,6 @@ class VenueAdapter(Protocol):
         self,
         symbol: str,
     ) -> SymbolFilters:
-
         '''
         Query trading filters for a symbol from the venue.
 
@@ -634,7 +606,6 @@ class VenueAdapter(Protocol):
         *,
         limit: int = 20,
     ) -> OrderBookSnapshot:
-
         '''
         Query order book depth for a symbol from the venue.
 
@@ -649,7 +620,6 @@ class VenueAdapter(Protocol):
         ...
 
     async def get_server_time(self) -> int:
-
         '''
         Query the venue server time.
 
