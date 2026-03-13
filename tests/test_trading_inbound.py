@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TypedDict
 import pytest
 
 from praxis.core.execution_manager import AccountNotRegisteredError
@@ -15,6 +16,40 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.trading_inbound import TradingInbound
+
+
+class _SubmitCommandKwargs(TypedDict):
+    trade_id: str
+    account_id: str
+    symbol: str
+    side: OrderSide
+    qty: Decimal
+    order_type: OrderType
+    execution_mode: ExecutionMode
+    execution_params: SingleShotParams
+    timeout: int
+    reference_price: Decimal | None
+    maker_preference: MakerPreference
+    stp_mode: STPMode
+    created_at: datetime
+
+
+_CREATED_AT = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_SUBMIT_COMMAND_KWARGS: _SubmitCommandKwargs = {
+    'trade_id': 'trade-1',
+    'account_id': 'acc-1',
+    'symbol': 'BTCUSDT',
+    'side': OrderSide.BUY,
+    'qty': Decimal('1'),
+    'order_type': OrderType.LIMIT,
+    'execution_mode': ExecutionMode.SINGLE_SHOT,
+    'execution_params': SingleShotParams(price=Decimal('50000')),
+    'timeout': 300,
+    'reference_price': None,
+    'maker_preference': MakerPreference.NO_PREFERENCE,
+    'stp_mode': STPMode.NONE,
+    'created_at': _CREATED_AT,
+}
 
 
 class _FakeExecutionManager:
@@ -242,40 +277,11 @@ async def test_submit_command_routes_and_returns_command_id() -> None:
         account_credentials={'acc-1': ('key-1', 'secret-1')},
     )
 
-    created_at = datetime(2099, 1, 1, tzinfo=timezone.utc)
-    command_id = await trading.submit_command(
-        trade_id='trade-1',
-        account_id='acc-1',
-        symbol='BTCUSDT',
-        side=OrderSide.BUY,
-        qty=Decimal('1'),
-        order_type=OrderType.LIMIT,
-        execution_mode=ExecutionMode.SINGLE_SHOT,
-        execution_params=SingleShotParams(price=Decimal('50000')),
-        timeout=300,
-        reference_price=None,
-        maker_preference=MakerPreference.NO_PREFERENCE,
-        stp_mode=STPMode.NONE,
-        created_at=created_at,
-    )
+    command_id = await trading.submit_command(**_SUBMIT_COMMAND_KWARGS)
 
     assert command_id == 'cmd-123'
     assert execution.submit_command_calls == ['acc-1']
-    assert execution.last_submit_command == {
-        'trade_id': 'trade-1',
-        'account_id': 'acc-1',
-        'symbol': 'BTCUSDT',
-        'side': OrderSide.BUY,
-        'qty': Decimal('1'),
-        'order_type': OrderType.LIMIT,
-        'execution_mode': ExecutionMode.SINGLE_SHOT,
-        'execution_params': SingleShotParams(price=Decimal('50000')),
-        'timeout': 300,
-        'reference_price': None,
-        'maker_preference': MakerPreference.NO_PREFERENCE,
-        'stp_mode': STPMode.NONE,
-        'created_at': created_at,
-    }
+    assert execution.last_submit_command == _SUBMIT_COMMAND_KWARGS
 
 
 @pytest.mark.asyncio
@@ -290,21 +296,7 @@ async def test_submit_command_propagates_execution_errors() -> None:
     )
 
     with pytest.raises(AccountNotRegisteredError, match='missing account'):
-        await trading.submit_command(
-            trade_id='trade-1',
-            account_id='acc-1',
-            symbol='BTCUSDT',
-            side=OrderSide.BUY,
-            qty=Decimal('1'),
-            order_type=OrderType.LIMIT,
-            execution_mode=ExecutionMode.SINGLE_SHOT,
-            execution_params=SingleShotParams(price=Decimal('50000')),
-            timeout=300,
-            reference_price=None,
-            maker_preference=MakerPreference.NO_PREFERENCE,
-            stp_mode=STPMode.NONE,
-            created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
-        )
+        await trading.submit_command(**_SUBMIT_COMMAND_KWARGS)
 
 
 def test_submit_abort_routes_to_execution_layer() -> None:
@@ -321,7 +313,7 @@ def test_submit_abort_routes_to_execution_layer() -> None:
             account_id='acc-1',
             command_id='cmd-1',
             reason='cancel',
-            created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+            created_at=_CREATED_AT,
         )
     )
 
@@ -344,6 +336,6 @@ def test_submit_abort_propagates_execution_errors() -> None:
                 account_id='acc-1',
                 command_id='cmd-1',
                 reason='cancel',
-                created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+                created_at=_CREATED_AT,
             )
         )

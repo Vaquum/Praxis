@@ -19,7 +19,7 @@ from praxis.core.domain.trade_abort import TradeAbort
 __all__ = ['TradingInbound']
 
 
-class _ExecutionAccountRegistry(Protocol):
+class _ExecutionInboundGateway(Protocol):
     def has_account(self, account_id: str) -> bool: ...
 
     def register_account(self, account_id: str) -> None: ...
@@ -66,7 +66,7 @@ class TradingInbound:
     inbound trade commands/aborts to the execution layer.
 
     Args:
-        execution_manager (_ExecutionAccountRegistry): Execution account registry.
+        execution_manager (_ExecutionInboundGateway): Execution inbound gateway.
         venue_adapter (_VenueAccountRegistry): Venue credential registry.
         account_credentials (Mapping[str, tuple[str, str]]): Static account
             credential mapping keyed by account identifier.
@@ -74,7 +74,7 @@ class TradingInbound:
 
     def __init__(
         self,
-        execution_manager: _ExecutionAccountRegistry,
+        execution_manager: _ExecutionInboundGateway,
         venue_adapter: _VenueAccountRegistry,
         account_credentials: Mapping[str, tuple[str, str]],
     ) -> None:
