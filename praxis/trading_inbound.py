@@ -180,10 +180,14 @@ class TradingInbound:
             reference_price (Decimal | None): Optional reference price.
             maker_preference (MakerPreference): Maker/taker preference.
             stp_mode (STPMode): Self-trade prevention mode.
-            created_at (datetime): Command creation time.
+            created_at (datetime): Timezone-aware command creation time.
 
         Returns:
             str: Assigned command identifier.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered in execution.
+            ValueError: If command validation fails in execution layer.
         '''
 
         return await self._execution_manager.submit_command(
@@ -208,6 +212,10 @@ class TradingInbound:
 
         Args:
             abort (TradeAbort): Abort request targeting an existing command.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered in execution.
+            ValueError: If abort validation fails in execution layer.
         '''
 
         self._execution_manager.submit_abort(abort)

@@ -328,5 +328,5 @@
 
 - Add inbound `TradingInbound.submit_command(...)` handler routing directly to execution manager command intake in [`trading_inbound.py`](praxis/trading_inbound.py)
 - Add inbound `TradingInbound.submit_abort(...)` handler routing directly to execution manager abort intake in [`trading_inbound.py`](praxis/trading_inbound.py)
-- Add `_ExecutionAccountRegistry` protocol support for `submit_command` and `submit_abort` routing contracts in [`trading_inbound.py`](praxis/trading_inbound.py)
+- Add `_ExecutionInboundGateway` protocol support for `submit_command` and `submit_abort` routing contracts in [`trading_inbound.py`](praxis/trading_inbound.py)
 - Add inbound routing tests for command pass-through, abort pass-through, and execution-error propagation in [`test_trading_inbound.py`](tests/test_trading_inbound.py)
