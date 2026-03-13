@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from praxis.core.execution_manager import AccountNotRegisteredError
 from praxis.trading_inbound import TradingInbound
 
 
@@ -27,7 +28,10 @@ class _FakeExecutionManager:
     async def unregister_account(self, account_id: str) -> None:
         if self.unregister_error is not None:
             raise self.unregister_error
-        self.accounts.discard(account_id)
+        if account_id not in self.accounts:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+        self.accounts.remove(account_id)
         self.unregistered.append(account_id)
 
 
@@ -137,6 +141,7 @@ def test_register_account_already_registered_does_not_rollback() -> None:
 async def test_unregister_account_removes_runtime_and_credentials() -> None:
     execution = _FakeExecutionManager()
     venue = _FakeVenueAdapter()
+    execution.register_account('acc-1')
     venue.register_account('acc-1', 'key-1', 'secret-1')
     trading = TradingInbound(
         execution_manager=execution,
@@ -155,6 +160,7 @@ async def test_unregister_account_cleans_up_venue_when_execution_raises() -> Non
     execution = _FakeExecutionManager()
     execution.unregister_error = ValueError('account missing')
     venue = _FakeVenueAdapter()
+    execution.register_account('acc-1')
     venue.register_account('acc-1', 'key-1', 'secret-1')
     trading = TradingInbound(
         execution_manager=execution,
