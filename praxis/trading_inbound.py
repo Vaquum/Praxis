@@ -1,18 +1,50 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import datetime
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Protocol
+
+from praxis.core.domain.enums import (
+    ExecutionMode,
+    MakerPreference,
+    OrderSide,
+    OrderType,
+    STPMode,
+)
+from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.trade_abort import TradeAbort
 
 __all__ = ['TradingInbound']
 
 
-class _ExecutionAccountRegistry(Protocol):
+class _ExecutionInboundGateway(Protocol):
     def has_account(self, account_id: str) -> bool: ...
 
     def register_account(self, account_id: str) -> None: ...
 
     async def unregister_account(self, account_id: str) -> None: ...
+
+    async def submit_command(
+        self,
+        *,
+        trade_id: str,
+        account_id: str,
+        symbol: str,
+        side: OrderSide,
+        qty: Decimal,
+        order_type: OrderType,
+        execution_mode: ExecutionMode,
+        execution_params: SingleShotParams,
+        timeout: int,
+        reference_price: Decimal | None,
+        maker_preference: MakerPreference,
+        stp_mode: STPMode,
+        created_at: datetime,
+    ) -> str: ...
+
+    def submit_abort(self, abort: TradeAbort) -> None: ...
 
 
 class _VenueAccountRegistry(Protocol):
@@ -28,10 +60,13 @@ class _VenueAccountRegistry(Protocol):
 
 class TradingInbound:
     '''
-    Coordinate inbound account registration across venue and execution layers.
+    Coordinate inbound account lifecycle and command routing.
+
+    Handles account registration/unregistration orchestration and routes
+    inbound trade commands/aborts to the execution layer.
 
     Args:
-        execution_manager (_ExecutionAccountRegistry): Execution account registry.
+        execution_manager (_ExecutionInboundGateway): Execution inbound gateway.
         venue_adapter (_VenueAccountRegistry): Venue credential registry.
         account_credentials (Mapping[str, tuple[str, str]]): Static account
             credential mapping keyed by account identifier.
@@ -39,7 +74,7 @@ class TradingInbound:
 
     def __init__(
         self,
-        execution_manager: _ExecutionAccountRegistry,
+        execution_manager: _ExecutionInboundGateway,
         venue_adapter: _VenueAccountRegistry,
         account_credentials: Mapping[str, tuple[str, str]],
     ) -> None:
@@ -111,3 +146,76 @@ class TradingInbound:
         finally:
             with contextlib.suppress(KeyError):
                 self._venue_adapter.unregister_account(account_id)
+
+    async def submit_command(
+        self,
+        *,
+        trade_id: str,
+        account_id: str,
+        symbol: str,
+        side: OrderSide,
+        qty: Decimal,
+        order_type: OrderType,
+        execution_mode: ExecutionMode,
+        execution_params: SingleShotParams,
+        timeout: int,
+        reference_price: Decimal | None,
+        maker_preference: MakerPreference,
+        stp_mode: STPMode,
+        created_at: datetime,
+    ) -> str:
+        '''
+        Route inbound command submission to the execution layer.
+
+        Args:
+            trade_id (str): Manager correlation identifier.
+            account_id (str): Target account identifier.
+            symbol (str): Trading pair symbol.
+            side (OrderSide): Order direction.
+            qty (Decimal): Total quantity to execute.
+            order_type (OrderType): Order type.
+            execution_mode (ExecutionMode): Execution strategy.
+            execution_params (SingleShotParams): Mode-specific parameters.
+            timeout (int): Execution deadline in seconds.
+            reference_price (Decimal | None): Optional reference price.
+            maker_preference (MakerPreference): Maker/taker preference.
+            stp_mode (STPMode): Self-trade prevention mode.
+            created_at (datetime): Timezone-aware command creation time.
+
+        Returns:
+            str: Assigned command identifier.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered in execution.
+            ValueError: If command validation fails in execution layer.
+        '''
+
+        return await self._execution_manager.submit_command(
+            trade_id=trade_id,
+            account_id=account_id,
+            symbol=symbol,
+            side=side,
+            qty=qty,
+            order_type=order_type,
+            execution_mode=execution_mode,
+            execution_params=execution_params,
+            timeout=timeout,
+            reference_price=reference_price,
+            maker_preference=maker_preference,
+            stp_mode=stp_mode,
+            created_at=created_at,
+        )
+
+    def submit_abort(self, abort: TradeAbort) -> None:
+        '''
+        Route inbound abort submission to the execution layer.
+
+        Args:
+            abort (TradeAbort): Abort request targeting an existing command.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered in execution.
+            ValueError: If abort validation fails in execution layer.
+        '''
+
+        self._execution_manager.submit_abort(abort)
