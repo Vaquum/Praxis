@@ -7,13 +7,9 @@ from typing import Protocol
 __all__ = ['TradingInbound']
 
 
-def _is_already_registered_error(account_id: str, error: ValueError) -> bool:
-    reason = error.args[0] if error.args else str(error)
-    expected = f"account_id '{account_id}' is already registered"
-    return str(reason) == expected
-
-
 class _ExecutionAccountRegistry(Protocol):
+    def has_account(self, account_id: str) -> bool: ...
+
     def register_account(self, account_id: str) -> None: ...
 
     async def unregister_account(self, account_id: str) -> None: ...
@@ -67,7 +63,8 @@ class TradingInbound:
 
         Note:
             If execution runtime is already registered for account_id,
-            registration is treated as idempotent success.
+            registration is treated as idempotent success based on
+            execution registry state.
         '''
 
         if not account_id:
@@ -80,15 +77,14 @@ class TradingInbound:
             raise ValueError(msg)
 
         api_key, api_secret = credentials
+        if self._execution_manager.has_account(account_id):
+            self._venue_adapter.register_account(account_id, api_key, api_secret)
+            return
+
         self._venue_adapter.register_account(account_id, api_key, api_secret)
         try:
             self._execution_manager.register_account(account_id)
-        except (ValueError, RuntimeError) as exc:
-            if isinstance(exc, ValueError) and _is_already_registered_error(
-                account_id,
-                exc,
-            ):
-                return
+        except (ValueError, RuntimeError):
             with contextlib.suppress(KeyError):
                 self._venue_adapter.unregister_account(account_id)
             raise
@@ -102,8 +98,8 @@ class TradingInbound:
 
         Raises:
             AccountNotRegisteredError: If execution runtime is not registered.
-            ValueError: If execution unregister fails for a non-registration
-                reason.
+            ValueError: If execution unregister fails and implementation
+                raises ValueError for invalid unregister requests.
 
         Note:
             Venue credentials are cleaned up in a finally block even when

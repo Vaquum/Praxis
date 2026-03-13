@@ -7,19 +7,27 @@ from praxis.trading_inbound import TradingInbound
 
 class _FakeExecutionManager:
     def __init__(self) -> None:
+        self.accounts: set[str] = set()
+        self.has_account_calls: list[str] = []
         self.registered: list[str] = []
         self.unregistered: list[str] = []
         self.register_error: Exception | None = None
         self.unregister_error: Exception | None = None
 
+    def has_account(self, account_id: str) -> bool:
+        self.has_account_calls.append(account_id)
+        return account_id in self.accounts
+
     def register_account(self, account_id: str) -> None:
         if self.register_error is not None:
             raise self.register_error
+        self.accounts.add(account_id)
         self.registered.append(account_id)
 
     async def unregister_account(self, account_id: str) -> None:
         if self.unregister_error is not None:
             raise self.unregister_error
+        self.accounts.discard(account_id)
         self.unregistered.append(account_id)
 
 
@@ -50,6 +58,7 @@ def test_register_account_happy_path() -> None:
 
     trading.register_account('acc-1')
 
+    assert execution.has_account_calls == ['acc-1']
     assert execution.registered == ['acc-1']
     assert venue.credentials['acc-1'] == ('key-1', 'secret-1')
 
@@ -110,7 +119,7 @@ def test_register_account_rolls_back_venue_on_runtime_error() -> None:
 
 def test_register_account_already_registered_does_not_rollback() -> None:
     execution = _FakeExecutionManager()
-    execution.register_error = ValueError("account_id 'acc-1' is already registered")
+    execution.accounts.add('acc-1')
     venue = _FakeVenueAdapter()
     trading = TradingInbound(
         execution_manager=execution,
@@ -120,6 +129,7 @@ def test_register_account_already_registered_does_not_rollback() -> None:
 
     trading.register_account('acc-1')
 
+    assert execution.registered == []
     assert venue.credentials['acc-1'] == ('key-1', 'secret-1')
 
 

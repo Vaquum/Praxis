@@ -410,6 +410,9 @@ class VenueAdapter(Protocol):
 
         Args:
             account_id (str): Account identifier
+
+        Raises:
+            KeyError: If account_id is not registered by the implementation.
         '''
 
         ...
