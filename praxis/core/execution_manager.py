@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import logging
 import uuid
+from dataclasses import replace
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -36,6 +37,7 @@ from praxis.core.domain.events import (
     TradeOutcomeProduced,
 )
 from praxis.core.domain.order import Order
+from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
@@ -98,7 +100,9 @@ class ExecutionManager:
         epoch_id (int): Current epoch identifier.
         venue_adapter (VenueAdapter): Venue interface for order submission.
         on_trade_outcome (Callable[[TradeOutcome], Awaitable[None]] | None):
-            Async callback invoked with each TradeOutcome. None to skip.
+            Async callback awaited once per produced TradeOutcome after
+            TradeOutcomeProduced is appended to the event spine. None to skip.
+            Callback exceptions are logged and suppressed.
     '''
 
     def __init__(
@@ -164,6 +168,30 @@ class ExecutionManager:
         '''
 
         return account_id in self._accounts
+
+    def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
+        '''
+        Return a detached snapshot of current positions for an account.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[tuple[str, str], Position]: Snapshot of current positions.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return {
+            key: replace(position)
+            for key, position in runtime.trading_state.positions.items()
+        }
 
     def _deadline_at(self, cmd: TradeCommand) -> datetime:
         '''

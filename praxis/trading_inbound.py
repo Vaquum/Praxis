@@ -13,6 +13,7 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 
@@ -45,6 +46,8 @@ class _ExecutionInboundGateway(Protocol):
     ) -> str: ...
 
     def submit_abort(self, abort: TradeAbort) -> None: ...
+
+    def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]: ...
 
 
 class _VenueAccountRegistry(Protocol):
@@ -219,3 +222,19 @@ class TradingInbound:
         '''
 
         self._execution_manager.submit_abort(abort)
+
+    def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
+        '''
+        Route positions pull request to the execution layer.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[tuple[str, str], Position]: Detached positions snapshot.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered in execution.
+        '''
+
+        return self._execution_manager.pull_positions(account_id)
