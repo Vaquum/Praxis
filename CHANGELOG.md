@@ -338,3 +338,10 @@
 - Add positions pull boundary tests for execution snapshot semantics and inbound routing/error propagation in [`test_execution_manager_pull_positions.py`](tests/test_execution_manager_pull_positions.py) and [`test_trading_inbound.py`](tests/test_trading_inbound.py)
 - Add callback contract tests asserting one callback await per produced outcome and non-blocking behavior on callback exceptions in [`test_execution_manager_trade_outcome_callback.py`](tests/test_execution_manager_trade_outcome_callback.py)
 - Update `ExecutionManager` callback contract documentation for async invocation ordering and exception suppression in [`execution_manager.py`](praxis/core/execution_manager.py)
+
+## v0.32.0 on 15th of March, 2026
+
+- Add `TradingConfig` MMVP runtime wiring surface and export it from package root in [`trading_config.py`](praxis/trading_config.py) and [`__init__.py`](praxis/__init__.py)
+- Add `Trading` composition root that wires Event Spine, venue adapter, execution manager, and inbound facade in [`trading.py`](praxis/trading.py)
+- Add basic MMVP lifecycle supervision to `Trading` with readiness gate and managed-account cleanup via `start()`/`stop()` in [`trading.py`](praxis/trading.py)
+- Add focused tests for config validation/defaults, composition wiring, facade delegation, and lifecycle cleanup/no-leaked account tasks in [`test_trading_config.py`](tests/test_trading_config.py) and [`test_trading.py`](tests/test_trading.py)

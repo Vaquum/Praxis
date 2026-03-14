@@ -305,3 +305,30 @@ async def test_trading_start_ensures_event_spine_schema() -> None:
     await conn.close()
 
     assert row is not None
+
+
+@pytest.mark.asyncio
+async def test_trading_stop_cleans_up_execution_account_task(spine: EventSpine) -> None:
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+
+    assert trading.execution_manager.has_account('acc-1')
+    runtime_task = trading.execution_manager._accounts['acc-1'].task
+    assert runtime_task is not None
+    assert runtime_task.get_name() == 'account-acc-1'
+    assert runtime_task.done() is False
+
+    await trading.stop()
+
+    assert not trading.execution_manager.has_account('acc-1')
+    assert runtime_task.done() is True
