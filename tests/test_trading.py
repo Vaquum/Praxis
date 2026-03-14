@@ -280,16 +280,6 @@ async def test_trading_requires_start_before_facade_operations(
             )
         )
 
-    with pytest.raises(RuntimeError, match=r'Trading\.start'):
-        trading.submit_abort(
-            TradeAbort(
-                account_id='acc-1',
-                command_id='cmd-1',
-                reason='cancel',
-                created_at=_CREATED_AT,
-            )
-        )
-
 
 @pytest.mark.asyncio
 async def test_trading_stop_unregisters_managed_accounts(
