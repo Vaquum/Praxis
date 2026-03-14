@@ -118,7 +118,6 @@ TESTNET_WS_URL = 'wss://stream.testnet.binance.vision'
 
 
 class BinanceAdapter:
-
     '''
     Binance Spot REST adapter implementing submit_order from VenueAdapter.
 
@@ -135,7 +134,6 @@ class BinanceAdapter:
         ws_base_url: str,
         credentials: dict[str, tuple[str, str]] | None = None,
     ) -> None:
-
         '''
         Store configuration and initialise empty session.
 
@@ -159,7 +157,6 @@ class BinanceAdapter:
 
     @property
     def weight_headroom(self) -> float:
-
         '''
         Remaining request weight as a fraction of the limit.
 
@@ -170,10 +167,11 @@ class BinanceAdapter:
         if self._weight_limit <= 0:
             return 1.0
 
-        return min(1.0, max(0.0, (self._weight_limit - self._used_weight) / self._weight_limit))
+        return min(
+            1.0, max(0.0, (self._weight_limit - self._used_weight) / self._weight_limit)
+        )
 
     def order_count_headroom(self, account_id: str) -> float:
-
         '''
         Remaining order count as a fraction of the limit for an account.
 
@@ -189,10 +187,11 @@ class BinanceAdapter:
         if self._order_count_limit <= 0:
             return 1.0
 
-        return min(1.0, max(0.0, (self._order_count_limit - used) / self._order_count_limit))
+        return min(
+            1.0, max(0.0, (self._order_count_limit - used) / self._order_count_limit)
+        )
 
     async def __aenter__(self) -> BinanceAdapter:
-
         '''
         Create the HTTP session on context manager entry.
 
@@ -209,13 +208,11 @@ class BinanceAdapter:
         exc_val: BaseException | None,
         exc_tb: Any,
     ) -> None:
-
         '''Close the HTTP session on context manager exit.'''
 
         await self.close()
 
     async def close(self) -> None:
-
         '''Close the HTTP session if it exists.'''
 
         if self._session:
@@ -230,7 +227,6 @@ class BinanceAdapter:
         api_key: str,
         api_secret: str,
     ) -> None:
-
         '''
         Register credentials for an account.
 
@@ -243,7 +239,6 @@ class BinanceAdapter:
         self._credentials[account_id] = (api_key, api_secret)
 
     def unregister_account(self, account_id: str) -> None:
-
         '''
         Remove credentials for an account.
 
@@ -257,7 +252,6 @@ class BinanceAdapter:
         del self._credentials[account_id]
 
     def _get_credentials(self, account_id: str) -> tuple[str, str]:
-
         '''
         Look up credentials for an account.
 
@@ -278,7 +272,6 @@ class BinanceAdapter:
             raise AuthenticationError(msg) from None
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
-
         '''
         Return existing session or create a new one lazily.
 
@@ -295,7 +288,6 @@ class BinanceAdapter:
         params: dict[str, str],
         api_secret: str,
     ) -> str:
-
         '''
         Build a signed query string for an authenticated request.
 
@@ -328,7 +320,6 @@ class BinanceAdapter:
         params: dict[str, str],
         account_id: str,
     ) -> Any:
-
         '''
         Execute a signed HTTP request against the Binance REST API.
 
@@ -374,19 +365,32 @@ class BinanceAdapter:
                 last_error = exc
                 if attempt + 1 == _MAX_RETRIES:
                     break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2**attempt)
                 _log.warning(
                     'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                    method,
+                    path,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    exc,
                 )
                 await asyncio.sleep(delay)
             except RateLimitError as exc:
                 if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
                     raise
-                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                delay = (
+                    max(0.0, exc.retry_after)
+                    if exc.retry_after is not None
+                    else random.uniform(0, _RETRY_BASE_DELAY * 2**attempt)
+                )
                 _log.warning(
                     'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
-                    method, path, attempt + 1, _MAX_RETRIES, delay,
+                    method,
+                    path,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
                 )
                 await asyncio.sleep(delay)
             except VenueError:
@@ -397,19 +401,29 @@ class BinanceAdapter:
                 last_error.__cause__ = exc
                 if attempt + 1 == _MAX_RETRIES:
                     break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2**attempt)
                 _log.warning(
                     'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                    method,
+                    path,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    exc,
                 )
                 await asyncio.sleep(delay)
 
         _log.error(
             'All %d attempts exhausted on %s %s: %s',
-            _MAX_RETRIES, method, path, last_error,
+            _MAX_RETRIES,
+            method,
+            path,
+            last_error,
         )
         if last_error is None:
-            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
+            raise TransientError(
+                f"All {_MAX_RETRIES} attempts exhausted on {method} {path}"
+            )
         raise last_error
 
     async def _api_key_request(
@@ -419,7 +433,6 @@ class BinanceAdapter:
         params: dict[str, str],
         account_id: str,
     ) -> Any:
-
         '''
         Execute an API-key-authenticated HTTP request without HMAC signing.
 
@@ -463,19 +476,32 @@ class BinanceAdapter:
                 last_error = exc
                 if attempt + 1 == _MAX_RETRIES:
                     break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2**attempt)
                 _log.warning(
                     'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                    method,
+                    path,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    exc,
                 )
                 await asyncio.sleep(delay)
             except RateLimitError as exc:
                 if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
                     raise
-                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                delay = (
+                    max(0.0, exc.retry_after)
+                    if exc.retry_after is not None
+                    else random.uniform(0, _RETRY_BASE_DELAY * 2**attempt)
+                )
                 _log.warning(
                     'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
-                    method, path, attempt + 1, _MAX_RETRIES, delay,
+                    method,
+                    path,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
                 )
                 await asyncio.sleep(delay)
             except VenueError:
@@ -486,23 +512,32 @@ class BinanceAdapter:
                 last_error.__cause__ = exc
                 if attempt + 1 == _MAX_RETRIES:
                     break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2**attempt)
                 _log.warning(
                     'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                    method,
+                    path,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    exc,
                 )
                 await asyncio.sleep(delay)
 
         _log.error(
             'All %d attempts exhausted on %s %s: %s',
-            _MAX_RETRIES, method, path, last_error,
+            _MAX_RETRIES,
+            method,
+            path,
+            last_error,
         )
         if last_error is None:
-            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
+            raise TransientError(
+                f"All {_MAX_RETRIES} attempts exhausted on {method} {path}"
+            )
         raise last_error
 
     async def _create_listen_key(self, account_id: str) -> str:
-
         '''
         Create a new user data stream listen key.
 
@@ -514,7 +549,10 @@ class BinanceAdapter:
         '''
 
         data = await self._api_key_request(
-            'POST', '/api/v3/userDataStream', {}, account_id,
+            'POST',
+            '/api/v3/userDataStream',
+            {},
+            account_id,
         )
         listen_key = data.get('listenKey') if isinstance(data, dict) else None
 
@@ -525,9 +563,10 @@ class BinanceAdapter:
         return listen_key
 
     async def _keepalive_listen_key(
-        self, account_id: str, listen_key: str,
+        self,
+        account_id: str,
+        listen_key: str,
     ) -> None:
-
         '''
         Extend the validity of a user data stream listen key.
 
@@ -540,14 +579,17 @@ class BinanceAdapter:
         '''
 
         await self._api_key_request(
-            'PUT', '/api/v3/userDataStream',
-            {'listenKey': listen_key}, account_id,
+            'PUT',
+            '/api/v3/userDataStream',
+            {'listenKey': listen_key},
+            account_id,
         )
 
     async def _close_listen_key(
-        self, account_id: str, listen_key: str,
+        self,
+        account_id: str,
+        listen_key: str,
     ) -> None:
-
         '''
         Close a user data stream and invalidate its listen key.
 
@@ -557,8 +599,10 @@ class BinanceAdapter:
         '''
 
         await self._api_key_request(
-            'DELETE', '/api/v3/userDataStream',
-            {'listenKey': listen_key}, account_id,
+            'DELETE',
+            '/api/v3/userDataStream',
+            {'listenKey': listen_key},
+            account_id,
         )
 
     def _build_order_params(
@@ -573,7 +617,6 @@ class BinanceAdapter:
         client_order_id: str | None = None,
         time_in_force: str | None = None,
     ) -> dict[str, str]:
-
         '''
         Build Binance-formatted order parameters from domain types.
 
@@ -642,7 +685,6 @@ class BinanceAdapter:
         client_order_id: str | None = None,
         time_in_force: str | None = None,
     ) -> dict[str, str]:
-
         '''
         Compute Binance-formatted OCO order parameters.
 
@@ -679,7 +721,6 @@ class BinanceAdapter:
         return params
 
     def _map_order_status(self, binance_status: str) -> OrderStatus:
-
         '''
         Map a Binance order status string to an OrderStatus enum.
 
@@ -697,7 +738,6 @@ class BinanceAdapter:
             raise ValueError(msg) from None
 
     def _map_order_type(self, binance_type: str, time_in_force: str) -> OrderType:
-
         '''
         Map a Binance order type and time-in-force to an OrderType enum.
 
@@ -723,7 +763,6 @@ class BinanceAdapter:
         raise ValueError(msg)
 
     def _parse_submit_response(self, data: dict[str, Any]) -> SubmitResult:
-
         '''
         Parse a Binance FULL order response into a SubmitResult.
 
@@ -752,7 +791,6 @@ class BinanceAdapter:
         )
 
     def _parse_oco_response(self, data: dict[str, Any]) -> SubmitResult:
-
         '''
         Compute a SubmitResult from a Binance OCO order response.
 
@@ -806,7 +844,6 @@ class BinanceAdapter:
         )
 
     def _parse_venue_order(self, data: dict[str, Any]) -> VenueOrder:
-
         '''
         Parse a Binance order query response into a VenueOrder.
 
@@ -833,7 +870,6 @@ class BinanceAdapter:
         )
 
     def _parse_venue_trade(self, data: dict[str, Any]) -> VenueTrade:
-
         '''
         Parse a Binance myTrades response entry into a VenueTrade.
 
@@ -856,12 +892,12 @@ class BinanceAdapter:
             fee_asset=data['commissionAsset'],
             is_maker=data['isMaker'],
             timestamp=datetime.fromtimestamp(
-                data['time'] / _MS_PER_SECOND, tz=timezone.utc,
+                data['time'] / _MS_PER_SECOND,
+                tz=timezone.utc,
             ),
         )
 
     async def _raise_on_error(self, response: aiohttp.ClientResponse) -> None:
-
         '''
         Raise a VenueError subclass if the HTTP response indicates failure.
 
@@ -887,7 +923,9 @@ class BinanceAdapter:
                         retry_after = parsed
 
             msg = f"Rate limited: HTTP {response.status}"
-            raise RateLimitError(msg, retry_after=retry_after, status_code=response.status)
+            raise RateLimitError(
+                msg, retry_after=retry_after, status_code=response.status
+            )
 
         if response.status >= _HTTP_SERVER_ERROR:
             msg = f"Venue server error: HTTP {response.status}"
@@ -915,7 +953,6 @@ class BinanceAdapter:
         qty: Decimal,
         price: Decimal | None,
     ) -> None:
-
         '''
         Validate order parameters against cached venue filters.
 
@@ -951,13 +988,14 @@ class BinanceAdapter:
 
         if price is not None and order_type != OrderType.MARKET:
             if price % filters.tick_size != 0:
-                msg = f"price {price} is not a multiple of tick size {filters.tick_size}"
+                msg = (
+                    f"price {price} is not a multiple of tick size {filters.tick_size}"
+                )
                 raise ValueError(msg)
 
             if price * qty < filters.min_notional:
                 msg = f"notional {price * qty} is below minimum {filters.min_notional}"
                 raise ValueError(msg)
-
 
     async def submit_order(
         self,
@@ -973,7 +1011,6 @@ class BinanceAdapter:
         client_order_id: str | None = None,
         time_in_force: str | None = None,
     ) -> SubmitResult:
-
         '''
         Submit an order to the venue.
 
@@ -1000,14 +1037,20 @@ class BinanceAdapter:
                 msg = 'price and stop_price are required for OCO orders'
                 raise ValueError(msg)
             params = self._build_oco_params(
-                symbol, side, qty,
-                price=price, stop_price=stop_price,
+                symbol,
+                side,
+                qty,
+                price=price,
+                stop_price=stop_price,
                 stop_limit_price=stop_limit_price,
                 client_order_id=client_order_id,
                 time_in_force=time_in_force,
             )
             data = await self._signed_request(
-                'POST', '/api/v3/order/oco', params, account_id,
+                'POST',
+                '/api/v3/order/oco',
+                params,
+                account_id,
             )
             return self._parse_oco_response(data)
 
@@ -1016,8 +1059,12 @@ class BinanceAdapter:
             raise ValueError(msg)
 
         params = self._build_order_params(
-            symbol, side, order_type, qty,
-            price=price, stop_price=stop_price,
+            symbol,
+            side,
+            order_type,
+            qty,
+            price=price,
+            stop_price=stop_price,
             client_order_id=client_order_id,
             time_in_force=time_in_force,
         )
@@ -1032,7 +1079,6 @@ class BinanceAdapter:
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> CancelResult:
-
         '''
         Cancel an open order on the venue.
 
@@ -1072,7 +1118,6 @@ class BinanceAdapter:
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> CancelResult:
-
         '''
         Cancel an open order list on the venue.
 
@@ -1102,7 +1147,10 @@ class BinanceAdapter:
             params['listClientOrderId'] = client_order_id
 
         data = await self._signed_request(
-            'DELETE', '/api/v3/orderList', params, account_id,
+            'DELETE',
+            '/api/v3/orderList',
+            params,
+            account_id,
         )
         return CancelResult(
             venue_order_id=str(data['orderListId']),
@@ -1117,7 +1165,6 @@ class BinanceAdapter:
         venue_order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> VenueOrder:
-
         '''
         Query the current state of an order on the venue.
 
@@ -1151,7 +1198,6 @@ class BinanceAdapter:
         account_id: str,
         symbol: str,
     ) -> list[VenueOrder]:
-
         '''
         Query all open orders for a symbol on the venue.
 
@@ -1164,7 +1210,9 @@ class BinanceAdapter:
         '''
 
         params: dict[str, str] = {'symbol': symbol}
-        data = await self._signed_request('GET', '/api/v3/openOrders', params, account_id)
+        data = await self._signed_request(
+            'GET', '/api/v3/openOrders', params, account_id
+        )
 
         return [self._parse_venue_order(entry) for entry in data]
 
@@ -1173,7 +1221,6 @@ class BinanceAdapter:
         account_id: str,
         assets: frozenset[str],
     ) -> list[BalanceEntry]:
-
         '''
         Query account balances for specific assets from the venue.
 
@@ -1207,7 +1254,6 @@ class BinanceAdapter:
         *,
         start_time: datetime | None = None,
     ) -> list[VenueTrade]:
-
         '''
         Query historical trade records from the venue.
 
@@ -1220,7 +1266,9 @@ class BinanceAdapter:
             list[VenueTrade]: Trade records from the venue
         '''
 
-        if start_time is not None and (start_time.tzinfo is None or start_time.utcoffset() is None):
+        if start_time is not None and (
+            start_time.tzinfo is None or start_time.utcoffset() is None
+        ):
             msg = 'start_time must be timezone-aware'
             raise ValueError(msg)
 
@@ -1234,7 +1282,6 @@ class BinanceAdapter:
         return [self._parse_venue_trade(entry) for entry in data]
 
     async def load_filters(self, symbols: Sequence[str]) -> None:
-
         '''
         Pre-load trading filters for one or more symbols.
 
@@ -1254,7 +1301,6 @@ class BinanceAdapter:
             self._filters[symbol] = await self.get_exchange_info(symbol)
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
-
         '''
         Query trading filters for a symbol from the venue.
 
@@ -1297,7 +1343,9 @@ class BinanceAdapter:
             raise VenueError(msg)
 
         symbol_info = symbols_list[0]
-        filters_list = symbol_info.get('filters') if isinstance(symbol_info, dict) else None
+        filters_list = (
+            symbol_info.get('filters') if isinstance(symbol_info, dict) else None
+        )
 
         if not isinstance(filters_list, list) or not filters_list:
             msg = f"Unexpected exchangeInfo payload for {symbol!r}: missing or empty 'filters'"
@@ -1335,7 +1383,6 @@ class BinanceAdapter:
         *,
         limit: int = 20,
     ) -> OrderBookSnapshot:
-
         '''
         Query order book depth from Binance.
 
@@ -1393,12 +1440,47 @@ class BinanceAdapter:
             msg = f"Malformed depth payload for {symbol!r}: {exc}"
             raise VenueError(msg) from exc
 
+    async def get_server_time(self) -> int:
+        '''
+        Query Binance server time.
+
+        Returns:
+            int: Server time in milliseconds since epoch
+
+        Raises:
+            VenueError: On malformed response payload or venue rejection
+            TransientError: On network, timeout, or JSON decode failures
+        '''
+
+        session = await self._ensure_session()
+
+        try:
+            async with session.request(
+                'GET', f"{self._base_url}/api/v3/time"
+            ) as response:
+                self._update_weight_from_headers(response)
+                await self._raise_on_error(response)
+                data: Any = await response.json()
+        except OrderRejectedError as exc:
+            msg = f'server time query failed: {exc}'
+            raise VenueError(msg) from exc
+        except VenueError:
+            raise
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            msg = f'Request failed: {exc}'
+            raise TransientError(msg) from exc
+
+        try:
+            return int(data['serverTime'])
+        except (KeyError, TypeError, ValueError) as exc:
+            msg = f'Malformed server time payload: {exc}'
+            raise VenueError(msg) from exc
+
     def _update_weight_from_headers(
         self,
         response: aiohttp.ClientResponse,
         account_id: str | None = None,
     ) -> None:
-
         '''
         Update rate limit counters from response headers.
 
@@ -1437,13 +1519,14 @@ class BinanceAdapter:
                 log_headroom = max(0.0, headroom)
                 _log.warning(
                     'Rate limit headroom low: %d/%d used (%.1f%% remaining)',
-                    self._used_weight, self._weight_limit, log_headroom * 100,
+                    self._used_weight,
+                    self._weight_limit,
+                    log_headroom * 100,
                 )
 
             self._prev_headroom_above_threshold = not below
 
     def _parse_rate_limits(self, data: Any) -> None:
-
         '''
         Parse rateLimits array from exchangeInfo response.
 
@@ -1489,7 +1572,6 @@ class BinanceAdapter:
                 self._order_count_limit = limit_val
 
     def _parse_execution_report(self, data: dict[str, Any]) -> ExecutionReport:
-
         '''
         Parse a Binance executionReport WebSocket payload into an ExecutionReport.
 
@@ -1511,7 +1593,8 @@ class BinanceAdapter:
 
         return ExecutionReport(
             event_time=datetime.fromtimestamp(
-                data['E'] / _MS_PER_SECOND, tz=timezone.utc,
+                data['E'] / _MS_PER_SECOND,
+                tz=timezone.utc,
             ),
             symbol=data['s'],
             client_order_id=data['c'],
@@ -1529,8 +1612,11 @@ class BinanceAdapter:
             commission=Decimal(data['n']),
             commission_asset=data.get('N'),
             transaction_time=datetime.fromtimestamp(
-                data['T'] / _MS_PER_SECOND, tz=timezone.utc,
+                data['T'] / _MS_PER_SECOND,
+                tz=timezone.utc,
             ),
-            venue_trade_id=str(data['t']) if data['t'] != _BINANCE_NO_TRADE_ID else None,
+            venue_trade_id=str(data['t'])
+            if data['t'] != _BINANCE_NO_TRADE_ID
+            else None,
             is_maker=data['m'],
         )

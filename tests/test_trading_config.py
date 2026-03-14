@@ -13,7 +13,6 @@ from praxis.trading_config import TradingConfig
 def test_trading_config_defaults() -> None:
     cfg = TradingConfig(epoch_id=1)
 
-    assert cfg.sqlite_path == 'praxis.sqlite3'
     assert cfg.venue_rest_url == TESTNET_REST_URL
     assert cfg.venue_ws_url == TESTNET_WS_URL
     assert cfg.account_credentials == {}
@@ -26,11 +25,6 @@ def test_trading_config_rejects_non_positive_epoch() -> None:
         TradingConfig(epoch_id=0)
 
 
-def test_trading_config_rejects_empty_sqlite_path() -> None:
-    with pytest.raises(ValueError, match='sqlite_path must be non-empty'):
-        TradingConfig(epoch_id=1, sqlite_path='')
-
-
 def test_trading_config_rejects_empty_account_id() -> None:
     with pytest.raises(ValueError, match='keys must be non-empty'):
         TradingConfig(epoch_id=1, account_credentials={'': ('key', 'secret')})
@@ -39,6 +33,13 @@ def test_trading_config_rejects_empty_account_id() -> None:
 def test_trading_config_rejects_empty_credential_parts() -> None:
     with pytest.raises(ValueError, match='values must be'):
         TradingConfig(epoch_id=1, account_credentials={'acc-1': ('', 'secret')})
+
+
+def test_trading_config_rejects_malformed_credential_tuple_shape() -> None:
+    malformed = cast(MutableMapping[str, tuple[str, str]], {'acc-1': ('only-key',)})
+
+    with pytest.raises(ValueError, match='values must be'):
+        TradingConfig(epoch_id=1, account_credentials=malformed)
 
 
 def test_trading_config_copies_credentials_mapping() -> None:

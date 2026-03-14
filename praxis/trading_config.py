@@ -9,6 +9,8 @@ from praxis.infrastructure.binance_adapter import TESTNET_REST_URL, TESTNET_WS_U
 
 __all__ = ['TradingConfig']
 
+_CREDENTIAL_PARTS = 2
+
 
 @dataclass(frozen=True)
 class TradingConfig:
@@ -17,7 +19,6 @@ class TradingConfig:
 
     Args:
         epoch_id (int): Event epoch identifier used for Event Spine appends.
-        sqlite_path (str): SQLite connection path.
         venue_rest_url (str): Venue REST base URL.
         venue_ws_url (str): Venue WebSocket base URL.
         account_credentials (Mapping[str, tuple[str, str]]): Mapping of account_id
@@ -27,7 +28,6 @@ class TradingConfig:
     '''
 
     epoch_id: int
-    sqlite_path: str = 'praxis.sqlite3'
     venue_rest_url: str = TESTNET_REST_URL
     venue_ws_url: str = TESTNET_WS_URL
     account_credentials: Mapping[str, tuple[str, str]] = field(default_factory=dict)
@@ -38,10 +38,6 @@ class TradingConfig:
 
         if self.epoch_id <= 0:
             msg = 'TradingConfig.epoch_id must be positive'
-            raise ValueError(msg)
-
-        if not self.sqlite_path:
-            msg = 'TradingConfig.sqlite_path must be non-empty'
             raise ValueError(msg)
 
         if not self.venue_rest_url:
@@ -58,7 +54,24 @@ class TradingConfig:
                 msg = 'TradingConfig.account_credentials keys must be non-empty'
                 raise ValueError(msg)
 
+            if (
+                not isinstance(credentials, tuple)
+                or len(credentials) != _CREDENTIAL_PARTS
+            ):
+                msg = (
+                    'TradingConfig.account_credentials values must be '
+                    '(api_key, api_secret) with non-empty strings'
+                )
+                raise ValueError(msg)
+
             api_key, api_secret = credentials
+            if not isinstance(api_key, str) or not isinstance(api_secret, str):
+                msg = (
+                    'TradingConfig.account_credentials values must be '
+                    '(api_key, api_secret) with non-empty strings'
+                )
+                raise ValueError(msg)
+
             if not api_key or not api_secret:
                 msg = (
                     'TradingConfig.account_credentials values must be '

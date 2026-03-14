@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import cast
 
 from praxis.core.execution_manager import ExecutionManager
 from praxis.core.domain.enums import (
@@ -29,8 +28,7 @@ class Trading:
     Main trading composition root for MMVP wiring.
 
     Wires venue adapter, execution manager, and inbound facade into a single
-    manager-facing object while keeping runtime startup/shutdown out of scope
-    for this subitem.
+    manager-facing object with MMVP lifecycle supervision (`start`/`stop`).
 
     Args:
         config (TradingConfig): Runtime wiring configuration.
@@ -50,14 +48,12 @@ class Trading:
 
         self._config = config
         self._event_spine = event_spine
+        self._venue_adapter: VenueAdapter
         if venue_adapter is None:
-            self._venue_adapter = cast(
-                VenueAdapter,
-                BinanceAdapter(
-                    base_url=config.venue_rest_url,
-                    ws_base_url=config.venue_ws_url,
-                    credentials=dict(config.account_credentials),
-                ),
+            self._venue_adapter = BinanceAdapter(
+                base_url=config.venue_rest_url,
+                ws_base_url=config.venue_ws_url,
+                credentials=dict(config.account_credentials),
             )
         else:
             self._venue_adapter = venue_adapter

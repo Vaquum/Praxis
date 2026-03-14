@@ -193,7 +193,8 @@ async def spine() -> AsyncGenerator[EventSpine, None]:
         await conn.close()
 
 
-def test_trading_wires_default_dependencies(spine: EventSpine) -> None:
+@pytest.mark.asyncio
+async def test_trading_wires_default_dependencies(spine: EventSpine) -> None:
     trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
 
     assert trading.config.epoch_id == 1
@@ -203,14 +204,14 @@ def test_trading_wires_default_dependencies(spine: EventSpine) -> None:
     assert trading.started is False
 
 
-def test_trading_uses_injected_venue_adapter(spine: EventSpine) -> None:
+@pytest.mark.asyncio
+async def test_trading_uses_injected_venue_adapter(spine: EventSpine) -> None:
     adapter = cast(VenueAdapter, _InjectedVenueAdapter())
     trading = Trading(
         config=TradingConfig(epoch_id=1),
         event_spine=spine,
         venue_adapter=adapter,
     )
-
     assert trading.venue_adapter is adapter
 
 
@@ -268,6 +269,26 @@ async def test_trading_requires_start_before_facade_operations(
 
     with pytest.raises(RuntimeError, match=r'Trading\.start'):
         trading.pull_positions('acc-1')
+
+    with pytest.raises(RuntimeError, match=r'Trading\.start'):
+        trading.submit_abort(
+            TradeAbort(
+                account_id='acc-1',
+                command_id='cmd-1',
+                reason='cancel',
+                created_at=_CREATED_AT,
+            )
+        )
+
+    with pytest.raises(RuntimeError, match=r'Trading\.start'):
+        trading.submit_abort(
+            TradeAbort(
+                account_id='acc-1',
+                command_id='cmd-1',
+                reason='cancel',
+                created_at=_CREATED_AT,
+            )
+        )
 
 
 @pytest.mark.asyncio
