@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 from typing import cast
@@ -123,15 +124,17 @@ class Trading:
         for account_id in sorted(self._managed_accounts):
             try:
                 await self._inbound.unregister_account(account_id)
+                self._managed_accounts.discard(account_id)
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:  # noqa: BLE001
                 if first_error is None:
                     first_error = exc
 
-        self._managed_accounts.clear()
-        self._started = False
-
         if first_error is not None:
             raise first_error
+
+        self._started = False
 
     def _require_started(self) -> None:
         if not self._started:

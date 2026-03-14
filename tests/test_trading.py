@@ -154,12 +154,17 @@ class _InjectedVenueAdapter:
 class _FakeInbound:
     def __init__(self) -> None:
         self.calls: list[tuple[str, object]] = []
+        self.unregister_fail_once: set[str] = set()
 
     def register_account(self, account_id: str) -> None:
         self.calls.append(('register_account', account_id))
 
     async def unregister_account(self, account_id: str) -> None:
         self.calls.append(('unregister_account', account_id))
+        if account_id in self.unregister_fail_once:
+            self.unregister_fail_once.remove(account_id)
+            msg = f'unregister failed for {account_id}'
+            raise RuntimeError(msg)
 
     async def submit_command(self, **kwargs: object) -> str:
         self.calls.append(('submit_command', kwargs))
@@ -298,6 +303,28 @@ async def test_trading_stop_unregisters_managed_accounts(
         payload for name, payload in fake_inbound.calls if name == 'unregister_account'
     ]
     assert set(unregister_calls) == {'acc-1', 'acc-2'}
+    assert trading.started is False
+
+
+@pytest.mark.asyncio
+async def test_trading_stop_preserves_state_when_unregister_fails(
+    spine: EventSpine,
+) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    fake_inbound = _FakeInbound()
+    fake_inbound.unregister_fail_once.add('acc-1')
+    trading._inbound = cast(TradingInbound, fake_inbound)
+
+    await trading.start()
+    trading.register_account('acc-1')
+
+    with pytest.raises(RuntimeError, match='unregister failed for acc-1'):
+        await trading.stop()
+
+    assert trading.started is True
+    assert 'acc-1' in trading._managed_accounts
+
+    await trading.stop()
     assert trading.started is False
 
 
