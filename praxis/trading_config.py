@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.infrastructure.binance_adapter import TESTNET_REST_URL, TESTNET_WS_URL
+from praxis.infrastructure.binance_urls import TESTNET_REST_URL, TESTNET_WS_URL
 
 __all__ = ['TradingConfig']
 

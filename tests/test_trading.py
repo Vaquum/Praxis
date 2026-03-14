@@ -337,7 +337,7 @@ async def test_trading_start_ensures_event_spine_schema() -> None:
     await trading.start()
 
     async with conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='events'"
+        'SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'events\''
     ) as cursor:
         row = await cursor.fetchone()
     await conn.close()
