@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -15,7 +14,6 @@ from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionMa
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import SubmitResult, VenueAdapter
 
-_TS = datetime(2099, 1, 1, tzinfo=timezone.utc)
 _EPOCH = 1
 _ACCT = 'acc-1'
 _TRADE = 'trade-1'
