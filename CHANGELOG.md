@@ -330,3 +330,11 @@
 - Add inbound `TradingInbound.submit_abort(...)` handler routing directly to execution manager abort intake in [`trading_inbound.py`](praxis/trading_inbound.py)
 - Add `_ExecutionInboundGateway` protocol support for `submit_command` and `submit_abort` routing contracts in [`trading_inbound.py`](praxis/trading_inbound.py)
 - Add inbound routing tests for command pass-through, abort pass-through, and execution-error propagation in [`test_trading_inbound.py`](tests/test_trading_inbound.py)
+
+## v0.31.0 on 14th of March, 2026
+
+- Add `ExecutionManager.pull_positions(account_id)` for detached per-account positions snapshot pulls in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `TradingInbound.pull_positions(account_id)` and `_ExecutionInboundGateway` protocol support for positions pull routing in [`trading_inbound.py`](praxis/trading_inbound.py)
+- Add positions pull boundary tests for execution snapshot semantics and inbound routing/error propagation in [`test_execution_manager_pull_positions.py`](tests/test_execution_manager_pull_positions.py) and [`test_trading_inbound.py`](tests/test_trading_inbound.py)
+- Add callback contract tests asserting one callback await per produced outcome and non-blocking behavior on callback exceptions in [`test_execution_manager_trade_outcome_callback.py`](tests/test_execution_manager_trade_outcome_callback.py)
+- Update `ExecutionManager` callback contract documentation for async invocation ordering and exception suppression in [`execution_manager.py`](praxis/core/execution_manager.py)

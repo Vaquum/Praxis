@@ -13,6 +13,7 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.trading_inbound import TradingInbound
@@ -60,11 +61,14 @@ class _FakeExecutionManager:
         self.unregistered: list[str] = []
         self.submit_command_calls: list[str] = []
         self.submit_abort_calls: list[str] = []
+        self.pull_positions_calls: list[str] = []
         self.last_submit_command: dict[str, object] | None = None
+        self.pull_positions_result: dict[tuple[str, str], Position] = {}
         self.register_error: Exception | None = None
         self.unregister_error: Exception | None = None
         self.submit_command_error: Exception | None = None
         self.submit_abort_error: Exception | None = None
+        self.pull_positions_error: Exception | None = None
 
     def has_account(self, account_id: str) -> bool:
         self.has_account_calls.append(account_id)
@@ -126,6 +130,12 @@ class _FakeExecutionManager:
         if self.submit_abort_error is not None:
             raise self.submit_abort_error
         self.submit_abort_calls.append(abort.account_id)
+
+    def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
+        if self.pull_positions_error is not None:
+            raise self.pull_positions_error
+        self.pull_positions_calls.append(account_id)
+        return self.pull_positions_result
 
 
 class _FakeVenueAdapter:
@@ -339,3 +349,42 @@ def test_submit_abort_propagates_execution_errors() -> None:
                 created_at=_CREATED_AT,
             )
         )
+
+
+def test_pull_positions_routes_to_execution_layer() -> None:
+    execution = _FakeExecutionManager()
+    execution.pull_positions_result = {
+        ('trade-1', 'acc-1'): Position(
+            account_id='acc-1',
+            trade_id='trade-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            avg_entry_price=Decimal('50000'),
+        )
+    }
+    venue = _FakeVenueAdapter()
+    trading = TradingInbound(
+        execution_manager=execution,
+        venue_adapter=venue,
+        account_credentials={'acc-1': ('key-1', 'secret-1')},
+    )
+
+    result = trading.pull_positions('acc-1')
+
+    assert execution.pull_positions_calls == ['acc-1']
+    assert result == execution.pull_positions_result
+
+
+def test_pull_positions_propagates_execution_errors() -> None:
+    execution = _FakeExecutionManager()
+    execution.pull_positions_error = AccountNotRegisteredError('missing account')
+    venue = _FakeVenueAdapter()
+    trading = TradingInbound(
+        execution_manager=execution,
+        venue_adapter=venue,
+        account_credentials={'acc-1': ('key-1', 'secret-1')},
+    )
+
+    with pytest.raises(AccountNotRegisteredError, match='missing account'):
+        trading.pull_positions('acc-1')
