@@ -85,3 +85,26 @@ async def test_pull_positions_returns_detached_snapshot(mgr: ExecutionManager) -
 
     snapshot[key].qty = Decimal('2')
     assert runtime.trading_state.positions[key].qty == Decimal('1')
+
+
+@pytest.mark.asyncio
+async def test_pull_positions_allows_snapshot_when_runtime_position_is_invalid(
+    mgr: ExecutionManager,
+) -> None:
+    mgr.register_account(_ACCT)
+    runtime = mgr._accounts[_ACCT]
+    key = (_TRADE, _ACCT)
+    runtime.trading_state.positions[key] = Position(
+        account_id=_ACCT,
+        trade_id=_TRADE,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        avg_entry_price=Decimal('50000'),
+    )
+    runtime.trading_state.positions[key].qty = Decimal('-1')
+
+    snapshot = mgr.pull_positions(_ACCT)
+
+    assert snapshot[key].qty == Decimal('-1')
+    assert snapshot[key] is not runtime.trading_state.positions[key]

@@ -9,10 +9,10 @@ queue, and asyncio task.
 from __future__ import annotations
 
 import asyncio
+import copy
 import contextlib
 import logging
 import uuid
-from dataclasses import replace
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -189,7 +189,7 @@ class ExecutionManager:
             raise AccountNotRegisteredError(msg)
 
         return {
-            key: replace(position)
+            key: copy.copy(position)
             for key, position in runtime.trading_state.positions.items()
         }
 
