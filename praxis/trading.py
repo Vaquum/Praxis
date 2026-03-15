@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, cast
 
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
 from praxis.core.domain.enums import (
     ExecutionMode,
     ExecutionType,
@@ -194,6 +194,28 @@ class Trading:
             return
 
         self._stopping = True
+
+        for account_id in sorted(self._managed_accounts):
+            try:
+                open_orders = self._execution_manager.get_open_orders(account_id)
+            except AccountNotRegisteredError:
+                continue
+            for order in open_orders.values():
+                try:
+                    await self._venue_adapter.cancel_order(
+                        account_id,
+                        order.symbol,
+                        client_order_id=order.client_order_id,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001
+                    _log.warning(
+                        'shutdown cancel failed: account=%s order=%s',
+                        account_id,
+                        order.client_order_id,
+                    )
+
         for account_id, stream in list(self._user_streams.items()):
             try:
                 await stream.close()
