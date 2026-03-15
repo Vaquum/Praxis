@@ -356,3 +356,11 @@
 - Add basic venue reconciliation querying live order/trade state and emitting correction events for diverged projections in [`trading.py`](praxis/trading.py)
 - Add per-account readiness gating rejecting commands/aborts while account startup is in progress in [`trading.py`](praxis/trading.py)
 - Add startup and readiness gating tests covering replay, filter preload, WebSocket wiring, and command rejection in [`test_trading.py`](tests/test_trading.py)
+
+## v0.34.0 on 16th of March, 2026
+
+- Add graceful shutdown sequence in `Trading.stop()` with cancel-orders, wait-for-terminal, close-streams phases in [`trading.py`](praxis/trading.py)
+- Add `_stopping` flag gating command/abort rejection during shutdown in [`trading.py`](praxis/trading.py)
+- Add `ExecutionManager.get_open_orders(account_id)` returning open orders snapshot for shutdown cancellation in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `TradingConfig.shutdown_timeout` config field for terminal-state wait timeout in [`trading_config.py`](praxis/trading_config.py)
+- Add shutdown sequence tests covering command rejection, abort rejection, and order cancellation in [`test_trading.py`](tests/test_trading.py)
