@@ -216,9 +216,10 @@ class Trading:
                         order.client_order_id,
                     )
 
-        deadline = asyncio.get_event_loop().time() + self._config.shutdown_timeout
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._config.shutdown_timeout
         poll_interval = 0.1
-        while asyncio.get_event_loop().time() < deadline:
+        while loop.time() < deadline:
             has_open = False
             for account_id in self._managed_accounts:
                 try:
@@ -254,11 +255,12 @@ class Trading:
                 if first_error is None:
                     first_error = exc
 
-        if first_error is not None:
-            raise first_error
-
-        self._started = False
-        self._stopping = False
+        try:
+            if first_error is not None:
+                raise first_error
+            self._started = False
+        finally:
+            self._stopping = False
 
     async def _cleanup_partial_startup(self) -> None:
         '''Clean up resources from failed startup.'''

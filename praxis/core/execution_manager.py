@@ -222,7 +222,7 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
-        return dict(runtime.trading_state.orders)
+        return {k: copy.copy(v) for k, v in runtime.trading_state.orders.items()}
 
     def replay_events(
         self,
