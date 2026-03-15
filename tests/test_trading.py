@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import cast
@@ -15,17 +15,27 @@ from praxis.core.domain.enums import (
     OrderSide,
     OrderType,
     STPMode,
+    TradeStatus,
 )
 from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.events import (
+    CommandAccepted,
+    FillReceived,
+    OrderSubmitIntent,
+    OrderSubmitted,
+    TradeOutcomeProduced,
+)
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.binance_adapter import BinanceAdapter
+from praxis.infrastructure.binance_urls import TESTNET_REST_URL, TESTNET_WS_URL
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     CancelResult,
     ExecutionReport,
+    NotFoundError,
     OrderBookSnapshot,
     SubmitResult,
     SymbolFilters,
@@ -106,11 +116,11 @@ class _InjectedVenueAdapter:
         client_order_id: str | None = None,
     ) -> VenueOrder:
         del account_id, symbol, venue_order_id, client_order_id
-        raise NotImplementedError
+        raise NotFoundError('not found')
 
     async def query_open_orders(self, account_id: str, symbol: str) -> list[VenueOrder]:
         del account_id, symbol
-        raise NotImplementedError
+        return []
 
     async def query_balance(
         self,
@@ -118,7 +128,7 @@ class _InjectedVenueAdapter:
         assets: frozenset[str],
     ) -> list[BalanceEntry]:
         del account_id, assets
-        raise NotImplementedError
+        return []
 
     async def query_trades(
         self,
@@ -128,7 +138,7 @@ class _InjectedVenueAdapter:
         start_time: datetime | None = None,
     ) -> list[VenueTrade]:
         del account_id, symbol, start_time
-        raise NotImplementedError
+        return []
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
         del symbol
@@ -145,6 +155,9 @@ class _InjectedVenueAdapter:
 
     async def get_server_time(self) -> int:
         raise NotImplementedError
+
+    async def load_filters(self, symbols: Sequence[str]) -> None:
+        self.loaded_symbols = list(symbols)
 
     def parse_execution_report(self, data: dict[str, object]) -> ExecutionReport:
         del data
@@ -228,7 +241,7 @@ async def test_trading_delegates_facade_methods(spine: EventSpine) -> None:
     await trading.start()
 
     trading.register_account('acc-1')
-    await trading.unregister_account('acc-1')
+    trading._ready_accounts.add('acc-1')
     command_id = await trading.submit_command(
         trade_id='trade-1',
         account_id='acc-1',
@@ -253,6 +266,7 @@ async def test_trading_delegates_facade_methods(spine: EventSpine) -> None:
         )
     )
     positions = trading.pull_positions('acc-1')
+    await trading.unregister_account('acc-1')
 
     assert command_id == 'cmd-1'
     assert ('register_account', 'acc-1') in fake_inbound.calls
@@ -346,6 +360,29 @@ async def test_trading_start_ensures_event_spine_schema() -> None:
 
 
 @pytest.mark.asyncio
+async def test_trading_start_registers_config_accounts(spine: EventSpine) -> None:
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={
+                'acc-1': ('key1', 'secret1'),
+                'acc-2': ('key2', 'secret2'),
+            },
+        ),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+
+    await trading.start()
+
+    assert trading.execution_manager.has_account('acc-1')
+    assert trading.execution_manager.has_account('acc-2')
+    assert trading._managed_accounts == {'acc-1', 'acc-2'}
+
+    await trading.stop()
+
+@pytest.mark.asyncio
 async def test_trading_stop_cleans_up_execution_account_task(spine: EventSpine) -> None:
     adapter = cast(VenueAdapter, _InjectedVenueAdapter())
     trading = Trading(
@@ -370,3 +407,190 @@ async def test_trading_stop_cleans_up_execution_account_task(spine: EventSpine) 
 
     assert not trading.execution_manager.has_account('acc-1')
     assert runtime_task.done() is True
+
+
+@pytest.mark.asyncio
+async def test_trading_start_replays_events_into_account_state() -> None:
+    conn = await aiosqlite.connect(':memory:')
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+    epoch = 1
+    ts = _CREATED_AT
+
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+    ), epoch)
+    await spine.append(OrderSubmitIntent(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+        client_order_id='SS-abc-00', symbol='BTCUSDT', side=OrderSide.BUY,
+        order_type=OrderType.MARKET, qty=Decimal('2'),
+        price=None, stop_price=None, stop_limit_price=None,
+    ), epoch)
+    await spine.append(OrderSubmitted(
+        account_id='acc-1', timestamp=ts,
+        client_order_id='SS-abc-00', venue_order_id='v-1',
+    ), epoch)
+    await spine.append(FillReceived(
+        account_id='acc-1', timestamp=ts, client_order_id='SS-abc-00',
+        venue_order_id='v-1', venue_trade_id='t-1', trade_id='trade-1',
+        command_id='cmd-1', symbol='BTCUSDT', side=OrderSide.BUY,
+        qty=Decimal('1'), price=Decimal('50000'), fee=Decimal('0.001'),
+        fee_asset='BTC', is_maker=False,
+    ), epoch)
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=ts, command_id='cmd-2', trade_id='trade-2',
+    ), epoch)
+    await spine.append(TradeOutcomeProduced(
+        account_id='acc-1', timestamp=ts, command_id='cmd-2', trade_id='trade-2',
+        status=TradeStatus.REJECTED, reason='test',
+    ), epoch)
+
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=epoch,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+    await trading.start()
+
+    state = trading.execution_manager._accounts['acc-1'].trading_state
+    assert ('trade-1', 'acc-1') in state.positions
+    assert state.positions[('trade-1', 'acc-1')].qty == Decimal('1')
+    assert 'SS-abc-00' in state.orders
+    assert trading.execution_manager._accepted_commands == {
+        'cmd-1': 'acc-1', 'cmd-2': 'acc-1',
+    }
+    assert 'cmd-2' in trading.execution_manager._terminal_commands
+    assert 'cmd-1' not in trading.execution_manager._terminal_commands
+
+    await trading.stop()
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_trading_start_preloads_filters_for_active_symbols() -> None:
+    conn = await aiosqlite.connect(':memory:')
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+    epoch = 1
+    ts = _CREATED_AT
+
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+    ), epoch)
+    await spine.append(OrderSubmitIntent(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+        client_order_id='SS-abc-00', symbol='BTCUSDT', side=OrderSide.BUY,
+        order_type=OrderType.MARKET, qty=Decimal('1'),
+        price=None, stop_price=None, stop_limit_price=None,
+    ), epoch)
+
+    adapter = _InjectedVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=epoch,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    await trading.start()
+
+    assert adapter.loaded_symbols == ['BTCUSDT']
+
+    await trading.stop()
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_trading_start_creates_user_stream_for_binance_adapter() -> None:
+    conn = await aiosqlite.connect(':memory:')
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+
+    adapter = BinanceAdapter(
+        base_url=TESTNET_REST_URL,
+        ws_base_url=TESTNET_WS_URL,
+        credentials={'acc-1': ('key', 'secret')},
+    )
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    import unittest.mock
+    with (
+        unittest.mock.patch.object(
+            adapter, '_create_listen_key', return_value='mock-listen-key',
+    ), unittest.mock.patch.object(
+            adapter, '_ensure_session',
+            return_value=unittest.mock.AsyncMock(),
+        ),
+        unittest.mock.patch(
+            'praxis.trading.BinanceUserStream.initiate_connection',
+            new_callable=unittest.mock.AsyncMock,
+        ),
+    ):
+        await trading.start()
+
+    assert 'acc-1' in trading._user_streams
+
+    with unittest.mock.patch(
+        'praxis.trading.BinanceUserStream.close',
+        new_callable=unittest.mock.AsyncMock,
+    ):
+        await trading.stop()
+
+    assert trading._user_streams == {}
+
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_trading_rejects_commands_for_unready_account(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+
+    trading._managed_accounts.add('acc-pending')
+
+    with pytest.raises(RuntimeError, match='account acc-pending startup not complete'):
+        await trading.submit_command(
+            trade_id='trade-1',
+            account_id='acc-pending',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            order_type=OrderType.LIMIT,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(price=Decimal('50000')),
+            timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_CREATED_AT,
+        )
+
+
+@pytest.mark.asyncio
+async def test_trading_rejects_aborts_for_unready_account(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+
+    trading._managed_accounts.add('acc-pending')
+
+    with pytest.raises(RuntimeError, match='account acc-pending startup not complete'):
+        trading.submit_abort(
+            TradeAbort(
+                account_id='acc-pending',
+                command_id='cmd-1',
+                reason='cancel',
+                created_at=_CREATED_AT,
+            )
+        )

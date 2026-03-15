@@ -118,3 +118,42 @@ RFC §6.2 defines walk-the-book slippage with mid-price as the primary benchmark
 
 **When to fix**: If Manager or analytics consumers require venue-native LTP-based slippage benchmarking.
 **Migration**: Add a venue-agnostic LTP query method to `VenueAdapter` (with Binance implementation), compute and log optional LTP-based slippage metric alongside existing mid-price and reference-price metrics.
+
+---
+
+## TD-011: Trading accesses ExecutionManager private attributes
+
+**Origin**: PR #59 (Copilot review)
+**Severity**: Low (single consumer)
+**Module**: `praxis/trading.py`
+
+`Trading` accesses `ExecutionManager._accounts` and `_command_trade_ids` directly for reconciliation and WebSocket handling. This tight coupling makes future refactors risky.
+
+**When to fix**: Before adding additional consumers of ExecutionManager internals.
+**Migration**: Add small public accessors on ExecutionManager (e.g., `get_trading_state(account_id)`, `trade_id_for_command(command_id)`) and use those instead of reaching into private attributes.
+
+---
+
+## TD-012: Event filtering is O(accounts × events) during startup
+
+**Origin**: PR #59 (Copilot review)
+**Severity**: Low (epochs and accounts are small currently)
+**Module**: `praxis/trading.py`
+
+`Trading.start()` reads the full epoch and then scans it for each account with a list comprehension. This is O(events × accounts) and can become costly as epochs/accounts grow.
+
+**When to fix**: Before epochs grow to thousands of events or account counts increase significantly.
+**Migration**: Group events by `account_id` in a single pass (e.g., build a `dict[account_id, list[(seq, event)]]`) before the loop, or add an EventSpine query that reads only events for a given account.
+
+---
+
+## TD-013: replay_events lacks command context for abort processing
+
+**Origin**: PR #59 (Copilot review)
+**Severity**: Medium (aborts for replayed commands will be dropped)
+**Module**: `praxis/core/execution_manager.py`
+
+`replay_events()` populates `_accepted_commands`/`_terminal_commands` but does not rebuild `_commands` metadata. `_process_abort()` requires `self._commands[command_id]` to look up `order_type`/`symbol`, so aborts for replayed (pre-restart) commands will be accepted by `validate_trade_abort` but then ignored as "abort for unknown command".
+
+**When to fix**: Before supporting abort operations that span restarts.
+**Migration**: Either reconstruct the minimal command data needed for aborts during replay (from `OrderSubmitIntent`), or update the abort path to operate from `TradingState` orders without requiring `_commands`.

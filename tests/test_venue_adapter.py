@@ -317,6 +317,10 @@ class TestVenueAdapterProtocol:
 
             async def cancel_order_list(self, *_args: Any, **_kwargs: Any) -> None: ...
 
+            async def load_filters(self, *_args: Any, **_kwargs: Any) -> None: ...
+
+            def parse_execution_report(self, *_args: Any, **_kwargs: Any) -> None: ...
+
         assert isinstance(_FakeAdapter(), VenueAdapter)
 
     def test_non_conforming_class_not_isinstance(self) -> None:

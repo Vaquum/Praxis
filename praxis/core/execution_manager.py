@@ -27,6 +27,7 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.events import (
     CommandAccepted,
+    Event,
     FillReceived,
     OrderCanceled,
     OrderExpired,
@@ -58,6 +59,12 @@ _QUEUE_POLL_INTERVAL = 0.1
 _ZERO = Decimal(0)
 _BPS_MULTIPLIER = Decimal('10000')
 _SLIPPAGE_BOOK_LIMIT = 20
+_TERMINAL_STATUSES = frozenset({
+    TradeStatus.FILLED,
+    TradeStatus.CANCELED,
+    TradeStatus.REJECTED,
+    TradeStatus.EXPIRED,
+})
 
 
 class AccountNotRegisteredError(Exception):
@@ -123,6 +130,7 @@ class ExecutionManager:
         self._terminal_commands: set[str] = set()
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
+        self._command_trade_ids: dict[str, str] = {}
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -168,6 +176,68 @@ class ExecutionManager:
         '''
 
         return account_id in self._accounts
+
+    def active_symbols(self, account_id: str) -> set[str]:
+        '''
+        Return the set of symbols with open orders or positions for an account.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            set[str]: Unique symbols from open orders and positions.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        symbols: set[str] = set()
+        for order in runtime.trading_state.orders.values():
+            symbols.add(order.symbol)
+        for pos in runtime.trading_state.positions.values():
+            symbols.add(pos.symbol)
+        return symbols
+
+    def replay_events(
+        self,
+        account_id: str,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''
+        Rebuild per-account state and runtime indices from event history.
+
+        Applies events to TradingState and rebuilds command tracking indices.
+        Expects account to be registered but in fresh state (no prior events applied).
+
+        Args:
+            account_id (str): Account identifier to replay events for.
+            events: Sequence of (seq, event) tuples ordered by sequence number.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        for _seq, event in events:
+            runtime.trading_state.apply(event)
+
+            if isinstance(event, CommandAccepted):
+                self._accepted_commands[event.command_id] = account_id
+
+            if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
+                self._terminal_commands.add(event.command_id)
+
+            if isinstance(event, OrderSubmitIntent):
+                self._command_trade_ids[event.command_id] = event.trade_id
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
@@ -360,6 +430,7 @@ class ExecutionManager:
         runtime.command_queue.put_nowait(cmd)
         self._accepted_commands[command_id] = account_id
         self._commands[command_id] = cmd
+        self._command_trade_ids[command_id] = trade_id
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',
