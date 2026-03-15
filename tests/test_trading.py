@@ -13,6 +13,7 @@ from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
     OrderSide,
+    OrderStatus,
     OrderType,
     STPMode,
     TradeStatus,
@@ -594,3 +595,132 @@ async def test_trading_rejects_aborts_for_unready_account(spine: EventSpine) -> 
                 created_at=_CREATED_AT,
             )
         )
+
+
+class _CancelTrackingVenueAdapter(_InjectedVenueAdapter):
+
+    def __init__(self) -> None:
+        self.cancel_calls: list[tuple[str, str]] = []
+
+    async def cancel_order(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+        del symbol, venue_order_id
+        self.cancel_calls.append((account_id, client_order_id or ''))
+        return CancelResult(venue_order_id='venue-1', status=OrderStatus.CANCELED)
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_rejects_commands(spine: EventSpine) -> None:
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+    trading._stopping = True
+
+    with pytest.raises(RuntimeError, match='shutting down'):
+        await trading.submit_command(
+            trade_id='trade-1',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            order_type=OrderType.LIMIT,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(price=Decimal('50000')),
+            timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_CREATED_AT,
+        )
+
+    trading._stopping = False
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_rejects_aborts(spine: EventSpine) -> None:
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+    trading._stopping = True
+
+    with pytest.raises(RuntimeError, match='shutting down'):
+        trading.submit_abort(
+            TradeAbort(
+                account_id='acc-1',
+                command_id='cmd-1',
+                reason='cancel',
+                created_at=_CREATED_AT,
+            )
+        )
+
+    trading._stopping = False
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_cancels_open_orders(spine: EventSpine) -> None:
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    fake_order = Order(
+        client_order_id='coid-1',
+        venue_order_id='venue-1',
+        account_id='acc-1',
+        command_id='cmd-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+        stop_price=None,
+        status=OrderStatus.OPEN,
+        created_at=_CREATED_AT,
+        updated_at=_CREATED_AT,
+    )
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['coid-1'] = fake_order
+
+    await trading.stop()
+
+    assert ('acc-1', 'coid-1') in adapter.cancel_calls
