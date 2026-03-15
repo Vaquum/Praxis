@@ -27,6 +27,7 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.events import (
     CommandAccepted,
+    Event,
     FillReceived,
     OrderCanceled,
     OrderExpired,
@@ -58,6 +59,12 @@ _QUEUE_POLL_INTERVAL = 0.1
 _ZERO = Decimal(0)
 _BPS_MULTIPLIER = Decimal('10000')
 _SLIPPAGE_BOOK_LIMIT = 20
+_TERMINAL_STATUSES = frozenset({
+    TradeStatus.FILLED,
+    TradeStatus.CANCELED,
+    TradeStatus.REJECTED,
+    TradeStatus.EXPIRED,
+})
 
 
 class AccountNotRegisteredError(Exception):
@@ -168,6 +175,29 @@ class ExecutionManager:
         '''
 
         return account_id in self._accounts
+
+    def replay_events(
+        self,
+        account_id: str,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''
+        Rebuild per-account state and runtime indices from event history.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        for _seq, event in events:
+            runtime.trading_state.apply(event)
+
+            if isinstance(event, CommandAccepted):
+                self._accepted_commands[event.command_id] = account_id
+
+            if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
+                self._terminal_commands.add(event.command_id)
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
