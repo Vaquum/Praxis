@@ -241,6 +241,7 @@ async def test_trading_delegates_facade_methods(spine: EventSpine) -> None:
     await trading.start()
 
     trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
     command_id = await trading.submit_command(
         trade_id='trade-1',
         account_id='acc-1',

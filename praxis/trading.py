@@ -201,6 +201,7 @@ class Trading:
             try:
                 await self._inbound.unregister_account(account_id)
                 self._managed_accounts.discard(account_id)
+                self._ready_accounts.discard(account_id)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001
@@ -524,7 +525,6 @@ class Trading:
         self._require_started()
         self._inbound.register_account(account_id)
         self._managed_accounts.add(account_id)
-        self._ready_accounts.add(account_id)
 
     async def unregister_account(self, account_id: str) -> None:
         '''Unregister account in execution + venue via inbound facade.'''
