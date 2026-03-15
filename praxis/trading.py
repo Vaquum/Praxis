@@ -447,11 +447,20 @@ class Trading:
             return
 
         order = runtime.trading_state.orders.get(report.client_order_id)
+        order_is_closed = False
         if order is None:
             order = runtime.trading_state.closed_orders.get(report.client_order_id)
+            order_is_closed = order is not None
         if order is None:
             _log.debug(
                 'execution report for unknown order: %s', report.client_order_id,
+            )
+            return
+
+        if order_is_closed and report.execution_type != ExecutionType.TRADE:
+            _log.debug(
+                'skipping terminal event for already-closed order: %s',
+                report.client_order_id,
             )
             return
 
