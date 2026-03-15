@@ -29,6 +29,7 @@ from praxis.core.domain.events import (
 )
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.binance_adapter import BinanceAdapter
+from praxis.infrastructure.binance_urls import TESTNET_REST_URL, TESTNET_WS_URL
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
@@ -499,4 +500,52 @@ async def test_trading_start_preloads_filters_for_active_symbols() -> None:
     assert adapter.loaded_symbols == ['BTCUSDT']
 
     await trading.stop()
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_trading_start_creates_user_stream_for_binance_adapter() -> None:
+    conn = await aiosqlite.connect(':memory:')
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+
+    adapter = BinanceAdapter(
+        base_url=TESTNET_REST_URL,
+        ws_base_url=TESTNET_WS_URL,
+        credentials={'acc-1': ('key', 'secret')},
+    )
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    import unittest.mock
+    with (
+        unittest.mock.patch.object(
+            adapter, '_create_listen_key', return_value='mock-listen-key',
+    ), unittest.mock.patch.object(
+            adapter, '_ensure_session',
+            return_value=unittest.mock.AsyncMock(),
+        ),
+        unittest.mock.patch(
+            'praxis.trading.BinanceUserStream.initiate_connection',
+            new_callable=unittest.mock.AsyncMock,
+        ),
+    ):
+        await trading.start()
+
+    assert 'acc-1' in trading._user_streams
+
+    with unittest.mock.patch(
+        'praxis.trading.BinanceUserStream.close',
+        new_callable=unittest.mock.AsyncMock,
+    ):
+        await trading.stop()
+
+    assert trading._user_streams == {}
+
     await conn.close()

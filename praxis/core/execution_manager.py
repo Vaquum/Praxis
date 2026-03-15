@@ -130,6 +130,7 @@ class ExecutionManager:
         self._terminal_commands: set[str] = set()
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
+        self._command_trade_ids: dict[str, str] = {}
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -224,6 +225,9 @@ class ExecutionManager:
 
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
+
+            if isinstance(event, OrderSubmitIntent):
+                self._command_trade_ids[event.command_id] = event.trade_id
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
@@ -416,6 +420,7 @@ class ExecutionManager:
         runtime.command_queue.put_nowait(cmd)
         self._accepted_commands[command_id] = account_id
         self._commands[command_id] = cmd
+        self._command_trade_ids[command_id] = trade_id
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',

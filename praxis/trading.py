@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 
 from praxis.core.execution_manager import ExecutionManager
 from praxis.core.domain.enums import (
     ExecutionMode,
+    ExecutionType,
     MakerPreference,
     OrderSide,
     OrderType,
@@ -16,14 +18,22 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.events import (
+    FillReceived,
+    OrderCanceled,
+    OrderExpired,
+    OrderRejected,
+)
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.binance_ws import BinanceUserStream
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
 
 __all__ = ['Trading']
 
+_log = logging.getLogger(__name__)
 
 class Trading:
     '''
@@ -74,6 +84,7 @@ class Trading:
         )
         self._started = False
         self._managed_accounts: set[str] = set()
+        self._user_streams: dict[str, BinanceUserStream] = {}
 
     @property
     def config(self) -> TradingConfig:
@@ -139,11 +150,34 @@ class Trading:
         if symbols:
             await self._venue_adapter.load_filters(sorted(symbols))
 
+        if isinstance(self._venue_adapter, BinanceAdapter):
+            adapter = self._venue_adapter
+
+            async def on_message(data: dict[str, Any]) -> None:
+                await self._on_execution_report(account_id, data)
+
+            stream = BinanceUserStream(
+                adapter=adapter,
+                account_id=account_id,
+                on_message=on_message,
+            )
+            await stream.initiate_connection()
+            self._user_streams[account_id] = stream
+
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
 
         if not self._started:
             return
+
+        for account_id, stream in list(self._user_streams.items()):
+            try:
+                await stream.close()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                _log.exception('error closing user stream: %s', account_id)
+            self._user_streams.pop(account_id, None)
 
         first_error: Exception | None = None
         for account_id in sorted(self._managed_accounts):
@@ -165,6 +199,113 @@ class Trading:
         if not self._started:
             msg = 'Trading.start() must be awaited before using trading operations'
             raise RuntimeError(msg)
+
+    async def _on_execution_report(self, account_id: str, data: dict[str, Any]) -> None:
+        '''
+        Process incoming WebSocket execution report.
+
+        Args:
+            account_id (str): Account that received the report.
+            data (dict[str, Any]): Raw JSON payload from WebSocket.
+        '''
+
+        if data.get('e') != 'executionReport':
+            return
+
+        if not isinstance(self._venue_adapter, BinanceAdapter):
+            return
+
+        report = self._venue_adapter._parse_execution_report(data)
+        runtime = self._execution_manager._accounts.get(account_id)
+        if runtime is None:
+            _log.warning('execution report for unknown account: %s', account_id)
+            return
+
+        order = runtime.trading_state.orders.get(report.client_order_id)
+        if order is None:
+            order = runtime.trading_state.closed_orders.get(report.client_order_id)
+        if order is None:
+            _log.debug(
+                'execution report for unknown order: %s', report.client_order_id,
+            )
+            return
+
+        event = self._convert_execution_report(account_id, report, order)
+        if event is None:
+            return
+
+        seq = await self._event_spine.append(event, self._config.epoch_id)
+        if seq is not None:
+            runtime.trading_state.apply(event)
+
+    def _convert_execution_report(
+        self,
+        account_id: str,
+        report: Any,
+        order: Any,
+    ) -> FillReceived | OrderCanceled | OrderRejected | OrderExpired | None:
+        '''
+        Convert ExecutionReport to domain event.
+
+        Args:
+            account_id (str): Account identifier.
+            report: Parsed ExecutionReport.
+            order: Order from TradingState.
+
+        Returns:
+            Domain event or None if no event needed.
+        '''
+
+        ts = report.transaction_time
+
+        if report.execution_type == ExecutionType.TRADE:
+            if report.venue_trade_id is None:
+                _log.warning('TRADE report missing venue_trade_id')
+                return None
+            return FillReceived(
+                account_id=account_id,
+                timestamp=ts,
+                client_order_id=report.client_order_id,
+                venue_order_id=report.venue_order_id,
+                venue_trade_id=report.venue_trade_id,
+                trade_id=self._execution_manager._command_trade_ids.get(order.command_id, order.command_id),
+                command_id=order.command_id,
+                symbol=report.symbol,
+                side=report.side,
+                qty=report.last_filled_qty,
+                price=report.last_filled_price,
+                fee=report.commission,
+                fee_asset=report.commission_asset or '',
+                is_maker=report.is_maker,
+            )
+
+        if report.execution_type == ExecutionType.CANCELED:
+            return OrderCanceled(
+                account_id=account_id,
+                timestamp=ts,
+                client_order_id=report.client_order_id,
+                venue_order_id=report.venue_order_id,
+                reason='canceled via WebSocket',
+            )
+
+        if report.execution_type == ExecutionType.REJECTED:
+            return OrderRejected(
+                account_id=account_id,
+                timestamp=ts,
+                client_order_id=report.client_order_id,
+                venue_order_id=report.venue_order_id,
+                reason=report.reject_reason or 'rejected via WebSocket',
+            )
+
+        if report.execution_type == ExecutionType.EXPIRED:
+            return OrderExpired(
+                account_id=account_id,
+                timestamp=ts,
+                client_order_id=report.client_order_id,
+                venue_order_id=report.venue_order_id,
+            )
+
+        return None
 
     def register_account(self, account_id: str) -> None:
         '''Register account in venue + execution via inbound facade.'''
