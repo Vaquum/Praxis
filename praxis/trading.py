@@ -94,6 +94,7 @@ class Trading:
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
         self._ready_accounts: set[str] = set()
+        self._stopping = False
 
     @property
     def config(self) -> TradingConfig:
@@ -192,6 +193,7 @@ class Trading:
         if not self._started:
             return
 
+        self._stopping = True
         for account_id, stream in list(self._user_streams.items()):
             try:
                 await stream.close()
@@ -217,6 +219,7 @@ class Trading:
             raise first_error
 
         self._started = False
+        self._stopping = False
 
     async def _cleanup_partial_startup(self) -> None:
         '''Clean up resources from failed startup.'''
@@ -593,6 +596,9 @@ class Trading:
     ) -> str:
         '''Submit trade command through inbound facade.'''
 
+        if self._stopping:
+            msg = 'Trading is shutting down, new commands rejected'
+            raise RuntimeError(msg)
         self._require_account_ready(account_id)
         return await self._inbound.submit_command(
             trade_id=trade_id,
@@ -613,6 +619,9 @@ class Trading:
     def submit_abort(self, abort: TradeAbort) -> None:
         '''Submit trade abort through inbound facade.'''
 
+        if self._stopping:
+            msg = 'Trading is shutting down, new aborts rejected'
+            raise RuntimeError(msg)
         self._require_account_ready(abort.account_id)
         self._inbound.submit_abort(abort)
 
