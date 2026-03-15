@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, cast
 
@@ -134,14 +134,18 @@ class Trading:
 
         all_events = await self._event_spine.read(self._config.epoch_id)
 
-        for account_id in self._config.account_credentials:
-            self._inbound.register_account(account_id)
-            self._managed_accounts.add(account_id)
-            account_events = [
-                (seq, event) for seq, event in all_events
-                if event.account_id == account_id
-            ]
-            await self._startup_account(account_id, account_events)
+        try:
+            for account_id in self._config.account_credentials:
+                self._inbound.register_account(account_id)
+                self._managed_accounts.add(account_id)
+                account_events = [
+                    (seq, event) for seq, event in all_events
+                    if event.account_id == account_id
+                ]
+                await self._startup_account(account_id, account_events)
+        except Exception:
+            await self._cleanup_partial_startup()
+            raise
 
         self._started = True
 
@@ -212,6 +216,24 @@ class Trading:
             raise first_error
 
         self._started = False
+
+    async def _cleanup_partial_startup(self) -> None:
+        '''Clean up resources from failed startup.'''
+
+        for account_id in list(self._user_streams):
+            try:
+                await self._user_streams[account_id].close()
+            except Exception:  # noqa: BLE001
+                _log.exception('error closing user stream during cleanup: %s', account_id)
+            self._user_streams.pop(account_id, None)
+
+        for account_id in list(self._managed_accounts):
+            try:
+                await self._inbound.unregister_account(account_id)
+            except Exception:  # noqa: BLE001
+                _log.exception('error unregistering account during cleanup: %s', account_id)
+            self._managed_accounts.discard(account_id)
+            self._ready_accounts.discard(account_id)
 
     def _require_started(self) -> None:
         if not self._started:
@@ -366,7 +388,7 @@ class Trading:
         if runtime is None:
             return
 
-        ts = order.updated_at
+        ts = datetime.now(timezone.utc)
         event: OrderCanceled | OrderExpired | OrderRejected | None = None
 
         if venue_order.status == OrderStatus.CANCELED:
