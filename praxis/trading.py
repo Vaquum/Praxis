@@ -212,6 +212,13 @@ class Trading:
             raise RuntimeError(msg)
 
     def _require_account_ready(self, account_id: str) -> None:
+        '''
+        Raise if account startup has not completed.
+
+        Args:
+            account_id (str): Account identifier to check.
+        '''
+
         self._require_started()
         if account_id not in self._ready_accounts:
             msg = f'account {account_id} startup not complete'

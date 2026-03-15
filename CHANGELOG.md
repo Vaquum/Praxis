@@ -345,3 +345,14 @@
 - Add `Trading` composition root that wires Event Spine, venue adapter, execution manager, and inbound facade in [`trading.py`](praxis/trading.py)
 - Add basic MMVP lifecycle supervision to `Trading` with readiness gate and managed-account cleanup via `start()`/`stop()` in [`trading.py`](praxis/trading.py)
 - Add focused tests for config validation/defaults, composition wiring, facade delegation, and lifecycle cleanup/no-leaked account tasks in [`test_trading_config.py`](tests/test_trading_config.py) and [`test_trading.py`](tests/test_trading.py)
+
+## v0.33.0 on 15th of March, 2026
+
+- Add startup sequencing with per-account phases in `Trading.start()` orchestrating replay, filters, WebSocket, and reconciliation in [`trading.py`](praxis/trading.py)
+- Add `ExecutionManager.replay_events(account_id, events)` rebuilding trading state and runtime indices from event spine in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `ExecutionManager.active_symbols(account_id)` returning symbols with open orders for filter preloading in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `VenueAdapter.load_filters(symbols)` protocol method for batch exchange info preloading in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add WebSocket user stream wiring routing `executionReport` messages to domain event flow via `BinanceUserStream` in [`trading.py`](praxis/trading.py)
+- Add basic venue reconciliation querying live order/trade state and emitting correction events for diverged projections in [`trading.py`](praxis/trading.py)
+- Add per-account readiness gating rejecting commands/aborts while account startup is in progress in [`trading.py`](praxis/trading.py)
+- Add startup and readiness gating tests covering replay, filter preload, WebSocket wiring, and command rejection in [`test_trading.py`](tests/test_trading.py)
