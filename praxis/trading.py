@@ -92,6 +92,7 @@ class Trading:
         self._started = False
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
+        self._ready_accounts: set[str] = set()
 
     @property
     def config(self) -> TradingConfig:
@@ -172,6 +173,7 @@ class Trading:
             self._user_streams[account_id] = stream
 
         await self._reconcile_account(account_id)
+        self._ready_accounts.add(account_id)
 
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
@@ -207,6 +209,12 @@ class Trading:
     def _require_started(self) -> None:
         if not self._started:
             msg = 'Trading.start() must be awaited before using trading operations'
+            raise RuntimeError(msg)
+
+    def _require_account_ready(self, account_id: str) -> None:
+        self._require_started()
+        if account_id not in self._ready_accounts:
+            msg = f'account {account_id} startup not complete'
             raise RuntimeError(msg)
 
     async def _reconcile_account(self, account_id: str) -> None:
@@ -488,6 +496,7 @@ class Trading:
         self._require_started()
         self._inbound.register_account(account_id)
         self._managed_accounts.add(account_id)
+        self._ready_accounts.add(account_id)
 
     async def unregister_account(self, account_id: str) -> None:
         '''Unregister account in execution + venue via inbound facade.'''
@@ -495,6 +504,7 @@ class Trading:
         self._require_started()
         await self._inbound.unregister_account(account_id)
         self._managed_accounts.discard(account_id)
+        self._ready_accounts.discard(account_id)
 
     async def submit_command(
         self,
@@ -515,7 +525,7 @@ class Trading:
     ) -> str:
         '''Submit trade command through inbound facade.'''
 
-        self._require_started()
+        self._require_account_ready(account_id)
         return await self._inbound.submit_command(
             trade_id=trade_id,
             account_id=account_id,
@@ -535,7 +545,7 @@ class Trading:
     def submit_abort(self, abort: TradeAbort) -> None:
         '''Submit trade abort through inbound facade.'''
 
-        self._require_started()
+        self._require_account_ready(abort.account_id)
         self._inbound.submit_abort(abort)
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:

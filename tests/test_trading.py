@@ -241,7 +241,6 @@ async def test_trading_delegates_facade_methods(spine: EventSpine) -> None:
     await trading.start()
 
     trading.register_account('acc-1')
-    await trading.unregister_account('acc-1')
     command_id = await trading.submit_command(
         trade_id='trade-1',
         account_id='acc-1',
@@ -266,6 +265,7 @@ async def test_trading_delegates_facade_methods(spine: EventSpine) -> None:
         )
     )
     positions = trading.pull_positions('acc-1')
+    await trading.unregister_account('acc-1')
 
     assert command_id == 'cmd-1'
     assert ('register_account', 'acc-1') in fake_inbound.calls
@@ -550,3 +550,46 @@ async def test_trading_start_creates_user_stream_for_binance_adapter() -> None:
     assert trading._user_streams == {}
 
     await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_trading_rejects_commands_for_unready_account(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+
+    trading._managed_accounts.add('acc-pending')
+
+    with pytest.raises(RuntimeError, match='account acc-pending startup not complete'):
+        await trading.submit_command(
+            trade_id='trade-1',
+            account_id='acc-pending',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            order_type=OrderType.LIMIT,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(price=Decimal('50000')),
+            timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_CREATED_AT,
+        )
+
+
+@pytest.mark.asyncio
+async def test_trading_rejects_aborts_for_unready_account(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+
+    trading._managed_accounts.add('acc-pending')
+
+    with pytest.raises(RuntimeError, match='account acc-pending startup not complete'):
+        trading.submit_abort(
+            TradeAbort(
+                account_id='acc-pending',
+                command_id='cmd-1',
+                reason='cancel',
+                created_at=_CREATED_AT,
+            )
+        )
