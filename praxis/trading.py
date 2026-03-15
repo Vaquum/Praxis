@@ -106,13 +106,34 @@ class Trading:
         return self._started
 
     async def start(self) -> None:
-        '''Initialize runtime prerequisites for facade operations.'''
+        '''Initialize runtime and execute per-account startup sequence.'''
 
         if self._started:
             return
 
         await self._event_spine.ensure_schema()
+
+        for account_id in self._config.account_credentials:
+            self._inbound.register_account(account_id)
+            self._managed_accounts.add(account_id)
+            await self._startup_account(account_id)
+
         self._started = True
+
+    async def _startup_account(self, account_id: str) -> None:
+        '''
+        Execute per-account startup phases in required order.
+
+        Args:
+            account_id (str): Account identifier to start up.
+        '''
+
+        all_events = await self._event_spine.read(self._config.epoch_id)
+        account_events = [
+            (seq, event) for seq, event in all_events
+            if event.account_id == account_id
+        ]
+        self._execution_manager.replay_events(account_id, account_events)
 
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''

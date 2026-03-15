@@ -15,10 +15,18 @@ from praxis.core.domain.enums import (
     OrderSide,
     OrderType,
     STPMode,
+    TradeStatus,
 )
 from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.events import (
+    CommandAccepted,
+    FillReceived,
+    OrderSubmitIntent,
+    OrderSubmitted,
+    TradeOutcomeProduced,
+)
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
@@ -346,6 +354,29 @@ async def test_trading_start_ensures_event_spine_schema() -> None:
 
 
 @pytest.mark.asyncio
+async def test_trading_start_registers_config_accounts(spine: EventSpine) -> None:
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={
+                'acc-1': ('key1', 'secret1'),
+                'acc-2': ('key2', 'secret2'),
+            },
+        ),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+
+    await trading.start()
+
+    assert trading.execution_manager.has_account('acc-1')
+    assert trading.execution_manager.has_account('acc-2')
+    assert trading._managed_accounts == {'acc-1', 'acc-2'}
+
+    await trading.stop()
+
+@pytest.mark.asyncio
 async def test_trading_stop_cleans_up_execution_account_task(spine: EventSpine) -> None:
     adapter = cast(VenueAdapter, _InjectedVenueAdapter())
     trading = Trading(
@@ -370,3 +401,64 @@ async def test_trading_stop_cleans_up_execution_account_task(spine: EventSpine) 
 
     assert not trading.execution_manager.has_account('acc-1')
     assert runtime_task.done() is True
+
+
+@pytest.mark.asyncio
+async def test_trading_start_replays_events_into_account_state() -> None:
+    conn = await aiosqlite.connect(':memory:')
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+    epoch = 1
+    ts = _CREATED_AT
+
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+    ), epoch)
+    await spine.append(OrderSubmitIntent(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+        client_order_id='SS-abc-00', symbol='BTCUSDT', side=OrderSide.BUY,
+        order_type=OrderType.MARKET, qty=Decimal('2'),
+        price=None, stop_price=None, stop_limit_price=None,
+    ), epoch)
+    await spine.append(OrderSubmitted(
+        account_id='acc-1', timestamp=ts,
+        client_order_id='SS-abc-00', venue_order_id='v-1',
+    ), epoch)
+    await spine.append(FillReceived(
+        account_id='acc-1', timestamp=ts, client_order_id='SS-abc-00',
+        venue_order_id='v-1', venue_trade_id='t-1', trade_id='trade-1',
+        command_id='cmd-1', symbol='BTCUSDT', side=OrderSide.BUY,
+        qty=Decimal('1'), price=Decimal('50000'), fee=Decimal('0.001'),
+        fee_asset='BTC', is_maker=False,
+    ), epoch)
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=ts, command_id='cmd-2', trade_id='trade-2',
+    ), epoch)
+    await spine.append(TradeOutcomeProduced(
+        account_id='acc-1', timestamp=ts, command_id='cmd-2', trade_id='trade-2',
+        status=TradeStatus.REJECTED, reason='test',
+    ), epoch)
+
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=epoch,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+    await trading.start()
+
+    state = trading.execution_manager._accounts['acc-1'].trading_state
+    assert ('trade-1', 'acc-1') in state.positions
+    assert state.positions[('trade-1', 'acc-1')].qty == Decimal('1')
+    assert 'SS-abc-00' in state.orders
+    assert trading.execution_manager._accepted_commands == {
+        'cmd-1': 'acc-1', 'cmd-2': 'acc-1',
+    }
+    assert 'cmd-2' in trading.execution_manager._terminal_commands
+    assert 'cmd-1' not in trading.execution_manager._terminal_commands
+
+    await trading.stop()
+    await conn.close()
