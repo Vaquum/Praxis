@@ -25,6 +25,12 @@ from urllib.parse import urlencode
 import aiohttp
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
+from praxis.infrastructure.binance_urls import (
+    MAINNET_REST_URL,
+    MAINNET_WS_URL,
+    TESTNET_REST_URL,
+    TESTNET_WS_URL,
+)
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
@@ -110,11 +116,6 @@ _BINANCE_OCO_STATUS_MAP: dict[str, OrderStatus] = {
 }
 
 _BINANCE_NO_TRADE_ID = -1
-
-MAINNET_REST_URL = 'https://api.binance.com'
-MAINNET_WS_URL = 'wss://stream.binance.com:9443'
-TESTNET_REST_URL = 'https://testnet.binance.vision'
-TESTNET_WS_URL = 'wss://stream.testnet.binance.vision'
 
 
 class BinanceAdapter:
