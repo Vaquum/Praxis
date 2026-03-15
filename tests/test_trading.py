@@ -35,6 +35,7 @@ from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     CancelResult,
     ExecutionReport,
+    NotFoundError,
     OrderBookSnapshot,
     SubmitResult,
     SymbolFilters,
@@ -115,11 +116,11 @@ class _InjectedVenueAdapter:
         client_order_id: str | None = None,
     ) -> VenueOrder:
         del account_id, symbol, venue_order_id, client_order_id
-        raise NotImplementedError
+        raise NotFoundError('not found')
 
     async def query_open_orders(self, account_id: str, symbol: str) -> list[VenueOrder]:
         del account_id, symbol
-        raise NotImplementedError
+        return []
 
     async def query_balance(
         self,
@@ -127,7 +128,7 @@ class _InjectedVenueAdapter:
         assets: frozenset[str],
     ) -> list[BalanceEntry]:
         del account_id, assets
-        raise NotImplementedError
+        return []
 
     async def query_trades(
         self,
@@ -137,7 +138,7 @@ class _InjectedVenueAdapter:
         start_time: datetime | None = None,
     ) -> list[VenueTrade]:
         del account_id, symbol, start_time
-        raise NotImplementedError
+        return []
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
         del symbol

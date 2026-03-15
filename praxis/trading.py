@@ -12,6 +12,7 @@ from praxis.core.domain.enums import (
     ExecutionType,
     MakerPreference,
     OrderSide,
+    OrderStatus,
     OrderType,
     STPMode,
 )
@@ -27,13 +28,19 @@ from praxis.core.domain.events import (
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.binance_ws import BinanceUserStream
-from praxis.infrastructure.venue_adapter import VenueAdapter
+from praxis.infrastructure.venue_adapter import NotFoundError, VenueAdapter, VenueError
 from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
 
 __all__ = ['Trading']
 
 _log = logging.getLogger(__name__)
+_TERMINAL_ORDER_STATUSES = frozenset({
+    OrderStatus.FILLED,
+    OrderStatus.CANCELED,
+    OrderStatus.REJECTED,
+    OrderStatus.EXPIRED,
+})
 
 class Trading:
     '''
@@ -164,6 +171,8 @@ class Trading:
             await stream.initiate_connection()
             self._user_streams[account_id] = stream
 
+        await self._reconcile_account(account_id)
+
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
 
@@ -199,6 +208,172 @@ class Trading:
         if not self._started:
             msg = 'Trading.start() must be awaited before using trading operations'
             raise RuntimeError(msg)
+
+    async def _reconcile_account(self, account_id: str) -> None:
+        '''
+        Reconcile projected state against venue for open orders.
+
+        Args:
+            account_id (str): Account identifier to reconcile.
+        '''
+
+        runtime = self._execution_manager._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for client_order_id, order in list(runtime.trading_state.orders.items()):
+            if order.is_terminal:
+                continue
+
+            try:
+                venue_order = await self._venue_adapter.query_order(
+                    account_id,
+                    order.symbol,
+                    client_order_id=client_order_id,
+                )
+            except NotFoundError:
+                _log.warning(
+                    'order not found on venue during reconciliation: %s',
+                    client_order_id,
+                )
+                continue
+            except VenueError as exc:
+                _log.warning(
+                    'venue error during reconciliation: %s %s',
+                    client_order_id,
+                    exc.args[0] if exc.args else str(exc),
+                )
+                continue
+
+            if venue_order.filled_qty > order.filled_qty:
+                await self._reconcile_fills(account_id, order)
+
+            venue_terminal = venue_order.status in _TERMINAL_ORDER_STATUSES
+            if venue_terminal and not order.is_terminal:
+                await self._reconcile_terminal(
+                    account_id, order, venue_order,
+                )
+
+    async def _reconcile_fills(
+        self,
+        account_id: str,
+        order: Any,
+    ) -> None:
+        '''
+        Query and emit missing fills for an order.
+
+        Args:
+            account_id (str): Account identifier.
+            order: Local order projection.
+        '''
+
+        runtime = self._execution_manager._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        try:
+            trades = await self._venue_adapter.query_trades(
+                account_id,
+                order.symbol,
+                start_time=order.created_at,
+            )
+        except VenueError as exc:
+            _log.warning(
+                'failed to query trades for reconciliation: %s %s',
+                order.client_order_id,
+                exc.args[0] if exc.args else str(exc),
+            )
+            return
+
+        command_id = order.command_id
+        trade_id = self._execution_manager._command_trade_ids.get(
+            command_id, command_id,
+        )
+
+        for trade in trades:
+            if trade.client_order_id != order.client_order_id:
+                continue
+
+            fill_event = FillReceived(
+                account_id=account_id,
+                timestamp=trade.timestamp,
+                client_order_id=trade.client_order_id,
+                venue_order_id=trade.venue_order_id,
+                venue_trade_id=trade.venue_trade_id,
+                trade_id=trade_id,
+                command_id=command_id,
+                symbol=trade.symbol,
+                side=trade.side,
+                qty=trade.qty,
+                price=trade.price,
+                fee=trade.fee,
+                fee_asset=trade.fee_asset,
+                is_maker=trade.is_maker,
+            )
+
+            seq = await self._event_spine.append(fill_event, self._config.epoch_id)
+            if seq is not None:
+                runtime.trading_state.apply(fill_event)
+                _log.info(
+                    'reconciled fill: %s %s',
+                    order.client_order_id,
+                    trade.venue_trade_id,
+                )
+
+    async def _reconcile_terminal(
+        self,
+        account_id: str,
+        order: Any,
+        venue_order: Any,
+    ) -> None:
+        '''
+        Emit terminal event for order that is terminal on venue but not locally.
+
+        Args:
+            account_id (str): Account identifier.
+            order: Local order projection.
+            venue_order: Venue order state.
+        '''
+
+        runtime = self._execution_manager._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        ts = order.updated_at
+        event: OrderCanceled | OrderExpired | OrderRejected | None = None
+
+        if venue_order.status == OrderStatus.CANCELED:
+            event = OrderCanceled(
+                account_id=account_id,
+                timestamp=ts,
+                client_order_id=order.client_order_id,
+                venue_order_id=venue_order.venue_order_id,
+                reason='reconciled from venue',
+            )
+        elif venue_order.status == OrderStatus.EXPIRED:
+            event = OrderExpired(
+                account_id=account_id,
+                timestamp=ts,
+                client_order_id=order.client_order_id,
+                venue_order_id=venue_order.venue_order_id,
+            )
+        elif venue_order.status == OrderStatus.REJECTED:
+            event = OrderRejected(
+                account_id=account_id,
+                timestamp=ts,
+                client_order_id=order.client_order_id,
+                venue_order_id=venue_order.venue_order_id,
+                reason='reconciled from venue',
+            )
+
+        if event is not None:
+            await self._event_spine.append(event, self._config.epoch_id)
+            runtime.trading_state.apply(event)
+            _log.info(
+                'reconciled terminal state: %s %s',
+                order.client_order_id,
+                venue_order.status.value,
+            )
 
     async def _on_execution_report(self, account_id: str, data: dict[str, Any]) -> None:
         '''
