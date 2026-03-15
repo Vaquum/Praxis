@@ -20,6 +20,7 @@ from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
+    Event,
     FillReceived,
     OrderCanceled,
     OrderExpired,
@@ -152,7 +153,7 @@ class Trading:
     async def _startup_account(
         self,
         account_id: str,
-        account_events: list[tuple[int, Any]],
+        account_events: list[tuple[int, Event]],
     ) -> None:
         '''
         Execute per-account startup phases in required order.
@@ -552,6 +553,14 @@ class Trading:
         '''Unregister account in execution + venue via inbound facade.'''
 
         self._require_started()
+
+        stream = self._user_streams.pop(account_id, None)
+        if stream is not None:
+            try:
+                await stream.close()
+            except Exception:  # noqa: BLE001
+                _log.exception('error closing user stream: %s', account_id)
+
         await self._inbound.unregister_account(account_id)
         self._managed_accounts.discard(account_id)
         self._ready_accounts.discard(account_id)

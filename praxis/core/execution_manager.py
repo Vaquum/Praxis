@@ -210,6 +210,16 @@ class ExecutionManager:
     ) -> None:
         '''
         Rebuild per-account state and runtime indices from event history.
+
+        Applies events to TradingState and rebuilds command tracking indices.
+        Expects account to be registered but in fresh state (no prior events applied).
+
+        Args:
+            account_id (str): Account identifier to replay events for.
+            events: Sequence of (seq, event) tuples ordered by sequence number.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
         '''
 
         runtime = self._accounts.get(account_id)
