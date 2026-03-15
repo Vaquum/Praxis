@@ -6,7 +6,7 @@ from typing import cast
 
 import pytest
 
-from praxis.infrastructure.binance_adapter import TESTNET_REST_URL, TESTNET_WS_URL
+from praxis.infrastructure.binance_urls import TESTNET_REST_URL, TESTNET_WS_URL
 from praxis.trading_config import TradingConfig
 
 
@@ -28,6 +28,18 @@ def test_trading_config_rejects_non_positive_epoch() -> None:
 def test_trading_config_rejects_empty_account_id() -> None:
     with pytest.raises(ValueError, match='keys must be non-empty'):
         TradingConfig(epoch_id=1, account_credentials={'': ('key', 'secret')})
+
+
+def test_trading_config_rejects_non_string_account_id() -> None:
+    malformed = cast(MutableMapping[str, tuple[str, str]], {1: ('key', 'secret')})
+
+    with pytest.raises(ValueError, match='keys must be non-empty'):
+        TradingConfig(epoch_id=1, account_credentials=malformed)
+
+
+def test_trading_config_rejects_whitespace_account_id() -> None:
+    with pytest.raises(ValueError, match='keys must be non-empty'):
+        TradingConfig(epoch_id=1, account_credentials={'   ': ('key', 'secret')})
 
 
 def test_trading_config_rejects_empty_credential_parts() -> None:

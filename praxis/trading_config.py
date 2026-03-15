@@ -50,7 +50,7 @@ class TradingConfig:
 
         credentials_copy = dict(self.account_credentials)
         for account_id, credentials in credentials_copy.items():
-            if not account_id:
+            if not isinstance(account_id, str) or not account_id.strip():
                 msg = 'TradingConfig.account_credentials keys must be non-empty'
                 raise ValueError(msg)
 
