@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 
@@ -639,6 +639,19 @@ class VenueAdapter(Protocol):
 
         Args:
             symbols (Sequence[str]): Trading pair symbols to preload.
+        '''
+
+        ...
+
+    def parse_execution_report(self, data: dict[str, Any]) -> ExecutionReport:
+        '''
+        Parse a venue-specific execution report payload into an ExecutionReport.
+
+        Args:
+            data (dict[str, Any]): Raw JSON dict from the venue WebSocket.
+
+        Returns:
+            ExecutionReport: Normalized execution report.
         '''
 
         ...

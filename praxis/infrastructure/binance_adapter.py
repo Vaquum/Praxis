@@ -1489,7 +1489,7 @@ class BinanceAdapter:
             ):
                 self._order_count_limit = limit_val
 
-    def _parse_execution_report(self, data: dict[str, Any]) -> ExecutionReport:
+    def parse_execution_report(self, data: dict[str, Any]) -> ExecutionReport:
 
         '''
         Parse a Binance executionReport WebSocket payload into an ExecutionReport.

@@ -2182,7 +2182,7 @@ class TestParseExecutionReport:
     def test_trade_fill(self) -> None:
 
         adapter = _make_adapter()
-        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        result = adapter.parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
         assert isinstance(result, ExecutionReport)
         assert result.symbol == 'BTCUSDT'
         assert result.client_order_id == 'my-client-id'
@@ -2205,7 +2205,7 @@ class TestParseExecutionReport:
     def test_event_time_is_utc(self) -> None:
 
         adapter = _make_adapter()
-        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        result = adapter.parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
         assert result.event_time.tzinfo == timezone.utc
         expected = datetime.fromtimestamp(1700000000, tz=timezone.utc)
         assert result.event_time == expected
@@ -2213,7 +2213,7 @@ class TestParseExecutionReport:
     def test_transaction_time_is_utc(self) -> None:
 
         adapter = _make_adapter()
-        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        result = adapter.parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
         assert result.transaction_time.tzinfo == timezone.utc
         expected = datetime.fromtimestamp(1700000001, tz=timezone.utc)
         assert result.transaction_time == expected
@@ -2231,7 +2231,7 @@ class TestParseExecutionReport:
         data['N'] = None
         data['t'] = -1
         data['m'] = False
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.execution_type == ExecutionType.NEW
         assert result.order_status == OrderStatus.OPEN
         assert result.last_filled_qty == Decimal('0')
@@ -2247,7 +2247,7 @@ class TestParseExecutionReport:
         data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
         data['x'] = 'CANCELED'
         data['X'] = 'CANCELED'
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.execution_type == ExecutionType.CANCELED
         assert result.order_status == OrderStatus.CANCELED
 
@@ -2257,7 +2257,7 @@ class TestParseExecutionReport:
         data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
         data['x'] = 'REPLACED'
         data['X'] = 'CANCELED'
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.execution_type == ExecutionType.REPLACED
         assert result.order_status == OrderStatus.CANCELED
 
@@ -2268,7 +2268,7 @@ class TestParseExecutionReport:
         data['x'] = 'REJECTED'
         data['X'] = 'REJECTED'
         data['r'] = 'INSUFFICIENT_BALANCE'
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.execution_type == ExecutionType.REJECTED
         assert result.order_status == OrderStatus.REJECTED
         assert result.reject_reason == 'INSUFFICIENT_BALANCE'
@@ -2281,7 +2281,7 @@ class TestParseExecutionReport:
         data['X'] = 'EXPIRED'
         data['o'] = 'LIMIT'
         data['f'] = 'IOC'
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.execution_type == ExecutionType.EXPIRED
         assert result.order_status == OrderStatus.EXPIRED
         assert result.order_type == OrderType.LIMIT_IOC
@@ -2292,7 +2292,7 @@ class TestParseExecutionReport:
         data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
         data['x'] = 'TRADE_PREVENTION'
         data['X'] = 'EXPIRED'
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.execution_type == ExecutionType.TRADE_PREVENTION
         assert result.order_status == OrderStatus.EXPIRED
 
@@ -2303,7 +2303,7 @@ class TestParseExecutionReport:
         data['o'] = 'MARKET'
         data['f'] = ''
         data['p'] = '0.00000000'
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.order_type == OrderType.MARKET
         assert result.original_price == Decimal('0')
 
@@ -2313,7 +2313,7 @@ class TestParseExecutionReport:
         data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
         data['x'] = 'UNKNOWN_TYPE'
         with pytest.raises(ValueError, match='Unknown Binance execution type'):
-            adapter._parse_execution_report(data)
+            adapter.parse_execution_report(data)
 
     def test_unknown_order_status_raises(self) -> None:
 
@@ -2321,7 +2321,7 @@ class TestParseExecutionReport:
         data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
         data['X'] = 'UNKNOWN_STATUS'
         with pytest.raises(ValueError, match='Unknown Binance order status'):
-            adapter._parse_execution_report(data)
+            adapter.parse_execution_report(data)
 
     def test_unknown_order_type_raises(self) -> None:
 
@@ -2329,20 +2329,20 @@ class TestParseExecutionReport:
         data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
         data['o'] = 'UNKNOWN_ORDER_TYPE'
         with pytest.raises(ValueError, match='Unknown Binance order type'):
-            adapter._parse_execution_report(data)
+            adapter.parse_execution_report(data)
 
     def test_is_maker_false(self) -> None:
 
         adapter = _make_adapter()
         data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
         data['m'] = False
-        result = adapter._parse_execution_report(data)
+        result = adapter.parse_execution_report(data)
         assert result.is_maker is False
 
     def test_decimal_precision_preserved(self) -> None:
 
         adapter = _make_adapter()
-        result = adapter._parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
+        result = adapter.parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
         assert str(result.original_qty) == '1.00000000'
         assert str(result.original_price) == '50000.00000000'
         assert str(result.last_filled_qty) == '0.50000000'

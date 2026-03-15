@@ -132,26 +132,32 @@ class Trading:
 
         await self._event_spine.ensure_schema()
 
+        all_events = await self._event_spine.read(self._config.epoch_id)
+
         for account_id in self._config.account_credentials:
             self._inbound.register_account(account_id)
             self._managed_accounts.add(account_id)
-            await self._startup_account(account_id)
+            account_events = [
+                (seq, event) for seq, event in all_events
+                if event.account_id == account_id
+            ]
+            await self._startup_account(account_id, account_events)
 
         self._started = True
 
-    async def _startup_account(self, account_id: str) -> None:
+    async def _startup_account(
+        self,
+        account_id: str,
+        account_events: list[tuple[int, Any]],
+    ) -> None:
         '''
         Execute per-account startup phases in required order.
 
         Args:
             account_id (str): Account identifier to start up.
+            account_events: Pre-filtered events for this account.
         '''
 
-        all_events = await self._event_spine.read(self._config.epoch_id)
-        account_events = [
-            (seq, event) for seq, event in all_events
-            if event.account_id == account_id
-        ]
         self._execution_manager.replay_events(account_id, account_events)
 
         symbols = self._execution_manager.active_symbols(account_id)
@@ -301,9 +307,14 @@ class Trading:
             return
 
         command_id = order.command_id
-        trade_id = self._execution_manager._command_trade_ids.get(
-            command_id, command_id,
-        )
+        trade_id = self._execution_manager._command_trade_ids.get(command_id)
+        if trade_id is None:
+            _log.warning(
+                'cannot reconcile fills: no trade_id mapping for command_id=%s order=%s',
+                command_id,
+                order.client_order_id,
+            )
+            return
 
         for trade in trades:
             if trade.client_order_id != order.client_order_id:
@@ -405,7 +416,7 @@ class Trading:
         if not isinstance(self._venue_adapter, BinanceAdapter):
             return
 
-        report = self._venue_adapter._parse_execution_report(data)
+        report = self._venue_adapter.parse_execution_report(data)
         runtime = self._execution_manager._accounts.get(account_id)
         if runtime is None:
             _log.warning('execution report for unknown account: %s', account_id)
@@ -428,7 +439,7 @@ class Trading:
         if seq is not None:
             runtime.trading_state.apply(event)
 
-    def _convert_execution_report(
+    def _convert_execution_report(  # noqa: PLR0911
         self,
         account_id: str,
         report: Any,
@@ -452,20 +463,30 @@ class Trading:
             if report.venue_trade_id is None:
                 _log.warning('TRADE report missing venue_trade_id')
                 return None
+            if not report.commission_asset:
+                _log.warning('TRADE report missing commission_asset')
+                return None
+            trade_id = self._execution_manager._command_trade_ids.get(order.command_id)
+            if trade_id is None:
+                _log.warning(
+                    'TRADE report has no trade_id mapping for command_id=%s',
+                    order.command_id,
+                )
+                return None
             return FillReceived(
                 account_id=account_id,
                 timestamp=ts,
                 client_order_id=report.client_order_id,
                 venue_order_id=report.venue_order_id,
                 venue_trade_id=report.venue_trade_id,
-                trade_id=self._execution_manager._command_trade_ids.get(order.command_id, order.command_id),
+                trade_id=trade_id,
                 command_id=order.command_id,
                 symbol=report.symbol,
                 side=report.side,
                 qty=report.last_filled_qty,
                 price=report.last_filled_price,
                 fee=report.commission,
-                fee_asset=report.commission_asset or '',
+                fee_asset=report.commission_asset,
                 is_maker=report.is_maker,
             )
 
