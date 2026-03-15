@@ -216,6 +216,23 @@ class Trading:
                         order.client_order_id,
                     )
 
+        deadline = asyncio.get_event_loop().time() + self._config.shutdown_timeout
+        poll_interval = 0.1
+        while asyncio.get_event_loop().time() < deadline:
+            has_open = False
+            for account_id in self._managed_accounts:
+                try:
+                    if self._execution_manager.get_open_orders(account_id):
+                        has_open = True
+                        break
+                except AccountNotRegisteredError:
+                    continue
+            if not has_open:
+                break
+            await asyncio.sleep(poll_interval)
+        else:
+            _log.warning('shutdown timeout: orders may still be open')
+
         for account_id, stream in list(self._user_streams.items()):
             try:
                 await stream.close()
