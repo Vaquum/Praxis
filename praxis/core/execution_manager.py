@@ -176,6 +176,32 @@ class ExecutionManager:
 
         return account_id in self._accounts
 
+    def active_symbols(self, account_id: str) -> set[str]:
+        '''
+        Return the set of symbols with open orders or positions for an account.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            set[str]: Unique symbols from open orders and positions.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        symbols: set[str] = set()
+        for order in runtime.trading_state.orders.values():
+            symbols.add(order.symbol)
+        for pos in runtime.trading_state.positions.values():
+            symbols.add(pos.symbol)
+        return symbols
+
     def replay_events(
         self,
         account_id: str,

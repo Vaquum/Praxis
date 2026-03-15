@@ -8,6 +8,7 @@ normalize venue-specific data into internal domain types.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -628,6 +629,16 @@ class VenueAdapter(Protocol):
 
         Returns:
             int: Server time in milliseconds since epoch
+        '''
+
+        ...
+
+    async def load_filters(self, symbols: Sequence[str]) -> None:
+        '''
+        Preload trading filters for one or more symbols.
+
+        Args:
+            symbols (Sequence[str]): Trading pair symbols to preload.
         '''
 
         ...

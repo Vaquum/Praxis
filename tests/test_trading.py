@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import cast
@@ -153,6 +153,9 @@ class _InjectedVenueAdapter:
 
     async def get_server_time(self) -> int:
         raise NotImplementedError
+
+    async def load_filters(self, symbols: Sequence[str]) -> None:
+        self.loaded_symbols = list(symbols)
 
     def parse_execution_report(self, data: dict[str, object]) -> ExecutionReport:
         del data
@@ -459,6 +462,41 @@ async def test_trading_start_replays_events_into_account_state() -> None:
     }
     assert 'cmd-2' in trading.execution_manager._terminal_commands
     assert 'cmd-1' not in trading.execution_manager._terminal_commands
+
+    await trading.stop()
+    await conn.close()
+
+
+@pytest.mark.asyncio
+async def test_trading_start_preloads_filters_for_active_symbols() -> None:
+    conn = await aiosqlite.connect(':memory:')
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+    epoch = 1
+    ts = _CREATED_AT
+
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+    ), epoch)
+    await spine.append(OrderSubmitIntent(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+        client_order_id='SS-abc-00', symbol='BTCUSDT', side=OrderSide.BUY,
+        order_type=OrderType.MARKET, qty=Decimal('1'),
+        price=None, stop_price=None, stop_limit_price=None,
+    ), epoch)
+
+    adapter = _InjectedVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=epoch,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    await trading.start()
+
+    assert adapter.loaded_symbols == ['BTCUSDT']
 
     await trading.stop()
     await conn.close()

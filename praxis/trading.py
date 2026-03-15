@@ -135,6 +135,10 @@ class Trading:
         ]
         self._execution_manager.replay_events(account_id, account_events)
 
+        symbols = self._execution_manager.active_symbols(account_id)
+        if symbols:
+            await self._venue_adapter.load_filters(sorted(symbols))
+
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
 
