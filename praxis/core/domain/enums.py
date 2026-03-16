@@ -116,13 +116,12 @@ class TradeStatus(Enum):
     '''
     Define trade-level execution status per Consensus #22.
 
-    Non-terminal: PENDING, PARTIAL, PAUSED.
+    Non-terminal: PENDING, PARTIAL.
     Terminal: FILLED, CANCELED, REJECTED, EXPIRED.
     '''
 
     PENDING = 'PENDING'
     PARTIAL = 'PARTIAL'
-    PAUSED = 'PAUSED'
     FILLED = 'FILLED'
     CANCELED = 'CANCELED'
     REJECTED = 'REJECTED'

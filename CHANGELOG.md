@@ -369,3 +369,9 @@
 
 - Add shared `spine` fixture in [`tests/conftest.py`](tests/conftest.py) for test harness consolidation
 - Remove duplicate `spine` fixture definitions from 6 test files
+
+## v0.36.0 on 16th of March, 2026
+
+- Remove dead `TradeStatus.PAUSED` enum member and docstring reference from [`enums.py`](praxis/core/domain/enums.py)
+- Add 26 tests for startup reconciliation (`_reconcile_account`, `_reconcile_fills`, `_reconcile_terminal`) and WebSocket handler (`_on_execution_report`, `_convert_execution_report`) in [`test_trading.py`](tests/test_trading.py)
+- Update `test_domain_outcome.py` to reflect PAUSED removal from `_NON_TERMINAL` list and `test_trade_status_members` expected set

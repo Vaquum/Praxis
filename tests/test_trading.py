@@ -10,6 +10,7 @@ import pytest
 
 from praxis.core.domain.enums import (
     ExecutionMode,
+    ExecutionType,
     MakerPreference,
     OrderSide,
     OrderStatus,
@@ -18,11 +19,15 @@ from praxis.core.domain.enums import (
     TradeStatus,
 )
 from praxis.core.domain.position import Position
+from praxis.core.domain.order import Order
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
+    OrderCanceled,
+    OrderExpired,
+    OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
     TradeOutcomeProduced,
@@ -40,6 +45,7 @@ from praxis.infrastructure.venue_adapter import (
     SubmitResult,
     SymbolFilters,
     VenueAdapter,
+    VenueError,
     VenueOrder,
     VenueTrade,
 )
@@ -771,3 +777,824 @@ async def test_trading_shutdown_cancels_oco_orders_via_cancel_order_list(
 
     assert ('acc-1', 'oco-list-1') in adapter.cancel_list_calls
     assert ('acc-1', 'oco-list-1') not in adapter.cancel_calls
+
+
+class _ReconVenueAdapter(_InjectedVenueAdapter):
+
+    def __init__(self) -> None:
+        self._venue_orders: dict[str, VenueOrder] = {}
+        self._venue_trades: list[VenueTrade] = []
+
+    async def query_order(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> VenueOrder:
+        del account_id, symbol, venue_order_id
+        key = client_order_id or ''
+        if key in self._venue_orders:
+            return self._venue_orders[key]
+        raise NotFoundError('not found')
+
+    async def query_trades(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        start_time: datetime | None = None,
+    ) -> list[VenueTrade]:
+        del account_id, symbol, start_time
+        return self._venue_trades
+
+    async def cancel_order(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+        del account_id, symbol, venue_order_id, client_order_id
+        return CancelResult(venue_order_id='v-1', status=OrderStatus.CANCELED)
+
+
+def _make_order(
+    client_order_id: str = 'SS-cmd1-00',
+    venue_order_id: str = 'v-1',
+    command_id: str = 'cmd-1',
+    status: OrderStatus = OrderStatus.OPEN,
+    filled_qty: Decimal = Decimal('0'),
+) -> Order:
+    return Order(
+        client_order_id=client_order_id,
+        venue_order_id=venue_order_id,
+        account_id='acc-1',
+        command_id=command_id,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=filled_qty,
+        price=None,
+        stop_price=None,
+        status=status,
+        created_at=_CREATED_AT,
+        updated_at=_CREATED_AT,
+    )
+
+
+async def _started_trading_with_recon_adapter(
+    spine: EventSpine,
+) -> tuple[Trading, _ReconVenueAdapter]:
+    adapter = _ReconVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    await trading.start()
+    return trading, adapter
+
+
+@pytest.mark.asyncio
+async def test_reconcile_account_skips_terminal_orders(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order(status=OrderStatus.FILLED, filled_qty=Decimal('1'))
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    await trading._reconcile_account('acc-1')
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_account_handles_not_found(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    await trading._reconcile_account('acc-1')
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_account_reconciles_fills_when_venue_has_more(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    adapter._venue_orders['SS-cmd1-00'] = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        price=None,
+    )
+    adapter._venue_trades = [VenueTrade(
+        venue_trade_id='t-1',
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        price=Decimal('50000'),
+        fee=Decimal('0.001'),
+        fee_asset='BTC',
+        is_maker=False,
+        timestamp=_CREATED_AT,
+    )]
+
+    await trading._reconcile_account('acc-1')
+
+    events = await spine.read(1)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, FillReceived)
+    assert event.venue_trade_id == 't-1'
+    assert event.trade_id == 'trade-1'
+    state = trading._execution_manager._accounts['acc-1'].trading_state
+    assert ('trade-1', 'acc-1') in state.positions
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_account_emits_terminal_when_venue_is_terminal(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    adapter._venue_orders['SS-cmd1-00'] = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.CANCELED,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=None,
+    )
+
+    await trading._reconcile_account('acc-1')
+
+    events = await spine.read(1)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, OrderCanceled)
+    assert event.client_order_id == 'SS-cmd1-00'
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_fills_deduplicates(spine: EventSpine) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    trade = VenueTrade(
+        venue_trade_id='t-1',
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        price=Decimal('50000'),
+        fee=Decimal('0.001'),
+        fee_asset='BTC',
+        is_maker=False,
+        timestamp=_CREATED_AT,
+    )
+    adapter._venue_trades = [trade]
+
+    await trading._reconcile_fills('acc-1', order)
+    events_after_first = await spine.read(1)
+    assert len(events_after_first) == 1
+
+    await trading._reconcile_fills('acc-1', order)
+    events_after_second = await spine.read(1)
+    assert len(events_after_second) == 1
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_fills_skips_unknown_account(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    order = _make_order()
+    await trading._reconcile_fills('unknown-acc', order)
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_fills_handles_venue_error(spine: EventSpine) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    async def fail_trades(
+        account_id: str,
+        symbol: str,
+        *,
+        start_time: datetime | None = None,
+    ) -> list[VenueTrade]:
+        del account_id, symbol, start_time
+        raise VenueError('connection lost')
+
+    adapter.query_trades = fail_trades  # type: ignore[method-assign]
+
+    await trading._reconcile_fills('acc-1', order)
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_fills_skips_mismatched_client_order_id(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    adapter._venue_trades = [VenueTrade(
+        venue_trade_id='t-1',
+        venue_order_id='v-1',
+        client_order_id='DIFFERENT-ORDER',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        price=Decimal('50000'),
+        fee=Decimal('0.001'),
+        fee_asset='BTC',
+        is_maker=False,
+        timestamp=_CREATED_AT,
+    )]
+
+    await trading._reconcile_fills('acc-1', order)
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_fills_skips_missing_trade_id_mapping(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    adapter._venue_trades = [VenueTrade(
+        venue_trade_id='t-1',
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        price=Decimal('50000'),
+        fee=Decimal('0.001'),
+        fee_asset='BTC',
+        is_maker=False,
+        timestamp=_CREATED_AT,
+    )]
+
+    await trading._reconcile_fills('acc-1', order)
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_terminal_emits_canceled(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    venue_order = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.CANCELED,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=None,
+    )
+
+    await trading._reconcile_terminal('acc-1', order, venue_order)
+
+    events = await spine.read(1)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, OrderCanceled)
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_terminal_emits_expired(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    venue_order = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.EXPIRED,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=None,
+    )
+
+    await trading._reconcile_terminal('acc-1', order, venue_order)
+
+    events = await spine.read(1)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, OrderExpired)
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_terminal_emits_rejected(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    venue_order = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.REJECTED,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=None,
+    )
+
+    await trading._reconcile_terminal('acc-1', order, venue_order)
+
+    events = await spine.read(1)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, OrderRejected)
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_terminal_skips_non_terminal_venue_status(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    venue_order = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=None,
+    )
+
+    await trading._reconcile_terminal('acc-1', order, venue_order)
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_execution_report_ignores_non_execution_report(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    await trading._on_execution_report('acc-1', {'e': 'outboundAccountPosition'})
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_execution_report_ignores_non_binance_adapter(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    await trading._on_execution_report('acc-1', {'e': 'executionReport'})
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_execution_report_skips_unknown_account(
+    spine: EventSpine,
+) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    trading._venue_adapter = cast(VenueAdapter, unittest.mock.MagicMock(spec=BinanceAdapter))
+
+    await trading._on_execution_report('unknown-acc', {'e': 'executionReport'})
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_execution_report_processes_fill(spine: EventSpine) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset='BTC',
+        transaction_time=_CREATED_AT,
+        venue_trade_id='t-ws-1',
+        is_maker=False,
+    )
+
+    mock_adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    mock_adapter.parse_execution_report.return_value = report
+    trading._venue_adapter = cast(VenueAdapter, mock_adapter)
+
+    await trading._on_execution_report('acc-1', {'e': 'executionReport'})
+
+    events = await spine.read(1)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, FillReceived)
+    assert event.venue_trade_id == 't-ws-1'
+    assert event.trade_id == 'trade-1'
+
+    state = trading._execution_manager._accounts['acc-1'].trading_state
+    assert ('trade-1', 'acc-1') in state.positions
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_execution_report_skips_terminal_for_closed_order(
+    spine: EventSpine,
+) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    order = _make_order(status=OrderStatus.FILLED, filled_qty=Decimal('1'))
+    trading._execution_manager._accounts['acc-1'].trading_state.closed_orders['SS-cmd1-00'] = order
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.CANCELED,
+        order_status=OrderStatus.CANCELED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('0'),
+        last_filled_price=Decimal('0'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0'),
+        commission_asset=None,
+        transaction_time=_CREATED_AT,
+        venue_trade_id=None,
+        is_maker=False,
+    )
+
+    mock_adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    mock_adapter.parse_execution_report.return_value = report
+    trading._venue_adapter = cast(VenueAdapter, mock_adapter)
+
+    await trading._on_execution_report('acc-1', {'e': 'executionReport'})
+
+    events = await spine.read(1)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_trade(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset='BTC',
+        transaction_time=_CREATED_AT,
+        venue_trade_id='t-1',
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert isinstance(event, FillReceived)
+    assert event.venue_trade_id == 't-1'
+    assert event.trade_id == 'trade-1'
+    assert event.qty == Decimal('1')
+    assert event.price == Decimal('50000')
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_canceled(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.CANCELED,
+        order_status=OrderStatus.CANCELED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('0'),
+        last_filled_price=Decimal('0'),
+        cumulative_filled_qty=Decimal('0'),
+        commission=Decimal('0'),
+        commission_asset=None,
+        transaction_time=_CREATED_AT,
+        venue_trade_id=None,
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert isinstance(event, OrderCanceled)
+    assert event.client_order_id == 'SS-cmd1-00'
+    assert event.reason == 'canceled via WebSocket'
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_rejected(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.REJECTED,
+        order_status=OrderStatus.REJECTED,
+        reject_reason='INSUFFICIENT_BALANCE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('0'),
+        last_filled_price=Decimal('0'),
+        cumulative_filled_qty=Decimal('0'),
+        commission=Decimal('0'),
+        commission_asset=None,
+        transaction_time=_CREATED_AT,
+        venue_trade_id=None,
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert isinstance(event, OrderRejected)
+    assert event.reason == 'INSUFFICIENT_BALANCE'
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_expired(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.EXPIRED,
+        order_status=OrderStatus.EXPIRED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('0'),
+        last_filled_price=Decimal('0'),
+        cumulative_filled_qty=Decimal('0'),
+        commission=Decimal('0'),
+        commission_asset=None,
+        transaction_time=_CREATED_AT,
+        venue_trade_id=None,
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert isinstance(event, OrderExpired)
+    assert event.client_order_id == 'SS-cmd1-00'
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_unknown_type(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.NEW,
+        order_status=OrderStatus.OPEN,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('0'),
+        last_filled_price=Decimal('0'),
+        cumulative_filled_qty=Decimal('0'),
+        commission=Decimal('0'),
+        commission_asset=None,
+        transaction_time=_CREATED_AT,
+        venue_trade_id=None,
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert event is None
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_trade_missing_venue_trade_id(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset='BTC',
+        transaction_time=_CREATED_AT,
+        venue_trade_id=None,
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert event is None
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_trade_missing_commission_asset(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset=None,
+        transaction_time=_CREATED_AT,
+        venue_trade_id='t-1',
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert event is None
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_convert_execution_report_trade_missing_trade_id_mapping(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd1-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-1',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset='BTC',
+        transaction_time=_CREATED_AT,
+        venue_trade_id='t-1',
+        is_maker=False,
+    )
+
+    event = trading._convert_execution_report('acc-1', report, order)
+    assert event is None
+    await trading.stop()
