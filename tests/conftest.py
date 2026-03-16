@@ -10,8 +10,7 @@ from praxis.infrastructure.event_spine import EventSpine
 
 @pytest_asyncio.fixture
 async def spine() -> AsyncGenerator[EventSpine, None]:
-    conn = await aiosqlite.connect(':memory:')
-    es = EventSpine(conn)
-    await es.ensure_schema()
-    yield es
-    await conn.close()
+    async with aiosqlite.connect(':memory:') as conn:
+        es = EventSpine(conn)
+        await es.ensure_schema()
+        yield es
