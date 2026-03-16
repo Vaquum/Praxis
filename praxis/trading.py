@@ -229,7 +229,7 @@ class Trading:
             poll_interval = 0.1
             while loop.time() < deadline:
                 has_open = False
-                for account_id in self._managed_accounts:
+                for account_id in list(self._managed_accounts):
                     try:
                         if self._execution_manager.get_open_orders(account_id):
                             has_open = True
