@@ -157,3 +157,16 @@ RFC §6.2 defines walk-the-book slippage with mid-price as the primary benchmark
 
 **When to fix**: Before supporting abort operations that span restarts.
 **Migration**: Either reconstruct the minimal command data needed for aborts during replay (from `OrderSubmitIntent`), or update the abort path to operate from `TradingState` orders without requiring `_commands`.
+
+---
+
+## TD-014: Single-writer concurrency violation in WS and reconciliation paths
+
+**Origin**: Deep audit (MMVP closure review)
+**Severity**: Critical (data races possible under concurrent fills + reconciliation)
+**Modules**: `praxis/trading.py`, `praxis/core/execution_manager.py`
+
+The RFC establishes a single-writer model where all `TradingState` mutations flow through the account coroutine. Two paths currently bypass this: the WebSocket fill handler and the reconciliation logic in `Trading.start()` both mutate `TradingState` directly. In single-account MMVP flows these paths do not race, but multi-account or concurrent fill+recon scenarios will produce state corruption.
+
+**When to fix**: Before multi-account support or any path where fills and reconciliation can overlap.
+**Migration**: Route WS fills and reconciliation results through the account coroutine's command queue so all state mutations are serialized through the single-writer.
