@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
 
-import aiosqlite
 import pytest
-import pytest_asyncio
 
 from praxis.core.domain.enums import (
     ExecutionMode,
@@ -45,16 +42,6 @@ _CMD_KWARGS: dict[str, Any] = {
     'created_at': _TS,
 }
 
-
-@pytest_asyncio.fixture
-async def spine() -> AsyncGenerator[EventSpine, None]:
-    conn = await aiosqlite.connect(':memory:')
-    es = EventSpine(conn)
-    await es.ensure_schema()
-    try:
-        yield es
-    finally:
-        await conn.close()
 
 
 @pytest.fixture

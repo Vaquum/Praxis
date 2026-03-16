@@ -4,14 +4,11 @@ Tests for praxis.infrastructure.event_spine.EventSpine.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 
-import aiosqlite
 import pytest
-import pytest_asyncio
 
 from praxis.core.domain.enums import OrderSide, OrderType
 from praxis.core.domain.events import (
@@ -112,14 +109,6 @@ _FILL = FillReceived(
     price=Decimal('50000.25'), fee=Decimal('0.001'),
     fee_asset='USDT', is_maker=True,
 )
-
-@pytest_asyncio.fixture
-async def spine() -> AsyncGenerator[EventSpine, None]:
-
-    async with aiosqlite.connect(':memory:') as conn:
-        s = EventSpine(conn)
-        await s.ensure_schema()
-        yield s
 
 
 @pytest.mark.asyncio

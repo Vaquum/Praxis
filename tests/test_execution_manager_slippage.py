@@ -9,7 +9,6 @@ from typing import Any
 from typing import cast
 from unittest.mock import AsyncMock
 
-import aiosqlite
 import pytest
 import pytest_asyncio
 
@@ -59,14 +58,6 @@ def _extract_decimal_arg(record: logging.LogRecord, index: int) -> Decimal:
     args = cast(tuple[Any, ...], record.args)
     return cast(Decimal, args[index])
 
-
-@pytest_asyncio.fixture
-async def spine() -> AsyncGenerator[EventSpine, None]:
-    conn = await aiosqlite.connect(':memory:')
-    es = EventSpine(conn)
-    await es.ensure_schema()
-    yield es
-    await conn.close()
 
 
 @pytest.fixture
