@@ -601,6 +601,7 @@ class _CancelTrackingVenueAdapter(_InjectedVenueAdapter):
 
     def __init__(self) -> None:
         self.cancel_calls: list[tuple[str, str]] = []
+        self.cancel_list_calls: list[tuple[str, str]] = []
 
     async def cancel_order(
         self,
@@ -612,6 +613,18 @@ class _CancelTrackingVenueAdapter(_InjectedVenueAdapter):
     ) -> CancelResult:
         del symbol, venue_order_id
         self.cancel_calls.append((account_id, client_order_id or ''))
+        return CancelResult(venue_order_id='venue-1', status=OrderStatus.CANCELED)
+
+    async def cancel_order_list(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+        del symbol, venue_order_id
+        self.cancel_list_calls.append((account_id, client_order_id or ''))
         return CancelResult(venue_order_id='venue-1', status=OrderStatus.CANCELED)
 
 
@@ -724,3 +737,48 @@ async def test_trading_shutdown_cancels_open_orders(spine: EventSpine) -> None:
     await trading.stop()
 
     assert ('acc-1', 'coid-1') in adapter.cancel_calls
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_cancels_oco_orders_via_cancel_order_list(
+    spine: EventSpine,
+) -> None:
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    oco_order = Order(
+        client_order_id='oco-list-1',
+        venue_order_id='venue-oco-1',
+        account_id='acc-1',
+        command_id='cmd-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.OCO,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+        stop_price=Decimal('48000'),
+        status=OrderStatus.OPEN,
+        created_at=_CREATED_AT,
+        updated_at=_CREATED_AT,
+    )
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['oco-list-1'] = oco_order
+
+    await trading.stop()
+
+    assert ('acc-1', 'oco-list-1') in adapter.cancel_list_calls
+    assert ('acc-1', 'oco-list-1') not in adapter.cancel_calls

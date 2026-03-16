@@ -195,67 +195,75 @@ class Trading:
 
         self._stopping = True
 
-        for account_id in sorted(self._managed_accounts):
-            try:
-                open_orders = self._execution_manager.get_open_orders(account_id)
-            except AccountNotRegisteredError:
-                continue
-            for order in open_orders.values():
+        try:
+            for account_id in sorted(self._managed_accounts):
                 try:
-                    await self._venue_adapter.cancel_order(
-                        account_id,
-                        order.symbol,
-                        client_order_id=order.client_order_id,
-                    )
+                    open_orders = self._execution_manager.get_open_orders(account_id)
+                except AccountNotRegisteredError:
+                    continue
+                for order in open_orders.values():
+                    try:
+                        if order.order_type == OrderType.OCO:
+                            await self._venue_adapter.cancel_order_list(
+                                account_id,
+                                order.symbol,
+                                client_order_id=order.client_order_id,
+                            )
+                        else:
+                            await self._venue_adapter.cancel_order(
+                                account_id,
+                                order.symbol,
+                                client_order_id=order.client_order_id,
+                            )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        _log.warning(
+                            'shutdown cancel failed: account=%s order=%s',
+                            account_id,
+                            order.client_order_id,
+                        )
+
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self._config.shutdown_timeout
+            poll_interval = 0.1
+            while loop.time() < deadline:
+                has_open = False
+                for account_id in self._managed_accounts:
+                    try:
+                        if self._execution_manager.get_open_orders(account_id):
+                            has_open = True
+                            break
+                    except AccountNotRegisteredError:
+                        continue
+                if not has_open:
+                    break
+                remaining = deadline - loop.time()
+                await asyncio.sleep(min(poll_interval, max(0.0, remaining)))
+            else:
+                _log.warning('shutdown timeout: orders may still be open')
+
+            for account_id, stream in list(self._user_streams.items()):
+                try:
+                    await stream.close()
                 except asyncio.CancelledError:
                     raise
                 except Exception:  # noqa: BLE001
-                    _log.warning(
-                        'shutdown cancel failed: account=%s order=%s',
-                        account_id,
-                        order.client_order_id,
-                    )
+                    _log.exception('error closing user stream: %s', account_id)
+                self._user_streams.pop(account_id, None)
 
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + self._config.shutdown_timeout
-        poll_interval = 0.1
-        while loop.time() < deadline:
-            has_open = False
-            for account_id in self._managed_accounts:
+            first_error: Exception | None = None
+            for account_id in sorted(self._managed_accounts):
                 try:
-                    if self._execution_manager.get_open_orders(account_id):
-                        has_open = True
-                        break
-                except AccountNotRegisteredError:
-                    continue
-            if not has_open:
-                break
-            await asyncio.sleep(poll_interval)
-        else:
-            _log.warning('shutdown timeout: orders may still be open')
+                    await self._inbound.unregister_account(account_id)
+                    self._managed_accounts.discard(account_id)
+                    self._ready_accounts.discard(account_id)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    if first_error is None:
+                        first_error = exc
 
-        for account_id, stream in list(self._user_streams.items()):
-            try:
-                await stream.close()
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # noqa: BLE001
-                _log.exception('error closing user stream: %s', account_id)
-            self._user_streams.pop(account_id, None)
-
-        first_error: Exception | None = None
-        for account_id in sorted(self._managed_accounts):
-            try:
-                await self._inbound.unregister_account(account_id)
-                self._managed_accounts.discard(account_id)
-                self._ready_accounts.discard(account_id)
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001
-                if first_error is None:
-                    first_error = exc
-
-        try:
             if first_error is not None:
                 raise first_error
             self._started = False
