@@ -25,6 +25,8 @@ class TradingConfig:
             to (api_key, api_secret).
         on_trade_outcome (Callable[[TradeOutcome], Awaitable[None]] | None):
             Optional async callback invoked by execution outcomes.
+        shutdown_timeout (float): Seconds to wait for orders to reach terminal
+            state during shutdown. Default: 30.0.
     '''
 
     epoch_id: int
@@ -32,6 +34,7 @@ class TradingConfig:
     venue_ws_url: str = TESTNET_WS_URL
     account_credentials: Mapping[str, tuple[str, str]] = field(default_factory=dict)
     on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None
+    shutdown_timeout: float = 30.0
 
     def __post_init__(self) -> None:
         '''Validate runtime configuration invariants.'''
@@ -46,6 +49,10 @@ class TradingConfig:
 
         if not self.venue_ws_url:
             msg = 'TradingConfig.venue_ws_url must be non-empty'
+            raise ValueError(msg)
+
+        if self.shutdown_timeout <= 0:
+            msg = 'TradingConfig.shutdown_timeout must be positive'
             raise ValueError(msg)
 
         credentials_copy = dict(self.account_credentials)

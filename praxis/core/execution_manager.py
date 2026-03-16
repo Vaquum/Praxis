@@ -203,6 +203,27 @@ class ExecutionManager:
             symbols.add(pos.symbol)
         return symbols
 
+    def get_open_orders(self, account_id: str) -> dict[str, Order]:
+        '''
+        Return a copy of open orders for an account.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[str, Order]: Open orders keyed by client_order_id.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return {k: copy.copy(v) for k, v in runtime.trading_state.orders.items()}
+
     def replay_events(
         self,
         account_id: str,
