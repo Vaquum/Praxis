@@ -4,7 +4,6 @@ from collections.abc import AsyncGenerator
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
-import aiosqlite
 import pytest
 import pytest_asyncio
 
@@ -18,16 +17,6 @@ _EPOCH = 1
 _ACCT = 'acc-1'
 _TRADE = 'trade-1'
 
-
-@pytest_asyncio.fixture
-async def spine() -> AsyncGenerator[EventSpine, None]:
-    conn = await aiosqlite.connect(':memory:')
-    es = EventSpine(conn)
-    await es.ensure_schema()
-    try:
-        yield es
-    finally:
-        await conn.close()
 
 
 @pytest.fixture

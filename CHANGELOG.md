@@ -364,3 +364,8 @@
 - Add `ExecutionManager.get_open_orders(account_id)` returning open orders snapshot for shutdown cancellation in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `TradingConfig.shutdown_timeout` config field for terminal-state wait timeout in [`trading_config.py`](praxis/trading_config.py)
 - Add shutdown sequence tests covering command rejection, abort rejection, and order cancellation in [`test_trading.py`](tests/test_trading.py)
+
+## v0.35.0 on 16th of March, 2026
+
+- Add shared `spine` fixture in [`tests/conftest.py`](tests/conftest.py) for test harness consolidation
+- Remove duplicate `spine` fixture definitions from 6 test files
