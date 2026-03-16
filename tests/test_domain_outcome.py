@@ -15,7 +15,7 @@ from praxis.core.domain import TradeOutcome, TradeStatus
 _TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 _TERMINAL = [TradeStatus.CANCELED, TradeStatus.EXPIRED, TradeStatus.FILLED, TradeStatus.REJECTED]
-_NON_TERMINAL = [TradeStatus.PARTIAL, TradeStatus.PAUSED, TradeStatus.PENDING]
+_NON_TERMINAL = [TradeStatus.PARTIAL, TradeStatus.PENDING]
 _SLICES = 5
 
 
@@ -50,7 +50,6 @@ def test_trade_status_members() -> None:
     expected = {
         TradeStatus.PENDING,
         TradeStatus.PARTIAL,
-        TradeStatus.PAUSED,
         TradeStatus.FILLED,
         TradeStatus.CANCELED,
         TradeStatus.REJECTED,
