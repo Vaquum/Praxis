@@ -27,3 +27,5 @@ build/
 .cursor/
 .claude/
 praxis-journals/
+.tldrignore
+.tldr/
