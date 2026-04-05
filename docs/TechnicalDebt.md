@@ -62,7 +62,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 **Severity**: Low (epochs are small currently)
 **Module**: `praxis/infrastructure/event_spine.py`
 
-`_hydrate()` calls `get_type_hints(cls)` for every row returned by `read()`. This is repeated reflection work that scales linearly with epoch size. For large epochs the cost dominates `read()` time.
+`_hydrate()` calls `get_type_hints(cls)` for every row returned by `read()`. This is repeated reflection work that scales linearly with epoch size and incurs significant overhead during startup/replay. For large epochs the cost dominates `read()` time.
 
 **When to fix**: Before epochs grow to thousands of events.
 **Migration**: Precompute a `{event_type: hints}` map alongside `_EVENT_REGISTRY` at module load time and reuse it in `_hydrate`.
@@ -88,7 +88,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 **Severity**: Low (typically 1-2 orders per account)
 **Module**: `praxis/core/execution_manager.py`
 
-`_process_abort` iterates `runtime.trading_state.orders` to find the order matching `abort.command_id`. This is O(n) in the number of open orders. For SingleShot mode with `sequence=0`, the `client_order_id` is deterministic and could be computed via `generate_client_order_id` for an O(1) dict lookup. However, this couples abort to the ID generation convention and the `sequence=0` assumption, which will not hold for multi-slice execution modes.
+`_process_abort` iterates `runtime.trading_state.orders` to find the order matching `abort.command_id`. This is O(n) in the number of open orders. As per performance audit, this creates an O(N) search bottleneck that scales with the number of open orders.
 
 **When to fix**: When multi-slice modes (TWAP, ICEBERG) are implemented and order counts per account grow.
 **Migration**: Add a `command_id → client_order_id` index in `_AccountRuntime` populated by `_process_command` on order submission, enabling O(1) lookup in `_process_abort`.
@@ -140,7 +140,7 @@ RFC §6.2 defines walk-the-book slippage with mid-price as the primary benchmark
 **Severity**: Low (epochs and accounts are small currently)
 **Module**: `praxis/trading.py`
 
-`Trading.start()` reads the full epoch and then scans it for each account with a list comprehension. This is O(events × accounts) and can become costly as epochs/accounts grow.
+`Trading.start()` reads the full epoch and then scans it for each account with a list comprehension. This is O(events × accounts) and can become costly as epochs/accounts grow, creating a significant bottleneck during replay.
 
 **When to fix**: Before epochs grow to thousands of events or account counts increase significantly.
 **Migration**: Group events by `account_id` in a single pass (e.g., build a `dict[account_id, list[(seq, event)]]`) before the loop, or add an EventSpine query that reads only events for a given account.
@@ -170,3 +170,29 @@ The RFC establishes a single-writer model where all `TradingState` mutations flo
 
 **When to fix**: Before multi-account support or any path where fills and reconciliation can overlap.
 **Migration**: Route WS fills and reconciliation results through the account coroutine's command queue so all state mutations are serialized through the single-writer.
+
+---
+
+## TD-015: Walk-the-book slippage is a pure Python loop
+
+**Origin**: Performance audit
+**Severity**: Medium (O(depth) complexity, scales with book granularity)
+**Module**: `praxis/core/estimate_slippage.py`
+
+The slippage estimation logic iterates over order book levels in a `for` loop. While currently limited to 20 levels, this will become a bottleneck for high-frequency strategies or when processing full book depth.
+
+**When to fix**: Before high-frequency execution or when depth limits exceed 100 levels.
+**Migration**: Replace the `for` loop with vectorized NumPy operations (e.g., `cumsum` for depth accumulation and `searchsorted` for target quantity lookup).
+
+---
+
+## TD-016: binance_ws uses standard json.loads
+
+**Origin**: Performance audit
+**Severity**: Low (impacts ingestion latency)
+**Module**: `praxis/infrastructure/binance_ws.py`
+
+The WebSocket ingestion loop uses standard `json.loads` for frame parsing. Given high-frequency WebSocket updates, this adds unnecessary overhead compared to `orjson`.
+
+**When to fix**: Before low-latency execution requirements.
+**Migration**: Switch to `orjson.loads` for WebSocket frame parsing, consistent with `EventSpine`.
