@@ -1601,3 +1601,139 @@ async def test_convert_execution_report_trade_missing_trade_id_mapping(
     event = trading._convert_execution_report('acc-1', report, order)
     assert event is None
     await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_ws_fills_no_corruption(spine: EventSpine) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    for i in range(5):
+        order = _make_order(
+            client_order_id=f'SS-cmd{i}-00',
+            command_id=f'cmd-{i}',
+        )
+        trading._execution_manager._accounts['acc-1'].trading_state.orders[f'SS-cmd{i}-00'] = order
+        trading._execution_manager._command_trade_ids[f'cmd-{i}'] = f'trade-{i}'
+
+    def make_report(idx: int) -> ExecutionReport:
+        return ExecutionReport(
+            event_time=_CREATED_AT,
+            symbol='BTCUSDT',
+            client_order_id=f'SS-cmd{idx}-00',
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            original_qty=Decimal('1'),
+            original_price=Decimal('0'),
+            execution_type=ExecutionType.TRADE,
+            order_status=OrderStatus.FILLED,
+            reject_reason='NONE',
+            venue_order_id=f'v-{idx}',
+            last_filled_qty=Decimal('1'),
+            last_filled_price=Decimal('50000'),
+            cumulative_filled_qty=Decimal('1'),
+            commission=Decimal('0.001'),
+            commission_asset='BTC',
+            transaction_time=_CREATED_AT,
+            venue_trade_id=f't-ws-{idx}',
+            is_maker=False,
+        )
+
+    mock_adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    mock_adapter.parse_execution_report.side_effect = [make_report(i) for i in range(5)]
+    trading._venue_adapter = cast(VenueAdapter, mock_adapter)
+
+    await asyncio.gather(*[
+        trading._on_execution_report('acc-1', {'e': 'executionReport'})
+        for _ in range(5)
+    ])
+    await asyncio.sleep(0.2)
+
+    state = trading._execution_manager._accounts['acc-1'].trading_state
+    assert len(state.positions) == 5
+    for i in range(5):
+        assert (f'trade-{i}', 'acc-1') in state.positions
+        pos = state.positions[(f'trade-{i}', 'acc-1')]
+        assert pos.qty == Decimal('1')
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_fills_and_reconciliation_no_corruption(spine: EventSpine) -> None:
+    import unittest.mock
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+
+    order_ws = _make_order(client_order_id='SS-cmd-ws-00', command_id='cmd-ws')
+    order_recon = _make_order(client_order_id='SS-cmd-recon-00', command_id='cmd-recon')
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd-ws-00'] = order_ws
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd-recon-00'] = order_recon
+    trading._execution_manager._command_trade_ids['cmd-ws'] = 'trade-ws'
+    trading._execution_manager._command_trade_ids['cmd-recon'] = 'trade-recon'
+
+    adapter._venue_orders['SS-cmd-recon-00'] = VenueOrder(
+        venue_order_id='v-recon',
+        client_order_id='SS-cmd-recon-00',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        price=None,
+    )
+    adapter._venue_trades = [VenueTrade(
+        venue_trade_id='t-recon',
+        venue_order_id='v-recon',
+        client_order_id='SS-cmd-recon-00',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        price=Decimal('50000'),
+        fee=Decimal('0.001'),
+        fee_asset='BTC',
+        is_maker=False,
+        timestamp=_CREATED_AT,
+    )]
+
+    ws_report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='SS-cmd-ws-00',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        original_qty=Decimal('1'),
+        original_price=Decimal('0'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-ws',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset='BTC',
+        transaction_time=_CREATED_AT,
+        venue_trade_id='t-ws',
+        is_maker=False,
+    )
+
+    mock_adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    mock_adapter.parse_execution_report.return_value = ws_report
+    mock_adapter.query_order.side_effect = adapter.query_order
+    mock_adapter.query_trades.side_effect = adapter.query_trades
+    trading._venue_adapter = cast(VenueAdapter, mock_adapter)
+
+    await asyncio.gather(
+        trading._on_execution_report('acc-1', {'e': 'executionReport'}),
+        trading._reconcile_account('acc-1'),
+    )
+    await asyncio.sleep(0.2)
+
+    state = trading._execution_manager._accounts['acc-1'].trading_state
+    assert ('trade-ws', 'acc-1') in state.positions
+    assert ('trade-recon', 'acc-1') in state.positions
+    assert state.positions[('trade-ws', 'acc-1')].qty == Decimal('1')
+    assert state.positions[('trade-recon', 'acc-1')].qty == Decimal('1')
+
+    await trading.stop()
