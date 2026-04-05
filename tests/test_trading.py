@@ -925,6 +925,7 @@ async def test_reconcile_account_reconciles_fills_when_venue_has_more(
     )]
 
     await trading._reconcile_account('acc-1')
+    await asyncio.sleep(0.15)
 
     events = await spine.read(1)
     assert len(events) == 1
