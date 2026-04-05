@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -1270,6 +1271,7 @@ async def test_on_execution_report_processes_fill(spine: EventSpine) -> None:
     trading._venue_adapter = cast(VenueAdapter, mock_adapter)
 
     await trading._on_execution_report('acc-1', {'e': 'executionReport'})
+    await asyncio.sleep(0.15)
 
     events = await spine.read(1)
     assert len(events) == 1

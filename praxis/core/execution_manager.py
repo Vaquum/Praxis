@@ -79,6 +79,7 @@ class _AccountRuntime:
         account_id (str): Account identifier.
         command_queue (asyncio.Queue[TradeCommand]): Unbounded queue for commands.
         priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
+        ws_event_queue (asyncio.Queue[Event]): Unbounded queue for WS events.
         trading_state (TradingState): Per-account state projection.
     '''
 
@@ -87,6 +88,7 @@ class _AccountRuntime:
         account_id: str,
         command_queue: asyncio.Queue[TradeCommand],
         priority_queue: asyncio.Queue[TradeAbort],
+        ws_event_queue: asyncio.Queue[Event],
         trading_state: TradingState,
     ) -> None:
         '''Store per-account queues and projection.'''
@@ -94,6 +96,7 @@ class _AccountRuntime:
         self.account_id = account_id
         self.command_queue = command_queue
         self.priority_queue = priority_queue
+        self.ws_event_queue = ws_event_queue
         self.trading_state = trading_state
         self.task: asyncio.Task[None] | None = None
 
@@ -155,6 +158,7 @@ class ExecutionManager:
             account_id=account_id,
             command_queue=asyncio.Queue(),
             priority_queue=asyncio.Queue(),
+            ws_event_queue=asyncio.Queue(),
             trading_state=TradingState(account_id),
         )
         runtime.task = asyncio.create_task(
@@ -371,6 +375,25 @@ class ExecutionManager:
             abort.account_id,
         )
 
+    def enqueue_ws_event(self, account_id: str, event: Event) -> None:
+        '''
+        Enqueue a WebSocket event for processing by the account coroutine.
+
+        Args:
+            account_id (str): Account identifier.
+            event (Event): Domain event to apply.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        runtime.ws_event_queue.put_nowait(event)
+
     async def submit_command(
         self,
         *,
@@ -493,6 +516,10 @@ class ExecutionManager:
                             abort.command_id,
                             runtime.account_id,
                         )
+
+                while not runtime.ws_event_queue.empty():
+                    event = runtime.ws_event_queue.get_nowait()
+                    runtime.trading_state.apply(event)
 
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)

@@ -522,7 +522,7 @@ class Trading:
 
         seq = await self._event_spine.append(event, self._config.epoch_id)
         if seq is not None:
-            runtime.trading_state.apply(event)
+            self._execution_manager.enqueue_ws_event(account_id, event)
 
     def _convert_execution_report(  # noqa: PLR0911
         self,
