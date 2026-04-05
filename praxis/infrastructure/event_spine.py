@@ -223,11 +223,36 @@ class EventSpine:
         '''
 
         if isinstance(event, FillReceived):
-            cursor = await self._conn.execute(
-                _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
-            )
-            if cursor.rowcount == 0:
-                return None
+            await self._conn.execute('SAVEPOINT fill_atomic')
+            try:
+                cursor = await self._conn.execute(
+                    _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
+                )
+                if cursor.rowcount == 0:
+                    await self._conn.execute('RELEASE fill_atomic')
+                    return None
+                seq = await self._append_event(event, epoch_id)
+                await self._conn.execute('RELEASE fill_atomic')
+                return seq
+            except Exception:
+                await self._conn.execute('ROLLBACK TO fill_atomic')
+                await self._conn.execute('RELEASE fill_atomic')
+                raise
+
+        return await self._append_event(event, epoch_id)
+
+    async def _append_event(self, event: Event, epoch_id: int) -> int:
+
+        '''
+        Serialize and insert event into the events table.
+
+        Args:
+            event (Event): Domain event dataclass to persist
+            epoch_id (int): Current epoch identifier
+
+        Returns:
+            int: Assigned event_seq
+        '''
 
         event_type = type(event).__name__
         if event_type not in _EVENT_REGISTRY:
