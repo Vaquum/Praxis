@@ -108,19 +108,6 @@ The RFC establishes a single-writer model where all `TradingState` mutations flo
 
 ---
 
-## TD-015: Walk-the-book slippage is a pure Python loop
-
-**Origin**: Performance audit
-**Severity**: Medium (O(depth) complexity, scales with book granularity)
-**Module**: `praxis/core/estimate_slippage.py`
-
-The slippage estimation logic iterates over order book levels in a `for` loop. While currently limited to 20 levels, this will become a bottleneck for high-frequency strategies or when processing full book depth.
-
-**When to fix**: Before high-frequency execution or when depth limits exceed 100 levels.
-**Migration**: Replace the `for` loop with vectorized NumPy operations (e.g., `cumsum` for depth accumulation and `searchsorted` for target quantity lookup).
-
----
-
 ## TD-016: binance_ws uses standard json.loads
 
 **Origin**: Performance audit

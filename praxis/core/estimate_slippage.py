@@ -11,6 +11,8 @@ import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
+import numpy as np
+
 from praxis.core.domain.enums import OrderSide
 from praxis.infrastructure.venue_adapter import OrderBookSnapshot
 
@@ -76,31 +78,40 @@ def estimate_slippage(
         return None
 
     levels = book.asks if side == OrderSide.BUY else book.bids
-    remaining = qty
-    cost = _ZERO
 
-    for level in levels:
-        if remaining <= _ZERO:
-            break
-        fill_qty = min(remaining, level.qty)
-        cost += fill_qty * level.price
-        remaining -= fill_qty
+    prices = np.array([float(level.price) for level in levels], dtype=np.float64)
+    qtys = np.array([float(level.qty) for level in levels], dtype=np.float64)
+    target = float(qty)
 
-    filled = qty - remaining
+    cumulative = np.cumsum(qtys)
+    idx = np.searchsorted(cumulative, target, side='left')
 
-    if filled == _ZERO:
+    if idx == 0:
+        fill_qty = min(target, qtys[0])
+        cost = fill_qty * prices[0]
+        filled = fill_qty
+    elif idx >= len(qtys):
+        cost = float(np.dot(prices, qtys))
+        filled = cumulative[-1]
+    else:
+        full_cost = float(np.dot(prices[:idx], qtys[:idx]))
+        partial_qty = target - cumulative[idx - 1]
+        cost = full_cost + partial_qty * prices[idx]
+        filled = target
+
+    if filled == 0:
         return None
 
-    if remaining > _ZERO:
+    if filled < target:
         _log.warning(
             'book depth insufficient: symbol=%s needed=%s available=%s side=%s',
             symbol,
             qty,
-            filled,
+            Decimal(str(filled)),
             side.value,
         )
 
-    simulated_vwap = cost / filled
+    simulated_vwap = Decimal(str(cost / filled))
     slippage_bps = (simulated_vwap - mid_price) / mid_price * _BPS_MULTIPLIER
 
     return SlippageEstimate(
