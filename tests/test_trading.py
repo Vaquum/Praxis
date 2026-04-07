@@ -722,6 +722,7 @@ async def test_trading_shutdown_cancels_open_orders(spine: EventSpine) -> None:
         order_type=OrderType.LIMIT,
         qty=Decimal('1'),
         filled_qty=Decimal('0'),
+        cumulative_notional=Decimal('0'),
         price=Decimal('50000'),
         stop_price=None,
         status=OrderStatus.OPEN,
@@ -766,6 +767,7 @@ async def test_trading_shutdown_cancels_oco_orders_via_cancel_order_list(
         order_type=OrderType.OCO,
         qty=Decimal('1'),
         filled_qty=Decimal('0'),
+        cumulative_notional=Decimal('0'),
         price=Decimal('50000'),
         stop_price=Decimal('48000'),
         status=OrderStatus.OPEN,
@@ -828,6 +830,7 @@ def _make_order(
     command_id: str = 'cmd-1',
     status: OrderStatus = OrderStatus.OPEN,
     filled_qty: Decimal = Decimal('0'),
+    cumulative_notional: Decimal = Decimal('0'),
 ) -> Order:
     return Order(
         client_order_id=client_order_id,
@@ -839,6 +842,7 @@ def _make_order(
         order_type=OrderType.MARKET,
         qty=Decimal('1'),
         filled_qty=filled_qty,
+        cumulative_notional=cumulative_notional,
         price=None,
         stop_price=None,
         status=status,

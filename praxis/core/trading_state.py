@@ -137,6 +137,7 @@ class TradingState:
             order_type=event.order_type,
             qty=event.qty,
             filled_qty=_ZERO,
+            cumulative_notional=_ZERO,
             price=event.price,
             stop_price=event.stop_price,
             status=OrderStatus.SUBMITTING,
@@ -197,6 +198,7 @@ class TradingState:
             return
 
         order.filled_qty += event.qty
+        order.cumulative_notional += event.qty * event.price
         order.updated_at = event.timestamp
 
         if order.filled_qty >= order.qty:

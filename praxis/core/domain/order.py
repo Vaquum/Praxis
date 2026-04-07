@@ -43,6 +43,7 @@ class Order:
         order_type (OrderType): Order type.
         qty (Decimal): Requested quantity, must be positive.
         filled_qty (Decimal): Cumulative filled quantity, must be non-negative.
+        cumulative_notional (Decimal): Running total of fill_qty * fill_price for VWAP.
         price (Decimal | None): Limit price, must be positive if set. None for market orders.
         stop_price (Decimal | None): Stop trigger price, must be positive if set.
         status (OrderStatus): Current lifecycle state.
@@ -59,6 +60,7 @@ class Order:
     order_type: OrderType
     qty: Decimal
     filled_qty: Decimal
+    cumulative_notional: Decimal
     price: Decimal | None
     stop_price: Decimal | None
     status: OrderStatus
@@ -86,6 +88,10 @@ class Order:
             msg = 'Order.filled_qty must be non-negative'
             raise ValueError(msg)
 
+        if self.cumulative_notional < _ZERO:
+            msg = 'Order.cumulative_notional must be non-negative'
+            raise ValueError(msg)
+
         for field in ('price', 'stop_price'):
             value = getattr(self, field)
             if value is not None and value <= _ZERO:
@@ -109,6 +115,10 @@ class Order:
 
         if name == 'filled_qty' and (not isinstance(value, Decimal) or value < _ZERO):
             msg = 'Order.filled_qty must be non-negative'
+            raise ValueError(msg)
+
+        if name == 'cumulative_notional' and (not isinstance(value, Decimal) or value < _ZERO):
+            msg = 'Order.cumulative_notional must be non-negative'
             raise ValueError(msg)
 
         object.__setattr__(self, name, value)
