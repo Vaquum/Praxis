@@ -67,3 +67,16 @@ The RFC establishes a single-writer model where all `TradingState` mutations flo
 **When to fix**: Before multi-account support or any path where fills and reconciliation can overlap.
 **Migration**: Route WS fills and reconciliation results through the account coroutine's command queue so all state mutations are serialized through the single-writer.
 
+---
+
+## TD-015: Slippage estimation scales linearly with book depth
+
+**Origin**: PR #66 (review comments)
+**Severity**: Low (depth typically ~20 levels, Decimal loop is fast)
+**Module**: `praxis/core/estimate_slippage.py`
+
+`estimate_slippage()` walks the order book level-by-level with Decimal arithmetic. For current depth limits (~20 levels), this is fast. NumPy vectorization was attempted but rejected due to precision loss (float64 cannot represent all Decimal values exactly) and disproportionate dependency overhead (~30MB for ~20 levels).
+
+**When to fix**: Before depth limits exceed 100 levels.
+**Migration**: If performance becomes an issue, consider Decimal-native cumulative precomputation or early-exit optimizations. Do not use float64 for financial calculations.
+

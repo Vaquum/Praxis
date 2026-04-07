@@ -93,9 +93,11 @@ _EVENT_REGISTRY: dict[str, type] = {
     )
 }
 
-_TYPE_HINTS: dict[str, dict[str, type]] = {
+_TYPE_HINTS: dict[str, dict[str, Any]] = {
     name: get_type_hints(cls) for name, cls in _EVENT_REGISTRY.items()
 }
+
+_NESTED_TYPE_HINTS: dict[type, dict[str, Any]] = {}
 
 
 def _serialize_default(obj: Any) -> Any:
@@ -145,7 +147,9 @@ def _coerce(value: Any, target: type) -> Any:
     elif isinstance(target, type) and issubclass(target, enum.Enum):
         result = target(value)
     elif dataclasses.is_dataclass(target) and isinstance(value, dict):
-        hints = get_type_hints(target)
+        if target not in _NESTED_TYPE_HINTS:
+            _NESTED_TYPE_HINTS[target] = get_type_hints(target)
+        hints = _NESTED_TYPE_HINTS[target]
         coerced = {k: _coerce(v, hints[k]) for k, v in value.items() if k in hints}
         result = target(**coerced)
 

@@ -303,7 +303,7 @@ class BinanceUserStream:
         async for msg in self._ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 try:
-                    data = orjson.loads(msg.data)
+                    data = orjson.loads(msg.data.encode('utf-8'))
                 except orjson.JSONDecodeError:
                     _log.warning('non-JSON frame: %s', msg.data[:200])
                     continue

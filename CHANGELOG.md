@@ -400,18 +400,16 @@
 
 ## v0.38.0 on 7th of April, 2026
 
-- Add nested dataclass hydration to `_coerce` for complex event types in [`event_spine.py`](praxis/infrastructure/event_spine.py)
+- Add nested dataclass hydration to `_coerce` with cached type hints for complex event types in [`event_spine.py`](praxis/infrastructure/event_spine.py)
 - Add `execution_params` validation requiring `SingleShotParams` for `SINGLE_SHOT` mode in [`trade_command.py`](praxis/core/domain/trade_command.py)
 - Add precomputed `_TYPE_HINTS` dict at module load avoiding `get_type_hints()` per-hydration in [`event_spine.py`](praxis/infrastructure/event_spine.py)
 - Add `command_to_order` index to `_AccountRuntime` for O(1) abort order lookup in [`execution_manager.py`](praxis/core/execution_manager.py)
 - Add `_request_with_retry` method extracting retry loop from request methods in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
 - Add `get_trading_state(account_id)` and `trade_id_for_command(command_id)` public accessors in [`execution_manager.py`](praxis/core/execution_manager.py)
-- Add `numpy>=1.26` as runtime dependency for vectorized slippage estimation in [`pyproject.toml`](pyproject.toml)
 - Refactor `_signed_request` and `_api_key_request` to use `_request_with_retry` callable factory in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
-- Refactor `estimate_slippage` to use NumPy vectorized operations (`cumsum`, `searchsorted`, `dot`) in [`estimate_slippage.py`](praxis/core/estimate_slippage.py)
 - Refactor `Trading.start()` event grouping to single-pass `defaultdict` accumulation in [`trading.py`](praxis/trading.py)
 - Refactor `Trading` reconciliation and WebSocket handlers to use public `ExecutionManager` accessors in [`trading.py`](praxis/trading.py)
-- Update WebSocket frame parsing to use `orjson.loads` instead of `json.loads` in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
-- Remove TD-001, TD-003, TD-005, TD-007, TD-008, TD-010, TD-011, TD-012, TD-015, TD-016 from [`TechnicalDebt.md`](docs/TechnicalDebt.md)
+- Update WebSocket frame parsing to use `orjson.loads` with UTF-8 encoding in [`binance_ws.py`](praxis/infrastructure/binance_ws.py)
+- Remove TD-001, TD-003, TD-005, TD-007, TD-008, TD-010, TD-011, TD-012, TD-016 from [`TechnicalDebt.md`](docs/TechnicalDebt.md)
 - Add nested dataclass hydration test in [`test_event_spine.py`](tests/test_event_spine.py)
 - Add execution_params validation test in [`test_domain_commands.py`](tests/test_domain_commands.py)
