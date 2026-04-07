@@ -230,14 +230,16 @@ class TradingState:
             )
             pos.qty = new_qty
         else:
-            pos.qty -= event.qty
-            if pos.qty < _ZERO:
+            new_qty = pos.qty - event.qty
+            if new_qty < _ZERO:
                 _log.warning(
                     'position qty went negative: trade_id=%s account=%s qty=%s',
                     event.trade_id,
                     event.account_id,
-                    pos.qty,
+                    new_qty,
                 )
+                new_qty = _ZERO
+            pos.qty = new_qty
 
     def _on_order_rejected(self, event: OrderRejected) -> None:
 
