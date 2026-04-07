@@ -93,6 +93,10 @@ _EVENT_REGISTRY: dict[str, type] = {
     )
 }
 
+_TYPE_HINTS: dict[str, dict[str, type]] = {
+    name: get_type_hints(cls) for name, cls in _EVENT_REGISTRY.items()
+}
+
 
 def _serialize_default(obj: Any) -> Any:
 
@@ -166,7 +170,7 @@ def _hydrate(event_type: str, payload: bytes) -> Event:
         msg = f"Unknown event_type: {event_type!r}"
         raise ValueError(msg)
     raw: dict[str, Any] = orjson.loads(payload)
-    hints = get_type_hints(cls)
+    hints = _TYPE_HINTS[event_type]
     coerced = {k: _coerce(v, hints[k]) for k, v in raw.items() if k in hints}
     return cls(**coerced)  # type: ignore[no-any-return]
 
