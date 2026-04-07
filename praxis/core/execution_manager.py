@@ -924,14 +924,7 @@ class ExecutionManager:
 
         avg_fill_price: Decimal | None = None
         if filled_qty > _ZERO:
-            events = await self._event_spine.read(self._epoch_id, after_seq=0)
-            fills = [
-                e
-                for _, e in events
-                if isinstance(e, FillReceived) and e.client_order_id == client_order_id
-            ]
-            total_notional = sum((f.qty * f.price for f in fills), _ZERO)
-            avg_fill_price = total_notional / filled_qty
+            avg_fill_price = order.cumulative_notional / filled_qty
 
         trade_id = self._command_trade_ids.get(abort.command_id, '')
 
