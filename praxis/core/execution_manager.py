@@ -958,7 +958,7 @@ class ExecutionManager:
             canceled = OrderCanceled(
                 account_id=order.account_id,
                 timestamp=datetime.now(timezone.utc),
-                client_order_id=client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=venue_order_id,
                 reason=abort.reason,
             )
