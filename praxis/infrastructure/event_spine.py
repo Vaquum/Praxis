@@ -133,16 +133,19 @@ def _coerce(value: Any, target: type) -> Any:
         args = [a for a in get_args(target) if a is not type(None)]
         return _coerce(value, args[0]) if args else value
 
+    result = value
     if target is Decimal:
-        return Decimal(str(value))
+        result = Decimal(str(value))
+    elif target is datetime:
+        result = datetime.fromisoformat(str(value))
+    elif isinstance(target, type) and issubclass(target, enum.Enum):
+        result = target(value)
+    elif dataclasses.is_dataclass(target) and isinstance(value, dict):
+        hints = get_type_hints(target)
+        coerced = {k: _coerce(v, hints[k]) for k, v in value.items() if k in hints}
+        result = target(**coerced)
 
-    if target is datetime:
-        return datetime.fromisoformat(str(value))
-
-    if isinstance(target, type) and issubclass(target, enum.Enum):
-        return target(value)
-
-    return value
+    return result
 
 
 def _hydrate(event_type: str, payload: bytes) -> Event:

@@ -4,19 +4,6 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-001: EventSpine hydration assumes flat event dataclasses
-
-**Origin**: PR #30 (review by @mikkokotila)
-**Severity**: Low (all events are currently flat)
-**Module**: `praxis/infrastructure/event_spine.py`
-
-`dataclasses.asdict()` recursively converts nested dataclasses into plain dicts. `_hydrate` reconstructs only top-level fields via `get_type_hints`. If any event ever contains a nested dataclass, the round-trip will silently produce a dict where a dataclass is expected.
-
-**When to fix**: Before adding nested dataclass fields to any event type.
-**Migration**: Add nested-type detection in `_hydrate` that recursively reconstructs inner dataclasses from their dict representation.
-
----
-
 ## TD-002: Mutable domain models lack post-construction invariant guards
 
 **Origin**: PR #24 (review comments)
