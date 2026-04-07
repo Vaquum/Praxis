@@ -211,8 +211,9 @@ class EventSpine:
 
         Deduplicate FillReceived events by (account_id, venue_trade_id)
         within the epoch. Duplicate fills are silently dropped per RFC.
-        Caller must manage transaction boundaries to ensure atomicity
-        between the dedup check and event insertion.
+        FillReceived atomicity is guaranteed internally via SAVEPOINT:
+        either both the dedup insert and event insert succeed, or both
+        roll back.
 
         Args:
             event (Event): Domain event dataclass to persist

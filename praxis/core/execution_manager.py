@@ -377,11 +377,15 @@ class ExecutionManager:
 
     def enqueue_ws_event(self, account_id: str, event: Event) -> None:
         '''
-        Enqueue a WebSocket event for processing by the account coroutine.
+        Enqueue an external domain event for processing by the account coroutine.
+
+        This is used for events that must be applied via the per-account
+        single-writer coroutine, including WebSocket traffic and reconciliation
+        events.
 
         Args:
             account_id (str): Account identifier.
-            event (Event): Domain event to apply.
+            event (Event): External domain event to apply.
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
@@ -498,6 +502,20 @@ class ExecutionManager:
 
         try:
             while True:
+                while not runtime.ws_event_queue.empty():
+                    event = runtime.ws_event_queue.get_nowait()
+                    try:
+                        runtime.trading_state.apply(event)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        _log.exception(
+                            'unhandled exception while applying event: '
+                            'event_type=%s account_id=%s',
+                            type(event).__name__,
+                            runtime.account_id,
+                        )
+
                 while not runtime.priority_queue.empty():
                     abort = runtime.priority_queue.get_nowait()
                     _log.info(
@@ -516,10 +534,6 @@ class ExecutionManager:
                             abort.command_id,
                             runtime.account_id,
                         )
-
-                while not runtime.ws_event_queue.empty():
-                    event = runtime.ws_event_queue.get_nowait()
-                    runtime.trading_state.apply(event)
 
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
@@ -926,7 +940,16 @@ class ExecutionManager:
         if filled_qty > _ZERO:
             avg_fill_price = order.cumulative_notional / filled_qty
 
-        trade_id = self._command_trade_ids.get(abort.command_id, '')
+        trade_id = self._command_trade_ids.get(abort.command_id)
+        if trade_id is None:
+            _log.error(
+                'abort outcome skipped: missing trade_id for command_id=%s '
+                'account_id=%s client_order_id=%s',
+                abort.command_id,
+                order.account_id,
+                client_order_id,
+            )
+            return None
 
         return await self._build_abort_outcome(
             runtime,
