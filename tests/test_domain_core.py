@@ -448,3 +448,32 @@ def test_fill_rejects_empty_string(field: str) -> None:
     kwargs[field] = ''
     with pytest.raises(ValueError, match='non-empty string'):
         Fill(**kwargs)
+
+
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_order_rejects_qty_mutation_to_non_positive(bad: Decimal) -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='positive'):
+        order.qty = bad
+
+
+def test_order_rejects_filled_qty_mutation_to_negative() -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='non-negative'):
+        order.filled_qty = Decimal('-1')
+
+
+def test_position_rejects_qty_mutation_to_negative() -> None:
+
+    pos = _position()
+    with pytest.raises(ValueError, match='non-negative'):
+        pos.qty = Decimal('-1')
+
+
+def test_position_rejects_avg_entry_price_mutation_to_negative() -> None:
+
+    pos = _position()
+    with pytest.raises(ValueError, match='non-negative'):
+        pos.avg_entry_price = Decimal('-1')
