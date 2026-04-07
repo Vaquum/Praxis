@@ -865,14 +865,6 @@ class ExecutionManager:
             )
             return None
 
-        cmd = self._commands.get(abort.command_id)
-        if cmd is None:
-            _log.warning(
-                'abort for unknown command: command_id=%s',
-                abort.command_id,
-            )
-            return None
-
         order: Order | None = None
         client_order_id: str | None = None
         for coid, o in runtime.trading_state.orders.items():
@@ -882,11 +874,17 @@ class ExecutionManager:
                 break
 
         if order is None or client_order_id is None:
-            self._aborted_commands[abort.command_id] = abort.reason
-            _log.info(
-                'abort marked for pre-submission: command_id=%s',
-                abort.command_id,
-            )
+            if abort.command_id in self._accepted_commands:
+                self._aborted_commands[abort.command_id] = abort.reason
+                _log.info(
+                    'abort marked for pre-submission: command_id=%s',
+                    abort.command_id,
+                )
+            else:
+                _log.warning(
+                    'abort for unknown command: command_id=%s',
+                    abort.command_id,
+                )
             return None
 
         filled_qty = order.filled_qty
@@ -895,16 +893,16 @@ class ExecutionManager:
         reason = abort.reason
         cancel_confirmed = True
         try:
-            if cmd.order_type == OrderType.OCO:
+            if order.order_type == OrderType.OCO:
                 await self._venue_adapter.cancel_order_list(
-                    cmd.account_id,
-                    cmd.symbol,
+                    order.account_id,
+                    order.symbol,
                     client_order_id=client_order_id,
                 )
             else:
                 await self._venue_adapter.cancel_order(
-                    cmd.account_id,
-                    cmd.symbol,
+                    order.account_id,
+                    order.symbol,
                     client_order_id=client_order_id,
                 )
         except NotFoundError:
@@ -915,7 +913,7 @@ class ExecutionManager:
 
         if cancel_confirmed:
             canceled = OrderCanceled(
-                account_id=cmd.account_id,
+                account_id=order.account_id,
                 timestamp=datetime.now(timezone.utc),
                 client_order_id=client_order_id,
                 venue_order_id=venue_order_id,
@@ -935,14 +933,93 @@ class ExecutionManager:
             total_notional = sum((f.qty * f.price for f in fills), _ZERO)
             avg_fill_price = total_notional / filled_qty
 
-        return await self._build_outcome(
+        trade_id = self._command_trade_ids.get(abort.command_id, '')
+
+        return await self._build_abort_outcome(
             runtime,
-            cmd,
-            TradeStatus.CANCELED,
+            order,
+            trade_id,
             filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             reason=reason,
         )
+
+    async def _build_abort_outcome(
+        self,
+        runtime: _AccountRuntime,
+        order: Order,
+        trade_id: str,
+        *,
+        filled_qty: Decimal,
+        avg_fill_price: Decimal | None,
+        reason: str | None,
+    ) -> TradeOutcome:
+        '''
+        Construct CANCELED TradeOutcome from Order data.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            order (Order): Order being aborted.
+            trade_id (str): Trade identifier from _command_trade_ids.
+            filled_qty (Decimal): Cumulative filled quantity.
+            avg_fill_price (Decimal | None): VWAP of fills.
+            reason (str | None): Abort reason.
+
+        Returns:
+            TradeOutcome: CANCELED outcome.
+        '''
+
+        ts = datetime.now(timezone.utc)
+
+        outcome = TradeOutcome(
+            command_id=order.command_id,
+            trade_id=trade_id,
+            account_id=order.account_id,
+            status=TradeStatus.CANCELED,
+            target_qty=order.qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=1,
+            slices_total=1,
+            reason=reason,
+            created_at=ts,
+        )
+
+        self._terminal_commands.add(order.command_id)
+        self._commands.pop(order.command_id, None)
+        self._aborted_commands.pop(order.command_id, None)
+
+        if filled_qty > _ZERO:
+            closed = TradeClosed(
+                account_id=order.account_id,
+                timestamp=ts,
+                trade_id=trade_id,
+                command_id=order.command_id,
+            )
+            await self._event_spine.append(closed, self._epoch_id)
+            runtime.trading_state.apply(closed)
+
+        produced = TradeOutcomeProduced(
+            account_id=order.account_id,
+            timestamp=ts,
+            command_id=order.command_id,
+            trade_id=trade_id,
+            status=TradeStatus.CANCELED,
+            reason=reason,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+
+        if self._on_trade_outcome is not None:
+            try:
+                await self._on_trade_outcome(outcome)
+            except Exception:  # noqa: BLE001
+                _log.exception(
+                    'on_trade_outcome callback failed: command_id=%s',
+                    order.command_id,
+                )
+
+        return outcome
 
     async def _build_outcome(
         self,
