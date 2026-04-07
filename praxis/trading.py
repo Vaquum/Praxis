@@ -137,7 +137,7 @@ class Trading:
 
         all_events = await self._event_spine.read(self._config.epoch_id)
 
-        events_by_account: dict[str, list[tuple[int, Event]]] = defaultdict(list)
+        events_by_account: defaultdict[str, list[tuple[int, Event]]] = defaultdict(list)
         for seq, event in all_events:
             events_by_account[event.account_id].append((seq, event))
 
