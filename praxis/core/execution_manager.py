@@ -290,6 +290,33 @@ class ExecutionManager:
             for key, position in runtime.trading_state.positions.items()
         }
 
+    def get_trading_state(self, account_id: str) -> TradingState | None:
+        '''
+        Return the TradingState for a registered account.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            TradingState | None: Trading state or None if not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        return runtime.trading_state if runtime is not None else None
+
+    def trade_id_for_command(self, command_id: str) -> str | None:
+        '''
+        Return the trade_id associated with a command_id.
+
+        Args:
+            command_id (str): Command identifier to look up.
+
+        Returns:
+            str | None: Trade identifier or None if not found.
+        '''
+
+        return self._command_trade_ids.get(command_id)
+
     def _deadline_at(self, cmd: TradeCommand) -> datetime:
         '''
         Compute the absolute deadline timestamp for a command.

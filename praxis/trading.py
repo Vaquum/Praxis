@@ -315,11 +315,11 @@ class Trading:
             account_id (str): Account identifier to reconcile.
         '''
 
-        runtime = self._execution_manager._accounts.get(account_id)
-        if runtime is None:
+        trading_state = self._execution_manager.get_trading_state(account_id)
+        if trading_state is None:
             return
 
-        for client_order_id, order in list(runtime.trading_state.orders.items()):
+        for client_order_id, order in list(trading_state.orders.items()):
             if order.is_terminal:
                 continue
 
@@ -365,8 +365,8 @@ class Trading:
             order: Local order projection.
         '''
 
-        runtime = self._execution_manager._accounts.get(account_id)
-        if runtime is None:
+        trading_state = self._execution_manager.get_trading_state(account_id)
+        if trading_state is None:
             return
 
         try:
@@ -384,7 +384,7 @@ class Trading:
             return
 
         command_id = order.command_id
-        trade_id = self._execution_manager._command_trade_ids.get(command_id)
+        trade_id = self._execution_manager.trade_id_for_command(command_id)
         if trade_id is None:
             _log.warning(
                 'cannot reconcile fills: no trade_id mapping for command_id=%s order=%s',
@@ -438,8 +438,8 @@ class Trading:
             venue_order: Venue order state.
         '''
 
-        runtime = self._execution_manager._accounts.get(account_id)
-        if runtime is None:
+        trading_state = self._execution_manager.get_trading_state(account_id)
+        if trading_state is None:
             return
 
         ts = datetime.now(timezone.utc)
@@ -494,15 +494,15 @@ class Trading:
             return
 
         report = self._venue_adapter.parse_execution_report(data)
-        runtime = self._execution_manager._accounts.get(account_id)
-        if runtime is None:
+        trading_state = self._execution_manager.get_trading_state(account_id)
+        if trading_state is None:
             _log.warning('execution report for unknown account: %s', account_id)
             return
 
-        order = runtime.trading_state.orders.get(report.client_order_id)
+        order = trading_state.orders.get(report.client_order_id)
         order_is_closed = False
         if order is None:
-            order = runtime.trading_state.closed_orders.get(report.client_order_id)
+            order = trading_state.closed_orders.get(report.client_order_id)
             order_is_closed = order is not None
         if order is None:
             _log.debug(
@@ -552,7 +552,7 @@ class Trading:
             if not report.commission_asset:
                 _log.warning('TRADE report missing commission_asset')
                 return None
-            trade_id = self._execution_manager._command_trade_ids.get(order.command_id)
+            trade_id = self._execution_manager.trade_id_for_command(order.command_id)
             if trade_id is None:
                 _log.warning(
                     'TRADE report has no trade_id mapping for command_id=%s',

@@ -43,32 +43,6 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-010: No venue LTP benchmark support for slippage analytics
-
-**Origin**: §6.2 assessment follow-up
-**Severity**: Low (RFC primary benchmark is mid-price)
-**Module**: `praxis/core/execution_manager.py`, `praxis/infrastructure/venue_adapter.py`
-
-RFC §6.2 defines walk-the-book slippage with mid-price as the primary benchmark and `reference_price` as supplementary. Praxis currently has no Venue Adapter API for last traded price (LTP), so slippage analytics cannot include a venue-LTP benchmark without caller-supplied price data.
-
-**When to fix**: If Manager or analytics consumers require venue-native LTP-based slippage benchmarking.
-**Migration**: Add a venue-agnostic LTP query method to `VenueAdapter` (with Binance implementation), compute and log optional LTP-based slippage metric alongside existing mid-price and reference-price metrics.
-
----
-
-## TD-011: Trading accesses ExecutionManager private attributes
-
-**Origin**: PR #59 (Copilot review)
-**Severity**: Low (single consumer)
-**Module**: `praxis/trading.py`
-
-`Trading` accesses `ExecutionManager._accounts` and `_command_trade_ids` directly for reconciliation and WebSocket handling. This tight coupling makes future refactors risky.
-
-**When to fix**: Before adding additional consumers of ExecutionManager internals.
-**Migration**: Add small public accessors on ExecutionManager (e.g., `get_trading_state(account_id)`, `trade_id_for_command(command_id)`) and use those instead of reaching into private attributes.
-
----
-
 ## TD-013: replay_events lacks command context for abort processing
 
 **Origin**: PR #59 (Copilot review)

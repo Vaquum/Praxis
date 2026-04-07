@@ -81,6 +81,10 @@ def estimate_slippage(
 
     prices = np.array([float(level.price) for level in levels], dtype=np.float64)
     qtys = np.array([float(level.qty) for level in levels], dtype=np.float64)
+
+    if len(qtys) == 0:
+        return None
+
     target = float(qty)
 
     cumulative = np.cumsum(qtys)
