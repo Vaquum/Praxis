@@ -79,6 +79,7 @@ class _AccountRuntime:
         account_id (str): Account identifier.
         command_queue (asyncio.Queue[TradeCommand]): Unbounded queue for commands.
         priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
+        ws_event_queue (asyncio.Queue[Event]): Unbounded queue for WS events.
         trading_state (TradingState): Per-account state projection.
     '''
 
@@ -87,6 +88,7 @@ class _AccountRuntime:
         account_id: str,
         command_queue: asyncio.Queue[TradeCommand],
         priority_queue: asyncio.Queue[TradeAbort],
+        ws_event_queue: asyncio.Queue[Event],
         trading_state: TradingState,
     ) -> None:
         '''Store per-account queues and projection.'''
@@ -94,6 +96,7 @@ class _AccountRuntime:
         self.account_id = account_id
         self.command_queue = command_queue
         self.priority_queue = priority_queue
+        self.ws_event_queue = ws_event_queue
         self.trading_state = trading_state
         self.task: asyncio.Task[None] | None = None
 
@@ -155,6 +158,7 @@ class ExecutionManager:
             account_id=account_id,
             command_queue=asyncio.Queue(),
             priority_queue=asyncio.Queue(),
+            ws_event_queue=asyncio.Queue(),
             trading_state=TradingState(account_id),
         )
         runtime.task = asyncio.create_task(
@@ -371,6 +375,29 @@ class ExecutionManager:
             abort.account_id,
         )
 
+    def enqueue_ws_event(self, account_id: str, event: Event) -> None:
+        '''
+        Enqueue an external domain event for processing by the account coroutine.
+
+        This is used for events that must be applied via the per-account
+        single-writer coroutine, including WebSocket traffic and reconciliation
+        events.
+
+        Args:
+            account_id (str): Account identifier.
+            event (Event): External domain event to apply.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        runtime.ws_event_queue.put_nowait(event)
+
     async def submit_command(
         self,
         *,
@@ -475,6 +502,20 @@ class ExecutionManager:
 
         try:
             while True:
+                while not runtime.ws_event_queue.empty():
+                    event = runtime.ws_event_queue.get_nowait()
+                    try:
+                        runtime.trading_state.apply(event)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        _log.exception(
+                            'unhandled exception while applying event: '
+                            'event_type=%s account_id=%s',
+                            type(event).__name__,
+                            runtime.account_id,
+                        )
+
                 while not runtime.priority_queue.empty():
                     abort = runtime.priority_queue.get_nowait()
                     _log.info(
@@ -838,14 +879,6 @@ class ExecutionManager:
             )
             return None
 
-        cmd = self._commands.get(abort.command_id)
-        if cmd is None:
-            _log.warning(
-                'abort for unknown command: command_id=%s',
-                abort.command_id,
-            )
-            return None
-
         order: Order | None = None
         client_order_id: str | None = None
         for coid, o in runtime.trading_state.orders.items():
@@ -855,11 +888,17 @@ class ExecutionManager:
                 break
 
         if order is None or client_order_id is None:
-            self._aborted_commands[abort.command_id] = abort.reason
-            _log.info(
-                'abort marked for pre-submission: command_id=%s',
-                abort.command_id,
-            )
+            if abort.command_id in self._accepted_commands:
+                self._aborted_commands[abort.command_id] = abort.reason
+                _log.info(
+                    'abort marked for pre-submission: command_id=%s',
+                    abort.command_id,
+                )
+            else:
+                _log.warning(
+                    'abort for unknown command: command_id=%s',
+                    abort.command_id,
+                )
             return None
 
         filled_qty = order.filled_qty
@@ -868,16 +907,16 @@ class ExecutionManager:
         reason = abort.reason
         cancel_confirmed = True
         try:
-            if cmd.order_type == OrderType.OCO:
+            if order.order_type == OrderType.OCO:
                 await self._venue_adapter.cancel_order_list(
-                    cmd.account_id,
-                    cmd.symbol,
+                    order.account_id,
+                    order.symbol,
                     client_order_id=client_order_id,
                 )
             else:
                 await self._venue_adapter.cancel_order(
-                    cmd.account_id,
-                    cmd.symbol,
+                    order.account_id,
+                    order.symbol,
                     client_order_id=client_order_id,
                 )
         except NotFoundError:
@@ -888,7 +927,7 @@ class ExecutionManager:
 
         if cancel_confirmed:
             canceled = OrderCanceled(
-                account_id=cmd.account_id,
+                account_id=order.account_id,
                 timestamp=datetime.now(timezone.utc),
                 client_order_id=client_order_id,
                 venue_order_id=venue_order_id,
@@ -899,23 +938,104 @@ class ExecutionManager:
 
         avg_fill_price: Decimal | None = None
         if filled_qty > _ZERO:
-            events = await self._event_spine.read(self._epoch_id, after_seq=0)
-            fills = [
-                e
-                for _, e in events
-                if isinstance(e, FillReceived) and e.client_order_id == client_order_id
-            ]
-            total_notional = sum((f.qty * f.price for f in fills), _ZERO)
-            avg_fill_price = total_notional / filled_qty
+            avg_fill_price = order.cumulative_notional / filled_qty
 
-        return await self._build_outcome(
+        trade_id = self._command_trade_ids.get(abort.command_id)
+        if trade_id is None:
+            _log.error(
+                'abort outcome skipped: missing trade_id for command_id=%s '
+                'account_id=%s client_order_id=%s',
+                abort.command_id,
+                order.account_id,
+                client_order_id,
+            )
+            return None
+
+        return await self._build_abort_outcome(
             runtime,
-            cmd,
-            TradeStatus.CANCELED,
+            order,
+            trade_id,
             filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             reason=reason,
         )
+
+    async def _build_abort_outcome(
+        self,
+        runtime: _AccountRuntime,
+        order: Order,
+        trade_id: str,
+        *,
+        filled_qty: Decimal,
+        avg_fill_price: Decimal | None,
+        reason: str | None,
+    ) -> TradeOutcome:
+        '''
+        Construct CANCELED TradeOutcome from Order data.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            order (Order): Order being aborted.
+            trade_id (str): Trade identifier from _command_trade_ids.
+            filled_qty (Decimal): Cumulative filled quantity.
+            avg_fill_price (Decimal | None): VWAP of fills.
+            reason (str | None): Abort reason.
+
+        Returns:
+            TradeOutcome: CANCELED outcome.
+        '''
+
+        ts = datetime.now(timezone.utc)
+
+        outcome = TradeOutcome(
+            command_id=order.command_id,
+            trade_id=trade_id,
+            account_id=order.account_id,
+            status=TradeStatus.CANCELED,
+            target_qty=order.qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=1,
+            slices_total=1,
+            reason=reason,
+            created_at=ts,
+        )
+
+        self._terminal_commands.add(order.command_id)
+        self._commands.pop(order.command_id, None)
+        self._aborted_commands.pop(order.command_id, None)
+
+        if filled_qty > _ZERO:
+            closed = TradeClosed(
+                account_id=order.account_id,
+                timestamp=ts,
+                trade_id=trade_id,
+                command_id=order.command_id,
+            )
+            await self._event_spine.append(closed, self._epoch_id)
+            runtime.trading_state.apply(closed)
+
+        produced = TradeOutcomeProduced(
+            account_id=order.account_id,
+            timestamp=ts,
+            command_id=order.command_id,
+            trade_id=trade_id,
+            status=TradeStatus.CANCELED,
+            reason=reason,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+
+        if self._on_trade_outcome is not None:
+            try:
+                await self._on_trade_outcome(outcome)
+            except Exception:  # noqa: BLE001
+                _log.exception(
+                    'on_trade_outcome callback failed: command_id=%s',
+                    order.command_id,
+                )
+
+        return outcome
 
     async def _build_outcome(
         self,

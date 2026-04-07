@@ -458,3 +458,34 @@ def test_full_lifecycle_submit_fill_close() -> None:
 
     state.apply(_trade_closed())
     assert key not in state.positions
+
+
+def test_cumulative_notional_accumulates_on_fills() -> None:
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('3')))
+    state.apply(_acked())
+
+    state.apply(_fill_event(qty=Decimal('1'), price=Decimal('50000')))
+    order = state.orders[_ORDER]
+    assert order.cumulative_notional == Decimal('50000')
+
+    state.apply(_fill_event(qty=Decimal('1'), price=Decimal('51000')))
+    assert order.cumulative_notional == Decimal('101000')
+
+    state.apply(_fill_event(qty=Decimal('1'), price=Decimal('52000')))
+    assert state.closed_orders[_ORDER].cumulative_notional == Decimal('153000')
+
+
+def test_vwap_computed_from_cumulative_notional() -> None:
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('2')))
+    state.apply(_acked())
+
+    state.apply(_fill_event(qty=Decimal('1'), price=Decimal('50000')))
+    state.apply(_fill_event(qty=Decimal('1'), price=Decimal('52000')))
+
+    order = state.closed_orders[_ORDER]
+    vwap = order.cumulative_notional / order.filled_qty
+    assert vwap == Decimal('51000')

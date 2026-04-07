@@ -137,6 +137,7 @@ class TradingState:
             order_type=event.order_type,
             qty=event.qty,
             filled_qty=_ZERO,
+            cumulative_notional=_ZERO,
             price=event.price,
             stop_price=event.stop_price,
             status=OrderStatus.SUBMITTING,
@@ -197,6 +198,7 @@ class TradingState:
             return
 
         order.filled_qty += event.qty
+        order.cumulative_notional += event.qty * event.price
         order.updated_at = event.timestamp
 
         if order.filled_qty >= order.qty:
@@ -230,14 +232,16 @@ class TradingState:
             )
             pos.qty = new_qty
         else:
-            pos.qty -= event.qty
-            if pos.qty < _ZERO:
+            new_qty = pos.qty - event.qty
+            if new_qty < _ZERO:
                 _log.warning(
                     'position qty went negative: trade_id=%s account=%s qty=%s',
                     event.trade_id,
                     event.account_id,
-                    pos.qty,
+                    new_qty,
                 )
+                new_qty = _ZERO
+            pos.qty = new_qty
 
     def _on_order_rejected(self, event: OrderRejected) -> None:
 

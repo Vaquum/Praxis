@@ -51,6 +51,7 @@ def _order(
     status: OrderStatus = OrderStatus.SUBMITTING,
     qty: Decimal = Decimal('1.0'),
     filled_qty: Decimal = Decimal('0'),
+    cumulative_notional: Decimal = Decimal('0'),
     price: Decimal | None = Decimal('50000.00'),
     stop_price: Decimal | None = None,
     order_type: OrderType = OrderType.LIMIT,
@@ -66,6 +67,7 @@ def _order(
         order_type=order_type,
         qty=qty,
         filled_qty=filled_qty,
+        cumulative_notional=cumulative_notional,
         price=price,
         stop_price=stop_price,
         status=status,
@@ -296,6 +298,7 @@ def test_order_rejects_naive_created_at() -> None:
             order_type=OrderType.LIMIT,
             qty=Decimal('1.0'),
             filled_qty=Decimal('0'),
+            cumulative_notional=Decimal('0'),
             price=Decimal('50000.00'),
             stop_price=None,
             status=OrderStatus.SUBMITTING,
@@ -317,6 +320,7 @@ def test_order_rejects_naive_updated_at() -> None:
             order_type=OrderType.LIMIT,
             qty=Decimal('1.0'),
             filled_qty=Decimal('0'),
+            cumulative_notional=Decimal('0'),
             price=Decimal('50000.00'),
             stop_price=None,
             status=OrderStatus.SUBMITTING,
@@ -412,6 +416,7 @@ def test_order_rejects_empty_string(field: str) -> None:
         'order_type': OrderType.LIMIT,
         'qty': Decimal('1.0'),
         'filled_qty': Decimal('0'),
+        'cumulative_notional': Decimal('0'),
         'price': Decimal('50000.00'),
         'stop_price': None,
         'status': OrderStatus.SUBMITTING,
@@ -448,3 +453,32 @@ def test_fill_rejects_empty_string(field: str) -> None:
     kwargs[field] = ''
     with pytest.raises(ValueError, match='non-empty string'):
         Fill(**kwargs)
+
+
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_order_rejects_qty_mutation_to_non_positive(bad: Decimal) -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='positive'):
+        order.qty = bad
+
+
+def test_order_rejects_filled_qty_mutation_to_negative() -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='non-negative'):
+        order.filled_qty = Decimal('-1')
+
+
+def test_position_rejects_qty_mutation_to_negative() -> None:
+
+    pos = _position()
+    with pytest.raises(ValueError, match='non-negative'):
+        pos.qty = Decimal('-1')
+
+
+def test_position_rejects_avg_entry_price_mutation_to_negative() -> None:
+
+    pos = _position()
+    with pytest.raises(ValueError, match='non-negative'):
+        pos.avg_entry_price = Decimal('-1')

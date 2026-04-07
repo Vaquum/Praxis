@@ -415,7 +415,7 @@ class Trading:
 
             seq = await self._event_spine.append(fill_event, self._config.epoch_id)
             if seq is not None:
-                runtime.trading_state.apply(fill_event)
+                self._execution_manager.enqueue_ws_event(account_id, fill_event)
                 _log.info(
                     'reconciled fill: %s %s',
                     order.client_order_id,
@@ -470,7 +470,7 @@ class Trading:
 
         if event is not None:
             await self._event_spine.append(event, self._config.epoch_id)
-            runtime.trading_state.apply(event)
+            self._execution_manager.enqueue_ws_event(account_id, event)
             _log.info(
                 'reconciled terminal state: %s %s',
                 order.client_order_id,
@@ -522,7 +522,7 @@ class Trading:
 
         seq = await self._event_spine.append(event, self._config.epoch_id)
         if seq is not None:
-            runtime.trading_state.apply(event)
+            self._execution_manager.enqueue_ws_event(account_id, event)
 
     def _convert_execution_report(  # noqa: PLR0911
         self,

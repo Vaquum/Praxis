@@ -1396,3 +1396,65 @@ class TestOcoAbortRouting:
         adapter.cancel_order.assert_not_awaited()
 
         await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_abort_succeeds_after_restart_replay(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''Abort works for orders replayed from spine after restart.'''
+
+        command_id = 'cmd-replay-1'
+        trade_id = 'trade-replay-1'
+        client_order_id = 'SS-replay-00'
+
+        await spine.append(CommandAccepted(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+        ), _EPOCH)
+        await spine.append(OrderSubmitIntent(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+            client_order_id=client_order_id, symbol='BTCUSDT',
+            side=OrderSide.BUY, order_type=OrderType.LIMIT,
+            qty=Decimal('1'), price=Decimal('50000'),
+            stop_price=None, stop_limit_price=None,
+        ), _EPOCH)
+        await spine.append(OrderSubmitted(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=client_order_id, venue_order_id='v-replay-1',
+        ), _EPOCH)
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        account_events = [(s, e) for s, e in events if e.account_id == _ACCT]
+        mgr.replay_events(_ACCT, account_events)
+
+        abort = TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='abort after restart',
+            created_at=_TS,
+        )
+        mgr.submit_abort(abort)
+        await asyncio.sleep(0.15)
+
+        adapter.cancel_order.assert_awaited_once_with(
+            _ACCT, 'BTCUSDT', client_order_id=client_order_id,
+        )
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.CANCELED
+        assert outcome.command_id == command_id
+        assert outcome.trade_id == trade_id
+        assert outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)

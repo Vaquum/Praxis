@@ -327,3 +327,44 @@ async def test_fill_dedup_table_populated(spine: EventSpine) -> None:
     rows = list(await cursor.fetchall())
     assert len(rows) == 1
     assert rows[0] == (_EPOCH, _ACCT, _VTRD)
+
+
+@pytest.mark.asyncio
+async def test_fill_atomicity_rollback_on_event_insert_failure(
+    spine: EventSpine,
+) -> None:
+
+    original_append = spine._append_event
+
+    async def failing_append(event: Event, epoch_id: int) -> int:
+        del event, epoch_id
+        raise RuntimeError('simulated event INSERT failure')
+
+    spine._append_event = failing_append
+
+    with pytest.raises(RuntimeError, match='simulated event INSERT failure'):
+        await spine.append(_FILL, epoch_id=_EPOCH)
+
+    cursor = await spine._conn.execute(
+        'SELECT COUNT(*) FROM fill_dedup WHERE epoch_id = ? AND dedup_key = ?',
+        (_EPOCH, _VTRD),
+    )
+    row = await cursor.fetchone()
+    assert row[0] == 0
+
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 0
+
+    spine._append_event = original_append
+    seq = await spine.append(_FILL, epoch_id=_EPOCH)
+    assert isinstance(seq, int)
+
+    cursor = await spine._conn.execute(
+        'SELECT COUNT(*) FROM fill_dedup WHERE epoch_id = ? AND dedup_key = ?',
+        (_EPOCH, _VTRD),
+    )
+    row = await cursor.fetchone()
+    assert row[0] == 1
+
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 1

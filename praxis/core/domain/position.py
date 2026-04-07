@@ -56,6 +56,19 @@ class Position:
             msg = 'Position.avg_entry_price must be non-negative'
             raise ValueError(msg)
 
+    def __setattr__(self, name: str, value: object) -> None:
+        '''Validate mutable field invariants on assignment.'''
+
+        if name == 'qty' and (not isinstance(value, Decimal) or value < _ZERO):
+            msg = 'Position.qty must be non-negative'
+            raise ValueError(msg)
+
+        if name == 'avg_entry_price' and (not isinstance(value, Decimal) or value < _ZERO):
+            msg = 'Position.avg_entry_price must be non-negative'
+            raise ValueError(msg)
+
+        object.__setattr__(self, name, value)
+
     @property
     def is_closed(self) -> bool:
 

@@ -375,3 +375,25 @@
 - Remove dead `TradeStatus.PAUSED` enum member and docstring reference from [`enums.py`](praxis/core/domain/enums.py)
 - Add 26 tests for startup reconciliation (`_reconcile_account`, `_reconcile_fills`, `_reconcile_terminal`) and WebSocket handler (`_on_execution_report`, `_convert_execution_report`) in [`test_trading.py`](tests/test_trading.py)
 - Update `test_domain_outcome.py` to reflect PAUSED removal from `_NON_TERMINAL` list and `test_trade_status_members` expected set
+
+## v0.37.0 on 7th of April, 2026
+
+- Add `ws_event_queue` to `_AccountRuntime` for routing WebSocket events through account coroutine in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `enqueue_ws_event(account_id, event)` method for single-writer compliant event routing in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add SAVEPOINT wrapper around dual-INSERT (dedup + event) for `FillReceived` atomicity in [`event_spine.py`](praxis/infrastructure/event_spine.py)
+- Add `_build_abort_outcome` method for abort-specific outcome building from Order data in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add `__setattr__` guards to `Order` validating `qty > 0` and `filled_qty >= 0` in [`order.py`](praxis/core/domain/order.py)
+- Add `__setattr__` guards to `Position` validating `qty >= 0` and `avg_entry_price >= 0` in [`position.py`](praxis/core/domain/position.py)
+- Add `cumulative_notional` field to `Order` tracking running total of fill_qty × fill_price in [`order.py`](praxis/core/domain/order.py)
+- Refactor `_process_abort` to compute VWAP from `order.cumulative_notional / filled_qty` instead of spine re-read in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Update `_account_loop` to drain `ws_event_queue` before processing commands in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Update `_on_execution_report` to enqueue events instead of applying directly in [`trading.py`](praxis/trading.py)
+- Update `_reconcile_fills` and `_reconcile_terminal` to enqueue events instead of applying directly in [`trading.py`](praxis/trading.py)
+- Update `_process_abort` to use `Order` fields from `TradingState` instead of `_commands` lookup in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Update `TradingState` to clamp negative position qty to 0 after warning in [`trading_state.py`](praxis/core/trading_state.py)
+- Update `TradingState._update_order_on_fill` to accumulate notional on each fill in [`trading_state.py`](praxis/core/trading_state.py)
+- Add concurrency tests proving single-writer model prevents corruption in [`test_trading.py`](tests/test_trading.py)
+- Add atomicity test proving SAVEPOINT rollback on event insert failure in [`test_event_spine.py`](tests/test_event_spine.py)
+- Add restart abort test proving abort succeeds after replay in [`test_execution_manager.py`](tests/test_execution_manager.py)
+- Add mutation guard tests for Order and Position in [`test_domain_core.py`](tests/test_domain_core.py)
+- Add VWAP accuracy tests in [`test_trading_state.py`](tests/test_trading_state.py)
