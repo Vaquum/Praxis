@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, cast
@@ -136,15 +137,15 @@ class Trading:
 
         all_events = await self._event_spine.read(self._config.epoch_id)
 
+        events_by_account: dict[str, list[tuple[int, Event]]] = defaultdict(list)
+        for seq, event in all_events:
+            events_by_account[event.account_id].append((seq, event))
+
         try:
             for account_id in self._config.account_credentials:
                 self._inbound.register_account(account_id)
                 self._managed_accounts.add(account_id)
-                account_events = [
-                    (seq, event) for seq, event in all_events
-                    if event.account_id == account_id
-                ]
-                await self._startup_account(account_id, account_events)
+                await self._startup_account(account_id, events_by_account[account_id])
         except Exception:
             await self._cleanup_partial_startup()
             raise

@@ -82,19 +82,6 @@ RFC §6.2 defines walk-the-book slippage with mid-price as the primary benchmark
 
 ---
 
-## TD-012: Event filtering is O(accounts × events) during startup
-
-**Origin**: PR #59 (Copilot review)
-**Severity**: Low (epochs and accounts are small currently)
-**Module**: `praxis/trading.py`
-
-`Trading.start()` reads the full epoch and then scans it for each account with a list comprehension. This is O(events × accounts) and can become costly as epochs/accounts grow, creating a significant bottleneck during replay.
-
-**When to fix**: Before epochs grow to thousands of events or account counts increase significantly.
-**Migration**: Group events by `account_id` in a single pass (e.g., build a `dict[account_id, list[(seq, event)]]`) before the loop, or add an EventSpine query that reads only events for a given account.
-
----
-
 ## TD-013: replay_events lacks command context for abort processing
 
 **Origin**: PR #59 (Copilot review)
