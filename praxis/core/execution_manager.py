@@ -99,6 +99,7 @@ class _AccountRuntime:
         self.ws_event_queue = ws_event_queue
         self.trading_state = trading_state
         self.task: asyncio.Task[None] | None = None
+        self.command_to_order: dict[str, str] = {}
 
 
 class ExecutionManager:
@@ -263,6 +264,7 @@ class ExecutionManager:
 
             if isinstance(event, OrderSubmitIntent):
                 self._command_trade_ids[event.command_id] = event.trade_id
+                runtime.command_to_order[event.command_id] = event.client_order_id
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
@@ -675,6 +677,7 @@ class ExecutionManager:
         )
         await self._event_spine.append(intent, self._epoch_id)
         runtime.trading_state.apply(intent)
+        runtime.command_to_order[cmd.command_id] = client_order_id
 
         try:
             result = await self._venue_adapter.submit_order(
@@ -879,15 +882,14 @@ class ExecutionManager:
             )
             return None
 
-        order: Order | None = None
-        client_order_id: str | None = None
-        for coid, o in runtime.trading_state.orders.items():
-            if o.command_id == abort.command_id:
-                order = o
-                client_order_id = coid
-                break
+        client_order_id = runtime.command_to_order.get(abort.command_id)
+        order = (
+            runtime.trading_state.orders.get(client_order_id)
+            if client_order_id
+            else None
+        )
 
-        if order is None or client_order_id is None:
+        if order is None:
             if abort.command_id in self._accepted_commands:
                 self._aborted_commands[abort.command_id] = abort.reason
                 _log.info(

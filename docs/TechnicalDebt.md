@@ -43,19 +43,6 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-008: Linear order scan in _process_abort
-
-**Origin**: PR #52 (Copilot review)
-**Severity**: Low (typically 1-2 orders per account)
-**Module**: `praxis/core/execution_manager.py`
-
-`_process_abort` iterates `runtime.trading_state.orders` to find the order matching `abort.command_id`. This is O(n) in the number of open orders. As per performance audit, this creates an O(N) search bottleneck that scales with the number of open orders.
-
-**When to fix**: When multi-slice modes (TWAP, ICEBERG) are implemented and order counts per account grow.
-**Migration**: Add a `command_id → client_order_id` index in `_AccountRuntime` populated by `_process_command` on order submission, enabling O(1) lookup in `_process_abort`.
-
----
-
 ## TD-009: VWAP re-read from spine on abort
 
 **Origin**: PR #52 (Copilot review)
