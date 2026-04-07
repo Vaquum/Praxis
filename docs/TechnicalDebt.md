@@ -17,19 +17,6 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-003: TradeCommand.execution_params not validated against execution_mode
-
-**Origin**: PR #25 (review comments)
-**Severity**: Low (only `SINGLE_SHOT` mode exists)
-**Module**: `praxis/core/domain/trade_command.py`
-
-`execution_params` is typed as `SingleShotParams` but `execution_mode` accepts any `ExecutionMode` enum value. A `TradeCommand` with `execution_mode=TWAP` and `SingleShotParams` is accepted without error.
-
-**When to fix**: Before adding a second execution mode.
-**Migration**: Widen `execution_params` to a union or protocol type and validate that the params type matches the selected mode in `__post_init__`.
-
----
-
 ## TD-004: FillReceived append atomicity relies on caller discipline
 
 **Origin**: PR #31 (review comments)

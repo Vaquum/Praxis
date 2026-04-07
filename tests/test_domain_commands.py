@@ -290,3 +290,24 @@ def test_trade_abort_rejects_empty_string(field: str) -> None:
     kwargs[field] = ''
     with pytest.raises(ValueError, match='non-empty string'):
         TradeAbort(**kwargs)
+
+
+def test_trade_command_single_shot_requires_single_shot_params() -> None:
+
+    with pytest.raises(TypeError, match='SingleShotParams for SINGLE_SHOT'):
+        TradeCommand(
+            command_id='cmd-001',
+            trade_id='trade-001',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1.0'),
+            order_type=OrderType.LIMIT,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params='not_a_params_object',  # type: ignore[arg-type]
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
