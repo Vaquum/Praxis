@@ -106,15 +106,3 @@ The RFC establishes a single-writer model where all `TradingState` mutations flo
 **When to fix**: Before multi-account support or any path where fills and reconciliation can overlap.
 **Migration**: Route WS fills and reconciliation results through the account coroutine's command queue so all state mutations are serialized through the single-writer.
 
----
-
-## TD-016: binance_ws uses standard json.loads
-
-**Origin**: Performance audit
-**Severity**: Low (impacts ingestion latency)
-**Module**: `praxis/infrastructure/binance_ws.py`
-
-The WebSocket ingestion loop uses standard `json.loads` for frame parsing. Given high-frequency WebSocket updates, this adds unnecessary overhead compared to `orjson`.
-
-**When to fix**: Before low-latency execution requirements.
-**Migration**: Switch to `orjson.loads` for WebSocket frame parsing, consistent with `EventSpine`.

@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import random
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
+import orjson
 
 from praxis.infrastructure.venue_adapter import VenueError
 
@@ -303,8 +303,8 @@ class BinanceUserStream:
         async for msg in self._ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
                 try:
-                    data = json.loads(msg.data)
-                except json.JSONDecodeError:
+                    data = orjson.loads(msg.data)
+                except orjson.JSONDecodeError:
                     _log.warning('non-JSON frame: %s', msg.data[:200])
                     continue
                 try:
