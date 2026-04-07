@@ -86,3 +86,10 @@ class TradeCommand:
         if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:
             msg = 'TradeCommand.created_at must be timezone-aware'
             raise ValueError(msg)
+
+        if (
+            self.execution_mode is ExecutionMode.SINGLE_SHOT
+            and not isinstance(self.execution_params, SingleShotParams)
+        ):
+            msg = 'execution_params must be SingleShotParams for SINGLE_SHOT mode'
+            raise TypeError(msg)

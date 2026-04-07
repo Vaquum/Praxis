@@ -93,6 +93,12 @@ _EVENT_REGISTRY: dict[str, type] = {
     )
 }
 
+_TYPE_HINTS: dict[str, dict[str, Any]] = {
+    name: get_type_hints(cls) for name, cls in _EVENT_REGISTRY.items()
+}
+
+_NESTED_TYPE_HINTS: dict[type, dict[str, Any]] = {}
+
 
 def _serialize_default(obj: Any) -> Any:
 
@@ -133,16 +139,21 @@ def _coerce(value: Any, target: type) -> Any:
         args = [a for a in get_args(target) if a is not type(None)]
         return _coerce(value, args[0]) if args else value
 
+    result = value
     if target is Decimal:
-        return Decimal(str(value))
+        result = Decimal(str(value))
+    elif target is datetime:
+        result = datetime.fromisoformat(str(value))
+    elif isinstance(target, type) and issubclass(target, enum.Enum):
+        result = target(value)
+    elif dataclasses.is_dataclass(target) and isinstance(value, dict):
+        if target not in _NESTED_TYPE_HINTS:
+            _NESTED_TYPE_HINTS[target] = get_type_hints(target)
+        hints = _NESTED_TYPE_HINTS[target]
+        coerced = {k: _coerce(v, hints[k]) for k, v in value.items() if k in hints}
+        result = target(**coerced)
 
-    if target is datetime:
-        return datetime.fromisoformat(str(value))
-
-    if isinstance(target, type) and issubclass(target, enum.Enum):
-        return target(value)
-
-    return value
+    return result
 
 
 def _hydrate(event_type: str, payload: bytes) -> Event:
@@ -163,7 +174,7 @@ def _hydrate(event_type: str, payload: bytes) -> Event:
         msg = f"Unknown event_type: {event_type!r}"
         raise ValueError(msg)
     raw: dict[str, Any] = orjson.loads(payload)
-    hints = get_type_hints(cls)
+    hints = _TYPE_HINTS[event_type]
     coerced = {k: _coerce(v, hints[k]) for k, v in raw.items() if k in hints}
     return cls(**coerced)  # type: ignore[no-any-return]
 

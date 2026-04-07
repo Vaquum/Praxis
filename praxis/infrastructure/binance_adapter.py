@@ -16,7 +16,8 @@ import logging
 import math
 import random
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -322,6 +323,82 @@ class BinanceAdapter:
         ).hexdigest()
         return f'{query}&signature={signature}'
 
+    async def _request_with_retry(
+        self,
+        method: str,
+        path: str,
+        account_id: str,
+        build_request: Callable[[], AbstractAsyncContextManager[aiohttp.ClientResponse]],
+    ) -> Any:
+
+        '''
+        Execute an HTTP request with retry logic.
+
+        Args:
+            method (str): HTTP method for logging
+            path (str): API endpoint path for logging
+            account_id (str): Account identifier for weight tracking
+            build_request (Callable): Factory returning async context manager for the request
+
+        Returns:
+            Any: Parsed JSON response body
+
+        Raises:
+            TransientError: After all retry attempts are exhausted
+            RateLimitError: On non-429 rate limit responses, or after retry exhaustion
+        '''
+
+        last_error: TransientError | None = None
+
+        for attempt in range(_MAX_RETRIES):
+            try:
+                async with build_request() as response:
+                    self._update_weight_from_headers(response, account_id)
+                    await self._raise_on_error(response)
+                    data: Any = await response.json()
+                    return data
+            except TransientError as exc:
+                last_error = exc
+                if attempt + 1 == _MAX_RETRIES:
+                    break
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
+                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+            except RateLimitError as exc:
+                if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
+                    raise
+                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
+                    method, path, attempt + 1, _MAX_RETRIES, delay,
+                )
+                await asyncio.sleep(delay)
+            except VenueError:
+                raise
+            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+                msg = f"Request failed: {exc}"
+                last_error = TransientError(msg)
+                last_error.__cause__ = exc
+                if attempt + 1 == _MAX_RETRIES:
+                    break
+                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
+                _log.warning(
+                    'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
+                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                )
+                await asyncio.sleep(delay)
+
+        _log.error(
+            'All %d attempts exhausted on %s %s: %s',
+            _MAX_RETRIES, method, path, last_error,
+        )
+        if last_error is None:
+            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
+        raise last_error
+
     async def _signed_request(
         self,
         method: str,
@@ -356,62 +433,16 @@ class BinanceAdapter:
         session = await self._ensure_session()
         api_key, api_secret = self._get_credentials(account_id)
         headers = {_API_KEY_HEADER: api_key}
-        last_error: TransientError | None = None
 
-        for attempt in range(_MAX_RETRIES):
+        def build_request() -> AbstractAsyncContextManager[aiohttp.ClientResponse]:
             query_string = self._sign_params(params, api_secret)
+            return session.request(
+                method,
+                f"{self._base_url}{path}?{query_string}",
+                headers=headers,
+            )
 
-            try:
-                async with session.request(
-                    method,
-                    f"{self._base_url}{path}?{query_string}",
-                    headers=headers,
-                ) as response:
-                    self._update_weight_from_headers(response, account_id)
-                    await self._raise_on_error(response)
-                    data: Any = await response.json()
-                    return data
-            except TransientError as exc:
-                last_error = exc
-                if attempt + 1 == _MAX_RETRIES:
-                    break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
-                _log.warning(
-                    'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
-                )
-                await asyncio.sleep(delay)
-            except RateLimitError as exc:
-                if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
-                    raise
-                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
-                _log.warning(
-                    'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
-                    method, path, attempt + 1, _MAX_RETRIES, delay,
-                )
-                await asyncio.sleep(delay)
-            except VenueError:
-                raise
-            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-                msg = f"Request failed: {exc}"
-                last_error = TransientError(msg)
-                last_error.__cause__ = exc
-                if attempt + 1 == _MAX_RETRIES:
-                    break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
-                _log.warning(
-                    'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
-                )
-                await asyncio.sleep(delay)
-
-        _log.error(
-            'All %d attempts exhausted on %s %s: %s',
-            _MAX_RETRIES, method, path, last_error,
-        )
-        if last_error is None:
-            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
-        raise last_error
+        return await self._request_with_retry(method, path, account_id, build_request)
 
     async def _api_key_request(
         self,
@@ -446,61 +477,16 @@ class BinanceAdapter:
         session = await self._ensure_session()
         api_key, _ = self._get_credentials(account_id)
         headers = {_API_KEY_HEADER: api_key}
-        last_error: TransientError | None = None
 
-        for attempt in range(_MAX_RETRIES):
-            try:
-                async with session.request(
-                    method,
-                    f"{self._base_url}{path}",
-                    params=params,
-                    headers=headers,
-                ) as response:
-                    self._update_weight_from_headers(response, account_id)
-                    await self._raise_on_error(response)
-                    data: Any = await response.json()
-                    return data
-            except TransientError as exc:
-                last_error = exc
-                if attempt + 1 == _MAX_RETRIES:
-                    break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
-                _log.warning(
-                    'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
-                )
-                await asyncio.sleep(delay)
-            except RateLimitError as exc:
-                if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
-                    raise
-                delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
-                _log.warning(
-                    'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
-                    method, path, attempt + 1, _MAX_RETRIES, delay,
-                )
-                await asyncio.sleep(delay)
-            except VenueError:
-                raise
-            except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-                msg = f"Request failed: {exc}"
-                last_error = TransientError(msg)
-                last_error.__cause__ = exc
-                if attempt + 1 == _MAX_RETRIES:
-                    break
-                delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
-                _log.warning(
-                    'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
-                )
-                await asyncio.sleep(delay)
+        def build_request() -> AbstractAsyncContextManager[aiohttp.ClientResponse]:
+            return session.request(
+                method,
+                f"{self._base_url}{path}",
+                params=params,
+                headers=headers,
+            )
 
-        _log.error(
-            'All %d attempts exhausted on %s %s: %s',
-            _MAX_RETRIES, method, path, last_error,
-        )
-        if last_error is None:
-            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
-        raise last_error
+        return await self._request_with_retry(method, path, account_id, build_request)
 
     async def _create_listen_key(self, account_id: str) -> str:
 

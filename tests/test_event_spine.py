@@ -4,7 +4,7 @@ Tests for praxis.infrastructure.event_spine.EventSpine.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -368,3 +368,32 @@ async def test_fill_atomicity_rollback_on_event_insert_failure(
 
     events = await spine.read(epoch_id=_EPOCH)
     assert len(events) == 1
+
+
+@dataclass
+class _Inner:
+    value: Decimal
+    name: str
+
+
+@dataclass
+class _Outer:
+    inner: _Inner
+    timestamp: datetime
+
+
+def test_coerce_nested_dataclass() -> None:
+
+    from praxis.infrastructure.event_spine import _coerce
+
+    raw = {
+        'inner': {'value': '123.45', 'name': 'test'},
+        'timestamp': '2026-01-01T00:00:00+00:00',
+    }
+    result = _coerce(raw, _Outer)
+
+    assert isinstance(result, _Outer)
+    assert isinstance(result.inner, _Inner)
+    assert result.inner.value == Decimal('123.45')
+    assert result.inner.name == 'test'
+    assert result.timestamp == _TS
