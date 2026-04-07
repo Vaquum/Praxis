@@ -100,6 +100,19 @@ class Order:
             msg = 'Order.price must be None for MARKET orders'
             raise ValueError(msg)
 
+    def __setattr__(self, name: str, value: object) -> None:
+        '''Validate mutable field invariants on assignment.'''
+
+        if name == 'qty' and (not isinstance(value, Decimal) or value <= _ZERO):
+            msg = 'Order.qty must be positive'
+            raise ValueError(msg)
+
+        if name == 'filled_qty' and (not isinstance(value, Decimal) or value < _ZERO):
+            msg = 'Order.filled_qty must be non-negative'
+            raise ValueError(msg)
+
+        object.__setattr__(self, name, value)
+
     @property
     def is_terminal(self) -> bool:
 
