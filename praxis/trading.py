@@ -92,6 +92,7 @@ class Trading:
             account_credentials=config.account_credentials,
         )
         self._started = False
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
         self._ready_accounts: set[str] = set()
@@ -127,11 +128,27 @@ class Trading:
 
         return self._started
 
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        '''Return the asyncio event loop running this Trading instance.
+
+        Raises:
+            RuntimeError: If Trading.start() has not been awaited.
+        '''
+
+        if self._loop is None:
+            msg = 'Trading.start() must be awaited before accessing loop'
+            raise RuntimeError(msg)
+
+        return self._loop
+
     async def start(self) -> None:
         '''Initialize runtime and execute per-account startup sequence.'''
 
         if self._started:
             return
+
+        self._loop = asyncio.get_running_loop()
 
         await self._event_spine.ensure_schema()
 

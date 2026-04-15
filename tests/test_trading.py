@@ -1741,3 +1741,27 @@ async def test_concurrent_fills_and_reconciliation_no_corruption(spine: EventSpi
     assert state.positions[('trade-recon', 'acc-1')].qty == Decimal('1')
 
     await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_loop_available_after_start(spine: EventSpine) -> None:
+    '''Trading.loop returns event loop after start().'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+
+    loop = trading.loop
+
+    assert loop is asyncio.get_running_loop()
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_loop_raises_before_start(spine: EventSpine) -> None:
+    '''Trading.loop raises RuntimeError before start().'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    with pytest.raises(RuntimeError, match='start\\(\\) must be awaited'):
+        _ = trading.loop
