@@ -12,6 +12,7 @@ import asyncio
 import copy
 import contextlib
 import logging
+import threading
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
@@ -135,6 +136,7 @@ class ExecutionManager:
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
         self._command_trade_ids: dict[str, str] = {}
+        self._loop_thread_id: int | None = None
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -154,6 +156,9 @@ class ExecutionManager:
         if account_id in self._accounts:
             msg = f"account_id '{account_id}' is already registered"
             raise ValueError(msg)
+
+        if self._loop_thread_id is None:
+            self._loop_thread_id = threading.get_ident()
 
         runtime = _AccountRuntime(
             account_id=account_id,
@@ -412,13 +417,27 @@ class ExecutionManager:
         single-writer coroutine, including WebSocket traffic and reconciliation
         events.
 
+        asyncio.Queue.put_nowait is not thread-safe. This method must only
+        be called from the event loop thread.
+
         Args:
             account_id (str): Account identifier.
             event (Event): External domain event to apply.
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            RuntimeError: If called from outside the event loop thread.
         '''
+
+        if (
+            self._loop_thread_id is not None
+            and threading.get_ident() != self._loop_thread_id
+        ):
+            msg = (
+                'enqueue_ws_event called from non-event-loop thread. '
+                'asyncio.Queue.put_nowait is not thread-safe.'
+            )
+            raise RuntimeError(msg)
 
         runtime = self._accounts.get(account_id)
         if runtime is None:

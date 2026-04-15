@@ -56,27 +56,6 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-014: Single-writer concurrency — audit findings
-
-**Origin**: Deep audit (MMVP closure review)
-**Severity**: ~~Critical~~ Low (mitigated by existing architecture)
-**Modules**: `praxis/trading.py`, `praxis/core/execution_manager.py`
-
-**Audit (MMVP-TD-014.1)**: All `TradingState` mutations already flow through the single-writer path:
-
-- `enqueue_ws_event()` puts events onto `asyncio.Queue` (line 428) → account coroutine drains via `_account_loop` (line 534) → `trading_state.apply(event)` (line 537)
-- `_on_execution_report` (WS handler, line 526) → calls `enqueue_ws_event` → goes through queue ✓
-- `_reconcile_fills` (line 419) → calls `enqueue_ws_event` → goes through queue ✓
-- `_reconcile_terminal` (line 474) → calls `enqueue_ws_event` → goes through queue ✓
-- All command processing (`_process_command`) runs inside the account coroutine ✓
-- All reads from `TradingState` (order lookups in `_on_execution_report`, `_reconcile_account`) run on the event loop thread — no preemption in asyncio cooperative scheduling ✓
-
-With Nexus integration via `run_coroutine_threadsafe`, scheduled coroutines also run on the event loop thread — no thread-safety violation.
-
-**Remaining caveat**: `asyncio.Queue.put_nowait` (used by `enqueue_ws_event`) is not thread-safe. All current callers are on the event loop thread so this is safe today. If a future code path calls `enqueue_ws_event` from a non-event-loop thread, it would corrupt the queue. Consider adding a thread-safety assertion or using `loop.call_soon_threadsafe` as a guardrail.
-
-**Status**: Mitigated. Original concern (direct TradingState mutation outside coroutine) does not exist — the queue architecture was already correct.
-
 ---
 
 ## TD-015: Slippage estimation scales linearly with book depth
