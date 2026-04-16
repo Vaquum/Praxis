@@ -337,6 +337,7 @@ class Trading:
             if first_error is not None:
                 raise first_error
             self._started = False
+            self._loop = None
         finally:
             self._stopping = False
 

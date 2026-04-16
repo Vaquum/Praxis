@@ -138,10 +138,8 @@ class Launcher:
 
     def _start_poller(self) -> None:
         kline_intervals = self._collect_kline_intervals()
-
-        if kline_intervals:
-            self._poller = MarketDataPoller(kline_intervals=kline_intervals)
-            self._poller.start()
+        self._poller = MarketDataPoller(kline_intervals=kline_intervals or {})
+        self._poller.start()
 
     def _start_nexus_instances(self) -> None:
         if self._trading is None or self._loop is None:

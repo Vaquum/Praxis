@@ -92,6 +92,7 @@ class MarketDataPoller:
         with self._lock:
             self._pollers.clear()
             self._refcounts.clear()
+            self._data.clear()
 
         self._started = False
         _log.info('market data poller stopped')
