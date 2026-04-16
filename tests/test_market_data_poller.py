@@ -122,8 +122,128 @@ class TestMarketDataPoller:
 
         poller.start()
 
-        assert len(poller._threads) == 2
-        assert 3600 in poller._threads
-        assert 900 in poller._threads
+        assert len(poller._pollers) == 2
+        assert 3600 in poller._pollers
+        assert 900 in poller._pollers
+
+        poller.stop()
+
+    @patch(
+        'praxis.market_data_poller.get_binance_spot_klines',
+        side_effect=_mock_klines,
+    )
+    def test_add_kline_size_at_runtime(self, _mock: object) -> None:
+        '''add_kline_size starts a new poller thread.'''
+
+        poller = MarketDataPoller()
+        poller.start()
+
+        assert poller.get_market_data(3600).is_empty()
+
+        poller.add_kline_size(3600, 60)
+        time.sleep(0.5)
+
+        df = poller.get_market_data(3600)
+        assert not df.is_empty()
+
+        poller.stop()
+
+    @patch(
+        'praxis.market_data_poller.get_binance_spot_klines',
+        side_effect=_mock_klines,
+    )
+    def test_remove_kline_size_at_runtime(self, _mock: object) -> None:
+        '''remove_kline_size stops the thread and clears data.'''
+
+        poller = MarketDataPoller(kline_intervals={3600: 60})
+        poller.start()
+        time.sleep(0.5)
+
+        assert not poller.get_market_data(3600).is_empty()
+
+        poller.remove_kline_size(3600)
+
+        assert poller.get_market_data(3600).is_empty()
+        assert 3600 not in poller._pollers
+
+        poller.stop()
+
+    @patch(
+        'praxis.market_data_poller.get_binance_spot_klines',
+        side_effect=_mock_klines,
+    )
+    def test_add_duplicate_increments_refcount(self, _mock: object) -> None:
+        '''Adding same kline_size twice increments refcount, one thread.'''
+
+        poller = MarketDataPoller()
+        poller.start()
+
+        poller.add_kline_size(3600, 60)
+        poller.add_kline_size(3600, 60)
+
+        assert len(poller._pollers) == 1
+        assert poller._refcounts[3600] == 2
+
+        poller.stop()
+
+    @patch(
+        'praxis.market_data_poller.get_binance_spot_klines',
+        side_effect=_mock_klines,
+    )
+    def test_remove_with_remaining_refs_keeps_thread(self, _mock: object) -> None:
+        '''Removing one ref when two exist keeps the thread running.'''
+
+        poller = MarketDataPoller()
+        poller.start()
+
+        poller.add_kline_size(3600, 60)
+        poller.add_kline_size(3600, 60)
+        poller.remove_kline_size(3600)
+
+        assert 3600 in poller._pollers
+        assert poller._refcounts[3600] == 1
+        assert not poller.get_market_data(3600).is_empty()
+
+        poller.stop()
+
+    @patch(
+        'praxis.market_data_poller.get_binance_spot_klines',
+        side_effect=_mock_klines,
+    )
+    def test_remove_last_ref_stops_thread(self, _mock: object) -> None:
+        '''Removing last ref stops the thread and clears data.'''
+
+        poller = MarketDataPoller()
+        poller.start()
+
+        poller.add_kline_size(3600, 60)
+        poller.add_kline_size(3600, 60)
+        time.sleep(0.5)
+
+        poller.remove_kline_size(3600)
+        poller.remove_kline_size(3600)
+
+        assert 3600 not in poller._pollers
+        assert poller.get_market_data(3600).is_empty()
+
+        poller.stop()
+
+    @patch(
+        'praxis.market_data_poller.get_binance_spot_klines',
+        side_effect=_mock_klines,
+    )
+    def test_start_empty_then_add(self, _mock: object) -> None:
+        '''Poller starts with no kline_sizes, then adds at runtime.'''
+
+        poller = MarketDataPoller()
+        poller.start()
+
+        assert poller.running is True
+        assert len(poller._pollers) == 0
+
+        poller.add_kline_size(900, 15)
+        time.sleep(0.5)
+
+        assert not poller.get_market_data(900).is_empty()
 
         poller.stop()
