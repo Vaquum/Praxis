@@ -136,7 +136,6 @@ class ExecutionManager:
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
         self._command_trade_ids: dict[str, str] = {}
-        self._trade_strategy_ids: dict[str, str] = {}
         self._loop_thread_id: int | None = None
 
     def register_account(self, account_id: str) -> None:
@@ -266,7 +265,6 @@ class ExecutionManager:
                 self._accepted_commands[event.command_id] = account_id
 
                 if event.strategy_id is not None:
-                    self._trade_strategy_ids[event.trade_id] = event.strategy_id
                     runtime.trading_state.trade_strategy_ids[event.trade_id] = event.strategy_id
 
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
@@ -537,7 +535,6 @@ class ExecutionManager:
         self._command_trade_ids[command_id] = trade_id
 
         if strategy_id is not None:
-            self._trade_strategy_ids[trade_id] = strategy_id
             runtime.trading_state.trade_strategy_ids[trade_id] = strategy_id
 
         _log.info(

@@ -256,6 +256,8 @@ class Launcher:
 
             self._stop_event.wait()
 
+            # NOTE: accessing private attrs on StartupSequencer — no public
+            # accessors exist in Nexus as of v0.26.0. Track in Nexus TD.
             shutdown = ShutdownSequencer(
                 runner=runner,
                 manifest=sequencer._manifest,

@@ -69,6 +69,7 @@ class MarketDataPoller:
 
         with self._lock:
             for kline_size, interval in self._initial_intervals.items():
+                self._refcounts[kline_size] = self._refcounts.get(kline_size, 0) + 1
                 self._start_thread_locked(kline_size, interval)
 
         _log.info(
@@ -79,13 +80,19 @@ class MarketDataPoller:
     def stop(self) -> None:
         '''Stop all poller threads.'''
 
-        for pt in self._pollers.values():
+        with self._lock:
+            pollers = list(self._pollers.values())
+
+        for pt in pollers:
             pt.stop_event.set()
 
-        for pt in self._pollers.values():
+        for pt in pollers:
             pt.thread.join(timeout=10)
 
-        self._pollers.clear()
+        with self._lock:
+            self._pollers.clear()
+            self._refcounts.clear()
+
         self._started = False
         _log.info('market data poller stopped')
 

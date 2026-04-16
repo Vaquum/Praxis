@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import queue
+import threading
 from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -96,6 +97,7 @@ class Trading:
         self._started = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._outcome_queues: dict[str, queue.Queue[TradeOutcome]] = {}
+        self._outcome_lock = threading.Lock()
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
         self._ready_accounts: set[str] = set()
@@ -157,7 +159,8 @@ class Trading:
             q: Thread-safe queue that Nexus instance reads from.
         '''
 
-        self._outcome_queues[account_id] = q
+        with self._outcome_lock:
+            self._outcome_queues[account_id] = q
 
     def unregister_outcome_queue(self, account_id: str) -> None:
         '''Remove outcome queue for an account.
@@ -166,7 +169,8 @@ class Trading:
             account_id: Account identifier.
         '''
 
-        self._outcome_queues.pop(account_id, None)
+        with self._outcome_lock:
+            self._outcome_queues.pop(account_id, None)
 
     def route_outcome(self, outcome: TradeOutcome) -> None:
         '''Route a TradeOutcome to the correct account's queue.
@@ -178,7 +182,8 @@ class Trading:
             outcome: TradeOutcome to route.
         '''
 
-        q = self._outcome_queues.get(outcome.account_id)
+        with self._outcome_lock:
+            q = self._outcome_queues.get(outcome.account_id)
 
         if q is None:
             _log.warning(
