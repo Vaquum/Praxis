@@ -30,6 +30,7 @@ from nexus.strategy.timer_loop import TimerLoop
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.market_data_poller import MarketDataPoller
+from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
 
@@ -73,10 +74,12 @@ class Launcher:
         trading_config: TradingConfig,
         instances: list[InstanceConfig],
         event_spine: EventSpine,
+        venue_adapter: VenueAdapter | None = None,
     ) -> None:
         self._trading_config = trading_config
         self._instances = list(instances)
         self._event_spine = event_spine
+        self._venue_adapter = venue_adapter
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
@@ -126,6 +129,7 @@ class Launcher:
         self._trading = Trading(
             config=self._trading_config,
             event_spine=self._event_spine,
+            venue_adapter=self._venue_adapter,
         )
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
