@@ -198,6 +198,8 @@ class TestMarketDataPoller:
 
         poller.add_kline_size(3600, 60)
         poller.add_kline_size(3600, 60)
+        time.sleep(0.5)
+
         poller.remove_kline_size(3600)
 
         assert 3600 in poller._pollers

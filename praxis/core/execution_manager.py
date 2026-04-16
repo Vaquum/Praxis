@@ -265,6 +265,10 @@ class ExecutionManager:
             if isinstance(event, CommandAccepted):
                 self._accepted_commands[event.command_id] = account_id
 
+                if event.strategy_id is not None:
+                    self._trade_strategy_ids[event.trade_id] = event.strategy_id
+                    runtime.trading_state.trade_strategy_ids[event.trade_id] = event.strategy_id
+
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
 
@@ -523,6 +527,7 @@ class ExecutionManager:
             timestamp=datetime.now(timezone.utc),
             command_id=command_id,
             trade_id=trade_id,
+            strategy_id=strategy_id,
         )
         await self._event_spine.append(event, self._epoch_id)
 

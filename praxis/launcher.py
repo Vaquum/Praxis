@@ -165,6 +165,12 @@ class Launcher:
         for thread in self._nexus_threads:
             thread.join(timeout=30)
 
+            if thread.is_alive():
+                _log.warning(
+                    'nexus thread did not finish within timeout',
+                    extra={'thread': thread.name},
+                )
+
         if self._poller is not None:
             self._poller.stop()
 
@@ -244,11 +250,11 @@ class Launcher:
                 )
                 timer_loop.start()
 
+            praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
+
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
             self._stop_event.wait()
-
-            praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
 
             shutdown = ShutdownSequencer(
                 runner=runner,

@@ -67,8 +67,9 @@ class MarketDataPoller:
 
         self._started = True
 
-        for kline_size, interval in self._initial_intervals.items():
-            self._start_thread(kline_size, interval)
+        with self._lock:
+            for kline_size, interval in self._initial_intervals.items():
+                self._start_thread_locked(kline_size, interval)
 
         _log.info(
             'market data poller started',
@@ -107,7 +108,8 @@ class MarketDataPoller:
             if kline_size in self._pollers:
                 return
 
-        self._start_thread(kline_size, interval)
+            self._start_thread_locked(kline_size, interval)
+
         _log.info(
             'added kline_size',
             extra={'kline_size': kline_size, 'interval': interval, 'refcount': count + 1},
@@ -149,7 +151,9 @@ class MarketDataPoller:
         with self._lock:
             return self._data.get(kline_size, pl.DataFrame())
 
-    def _start_thread(self, kline_size: int, interval: int) -> None:
+    def _start_thread_locked(self, kline_size: int, interval: int) -> None:
+        '''Create and start a poller thread. Must be called with lock held.'''
+
         stop_event = threading.Event()
         thread = threading.Thread(
             target=self._poll_loop,
@@ -165,9 +169,7 @@ class MarketDataPoller:
             interval=interval,
         )
 
-        with self._lock:
-            self._pollers[kline_size] = pt
-
+        self._pollers[kline_size] = pt
         thread.start()
 
     def _poll_loop(self, kline_size: int, interval: int, stop_event: threading.Event) -> None:
