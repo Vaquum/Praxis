@@ -1868,3 +1868,25 @@ async def test_unregister_outcome_queue(spine: EventSpine) -> None:
 
     trading.route_outcome(outcome)
     assert q.empty()
+
+
+@pytest.mark.asyncio
+async def test_loop_cleared_on_failed_start(spine: EventSpine) -> None:
+    '''Trading.loop raises after start() fails, _loop is not left stale.'''
+
+    from unittest.mock import AsyncMock
+
+    config = TradingConfig(
+        epoch_id=1,
+        account_credentials={'acc-1': ('key', 'secret')},
+    )
+    trading = Trading(config=config, event_spine=spine, venue_adapter=_InjectedVenueAdapter())
+    trading._event_spine.read = AsyncMock(side_effect=RuntimeError('db error'))
+
+    with pytest.raises(RuntimeError, match='db error'):
+        await trading.start()
+
+    assert trading.started is False
+
+    with pytest.raises(RuntimeError, match=r'Trading\.start'):
+        _ = trading.loop

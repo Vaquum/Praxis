@@ -202,20 +202,21 @@ class Trading:
 
         self._loop = asyncio.get_running_loop()
 
-        await self._event_spine.ensure_schema()
-
-        all_events = await self._event_spine.read(self._config.epoch_id)
-
-        events_by_account: defaultdict[str, list[tuple[int, Event]]] = defaultdict(list)
-        for seq, event in all_events:
-            events_by_account[event.account_id].append((seq, event))
-
         try:
+            await self._event_spine.ensure_schema()
+
+            all_events = await self._event_spine.read(self._config.epoch_id)
+
+            events_by_account: defaultdict[str, list[tuple[int, Event]]] = defaultdict(list)
+            for seq, event in all_events:
+                events_by_account[event.account_id].append((seq, event))
+
             for account_id in self._config.account_credentials:
                 self._inbound.register_account(account_id)
                 self._managed_accounts.add(account_id)
                 await self._startup_account(account_id, events_by_account[account_id])
         except Exception:
+            self._loop = None
             await self._cleanup_partial_startup()
             raise
 

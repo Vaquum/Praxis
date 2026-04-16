@@ -81,6 +81,7 @@ class MarketDataPoller:
         '''Stop all poller threads.'''
 
         with self._lock:
+            self._started = False
             pollers = list(self._pollers.values())
 
         for pt in pollers:
@@ -94,7 +95,6 @@ class MarketDataPoller:
             self._refcounts.clear()
             self._data.clear()
 
-        self._started = False
         _log.info('market data poller stopped')
 
     def add_kline_size(self, kline_size: int, interval: int) -> None:
@@ -107,11 +107,23 @@ class MarketDataPoller:
             kline_size: Kline bucket width in seconds.
             interval: Poll interval in seconds. If already polling, the
                 existing interval is kept (first caller wins).
+
+        Raises:
+            RuntimeError: If start() has not been called.
+            ValueError: If kline_size or interval is not positive.
         '''
 
         if not self._started:
             msg = 'MarketDataPoller.start() must be called before add_kline_size'
             raise RuntimeError(msg)
+
+        if kline_size <= 0:
+            msg = f'kline_size must be positive, got {kline_size}'
+            raise ValueError(msg)
+
+        if interval <= 0:
+            msg = f'interval must be positive, got {interval}'
+            raise ValueError(msg)
 
         with self._lock:
             count = self._refcounts.get(kline_size, 0)

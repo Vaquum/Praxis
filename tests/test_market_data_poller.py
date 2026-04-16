@@ -249,3 +249,23 @@ class TestMarketDataPoller:
         assert not poller.get_market_data(900).is_empty()
 
         poller.stop()
+
+    def test_add_kline_size_rejects_non_positive_interval(self) -> None:
+        '''add_kline_size raises ValueError for interval <= 0.'''
+
+        poller = MarketDataPoller()
+        poller.start()
+
+        try:
+            import pytest
+
+            with pytest.raises(ValueError, match='interval must be positive'):
+                poller.add_kline_size(3600, 0)
+
+            with pytest.raises(ValueError, match='interval must be positive'):
+                poller.add_kline_size(3600, -1)
+
+            with pytest.raises(ValueError, match='kline_size must be positive'):
+                poller.add_kline_size(0, 60)
+        finally:
+            poller.stop()
