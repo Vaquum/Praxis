@@ -177,6 +177,11 @@ class MarketDataPoller:
         if pt is not None:
             pt.stop_event.set()
             pt.thread.join(timeout=10)
+            if pt.thread.is_alive():
+                _log.warning(
+                    'poller thread did not stop within timeout',
+                    extra={'kline_size': pt.kline_size, 'thread_name': pt.thread.name},
+                )
             _log.info('removed kline_size', extra={'kline_size': kline_size})
 
     def get_market_data(self, kline_size: int) -> pl.DataFrame:
