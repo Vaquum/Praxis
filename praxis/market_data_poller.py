@@ -109,6 +109,10 @@ class MarketDataPoller:
                 existing interval is kept (first caller wins).
         '''
 
+        if not self._started:
+            msg = 'MarketDataPoller.start() must be called before add_kline_size'
+            raise RuntimeError(msg)
+
         with self._lock:
             count = self._refcounts.get(kline_size, 0)
             self._refcounts[kline_size] = count + 1
