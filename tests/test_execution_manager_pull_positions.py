@@ -72,3 +72,25 @@ async def test_pull_positions_returns_detached_snapshot(mgr: ExecutionManager) -
 
     snapshot[key].qty = Decimal('2')
     assert runtime.trading_state.positions[key].qty == Decimal('1')
+
+
+@pytest.mark.asyncio
+async def test_pull_positions_includes_strategy_id(mgr: ExecutionManager) -> None:
+    '''Position carries strategy_id when set via submit_command.'''
+
+    mgr.register_account(_ACCT)
+    runtime = mgr._accounts[_ACCT]
+    key = (_TRADE, _ACCT)
+    runtime.trading_state.positions[key] = Position(
+        account_id=_ACCT,
+        trade_id=_TRADE,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        avg_entry_price=Decimal('50000'),
+        strategy_id='momentum_v1',
+    )
+
+    snapshot = mgr.pull_positions(_ACCT)
+
+    assert snapshot[key].strategy_id == 'momentum_v1'

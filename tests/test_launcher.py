@@ -118,7 +118,11 @@ class MockVenueAdapter:
         raise NotImplementedError
 
     async def query_order_book(self, _symbol: str, **_kwargs: object) -> OrderBookSnapshot:
-        raise NotImplementedError
+        from praxis.infrastructure.venue_adapter import OrderBookLevel
+
+        bid = OrderBookLevel(price=Decimal('49999'), qty=Decimal('10'))
+        ask = OrderBookLevel(price=Decimal('50001'), qty=Decimal('10'))
+        return OrderBookSnapshot(bids=(bid,), asks=(ask,), last_update_id=1)
 
     async def get_server_time(self) -> int:
         raise NotImplementedError
@@ -350,6 +354,129 @@ class TestLauncherLifecycle:
 
         routed = q.get(timeout=1)
         assert routed is outcome
+
+        stop_future = asyncio.run_coroutine_threadsafe(launcher._trading.stop(), launcher._loop)
+        stop_future.result(timeout=10)
+
+        launcher._loop.call_soon_threadsafe(launcher._loop.stop)
+        launcher._loop_thread.join(timeout=5)
+
+    def test_full_cycle_submit_fill_outcome_shutdown(self, tmp_path: Path) -> None:
+        '''Full cycle: start → submit command → fill → outcome routed → shutdown.'''
+
+        from praxis.core.domain.events import FillReceived
+
+        exp_dir = tmp_path / 'experiment'
+        exp_dir.mkdir()
+
+        state_dir = tmp_path / 'state'
+        state_dir.mkdir()
+
+        manifest_path = _make_manifest_yaml(tmp_path, exp_dir)
+
+        outcome_queue: queue.Queue[TradeOutcome] = queue.Queue()
+
+        async def route_to_queue(outcome: TradeOutcome) -> None:
+            outcome_queue.put_nowait(outcome)
+
+        config = TradingConfig(
+            epoch_id=1,
+            account_credentials={'test-acc': ('key', 'secret')},
+            on_trade_outcome=route_to_queue,
+        )
+
+        inst = InstanceConfig(
+            account_id='test-acc',
+            manifest_path=manifest_path,
+            strategies_base_path=tmp_path,
+            allocated_capital=Decimal('10000'),
+            state_dir=state_dir,
+        )
+
+        loop = asyncio.new_event_loop()
+        loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+        loop_thread.start()
+
+        async def make_spine() -> EventSpine:
+            conn = await aiosqlite.connect(':memory:')
+            es = EventSpine(conn)
+            await es.ensure_schema()
+            return es
+
+        spine_future = asyncio.run_coroutine_threadsafe(make_spine(), loop)
+        spine = spine_future.result(timeout=5)
+
+        adapter = cast(VenueAdapter, MockVenueAdapter())
+
+        launcher = Launcher(
+            trading_config=config,
+            instances=[inst],
+            event_spine=spine,
+            venue_adapter=adapter,
+        )
+
+        launcher._start_event_loop()
+        launcher._start_trading()
+
+        assert launcher._trading is not None
+
+        cmd_future = asyncio.run_coroutine_threadsafe(
+            launcher._trading.submit_command(
+                trade_id='trade-1',
+                account_id='test-acc',
+                symbol='BTCUSDT',
+                side=OrderSide.BUY,
+                qty=Decimal('1'),
+                order_type=OrderType.LIMIT,
+                execution_mode=ExecutionMode.SINGLE_SHOT,
+                execution_params=SingleShotParams(price=Decimal('50000')),
+                timeout=300,
+                reference_price=None,
+                maker_preference=MakerPreference.NO_PREFERENCE,
+                stp_mode=STPMode.NONE,
+                created_at=datetime.now(tz=timezone.utc),
+                strategy_id='momentum_v1',
+            ),
+            launcher._loop,
+        )
+        cmd_id = cmd_future.result(timeout=5)
+
+        import time
+        time.sleep(0.5)
+
+        runtime = launcher._trading.execution_manager._accounts['test-acc']
+        orders = {**runtime.trading_state.orders, **runtime.trading_state.closed_orders}
+        client_order_id = next(iter(orders))
+
+        fill = FillReceived(
+            account_id='test-acc',
+            timestamp=datetime.now(tz=timezone.utc),
+            client_order_id=client_order_id,
+            venue_order_id='venue-mock-1',
+            venue_trade_id='vtrade-1',
+            trade_id='trade-1',
+            command_id=cmd_id,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            price=Decimal('50000'),
+            fee=Decimal('0.01'),
+            fee_asset='USDT',
+            is_maker=False,
+        )
+
+        async def inject_fill() -> None:
+            launcher._trading.execution_manager.enqueue_ws_event('test-acc', fill)
+
+        asyncio.run_coroutine_threadsafe(inject_fill(), launcher._loop).result(timeout=5)
+
+        time.sleep(0.5)
+
+        positions = launcher._trading.pull_positions('test-acc')
+        filled = [p for p in positions.values() if p.qty > Decimal('0')]
+        assert filled, 'no position after fill'
+        assert filled[0].strategy_id == 'momentum_v1'
+        assert filled[0].trade_id == 'trade-1'
 
         stop_future = asyncio.run_coroutine_threadsafe(launcher._trading.stop(), launcher._loop)
         stop_future.result(timeout=10)

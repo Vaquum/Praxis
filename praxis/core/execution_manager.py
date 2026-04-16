@@ -136,6 +136,7 @@ class ExecutionManager:
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
         self._command_trade_ids: dict[str, str] = {}
+        self._trade_strategy_ids: dict[str, str] = {}
         self._loop_thread_id: int | None = None
 
     def register_account(self, account_id: str) -> None:
@@ -462,6 +463,7 @@ class ExecutionManager:
         maker_preference: MakerPreference,
         stp_mode: STPMode,
         created_at: datetime,
+        strategy_id: str | None = None,
     ) -> str:
         '''
         Accept a command, assign command_id, persist, and enqueue.
@@ -480,6 +482,7 @@ class ExecutionManager:
             maker_preference (MakerPreference): Maker/taker preference.
             stp_mode (STPMode): Self-trade prevention mode.
             created_at (datetime): Command creation time.
+            strategy_id (str | None): Nexus strategy identifier for position attribution.
 
         Returns:
             str: Assigned command_id (UUID).
@@ -527,6 +530,10 @@ class ExecutionManager:
         self._accepted_commands[command_id] = account_id
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
+
+        if strategy_id is not None:
+            self._trade_strategy_ids[trade_id] = strategy_id
+            runtime.trading_state.trade_strategy_ids[trade_id] = strategy_id
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',

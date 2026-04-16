@@ -54,6 +54,7 @@ class TradingState:
         self.positions: dict[tuple[str, str], Position] = {}
         self.orders: dict[str, Order] = {}
         self.closed_orders: dict[str, Order] = {}
+        self.trade_strategy_ids: dict[str, str] = {}
 
     def apply(self, event: Event) -> None:
 
@@ -222,6 +223,7 @@ class TradingState:
                 side=event.side,
                 qty=event.qty,
                 avg_entry_price=event.price,
+                strategy_id=self.trade_strategy_ids.get(event.trade_id),
             )
             return
 

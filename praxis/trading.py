@@ -707,6 +707,7 @@ class Trading:
         maker_preference: MakerPreference,
         stp_mode: STPMode,
         created_at: datetime,
+        strategy_id: str | None = None,
     ) -> str:
         '''Submit trade command through inbound facade.'''
 
@@ -728,6 +729,7 @@ class Trading:
             maker_preference=maker_preference,
             stp_mode=stp_mode,
             created_at=created_at,
+            strategy_id=strategy_id,
         )
 
     def submit_abort(self, abort: TradeAbort) -> None:

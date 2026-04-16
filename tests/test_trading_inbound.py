@@ -105,6 +105,7 @@ class _FakeExecutionManager:
         maker_preference: MakerPreference,
         stp_mode: STPMode,
         created_at: datetime,
+        strategy_id: str | None = None,  # noqa: ARG002
     ) -> str:
         if self.submit_command_error is not None:
             raise self.submit_command_error
