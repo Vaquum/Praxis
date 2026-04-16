@@ -413,3 +413,20 @@
 - Remove TD-001, TD-003, TD-005, TD-007, TD-008, TD-010, TD-011, TD-012, TD-016 from [`TechnicalDebt.md`](docs/TechnicalDebt.md)
 - Add nested dataclass hydration test in [`test_event_spine.py`](tests/test_event_spine.py)
 - Add execution_params validation test in [`test_domain_commands.py`](tests/test_domain_commands.py)
+
+## v0.39.0 on 16th of April, 2026
+
+- Add thread-safety assertion to `enqueue_ws_event` rejecting calls from non-event-loop threads in [`execution_manager.py`](praxis/core/execution_manager.py)
+- Add concurrency test proving thread-safety assertion and concurrent fill + command submission in [`test_td014_concurrency.py`](tests/test_td014_concurrency.py)
+- Add `Trading.loop` property exposing asyncio event loop after `start()` in [`trading.py`](praxis/trading.py)
+- Add per-account outcome routing via `register_outcome_queue()`, `unregister_outcome_queue()`, `route_outcome()` on `Trading` in [`trading.py`](praxis/trading.py)
+- Add [`market_data_poller.py`](praxis/market_data_poller.py) with `MarketDataPoller` — per-kline-size polling threads via TDW `get_binance_spot_klines`, runtime `add_kline_size()`/`remove_kline_size()` with reference counting
+- Add [`launcher.py`](praxis/launcher.py) with `Launcher` class orchestrating Praxis + Nexus + Limen in one process: asyncio loop thread, Trading, MarketDataPoller, per-account Nexus Manager threads, SIGINT/SIGTERM graceful shutdown
+- Add optional `strategy_id` passthrough from `submit_command` to `Position` via `TradingState.trade_strategy_ids` mapping
+- Add `polars>=1.0` and `quickstart_etl` (TDW control plane) as runtime dependencies
+- Add `vaquum_limen` and `vaquum-nexus` as runtime dependencies (git install)
+- Remove resolved TD-002, TD-004, TD-013, TD-014 from [`TechnicalDebt.md`](docs/TechnicalDebt.md)
+- Update TD-016 to reflect resolved subitems (event loop, outcome routing, market data poller, launcher)
+- Add TD-017 for runtime kline_size registration
+- Add integration tests: launcher lifecycle, command submission, outcome routing, full cycle with strategy_id in [`test_launcher.py`](tests/test_launcher.py)
+- Add 23 tests across new modules (723 total)
