@@ -89,6 +89,11 @@ class MarketDataPoller:
 
         for pt in pollers:
             pt.thread.join(timeout=10)
+            if pt.thread.is_alive():
+                _log.warning(
+                    'poller thread did not stop within timeout',
+                    extra={'kline_size': pt.kline_size, 'thread_name': pt.thread.name},
+                )
 
         with self._lock:
             self._pollers.clear()
