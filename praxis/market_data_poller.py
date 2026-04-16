@@ -60,10 +60,22 @@ class MarketDataPoller:
         return self._started
 
     def start(self) -> None:
-        '''Start poller threads for initial kline_sizes.'''
+        '''Start poller threads for initial kline_sizes.
+
+        Raises:
+            ValueError: If any initial kline_size or interval is not positive.
+        '''
 
         if self._started:
             return
+
+        for kline_size, interval in self._initial_intervals.items():
+            if kline_size <= 0:
+                msg = f'kline_size must be positive, got {kline_size}'
+                raise ValueError(msg)
+            if interval <= 0:
+                msg = f'interval must be positive, got {interval}'
+                raise ValueError(msg)
 
         self._started = True
 

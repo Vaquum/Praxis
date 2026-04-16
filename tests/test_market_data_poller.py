@@ -269,3 +269,16 @@ class TestMarketDataPoller:
                 poller.add_kline_size(0, 60)
         finally:
             poller.stop()
+
+    def test_start_rejects_non_positive_initial_intervals(self) -> None:
+        '''start() raises ValueError for non-positive initial kline_size or interval.'''
+
+        import pytest
+
+        poller = MarketDataPoller(kline_intervals={0: 60})
+        with pytest.raises(ValueError, match='kline_size must be positive'):
+            poller.start()
+
+        poller = MarketDataPoller(kline_intervals={3600: 0})
+        with pytest.raises(ValueError, match='interval must be positive'):
+            poller.start()
