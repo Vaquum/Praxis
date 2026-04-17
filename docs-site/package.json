@@ -20,5 +20,9 @@
     "prism-react-renderer": "^2.4.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
+  },
+  "overrides": {
+    "@docusaurus/plugin-content-docs": "3.9.2",
+    "@docusaurus/theme-common": "3.9.2"
   }
 }
