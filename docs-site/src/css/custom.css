@@ -1,0 +1,45 @@
+:root {
+  --ifm-color-primary: #8d3b13;
+  --ifm-color-primary-dark: #7d3511;
+  --ifm-color-primary-darker: #75320f;
+  --ifm-color-primary-darkest: #61290d;
+  --ifm-color-primary-light: #9d4115;
+  --ifm-color-primary-lighter: #a54417;
+  --ifm-color-primary-lightest: #bd4d19;
+  --ifm-background-color: #fbf7f0;
+  --ifm-navbar-background-color: #fffaf2;
+  --ifm-footer-background-color: #1d150f;
+  --ifm-code-font-size: 95%;
+  --ifm-heading-color: #24160f;
+  --ifm-font-color-base: #38261c;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #f0a76a;
+  --ifm-color-primary-dark: #ed9750;
+  --ifm-color-primary-darker: #eb8e43;
+  --ifm-color-primary-darkest: #e47018;
+  --ifm-color-primary-light: #f3b784;
+  --ifm-color-primary-lighter: #f5c091;
+  --ifm-color-primary-lightest: #f9d8b9;
+  --ifm-background-color: #140f0c;
+  --ifm-navbar-background-color: #19120d;
+  --ifm-footer-background-color: #0d0907;
+  --ifm-heading-color: #f8e9dd;
+  --ifm-font-color-base: #e7d4c5;
+}
+
+.navbar__brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.theme-doc-sidebar-menu .menu__link {
+  border-radius: 0.4rem;
+}
+
+.theme-doc-markdown h1,
+.theme-doc-markdown h2,
+.theme-doc-markdown h3 {
+  letter-spacing: -0.02em;
+}

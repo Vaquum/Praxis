@@ -1,0 +1,15 @@
+{
+  "productId": "praxis",
+  "productName": "Praxis",
+  "tagline": "Trading decisions into venue actions, durable execution state, and auditable outcomes.",
+  "versionLabel": "latest",
+  "basePath": "/praxis/",
+  "navSections": [
+    "Overview",
+    "Guides",
+    "Reference",
+    "Developer",
+    "Packages"
+  ],
+  "sourceRepoUrl": "https://github.com/Vaquum/Praxis"
+}
