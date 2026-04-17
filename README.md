@@ -52,21 +52,36 @@ In the wider Vaquum architecture, Limen produces research outputs, Nexus produce
 
 ## First Verification
 
-The fastest first success is to install the repo, run the local test suite, and then optionally verify Binance Spot testnet connectivity.
+The fastest first success is to clone the repo, install the package, run the local test suite, and then optionally verify Binance Spot testnet connectivity.
 
-1. Install the package and dev dependencies:
+1. Clone the repo and enter the project root:
+
+```bash
+git clone https://github.com/Vaquum/Praxis.git
+cd Praxis
+```
+
+2. Install the package and dev dependencies:
+
+If you use `uv`:
 
 ```bash
 uv pip install -e ".[dev]"
 ```
 
-2. Run the default test suite:
+If you do not use `uv`, use `pip` instead:
+
+```bash
+pip install -e ".[dev]"
+```
+
+3. Run the default test suite:
 
 ```bash
 python -m pytest
 ```
 
-3. Optionally verify Binance Spot testnet access:
+4. Optionally verify Binance Spot testnet access:
 
 ```bash
 # Option A: .env file in repo root (gitignored)
