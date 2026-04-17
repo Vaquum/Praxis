@@ -109,6 +109,8 @@ That path verifies the current implementation as it exists today: local executio
 
 ## Learn More
 
+- Start with the docs hub in [docs/README.md](docs/README.md)
+- For contributor-facing docs, start with [docs/Developer/README.md](docs/Developer/README.md)
 - Start with RFC-4001 in [Praxis issue #1](https://github.com/Vaquum/Praxis/issues/1)
 - Review current technical debt in [docs/TechnicalDebt.md](docs/TechnicalDebt.md)
 - Read the runtime entry points in [praxis/trading.py](praxis/trading.py), [praxis/launcher.py](praxis/launcher.py), and [praxis/trading_inbound.py](praxis/trading_inbound.py)
