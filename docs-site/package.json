@@ -1,0 +1,28 @@
+{
+  "name": "praxis-docs-site",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "scripts": {
+    "prepare-docs": "node ./scripts/assemble-docs.mjs",
+    "start": "npm run prepare-docs && docusaurus start --host 0.0.0.0",
+    "build": "npm run prepare-docs && docusaurus build",
+    "check": "npm run prepare-docs && docusaurus build --no-minify",
+    "serve": "docusaurus serve . --dir build --host 0.0.0.0 --port 3001 --no-open",
+    "clear": "docusaurus clear"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.9.2",
+    "@docusaurus/preset-classic": "3.9.2",
+    "@easyops-cn/docusaurus-search-local": "0.55.1",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "overrides": {
+    "@docusaurus/plugin-content-docs": "3.9.2",
+    "@docusaurus/theme-common": "3.9.2"
+  }
+}
