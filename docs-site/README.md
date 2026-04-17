@@ -26,6 +26,12 @@ Run the local dev server:
 npm start
 ```
 
+The site uses the `basePath` from `product-docs.json`, so by default it serves at `http://localhost:3000/praxis/`. To serve at the root for local-only work, override the base URL:
+
+```bash
+DOCS_BASE_URL=/ npm start
+```
+
 Run a production-style check build:
 
 ```bash

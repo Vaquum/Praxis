@@ -12,7 +12,7 @@ This guide covers the fastest honest path to getting Praxis running locally toda
 ## Prerequisites
 
 - Python `>=3.10`
-- Node `20` if you also want to build the docs site
+- Node `22` (LTS) recommended; Node `>=20` supported if you also want to build the docs site
 - either `uv` or `pip` for the Python install path
 
 ## Current Scope
