@@ -14,7 +14,7 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 
 1. Read the [product home page](../README.md)
 2. Read the architecture and intended scope in [RFC-4001](https://github.com/Vaquum/Praxis/issues/1)
-3. Read the current docs contract in [Developer/Documentation-System.md](Developer/Documentation-System.md)
+3. Read [Developer Home](Developer/README.md)
 4. Review the current known implementation gaps in [TechnicalDebt.md](TechnicalDebt.md)
 
 ### If You Want To Understand The Current Runtime
@@ -26,7 +26,7 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 
 ### If You Want To Contribute Or Maintain
 
-1. Start with [Developer/Documentation-System.md](Developer/Documentation-System.md)
+1. Start with [Developer/README.md](Developer/README.md)
 2. Read [RFC-4001](https://github.com/Vaquum/Praxis/issues/1)
 3. Review [TechnicalDebt.md](TechnicalDebt.md)
 4. Use the repository code as the final source of truth for behavior
@@ -42,7 +42,7 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 ## Docs Map
 
 - `Overview`: [Product Home](../README.md), [this docs hub](README.md)
-- `Developer`: [Documentation System](Developer/Documentation-System.md)
+- `Developer`: [Developer Home](Developer/README.md), [Documentation System](Developer/Documentation-System.md)
 - `Operations`: [Technical Debt](TechnicalDebt.md)
 - `Architecture`: [RFC-4001](https://github.com/Vaquum/Praxis/issues/1)
 
@@ -68,5 +68,5 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 
 - For product framing and first verification, continue to [../README.md](../README.md)
 - For the intended architecture and scope, continue to [RFC-4001](https://github.com/Vaquum/Praxis/issues/1)
-- For contributor-facing docs rules, continue to [Developer/Documentation-System.md](Developer/Documentation-System.md)
+- For contributor-facing docs rules, continue to [Developer/README.md](Developer/README.md)
 - For known implementation constraints, continue to [TechnicalDebt.md](TechnicalDebt.md)
