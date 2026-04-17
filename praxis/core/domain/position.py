@@ -40,6 +40,7 @@ class Position:
     side: OrderSide
     qty: Decimal
     avg_entry_price: Decimal
+    strategy_id: str | None = None
 
     def __post_init__(self) -> None:
 

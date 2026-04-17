@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import queue
+import threading
 from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -20,6 +22,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
     Event,
     FillReceived,
@@ -92,6 +95,9 @@ class Trading:
             account_credentials=config.account_credentials,
         )
         self._started = False
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._outcome_queues: dict[str, queue.Queue[TradeOutcome]] = {}
+        self._outcome_lock = threading.Lock()
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
         self._ready_accounts: set[str] = set()
@@ -127,26 +133,90 @@ class Trading:
 
         return self._started
 
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        '''Return the asyncio event loop running this Trading instance.
+
+        Raises:
+            RuntimeError: If Trading.start() has not been awaited.
+        '''
+
+        if self._loop is None:
+            msg = 'Trading.start() must be awaited before accessing loop'
+            raise RuntimeError(msg)
+
+        return self._loop
+
+    def register_outcome_queue(
+        self,
+        account_id: str,
+        q: queue.Queue[TradeOutcome],
+    ) -> None:
+        '''Register a thread-safe queue for routing TradeOutcomes to a Nexus instance.
+
+        Args:
+            account_id: Account identifier.
+            q: Thread-safe queue that Nexus instance reads from.
+        '''
+
+        with self._outcome_lock:
+            self._outcome_queues[account_id] = q
+
+    def unregister_outcome_queue(self, account_id: str) -> None:
+        '''Remove outcome queue for an account.
+
+        Args:
+            account_id: Account identifier.
+        '''
+
+        with self._outcome_lock:
+            self._outcome_queues.pop(account_id, None)
+
+    def route_outcome(self, outcome: TradeOutcome) -> None:
+        '''Route a TradeOutcome to the correct account's queue.
+
+        Called by the on_trade_outcome callback. Drops outcomes
+        for accounts without a registered queue.
+
+        Args:
+            outcome: TradeOutcome to route.
+        '''
+
+        with self._outcome_lock:
+            q = self._outcome_queues.get(outcome.account_id)
+
+        if q is None:
+            _log.warning(
+                'no outcome queue for account, dropping outcome',
+                extra={'account_id': outcome.account_id, 'command_id': outcome.command_id},
+            )
+            return
+
+        q.put_nowait(outcome)
+
     async def start(self) -> None:
         '''Initialize runtime and execute per-account startup sequence.'''
 
         if self._started:
             return
 
-        await self._event_spine.ensure_schema()
-
-        all_events = await self._event_spine.read(self._config.epoch_id)
-
-        events_by_account: defaultdict[str, list[tuple[int, Event]]] = defaultdict(list)
-        for seq, event in all_events:
-            events_by_account[event.account_id].append((seq, event))
+        self._loop = asyncio.get_running_loop()
 
         try:
+            await self._event_spine.ensure_schema()
+
+            all_events = await self._event_spine.read(self._config.epoch_id)
+
+            events_by_account: defaultdict[str, list[tuple[int, Event]]] = defaultdict(list)
+            for seq, event in all_events:
+                events_by_account[event.account_id].append((seq, event))
+
             for account_id in self._config.account_credentials:
                 self._inbound.register_account(account_id)
                 self._managed_accounts.add(account_id)
                 await self._startup_account(account_id, events_by_account[account_id])
         except Exception:
+            self._loop = None
             await self._cleanup_partial_startup()
             raise
 
@@ -268,6 +338,7 @@ class Trading:
             if first_error is not None:
                 raise first_error
             self._started = False
+            self._loop = None
         finally:
             self._stopping = False
 
@@ -643,6 +714,7 @@ class Trading:
         maker_preference: MakerPreference,
         stp_mode: STPMode,
         created_at: datetime,
+        strategy_id: str | None = None,
     ) -> str:
         '''Submit trade command through inbound facade.'''
 
@@ -664,6 +736,7 @@ class Trading:
             maker_preference=maker_preference,
             stp_mode=stp_mode,
             created_at=created_at,
+            strategy_id=strategy_id,
         )
 
     def submit_abort(self, abort: TradeAbort) -> None:

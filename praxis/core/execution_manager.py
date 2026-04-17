@@ -12,6 +12,7 @@ import asyncio
 import copy
 import contextlib
 import logging
+import threading
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
@@ -135,6 +136,7 @@ class ExecutionManager:
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
         self._command_trade_ids: dict[str, str] = {}
+        self._loop_thread_id: int | None = None
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -154,6 +156,9 @@ class ExecutionManager:
         if account_id in self._accounts:
             msg = f"account_id '{account_id}' is already registered"
             raise ValueError(msg)
+
+        if self._loop_thread_id is None:
+            self._loop_thread_id = threading.get_ident()
 
         runtime = _AccountRuntime(
             account_id=account_id,
@@ -258,6 +263,9 @@ class ExecutionManager:
 
             if isinstance(event, CommandAccepted):
                 self._accepted_commands[event.command_id] = account_id
+
+                if event.strategy_id is not None:
+                    runtime.trading_state.trade_strategy_ids[event.trade_id] = event.strategy_id
 
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
@@ -412,13 +420,27 @@ class ExecutionManager:
         single-writer coroutine, including WebSocket traffic and reconciliation
         events.
 
+        asyncio.Queue.put_nowait is not thread-safe. This method must only
+        be called from the event loop thread.
+
         Args:
             account_id (str): Account identifier.
             event (Event): External domain event to apply.
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            RuntimeError: If called from outside the event loop thread.
         '''
+
+        if (
+            self._loop_thread_id is not None
+            and threading.get_ident() != self._loop_thread_id
+        ):
+            msg = (
+                'enqueue_ws_event called from non-event-loop thread. '
+                'asyncio.Queue.put_nowait is not thread-safe.'
+            )
+            raise RuntimeError(msg)
 
         runtime = self._accounts.get(account_id)
         if runtime is None:
@@ -443,6 +465,7 @@ class ExecutionManager:
         maker_preference: MakerPreference,
         stp_mode: STPMode,
         created_at: datetime,
+        strategy_id: str | None = None,
     ) -> str:
         '''
         Accept a command, assign command_id, persist, and enqueue.
@@ -461,6 +484,7 @@ class ExecutionManager:
             maker_preference (MakerPreference): Maker/taker preference.
             stp_mode (STPMode): Self-trade prevention mode.
             created_at (datetime): Command creation time.
+            strategy_id (str | None): Nexus strategy identifier for position attribution.
 
         Returns:
             str: Assigned command_id (UUID).
@@ -501,6 +525,7 @@ class ExecutionManager:
             timestamp=datetime.now(timezone.utc),
             command_id=command_id,
             trade_id=trade_id,
+            strategy_id=strategy_id,
         )
         await self._event_spine.append(event, self._epoch_id)
 
@@ -508,6 +533,9 @@ class ExecutionManager:
         self._accepted_commands[command_id] = account_id
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
+
+        if strategy_id is not None:
+            runtime.trading_state.trade_strategy_ids[trade_id] = strategy_id
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',

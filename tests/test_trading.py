@@ -23,6 +23,7 @@ from praxis.core.domain.position import Position
 from praxis.core.domain.order import Order
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
@@ -1741,3 +1742,151 @@ async def test_concurrent_fills_and_reconciliation_no_corruption(spine: EventSpi
     assert state.positions[('trade-recon', 'acc-1')].qty == Decimal('1')
 
     await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_loop_available_after_start(spine: EventSpine) -> None:
+    '''Trading.loop returns event loop after start().'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+
+    loop = trading.loop
+
+    assert loop is asyncio.get_running_loop()
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_loop_raises_before_start(spine: EventSpine) -> None:
+    '''Trading.loop raises RuntimeError before start().'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    with pytest.raises(RuntimeError, match='start\\(\\) must be awaited'):
+        _ = trading.loop
+
+
+@pytest.mark.asyncio
+async def test_outcome_routing_to_correct_queue(spine: EventSpine) -> None:
+    '''route_outcome puts outcome on correct account queue.'''
+
+    import queue as queue_mod
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    q1: queue_mod.Queue[TradeOutcome] = queue_mod.Queue()
+    q2: queue_mod.Queue[TradeOutcome] = queue_mod.Queue()
+    trading.register_outcome_queue('acc-1', q1)
+    trading.register_outcome_queue('acc-2', q2)
+
+    outcome1 = TradeOutcome(
+        command_id='cmd-1',
+        trade_id='trade-1',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+    )
+    outcome2 = TradeOutcome(
+        command_id='cmd-2',
+        trade_id='trade-2',
+        account_id='acc-2',
+        status=TradeStatus.REJECTED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        avg_fill_price=None,
+        slices_completed=0,
+        slices_total=1,
+        reason='insufficient balance',
+        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+    )
+
+    trading.route_outcome(outcome1)
+    trading.route_outcome(outcome2)
+
+    assert q1.get_nowait() is outcome1
+    assert q2.get_nowait() is outcome2
+    assert q1.empty()
+    assert q2.empty()
+
+
+@pytest.mark.asyncio
+async def test_outcome_routing_unknown_account_drops(spine: EventSpine) -> None:
+    '''route_outcome drops outcome for unregistered account.'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    outcome = TradeOutcome(
+        command_id='cmd-1',
+        trade_id='trade-1',
+        account_id='unknown',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+    )
+
+    trading.route_outcome(outcome)
+
+
+@pytest.mark.asyncio
+async def test_unregister_outcome_queue(spine: EventSpine) -> None:
+    '''unregister_outcome_queue removes queue.'''
+
+    import queue as queue_mod
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    q: queue_mod.Queue[TradeOutcome] = queue_mod.Queue()
+    trading.register_outcome_queue('acc-1', q)
+    trading.unregister_outcome_queue('acc-1')
+
+    outcome = TradeOutcome(
+        command_id='cmd-1',
+        trade_id='trade-1',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+    )
+
+    trading.route_outcome(outcome)
+    assert q.empty()
+
+
+@pytest.mark.asyncio
+async def test_loop_cleared_on_failed_start(spine: EventSpine) -> None:
+    '''Trading.loop raises after start() fails, _loop is not left stale.'''
+
+    from unittest.mock import AsyncMock
+
+    config = TradingConfig(
+        epoch_id=1,
+        account_credentials={'acc-1': ('key', 'secret')},
+    )
+    trading = Trading(config=config, event_spine=spine, venue_adapter=_InjectedVenueAdapter())
+    trading._event_spine.read = AsyncMock(side_effect=RuntimeError('db error'))
+
+    with pytest.raises(RuntimeError, match='db error'):
+        await trading.start()
+
+    assert trading.started is False
+
+    with pytest.raises(RuntimeError, match=r'Trading\.start'):
+        _ = trading.loop

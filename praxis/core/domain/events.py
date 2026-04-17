@@ -70,10 +70,12 @@ class CommandAccepted(_EventBase):
         timestamp (datetime): Event time, must be timezone-aware.
         command_id (str): Originating TradeCommand identifier.
         trade_id (str): Trade correlation identifier.
+        strategy_id (str | None): Nexus strategy identifier for position attribution.
     '''
 
     command_id: str
     trade_id: str
+    strategy_id: str | None = None
 
     def __post_init__(self) -> None:
 

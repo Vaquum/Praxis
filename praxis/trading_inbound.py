@@ -43,6 +43,7 @@ class _ExecutionInboundGateway(Protocol):
         maker_preference: MakerPreference,
         stp_mode: STPMode,
         created_at: datetime,
+        strategy_id: str | None = None,
     ) -> str: ...
 
     def submit_abort(self, abort: TradeAbort) -> None: ...
@@ -166,6 +167,7 @@ class TradingInbound:
         maker_preference: MakerPreference,
         stp_mode: STPMode,
         created_at: datetime,
+        strategy_id: str | None = None,
     ) -> str:
         '''
         Route inbound command submission to the execution layer.
@@ -184,6 +186,7 @@ class TradingInbound:
             maker_preference (MakerPreference): Maker/taker preference.
             stp_mode (STPMode): Self-trade prevention mode.
             created_at (datetime): Timezone-aware command creation time.
+            strategy_id (str | None): Nexus strategy identifier for position attribution.
 
         Returns:
             str: Assigned command identifier.
@@ -207,6 +210,7 @@ class TradingInbound:
             maker_preference=maker_preference,
             stp_mode=stp_mode,
             created_at=created_at,
+            strategy_id=strategy_id,
         )
 
     def submit_abort(self, abort: TradeAbort) -> None:
