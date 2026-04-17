@@ -69,19 +69,25 @@ If you use `uv`:
 uv pip install -e ".[dev]"
 ```
 
+Run the default test suite with the same toolchain:
+
+```bash
+uv run pytest
+```
+
 If you do not use `uv`, use `pip` instead:
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-3. Run the default test suite:
+Then run the default test suite:
 
 ```bash
 python -m pytest
 ```
 
-4. Optionally verify Binance Spot testnet access:
+3. Optionally verify Binance Spot testnet access:
 
 ```bash
 # Option A: .env file in repo root (gitignored)
@@ -92,7 +98,10 @@ echo 'BINANCE_TESTNET_API_SECRET=your_secret' >> .env
 export BINANCE_TESTNET_API_KEY='your_key'
 export BINANCE_TESTNET_API_SECRET='your_secret'
 
-# Run testnet checks explicitly
+# Run testnet checks explicitly with uv
+uv run pytest tests/testnet/ -v -o 'addopts='
+
+# Or, if you used pip instead of uv
 python -m pytest tests/testnet/ -v -o 'addopts='
 ```
 
