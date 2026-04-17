@@ -182,6 +182,12 @@ class Launcher:
         if self._loop_thread is not None:
             self._loop_thread.join(timeout=5)
 
+        if self._loop is not None and not self._loop.is_closed():
+            self._loop.close()
+
+        self._loop = None
+        self._loop_thread = None
+
         _log.info('shutdown complete')
 
     def _run_nexus_instance(
