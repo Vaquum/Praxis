@@ -48,7 +48,7 @@ This preserves account isolation even though all accounts share one process.
 
 ## Current Boundary
 
-The post-MMVP note in `~/PaperTradingPipeline/POSTMMVP-1-EventSourcing-Praxis.md` describes a future state where delivery is fully spine-driven via cursor subscriptions. That is not yet the shipped behavior. Today the spine records the event, but live delivery still depends on the direct in-process routing path.
+A future state described in the [Event Spine](Event-Spine.md) documentation would make delivery fully spine-driven via cursor subscriptions. That is not yet the shipped behavior. Today the spine records the event, but live delivery still depends on the direct in-process routing path.
 
 ## Read Next
 

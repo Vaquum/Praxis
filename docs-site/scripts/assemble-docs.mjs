@@ -305,11 +305,15 @@ function rewriteOutsideCode(content, transform) {
   let inInlineCode = false;
   let plainStart = 0;
 
+  const flush = (endIndex) => {
+    if (plainStart >= endIndex) return;
+    const chunk = content.slice(plainStart, endIndex);
+    out += inFence || inInlineCode ? chunk : transform(chunk);
+  };
+
   while (index < content.length) {
     if (content.startsWith('```', index)) {
-      if (plainStart < index) {
-        out += transform(content.slice(plainStart, index));
-      }
+      flush(index);
       inFence = !inFence;
       out += '```';
       index += 3;
@@ -318,9 +322,7 @@ function rewriteOutsideCode(content, transform) {
     }
 
     if (!inFence && content[index] === '`') {
-      if (plainStart < index) {
-        out += transform(content.slice(plainStart, index));
-      }
+      flush(index);
       inInlineCode = !inInlineCode;
       out += '`';
       index += 1;
@@ -331,9 +333,7 @@ function rewriteOutsideCode(content, transform) {
     index += 1;
   }
 
-  if (plainStart < content.length) {
-    out += transform(content.slice(plainStart));
-  }
+  flush(content.length);
 
   return out;
 }
