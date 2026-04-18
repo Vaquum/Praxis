@@ -430,3 +430,12 @@
 - Add TD-017 for runtime kline_size registration
 - Add integration tests: launcher lifecycle, command submission, outcome routing, full cycle with strategy_id in [`test_launcher.py`](tests/test_launcher.py)
 - Add 23 tests across new modules (723 total)
+
+## v0.40.0 on 18th of April, 2026
+
+- Add frozen `HealthSnapshot` dataclass with finite/non-negative invariants, ratio bounds, and `consecutive_failures` int check in [`health_snapshot.py`](praxis/core/domain/health_snapshot.py)
+- Add `HealthTracker` with rolling latency + success/failure samples, thread-safe `record_request`, and p99/failure-rate composition in [`health_tracker.py`](praxis/core/health_tracker.py)
+- Wire per-account `HealthTracker` into `BinanceAdapter`: `_request_with_retry` records latency and outcome once per call (retries internal); add `rate_limit_utilization`/`clock_drift_ms` properties; add `sync_clock_drift()` against `/api/v3/time`; add `get_health_snapshot(account_id)` that composes tracker + venue-wide metrics in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
+- Add `get_health_snapshot(account_id) -> HealthSnapshot` to `VenueAdapter` Protocol in [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py)
+- Add `Trading.get_health_snapshot(account_id)` async method (start-required) so Manager can call via `asyncio.run_coroutine_threadsafe(trading.get_health_snapshot(...), trading.loop)` in [`trading.py`](praxis/trading.py)
+- Add 46 tests across `test_health_snapshot.py`, `test_health_tracker.py`, `test_binance_adapter.py` (TestHealthSignals), and `test_trading.py`
