@@ -5,6 +5,7 @@ Tests for praxis.infrastructure.binance_adapter.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, ClassVar
@@ -2637,3 +2638,157 @@ class TestCancelOrderList:
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='At least one of'):
             await adapter.cancel_order_list(_ACCOUNT_ID, 'BTCUSDT')
+
+
+class TestHealthSignals:
+
+    def test_register_account_creates_health_tracker(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter.register_account('acc1', 'k', 's')
+
+        assert 'acc1' in adapter._health_trackers
+
+    def test_unregister_account_removes_health_tracker(self) -> None:
+
+        adapter = _make_adapter()
+        adapter.unregister_account(_ACCOUNT_ID)
+
+        assert _ACCOUNT_ID not in adapter._health_trackers
+
+    def test_get_health_snapshot_defaults_when_unknown(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        snapshot = adapter.get_health_snapshot('unknown')
+
+        assert snapshot.latency_p99_ms == 0.0
+        assert snapshot.consecutive_failures == 0
+
+    def test_rate_limit_utilization_reflects_used_weight(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter._used_weight = 300
+        adapter._weight_limit = 1000
+
+        assert adapter.rate_limit_utilization == pytest.approx(0.3)
+
+    def test_rate_limit_utilization_clamps_above_one(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter._used_weight = 2000
+        adapter._weight_limit = 1000
+
+        assert adapter.rate_limit_utilization == 1.0
+
+    @pytest.mark.asyncio
+    async def test_successful_signed_request_records_success(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'ok': True}))
+
+        await adapter._signed_request('GET', '/api/v3/account', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 0
+        assert snapshot.failure_rate == 0.0
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_rate_limit_records_failure(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(403, {'code': -1, 'msg': 'banned'}))
+
+        with pytest.raises(RateLimitError):
+            await adapter._signed_request('GET', '/api/v3/account', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 1
+        assert snapshot.failure_rate == 1.0
+
+    def test_health_snapshot_composes_venue_metrics(self) -> None:
+
+        adapter = _make_adapter()
+        tracker = adapter._health_trackers[_ACCOUNT_ID]
+        tracker.record_request(latency_ms=12.0, succeeded=True)
+        adapter._used_weight = 600
+        adapter._weight_limit = 1000
+        adapter._clock_drift_ms = 8.0
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+
+        assert snapshot.rate_limit_headroom == pytest.approx(0.6)
+        assert snapshot.clock_drift_ms == 8.0
+
+    def test_health_trackers_are_isolated_per_account(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter.register_account('acc-a', 'k', 's')
+        adapter.register_account('acc-b', 'k', 's')
+
+        adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)
+        adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)
+
+        snap_a = adapter.get_health_snapshot('acc-a')
+        snap_b = adapter.get_health_snapshot('acc-b')
+
+        assert snap_a.consecutive_failures == 2
+        assert snap_a.failure_rate == 1.0
+        assert snap_b.consecutive_failures == 0
+        assert snap_b.failure_rate == 0.0
+
+    @pytest.mark.asyncio
+    async def test_sync_clock_drift_populates_drift_ms(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        target_drift_ms = 12345.0
+
+        response = AsyncMock()
+        response.status = 200
+        response.json = AsyncMock(
+            return_value={'serverTime': time.time() * 1000.0 + target_drift_ms},
+        )
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=response)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.get = MagicMock(return_value=ctx)
+        session.closed = False
+        adapter._session = session
+
+        await adapter.sync_clock_drift()
+
+        assert adapter.clock_drift_ms == pytest.approx(target_drift_ms, rel=0.05)
+
+    @pytest.mark.asyncio
+    async def test_sync_clock_drift_silent_on_non_ok_status(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+
+        response = AsyncMock()
+        response.status = 503
+        response.json = AsyncMock(return_value={})
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=response)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.get = MagicMock(return_value=ctx)
+        session.closed = False
+        adapter._session = session
+
+        await adapter.sync_clock_drift()
+
+        assert adapter.clock_drift_ms == 0.0
+
+    @pytest.mark.asyncio
+    async def test_sync_clock_drift_silent_on_transport_error(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+
+        session = MagicMock()
+        session.get = MagicMock(side_effect=aiohttp.ClientError('boom'))
+        session.closed = False
+        adapter._session = session
+
+        await adapter.sync_clock_drift()
+
+        assert adapter.clock_drift_ms == 0.0

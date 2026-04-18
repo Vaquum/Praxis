@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Any, Protocol, runtime_checkable
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
+from praxis.core.domain.health_snapshot import HealthSnapshot
 
 
 __all__ = [
@@ -629,6 +630,21 @@ class VenueAdapter(Protocol):
 
         Returns:
             int: Server time in milliseconds since epoch
+        '''
+
+        ...
+
+    def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
+        '''
+        Return a point-in-time HealthSnapshot for an account.
+
+        Args:
+            account_id (str): Account identifier.
+
+        Returns:
+            HealthSnapshot: Latest known health metrics. Implementations
+                must return defaults (zero) rather than raise when no
+                samples have been collected yet.
         '''
 
         ...

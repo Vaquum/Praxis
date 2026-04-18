@@ -27,3 +27,16 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 **When to fix**: Before depth limits exceed 100 levels.
 **Migration**: If performance becomes an issue, consider Decimal-native cumulative precomputation or early-exit optimizations. Do not use float64 for financial calculations.
+
+---
+
+## TD-018: Clock-drift estimate ignores asymmetric network latency
+
+**Origin**: PR (Health.2 — `feat/TD-health-signals`)
+**Severity**: Low (drift only feeds a 3-threshold health gate)
+**Module**: `praxis/infrastructure/binance_adapter.py`
+
+`sync_clock_drift()` estimates drift as `abs(serverTime - midpoint(local_before, local_after))`. The midpoint assumes symmetric request/response latency. Real-world latency is rarely symmetric, so the reported drift can be off by half the round-trip time.
+
+**When to fix**: Before clock-drift thresholds are tightened past round-trip noise (current `clock_drift_max_ms` default in Nexus is 500 ms, which absorbs typical asymmetry).
+**Migration**: Use a multi-sample method such as Cristian's algorithm with a minimum-RTT round, or rely on system NTP and report the offset reported by the OS instead of probing the venue.
