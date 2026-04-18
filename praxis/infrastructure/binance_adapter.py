@@ -1440,7 +1440,8 @@ class BinanceAdapter:
         Returns 0.0 until sync_clock_drift has been called successfully.
         '''
 
-        return self._clock_drift_ms
+        with self._health_lock:
+            return self._clock_drift_ms
 
     async def sync_clock_drift(self) -> None:
 
