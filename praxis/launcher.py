@@ -16,6 +16,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import polars as pl
+
 from nexus.core.domain.enums import OperationalMode
 from nexus.infrastructure.manifest import load_manifest
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
@@ -225,7 +227,6 @@ class Launcher:
 
             def market_data_provider(kline_size: int) -> Any:
                 if self._poller is None:
-                    import polars as pl
                     return pl.DataFrame()
                 return self._poller.get_market_data(kline_size)
 
