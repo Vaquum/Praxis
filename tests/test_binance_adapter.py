@@ -5,6 +5,7 @@ Tests for praxis.infrastructure.binance_adapter.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, ClassVar
@@ -2717,3 +2718,77 @@ class TestHealthSignals:
 
         assert snapshot.rate_limit_headroom == pytest.approx(0.6)
         assert snapshot.clock_drift_ms == 8.0
+
+    def test_health_trackers_are_isolated_per_account(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter.register_account('acc-a', 'k', 's')
+        adapter.register_account('acc-b', 'k', 's')
+
+        adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)
+        adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)
+
+        snap_a = adapter.get_health_snapshot('acc-a')
+        snap_b = adapter.get_health_snapshot('acc-b')
+
+        assert snap_a.consecutive_failures == 2
+        assert snap_a.failure_rate == 1.0
+        assert snap_b.consecutive_failures == 0
+        assert snap_b.failure_rate == 0.0
+
+    @pytest.mark.asyncio
+    async def test_sync_clock_drift_populates_drift_ms(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        target_drift_ms = 12345.0
+
+        response = AsyncMock()
+        response.status = 200
+        response.json = AsyncMock(
+            return_value={'serverTime': time.time() * 1000.0 + target_drift_ms},
+        )
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=response)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.get = MagicMock(return_value=ctx)
+        session.closed = False
+        adapter._session = session
+
+        await adapter.sync_clock_drift()
+
+        assert adapter.clock_drift_ms == pytest.approx(target_drift_ms, rel=0.05)
+
+    @pytest.mark.asyncio
+    async def test_sync_clock_drift_silent_on_non_ok_status(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+
+        response = AsyncMock()
+        response.status = 503
+        response.json = AsyncMock(return_value={})
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=response)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.get = MagicMock(return_value=ctx)
+        session.closed = False
+        adapter._session = session
+
+        await adapter.sync_clock_drift()
+
+        assert adapter.clock_drift_ms == 0.0
+
+    @pytest.mark.asyncio
+    async def test_sync_clock_drift_silent_on_transport_error(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+
+        session = MagicMock()
+        session.get = MagicMock(side_effect=aiohttp.ClientError('boom'))
+        session.closed = False
+        adapter._session = session
+
+        await adapter.sync_clock_drift()
+
+        assert adapter.clock_drift_ms == 0.0
