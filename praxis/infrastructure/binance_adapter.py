@@ -26,6 +26,8 @@ from urllib.parse import urlencode
 import aiohttp
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
+from praxis.core.domain.health_snapshot import HealthSnapshot
+from praxis.core.health_tracker import HealthTracker
 from praxis.infrastructure.binance_urls import (
     MAINNET_REST_URL,
     MAINNET_WS_URL,
@@ -61,6 +63,7 @@ __all__ = [
 
 _API_KEY_HEADER = 'X-MBX-APIKEY'
 _SESSION_TIMEOUT = aiohttp.ClientTimeout(total=30)
+_HTTP_OK = 200
 _HTTP_BAD_REQUEST = 400
 _HTTP_UNAUTHORIZED = 401
 _HTTP_FORBIDDEN = 403
@@ -158,6 +161,10 @@ class BinanceAdapter:
         self._order_count: dict[str, int] = {}
         self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
         self._prev_headroom_above_threshold: bool = True
+        self._health_trackers: dict[str, HealthTracker] = {
+            account_id: HealthTracker() for account_id in self._credentials
+        }
+        self._clock_drift_ms: float = 0.0
 
     @property
     def weight_headroom(self) -> float:
@@ -243,6 +250,7 @@ class BinanceAdapter:
         '''
 
         self._credentials[account_id] = (api_key, api_secret)
+        self._health_trackers.setdefault(account_id, HealthTracker())
 
     def unregister_account(self, account_id: str) -> None:
 
@@ -257,6 +265,7 @@ class BinanceAdapter:
         '''
 
         del self._credentials[account_id]
+        self._health_trackers.pop(account_id, None)
 
     def _get_credentials(self, account_id: str) -> tuple[str, str]:
 
@@ -349,6 +358,7 @@ class BinanceAdapter:
         '''
 
         last_error: TransientError | None = None
+        start = time.perf_counter()
 
         for attempt in range(_MAX_RETRIES):
             try:
@@ -356,6 +366,7 @@ class BinanceAdapter:
                     self._update_weight_from_headers(response, account_id)
                     await self._raise_on_error(response)
                     data: Any = await response.json()
+                    self._record_health(account_id, start, succeeded=True)
                     return data
             except TransientError as exc:
                 last_error = exc
@@ -369,6 +380,7 @@ class BinanceAdapter:
                 await asyncio.sleep(delay)
             except RateLimitError as exc:
                 if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
+                    self._record_health(account_id, start, succeeded=False)
                     raise
                 delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
                 _log.warning(
@@ -377,6 +389,7 @@ class BinanceAdapter:
                 )
                 await asyncio.sleep(delay)
             except VenueError:
+                self._record_health(account_id, start, succeeded=False)
                 raise
             except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
                 msg = f"Request failed: {exc}"
@@ -391,6 +404,7 @@ class BinanceAdapter:
                 )
                 await asyncio.sleep(delay)
 
+        self._record_health(account_id, start, succeeded=False)
         _log.error(
             'All %d attempts exhausted on %s %s: %s',
             _MAX_RETRIES, method, path, last_error,
@@ -1379,6 +1393,106 @@ class BinanceAdapter:
         except (KeyError, TypeError, ArithmeticError, ValueError) as exc:
             msg = f"Malformed depth payload for {symbol!r}: {exc}"
             raise VenueError(msg) from exc
+
+    def _record_health(
+        self,
+        account_id: str,
+        start: float,
+        *,
+        succeeded: bool,
+    ) -> None:
+
+        '''Record one REST request outcome into the account's HealthTracker.'''
+
+        tracker = self._health_trackers.get(account_id)
+        if tracker is None:
+            return
+
+        latency_ms = max(0.0, (time.perf_counter() - start) * 1000.0)
+        tracker.record_request(latency_ms=latency_ms, succeeded=succeeded)
+
+    @property
+    def rate_limit_utilization(self) -> float:
+
+        '''
+        Current venue-wide rate-limit utilisation fraction.
+
+        Returns:
+            float: Value in [0.0, 1.0]. 0.0 means idle, 1.0 means at limit.
+        '''
+
+        if self._weight_limit <= 0:
+            return 0.0
+
+        return min(1.0, max(0.0, self._used_weight / self._weight_limit))
+
+    @property
+    def clock_drift_ms(self) -> float:
+
+        '''
+        Last measured absolute clock drift from the exchange in milliseconds.
+
+        Returns 0.0 until sync_clock_drift has been called successfully.
+        '''
+
+        return self._clock_drift_ms
+
+    async def sync_clock_drift(self) -> None:
+
+        '''
+        Measure and store absolute clock drift against Binance server time.
+
+        Calls the public `/api/v3/time` endpoint. Silently skips on venue
+        or transport errors so health collection remains best-effort.
+        '''
+
+        session = await self._ensure_session()
+        url = f'{self._base_url}/api/v3/time'
+
+        try:
+            before_ms = time.time() * 1000.0
+            async with session.get(url) as response:
+                after_ms = time.time() * 1000.0
+                if response.status != _HTTP_OK:
+                    return
+                payload = await response.json()
+        except (aiohttp.ClientError, TimeoutError, ValueError):
+            return
+
+        server_time = payload.get('serverTime')
+        if not isinstance(server_time, (int, float)):
+            return
+
+        local_midpoint_ms = (before_ms + after_ms) / 2
+        self._clock_drift_ms = abs(float(server_time) - local_midpoint_ms)
+
+    def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
+
+        '''
+        Compose a HealthSnapshot for a registered account.
+
+        Returns default (empty) snapshot when the account has no tracker
+        yet; the venue-wide rate-limit utilisation and clock drift are
+        always included.
+
+        Args:
+            account_id (str): Account identifier.
+
+        Returns:
+            HealthSnapshot: Point-in-time health metrics.
+        '''
+
+        tracker = self._health_trackers.get(account_id)
+        if tracker is None:
+            return HealthSnapshot(
+                rate_limit_headroom=self.rate_limit_utilization,
+                clock_drift_ms=self._clock_drift_ms,
+            )
+
+        return tracker.snapshot(
+            rate_limit_utilization=self.rate_limit_utilization,
+            clock_drift_ms=self._clock_drift_ms,
+        )
 
     def _update_weight_from_headers(
         self,
