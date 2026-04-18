@@ -84,20 +84,6 @@ def test_window_size_truncates_old_samples() -> None:
     assert snapshot.latency_p99_ms > 300.0
 
 
-def test_reset_clears_state() -> None:
-
-    tracker = HealthTracker()
-    tracker.record_request(latency_ms=5.0, succeeded=False)
-    tracker.record_request(latency_ms=5.0, succeeded=False)
-
-    tracker.reset()
-
-    snapshot = tracker.snapshot()
-    assert snapshot.consecutive_failures == 0
-    assert snapshot.failure_rate == 0.0
-    assert snapshot.latency_p99_ms == 0.0
-
-
 def test_negative_latency_rejected() -> None:
 
     tracker = HealthTracker()

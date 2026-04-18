@@ -79,15 +79,6 @@ class HealthTracker:
             else:
                 self._consecutive_failures += 1
 
-    def reset(self) -> None:
-
-        '''Clear all samples. Used only by tests.'''
-
-        with self._lock:
-            self._latencies.clear()
-            self._outcomes.clear()
-            self._consecutive_failures = 0
-
     def snapshot(
         self,
         rate_limit_utilization: float = 0.0,

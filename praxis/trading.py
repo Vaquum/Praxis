@@ -752,9 +752,11 @@ class Trading:
     async def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
         '''Return a HealthSnapshot for an account.
 
-        Awaitable so Manager (running on a separate thread) can call via
+        Body is synchronous (snapshot composition is in-memory). The method
+        is declared `async` so a Manager thread can dispatch the call
+        across the asyncio loop boundary via
         asyncio.run_coroutine_threadsafe(trading.get_health_snapshot(...),
-        trading.loop).
+        trading.loop) without blocking the loop.
 
         Args:
             account_id: Account whose snapshot is requested.
