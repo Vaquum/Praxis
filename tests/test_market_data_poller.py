@@ -5,26 +5,32 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
-import polars as pl
+import pandas as pd
 
 from praxis.market_data_poller import MarketDataPoller
 
 
-def _mock_klines(**_kwargs: object) -> pl.DataFrame:
-    return pl.DataFrame({
-        'datetime': [1000, 2000],
+def _mock_klines(*_args: object, **_kwargs: object) -> pd.DataFrame:
+    return pd.DataFrame({
+        'open_time': [1000, 2000],
         'open': [70000.0, 70100.0],
         'high': [71000.0, 71100.0],
         'low': [69000.0, 69100.0],
         'close': [70500.0, 70600.0],
         'volume': [100.0, 110.0],
+        'close_time': [1059, 2059],
+        'qav': [0.0, 0.0],
+        'num_trades': [10, 11],
+        'taker_base_vol': [50.0, 55.0],
+        'taker_quote_vol': [50.0, 55.0],
+        'ignore': [0.0, 0.0],
     })
 
 
 class TestMarketDataPoller:
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_start_and_stop(self, _mock: object) -> None:
@@ -39,7 +45,7 @@ class TestMarketDataPoller:
         assert poller.running is False
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_fetches_data_on_start(self, _mock: object) -> None:
@@ -57,7 +63,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_unknown_kline_size_returns_empty(self, _mock: object) -> None:
@@ -74,7 +80,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_multiple_kline_sizes(self, _mock: object) -> None:
@@ -94,7 +100,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=RuntimeError('connection failed'),
     )
     def test_fetch_error_does_not_crash(self, _mock: object) -> None:
@@ -112,7 +118,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_per_kline_size_threads(self, _mock: object) -> None:
@@ -129,7 +135,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_add_kline_size_at_runtime(self, _mock: object) -> None:
@@ -149,7 +155,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_remove_kline_size_at_runtime(self, _mock: object) -> None:
@@ -169,7 +175,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_add_duplicate_increments_refcount(self, _mock: object) -> None:
@@ -187,7 +193,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_remove_with_remaining_refs_keeps_thread(self, _mock: object) -> None:
@@ -209,7 +215,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_remove_last_ref_stops_thread(self, _mock: object) -> None:
@@ -231,7 +237,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_start_empty_then_add(self, _mock: object) -> None:
