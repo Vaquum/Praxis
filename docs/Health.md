@@ -16,6 +16,8 @@ Fields:
 
 Fields default to a healthy zero state when no samples have been collected yet.
 
+The field name `rate_limit_headroom` carries utilisation semantics (higher is worse) for parity with the Manager-side `HealthEvaluator` in Nexus, which already exposes the field under that name. The two sides must agree on the symbol, so the apparent mismatch between the noun `headroom` and its actual contents (`used / limit`) is intentional.
+
 ## How Metrics Are Collected
 
 `praxis/core/health_tracker.py` (`HealthTracker`) holds the rolling samples per account. The tracker is fed once per logical REST request from `BinanceAdapter._request_with_retry`, with retries treated as one logical attempt rather than per-attempt rows. The tracker is thread-safe; both `record_request` and `snapshot` take the same lock.

@@ -15,6 +15,7 @@ import hmac
 import logging
 import math
 import random
+import threading
 import time
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -165,6 +166,7 @@ class BinanceAdapter:
             account_id: HealthTracker() for account_id in self._credentials
         }
         self._clock_drift_ms: float = 0.0
+        self._health_lock = threading.Lock()
 
     @property
     def weight_headroom(self) -> float:
@@ -250,7 +252,8 @@ class BinanceAdapter:
         '''
 
         self._credentials[account_id] = (api_key, api_secret)
-        self._health_trackers.setdefault(account_id, HealthTracker())
+        with self._health_lock:
+            self._health_trackers.setdefault(account_id, HealthTracker())
 
     def unregister_account(self, account_id: str) -> None:
 
@@ -265,7 +268,8 @@ class BinanceAdapter:
         '''
 
         del self._credentials[account_id]
-        self._health_trackers.pop(account_id, None)
+        with self._health_lock:
+            self._health_trackers.pop(account_id, None)
 
     def _get_credentials(self, account_id: str) -> tuple[str, str]:
 
@@ -1404,7 +1408,8 @@ class BinanceAdapter:
 
         '''Record one REST request outcome into the account's HealthTracker.'''
 
-        tracker = self._health_trackers.get(account_id)
+        with self._health_lock:
+            tracker = self._health_trackers.get(account_id)
         if tracker is None:
             return
 
@@ -1464,7 +1469,8 @@ class BinanceAdapter:
             return
 
         local_midpoint_ms = (before_ms + after_ms) / 2
-        self._clock_drift_ms = abs(float(server_time) - local_midpoint_ms)
+        with self._health_lock:
+            self._clock_drift_ms = abs(float(server_time) - local_midpoint_ms)
 
     def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
 
@@ -1482,16 +1488,20 @@ class BinanceAdapter:
             HealthSnapshot: Point-in-time health metrics.
         '''
 
-        tracker = self._health_trackers.get(account_id)
+        with self._health_lock:
+            tracker = self._health_trackers.get(account_id)
+            clock_drift_ms = self._clock_drift_ms
+
+        rate_limit_utilization = self.rate_limit_utilization
         if tracker is None:
             return HealthSnapshot(
-                rate_limit_headroom=self.rate_limit_utilization,
-                clock_drift_ms=self._clock_drift_ms,
+                rate_limit_headroom=rate_limit_utilization,
+                clock_drift_ms=clock_drift_ms,
             )
 
         return tracker.snapshot(
-            rate_limit_utilization=self.rate_limit_utilization,
-            clock_drift_ms=self._clock_drift_ms,
+            rate_limit_utilization=rate_limit_utilization,
+            clock_drift_ms=clock_drift_ms,
         )
 
     def _update_weight_from_headers(

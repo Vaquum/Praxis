@@ -758,6 +758,12 @@ class Trading:
         asyncio.run_coroutine_threadsafe(trading.get_health_snapshot(...),
         trading.loop) without blocking the loop.
 
+        Unlike submit_command and submit_abort, this does not require the
+        account to be ready: health is intentionally pollable across the
+        whole lifecycle (the underlying adapter returns a default zeroed
+        snapshot for unknown accounts) so a Manager can observe degradation
+        before the account is fully wired.
+
         Args:
             account_id: Account whose snapshot is requested.
 
