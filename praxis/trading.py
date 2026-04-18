@@ -19,6 +19,7 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
@@ -747,6 +748,27 @@ class Trading:
             raise RuntimeError(msg)
         self._require_account_ready(abort.account_id)
         self._inbound.submit_abort(abort)
+
+    async def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
+        '''Return a HealthSnapshot for an account.
+
+        Awaitable so Manager (running on a separate thread) can call via
+        asyncio.run_coroutine_threadsafe(trading.get_health_snapshot(...),
+        trading.loop).
+
+        Args:
+            account_id: Account whose snapshot is requested.
+
+        Returns:
+            HealthSnapshot: Latest known metrics. Returns default (zero)
+                values when no samples have been recorded yet.
+
+        Raises:
+            RuntimeError: If Trading.start() has not been awaited.
+        '''
+
+        self._require_started()
+        return self._venue_adapter.get_health_snapshot(account_id)
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''Pull detached positions snapshot through inbound facade.'''

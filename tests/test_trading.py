@@ -19,6 +19,7 @@ from praxis.core.domain.enums import (
     STPMode,
     TradeStatus,
 )
+from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.core.domain.position import Position
 from praxis.core.domain.order import Order
 from praxis.core.domain.single_shot_params import SingleShotParams
@@ -171,6 +172,10 @@ class _InjectedVenueAdapter:
         del data
         raise NotImplementedError
 
+    def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
+        del account_id
+        return HealthSnapshot()
+
 
 class _FakeInbound:
     def __init__(self) -> None:
@@ -273,6 +278,39 @@ async def test_trading_delegates_facade_methods(spine: EventSpine) -> None:
     assert any(name == 'submit_abort' for name, _ in fake_inbound.calls)
     assert any(name == 'pull_positions' for name, _ in fake_inbound.calls)
     assert positions[('trade-1', 'acc-1')].qty == Decimal('1')
+
+
+@pytest.mark.asyncio
+async def test_trading_get_health_snapshot_delegates_to_adapter(
+    spine: EventSpine,
+) -> None:
+    adapter = _InjectedVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(epoch_id=1),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    await trading.start()
+
+    snapshot = await trading.get_health_snapshot('acc-1')
+
+    assert isinstance(snapshot, HealthSnapshot)
+    assert snapshot.consecutive_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_trading_get_health_snapshot_requires_started(
+    spine: EventSpine,
+) -> None:
+    adapter = _InjectedVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(epoch_id=1),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    with pytest.raises(RuntimeError, match=r'Trading\.start'):
+        await trading.get_health_snapshot('acc-1')
 
 
 @pytest.mark.asyncio
