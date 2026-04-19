@@ -8,14 +8,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import queue
 import signal
+import sys
 import threading
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import aiosqlite
 import polars as pl
 
 from nexus.core.domain.enums import OperationalMode
@@ -36,9 +39,19 @@ from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
 
-__all__ = ['InstanceConfig', 'Launcher']
+__all__ = ['InstanceConfig', 'Launcher', 'main']
 
 _log = logging.getLogger(__name__)
+
+_REQUIRED_ENV_VARS = (
+    'EPOCH_ID',
+    'VENUE_REST_URL',
+    'VENUE_WS_URL',
+    'MANIFESTS_DIR',
+    'STRATEGIES_BASE_PATH',
+    'STATE_BASE',
+)
+_DEFAULT_SHUTDOWN_TIMEOUT = '30'
 
 
 @dataclass(frozen=True)
@@ -46,10 +59,9 @@ class InstanceConfig:
     '''Configuration for one Nexus Manager instance.
 
     Args:
-        account_id: Trading account identifier.
+        account_id: Trading account identifier (sourced from manifest).
         manifest_path: Path to strategy manifest YAML.
         strategies_base_path: Base path for strategy .py files.
-        allocated_capital: Hard ceiling for capital_pool.
         state_dir: Directory for WAL and snapshots.
         strategy_state_path: Directory for strategy state blobs.
     '''
@@ -57,7 +69,6 @@ class InstanceConfig:
     account_id: str
     manifest_path: Path
     strategies_base_path: Path
-    allocated_capital: Decimal
     state_dir: Path
     strategy_state_path: Path | None = None
 
@@ -68,19 +79,32 @@ class Launcher:
     Args:
         trading_config: Praxis trading configuration.
         instances: One InstanceConfig per Nexus Manager.
-        event_spine: Shared event spine for Praxis.
+        event_spine: Pre-built event spine for Praxis. Mutually exclusive
+            with `db_path`.
+        db_path: Path to the SQLite file backing the event spine. When
+            provided, the launcher opens the connection on its own loop
+            and owns its lifecycle. Mutually exclusive with `event_spine`.
+        venue_adapter: Optional injected venue adapter.
     '''
 
     def __init__(
         self,
         trading_config: TradingConfig,
         instances: list[InstanceConfig],
-        event_spine: EventSpine,
+        event_spine: EventSpine | None = None,
+        db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
     ) -> None:
+        if (event_spine is None) == (db_path is None):
+            msg = 'Launcher requires exactly one of event_spine or db_path'
+            raise ValueError(msg)
+
         self._trading_config = trading_config
         self._instances = list(instances)
         self._event_spine = event_spine
+        self._db_path = db_path
+        self._db_conn: aiosqlite.Connection | None = None
+        self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -128,6 +152,13 @@ class Launcher:
             msg = 'event loop not started'
             raise RuntimeError(msg)
 
+        if self._event_spine is None:
+            spine_future = asyncio.run_coroutine_threadsafe(
+                self._build_event_spine(),
+                self._loop,
+            )
+            self._event_spine = spine_future.result(timeout=30)
+
         self._trading = Trading(
             config=self._trading_config,
             event_spine=self._event_spine,
@@ -137,6 +168,19 @@ class Launcher:
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
         _log.info('trading started')
+
+    async def _build_event_spine(self) -> EventSpine:
+        if self._db_path is None:
+            msg = 'db_path required to build event spine'
+            raise RuntimeError(msg)
+
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._db_conn = await aiosqlite.connect(str(self._db_path))
+        spine = EventSpine(self._db_conn)
+        await spine.ensure_schema()
+
+        _log.info('event spine opened', extra={'db_path': str(self._db_path)})
+        return spine
 
     def _start_poller(self) -> None:
         kline_intervals = self._collect_kline_intervals()
@@ -178,6 +222,14 @@ class Launcher:
             future = asyncio.run_coroutine_threadsafe(self._trading.stop(), self._loop)
             future.result(timeout=30)
 
+        if self._owns_spine and self._db_conn is not None and self._loop is not None:
+            close_future = asyncio.run_coroutine_threadsafe(
+                self._db_conn.close(),
+                self._loop,
+            )
+            close_future.result(timeout=10)
+            self._db_conn = None
+
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._loop.stop)
 
@@ -217,10 +269,8 @@ class Launcher:
                 state_store=state_store,
                 manifest_path=inst.manifest_path,
                 strategies_base_path=inst.strategies_base_path,
-                allocated_capital=inst.allocated_capital,
                 strategy_state_path=inst.strategy_state_path,
                 praxis_outbound=praxis_outbound,
-                account_id=inst.account_id,
             )
 
             runner = sequencer.start()
@@ -289,7 +339,7 @@ class Launcher:
 
         for inst in self._instances:
             try:
-                manifest = load_manifest(inst.manifest_path, inst.allocated_capital)
+                manifest = load_manifest(inst.manifest_path)
 
                 for spec in manifest.strategies:
                     for sensor in spec.sensors:
@@ -317,3 +367,134 @@ class Launcher:
                 )
 
         return kline_intervals
+
+
+def _check_required_env(env: dict[str, str]) -> None:
+    '''Raise if any required env var is missing or empty.'''
+
+    missing = [name for name in _REQUIRED_ENV_VARS if not env.get(name)]
+    if missing:
+        msg = f'missing required env vars: {", ".join(missing)}'
+        raise RuntimeError(msg)
+
+
+def _account_id_to_env_suffix(account_id: str) -> str:
+    '''Normalize an account_id into a valid env-var suffix.
+
+    Replaces non-alphanumeric chars with `_` and uppercases. e.g.
+    `acct-001` -> `ACCT_001`.
+    '''
+
+    return ''.join(c if c.isalnum() else '_' for c in account_id).upper()
+
+
+def _enumerate_manifests(manifests_dir: Path) -> list[Path]:
+    '''Return sorted list of manifest YAML paths in `manifests_dir`.'''
+
+    if not manifests_dir.is_dir():
+        msg = f'MANIFESTS_DIR not a directory: {manifests_dir}'
+        raise RuntimeError(msg)
+
+    paths = sorted(manifests_dir.glob('*.yaml')) + sorted(manifests_dir.glob('*.yml'))
+    if not paths:
+        msg = f'no manifest files (*.yaml/*.yml) found in {manifests_dir}'
+        raise RuntimeError(msg)
+
+    return paths
+
+
+def main() -> None:
+    '''Env-driven entrypoint for `python -m praxis.launcher`.
+
+    Reads runtime configuration from the process environment, enumerates
+    per-account strategy manifests under `MANIFESTS_DIR`, and starts one
+    Trading service plus one Nexus Manager instance per manifest.
+    Blocks until SIGINT or SIGTERM.
+
+    Per-account Binance credentials are sourced from env vars
+    `BINANCE_API_KEY_<ACCOUNT_ID>` / `BINANCE_API_SECRET_<ACCOUNT_ID>`,
+    where `<ACCOUNT_ID>` is the manifest's `account_id` normalized
+    (non-alphanumeric -> `_`, uppercased).
+    '''
+
+    logging.basicConfig(
+        level=os.environ.get('LOG_LEVEL', 'INFO'),
+        format='%(asctime)s %(levelname)s %(name)s %(message)s',
+    )
+
+    env = dict(os.environ)
+    _check_required_env(env)
+
+    manifests_dir = Path(env['MANIFESTS_DIR'])
+    state_base = Path(env['STATE_BASE'])
+    strategies_base_path = Path(env['STRATEGIES_BASE_PATH'])
+    strategy_state_base_raw = env.get('STRATEGY_STATE_BASE')
+    strategy_state_base = Path(strategy_state_base_raw) if strategy_state_base_raw else None
+
+    manifest_paths = _enumerate_manifests(manifests_dir)
+
+    account_credentials: dict[str, tuple[str, str]] = {}
+    instances: list[InstanceConfig] = []
+
+    for manifest_path in manifest_paths:
+        manifest = load_manifest(manifest_path)
+        account_id = manifest.account_id
+        suffix = _account_id_to_env_suffix(account_id)
+        api_key = env.get(f'BINANCE_API_KEY_{suffix}')
+        api_secret = env.get(f'BINANCE_API_SECRET_{suffix}')
+
+        if not api_key or not api_secret:
+            msg = (
+                f'missing BINANCE_API_KEY_{suffix} or BINANCE_API_SECRET_{suffix} '
+                f'for account {account_id!r} (manifest {manifest_path})'
+            )
+            raise RuntimeError(msg)
+
+        account_credentials[account_id] = (api_key, api_secret)
+
+        state_dir = state_base / account_id
+        strategy_state_path = (
+            strategy_state_base / account_id if strategy_state_base is not None else None
+        )
+
+        instances.append(
+            InstanceConfig(
+                account_id=account_id,
+                manifest_path=manifest_path,
+                strategies_base_path=strategies_base_path,
+                state_dir=state_dir,
+                strategy_state_path=strategy_state_path,
+            ),
+        )
+
+    trading_config = TradingConfig(
+        epoch_id=int(env['EPOCH_ID']),
+        venue_rest_url=env['VENUE_REST_URL'],
+        venue_ws_url=env['VENUE_WS_URL'],
+        account_credentials=account_credentials,
+        shutdown_timeout=float(env.get('SHUTDOWN_TIMEOUT', _DEFAULT_SHUTDOWN_TIMEOUT)),
+    )
+
+    launcher = Launcher(
+        trading_config=trading_config,
+        instances=instances,
+        db_path=state_base / 'event_spine.sqlite',
+    )
+
+    _log.info(
+        'launching praxis',
+        extra={
+            'epoch_id': trading_config.epoch_id,
+            'accounts': sorted(account_credentials.keys()),
+            'state_base': str(state_base),
+        },
+    )
+    launcher.launch()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception:  # noqa: BLE001 - top-level entrypoint, log and exit non-zero
+        _log.exception('launcher failed')
+        sys.exit(1)

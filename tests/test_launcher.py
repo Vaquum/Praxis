@@ -134,13 +134,21 @@ class MockVenueAdapter:
         raise NotImplementedError
 
 
-def _make_manifest_yaml(tmp_path: Path, exp_dir: Path) -> Path:
+def _make_manifest_yaml(
+    tmp_path: Path,
+    exp_dir: Path,
+    account_id: str = 'test-acc',
+    allocated_capital: int = 10000,
+    capital_pool: int = 10000,
+) -> Path:
     manifest_path = tmp_path / 'manifest.yaml'
     strategy_file = tmp_path / 'strat.py'
     strategy_file.write_text(VALID_STRATEGY)
 
     manifest_path.write_text(
-        f'capital_pool: 10000\n'
+        f'account_id: {account_id}\n'
+        f'allocated_capital: {allocated_capital}\n'
+        f'capital_pool: {capital_pool}\n'
         f'strategies:\n'
         f'  - id: test_strat\n'
         f'    file: strat.py\n'
@@ -172,7 +180,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
@@ -224,7 +231,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
@@ -300,7 +306,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
@@ -389,7 +394,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
