@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import queue
+import re
 import signal
 import sys
 import threading
@@ -456,6 +457,27 @@ def _check_required_env(env: dict[str, str]) -> None:
         raise RuntimeError(msg)
 
 
+_ACCOUNT_ID_SAFE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+
+
+def _require_safe_account_id(account_id: str, manifest_path: Path) -> None:
+    '''Reject account_ids that would escape the state directory as path segments.
+
+    `account_id` from the manifest is used to form `STATE_BASE / <account_id>`
+    and `STRATEGY_STATE_BASE / <account_id>`. A manifest containing path
+    separators, `..`, or a leading `.` could escape the intended directory.
+    Restrict to `[A-Za-z0-9][A-Za-z0-9._-]*` to match typical account-id
+    conventions and stay a single safe filesystem component.
+    '''
+
+    if not _ACCOUNT_ID_SAFE_RE.fullmatch(account_id):
+        msg = (
+            f'account_id {account_id!r} (manifest {manifest_path}) is not a safe '
+            f'filesystem component — must match [A-Za-z0-9][A-Za-z0-9._-]*'
+        )
+        raise RuntimeError(msg)
+
+
 def _account_id_to_env_suffix(account_id: str) -> str:
     '''Normalize an account_id into a valid env-var suffix.
 
@@ -525,6 +547,7 @@ def main() -> None:
     for manifest_path in manifest_paths:
         manifest = load_manifest(manifest_path)
         account_id = manifest.account_id
+        _require_safe_account_id(account_id, manifest_path)
         suffix = _account_id_to_env_suffix(account_id)
 
         if account_id in seen_account_ids:

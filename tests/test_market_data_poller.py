@@ -89,10 +89,16 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60, 900: 15})
 
         poller.start()
-        time.sleep(0.5)
 
-        df_3600 = poller.get_market_data(3600)
-        df_900 = poller.get_market_data(900)
+        deadline = 5.0
+        step = 0.05
+        while deadline > 0:
+            df_3600 = poller.get_market_data(3600)
+            df_900 = poller.get_market_data(900)
+            if not df_3600.is_empty() and not df_900.is_empty():
+                break
+            time.sleep(step)
+            deadline -= step
 
         assert not df_3600.is_empty()
         assert not df_900.is_empty()

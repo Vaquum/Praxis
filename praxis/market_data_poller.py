@@ -56,8 +56,6 @@ class MarketDataPoller:
         self._refcounts: dict[int, int] = {}
         self._started = False
         self._initial_intervals = dict(kline_intervals or {})
-        self._client: Client | None = None
-        self._client_lock = threading.Lock()
 
     @property
     def running(self) -> bool:
@@ -225,27 +223,24 @@ class MarketDataPoller:
         thread.start()
 
     def _poll_loop(self, kline_size: int, interval: int, stop_event: threading.Event) -> None:
-        self._fetch(kline_size)
+        # Per-thread Binance client: public klines only, no credentials.
+        # One client per poller thread avoids sharing a requests.Session
+        # across threads for the concurrent REST path.
+        client = Client(None, None)
+
+        self._fetch(kline_size, client)
 
         while not stop_event.wait(timeout=interval):
-            self._fetch(kline_size)
+            self._fetch(kline_size, client)
 
-    def _get_client(self) -> Client:
-        '''Lazily build a Binance client for public klines (no credentials needed).'''
-
-        with self._client_lock:
-            if self._client is None:
-                self._client = Client(None, None)
-            return self._client
-
-    def _fetch(self, kline_size: int) -> None:
+    def _fetch(self, kline_size: int, client: Client) -> None:
         try:
             start_dt = datetime.now(tz=UTC) - timedelta(
                 seconds=kline_size * self._n_rows,
             )
             start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
             df_pd = get_spot_klines(
-                self._get_client(),
+                client,
                 symbol=_BINANCE_SYMBOL,
                 kline_size=kline_size,
                 start_date=start_str,

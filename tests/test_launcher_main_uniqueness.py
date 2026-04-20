@@ -20,8 +20,9 @@ def _write_manifest(
     account_id: str,
     allocated_capital: int = 10000,
     capital_pool: int = 10000,
+    exp_slug: str = 'exp',
 ) -> None:
-    exp_dir = path.parent / f'{account_id}_experiment'
+    exp_dir = path.parent / f'{exp_slug}_experiment'
     exp_dir.mkdir(exist_ok=True)
     (path.parent / 'strat.py').write_text('# stub\n')
     path.write_text(
@@ -100,6 +101,70 @@ class TestMainUniquenessGuards:
         ))
 
         with pytest.raises(RuntimeError, match='duplicate account_id'):
+            main()
+
+    def test_account_id_with_path_separator_rejected(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        '''account_id containing `/` is rejected as unsafe filesystem component.'''
+
+        manifests_dir = tmp_path / 'manifests'
+        manifests_dir.mkdir()
+        _write_manifest(
+            manifests_dir / 'a.yaml',
+            account_id='acct/../evil',
+            exp_slug='a',
+        )
+
+        monkeypatch.setattr('os.environ', self._env(
+            manifests_dir=manifests_dir,
+            state_base=tmp_path / 'state',
+            strategies_base_path=manifests_dir,
+        ))
+
+        with pytest.raises(RuntimeError, match='not a safe filesystem component'):
+            main()
+
+    def test_account_id_with_dotdot_rejected(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        '''account_id of `..` is rejected.'''
+
+        manifests_dir = tmp_path / 'manifests'
+        manifests_dir.mkdir()
+        _write_manifest(manifests_dir / 'a.yaml', account_id='..', exp_slug='a')
+
+        monkeypatch.setattr('os.environ', self._env(
+            manifests_dir=manifests_dir,
+            state_base=tmp_path / 'state',
+            strategies_base_path=manifests_dir,
+        ))
+
+        with pytest.raises(RuntimeError, match='not a safe filesystem component'):
+            main()
+
+    def test_account_id_with_leading_dot_rejected(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        '''account_id starting with `.` is rejected (dotfile / path-escape).'''
+
+        manifests_dir = tmp_path / 'manifests'
+        manifests_dir.mkdir()
+        _write_manifest(manifests_dir / 'a.yaml', account_id='.hidden', exp_slug='a')
+
+        monkeypatch.setattr('os.environ', self._env(
+            manifests_dir=manifests_dir,
+            state_base=tmp_path / 'state',
+            strategies_base_path=manifests_dir,
+        ))
+
+        with pytest.raises(RuntimeError, match='not a safe filesystem component'):
             main()
 
     def test_env_suffix_collision_rejected(
