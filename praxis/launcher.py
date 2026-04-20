@@ -35,6 +35,7 @@ from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.market_data_poller import MarketDataPoller
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
@@ -494,10 +495,16 @@ def main() -> None:
     (non-alphanumeric -> `_`, uppercased).
     '''
 
-    logging.basicConfig(
-        level=os.environ.get('LOG_LEVEL', 'INFO'),
-        format='%(asctime)s %(levelname)s %(name)s %(message)s',
-    )
+    log_level = os.environ.get('LOG_LEVEL', 'INFO')
+    log_format = os.environ.get('LOG_FORMAT', 'json').lower()
+
+    if log_format == 'json':
+        configure_logging(log_level=log_level)
+    else:
+        logging.basicConfig(
+            level=log_level,
+            format='%(asctime)s %(levelname)s %(name)s %(message)s',
+        )
 
     env = dict(os.environ)
     _check_required_env(env)
@@ -555,6 +562,8 @@ def main() -> None:
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')
     healthz_port = int(port_raw) if port_raw else _DEFAULT_HEALTHZ_PORT
 
+    bind_context(epoch_id=trading_config.epoch_id)
+
     launcher = Launcher(
         trading_config=trading_config,
         instances=instances,
@@ -565,7 +574,6 @@ def main() -> None:
     _log.info(
         'launching praxis',
         extra={
-            'epoch_id': trading_config.epoch_id,
             'accounts': sorted(account_credentials.keys()),
             'state_base': str(state_base),
         },
