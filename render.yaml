@@ -18,9 +18,9 @@ services:
       - key: VENUE_WS_URL
         value: wss://stream.testnet.binance.vision:9443
       - key: MANIFESTS_DIR
-        value: /app/manifests
+        value: /var/lib/praxis/manifests
       - key: STRATEGIES_BASE_PATH
-        value: /app/strategies
+        value: /var/lib/praxis/strategies
       - key: STATE_BASE
         value: /var/lib/praxis
       - key: STRATEGY_STATE_BASE
