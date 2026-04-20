@@ -24,7 +24,7 @@ The image deliberately does **not** carry per-account manifests or strategy `.py
 |---|---|---|
 | `type` | `web` | Exposes an HTTPS URL so Render can probe `/healthz` |
 | `runtime` | `docker` | Builds from our `Dockerfile`, not Render's native Python runtime |
-| `region` | `singapore` | Closest POP to Binance Spot, reduces per-request latency |
+| `region` | `frankfurt` | Render POP for the deployment |
 | `plan` | `starter` | Explicit so dashboard misclicks can't silently up-plan |
 | `numInstances` | `1` | Two instances would double-submit every order |
 | `autoDeploy` | `false` | Pushing to `main` does not auto-deploy; operators trigger deploys manually |

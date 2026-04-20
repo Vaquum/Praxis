@@ -2,7 +2,7 @@ services:
   - type: web
     name: praxis
     runtime: docker
-    region: singapore
+    region: frankfurt
     plan: starter
     numInstances: 1
     autoDeploy: false

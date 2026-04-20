@@ -467,13 +467,13 @@ def _account_id_to_env_suffix(account_id: str) -> str:
 
 
 def _enumerate_manifests(manifests_dir: Path) -> list[Path]:
-    '''Return sorted list of manifest YAML paths in `manifests_dir`.'''
+    '''Return globally-sorted list of manifest YAML paths in `manifests_dir`.'''
 
     if not manifests_dir.is_dir():
         msg = f'MANIFESTS_DIR not a directory: {manifests_dir}'
         raise RuntimeError(msg)
 
-    paths = sorted(manifests_dir.glob('*.yaml')) + sorted(manifests_dir.glob('*.yml'))
+    paths = sorted(list(manifests_dir.glob('*.yaml')) + list(manifests_dir.glob('*.yml')))
     if not paths:
         msg = f'no manifest files (*.yaml/*.yml) found in {manifests_dir}'
         raise RuntimeError(msg)
@@ -519,11 +519,32 @@ def main() -> None:
 
     account_credentials: dict[str, tuple[str, str]] = {}
     instances: list[InstanceConfig] = []
+    seen_account_ids: dict[str, Path] = {}
+    seen_suffixes: dict[str, str] = {}
 
     for manifest_path in manifest_paths:
         manifest = load_manifest(manifest_path)
         account_id = manifest.account_id
         suffix = _account_id_to_env_suffix(account_id)
+
+        if account_id in seen_account_ids:
+            msg = (
+                f'duplicate account_id {account_id!r} across manifests: '
+                f'{seen_account_ids[account_id]} and {manifest_path}'
+            )
+            raise RuntimeError(msg)
+
+        if suffix in seen_suffixes and seen_suffixes[suffix] != account_id:
+            msg = (
+                f'env-var suffix collision: account_ids '
+                f'{seen_suffixes[suffix]!r} and {account_id!r} both normalize to '
+                f'{suffix!r}, causing ambiguous BINANCE_API_KEY_{suffix} lookup'
+            )
+            raise RuntimeError(msg)
+
+        seen_account_ids[account_id] = manifest_path
+        seen_suffixes[suffix] = account_id
+
         api_key = env.get(f'BINANCE_API_KEY_{suffix}')
         api_secret = env.get(f'BINANCE_API_SECRET_{suffix}')
 
