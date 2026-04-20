@@ -20,6 +20,7 @@ from typing import Any
 
 import aiosqlite
 import polars as pl
+from aiohttp import web
 
 from nexus.core.domain.enums import OperationalMode
 from nexus.infrastructure.manifest import load_manifest
@@ -52,6 +53,7 @@ _REQUIRED_ENV_VARS = (
     'STATE_BASE',
 )
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
+_DEFAULT_HEALTHZ_PORT = 8080
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,7 @@ class Launcher:
         event_spine: EventSpine | None = None,
         db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
+        healthz_port: int | None = None,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -106,12 +109,14 @@ class Launcher:
         self._db_conn: aiosqlite.Connection | None = None
         self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
+        self._healthz_port = healthz_port
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
         self._trading: Trading | None = None
         self._poller: MarketDataPoller | None = None
         self._nexus_threads: list[threading.Thread] = []
+        self._healthz_runner: web.AppRunner | None = None
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -119,13 +124,15 @@ class Launcher:
         Blocks until SIGINT/SIGTERM. Handles graceful shutdown.
         '''
 
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
 
         self._start_event_loop()
         self._start_trading()
         self._start_poller()
         self._start_nexus_instances()
+        self._start_healthz()
 
         _log.info('all nexus instances started', extra={'count': len(self._nexus_threads)})
 
@@ -187,6 +194,74 @@ class Launcher:
         self._poller = MarketDataPoller(kline_intervals=kline_intervals or {})
         self._poller.start()
 
+    def _start_healthz(self) -> None:
+        '''Start the /healthz HTTP listener on the launcher's asyncio loop.
+
+        Render polls this endpoint to decide whether to restart the
+        container. 200 means Trading is up, the loop thread is alive,
+        and every Nexus thread is alive; 503 otherwise.
+        '''
+
+        if self._healthz_port is None or self._loop is None:
+            return
+
+        future = asyncio.run_coroutine_threadsafe(
+            self._build_healthz_runner(self._healthz_port),
+            self._loop,
+        )
+        self._healthz_runner = future.result(timeout=10)
+        _log.info('healthz listener started', extra={'port': self._healthz_port})
+
+    def _stop_healthz(self) -> None:
+        '''Stop the /healthz listener; subsequent requests will refuse.'''
+
+        if self._healthz_runner is None or self._loop is None:
+            return
+
+        future = asyncio.run_coroutine_threadsafe(
+            self._healthz_runner.cleanup(),
+            self._loop,
+        )
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - best effort during shutdown
+            _log.exception('healthz cleanup failed')
+        self._healthz_runner = None
+
+    async def _build_healthz_runner(self, port: int) -> web.AppRunner:
+        app = web.Application()
+        app.router.add_get('/healthz', self._healthz_handler)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, host='0.0.0.0', port=port)  # noqa: S104
+        await site.start()
+        return runner
+
+    async def _healthz_handler(self, _request: web.Request) -> web.Response:
+        failures: list[str] = []
+
+        if self._stop_event.is_set():
+            failures.append('shutting_down')
+
+        if self._trading is None or not self._trading.started:
+            failures.append('trading_not_started')
+
+        if self._loop_thread is None or not self._loop_thread.is_alive():
+            failures.append('loop_thread_dead')
+
+        dead_nexus = [
+            t.name for t in self._nexus_threads if not t.is_alive()
+        ]
+        if dead_nexus:
+            failures.append(f'nexus_threads_dead:{",".join(dead_nexus)}')
+
+        if failures:
+            return web.json_response(
+                {'status': 'unhealthy', 'failures': failures},
+                status=503,
+            )
+        return web.json_response({'status': 'ok'})
+
     def _start_nexus_instances(self) -> None:
         if self._trading is None or self._loop is None:
             msg = 'trading not started'
@@ -206,6 +281,8 @@ class Launcher:
             thread.start()
 
     def _shutdown(self) -> None:
+        self._stop_healthz()
+
         for thread in self._nexus_threads:
             thread.join(timeout=30)
 
@@ -475,10 +552,14 @@ def main() -> None:
         shutdown_timeout=float(env.get('SHUTDOWN_TIMEOUT', _DEFAULT_SHUTDOWN_TIMEOUT)),
     )
 
+    port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')
+    healthz_port = int(port_raw) if port_raw else _DEFAULT_HEALTHZ_PORT
+
     launcher = Launcher(
         trading_config=trading_config,
         instances=instances,
         db_path=state_base / 'event_spine.sqlite',
+        healthz_port=healthz_port,
     )
 
     _log.info(

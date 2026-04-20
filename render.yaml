@@ -29,6 +29,8 @@ services:
         value: "30"
       - key: LOG_LEVEL
         value: INFO
+      - key: HEALTHZ_PORT
+        value: "8080"
       - key: BINANCE_API_KEY_ACCT_001
         sync: false
       - key: BINANCE_API_SECRET_ACCT_001
