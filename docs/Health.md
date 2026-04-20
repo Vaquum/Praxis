@@ -2,6 +2,15 @@
 
 This page explains how Praxis exposes Trading sub-system health to the Manager so the Manager can decide when to throttle, reduce, or halt.
 
+## Two Different Health Concepts
+
+Praxis has two distinct health signals with different consumers:
+
+- `HealthSnapshot` (this page): per-account **trading** health — latency, failure rate, clock drift. Pulled by the Manager on a timer to drive operational-mode decisions (ACTIVE, REDUCE_ONLY, HALT).
+- `/healthz` (see [Launcher §Healthz](Launcher.md#healthz)): whole-process **liveness** — is Trading up, is the loop thread alive, are the Nexus threads alive. Probed by the platform (Render) to decide whether to restart the container.
+
+They should not be conflated. A process can be live (`/healthz` 200) but trading-unhealthy (elevated `HealthSnapshot.failure_rate`), in which case the Manager throttles. A process with a crashed Nexus thread will fail `/healthz` and be restarted by the platform.
+
 ## What The Health Snapshot Is
 
 `praxis/core/domain/health_snapshot.py` defines `HealthSnapshot`: a frozen point-in-time view of one trading account's REST execution health. Every value is bounded so it can drive a deterministic Manager-side policy without further validation.

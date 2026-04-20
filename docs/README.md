@@ -47,7 +47,7 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 ## Docs Map
 
 - `Overview`: [Product Home](../README.md), [this docs hub](README.md)
-- `Guides`: [Setup And Verification](Setup-And-Verification.md), [Launcher](Launcher.md), [Trading](Trading.md), [Trade Lifecycle](Trade-Lifecycle.md), [Binance Spot Testnet](Binance-Spot-Testnet.md)
+- `Guides`: [Setup And Verification](Setup-And-Verification.md), [Launcher](Launcher.md), [Deployment On Render](Deployment-Render.md), [Trading](Trading.md), [Trade Lifecycle](Trade-Lifecycle.md), [Binance Spot Testnet](Binance-Spot-Testnet.md)
 - `Reference`: [Execution Manager](Execution-Manager.md), [Event Spine](Event-Spine.md), [Trading State](Trading-State.md), [Venue Adapter](Venue-Adapter.md), [Recovery And Reconciliation](Recovery-And-Reconciliation.md), [Trade Outcomes](Trade-Outcomes.md), [Slippage And Order Book](Slippage-And-Order-Book.md)
 - `Developer`: [Developer Home](Developer/README.md), [Documentation System](Developer/Documentation-System.md)
 - `Operations`: [Technical Debt](TechnicalDebt.md)
