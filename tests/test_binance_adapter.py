@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1595,8 +1595,8 @@ class TestParseVenueTrade:
 
         adapter = _make_adapter()
         result = adapter._parse_venue_trade(_BINANCE_TRADE_RESPONSE)
-        assert result.timestamp.tzinfo == timezone.utc
-        expected = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        assert result.timestamp.tzinfo == UTC
+        expected = datetime.fromtimestamp(1700000000, tz=UTC)
         assert result.timestamp == expected
 
     def test_is_maker_true(self) -> None:
@@ -1639,7 +1639,7 @@ class TestQueryTrades:
 
         adapter = _make_adapter()
         _patch_session(adapter, _mock_response(200, []))
-        start = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        start = datetime.fromtimestamp(1700000000, tz=UTC)
         await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=start)
         call_args = adapter._session.request.call_args  # type: ignore[union-attr]
         url = call_args[0][1]
@@ -2207,16 +2207,16 @@ class TestParseExecutionReport:
 
         adapter = _make_adapter()
         result = adapter.parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
-        assert result.event_time.tzinfo == timezone.utc
-        expected = datetime.fromtimestamp(1700000000, tz=timezone.utc)
+        assert result.event_time.tzinfo == UTC
+        expected = datetime.fromtimestamp(1700000000, tz=UTC)
         assert result.event_time == expected
 
     def test_transaction_time_is_utc(self) -> None:
 
         adapter = _make_adapter()
         result = adapter.parse_execution_report(_BINANCE_EXECUTION_REPORT_TRADE)
-        assert result.transaction_time.tzinfo == timezone.utc
-        expected = datetime.fromtimestamp(1700000001, tz=timezone.utc)
+        assert result.transaction_time.tzinfo == UTC
+        expected = datetime.fromtimestamp(1700000001, tz=UTC)
         assert result.transaction_time == expected
 
     def test_new_order_no_fill(self) -> None:

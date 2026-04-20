@@ -4,7 +4,7 @@ Tests for TradeCommand, TradeAbort, SingleShotParams, and new enums.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 
@@ -21,7 +21,7 @@ from praxis.core.domain import (
     TradeCommand,
 )
 
-_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _command(

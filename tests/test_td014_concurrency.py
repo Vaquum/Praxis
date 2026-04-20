@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
@@ -34,7 +34,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueAdapter,
 )
 
-_TS = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2099, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-concurrent'
 _TRADE = 'trade-concurrent'
 _EPOCH = 1

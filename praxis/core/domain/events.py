@@ -12,7 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TypeAlias
 
 from praxis.core.domain._require_str import _require_str
 from praxis.core.domain.enums import OrderSide, OrderType, TradeStatus
@@ -417,7 +416,7 @@ class TradeOutcomeProduced(_EventBase):
         _require_str(name, 'trade_id', self.trade_id)
         _require_str(name, 'reason', self.reason, optional=True)
 
-Event: TypeAlias = (
+type Event = (
     CommandAccepted
     | OrderSubmitIntent
     | OrderSubmitted

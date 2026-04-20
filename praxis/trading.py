@@ -5,7 +5,7 @@ import logging
 import queue
 import threading
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any, cast
 
@@ -514,7 +514,7 @@ class Trading:
         if trading_state is None:
             return
 
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
         event: OrderCanceled | OrderExpired | OrderRejected | None = None
 
         if venue_order.status == OrderStatus.CANCELED:

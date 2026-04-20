@@ -5,7 +5,7 @@ Tests for praxis.infrastructure.event_spine.EventSpine.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 
 import pytest
@@ -26,7 +26,7 @@ from praxis.core.domain.events import (
 )
 from praxis.infrastructure.event_spine import EventSpine
 
-_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2026, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
 _CMD = 'cmd-1'
 _TRADE = 'trade-1'

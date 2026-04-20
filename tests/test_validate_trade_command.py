@@ -4,7 +4,7 @@ Tests for praxis.core.validate_trade_command.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 
 import pytest
@@ -21,7 +21,7 @@ from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
-_NOW = datetime.now(timezone.utc)
+_NOW = datetime.now(UTC)
 
 
 def _cmd(

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 from typing import cast
@@ -32,7 +32,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueAdapter,
 )
 
-_TS = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2099, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
 _TRADE = 'trade-1'
 _EPOCH = 1

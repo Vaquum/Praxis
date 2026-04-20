@@ -6,7 +6,7 @@ This page describes how Praxis is deployed as a long-running service on Render â
 
 `Dockerfile` at the repo root builds a container image:
 
-- base: `python:3.10-slim`
+- base: `python:3.12-slim`
 - installs `git` (required for the git-sourced `pyproject.toml` deps â€” Binancial, Limen, Nexus)
 - installs the Praxis package with `pip install .` (pulls in all transitive deps)
 - runs as a non-root `praxis` user (uid 1000)

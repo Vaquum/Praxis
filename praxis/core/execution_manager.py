@@ -15,7 +15,7 @@ import logging
 import threading
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 
 from praxis.core.domain.enums import (
@@ -522,7 +522,7 @@ class ExecutionManager:
 
         event = CommandAccepted(
             account_id=account_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             command_id=command_id,
             trade_id=trade_id,
             strategy_id=strategy_id,
@@ -714,7 +714,7 @@ class ExecutionManager:
             cmd.command_id,
             sequence=0,
         )
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         intent = OrderSubmitIntent(
             account_id=cmd.account_id,
@@ -746,11 +746,11 @@ class ExecutionManager:
                 stop_limit_price=cmd.execution_params.stop_limit_price,
                 client_order_id=client_order_id,
             )
-            post_venue_ts = datetime.now(timezone.utc)
+            post_venue_ts = datetime.now(UTC)
         except VenueError as exc:
             failed = OrderSubmitFailed(
                 account_id=cmd.account_id,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 client_order_id=client_order_id,
                 reason=str(exc.args[0]),
             )
@@ -985,7 +985,7 @@ class ExecutionManager:
         if cancel_confirmed:
             canceled = OrderCanceled(
                 account_id=order.account_id,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 client_order_id=order.client_order_id,
                 venue_order_id=venue_order_id,
                 reason=abort.reason,
@@ -1042,7 +1042,7 @@ class ExecutionManager:
             TradeOutcome: CANCELED outcome.
         '''
 
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
 
         outcome = TradeOutcome(
             command_id=order.command_id,
@@ -1119,7 +1119,7 @@ class ExecutionManager:
             TradeOutcome: The constructed outcome.
         '''
 
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
 
         outcome = TradeOutcome(
             command_id=cmd.command_id,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import TypedDict
 import pytest
@@ -35,7 +35,7 @@ class _SubmitCommandKwargs(TypedDict):
     created_at: datetime
 
 
-_CREATED_AT = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_CREATED_AT = datetime(2099, 1, 1, tzinfo=UTC)
 _SUBMIT_COMMAND_KWARGS: _SubmitCommandKwargs = {
     'trade_id': 'trade-1',
     'account_id': 'acc-1',

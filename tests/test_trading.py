@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import cast
 
@@ -56,7 +56,7 @@ from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
 
-_CREATED_AT = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_CREATED_AT = datetime(2099, 1, 1, tzinfo=UTC)
 
 
 class _InjectedVenueAdapter:
@@ -1830,7 +1830,7 @@ async def test_outcome_routing_to_correct_queue(spine: EventSpine) -> None:
         slices_completed=1,
         slices_total=1,
         reason=None,
-        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
     )
     outcome2 = TradeOutcome(
         command_id='cmd-2',
@@ -1843,7 +1843,7 @@ async def test_outcome_routing_to_correct_queue(spine: EventSpine) -> None:
         slices_completed=0,
         slices_total=1,
         reason='insufficient balance',
-        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
     )
 
     trading.route_outcome(outcome1)
@@ -1872,7 +1872,7 @@ async def test_outcome_routing_unknown_account_drops(spine: EventSpine) -> None:
         slices_completed=1,
         slices_total=1,
         reason=None,
-        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
     )
 
     trading.route_outcome(outcome)
@@ -1901,7 +1901,7 @@ async def test_unregister_outcome_queue(spine: EventSpine) -> None:
         slices_completed=1,
         slices_total=1,
         reason=None,
-        created_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
     )
 
     trading.route_outcome(outcome)

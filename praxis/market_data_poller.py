@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 import polars as pl
 from binance.client import Client
@@ -240,7 +240,7 @@ class MarketDataPoller:
 
     def _fetch(self, kline_size: int) -> None:
         try:
-            start_dt = datetime.now(tz=timezone.utc) - timedelta(
+            start_dt = datetime.now(tz=UTC) - timedelta(
                 seconds=kline_size * self._n_rows,
             )
             start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')

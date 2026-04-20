@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 
 import pytest
@@ -26,8 +26,8 @@ from praxis.core.domain.events import (
 )
 from praxis.core.trading_state import TradingState
 
-_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
-_TS2 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
+_TS = datetime(2026, 1, 1, tzinfo=UTC)
+_TS2 = datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
 _CMD = 'cmd-1'
 _TRADE = 'trade-1'

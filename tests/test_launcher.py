@@ -9,7 +9,7 @@ import asyncio
 import queue
 import threading
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
@@ -276,7 +276,7 @@ class TestLauncherLifecycle:
                 reference_price=None,
                 maker_preference=MakerPreference.NO_PREFERENCE,
                 stp_mode=STPMode.NONE,
-                created_at=datetime.now(tz=timezone.utc),
+                created_at=datetime.now(tz=UTC),
             ),
             launcher._loop,
         )
@@ -352,7 +352,7 @@ class TestLauncherLifecycle:
             slices_completed=1,
             slices_total=1,
             reason=None,
-            created_at=datetime.now(tz=timezone.utc),
+            created_at=datetime.now(tz=UTC),
         )
 
         launcher._trading.route_outcome(outcome)
@@ -438,7 +438,7 @@ class TestLauncherLifecycle:
                 reference_price=None,
                 maker_preference=MakerPreference.NO_PREFERENCE,
                 stp_mode=STPMode.NONE,
-                created_at=datetime.now(tz=timezone.utc),
+                created_at=datetime.now(tz=UTC),
                 strategy_id='momentum_v1',
             ),
             launcher._loop,
@@ -454,7 +454,7 @@ class TestLauncherLifecycle:
 
         fill = FillReceived(
             account_id='test-acc',
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             client_order_id=client_order_id,
             venue_order_id='venue-mock-1',
             venue_trade_id='vtrade-1',

@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -42,8 +42,8 @@ from praxis.infrastructure.venue_adapter import (
     VenueAdapter,
 )
 
-_TS = datetime(2099, 1, 1, tzinfo=timezone.utc)
-_PAST_TS = datetime(2020, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2099, 1, 1, tzinfo=UTC)
+_PAST_TS = datetime(2020, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
 _ACCT2 = 'acc-2'
 _TRADE = 'trade-1'
@@ -1020,7 +1020,7 @@ class TestDeadlineHandling:
             command_id=command_id,
             account_id=_ACCT,
             reason='user cancel',
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         mgr.submit_abort(abort)
         callback.assert_awaited_once()
