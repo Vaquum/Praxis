@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: praxis
+    runtime: docker
+    region: singapore
+    plan: starter
+    numInstances: 1
+    autoDeploy: false
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: EPOCH_ID
+        value: "1"
+      - key: VENUE_REST_URL
+        value: https://testnet.binance.vision
+      - key: VENUE_WS_URL
+        value: wss://stream.testnet.binance.vision:9443
+      - key: MANIFESTS_DIR
+        value: /app/manifests
+      - key: STRATEGIES_BASE_PATH
+        value: /app/strategies
+      - key: STATE_BASE
+        value: /var/lib/praxis
+      - key: STRATEGY_STATE_BASE
+        value: /var/lib/praxis/strategy_state
+      - key: SHUTDOWN_TIMEOUT
+        value: "30"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: BINANCE_API_KEY_ACCT_001
+        sync: false
+      - key: BINANCE_API_SECRET_ACCT_001
+        sync: false
+    disk:
+      name: praxis-state
+      mountPath: /var/lib/praxis
+      sizeGB: 10
