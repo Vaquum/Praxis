@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vaquum-praxis"
-version = "0.40.0"
+version = "0.41.0"
 description = "Execution system for Vaquum — Trading sub-system + Account sub-system."
 readme = "README.md"
 authors = [
   { name = "Arun Raguraman", email = "arun@vaquum.fi" },
 ]
 license = { text = "MIT" }
-requires-python = ">=3.10"
-dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "quickstart_etl @ git+https://github.com/Vaquum/tdw-control-plane", "vaquum_limen @ git+https://github.com/Vaquum/Limen", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus"]
+requires-python = ">=3.12"
+dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "pandas>=2.0", "binancial @ git+https://github.com/Vaquum/Binancial", "vaquum_limen @ git+https://github.com/Vaquum/Limen", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus"]
 
 [project.optional-dependencies]
 dev = [
@@ -33,7 +33,7 @@ include = ["praxis*"]
 exclude = ["tests*", "scripts*"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 line-length = 88
 fix = false
 
@@ -117,7 +117,7 @@ section-order = [
 convention = "google"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

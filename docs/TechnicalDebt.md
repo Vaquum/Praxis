@@ -40,3 +40,16 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 **When to fix**: Before clock-drift thresholds are tightened past round-trip noise (current `clock_drift_max_ms` default in Nexus is 500 ms, which absorbs typical asymmetry).
 **Migration**: Use a multi-sample method such as Cristian's algorithm with a minimum-RTT round, or rely on system NTP and report the offset reported by the OS instead of probing the venue.
+
+---
+
+## TD-019: MarketDataPoller refetches the full window on every tick
+
+**Origin**: PR #72 (Copilot review)
+**Severity**: Low for MMVP paper trading; moderate at production cadence
+**Module**: `praxis/market_data_poller.py`
+
+`_fetch()` computes `start_date` as `now - n_rows * kline_size` on every poll and refetches the full window (default `n_rows=5000`). At short polling intervals this generates unnecessary REST traffic and can press against Binance rate limits once multiple `kline_size` buckets or multiple accounts share the poller. The current behavior predates this PR; the binancial migration preserved the same pattern.
+
+**When to fix**: Before increasing poll frequency, adding multiple `kline_size` buckets, or going live on mainnet.
+**Migration**: Track the highest `close_time` already in `_data[kline_size]` and refetch only from there forward, merging new rows into the in-memory DataFrame. Deduplicate on `close_time` to handle the always-partial last candle. Cap stored history at `n_rows` rolling.

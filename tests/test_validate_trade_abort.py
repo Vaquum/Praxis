@@ -4,14 +4,14 @@ Tests for praxis.core.validate_trade_abort.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import pytest
 
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.validate_trade_abort import validate_trade_abort
 
-_NOW = datetime.now(timezone.utc)
+_NOW = datetime.now(UTC)
 
 _ACCEPTED: dict[str, str] = {
     'cmd-001': 'acct-A',

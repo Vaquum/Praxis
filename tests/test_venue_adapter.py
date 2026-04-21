@@ -4,7 +4,7 @@ Tests for praxis.infrastructure.venue_adapter protocol and response types.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 
@@ -31,7 +31,7 @@ from praxis.infrastructure.venue_adapter import (
 )
 
 
-_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2026, 1, 1, tzinfo=UTC)
 _BINANCE_DUPLICATE_ORDER_CODE = -2010
 
 

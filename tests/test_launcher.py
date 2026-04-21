@@ -9,7 +9,7 @@ import asyncio
 import queue
 import threading
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
@@ -134,13 +134,21 @@ class MockVenueAdapter:
         raise NotImplementedError
 
 
-def _make_manifest_yaml(tmp_path: Path, exp_dir: Path) -> Path:
+def _make_manifest_yaml(
+    tmp_path: Path,
+    exp_dir: Path,
+    account_id: str = 'test-acc',
+    allocated_capital: int = 10000,
+    capital_pool: int = 10000,
+) -> Path:
     manifest_path = tmp_path / 'manifest.yaml'
     strategy_file = tmp_path / 'strat.py'
     strategy_file.write_text(VALID_STRATEGY)
 
     manifest_path.write_text(
-        f'capital_pool: 10000\n'
+        f'account_id: {account_id}\n'
+        f'allocated_capital: {allocated_capital}\n'
+        f'capital_pool: {capital_pool}\n'
         f'strategies:\n'
         f'  - id: test_strat\n'
         f'    file: strat.py\n'
@@ -172,7 +180,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
@@ -224,7 +231,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
@@ -270,7 +276,7 @@ class TestLauncherLifecycle:
                 reference_price=None,
                 maker_preference=MakerPreference.NO_PREFERENCE,
                 stp_mode=STPMode.NONE,
-                created_at=datetime.now(tz=timezone.utc),
+                created_at=datetime.now(tz=UTC),
             ),
             launcher._loop,
         )
@@ -300,7 +306,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
@@ -347,7 +352,7 @@ class TestLauncherLifecycle:
             slices_completed=1,
             slices_total=1,
             reason=None,
-            created_at=datetime.now(tz=timezone.utc),
+            created_at=datetime.now(tz=UTC),
         )
 
         launcher._trading.route_outcome(outcome)
@@ -389,7 +394,6 @@ class TestLauncherLifecycle:
             account_id='test-acc',
             manifest_path=manifest_path,
             strategies_base_path=tmp_path,
-            allocated_capital=Decimal('10000'),
             state_dir=state_dir,
         )
 
@@ -434,7 +438,7 @@ class TestLauncherLifecycle:
                 reference_price=None,
                 maker_preference=MakerPreference.NO_PREFERENCE,
                 stp_mode=STPMode.NONE,
-                created_at=datetime.now(tz=timezone.utc),
+                created_at=datetime.now(tz=UTC),
                 strategy_id='momentum_v1',
             ),
             launcher._loop,
@@ -450,7 +454,7 @@ class TestLauncherLifecycle:
 
         fill = FillReceived(
             account_id='test-acc',
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             client_order_id=client_order_id,
             venue_order_id='venue-mock-1',
             venue_trade_id='vtrade-1',

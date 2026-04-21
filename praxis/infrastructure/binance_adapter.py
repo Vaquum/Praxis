@@ -19,7 +19,7 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
@@ -861,7 +861,7 @@ class BinanceAdapter:
             fee_asset=data['commissionAsset'],
             is_maker=data['isMaker'],
             timestamp=datetime.fromtimestamp(
-                data['time'] / _MS_PER_SECOND, tz=timezone.utc,
+                data['time'] / _MS_PER_SECOND, tz=UTC,
             ),
         )
 
@@ -1623,7 +1623,7 @@ class BinanceAdapter:
 
         return ExecutionReport(
             event_time=datetime.fromtimestamp(
-                data['E'] / _MS_PER_SECOND, tz=timezone.utc,
+                data['E'] / _MS_PER_SECOND, tz=UTC,
             ),
             symbol=data['s'],
             client_order_id=data['c'],
@@ -1641,7 +1641,7 @@ class BinanceAdapter:
             commission=Decimal(data['n']),
             commission_asset=data.get('N'),
             transaction_time=datetime.fromtimestamp(
-                data['T'] / _MS_PER_SECOND, tz=timezone.utc,
+                data['T'] / _MS_PER_SECOND, tz=UTC,
             ),
             venue_trade_id=str(data['t']) if data['t'] != _BINANCE_NO_TRADE_ID else None,
             is_maker=data['m'],

@@ -1,8 +1,8 @@
 '''Shared market data poller for Nexus signal generation.
 
-Periodically fetches klines from TDW per unique kline_size
-and provides thread-safe read access for Nexus instances.
-Each kline_size has its own poll interval and thread.
+Periodically fetches klines from Binance spot REST per unique
+kline_size and provides thread-safe read access for Nexus
+instances. Each kline_size has its own poll interval and thread.
 Supports runtime addition and removal of kline_sizes.
 '''
 
@@ -11,14 +11,17 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
+from datetime import datetime, timedelta, UTC
 
 import polars as pl
-
-from tdw_control_plane.query.get_binance_spot_klines import get_binance_spot_klines
+from binance.client import Client
+from binancial.compute.get_spot_klines import get_spot_klines
 
 __all__ = ['MarketDataPoller']
 
 _log = logging.getLogger(__name__)
+
+_BINANCE_SYMBOL = 'BTCUSDT'
 
 
 @dataclass
@@ -30,14 +33,15 @@ class _PollerThread:
 
 
 class MarketDataPoller:
-    '''Thread-based poller fetching klines from TDW.
+    '''Thread-based poller building klines from Binance spot REST trades.
 
     Each kline_size is polled at its own interval. Supports runtime
     addition and removal of kline_sizes without restarting.
 
     Args:
         kline_intervals: Initial mapping of kline_size (seconds) to poll interval (seconds).
-        n_rows: Max rows per kline query.
+        n_rows: Number of klines to keep per kline_size. The fetch start date
+            is computed as `now - n_rows * kline_size` seconds.
     '''
 
     def __init__(
@@ -219,17 +223,38 @@ class MarketDataPoller:
         thread.start()
 
     def _poll_loop(self, kline_size: int, interval: int, stop_event: threading.Event) -> None:
-        self._fetch(kline_size)
+        # Per-thread Binance client: public klines only, no credentials.
+        # One client per poller thread avoids sharing a requests.Session
+        # across threads. ping=False skips python-binance's default startup
+        # health call against Binance — we only need the client for signed
+        # or unsigned REST calls made explicitly by `get_spot_klines`.
+        try:
+            client = Client(None, None, ping=False)
+        except Exception:  # noqa: BLE001 - thread-top exception; log and exit
+            _log.exception(
+                'failed to create Binance client; poller thread exiting',
+                extra={'kline_size': kline_size},
+            )
+            return
+
+        self._fetch(kline_size, client)
 
         while not stop_event.wait(timeout=interval):
-            self._fetch(kline_size)
+            self._fetch(kline_size, client)
 
-    def _fetch(self, kline_size: int) -> None:
+    def _fetch(self, kline_size: int, client: Client) -> None:
         try:
-            df = get_binance_spot_klines(
-                kline_size=kline_size,
-                n_rows=self._n_rows,
+            start_dt = datetime.now(tz=UTC) - timedelta(
+                seconds=kline_size * self._n_rows,
             )
+            start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+            df_pd = get_spot_klines(
+                client,
+                symbol=_BINANCE_SYMBOL,
+                kline_size=kline_size,
+                start_date=start_str,
+            )
+            df = pl.from_pandas(df_pd)
 
             with self._lock:
                 self._data[kline_size] = df

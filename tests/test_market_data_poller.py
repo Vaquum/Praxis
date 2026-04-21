@@ -3,28 +3,46 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from unittest.mock import patch
 
-import polars as pl
+import pandas as pd
 
 from praxis.market_data_poller import MarketDataPoller
 
 
-def _mock_klines(**_kwargs: object) -> pl.DataFrame:
-    return pl.DataFrame({
-        'datetime': [1000, 2000],
+def _mock_klines(*_args: object, **_kwargs: object) -> pd.DataFrame:
+    return pd.DataFrame({
+        'open_time': [1000, 2000],
         'open': [70000.0, 70100.0],
         'high': [71000.0, 71100.0],
         'low': [69000.0, 69100.0],
         'close': [70500.0, 70600.0],
         'volume': [100.0, 110.0],
+        'close_time': [1059, 2059],
+        'qav': [0.0, 0.0],
+        'num_trades': [10, 11],
+        'taker_base_vol': [50.0, 55.0],
+        'taker_quote_vol': [50.0, 55.0],
+        'ignore': [0.0, 0.0],
     })
+
+
+def _wait_until(predicate: Callable[[], bool], deadline: float = 5.0, step: float = 0.05) -> bool:
+    '''Block until predicate() returns True, up to deadline seconds.'''
+
+    while deadline > 0:
+        if predicate():
+            return True
+        time.sleep(step)
+        deadline -= step
+    return predicate()
 
 
 class TestMarketDataPoller:
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_start_and_stop(self, _mock: object) -> None:
@@ -39,7 +57,7 @@ class TestMarketDataPoller:
         assert poller.running is False
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_fetches_data_on_start(self, _mock: object) -> None:
@@ -48,7 +66,7 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60})
 
         poller.start()
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         df = poller.get_market_data(3600)
         assert not df.is_empty()
@@ -57,7 +75,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_unknown_kline_size_returns_empty(self, _mock: object) -> None:
@@ -66,7 +84,7 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60})
 
         poller.start()
-        time.sleep(0.5)
+        _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         df = poller.get_market_data(900)
         assert df.is_empty()
@@ -74,7 +92,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_multiple_kline_sizes(self, _mock: object) -> None:
@@ -83,18 +101,18 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60, 900: 15})
 
         poller.start()
-        time.sleep(0.5)
+        assert _wait_until(
+            lambda: not poller.get_market_data(3600).is_empty()
+            and not poller.get_market_data(900).is_empty(),
+        )
 
-        df_3600 = poller.get_market_data(3600)
-        df_900 = poller.get_market_data(900)
-
-        assert not df_3600.is_empty()
-        assert not df_900.is_empty()
+        assert not poller.get_market_data(3600).is_empty()
+        assert not poller.get_market_data(900).is_empty()
 
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=RuntimeError('connection failed'),
     )
     def test_fetch_error_does_not_crash(self, _mock: object) -> None:
@@ -103,7 +121,8 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60})
 
         poller.start()
-        time.sleep(0.5)
+        # Give the poller thread a moment to execute the failing fetch.
+        _wait_until(lambda: False, deadline=0.3)
 
         assert poller.running is True
         df = poller.get_market_data(3600)
@@ -112,7 +131,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_per_kline_size_threads(self, _mock: object) -> None:
@@ -129,7 +148,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_add_kline_size_at_runtime(self, _mock: object) -> None:
@@ -141,7 +160,7 @@ class TestMarketDataPoller:
         assert poller.get_market_data(3600).is_empty()
 
         poller.add_kline_size(3600, 60)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         df = poller.get_market_data(3600)
         assert not df.is_empty()
@@ -149,7 +168,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_remove_kline_size_at_runtime(self, _mock: object) -> None:
@@ -157,7 +176,7 @@ class TestMarketDataPoller:
 
         poller = MarketDataPoller(kline_intervals={3600: 60})
         poller.start()
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         assert not poller.get_market_data(3600).is_empty()
 
@@ -169,7 +188,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_add_duplicate_increments_refcount(self, _mock: object) -> None:
@@ -187,7 +206,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_remove_with_remaining_refs_keeps_thread(self, _mock: object) -> None:
@@ -198,7 +217,7 @@ class TestMarketDataPoller:
 
         poller.add_kline_size(3600, 60)
         poller.add_kline_size(3600, 60)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         poller.remove_kline_size(3600)
 
@@ -209,7 +228,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_remove_last_ref_stops_thread(self, _mock: object) -> None:
@@ -220,7 +239,7 @@ class TestMarketDataPoller:
 
         poller.add_kline_size(3600, 60)
         poller.add_kline_size(3600, 60)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         poller.remove_kline_size(3600)
         poller.remove_kline_size(3600)
@@ -231,7 +250,7 @@ class TestMarketDataPoller:
         poller.stop()
 
     @patch(
-        'praxis.market_data_poller.get_binance_spot_klines',
+        'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
     )
     def test_start_empty_then_add(self, _mock: object) -> None:
@@ -244,7 +263,7 @@ class TestMarketDataPoller:
         assert len(poller._pollers) == 0
 
         poller.add_kline_size(900, 15)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(900).is_empty())
 
         assert not poller.get_market_data(900).is_empty()
 

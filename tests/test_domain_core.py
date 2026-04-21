@@ -4,7 +4,7 @@ Tests for praxis.core.domain dataclasses and enums.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 
@@ -19,7 +19,7 @@ from praxis.core.domain import (
     Position,
 )
 
-_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _fill(
@@ -303,7 +303,7 @@ def test_order_rejects_naive_created_at() -> None:
             stop_price=None,
             status=OrderStatus.SUBMITTING,
             created_at=datetime(2026, 1, 1),
-            updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
 
@@ -324,7 +324,7 @@ def test_order_rejects_naive_updated_at() -> None:
             price=Decimal('50000.00'),
             stop_price=None,
             status=OrderStatus.SUBMITTING,
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
             updated_at=datetime(2026, 1, 1),
         )
 

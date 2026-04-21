@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
@@ -23,7 +23,7 @@ from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import SubmitResult, VenueAdapter
 
-_TS = datetime(2099, 1, 1, tzinfo=timezone.utc)
+_TS = datetime(2099, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
 _EPOCH = 1
 _CMD_KWARGS: dict[str, Any] = {
