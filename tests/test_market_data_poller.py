@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from unittest.mock import patch
 
 import pandas as pd
@@ -25,6 +26,17 @@ def _mock_klines(*_args: object, **_kwargs: object) -> pd.DataFrame:
         'taker_quote_vol': [50.0, 55.0],
         'ignore': [0.0, 0.0],
     })
+
+
+def _wait_until(predicate: Callable[[], bool], deadline: float = 5.0, step: float = 0.05) -> bool:
+    '''Block until predicate() returns True, up to deadline seconds.'''
+
+    while deadline > 0:
+        if predicate():
+            return True
+        time.sleep(step)
+        deadline -= step
+    return predicate()
 
 
 class TestMarketDataPoller:
@@ -54,7 +66,7 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60})
 
         poller.start()
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         df = poller.get_market_data(3600)
         assert not df.is_empty()
@@ -72,7 +84,7 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60})
 
         poller.start()
-        time.sleep(0.5)
+        _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         df = poller.get_market_data(900)
         assert df.is_empty()
@@ -89,19 +101,13 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60, 900: 15})
 
         poller.start()
+        assert _wait_until(
+            lambda: not poller.get_market_data(3600).is_empty()
+            and not poller.get_market_data(900).is_empty(),
+        )
 
-        deadline = 5.0
-        step = 0.05
-        while deadline > 0:
-            df_3600 = poller.get_market_data(3600)
-            df_900 = poller.get_market_data(900)
-            if not df_3600.is_empty() and not df_900.is_empty():
-                break
-            time.sleep(step)
-            deadline -= step
-
-        assert not df_3600.is_empty()
-        assert not df_900.is_empty()
+        assert not poller.get_market_data(3600).is_empty()
+        assert not poller.get_market_data(900).is_empty()
 
         poller.stop()
 
@@ -115,7 +121,8 @@ class TestMarketDataPoller:
         poller = MarketDataPoller(kline_intervals={3600: 60})
 
         poller.start()
-        time.sleep(0.5)
+        # Give the poller thread a moment to execute the failing fetch.
+        _wait_until(lambda: False, deadline=0.3)
 
         assert poller.running is True
         df = poller.get_market_data(3600)
@@ -153,7 +160,7 @@ class TestMarketDataPoller:
         assert poller.get_market_data(3600).is_empty()
 
         poller.add_kline_size(3600, 60)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         df = poller.get_market_data(3600)
         assert not df.is_empty()
@@ -169,7 +176,7 @@ class TestMarketDataPoller:
 
         poller = MarketDataPoller(kline_intervals={3600: 60})
         poller.start()
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         assert not poller.get_market_data(3600).is_empty()
 
@@ -210,7 +217,7 @@ class TestMarketDataPoller:
 
         poller.add_kline_size(3600, 60)
         poller.add_kline_size(3600, 60)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         poller.remove_kline_size(3600)
 
@@ -232,7 +239,7 @@ class TestMarketDataPoller:
 
         poller.add_kline_size(3600, 60)
         poller.add_kline_size(3600, 60)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(3600).is_empty())
 
         poller.remove_kline_size(3600)
         poller.remove_kline_size(3600)
@@ -256,7 +263,7 @@ class TestMarketDataPoller:
         assert len(poller._pollers) == 0
 
         poller.add_kline_size(900, 15)
-        time.sleep(0.5)
+        assert _wait_until(lambda: not poller.get_market_data(900).is_empty())
 
         assert not poller.get_market_data(900).is_empty()
 
