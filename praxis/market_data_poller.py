@@ -225,8 +225,17 @@ class MarketDataPoller:
     def _poll_loop(self, kline_size: int, interval: int, stop_event: threading.Event) -> None:
         # Per-thread Binance client: public klines only, no credentials.
         # One client per poller thread avoids sharing a requests.Session
-        # across threads for the concurrent REST path.
-        client = Client(None, None)
+        # across threads. ping=False skips python-binance's default startup
+        # health call against Binance — we only need the client for signed
+        # or unsigned REST calls made explicitly by `get_spot_klines`.
+        try:
+            client = Client(None, None, ping=False)
+        except Exception:  # noqa: BLE001 - thread-top exception; log and exit
+            _log.exception(
+                'failed to create Binance client; poller thread exiting',
+                extra={'kline_size': kline_size},
+            )
+            return
 
         self._fetch(kline_size, client)
 
