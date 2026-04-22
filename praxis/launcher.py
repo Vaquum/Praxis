@@ -29,6 +29,7 @@ from aiohttp import web
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.instance_state import InstanceState
+from nexus.core.outcome_loop import OutcomeLoop
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import (
     HealthStagePolicy,
@@ -60,7 +61,7 @@ from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
 from nexus.strategy.action import Action, ActionType
-from nexus.strategy.action_submit import submit_actions
+from nexus.strategy.action_submit import SubmissionStatus, submit_actions
 from nexus.strategy.context import StrategyContext
 from nexus.strategy.predict_loop import PredictLoop
 from nexus.strategy.timer_loop import TimerLoop
@@ -953,8 +954,10 @@ class Launcher:
                     fallback_price_provider=fallback_price_provider,
                 )
 
+            command_strategy_ids: dict[str, str] = {}
+
             def submitter(actions: list[Action], strategy_id: str) -> None:
-                submit_actions(
+                results = submit_actions(
                     actions,
                     strategy_id=strategy_id,
                     config=nexus_instance_config,
@@ -963,6 +966,16 @@ class Launcher:
                     build_context=build_context,
                     now=lambda: datetime.now(UTC),
                 )
+
+                for _action, outcome in results:
+                    if (
+                        outcome.status == SubmissionStatus.SUBMITTED
+                        and outcome.command_id is not None
+                    ):
+                        command_strategy_ids[outcome.command_id] = strategy_id
+
+            def resolve_strategy_id(outcome: Any) -> str | None:
+                return command_strategy_ids.get(outcome.command_id)
 
             predict_loop = PredictLoop(
                 runner=runner,
@@ -986,6 +999,16 @@ class Launcher:
 
             praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
 
+            outcome_loop = OutcomeLoop(
+                runner=runner,
+                praxis_inbound=praxis_inbound,
+                state=state,
+                context_provider=context_provider,
+                resolve_strategy_id=resolve_strategy_id,
+                action_submit=submitter,
+            )
+            outcome_loop.start()
+
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
             self._stop_event.wait()
@@ -998,6 +1021,7 @@ class Launcher:
                 strategy_state_path=inst.strategy_state_path or inst.state_dir / 'strategy_state',
                 predict_loop=predict_loop,
                 timer_loop=timer_loop,
+                outcome_loop=outcome_loop,
                 praxis_outbound=praxis_outbound,
                 praxis_inbound=praxis_inbound,
                 account_id=inst.account_id,
