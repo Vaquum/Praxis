@@ -14,6 +14,7 @@ import re
 import signal
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -23,8 +24,30 @@ import aiosqlite
 import polars as pl
 from aiohttp import web
 
+from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode
 from nexus.core.stp_mode import STPMode
+from nexus.core.validator import (
+    HealthStagePolicy,
+    HealthStageSnapshot,
+    PlatformLimitsStageLimits,
+    PlatformLimitsStageSnapshot,
+    PriceCheckSnapshot,
+    RiskStageLimits,
+    StageValidator,
+    ValidationDecision,
+    ValidationPipeline,
+    ValidationRequestContext,
+    ValidationStage,
+    build_default_intake_hooks,
+    build_price_stage_limits_from_config,
+    validate_capital_stage,
+    validate_health_stage,
+    validate_intake_stage,
+    validate_platform_limits_stage,
+    validate_price_stage,
+    validate_risk_stage,
+)
 from nexus.infrastructure.manifest import Manifest, load_manifest
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
@@ -101,6 +124,137 @@ def _build_nexus_instance_config(
         stp_mode=STPMode.CANCEL_TAKER,
         capital_pct=capital_pct,
     )
+
+
+def _default_health_snapshot() -> HealthStageSnapshot:
+    '''Return a neutral `HealthStageSnapshot` for MMVP-lenient health stage.
+
+    All policy thresholds default to `None`, so the health stage allows
+    every action regardless of snapshot values; this constant snapshot
+    only needs to satisfy `HealthStageSnapshot`'s field invariants.
+    '''
+
+    return HealthStageSnapshot(
+        latency_ms=Decimal(0),
+        consecutive_failures=Decimal(0),
+        failure_rate=Decimal(0),
+        rate_limit_headroom=Decimal(1),
+        clock_drift_ms=Decimal(0),
+    )
+
+
+def _default_platform_snapshot() -> PlatformLimitsStageSnapshot:
+    '''Return an empty `PlatformLimitsStageSnapshot` for MMVP defaults.'''
+
+    return PlatformLimitsStageSnapshot()
+
+
+def _default_price_snapshot() -> PriceCheckSnapshot | None:
+    '''Return `None`; MMVP `PriceStageLimits` are all unset.'''
+
+    return None
+
+
+def _build_validation_pipeline(
+    nexus_config: NexusInstanceConfig,
+    capital_controller: CapitalController,
+    *,
+    health_snapshot_provider: Callable[[], HealthStageSnapshot] = (
+        _default_health_snapshot
+    ),
+    platform_snapshot_provider: Callable[[], PlatformLimitsStageSnapshot] = (
+        _default_platform_snapshot
+    ),
+    price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
+        _default_price_snapshot
+    ),
+) -> ValidationPipeline:
+    '''Build a six-stage `ValidationPipeline` for one account.
+
+    Each stage closure captures stage-specific configuration that is
+    derived once from `nexus_config`; mutable runtime state (health
+    snapshot, platform-limits snapshot, price-check snapshot) is read on
+    every call via the supplied providers.
+
+    MMVP defaults are deliberately lenient: `RiskStageLimits`,
+    `PlatformLimitsStageLimits`, and `HealthStagePolicy` are constructed
+    with all thresholds unset so each stage allows every action;
+    `PriceStageLimits` is derived from `nexus_config` and inherits the
+    same all-unset posture from `_build_nexus_instance_config`.
+    Operator-supplied limits are dialed in pre-live by passing a
+    pre-configured `nexus_config` and richer snapshot providers.
+
+    Intake hooks are built once via `build_default_intake_hooks` so the
+    duplicate-order window state is preserved across ticks. Both
+    `active_command_ids` and `modifiable_command_ids` default to empty;
+    `ABORT` and `MODIFY` are not exercised by the action-submission
+    helper (`submit_actions` bypasses the validator for `ABORT`, and
+    MMVP strategies do not emit `MODIFY`).
+
+    Args:
+        nexus_config: Per-account Nexus runtime config built by
+            `_build_nexus_instance_config`.
+        capital_controller: Per-account capital controller wrapping the
+            mutable `CapitalState` from `sequencer.instance_state.capital`.
+        health_snapshot_provider: Callable returning the current health
+            snapshot. Defaults to a neutral-healthy snapshot.
+        platform_snapshot_provider: Callable returning the current
+            platform-limits snapshot. Defaults to an empty snapshot.
+        price_snapshot_provider: Callable returning the current
+            price-check snapshot. Defaults to `None`.
+
+    Returns:
+        Six-stage `ValidationPipeline` ready for use by `submit_actions`.
+    '''
+
+    intake_hooks = build_default_intake_hooks(nexus_config)
+    risk_limits = RiskStageLimits()
+    price_limits = build_price_stage_limits_from_config(nexus_config)
+    platform_limits = PlatformLimitsStageLimits()
+    health_policy = HealthStagePolicy()
+
+    def intake(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_intake_stage(context, hooks=intake_hooks)
+
+    def risk(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_risk_stage(context, risk_limits)
+
+    def price(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_price_stage(
+            context,
+            price_limits,
+            price_snapshot_provider(),
+        )
+
+    def capital(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_capital_stage(context, capital_controller)
+
+    def health(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_health_stage(
+            context,
+            health_snapshot_provider(),
+            health_policy,
+        )
+
+    def platform_limits_stage(
+        context: ValidationRequestContext,
+    ) -> ValidationDecision:
+        return validate_platform_limits_stage(
+            context,
+            platform_limits,
+            platform_snapshot_provider(),
+        )
+
+    validators: dict[ValidationStage, StageValidator] = {
+        ValidationStage.INTAKE: intake,
+        ValidationStage.RISK: risk,
+        ValidationStage.PRICE: price,
+        ValidationStage.CAPITAL: capital,
+        ValidationStage.HEALTH: health,
+        ValidationStage.PLATFORM_LIMITS: platform_limits_stage,
+    }
+
+    return ValidationPipeline(validators)
 
 
 @dataclass(frozen=True)
