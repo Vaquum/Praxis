@@ -14,6 +14,7 @@ import re
 import signal
 import sys
 import threading
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
@@ -25,7 +26,8 @@ import polars as pl
 from aiohttp import web
 
 from nexus.core.capital_controller.capital_controller import CapitalController
-from nexus.core.domain.enums import OperationalMode
+from nexus.core.domain.enums import OperationalMode, OrderSide
+from nexus.core.domain.instance_state import InstanceState
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import (
     HealthStagePolicy,
@@ -35,6 +37,7 @@ from nexus.core.validator import (
     PriceCheckSnapshot,
     RiskStageLimits,
     StageValidator,
+    ValidationAction,
     ValidationDecision,
     ValidationPipeline,
     ValidationRequestContext,
@@ -55,6 +58,7 @@ from nexus.infrastructure.state_store import StateStore
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
+from nexus.strategy.action import Action, ActionType
 from nexus.strategy.context import StrategyContext
 from nexus.strategy.predict_loop import PredictLoop
 from nexus.strategy.timer_loop import TimerLoop
@@ -83,6 +87,15 @@ _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
+_DEFAULT_FEE_RATE = Decimal('0.001')
+_DEFAULT_SYMBOL = 'BTCUSDT'
+
+_ACTION_TYPE_TO_VALIDATION_ACTION = {
+    ActionType.ENTER: ValidationAction.ENTER,
+    ActionType.EXIT: ValidationAction.EXIT,
+    ActionType.MODIFY: ValidationAction.MODIFY,
+    ActionType.ABORT: ValidationAction.ABORT,
+}
 
 
 def _build_nexus_instance_config(
@@ -255,6 +268,208 @@ def _build_validation_pipeline(
     }
 
     return ValidationPipeline(validators)
+
+
+def _build_validation_context(
+    action: Action,
+    strategy_id: str,
+    *,
+    nexus_config: NexusInstanceConfig,
+    capital_controller: CapitalController,
+    state: InstanceState,
+    capital_pct: Decimal,
+    fallback_price_provider: Callable[[], Decimal | None],
+    fee_rate: Decimal = _DEFAULT_FEE_RATE,
+    enter_symbol: str = _DEFAULT_SYMBOL,
+) -> ValidationRequestContext | None:
+    '''Build a `ValidationRequestContext` from a strategy `Action`.
+
+    Maps each `ActionType` to its `ValidationAction` counterpart and
+    derives the validator's request-shape fields:
+
+    - `ENTER`: `order_notional = action.size * reference_price`, where
+      `reference_price` falls back to `fallback_price_provider()` when
+      `action.reference_price` is unset. Returns `None` (and logs) when
+      no price is available — the action cannot be validated without
+      one. Uses `enter_symbol` (MMVP default `BTCUSDT`) and generates a
+      command id when the action does not carry one.
+    - `EXIT`: derives `order_notional` from
+      `state.positions[action.trade_id].entry_price * action.size`.
+      Returns `None` (and logs) when the referenced trade is missing
+      from instance state — the helper skips the action and the caller
+      drops it.
+    - `MODIFY`: returns `None` and logs a TD-tracked warning. The
+      `current_order_notional` source is non-trivial and deferred; MMVP
+      strategies do not emit `MODIFY`.
+    - `ABORT`: returns `None`. `submit_actions` bypasses the validator
+      for `ABORT` and never calls this helper for that action type.
+
+    `estimated_fees = order_notional * fee_rate` (Binance taker default
+    `0.001` for MMVP). `strategy_budget` is computed via
+    `CapitalController.compute_strategy_budget(strategy_id, capital_pct)`
+    so capital-stage validation sees the same allocation as the
+    manifest's `capital_pct` declaration.
+
+    Args:
+        action: Strategy-emitted action being validated.
+        strategy_id: Owning strategy identifier.
+        nexus_config: Per-account Nexus runtime config.
+        capital_controller: Per-account capital controller.
+        state: Current mutable instance state (live, not a snapshot).
+        capital_pct: Strategy's manifest capital allocation percentage.
+        fallback_price_provider: Returns the latest reference price
+            (e.g. last `MarketDataPoller` close) or `None` when no
+            market data is available yet.
+        fee_rate: Effective taker fee rate for fee estimation.
+        enter_symbol: Symbol used for `ENTER` actions when the action
+            itself does not carry one.
+
+    Returns:
+        `ValidationRequestContext` for `ENTER`/`EXIT`, or `None` when
+        the action cannot be validated (missing price, missing trade,
+        unsupported `MODIFY`/`ABORT`).
+    '''
+
+    validation_action = _ACTION_TYPE_TO_VALIDATION_ACTION.get(action.action_type)
+    if validation_action is None:
+        _log.warning(
+            'unknown action_type for validation context',
+            extra={
+                'strategy_id': strategy_id,
+                'action_type': action.action_type,
+            },
+        )
+        return None
+
+    if validation_action == ValidationAction.MODIFY:
+        _log.warning(
+            'MODIFY validation context not implemented (TD); skipping action',
+            extra={
+                'strategy_id': strategy_id,
+                'command_id': action.command_id,
+            },
+        )
+        return None
+
+    if validation_action == ValidationAction.ABORT:
+        return None
+
+    strategy_budget = capital_controller.compute_strategy_budget(
+        strategy_id=strategy_id,
+        capital_pct=capital_pct,
+    )
+
+    if validation_action == ValidationAction.ENTER:
+        return _build_enter_context(
+            action=action,
+            strategy_id=strategy_id,
+            nexus_config=nexus_config,
+            state=state,
+            strategy_budget=strategy_budget,
+            fallback_price_provider=fallback_price_provider,
+            fee_rate=fee_rate,
+            enter_symbol=enter_symbol,
+        )
+
+    return _build_exit_context(
+        action=action,
+        strategy_id=strategy_id,
+        nexus_config=nexus_config,
+        state=state,
+        strategy_budget=strategy_budget,
+        fee_rate=fee_rate,
+    )
+
+
+def _build_enter_context(
+    *,
+    action: Action,
+    strategy_id: str,
+    nexus_config: NexusInstanceConfig,
+    state: InstanceState,
+    strategy_budget: Decimal,
+    fallback_price_provider: Callable[[], Decimal | None],
+    fee_rate: Decimal,
+    enter_symbol: str,
+) -> ValidationRequestContext | None:
+    reference_price = action.reference_price or fallback_price_provider()
+    if reference_price is None:
+        _log.warning(
+            'no reference price available for ENTER; skipping action',
+            extra={
+                'strategy_id': strategy_id,
+                'command_id': action.command_id,
+            },
+        )
+        return None
+
+    if action.size is None:
+        return None
+
+    order_notional = action.size * reference_price
+    estimated_fees = order_notional * fee_rate
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
+    order_side = action.direction or OrderSide.BUY
+
+    return ValidationRequestContext(
+        strategy_id=strategy_id,
+        action=ValidationAction.ENTER,
+        symbol=enter_symbol,
+        order_side=order_side,
+        order_size=action.size,
+        command_id=command_id,
+        trade_id=None,
+        order_notional=order_notional,
+        estimated_fees=estimated_fees,
+        strategy_budget=strategy_budget,
+        state=state,
+        config=nexus_config,
+    )
+
+
+def _build_exit_context(
+    *,
+    action: Action,
+    strategy_id: str,
+    nexus_config: NexusInstanceConfig,
+    state: InstanceState,
+    strategy_budget: Decimal,
+    fee_rate: Decimal,
+) -> ValidationRequestContext | None:
+    trade_id = action.trade_id
+    if trade_id is None or trade_id not in state.positions:
+        _log.warning(
+            'EXIT trade_id not found in state.positions; skipping action',
+            extra={
+                'strategy_id': strategy_id,
+                'trade_id': trade_id,
+            },
+        )
+        return None
+
+    position = state.positions[trade_id]
+    if action.size is None:
+        return None
+
+    order_notional = position.entry_price * action.size
+    estimated_fees = order_notional * fee_rate
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
+    order_side = action.direction or OrderSide.SELL
+
+    return ValidationRequestContext(
+        strategy_id=strategy_id,
+        action=ValidationAction.EXIT,
+        symbol=position.symbol,
+        order_side=order_side,
+        order_size=action.size,
+        command_id=command_id,
+        trade_id=trade_id,
+        order_notional=order_notional,
+        estimated_fees=estimated_fees,
+        strategy_budget=strategy_budget,
+        state=state,
+        config=nexus_config,
+    )
 
 
 @dataclass(frozen=True)
