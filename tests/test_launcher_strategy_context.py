@@ -35,9 +35,8 @@ def _stub_manifest(
     capital_pool: Decimal = Decimal('10000'),
     allocated_capital: Decimal = Decimal('100000'),
 ) -> Manifest:
-    # SensorSpec validates experiment_dir exists; bypass the entire
-    # Manifest constructor with a MagicMock that exposes only the
-    # fields the helper reads.
+    '''Build a Manifest stub via MagicMock to bypass SensorSpec validation.'''
+
     m = MagicMock()
     m.account_id = 'acct-test'
     m.allocated_capital = allocated_capital

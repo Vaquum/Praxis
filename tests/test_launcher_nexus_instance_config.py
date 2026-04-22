@@ -98,11 +98,10 @@ class TestBuildNexusInstanceConfig:
         }
 
     def test_capital_pct_empty_when_no_strategies(self) -> None:
+        '''Empty capital_pct is allowed; unknown strategy_id rejection is intake-stage concern.'''
+
         manifest = _stub_manifest(())
 
-        # Nexus InstanceConfig requires at least one validation pass; an
-        # empty capital_pct map is valid (intake stage handles unknown
-        # strategy_id rejection elsewhere).
         cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
 
         assert dict(cfg.capital_pct) == {}
