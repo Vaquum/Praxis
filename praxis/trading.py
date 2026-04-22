@@ -7,6 +7,7 @@ import threading
 from collections import defaultdict
 from datetime import datetime, UTC
 from decimal import Decimal
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
@@ -194,6 +195,51 @@ class Trading:
             return
 
         q.put_nowait(outcome)
+
+    def set_on_trade_outcome(
+        self,
+        cb: Callable[[TradeOutcome], None] | Callable[[TradeOutcome], Awaitable[None]] | None,
+    ) -> None:
+        '''Install the on_trade_outcome callback after `Trading()` construction.
+
+        Closes the chicken-and-egg gap where `TradingConfig.on_trade_outcome`
+        cannot reference the not-yet-built `Trading` instance. The launcher
+        calls this immediately after `Trading()` returns, typically with
+        `trading.route_outcome` so per-account `TradeOutcome`s land on the
+        registered queues.
+
+        Sync callbacks are auto-wrapped in an `async` adapter so the
+        underlying `ExecutionManager` can `await` them uniformly.
+
+        Args:
+            cb: Sync `(TradeOutcome) -> None`, async
+                `(TradeOutcome) -> Awaitable[None]`, or `None` to clear.
+
+        Raises:
+            RuntimeError: If called after `start()` — the replay loop and
+                in-flight order coroutines rely on a stable callback
+                identity, so swapping it after start would race with
+                outcome production.
+        '''
+
+        if self._started:
+            msg = 'set_on_trade_outcome must not be called after Trading.start()'
+            raise RuntimeError(msg)
+
+        if cb is None:
+            self._execution_manager.set_on_trade_outcome(None)
+            return
+
+        if asyncio.iscoroutinefunction(cb):
+            self._execution_manager.set_on_trade_outcome(cb)
+            return
+
+        sync_cb = cb
+
+        async def _async_adapter(outcome: TradeOutcome) -> None:
+            sync_cb(outcome)
+
+        self._execution_manager.set_on_trade_outcome(_async_adapter)
 
     async def start(self) -> None:
         '''Initialize runtime and execute per-account startup sequence.'''

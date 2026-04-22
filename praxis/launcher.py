@@ -778,6 +778,8 @@ class Launcher:
             venue_adapter=self._venue_adapter,
         )
 
+        self._trading.set_on_trade_outcome(self._trading.route_outcome)
+
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
         _log.info('trading started')

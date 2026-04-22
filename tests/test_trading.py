@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import queue
 from collections.abc import Sequence
 from datetime import datetime, UTC
 from decimal import Decimal
@@ -1928,3 +1929,144 @@ async def test_loop_cleared_on_failed_start(spine: EventSpine) -> None:
 
     with pytest.raises(RuntimeError, match=r'Trading\.start'):
         _ = trading.loop
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_with_sync_callback(spine: EventSpine) -> None:
+    '''Sync callback is auto-wrapped so ExecutionManager can await it.'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    seen: list[TradeOutcome] = []
+
+    def cb(outcome: TradeOutcome) -> None:
+        seen.append(outcome)
+
+    trading.set_on_trade_outcome(cb)
+
+    outcome = TradeOutcome(
+        command_id='cmd-1',
+        trade_id='trade-1',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb_async = trading.execution_manager._on_trade_outcome
+    assert cb_async is not None
+    await cb_async(outcome)
+
+    assert seen == [outcome]
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_with_async_callback(spine: EventSpine) -> None:
+    '''Async callback is installed verbatim, no wrapping.'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    seen: list[TradeOutcome] = []
+
+    async def cb(outcome: TradeOutcome) -> None:
+        seen.append(outcome)
+
+    trading.set_on_trade_outcome(cb)
+
+    assert trading.execution_manager._on_trade_outcome is cb
+
+    outcome = TradeOutcome(
+        command_id='cmd-2',
+        trade_id='trade-2',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb_installed = trading.execution_manager._on_trade_outcome
+    assert cb_installed is not None
+    await cb_installed(outcome)
+    assert seen == [outcome]
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_clear_with_none(spine: EventSpine) -> None:
+    '''Passing None clears the callback.'''
+
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            on_trade_outcome=lambda _o: None,  # type: ignore[arg-type,return-value]
+        ),
+        event_spine=spine,
+    )
+
+    trading.set_on_trade_outcome(None)
+
+    assert trading.execution_manager._on_trade_outcome is None
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_after_start_raises(spine: EventSpine) -> None:
+    '''Swapping the callback after start() is forbidden.'''
+
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, _InjectedVenueAdapter()),
+    )
+
+    await trading.start()
+    try:
+        with pytest.raises(RuntimeError, match=r'must not be called after Trading\.start'):
+            trading.set_on_trade_outcome(trading.route_outcome)
+    finally:
+        await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_outcome_produced_by_execution_manager_reaches_queue(
+    spine: EventSpine,
+) -> None:
+    '''PT.4.3: a TradeOutcome produced by the await callback lands on the per-account queue.'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    q: queue.Queue[TradeOutcome] = queue.Queue()
+    trading.register_outcome_queue('acc-1', q)
+    trading.set_on_trade_outcome(trading.route_outcome)
+
+    outcome = TradeOutcome(
+        command_id='cmd-3',
+        trade_id='trade-3',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb = trading.execution_manager._on_trade_outcome
+    assert cb is not None
+    await cb(outcome)
+
+    delivered = q.get_nowait()
+    assert delivered is outcome
