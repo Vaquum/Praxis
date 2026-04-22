@@ -64,6 +64,7 @@ from nexus.strategy.action import Action, ActionType
 from nexus.strategy.action_submit import SubmissionStatus, submit_actions
 from nexus.strategy.context import StrategyContext
 from nexus.strategy.predict_loop import PredictLoop
+from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -617,6 +618,31 @@ class InstanceConfig:
     strategy_state_path: Path | None = None
 
 
+@dataclass
+class _NexusRuntime:
+    '''Wired runtime components for one Nexus Manager instance.
+
+    Built once by `Launcher._build_nexus_runtime` and handed to
+    `_run_nexus_instance` for lifecycle orchestration (wait → shutdown).
+    Not a frozen dataclass because `ShutdownSequencer` is attached after
+    the loops start.
+    '''
+
+    state_store: StateStore
+    sequencer: StartupSequencer
+    runner: StrategyRunner
+    manifest: Manifest
+    state: InstanceState
+    nexus_config: NexusInstanceConfig
+    capital_controller: CapitalController
+    pipeline: ValidationPipeline
+    praxis_outbound: PraxisOutbound
+    praxis_inbound: PraxisInbound
+    predict_loop: PredictLoop
+    timer_loop: TimerLoop | None
+    outcome_loop: OutcomeLoop
+
+
 class Launcher:
     '''Orchestrates Praxis + Nexus + Limen in one process.
 
@@ -868,162 +894,32 @@ class Launcher:
         inst: InstanceConfig,
         outcome_queue: queue.Queue[TradeOutcome],
     ) -> None:
-        '''Run one Nexus Manager instance in its own thread.'''
+        '''Build, run, and shut down one Nexus Manager instance in its own thread.'''
 
         if self._trading is None or self._loop is None:
             return
 
         try:
-            state_store = StateStore(inst.state_dir)
-
-            praxis_outbound = PraxisOutbound(
-                submit_fn=self._trading.submit_command,
-                loop=self._loop,
-                register_fn=self._trading.register_account,
-                unregister_fn=self._trading.unregister_account,
-                pull_positions_fn=self._trading.pull_positions,
-            )
-
-            sequencer = StartupSequencer(
-                state_store=state_store,
-                manifest_path=inst.manifest_path,
-                strategies_base_path=inst.strategies_base_path,
-                strategy_state_path=inst.strategy_state_path,
-                praxis_outbound=praxis_outbound,
-            )
-
-            runner = sequencer.start()
-
-            manifest = sequencer.manifest
-            state = sequencer.instance_state
-            if manifest is None or state is None:
-                msg = (
-                    'StartupSequencer.start() did not produce manifest/state for '
-                    f'account {inst.account_id!r}'
-                )
-                raise RuntimeError(msg)
-
-            nexus_instance_config = _build_nexus_instance_config(inst, manifest)
-            capital_controller = CapitalController(state.capital)
-            pipeline = _build_validation_pipeline(
-                nexus_instance_config,
-                capital_controller,
-            )
-            capital_pct_by_strategy = {
-                spec.strategy_id: spec.capital_pct for spec in manifest.strategies
-            }
-            kline_sizes = _extract_kline_sizes(manifest)
-
-            def market_data_provider(kline_size: int) -> Any:
-                if self._poller is None:
-                    return pl.DataFrame()
-                return self._poller.get_market_data(kline_size)
-
-            def context_provider(strategy_id: str) -> StrategyContext:
-                return _build_strategy_context(
-                    sequencer.instance_state,
-                    sequencer.manifest,
-                    strategy_id,
-                )
-
-            def fallback_price_provider() -> Decimal | None:
-                return _last_close_from_poller(self._poller, kline_sizes)
-
-            def build_context(
-                action: Action,
-                strategy_id: str,
-            ) -> ValidationRequestContext | None:
-                capital_pct = capital_pct_by_strategy.get(strategy_id)
-                if capital_pct is None:
-                    _log.warning(
-                        'unknown strategy_id when building validation context; '
-                        'skipping action',
-                        extra={
-                            'strategy_id': strategy_id,
-                            'account_id': inst.account_id,
-                        },
-                    )
-                    return None
-                return _build_validation_context(
-                    action,
-                    strategy_id,
-                    nexus_config=nexus_instance_config,
-                    capital_controller=capital_controller,
-                    state=state,
-                    capital_pct=capital_pct,
-                    fallback_price_provider=fallback_price_provider,
-                )
-
-            command_strategy_ids: dict[str, str] = {}
-
-            def submitter(actions: list[Action], strategy_id: str) -> None:
-                results = submit_actions(
-                    actions,
-                    strategy_id=strategy_id,
-                    config=nexus_instance_config,
-                    praxis_outbound=praxis_outbound,
-                    validator=pipeline,
-                    build_context=build_context,
-                    now=lambda: datetime.now(UTC),
-                )
-
-                for _action, outcome in results:
-                    if (
-                        outcome.status == SubmissionStatus.SUBMITTED
-                        and outcome.command_id is not None
-                    ):
-                        command_strategy_ids[outcome.command_id] = strategy_id
-
-            def resolve_strategy_id(outcome: Any) -> str | None:
-                return command_strategy_ids.get(outcome.command_id)
-
-            predict_loop = PredictLoop(
-                runner=runner,
-                wired_sensors=sequencer.wired_sensors,
-                market_data_provider=market_data_provider,
-                context_provider=context_provider,
-                action_submit=submitter,
-            )
-            predict_loop.start()
-
-            timer_loop: TimerLoop | None = None
-
-            if sequencer.timer_specs:
-                timer_loop = TimerLoop(
-                    runner=runner,
-                    strategy_timers=sequencer.timer_specs,
-                    context_provider=context_provider,
-                    action_submit=submitter,
-                )
-                timer_loop.start()
-
-            praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
-
-            outcome_loop = OutcomeLoop(
-                runner=runner,
-                praxis_inbound=praxis_inbound,
-                state=state,
-                context_provider=context_provider,
-                resolve_strategy_id=resolve_strategy_id,
-                action_submit=submitter,
-            )
-            outcome_loop.start()
+            runtime = self._build_nexus_runtime(inst, outcome_queue)
 
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
             self._stop_event.wait()
 
             shutdown = ShutdownSequencer(
-                runner=runner,
-                manifest=manifest,
-                state_store=state_store,
-                state=state,
-                strategy_state_path=inst.strategy_state_path or inst.state_dir / 'strategy_state',
-                predict_loop=predict_loop,
-                timer_loop=timer_loop,
-                outcome_loop=outcome_loop,
-                praxis_outbound=praxis_outbound,
-                praxis_inbound=praxis_inbound,
+                runner=runtime.runner,
+                manifest=runtime.manifest,
+                state_store=runtime.state_store,
+                state=runtime.state,
+                strategy_state_path=(
+                    inst.strategy_state_path
+                    or inst.state_dir / 'strategy_state'
+                ),
+                predict_loop=runtime.predict_loop,
+                timer_loop=runtime.timer_loop,
+                outcome_loop=runtime.outcome_loop,
+                praxis_outbound=runtime.praxis_outbound,
+                praxis_inbound=runtime.praxis_inbound,
                 account_id=inst.account_id,
             )
             shutdown.shutdown()
@@ -1032,6 +928,185 @@ class Launcher:
 
         except Exception:  # noqa: BLE001 - top-level catch for thread, must not propagate
             _log.exception('nexus instance failed', extra={'account_id': inst.account_id})
+
+    def _build_nexus_runtime(
+        self,
+        inst: InstanceConfig,
+        outcome_queue: queue.Queue[TradeOutcome],
+    ) -> _NexusRuntime:
+        '''Wire all per-account runtime components and start the loops.
+
+        Runs through: `StateStore` / `PraxisOutbound` / `StartupSequencer`
+        (state recovery) → per-account `NexusInstanceConfig`,
+        `CapitalController`, six-stage `ValidationPipeline`, submitter /
+        `build_context` / `context_provider` / `fallback_price_provider`
+        closures → `PredictLoop`, `TimerLoop` (when the manifest carries
+        timers), and `OutcomeLoop`, all started before returning. The
+        caller is responsible for waiting on the shutdown signal and
+        then invoking `ShutdownSequencer.shutdown()` on the returned
+        runtime.
+
+        Raises:
+            RuntimeError: If `sequencer.start()` completed but the
+                manifest/state accessors did not populate — indicates
+                an inconsistent Nexus upgrade, not a normal shutdown
+                path.
+        '''
+
+        if self._trading is None or self._loop is None:
+            msg = 'Launcher runtime not initialized'
+            raise RuntimeError(msg)
+
+        state_store = StateStore(inst.state_dir)
+
+        praxis_outbound = PraxisOutbound(
+            submit_fn=self._trading.submit_command,
+            loop=self._loop,
+            register_fn=self._trading.register_account,
+            unregister_fn=self._trading.unregister_account,
+            pull_positions_fn=self._trading.pull_positions,
+        )
+
+        sequencer = StartupSequencer(
+            state_store=state_store,
+            manifest_path=inst.manifest_path,
+            strategies_base_path=inst.strategies_base_path,
+            strategy_state_path=inst.strategy_state_path,
+            praxis_outbound=praxis_outbound,
+        )
+
+        runner = sequencer.start()
+
+        manifest = sequencer.manifest
+        state = sequencer.instance_state
+
+        if manifest is None or state is None:
+            msg = (
+                'StartupSequencer.start() did not produce manifest/state for '
+                f'account {inst.account_id!r}'
+            )
+            raise RuntimeError(msg)
+
+        nexus_instance_config = _build_nexus_instance_config(inst, manifest)
+        capital_controller = CapitalController(state.capital)
+        pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
+        capital_pct_by_strategy = {
+            spec.strategy_id: spec.capital_pct for spec in manifest.strategies
+        }
+        kline_sizes = _extract_kline_sizes(manifest)
+
+        def market_data_provider(kline_size: int) -> Any:
+            if self._poller is None:
+                return pl.DataFrame()
+            return self._poller.get_market_data(kline_size)
+
+        def context_provider(strategy_id: str) -> StrategyContext:
+            return _build_strategy_context(
+                sequencer.instance_state,
+                sequencer.manifest,
+                strategy_id,
+            )
+
+        def fallback_price_provider() -> Decimal | None:
+            return _last_close_from_poller(self._poller, kline_sizes)
+
+        def build_context(
+            action: Action,
+            strategy_id: str,
+        ) -> ValidationRequestContext | None:
+            capital_pct = capital_pct_by_strategy.get(strategy_id)
+
+            if capital_pct is None:
+                _log.warning(
+                    'unknown strategy_id when building validation context; '
+                    'skipping action',
+                    extra={
+                        'strategy_id': strategy_id,
+                        'account_id': inst.account_id,
+                    },
+                )
+                return None
+
+            return _build_validation_context(
+                action,
+                strategy_id,
+                nexus_config=nexus_instance_config,
+                capital_controller=capital_controller,
+                state=state,
+                capital_pct=capital_pct,
+                fallback_price_provider=fallback_price_provider,
+            )
+
+        command_strategy_ids: dict[str, str] = {}
+
+        def submitter(actions: list[Action], strategy_id: str) -> None:
+            results = submit_actions(
+                actions,
+                strategy_id=strategy_id,
+                config=nexus_instance_config,
+                praxis_outbound=praxis_outbound,
+                validator=pipeline,
+                build_context=build_context,
+                now=lambda: datetime.now(UTC),
+            )
+
+            for _action, outcome in results:
+                if (
+                    outcome.status == SubmissionStatus.SUBMITTED
+                    and outcome.command_id is not None
+                ):
+                    command_strategy_ids[outcome.command_id] = strategy_id
+
+        def resolve_strategy_id(outcome: Any) -> str | None:
+            return command_strategy_ids.get(outcome.command_id)
+
+        predict_loop = PredictLoop(
+            runner=runner,
+            wired_sensors=sequencer.wired_sensors,
+            market_data_provider=market_data_provider,
+            context_provider=context_provider,
+            action_submit=submitter,
+        )
+        predict_loop.start()
+
+        timer_loop: TimerLoop | None = None
+
+        if sequencer.timer_specs:
+            timer_loop = TimerLoop(
+                runner=runner,
+                strategy_timers=sequencer.timer_specs,
+                context_provider=context_provider,
+                action_submit=submitter,
+            )
+            timer_loop.start()
+
+        praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
+
+        outcome_loop = OutcomeLoop(
+            runner=runner,
+            praxis_inbound=praxis_inbound,
+            state=state,
+            context_provider=context_provider,
+            resolve_strategy_id=resolve_strategy_id,
+            action_submit=submitter,
+        )
+        outcome_loop.start()
+
+        return _NexusRuntime(
+            state_store=state_store,
+            sequencer=sequencer,
+            runner=runner,
+            manifest=manifest,
+            state=state,
+            nexus_config=nexus_instance_config,
+            capital_controller=capital_controller,
+            pipeline=pipeline,
+            praxis_outbound=praxis_outbound,
+            praxis_inbound=praxis_inbound,
+            predict_loop=predict_loop,
+            timer_loop=timer_loop,
+            outcome_loop=outcome_loop,
+        )
 
     def _collect_kline_intervals(self) -> dict[int, int]:
         '''Extract kline_size → min poll interval from all manifests.'''

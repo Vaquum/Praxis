@@ -239,8 +239,9 @@ def test_outcome_returned_actions_re_enter_submitter() -> None:
         action_submit=submitter,
     )
 
-    loop.tick_once()
+    consumed = loop.tick_once()
 
+    assert consumed is True
     assert praxis_outbound.send_command.call_count == first_call_count + 1
     assert any(sid == 'strat_a' for sid in registry.values())
     assert len(registry) == first_call_count + 1
