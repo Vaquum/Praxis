@@ -17,6 +17,7 @@ import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -59,6 +60,7 @@ from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
 from nexus.strategy.action import Action, ActionType
+from nexus.strategy.action_submit import submit_actions
 from nexus.strategy.context import StrategyContext
 from nexus.strategy.predict_loop import PredictLoop
 from nexus.strategy.timer_loop import TimerLoop
@@ -472,6 +474,66 @@ def _build_exit_context(
     )
 
 
+def _extract_kline_sizes(manifest: Manifest) -> tuple[int, ...]:
+    '''Return ascending-unique kline sizes used by a manifest's sensors.
+
+    Used to drive the launcher's last-close fallback price provider when
+    a strategy emits an `ENTER` action without a `reference_price`.
+    Smallest kline-size first so the freshest available data wins.
+    '''
+
+    sizes: set[int] = set()
+
+    for spec in manifest.strategies:
+        for sensor in spec.sensors:
+            config = getattr(
+                getattr(sensor, '_limen_manifest', None),
+                'data_source_config',
+                None,
+            )
+
+            if config is None:
+                continue
+
+            kline_size = config.params.get('kline_size')
+
+            if kline_size is not None:
+                sizes.add(int(kline_size))
+
+    return tuple(sorted(sizes))
+
+
+def _last_close_from_poller(
+    poller: MarketDataPoller | None,
+    kline_sizes: tuple[int, ...],
+) -> Decimal | None:
+    '''Return the last-known close from the poller, or `None` if absent.
+
+    Iterates `kline_sizes` (smallest first) and returns the close value
+    of the last row in the first non-empty DataFrame found. Returns
+    `None` when the poller is absent, no kline-size has data yet, or the
+    DataFrame lacks a `close` column.
+    '''
+
+    if poller is None:
+        return None
+
+    for kline_size in kline_sizes:
+        df = poller.get_market_data(kline_size)
+
+        if df.height == 0 or 'close' not in df.columns:
+            continue
+
+        last_close = df.tail(1).get_column('close').item()
+
+        if last_close is None:
+            continue
+
+        return Decimal(str(last_close))
+
+    return None
+
+
 @dataclass(frozen=True)
 class InstanceConfig:
     '''Configuration for one Nexus Manager instance.
@@ -768,6 +830,26 @@ class Launcher:
 
             runner = sequencer.start()
 
+            manifest = sequencer.manifest
+            state = sequencer.instance_state
+            if manifest is None or state is None:
+                msg = (
+                    'StartupSequencer.start() did not produce manifest/state for '
+                    f'account {inst.account_id!r}'
+                )
+                raise RuntimeError(msg)
+
+            nexus_instance_config = _build_nexus_instance_config(inst, manifest)
+            capital_controller = CapitalController(state.capital)
+            pipeline = _build_validation_pipeline(
+                nexus_instance_config,
+                capital_controller,
+            )
+            capital_pct_by_strategy = {
+                spec.strategy_id: spec.capital_pct for spec in manifest.strategies
+            }
+            kline_sizes = _extract_kline_sizes(manifest)
+
             def market_data_provider(kline_size: int) -> Any:
                 if self._poller is None:
                     return pl.DataFrame()
@@ -780,11 +862,51 @@ class Launcher:
                     operational_mode=OperationalMode.ACTIVE,
                 )
 
+            def fallback_price_provider() -> Decimal | None:
+                return _last_close_from_poller(self._poller, kline_sizes)
+
+            def build_context(
+                action: Action,
+                strategy_id: str,
+            ) -> ValidationRequestContext | None:
+                capital_pct = capital_pct_by_strategy.get(strategy_id)
+                if capital_pct is None:
+                    _log.warning(
+                        'unknown strategy_id when building validation context; '
+                        'skipping action',
+                        extra={
+                            'strategy_id': strategy_id,
+                            'account_id': inst.account_id,
+                        },
+                    )
+                    return None
+                return _build_validation_context(
+                    action,
+                    strategy_id,
+                    nexus_config=nexus_instance_config,
+                    capital_controller=capital_controller,
+                    state=state,
+                    capital_pct=capital_pct,
+                    fallback_price_provider=fallback_price_provider,
+                )
+
+            def submitter(actions: list[Action], strategy_id: str) -> None:
+                submit_actions(
+                    actions,
+                    strategy_id=strategy_id,
+                    config=nexus_instance_config,
+                    praxis_outbound=praxis_outbound,
+                    validator=pipeline,
+                    build_context=build_context,
+                    now=lambda: datetime.now(UTC),
+                )
+
             predict_loop = PredictLoop(
                 runner=runner,
                 wired_sensors=sequencer.wired_sensors,
                 market_data_provider=market_data_provider,
                 context_provider=context_provider,
+                action_submit=submitter,
             )
             predict_loop.start()
 
@@ -795,6 +917,7 @@ class Launcher:
                     runner=runner,
                     strategy_timers=sequencer.timer_specs,
                     context_provider=context_provider,
+                    action_submit=submitter,
                 )
                 timer_loop.start()
 
@@ -804,13 +927,11 @@ class Launcher:
 
             self._stop_event.wait()
 
-            # NOTE: accessing private attrs on StartupSequencer — no public
-            # accessors exist in Nexus as of v0.26.0. Track in Nexus TD.
             shutdown = ShutdownSequencer(
                 runner=runner,
-                manifest=sequencer._manifest,
+                manifest=manifest,
                 state_store=state_store,
-                state=sequencer._state,
+                state=state,
                 strategy_state_path=inst.strategy_state_path or inst.state_dir / 'strategy_state',
                 predict_loop=predict_loop,
                 timer_loop=timer_loop,
