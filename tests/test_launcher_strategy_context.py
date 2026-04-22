@@ -11,6 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.operational_mode import ModeState, StrategyModeState
@@ -188,3 +189,77 @@ class TestBuildStrategyContext:
         ctx = _build_strategy_context(state, manifest, 'strat_a')
 
         assert ctx.operational_mode == OperationalMode.HALTED
+
+
+class TestContextReflectsReservations:
+    '''PT.2.3 — next context_provider call reflects capital reservations.
+
+    `CapitalController.check_and_reserve` mutates the shared
+    `state.capital.per_strategy_deployed` dict; `_build_strategy_context`
+    reads that dict on every call and derives `capital_available` from it,
+    so a successful reservation shows up on the very next tick without
+    any explicit plumbing between the two.
+    '''
+
+    def test_capital_available_drops_by_reservation_notional_plus_fees(
+        self,
+    ) -> None:
+        '''After an ENTER reservation, next call sees reduced capital_available.'''
+
+        capital_pool = Decimal('10000')
+        state = InstanceState.fresh(capital_pool)
+        manifest = _stub_manifest(
+            strategies=(_stub_strategy_spec('strat_a', Decimal('100')),),
+            capital_pool=capital_pool,
+        )
+        controller = CapitalController(state.capital)
+
+        first = _build_strategy_context(state, manifest, 'strat_a')
+
+        assert first.capital_available == capital_pool
+
+        order_notional = Decimal('1000')
+        estimated_fees = Decimal('1')
+
+        result = controller.check_and_reserve(
+            strategy_id='strat_a',
+            order_notional=order_notional,
+            estimated_fees=estimated_fees,
+            strategy_budget=capital_pool,
+        )
+
+        assert result.granted
+
+        second = _build_strategy_context(state, manifest, 'strat_a')
+
+        assert second.capital_available == (
+            capital_pool - order_notional - estimated_fees
+        )
+
+    def test_reservation_for_other_strategy_does_not_affect_this_one(
+        self,
+    ) -> None:
+        '''Per-strategy deployed isolation — one strategy's reservation
+        must not reduce the other's view.'''
+
+        capital_pool = Decimal('10000')
+        state = InstanceState.fresh(capital_pool)
+        manifest = _stub_manifest(
+            strategies=(
+                _stub_strategy_spec('strat_a', Decimal('50')),
+                _stub_strategy_spec('strat_b', Decimal('50')),
+            ),
+            capital_pool=capital_pool,
+        )
+        controller = CapitalController(state.capital)
+
+        controller.check_and_reserve(
+            strategy_id='strat_b',
+            order_notional=Decimal('1000'),
+            estimated_fees=Decimal('1'),
+            strategy_budget=Decimal('5000'),
+        )
+
+        ctx = _build_strategy_context(state, manifest, 'strat_a')
+
+        assert ctx.capital_available == Decimal('5000')
