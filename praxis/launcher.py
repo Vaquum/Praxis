@@ -24,10 +24,12 @@ import polars as pl
 from aiohttp import web
 
 from nexus.core.domain.enums import OperationalMode
-from nexus.infrastructure.manifest import load_manifest
+from nexus.core.stp_mode import STPMode
+from nexus.infrastructure.manifest import Manifest, load_manifest
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
 from nexus.infrastructure.state_store import StateStore
+from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
 from nexus.strategy.context import StrategyContext
@@ -56,6 +58,49 @@ _REQUIRED_ENV_VARS = (
 )
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
+_DEFAULT_DUPLICATE_WINDOW_MS = 1000
+_DEFAULT_VENUE = 'binance_spot'
+
+
+def _build_nexus_instance_config(
+    praxis_inst: InstanceConfig,
+    manifest: Manifest,
+) -> NexusInstanceConfig:
+    '''Build a Nexus runtime `InstanceConfig` for one account.
+
+    Used by the launcher when wiring the per-account `submit_actions`
+    closure (PT.1.4.4). The Nexus `InstanceConfig` is consumed by the
+    validator pipeline and by `translate_to_trade_command`; it is
+    distinct from the Praxis-side launcher `InstanceConfig` (per-account
+    paths and manifest reference).
+
+    Carries MMVP-conservative defaults — duplicate-window 1s,
+    `STPMode.CANCEL_TAKER`, no per-process rate limit, no Stage-3 price
+    thresholds. The per-strategy `capital_pct` map mirrors the
+    manifest's strategy-spec percentages so capital-stage validation
+    sees the same allocation the manifest declares.
+
+    Args:
+        praxis_inst: Per-account launcher config (used for `account_id`).
+        manifest: Loaded strategy manifest (used to populate
+            `capital_pct` from `manifest.strategies[*].capital_pct`).
+
+    Returns:
+        Nexus runtime `InstanceConfig` ready to pass into
+        `ValidationPipeline` stages and `translate_to_trade_command`.
+    '''
+
+    capital_pct = {
+        spec.strategy_id: spec.capital_pct for spec in manifest.strategies
+    }
+
+    return NexusInstanceConfig(
+        account_id=praxis_inst.account_id,
+        venue=_DEFAULT_VENUE,
+        duplicate_window_ms=_DEFAULT_DUPLICATE_WINDOW_MS,
+        stp_mode=STPMode.CANCEL_TAKER,
+        capital_pct=capital_pct,
+    )
 
 
 @dataclass(frozen=True)
