@@ -91,6 +91,8 @@ _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
+_ZERO = Decimal('0')
+_HUNDRED = Decimal('100')
 
 _ACTION_TYPE_TO_VALIDATION_ACTION = {
     ActionType.ENTER: ValidationAction.ENTER,
@@ -534,6 +536,67 @@ def _last_close_from_poller(
     return None
 
 
+def _build_strategy_context(
+    state: InstanceState | None,
+    manifest: Manifest | None,
+    strategy_id: str,
+) -> StrategyContext:
+    '''Derive the per-strategy `StrategyContext` from live state + manifest.
+
+    Used by the runtime `context_provider` injected into PredictLoop and
+    TimerLoop. Reads the live `InstanceState` (so reservations and
+    operational-mode transitions show up between ticks) and the loaded
+    `Manifest` (so per-strategy budgets follow the operational
+    capital_pct allocation).
+
+    Returns a "stopped" context (positions=(), capital_available=0,
+    operational_mode=HALTED) when state or manifest is unavailable —
+    safer than ACTIVE since strategies may treat empty positions as
+    "no exposure" and act accordingly.
+
+    Args:
+        state: Live `InstanceState` from `StartupSequencer.instance_state`.
+        manifest: Loaded `Manifest` from `StartupSequencer.manifest`.
+        strategy_id: Strategy whose context to build.
+    '''
+
+    if state is None or manifest is None:
+        return StrategyContext(
+            positions=(),
+            capital_available=_ZERO,
+            operational_mode=OperationalMode.HALTED,
+        )
+
+    spec = next(
+        (s for s in manifest.strategies if s.strategy_id == strategy_id),
+        None,
+    )
+
+    if spec is None:
+        return StrategyContext(
+            positions=(),
+            capital_available=_ZERO,
+            operational_mode=OperationalMode.HALTED,
+        )
+
+    strategy_budget = manifest.capital_pool * spec.capital_pct / _HUNDRED
+    deployed = state.capital.per_strategy_deployed.get(strategy_id, _ZERO)
+    capital_available = max(strategy_budget - deployed, _ZERO)
+
+    positions = tuple(
+        pos for pos in state.positions.values() if pos.strategy_id == strategy_id
+    )
+
+    sm = state.strategy_modes.get(strategy_id)
+    operational_mode = sm.state.mode if sm is not None else state.mode.mode
+
+    return StrategyContext(
+        positions=positions,
+        capital_available=capital_available,
+        operational_mode=operational_mode,
+    )
+
+
 @dataclass(frozen=True)
 class InstanceConfig:
     '''Configuration for one Nexus Manager instance.
@@ -855,11 +918,11 @@ class Launcher:
                     return pl.DataFrame()
                 return self._poller.get_market_data(kline_size)
 
-            def context_provider(_strategy_id: str) -> StrategyContext:
-                return StrategyContext(
-                    positions=(),
-                    capital_available=Decimal('0'),
-                    operational_mode=OperationalMode.ACTIVE,
+            def context_provider(strategy_id: str) -> StrategyContext:
+                return _build_strategy_context(
+                    sequencer.instance_state,
+                    sequencer.manifest,
+                    strategy_id,
                 )
 
             def fallback_price_provider() -> Decimal | None:
