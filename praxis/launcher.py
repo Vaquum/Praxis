@@ -29,6 +29,8 @@ from aiohttp import web
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.instance_state import InstanceState
+from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
+from nexus.core.health_loop import HealthLoop
 from nexus.core.outcome_loop import OutcomeLoop
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import (
@@ -94,6 +96,7 @@ _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
+_DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
 _ZERO = Decimal('0')
 _HUNDRED = Decimal('100')
 
@@ -195,6 +198,45 @@ def _build_praxis_outbound(
         pull_positions_fn=trading.pull_positions,
         submit_abort_fn=submit_abort_async,
         get_health_snapshot_fn=trading.get_health_snapshot,
+    )
+
+
+def _build_health_loop(
+    praxis_outbound: PraxisOutbound,
+    state: InstanceState,
+    account_id: str,
+    interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
+) -> HealthLoop:
+    '''Build a per-account `HealthLoop` wired to Praxis health pulls.
+
+    Each tick: pulls a `HealthSnapshot` via
+    `PraxisOutbound.get_health_snapshot(account_id)` (which crosses the
+    thread/loop boundary into Praxis via `run_coroutine_threadsafe`),
+    evaluates it through `HealthEvaluator(HealthThresholds())` with
+    MMVP-default thresholds (200/500/1000 ms latency warn/breach/halt,
+    3/5/10 consecutive failures, 10%/20%/40% failure rate, 70%/85%/90%
+    rate-limit headroom, 500 ms clock drift), and updates
+    `state.mode` on transition. The validator `HealthStagePolicy`
+    (Decimal-typed) and the evaluator `HealthThresholds` (float-typed)
+    are separate policy objects today; aligning them is a post-MMVP
+    concern tracked separately.
+
+    The Praxis `HealthSnapshot` dataclass is field-compatible with the
+    Nexus `HealthSnapshot` that `HealthEvaluator.evaluate` reads (same
+    `latency_p99_ms` / `consecutive_failures` / `failure_rate` /
+    `rate_limit_headroom` / `clock_drift_ms` attribute names), so the
+    provider returns Praxis's type and `evaluate` duck-types it without
+    conversion.
+    '''
+
+    def snapshot_provider() -> Any:
+        return praxis_outbound.get_health_snapshot(account_id)
+
+    return HealthLoop(
+        snapshot_provider=snapshot_provider,
+        evaluator=HealthEvaluator(HealthThresholds()),
+        state=state,
+        interval_seconds=interval_seconds,
     )
 
 
@@ -732,6 +774,7 @@ class _NexusRuntime:
     predict_loop: PredictLoop
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
+    health_loop: HealthLoop
 
 
 class Launcher:
@@ -1196,6 +1239,13 @@ class Launcher:
         )
         outcome_loop.start()
 
+        health_loop = _build_health_loop(
+            praxis_outbound=praxis_outbound,
+            state=state,
+            account_id=inst.account_id,
+        )
+        health_loop.start()
+
         return _NexusRuntime(
             state_store=state_store,
             sequencer=sequencer,
@@ -1210,6 +1260,7 @@ class Launcher:
             predict_loop=predict_loop,
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
+            health_loop=health_loop,
         )
 
     def _collect_kline_intervals(self) -> dict[int, int]:
