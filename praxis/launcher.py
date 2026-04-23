@@ -29,6 +29,8 @@ from aiohttp import web
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.instance_state import InstanceState
+from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
+from nexus.core.health_loop import HealthLoop
 from nexus.core.outcome_loop import OutcomeLoop
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import (
@@ -67,6 +69,7 @@ from nexus.strategy.predict_loop import PredictLoop
 from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
+from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
@@ -93,6 +96,7 @@ _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
+_DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
 _ZERO = Decimal('0')
 _HUNDRED = Decimal('100')
 
@@ -142,6 +146,98 @@ def _build_nexus_instance_config(
         duplicate_window_ms=_DEFAULT_DUPLICATE_WINDOW_MS,
         stp_mode=STPMode.CANCEL_TAKER,
         capital_pct=capital_pct,
+    )
+
+
+def _build_praxis_outbound(
+    trading: Trading,
+    loop: asyncio.AbstractEventLoop,
+) -> PraxisOutbound:
+    '''Build a fully-wired `PraxisOutbound` for one account.
+
+    Wires every outbound call Nexus needs against the Praxis `Trading`
+    singleton: command submission, account register / unregister,
+    position pulls, abort submission, and health snapshot pulls.
+
+    `Trading.submit_abort` is sync (it enqueues onto the account
+    coroutine), but `PraxisOutbound` expects
+    `Callable[..., Coroutine[Any, Any, None]]` so it can schedule the
+    call via `run_coroutine_threadsafe` from the Nexus thread. A thin
+    async adapter bridges the shape without touching the Praxis-side
+    signature.
+
+    Without the `submit_abort_fn` wiring, `PraxisOutbound.send_abort`
+    raises `RuntimeError('submit_abort_fn not configured')` at first
+    use — silently regressing `ShutdownSequencer` abort escalation
+    and `submit_actions` ABORT handling. Without
+    `get_health_snapshot_fn`, the runtime `HealthLoop` cannot pull
+    snapshots and `operational_mode` never transitions.
+    '''
+
+    async def submit_abort_async(
+        *,
+        command_id: str,
+        account_id: str,
+        reason: str,
+        created_at: datetime,
+    ) -> None:
+        trading.submit_abort(
+            TradeAbort(
+                command_id=command_id,
+                account_id=account_id,
+                reason=reason,
+                created_at=created_at,
+            ),
+        )
+
+    return PraxisOutbound(
+        submit_fn=trading.submit_command,
+        loop=loop,
+        register_fn=trading.register_account,
+        unregister_fn=trading.unregister_account,
+        pull_positions_fn=trading.pull_positions,
+        submit_abort_fn=submit_abort_async,
+        get_health_snapshot_fn=trading.get_health_snapshot,
+    )
+
+
+def _build_health_loop(
+    praxis_outbound: PraxisOutbound,
+    state: InstanceState,
+    account_id: str,
+    interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
+) -> HealthLoop:
+    '''Build a per-account `HealthLoop` wired to Praxis health pulls.
+
+    Each tick: pulls a `HealthSnapshot` via
+    `PraxisOutbound.get_health_snapshot(account_id)` (which crosses the
+    thread/loop boundary into Praxis via `run_coroutine_threadsafe`),
+    evaluates it through `HealthEvaluator(HealthThresholds())` with
+    MMVP-default thresholds (200/500/1000 ms latency warn/breach/halt,
+    3/5/10 consecutive failures, 10%/20%/40% failure rate,
+    70%/85%/90% rate-limit utilisation (`rate_limit_headroom`; 0.0
+    idle, 1.0 at limit — higher is worse), 500 ms clock drift), and
+    updates `state.mode` on transition. The validator `HealthStagePolicy`
+    (Decimal-typed) and the evaluator `HealthThresholds` (float-typed)
+    are separate policy objects today; aligning them is a post-MMVP
+    concern tracked separately.
+
+    The Praxis `HealthSnapshot` dataclass is field-compatible with the
+    Nexus `HealthSnapshot` that `HealthEvaluator.evaluate` reads (same
+    `latency_p99_ms` / `consecutive_failures` / `failure_rate` /
+    `rate_limit_headroom` / `clock_drift_ms` attribute names), so the
+    provider returns Praxis's type and `evaluate` duck-types it without
+    conversion.
+    '''
+
+    def snapshot_provider() -> Any:
+        return praxis_outbound.get_health_snapshot(account_id)
+
+    return HealthLoop(
+        snapshot_provider=snapshot_provider,
+        evaluator=HealthEvaluator(HealthThresholds()),
+        state=state,
+        interval_seconds=interval_seconds,
     )
 
 
@@ -679,6 +775,7 @@ class _NexusRuntime:
     predict_loop: PredictLoop
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
+    health_loop: HealthLoop
 
 
 class Launcher:
@@ -963,6 +1060,8 @@ class Launcher:
 
             self._stop_event.wait()
 
+            runtime.health_loop.stop()
+
             shutdown = ShutdownSequencer(
                 runner=runtime.runner,
                 manifest=runtime.manifest,
@@ -1016,13 +1115,7 @@ class Launcher:
 
         state_store = StateStore(inst.state_dir)
 
-        praxis_outbound = PraxisOutbound(
-            submit_fn=self._trading.submit_command,
-            loop=self._loop,
-            register_fn=self._trading.register_account,
-            unregister_fn=self._trading.unregister_account,
-            pull_positions_fn=self._trading.pull_positions,
-        )
+        praxis_outbound = _build_praxis_outbound(self._trading, self._loop)
 
         sequencer = StartupSequencer(
             state_store=state_store,
@@ -1149,6 +1242,13 @@ class Launcher:
         )
         outcome_loop.start()
 
+        health_loop = _build_health_loop(
+            praxis_outbound=praxis_outbound,
+            state=state,
+            account_id=inst.account_id,
+        )
+        health_loop.start()
+
         return _NexusRuntime(
             state_store=state_store,
             sequencer=sequencer,
@@ -1163,6 +1263,7 @@ class Launcher:
             predict_loop=predict_loop,
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
+            health_loop=health_loop,
         )
 
     def _collect_kline_intervals(self) -> dict[int, int]:
