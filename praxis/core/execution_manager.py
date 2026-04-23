@@ -138,6 +138,30 @@ class ExecutionManager:
         self._command_trade_ids: dict[str, str] = {}
         self._loop_thread_id: int | None = None
 
+    def set_on_trade_outcome(
+        self,
+        cb: Callable[[TradeOutcome], Awaitable[None]] | None,
+    ) -> None:
+        '''Replace the on_trade_outcome callback.
+
+        Used by `Trading.set_on_trade_outcome` so the launcher can wire
+        `Trading.route_outcome` after `Trading()` is constructed (the
+        callback can't reference the Trading instance during
+        TradingConfig construction).
+
+        The pre-`start()` guard lives on `Trading.set_on_trade_outcome`
+        (the only public entry point that calls this method);
+        callers that go through the `Trading` wrapper cannot bypass
+        the order constraint. Direct calls to `ExecutionManager` are
+        reserved for tests and stay unrestricted.
+
+        Args:
+            cb: New callback or `None`. Must accept a `TradeOutcome` and
+                return an awaitable.
+        '''
+
+        self._on_trade_outcome = cb
+
     def register_account(self, account_id: str) -> None:
         '''
         Create per-account queues and start account coroutine.

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import functools
+import queue
 from collections.abc import Sequence
 from datetime import datetime, UTC
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 
 import aiosqlite
 import pytest
@@ -1928,3 +1930,227 @@ async def test_loop_cleared_on_failed_start(spine: EventSpine) -> None:
 
     with pytest.raises(RuntimeError, match=r'Trading\.start'):
         _ = trading.loop
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_with_sync_callback(spine: EventSpine) -> None:
+    '''Sync callback is auto-wrapped so ExecutionManager can await it.'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    seen: list[TradeOutcome] = []
+
+    def cb(outcome: TradeOutcome) -> None:
+        seen.append(outcome)
+
+    trading.set_on_trade_outcome(cb)
+
+    outcome = TradeOutcome(
+        command_id='cmd-1',
+        trade_id='trade-1',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb_async = trading.execution_manager._on_trade_outcome
+    assert cb_async is not None
+    await cb_async(outcome)
+
+    assert seen == [outcome]
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_with_async_callback(spine: EventSpine) -> None:
+    '''Async callback is awaited via the async adapter.'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    seen: list[TradeOutcome] = []
+
+    async def cb(outcome: TradeOutcome) -> None:
+        seen.append(outcome)
+
+    trading.set_on_trade_outcome(cb)
+
+    outcome = TradeOutcome(
+        command_id='cmd-2',
+        trade_id='trade-2',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb_installed = trading.execution_manager._on_trade_outcome
+    assert cb_installed is not None
+    await cb_installed(outcome)
+    assert seen == [outcome]
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_with_partial_around_async(
+    spine: EventSpine,
+) -> None:
+    '''functools.partial around an async callable is awaited correctly.
+
+    `asyncio.iscoroutinefunction` returns False for `partial(async_fn, ...)`
+    even though calling it returns a coroutine. The always-wrap +
+    `inspect.isawaitable` path handles this; the previous
+    coroutine-function branch would have dropped the coroutine.
+    '''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    seen: list[tuple[str, TradeOutcome]] = []
+
+    async def base(tag: str, outcome: TradeOutcome) -> None:
+        seen.append((tag, outcome))
+
+    cb = functools.partial(base, 'partial')
+    trading.set_on_trade_outcome(cb)
+
+    outcome = TradeOutcome(
+        command_id='cmd-partial',
+        trade_id='trade-partial',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb_installed = trading.execution_manager._on_trade_outcome
+    assert cb_installed is not None
+    await cb_installed(outcome)
+    assert seen == [('partial', outcome)]
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_clear_with_none(spine: EventSpine) -> None:
+    '''Passing None clears the callback.'''
+
+    async def noop_on_trade_outcome(_outcome: TradeOutcome) -> None:
+        return None
+
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            on_trade_outcome=noop_on_trade_outcome,
+        ),
+        event_spine=spine,
+    )
+
+    trading.set_on_trade_outcome(None)
+
+    assert trading.execution_manager._on_trade_outcome is None
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_after_start_raises(spine: EventSpine) -> None:
+    '''Swapping the callback once start() has completed is forbidden.'''
+
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, _InjectedVenueAdapter()),
+    )
+
+    await trading.start()
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match=r'must not be called once Trading\.start\(\) has begun',
+        ):
+            trading.set_on_trade_outcome(trading.route_outcome)
+    finally:
+        await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_during_start_raises(spine: EventSpine) -> None:
+    '''Swapping the callback while start() is in progress is forbidden too.
+
+    `start()` sets `self._loop` at the very top and only sets
+    `self._started` at the end (after replay/reconciliation). The guard
+    must fire on the `_loop is not None` window, not just on
+    `_started`. We exercise this by patching `_event_spine.read` to
+    call `set_on_trade_outcome` mid-startup.
+    '''
+
+    trading = Trading(
+        config=TradingConfig(epoch_id=1),
+        event_spine=spine,
+    )
+
+    real_read = trading._event_spine.read
+    raised: list[BaseException] = []
+
+    async def midstart_read(epoch_id: int) -> Any:
+        try:
+            trading.set_on_trade_outcome(trading.route_outcome)
+        except RuntimeError as exc:
+            raised.append(exc)
+        return await real_read(epoch_id)
+
+    trading._event_spine.read = midstart_read  # type: ignore[method-assign]
+
+    try:
+        await trading.start()
+    finally:
+        await trading.stop()
+
+    assert len(raised) == 1
+    assert 'has begun' in str(raised[0])
+
+
+@pytest.mark.asyncio
+async def test_outcome_routed_through_callback_reaches_queue(
+    spine: EventSpine,
+) -> None:
+    '''PT.4.3: a pre-built TradeOutcome routed through the configured callback lands on the per-account queue.'''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    q: queue.Queue[TradeOutcome] = queue.Queue()
+    trading.register_outcome_queue('acc-1', q)
+    trading.set_on_trade_outcome(trading.route_outcome)
+
+    outcome = TradeOutcome(
+        command_id='cmd-3',
+        trade_id='trade-3',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb = trading.execution_manager._on_trade_outcome
+    assert cb is not None
+    await cb(outcome)
+
+    delivered = q.get_nowait()
+    assert delivered is outcome

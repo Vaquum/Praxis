@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import queue
 import threading
 from collections import defaultdict
 from datetime import datetime, UTC
 from decimal import Decimal
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
@@ -194,6 +196,62 @@ class Trading:
             return
 
         q.put_nowait(outcome)
+
+    def set_on_trade_outcome(
+        self,
+        cb: Callable[[TradeOutcome], None] | Callable[[TradeOutcome], Awaitable[None]] | None,
+    ) -> None:
+        '''Install the on_trade_outcome callback after `Trading()` construction.
+
+        Closes the chicken-and-egg gap where `TradingConfig.on_trade_outcome`
+        cannot reference the not-yet-built `Trading` instance. The launcher
+        calls this immediately after `Trading()` returns, typically with
+        `trading.route_outcome` so per-account `TradeOutcome`s land on the
+        registered queues.
+
+        Callbacks are always wrapped in an `async` adapter that awaits
+        the result when it is awaitable and treats it as a plain return
+        value otherwise. This covers coroutine functions, plain sync
+        callables, `functools.partial` around coroutine functions,
+        `AsyncMock`, and callables whose `__call__` is `async` — all
+        cases where `asyncio.iscoroutinefunction` would misclassify
+        and drop the returned coroutine without awaiting it.
+
+        Args:
+            cb: Sync `(TradeOutcome) -> None`, async
+                `(TradeOutcome) -> Awaitable[None]`, any callable that
+                returns an awaitable, or `None` to clear.
+
+        Raises:
+            RuntimeError: If called once `start()` has begun — the
+                replay loop and in-flight order coroutines rely on a
+                stable callback identity, so swapping it once startup
+                is in progress would race with outcome production.
+                The guard fires both during startup (after
+                `start()` sets `self._loop` but before
+                `self._started`) and after start completes.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_trade_outcome must not be called once '
+                'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
+        if cb is None:
+            self._execution_manager.set_on_trade_outcome(None)
+            return
+
+        user_cb = cb
+
+        async def _async_adapter(outcome: TradeOutcome) -> None:
+            result = user_cb(outcome)
+
+            if inspect.isawaitable(result):
+                await result
+
+        self._execution_manager.set_on_trade_outcome(_async_adapter)
 
     async def start(self) -> None:
         '''Initialize runtime and execute per-account startup sequence.'''

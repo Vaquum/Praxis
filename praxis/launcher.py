@@ -723,6 +723,7 @@ class Launcher:
         self._poller: MarketDataPoller | None = None
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
+        self._outcome_queues: dict[str, queue.Queue[TradeOutcome]] = {}
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -777,6 +778,25 @@ class Launcher:
             event_spine=self._event_spine,
             venue_adapter=self._venue_adapter,
         )
+
+        existing_on_trade_outcome = self._trading_config.on_trade_outcome
+
+        if existing_on_trade_outcome is None:
+            self._trading.set_on_trade_outcome(self._trading.route_outcome)
+        else:
+            route_outcome = self._trading.route_outcome
+            user_cb = existing_on_trade_outcome
+
+            async def _composed(outcome: TradeOutcome) -> None:
+                route_outcome(outcome)
+                await user_cb(outcome)
+
+            self._trading.set_on_trade_outcome(_composed)
+
+        for inst in self._instances:
+            account_queue: queue.Queue[TradeOutcome] = queue.Queue()
+            self._outcome_queues[inst.account_id] = account_queue
+            self._trading.register_outcome_queue(inst.account_id, account_queue)
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
@@ -874,8 +894,7 @@ class Launcher:
             raise RuntimeError(msg)
 
         for inst in self._instances:
-            outcome_queue: queue.Queue[TradeOutcome] = queue.Queue()
-            self._trading.register_outcome_queue(inst.account_id, outcome_queue)
+            outcome_queue = self._outcome_queues[inst.account_id]
 
             thread = threading.Thread(
                 target=self._run_nexus_instance,
