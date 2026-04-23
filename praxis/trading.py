@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import queue
 import threading
@@ -208,12 +209,18 @@ class Trading:
         `trading.route_outcome` so per-account `TradeOutcome`s land on the
         registered queues.
 
-        Sync callbacks are auto-wrapped in an `async` adapter so the
-        underlying `ExecutionManager` can `await` them uniformly.
+        Callbacks are always wrapped in an `async` adapter that awaits
+        the result when it is awaitable and treats it as a plain return
+        value otherwise. This covers coroutine functions, plain sync
+        callables, `functools.partial` around coroutine functions,
+        `AsyncMock`, and callables whose `__call__` is `async` — all
+        cases where `asyncio.iscoroutinefunction` would misclassify
+        and drop the returned coroutine without awaiting it.
 
         Args:
             cb: Sync `(TradeOutcome) -> None`, async
-                `(TradeOutcome) -> Awaitable[None]`, or `None` to clear.
+                `(TradeOutcome) -> Awaitable[None]`, any callable that
+                returns an awaitable, or `None` to clear.
 
         Raises:
             RuntimeError: If called after `start()` — the replay loop and
@@ -230,14 +237,13 @@ class Trading:
             self._execution_manager.set_on_trade_outcome(None)
             return
 
-        if asyncio.iscoroutinefunction(cb):
-            self._execution_manager.set_on_trade_outcome(cb)
-            return
-
-        sync_cb = cb
+        user_cb = cb
 
         async def _async_adapter(outcome: TradeOutcome) -> None:
-            sync_cb(outcome)
+            result = user_cb(outcome)
+
+            if inspect.isawaitable(result):
+                await result
 
         self._execution_manager.set_on_trade_outcome(_async_adapter)
 

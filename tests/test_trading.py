@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import queue
 from collections.abc import Sequence
 from datetime import datetime, UTC
@@ -1967,7 +1968,7 @@ async def test_set_on_trade_outcome_with_sync_callback(spine: EventSpine) -> Non
 
 @pytest.mark.asyncio
 async def test_set_on_trade_outcome_with_async_callback(spine: EventSpine) -> None:
-    '''Async callback is installed verbatim, no wrapping.'''
+    '''Async callback is awaited via the async adapter.'''
 
     trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
 
@@ -1977,8 +1978,6 @@ async def test_set_on_trade_outcome_with_async_callback(spine: EventSpine) -> No
         seen.append(outcome)
 
     trading.set_on_trade_outcome(cb)
-
-    assert trading.execution_manager._on_trade_outcome is cb
 
     outcome = TradeOutcome(
         command_id='cmd-2',
@@ -1998,6 +1997,48 @@ async def test_set_on_trade_outcome_with_async_callback(spine: EventSpine) -> No
     assert cb_installed is not None
     await cb_installed(outcome)
     assert seen == [outcome]
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_with_partial_around_async(
+    spine: EventSpine,
+) -> None:
+    '''functools.partial around an async callable is awaited correctly.
+
+    `asyncio.iscoroutinefunction` returns False for `partial(async_fn, ...)`
+    even though calling it returns a coroutine. The always-wrap +
+    `inspect.isawaitable` path handles this; the previous
+    coroutine-function branch would have dropped the coroutine.
+    '''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    seen: list[tuple[str, TradeOutcome]] = []
+
+    async def base(tag: str, outcome: TradeOutcome) -> None:
+        seen.append((tag, outcome))
+
+    cb = functools.partial(base, 'partial')
+    trading.set_on_trade_outcome(cb)
+
+    outcome = TradeOutcome(
+        command_id='cmd-partial',
+        trade_id='trade-partial',
+        account_id='acc-1',
+        status=TradeStatus.FILLED,
+        target_qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        avg_fill_price=Decimal('50000'),
+        slices_completed=1,
+        slices_total=1,
+        reason=None,
+        created_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+
+    cb_installed = trading.execution_manager._on_trade_outcome
+    assert cb_installed is not None
+    await cb_installed(outcome)
+    assert seen == [('partial', outcome)]
 
 
 @pytest.mark.asyncio
@@ -2039,10 +2080,10 @@ async def test_set_on_trade_outcome_after_start_raises(spine: EventSpine) -> Non
 
 
 @pytest.mark.asyncio
-async def test_outcome_produced_by_execution_manager_reaches_queue(
+async def test_outcome_routed_through_callback_reaches_queue(
     spine: EventSpine,
 ) -> None:
-    '''PT.4.3: a TradeOutcome produced by the await callback lands on the per-account queue.'''
+    '''PT.4.3: a pre-built TradeOutcome routed through the configured callback lands on the per-account queue.'''
 
     trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
 

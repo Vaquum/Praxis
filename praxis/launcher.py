@@ -778,7 +778,19 @@ class Launcher:
             venue_adapter=self._venue_adapter,
         )
 
-        self._trading.set_on_trade_outcome(self._trading.route_outcome)
+        existing_on_trade_outcome = self._trading_config.on_trade_outcome
+
+        if existing_on_trade_outcome is None:
+            self._trading.set_on_trade_outcome(self._trading.route_outcome)
+        else:
+            route_outcome = self._trading.route_outcome
+            user_cb = existing_on_trade_outcome
+
+            async def _composed(outcome: TradeOutcome) -> None:
+                route_outcome(outcome)
+                await user_cb(outcome)
+
+            self._trading.set_on_trade_outcome(_composed)
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
