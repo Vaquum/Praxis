@@ -67,6 +67,7 @@ from nexus.strategy.predict_loop import PredictLoop
 from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
+from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
@@ -142,6 +143,58 @@ def _build_nexus_instance_config(
         duplicate_window_ms=_DEFAULT_DUPLICATE_WINDOW_MS,
         stp_mode=STPMode.CANCEL_TAKER,
         capital_pct=capital_pct,
+    )
+
+
+def _build_praxis_outbound(
+    trading: Trading,
+    loop: asyncio.AbstractEventLoop,
+) -> PraxisOutbound:
+    '''Build a fully-wired `PraxisOutbound` for one account.
+
+    Wires every outbound call Nexus needs against the Praxis `Trading`
+    singleton: command submission, account register / unregister,
+    position pulls, abort submission, and health snapshot pulls.
+
+    `Trading.submit_abort` is sync (it enqueues onto the account
+    coroutine), but `PraxisOutbound` expects
+    `Callable[..., Coroutine[Any, Any, None]]` so it can schedule the
+    call via `run_coroutine_threadsafe` from the Nexus thread. A thin
+    async adapter bridges the shape without touching the Praxis-side
+    signature.
+
+    Without the `submit_abort_fn` wiring, `PraxisOutbound.send_abort`
+    raises `RuntimeError('submit_abort_fn not configured')` at first
+    use — silently regressing `ShutdownSequencer` abort escalation
+    and `submit_actions` ABORT handling. Without
+    `get_health_snapshot_fn`, the runtime `HealthLoop` cannot pull
+    snapshots and `operational_mode` never transitions.
+    '''
+
+    async def submit_abort_async(
+        *,
+        command_id: str,
+        account_id: str,
+        reason: str,
+        created_at: datetime,
+    ) -> None:
+        trading.submit_abort(
+            TradeAbort(
+                command_id=command_id,
+                account_id=account_id,
+                reason=reason,
+                created_at=created_at,
+            ),
+        )
+
+    return PraxisOutbound(
+        submit_fn=trading.submit_command,
+        loop=loop,
+        register_fn=trading.register_account,
+        unregister_fn=trading.unregister_account,
+        pull_positions_fn=trading.pull_positions,
+        submit_abort_fn=submit_abort_async,
+        get_health_snapshot_fn=trading.get_health_snapshot,
     )
 
 
@@ -1016,13 +1069,7 @@ class Launcher:
 
         state_store = StateStore(inst.state_dir)
 
-        praxis_outbound = PraxisOutbound(
-            submit_fn=self._trading.submit_command,
-            loop=self._loop,
-            register_fn=self._trading.register_account,
-            unregister_fn=self._trading.unregister_account,
-            pull_positions_fn=self._trading.pull_positions,
-        )
+        praxis_outbound = _build_praxis_outbound(self._trading, self._loop)
 
         sequencer = StartupSequencer(
             state_store=state_store,
