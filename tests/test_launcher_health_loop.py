@@ -116,6 +116,10 @@ def test_health_loop_stop_after_start() -> None:
     ):
         time.sleep(0.02)
 
+    assert outbound.get_health_snapshot.call_count > 0, (
+        'health loop worker did not call get_health_snapshot before stop()'
+    )
+
     loop.stop()
     loop.stop()
     assert loop.running is False
