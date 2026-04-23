@@ -214,9 +214,10 @@ def _build_health_loop(
     thread/loop boundary into Praxis via `run_coroutine_threadsafe`),
     evaluates it through `HealthEvaluator(HealthThresholds())` with
     MMVP-default thresholds (200/500/1000 ms latency warn/breach/halt,
-    3/5/10 consecutive failures, 10%/20%/40% failure rate, 70%/85%/90%
-    rate-limit headroom, 500 ms clock drift), and updates
-    `state.mode` on transition. The validator `HealthStagePolicy`
+    3/5/10 consecutive failures, 10%/20%/40% failure rate,
+    70%/85%/90% rate-limit utilisation (`rate_limit_headroom`; 0.0
+    idle, 1.0 at limit — higher is worse), 500 ms clock drift), and
+    updates `state.mode` on transition. The validator `HealthStagePolicy`
     (Decimal-typed) and the evaluator `HealthThresholds` (float-typed)
     are separate policy objects today; aligning them is a post-MMVP
     concern tracked separately.
