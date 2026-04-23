@@ -54,6 +54,13 @@ def _run_loop_in_thread() -> tuple[asyncio.AbstractEventLoop, threading.Thread]:
 def _stop_loop(loop: asyncio.AbstractEventLoop, thread: threading.Thread) -> None:
     loop.call_soon_threadsafe(loop.stop)
     thread.join(timeout=2)
+
+    if thread.is_alive():
+        pytest.fail(
+            'event loop thread did not stop within 2s; '
+            'refusing to close a running event loop',
+        )
+
     if not loop.is_closed():
         loop.close()
 
