@@ -1059,6 +1059,8 @@ class Launcher:
 
             self._stop_event.wait()
 
+            runtime.health_loop.stop()
+
             shutdown = ShutdownSequencer(
                 runner=runtime.runner,
                 manifest=runtime.manifest,
