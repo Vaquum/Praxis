@@ -398,7 +398,11 @@ def _build_enter_context(
     fee_rate: Decimal,
     enter_symbol: str,
 ) -> ValidationRequestContext | None:
-    reference_price = action.reference_price or fallback_price_provider()
+    reference_price = action.reference_price
+
+    if reference_price is None:
+        reference_price = fallback_price_provider()
+
     if reference_price is None:
         _log.warning(
             'no reference price available for ENTER; skipping action',
