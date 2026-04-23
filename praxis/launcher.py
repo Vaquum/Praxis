@@ -14,7 +14,10 @@ import re
 import signal
 import sys
 import threading
+import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -23,15 +26,45 @@ import aiosqlite
 import polars as pl
 from aiohttp import web
 
-from nexus.core.domain.enums import OperationalMode
-from nexus.infrastructure.manifest import load_manifest
+from nexus.core.capital_controller.capital_controller import CapitalController
+from nexus.core.domain.enums import OperationalMode, OrderSide
+from nexus.core.domain.instance_state import InstanceState
+from nexus.core.outcome_loop import OutcomeLoop
+from nexus.core.stp_mode import STPMode
+from nexus.core.validator import (
+    HealthStagePolicy,
+    HealthStageSnapshot,
+    PlatformLimitsStageLimits,
+    PlatformLimitsStageSnapshot,
+    PriceCheckSnapshot,
+    RiskStageLimits,
+    StageValidator,
+    ValidationAction,
+    ValidationDecision,
+    ValidationPipeline,
+    ValidationRequestContext,
+    ValidationStage,
+    build_default_intake_hooks,
+    build_price_stage_limits_from_config,
+    validate_capital_stage,
+    validate_health_stage,
+    validate_intake_stage,
+    validate_platform_limits_stage,
+    validate_price_stage,
+    validate_risk_stage,
+)
+from nexus.infrastructure.manifest import Manifest, load_manifest
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
 from nexus.infrastructure.state_store import StateStore
+from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
+from nexus.strategy.action import Action, ActionType
+from nexus.strategy.action_submit import SubmissionStatus, submit_actions
 from nexus.strategy.context import StrategyContext
 from nexus.strategy.predict_loop import PredictLoop
+from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -56,6 +89,550 @@ _REQUIRED_ENV_VARS = (
 )
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
+_DEFAULT_DUPLICATE_WINDOW_MS = 1000
+_DEFAULT_VENUE = 'binance_spot'
+_DEFAULT_FEE_RATE = Decimal('0.001')
+_DEFAULT_SYMBOL = 'BTCUSDT'
+_ZERO = Decimal('0')
+_HUNDRED = Decimal('100')
+
+_ACTION_TYPE_TO_VALIDATION_ACTION = {
+    ActionType.ENTER: ValidationAction.ENTER,
+    ActionType.EXIT: ValidationAction.EXIT,
+    ActionType.MODIFY: ValidationAction.MODIFY,
+    ActionType.ABORT: ValidationAction.ABORT,
+}
+
+
+def _build_nexus_instance_config(
+    praxis_inst: InstanceConfig,
+    manifest: Manifest,
+) -> NexusInstanceConfig:
+    '''Build a Nexus runtime `InstanceConfig` for one account.
+
+    Used by the launcher when wiring the per-account `submit_actions`
+    closure (PT.1.4.4). The Nexus `InstanceConfig` is consumed by the
+    validator pipeline and by `translate_to_trade_command`; it is
+    distinct from the Praxis-side launcher `InstanceConfig` (per-account
+    paths and manifest reference).
+
+    Carries MMVP-conservative defaults — duplicate-window 1s,
+    `STPMode.CANCEL_TAKER`, no per-process rate limit, no Stage-3 price
+    thresholds. The per-strategy `capital_pct` map mirrors the
+    manifest's strategy-spec percentages so capital-stage validation
+    sees the same allocation the manifest declares.
+
+    Args:
+        praxis_inst: Per-account launcher config (used for `account_id`).
+        manifest: Loaded strategy manifest (used to populate
+            `capital_pct` from `manifest.strategies[*].capital_pct`).
+
+    Returns:
+        Nexus runtime `InstanceConfig` ready to pass into
+        `ValidationPipeline` stages and `translate_to_trade_command`.
+    '''
+
+    capital_pct = {
+        spec.strategy_id: spec.capital_pct for spec in manifest.strategies
+    }
+
+    return NexusInstanceConfig(
+        account_id=praxis_inst.account_id,
+        venue=_DEFAULT_VENUE,
+        duplicate_window_ms=_DEFAULT_DUPLICATE_WINDOW_MS,
+        stp_mode=STPMode.CANCEL_TAKER,
+        capital_pct=capital_pct,
+    )
+
+
+def _default_health_snapshot() -> HealthStageSnapshot:
+    '''Return a neutral `HealthStageSnapshot` for MMVP-lenient health stage.
+
+    All policy thresholds default to `None`, so the health stage allows
+    every action regardless of snapshot values; this constant snapshot
+    only needs to satisfy `HealthStageSnapshot`'s field invariants.
+    '''
+
+    return HealthStageSnapshot(
+        latency_ms=Decimal(0),
+        consecutive_failures=Decimal(0),
+        failure_rate=Decimal(0),
+        rate_limit_headroom=Decimal(1),
+        clock_drift_ms=Decimal(0),
+    )
+
+
+def _default_platform_snapshot() -> PlatformLimitsStageSnapshot:
+    '''Return an empty `PlatformLimitsStageSnapshot` for MMVP defaults.'''
+
+    return PlatformLimitsStageSnapshot()
+
+
+def _default_price_snapshot() -> PriceCheckSnapshot | None:
+    '''Return `None`; MMVP `PriceStageLimits` are all unset.'''
+
+    return None
+
+
+def _build_validation_pipeline(
+    nexus_config: NexusInstanceConfig,
+    capital_controller: CapitalController,
+    *,
+    health_snapshot_provider: Callable[[], HealthStageSnapshot] = (
+        _default_health_snapshot
+    ),
+    platform_snapshot_provider: Callable[[], PlatformLimitsStageSnapshot] = (
+        _default_platform_snapshot
+    ),
+    price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
+        _default_price_snapshot
+    ),
+) -> ValidationPipeline:
+    '''Build a six-stage `ValidationPipeline` for one account.
+
+    Each stage closure captures stage-specific configuration that is
+    derived once from `nexus_config`; mutable runtime state (health
+    snapshot, platform-limits snapshot, price-check snapshot) is read on
+    every call via the supplied providers.
+
+    MMVP defaults are deliberately lenient: `RiskStageLimits`,
+    `PlatformLimitsStageLimits`, and `HealthStagePolicy` are constructed
+    with all thresholds unset so each stage allows every action;
+    `PriceStageLimits` is derived from `nexus_config` and inherits the
+    same all-unset posture from `_build_nexus_instance_config`.
+    Operator-supplied limits are dialed in pre-live by passing a
+    pre-configured `nexus_config` and richer snapshot providers.
+
+    Intake hooks are built once via `build_default_intake_hooks` so the
+    duplicate-order window state is preserved across ticks. Both
+    `active_command_ids` and `modifiable_command_ids` default to empty;
+    `ABORT` and `MODIFY` are not exercised by the action-submission
+    helper (`submit_actions` bypasses the validator for `ABORT`, and
+    MMVP strategies do not emit `MODIFY`).
+
+    Args:
+        nexus_config: Per-account Nexus runtime config built by
+            `_build_nexus_instance_config`.
+        capital_controller: Per-account capital controller wrapping the
+            mutable `CapitalState` from `sequencer.instance_state.capital`.
+        health_snapshot_provider: Callable returning the current health
+            snapshot. Defaults to a neutral-healthy snapshot.
+        platform_snapshot_provider: Callable returning the current
+            platform-limits snapshot. Defaults to an empty snapshot.
+        price_snapshot_provider: Callable returning the current
+            price-check snapshot. Defaults to `None`.
+
+    Returns:
+        Six-stage `ValidationPipeline` ready for use by `submit_actions`.
+    '''
+
+    intake_hooks = build_default_intake_hooks(nexus_config)
+    risk_limits = RiskStageLimits()
+    price_limits = build_price_stage_limits_from_config(nexus_config)
+    platform_limits = PlatformLimitsStageLimits()
+    health_policy = HealthStagePolicy()
+
+    def intake(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_intake_stage(context, hooks=intake_hooks)
+
+    def risk(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_risk_stage(context, risk_limits)
+
+    def price(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_price_stage(
+            context,
+            price_limits,
+            price_snapshot_provider(),
+        )
+
+    def capital(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_capital_stage(context, capital_controller)
+
+    def health(context: ValidationRequestContext) -> ValidationDecision:
+        return validate_health_stage(
+            context,
+            health_snapshot_provider(),
+            health_policy,
+        )
+
+    def platform_limits_stage(
+        context: ValidationRequestContext,
+    ) -> ValidationDecision:
+        return validate_platform_limits_stage(
+            context,
+            platform_limits,
+            platform_snapshot_provider(),
+        )
+
+    validators: dict[ValidationStage, StageValidator] = {
+        ValidationStage.INTAKE: intake,
+        ValidationStage.RISK: risk,
+        ValidationStage.PRICE: price,
+        ValidationStage.CAPITAL: capital,
+        ValidationStage.HEALTH: health,
+        ValidationStage.PLATFORM_LIMITS: platform_limits_stage,
+    }
+
+    return ValidationPipeline(validators)
+
+
+def _build_validation_context(
+    action: Action,
+    strategy_id: str,
+    *,
+    nexus_config: NexusInstanceConfig,
+    capital_controller: CapitalController,
+    state: InstanceState,
+    capital_pct: Decimal,
+    fallback_price_provider: Callable[[], Decimal | None],
+    fee_rate: Decimal = _DEFAULT_FEE_RATE,
+    enter_symbol: str = _DEFAULT_SYMBOL,
+) -> ValidationRequestContext | None:
+    '''Build a `ValidationRequestContext` from a strategy `Action`.
+
+    Maps each `ActionType` to its `ValidationAction` counterpart and
+    derives the validator's request-shape fields:
+
+    - `ENTER`: `order_notional = action.size * reference_price`, where
+      `reference_price` falls back to `fallback_price_provider()` when
+      `action.reference_price` is unset. Returns `None` (and logs) when
+      no price is available — the action cannot be validated without
+      one. Uses `enter_symbol` (MMVP default `BTCUSDT`) and generates a
+      command id when the action does not carry one.
+    - `EXIT`: derives `order_notional` from
+      `state.positions[action.trade_id].entry_price * action.size`.
+      Returns `None` (and logs) when the referenced trade is missing
+      from instance state — the helper skips the action and the caller
+      drops it.
+    - `MODIFY`: returns `None` and logs a TD-tracked warning. The
+      `current_order_notional` source is non-trivial and deferred; MMVP
+      strategies do not emit `MODIFY`.
+    - `ABORT`: returns `None`. `submit_actions` bypasses the validator
+      for `ABORT` and never calls this helper for that action type.
+
+    `estimated_fees = order_notional * fee_rate` (Binance taker default
+    `0.001` for MMVP). `strategy_budget` is computed via
+    `CapitalController.compute_strategy_budget(strategy_id, capital_pct)`
+    so capital-stage validation sees the same allocation as the
+    manifest's `capital_pct` declaration.
+
+    Args:
+        action: Strategy-emitted action being validated.
+        strategy_id: Owning strategy identifier.
+        nexus_config: Per-account Nexus runtime config.
+        capital_controller: Per-account capital controller.
+        state: Current mutable instance state (live, not a snapshot).
+        capital_pct: Strategy's manifest capital allocation percentage.
+        fallback_price_provider: Returns the latest reference price
+            (e.g. last `MarketDataPoller` close) or `None` when no
+            market data is available yet.
+        fee_rate: Effective taker fee rate for fee estimation.
+        enter_symbol: Symbol used for `ENTER` actions when the action
+            itself does not carry one.
+
+    Returns:
+        `ValidationRequestContext` for `ENTER`/`EXIT`, or `None` when
+        the action cannot be validated (missing price, missing trade,
+        unsupported `MODIFY`/`ABORT`).
+    '''
+
+    validation_action = _ACTION_TYPE_TO_VALIDATION_ACTION.get(action.action_type)
+    if validation_action is None:
+        _log.warning(
+            'unknown action_type for validation context',
+            extra={
+                'strategy_id': strategy_id,
+                'action_type': action.action_type,
+            },
+        )
+        return None
+
+    if validation_action == ValidationAction.MODIFY:
+        _log.warning(
+            'MODIFY validation context not implemented (TD); skipping action',
+            extra={
+                'strategy_id': strategy_id,
+                'command_id': action.command_id,
+            },
+        )
+        return None
+
+    if validation_action == ValidationAction.ABORT:
+        return None
+
+    strategy_budget = capital_controller.compute_strategy_budget(
+        strategy_id=strategy_id,
+        capital_pct=capital_pct,
+    )
+
+    if validation_action == ValidationAction.ENTER:
+        return _build_enter_context(
+            action=action,
+            strategy_id=strategy_id,
+            nexus_config=nexus_config,
+            state=state,
+            strategy_budget=strategy_budget,
+            fallback_price_provider=fallback_price_provider,
+            fee_rate=fee_rate,
+            enter_symbol=enter_symbol,
+        )
+
+    return _build_exit_context(
+        action=action,
+        strategy_id=strategy_id,
+        nexus_config=nexus_config,
+        state=state,
+        strategy_budget=strategy_budget,
+        fee_rate=fee_rate,
+    )
+
+
+def _build_enter_context(
+    *,
+    action: Action,
+    strategy_id: str,
+    nexus_config: NexusInstanceConfig,
+    state: InstanceState,
+    strategy_budget: Decimal,
+    fallback_price_provider: Callable[[], Decimal | None],
+    fee_rate: Decimal,
+    enter_symbol: str,
+) -> ValidationRequestContext | None:
+    reference_price = action.reference_price
+
+    if reference_price is None:
+        reference_price = fallback_price_provider()
+
+    if reference_price is None:
+        _log.warning(
+            'no reference price available for ENTER; skipping action',
+            extra={
+                'strategy_id': strategy_id,
+                'command_id': action.command_id,
+            },
+        )
+        return None
+
+    if action.size is None:
+        _log.warning(
+            'ENTER action has no size; skipping',
+            extra={
+                'strategy_id': strategy_id,
+                'command_id': action.command_id,
+            },
+        )
+        return None
+
+    order_notional = action.size * reference_price
+    estimated_fees = order_notional * fee_rate
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
+    order_side = action.direction or OrderSide.BUY
+
+    return ValidationRequestContext(
+        strategy_id=strategy_id,
+        action=ValidationAction.ENTER,
+        symbol=enter_symbol,
+        order_side=order_side,
+        order_size=action.size,
+        command_id=command_id,
+        trade_id=None,
+        order_notional=order_notional,
+        estimated_fees=estimated_fees,
+        strategy_budget=strategy_budget,
+        state=state,
+        config=nexus_config,
+    )
+
+
+def _build_exit_context(
+    *,
+    action: Action,
+    strategy_id: str,
+    nexus_config: NexusInstanceConfig,
+    state: InstanceState,
+    strategy_budget: Decimal,
+    fee_rate: Decimal,
+) -> ValidationRequestContext | None:
+    trade_id = action.trade_id
+    if trade_id is None or trade_id not in state.positions:
+        _log.warning(
+            'EXIT trade_id not found in state.positions; skipping action',
+            extra={
+                'strategy_id': strategy_id,
+                'trade_id': trade_id,
+            },
+        )
+        return None
+
+    position = state.positions[trade_id]
+
+    if action.size is None:
+        _log.warning(
+            'EXIT action has no size; skipping',
+            extra={
+                'strategy_id': strategy_id,
+                'trade_id': trade_id,
+            },
+        )
+        return None
+
+    order_notional = position.entry_price * action.size
+    estimated_fees = order_notional * fee_rate
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
+    order_side = action.direction or OrderSide.SELL
+
+    return ValidationRequestContext(
+        strategy_id=strategy_id,
+        action=ValidationAction.EXIT,
+        symbol=position.symbol,
+        order_side=order_side,
+        order_size=action.size,
+        command_id=command_id,
+        trade_id=trade_id,
+        order_notional=order_notional,
+        estimated_fees=estimated_fees,
+        strategy_budget=strategy_budget,
+        state=state,
+        config=nexus_config,
+    )
+
+
+def _extract_kline_sizes(manifest: Manifest) -> tuple[int, ...]:
+    '''Return ascending-unique kline sizes used by a manifest's sensors.
+
+    Used to drive the launcher's last-close fallback price provider when
+    a strategy emits an `ENTER` action without a `reference_price`.
+    Smallest kline-size first so the freshest available data wins.
+
+    Best-effort extraction: per-sensor parsing failures (missing
+    `_limen_manifest`, missing `params`, non-int-castable `kline_size`)
+    log a warning and skip that sensor rather than aborting account
+    startup. Mirrors the resilience of `Launcher._collect_kline_intervals`.
+    '''
+
+    sizes: set[int] = set()
+
+    for spec in manifest.strategies:
+        for sensor in spec.sensors:
+            try:
+                config = getattr(
+                    getattr(sensor, '_limen_manifest', None),
+                    'data_source_config',
+                    None,
+                )
+
+                if config is None:
+                    continue
+
+                params = getattr(config, 'params', None)
+
+                if params is None:
+                    continue
+
+                kline_size = params.get('kline_size')
+
+                if kline_size is not None:
+                    sizes.add(int(kline_size))
+            except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
+                _log.warning(
+                    'skipping sensor with invalid kline_size configuration',
+                    extra={'sensor_type': type(sensor).__name__},
+                    exc_info=True,
+                )
+
+    return tuple(sorted(sizes))
+
+
+def _last_close_from_poller(
+    poller: MarketDataPoller | None,
+    kline_sizes: tuple[int, ...],
+) -> Decimal | None:
+    '''Return the last-known close from the poller, or `None` if absent.
+
+    Iterates `kline_sizes` (smallest first) and returns the close value
+    of the last row in the first non-empty DataFrame found. Returns
+    `None` when the poller is absent, no kline-size has data yet, or the
+    DataFrame lacks a `close` column.
+    '''
+
+    if poller is None:
+        return None
+
+    for kline_size in kline_sizes:
+        df = poller.get_market_data(kline_size)
+
+        if df.height == 0 or 'close' not in df.columns:
+            continue
+
+        last_close = df.tail(1).get_column('close').item()
+
+        if last_close is None:
+            continue
+
+        return Decimal(str(last_close))
+
+    return None
+
+
+def _build_strategy_context(
+    state: InstanceState | None,
+    manifest: Manifest | None,
+    strategy_id: str,
+) -> StrategyContext:
+    '''Derive the per-strategy `StrategyContext` from live state + manifest.
+
+    Used by the runtime `context_provider` injected into PredictLoop and
+    TimerLoop. Reads the live `InstanceState` (so reservations and
+    operational-mode transitions show up between ticks) and the loaded
+    `Manifest` (so per-strategy budgets follow the operational
+    capital_pct allocation).
+
+    Returns a "stopped" context (positions=(), capital_available=0,
+    operational_mode=HALTED) when state or manifest is unavailable —
+    safer than ACTIVE since strategies may treat empty positions as
+    "no exposure" and act accordingly.
+
+    Args:
+        state: Live `InstanceState` from `StartupSequencer.instance_state`.
+        manifest: Loaded `Manifest` from `StartupSequencer.manifest`.
+        strategy_id: Strategy whose context to build.
+    '''
+
+    if state is None or manifest is None:
+        return StrategyContext(
+            positions=(),
+            capital_available=_ZERO,
+            operational_mode=OperationalMode.HALTED,
+        )
+
+    spec = next(
+        (s for s in manifest.strategies if s.strategy_id == strategy_id),
+        None,
+    )
+
+    if spec is None:
+        return StrategyContext(
+            positions=(),
+            capital_available=_ZERO,
+            operational_mode=OperationalMode.HALTED,
+        )
+
+    strategy_budget = manifest.capital_pool * spec.capital_pct / _HUNDRED
+    deployed = state.capital.per_strategy_deployed.get(strategy_id, _ZERO)
+    capital_available = max(strategy_budget - deployed, _ZERO)
+
+    positions = tuple(
+        pos for pos in state.positions.values() if pos.strategy_id == strategy_id
+    )
+
+    sm = state.strategy_modes.get(strategy_id)
+    operational_mode = sm.state.mode if sm is not None else state.mode.mode
+
+    return StrategyContext(
+        positions=positions,
+        capital_available=capital_available,
+        operational_mode=operational_mode,
+    )
 
 
 @dataclass(frozen=True)
@@ -75,6 +652,33 @@ class InstanceConfig:
     strategies_base_path: Path
     state_dir: Path
     strategy_state_path: Path | None = None
+
+
+@dataclass
+class _NexusRuntime:
+    '''Wired runtime components for one Nexus Manager instance.
+
+    Built once by `Launcher._build_nexus_runtime` and handed to
+    `_run_nexus_instance` for lifecycle orchestration (wait → shutdown).
+    A regular (non-frozen) dataclass because the grouped components
+    (`InstanceState`, `CapitalController`, `PredictLoop`, `OutcomeLoop`,
+    etc.) are themselves mutable; the `_NexusRuntime` container
+    carries them by reference.
+    '''
+
+    state_store: StateStore
+    sequencer: StartupSequencer
+    runner: StrategyRunner
+    manifest: Manifest
+    state: InstanceState
+    nexus_config: NexusInstanceConfig
+    capital_controller: CapitalController
+    pipeline: ValidationPipeline
+    praxis_outbound: PraxisOutbound
+    praxis_inbound: PraxisInbound
+    predict_loop: PredictLoop
+    timer_loop: TimerLoop | None
+    outcome_loop: OutcomeLoop
 
 
 class Launcher:
@@ -328,80 +932,32 @@ class Launcher:
         inst: InstanceConfig,
         outcome_queue: queue.Queue[TradeOutcome],
     ) -> None:
-        '''Run one Nexus Manager instance in its own thread.'''
+        '''Build, run, and shut down one Nexus Manager instance in its own thread.'''
 
         if self._trading is None or self._loop is None:
             return
 
         try:
-            state_store = StateStore(inst.state_dir)
-
-            praxis_outbound = PraxisOutbound(
-                submit_fn=self._trading.submit_command,
-                loop=self._loop,
-                register_fn=self._trading.register_account,
-                unregister_fn=self._trading.unregister_account,
-                pull_positions_fn=self._trading.pull_positions,
-            )
-
-            sequencer = StartupSequencer(
-                state_store=state_store,
-                manifest_path=inst.manifest_path,
-                strategies_base_path=inst.strategies_base_path,
-                strategy_state_path=inst.strategy_state_path,
-                praxis_outbound=praxis_outbound,
-            )
-
-            runner = sequencer.start()
-
-            def market_data_provider(kline_size: int) -> Any:
-                if self._poller is None:
-                    return pl.DataFrame()
-                return self._poller.get_market_data(kline_size)
-
-            def context_provider(_strategy_id: str) -> StrategyContext:
-                return StrategyContext(
-                    positions=(),
-                    capital_available=Decimal('0'),
-                    operational_mode=OperationalMode.ACTIVE,
-                )
-
-            predict_loop = PredictLoop(
-                runner=runner,
-                wired_sensors=sequencer.wired_sensors,
-                market_data_provider=market_data_provider,
-                context_provider=context_provider,
-            )
-            predict_loop.start()
-
-            timer_loop: TimerLoop | None = None
-
-            if sequencer.timer_specs:
-                timer_loop = TimerLoop(
-                    runner=runner,
-                    strategy_timers=sequencer.timer_specs,
-                    context_provider=context_provider,
-                )
-                timer_loop.start()
-
-            praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
+            runtime = self._build_nexus_runtime(inst, outcome_queue)
 
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
             self._stop_event.wait()
 
-            # NOTE: accessing private attrs on StartupSequencer — no public
-            # accessors exist in Nexus as of v0.26.0. Track in Nexus TD.
             shutdown = ShutdownSequencer(
-                runner=runner,
-                manifest=sequencer._manifest,
-                state_store=state_store,
-                state=sequencer._state,
-                strategy_state_path=inst.strategy_state_path or inst.state_dir / 'strategy_state',
-                predict_loop=predict_loop,
-                timer_loop=timer_loop,
-                praxis_outbound=praxis_outbound,
-                praxis_inbound=praxis_inbound,
+                runner=runtime.runner,
+                manifest=runtime.manifest,
+                state_store=runtime.state_store,
+                state=runtime.state,
+                strategy_state_path=(
+                    inst.strategy_state_path
+                    or inst.state_dir / 'strategy_state'
+                ),
+                predict_loop=runtime.predict_loop,
+                timer_loop=runtime.timer_loop,
+                outcome_loop=runtime.outcome_loop,
+                praxis_outbound=runtime.praxis_outbound,
+                praxis_inbound=runtime.praxis_inbound,
                 account_id=inst.account_id,
             )
             shutdown.shutdown()
@@ -410,6 +966,185 @@ class Launcher:
 
         except Exception:  # noqa: BLE001 - top-level catch for thread, must not propagate
             _log.exception('nexus instance failed', extra={'account_id': inst.account_id})
+
+    def _build_nexus_runtime(
+        self,
+        inst: InstanceConfig,
+        outcome_queue: queue.Queue[TradeOutcome],
+    ) -> _NexusRuntime:
+        '''Wire all per-account runtime components and start the loops.
+
+        Runs through: `StateStore` / `PraxisOutbound` / `StartupSequencer`
+        (state recovery) → per-account `NexusInstanceConfig`,
+        `CapitalController`, six-stage `ValidationPipeline`, submitter /
+        `build_context` / `context_provider` / `fallback_price_provider`
+        closures → `PredictLoop`, `TimerLoop` (when the manifest carries
+        timers), and `OutcomeLoop`, all started before returning. The
+        caller is responsible for waiting on the shutdown signal and
+        then invoking `ShutdownSequencer.shutdown()` on the returned
+        runtime.
+
+        Raises:
+            RuntimeError: If `sequencer.start()` completed but the
+                manifest/state accessors did not populate — indicates
+                an inconsistent Nexus upgrade, not a normal shutdown
+                path.
+        '''
+
+        if self._trading is None or self._loop is None:
+            msg = 'Launcher runtime not initialized'
+            raise RuntimeError(msg)
+
+        state_store = StateStore(inst.state_dir)
+
+        praxis_outbound = PraxisOutbound(
+            submit_fn=self._trading.submit_command,
+            loop=self._loop,
+            register_fn=self._trading.register_account,
+            unregister_fn=self._trading.unregister_account,
+            pull_positions_fn=self._trading.pull_positions,
+        )
+
+        sequencer = StartupSequencer(
+            state_store=state_store,
+            manifest_path=inst.manifest_path,
+            strategies_base_path=inst.strategies_base_path,
+            strategy_state_path=inst.strategy_state_path,
+            praxis_outbound=praxis_outbound,
+        )
+
+        runner = sequencer.start()
+
+        manifest = sequencer.manifest
+        state = sequencer.instance_state
+
+        if manifest is None or state is None:
+            msg = (
+                'StartupSequencer.start() did not produce manifest/state for '
+                f'account {inst.account_id!r}'
+            )
+            raise RuntimeError(msg)
+
+        nexus_instance_config = _build_nexus_instance_config(inst, manifest)
+        capital_controller = CapitalController(state.capital)
+        pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
+        capital_pct_by_strategy = {
+            spec.strategy_id: spec.capital_pct for spec in manifest.strategies
+        }
+        kline_sizes = _extract_kline_sizes(manifest)
+
+        def market_data_provider(kline_size: int) -> Any:
+            if self._poller is None:
+                return pl.DataFrame()
+            return self._poller.get_market_data(kline_size)
+
+        def context_provider(strategy_id: str) -> StrategyContext:
+            return _build_strategy_context(
+                sequencer.instance_state,
+                sequencer.manifest,
+                strategy_id,
+            )
+
+        def fallback_price_provider() -> Decimal | None:
+            return _last_close_from_poller(self._poller, kline_sizes)
+
+        def build_context(
+            action: Action,
+            strategy_id: str,
+        ) -> ValidationRequestContext | None:
+            capital_pct = capital_pct_by_strategy.get(strategy_id)
+
+            if capital_pct is None:
+                _log.warning(
+                    'unknown strategy_id when building validation context; '
+                    'skipping action',
+                    extra={
+                        'strategy_id': strategy_id,
+                        'account_id': inst.account_id,
+                    },
+                )
+                return None
+
+            return _build_validation_context(
+                action,
+                strategy_id,
+                nexus_config=nexus_instance_config,
+                capital_controller=capital_controller,
+                state=state,
+                capital_pct=capital_pct,
+                fallback_price_provider=fallback_price_provider,
+            )
+
+        command_strategy_ids: dict[str, str] = {}
+
+        def submitter(actions: list[Action], strategy_id: str) -> None:
+            results = submit_actions(
+                actions,
+                strategy_id=strategy_id,
+                config=nexus_instance_config,
+                praxis_outbound=praxis_outbound,
+                validator=pipeline,
+                build_context=build_context,
+                now=lambda: datetime.now(UTC),
+            )
+
+            for _action, outcome in results:
+                if (
+                    outcome.status == SubmissionStatus.SUBMITTED
+                    and outcome.command_id is not None
+                ):
+                    command_strategy_ids[outcome.command_id] = strategy_id
+
+        def resolve_strategy_id(outcome: Any) -> str | None:
+            return command_strategy_ids.get(outcome.command_id)
+
+        predict_loop = PredictLoop(
+            runner=runner,
+            wired_sensors=sequencer.wired_sensors,
+            market_data_provider=market_data_provider,
+            context_provider=context_provider,
+            action_submit=submitter,
+        )
+        predict_loop.start()
+
+        timer_loop: TimerLoop | None = None
+
+        if sequencer.timer_specs:
+            timer_loop = TimerLoop(
+                runner=runner,
+                strategy_timers=sequencer.timer_specs,
+                context_provider=context_provider,
+                action_submit=submitter,
+            )
+            timer_loop.start()
+
+        praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
+
+        outcome_loop = OutcomeLoop(
+            runner=runner,
+            praxis_inbound=praxis_inbound,
+            state=state,
+            context_provider=context_provider,
+            resolve_strategy_id=resolve_strategy_id,
+            action_submit=submitter,
+        )
+        outcome_loop.start()
+
+        return _NexusRuntime(
+            state_store=state_store,
+            sequencer=sequencer,
+            runner=runner,
+            manifest=manifest,
+            state=state,
+            nexus_config=nexus_instance_config,
+            capital_controller=capital_controller,
+            pipeline=pipeline,
+            praxis_outbound=praxis_outbound,
+            praxis_inbound=praxis_inbound,
+            predict_loop=predict_loop,
+            timer_loop=timer_loop,
+            outcome_loop=outcome_loop,
+        )
 
     def _collect_kline_intervals(self) -> dict[int, int]:
         '''Extract kline_size → min poll interval from all manifests.'''

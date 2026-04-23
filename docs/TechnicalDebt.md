@@ -53,3 +53,16 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 **When to fix**: Before increasing poll frequency, adding multiple `kline_size` buckets, or going live on mainnet.
 **Migration**: Track the highest `close_time` already in `_data[kline_size]` and refetch only from there forward, merging new rows into the in-memory DataFrame. Deduplicate on `close_time` to handle the always-partial last candle. Cap stored history at `n_rows` rolling.
+
+---
+
+## TD-020: `command_strategy_ids` registry grows unbounded per account
+
+**Origin**: PR #73 (zero-bang review)
+**Severity**: Low (negligible at MMVP throughput)
+**Module**: `praxis/launcher.py`
+
+The per-account `command_strategy_ids: dict[str, str]` registry built inside `Launcher._build_nexus_runtime` records `command_id → strategy_id` on every `SubmissionStatus.SUBMITTED` outcome from `submit_actions`, but no entry is ever removed. At MMVP testnet throughput (~100 commands/day per account) the long-run footprint is negligible (~1 MB/year), but a long-lived production process accumulating thousands of commands per day per account would eventually warrant pruning.
+
+**When to fix**: Before sustained mainnet operation past a few weeks per process.
+**Migration**: Have the OutcomeLoop drop `command_strategy_ids[outcome.command_id]` after dispatching a terminal `TradeOutcomeType` (`FILLED`, `REJECTED`, `EXPIRED`, `CANCELED`). Non-terminal outcomes (`ACK`, `PARTIAL`) keep the entry so subsequent fills still resolve.
