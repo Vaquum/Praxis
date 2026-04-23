@@ -2045,10 +2045,13 @@ async def test_set_on_trade_outcome_with_partial_around_async(
 async def test_set_on_trade_outcome_clear_with_none(spine: EventSpine) -> None:
     '''Passing None clears the callback.'''
 
+    async def noop_on_trade_outcome(_outcome: TradeOutcome) -> None:
+        return None
+
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            on_trade_outcome=lambda _o: None,  # type: ignore[arg-type,return-value]
+            on_trade_outcome=noop_on_trade_outcome,
         ),
         event_spine=spine,
     )
