@@ -94,11 +94,12 @@ class TestBuildValidationPipeline:
         assert decision.allowed
         assert decision.reservation is not None
 
-    def test_capital_stage_denies_when_budget_zero_at_capital_layer(self) -> None:
-        '''Capital stage produces deny when controller refuses reservation.
+    def test_capital_stage_denies_when_pool_insufficient_for_reservation(self) -> None:
+        '''Capital stage denies when reservation notional exceeds the pool.
 
-        Strategy budget is large enough to pass intake but reservation
-        notional exceeds the capital pool, forcing capital denial.
+        Strategy budget is large enough to pass intake; the deny comes
+        from `CapitalController.check_and_reserve` refusing because the
+        account capital pool cannot cover the requested notional.
         '''
 
         config = _nexus_config()

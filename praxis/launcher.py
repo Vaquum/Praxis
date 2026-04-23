@@ -410,6 +410,13 @@ def _build_enter_context(
         return None
 
     if action.size is None:
+        _log.warning(
+            'ENTER action has no size; skipping',
+            extra={
+                'strategy_id': strategy_id,
+                'command_id': action.command_id,
+            },
+        )
         return None
 
     order_notional = action.size * reference_price
@@ -454,7 +461,15 @@ def _build_exit_context(
         return None
 
     position = state.positions[trade_id]
+
     if action.size is None:
+        _log.warning(
+            'EXIT action has no size; skipping',
+            extra={
+                'strategy_id': strategy_id,
+                'trade_id': trade_id,
+            },
+        )
         return None
 
     order_notional = position.entry_price * action.size
@@ -484,25 +499,42 @@ def _extract_kline_sizes(manifest: Manifest) -> tuple[int, ...]:
     Used to drive the launcher's last-close fallback price provider when
     a strategy emits an `ENTER` action without a `reference_price`.
     Smallest kline-size first so the freshest available data wins.
+
+    Best-effort extraction: per-sensor parsing failures (missing
+    `_limen_manifest`, missing `params`, non-int-castable `kline_size`)
+    log a warning and skip that sensor rather than aborting account
+    startup. Mirrors the resilience of `Launcher._collect_kline_intervals`.
     '''
 
     sizes: set[int] = set()
 
     for spec in manifest.strategies:
         for sensor in spec.sensors:
-            config = getattr(
-                getattr(sensor, '_limen_manifest', None),
-                'data_source_config',
-                None,
-            )
+            try:
+                config = getattr(
+                    getattr(sensor, '_limen_manifest', None),
+                    'data_source_config',
+                    None,
+                )
 
-            if config is None:
-                continue
+                if config is None:
+                    continue
 
-            kline_size = config.params.get('kline_size')
+                params = getattr(config, 'params', None)
 
-            if kline_size is not None:
-                sizes.add(int(kline_size))
+                if params is None:
+                    continue
+
+                kline_size = params.get('kline_size')
+
+                if kline_size is not None:
+                    sizes.add(int(kline_size))
+            except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
+                _log.warning(
+                    'skipping sensor with invalid kline_size configuration',
+                    extra={'sensor_type': type(sensor).__name__},
+                    exc_info=True,
+                )
 
     return tuple(sorted(sizes))
 
@@ -624,8 +656,10 @@ class _NexusRuntime:
 
     Built once by `Launcher._build_nexus_runtime` and handed to
     `_run_nexus_instance` for lifecycle orchestration (wait → shutdown).
-    Not a frozen dataclass because `ShutdownSequencer` is attached after
-    the loops start.
+    A regular (non-frozen) dataclass because the grouped components
+    (`InstanceState`, `CapitalController`, `PredictLoop`, `OutcomeLoop`,
+    etc.) are themselves mutable; the `_NexusRuntime` container
+    carries them by reference.
     '''
 
     state_store: StateStore
