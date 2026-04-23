@@ -6,7 +6,7 @@ import queue
 from collections.abc import Sequence
 from datetime import datetime, UTC
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 
 import aiosqlite
 import pytest
@@ -2063,7 +2063,7 @@ async def test_set_on_trade_outcome_clear_with_none(spine: EventSpine) -> None:
 
 @pytest.mark.asyncio
 async def test_set_on_trade_outcome_after_start_raises(spine: EventSpine) -> None:
-    '''Swapping the callback after start() is forbidden.'''
+    '''Swapping the callback once start() has completed is forbidden.'''
 
     trading = Trading(
         config=TradingConfig(
@@ -2076,10 +2076,50 @@ async def test_set_on_trade_outcome_after_start_raises(spine: EventSpine) -> Non
 
     await trading.start()
     try:
-        with pytest.raises(RuntimeError, match=r'must not be called after Trading\.start'):
+        with pytest.raises(
+            RuntimeError,
+            match=r'must not be called once Trading\.start\(\) has begun',
+        ):
             trading.set_on_trade_outcome(trading.route_outcome)
     finally:
         await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_set_on_trade_outcome_during_start_raises(spine: EventSpine) -> None:
+    '''Swapping the callback while start() is in progress is forbidden too.
+
+    `start()` sets `self._loop` at the very top and only sets
+    `self._started` at the end (after replay/reconciliation). The guard
+    must fire on the `_loop is not None` window, not just on
+    `_started`. We exercise this by patching `_event_spine.read` to
+    call `set_on_trade_outcome` mid-startup.
+    '''
+
+    trading = Trading(
+        config=TradingConfig(epoch_id=1),
+        event_spine=spine,
+    )
+
+    real_read = trading._event_spine.read
+    raised: list[BaseException] = []
+
+    async def midstart_read(epoch_id: int) -> Any:
+        try:
+            trading.set_on_trade_outcome(trading.route_outcome)
+        except RuntimeError as exc:
+            raised.append(exc)
+        return await real_read(epoch_id)
+
+    trading._event_spine.read = midstart_read  # type: ignore[method-assign]
+
+    try:
+        await trading.start()
+    finally:
+        await trading.stop()
+
+    assert len(raised) == 1
+    assert 'has begun' in str(raised[0])
 
 
 @pytest.mark.asyncio

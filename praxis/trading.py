@@ -223,14 +223,20 @@ class Trading:
                 returns an awaitable, or `None` to clear.
 
         Raises:
-            RuntimeError: If called after `start()` — the replay loop and
-                in-flight order coroutines rely on a stable callback
-                identity, so swapping it after start would race with
-                outcome production.
+            RuntimeError: If called once `start()` has begun — the
+                replay loop and in-flight order coroutines rely on a
+                stable callback identity, so swapping it once startup
+                is in progress would race with outcome production.
+                The guard fires both during startup (after
+                `start()` sets `self._loop` but before
+                `self._started`) and after start completes.
         '''
 
-        if self._started:
-            msg = 'set_on_trade_outcome must not be called after Trading.start()'
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_trade_outcome must not be called once '
+                'Trading.start() has begun'
+            )
             raise RuntimeError(msg)
 
         if cb is None:
