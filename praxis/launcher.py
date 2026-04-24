@@ -219,7 +219,7 @@ def _build_praxis_outbound(
 
 
 def _build_health_loop(
-    praxis_outbound: PraxisOutbound,
+    trading: Trading,
     state: InstanceState,
     account_id: str,
     interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
@@ -227,10 +227,16 @@ def _build_health_loop(
     '''Build a per-account `HealthLoop` wired to Praxis health pulls.
 
     Each tick: pulls a `HealthSnapshot` via
-    `PraxisOutbound.get_health_snapshot(account_id)` (which crosses the
-    thread/loop boundary into Praxis via `run_coroutine_threadsafe`),
-    evaluates it through `HealthEvaluator(HealthThresholds())` with
-    MMVP-default thresholds (200/500/1000 ms latency warn/breach/halt,
+    `Trading.get_health_snapshot_sync(account_id)`, which reads the
+    `BinanceAdapter`'s in-memory trackers under their own lock without
+    crossing the asyncio loop. Going through `PraxisOutbound`'s async
+    bridge (`run_coroutine_threadsafe` + 30 s `future.result` timeout)
+    blocked the per-account `HealthLoop` thread for up to 30 s when
+    the loop was busy with a slow venue REST call, starving subsequent
+    health snapshots. The sync accessor sidesteps the loop entirely.
+
+    Each snapshot is evaluated through `HealthEvaluator(HealthThresholds())`
+    with MMVP-default thresholds (200/500/1000 ms latency warn/breach/halt,
     3/5/10 consecutive failures, 10%/20%/40% failure rate,
     70%/85%/90% rate-limit utilisation (`rate_limit_headroom`; 0.0
     idle, 1.0 at limit — higher is worse), 500 ms clock drift), and
@@ -248,7 +254,7 @@ def _build_health_loop(
     '''
 
     def snapshot_provider() -> Any:
-        return praxis_outbound.get_health_snapshot(account_id)
+        return trading.get_health_snapshot_sync(account_id)
 
     return HealthLoop(
         snapshot_provider=snapshot_provider,
@@ -1431,7 +1437,7 @@ class Launcher:
         outcome_loop.start()
 
         health_loop = _build_health_loop(
-            praxis_outbound=praxis_outbound,
+            trading=self._trading,
             state=state,
             account_id=inst.account_id,
         )
