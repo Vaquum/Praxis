@@ -156,6 +156,7 @@ class BinanceAdapter:
         self._ws_base_url = ws_base_url.rstrip('/')
         self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
+        self._closed: bool = False
         self._filters: dict[str, SymbolFilters] = {}
         self._used_weight: int = 0
         self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
@@ -227,8 +228,17 @@ class BinanceAdapter:
 
     async def close(self) -> None:
 
-        '''Close the HTTP session if it exists.'''
+        '''Close the HTTP session and refuse subsequent reuse.
 
+        Marks the adapter `_closed` before awaiting `session.close()` so
+        any concurrent task racing through `_ensure_session()` (e.g. an
+        in-flight `BinanceUserStream._auto_reconnect` that the user
+        stream cancelled but hasn't finished tearing down) raises
+        `RuntimeError` instead of silently spawning a fresh session
+        the adapter no longer tracks.
+        '''
+
+        self._closed = True
         if self._session:
             session = self._session
             self._session = None
@@ -297,9 +307,18 @@ class BinanceAdapter:
         '''
         Return existing session or create a new one lazily.
 
+        Raises `RuntimeError` if `close()` has already run; this guards
+        against a `BinanceUserStream._auto_reconnect` task that races
+        shutdown and would otherwise resurrect a session the adapter
+        no longer owns.
+
         Returns:
             aiohttp.ClientSession: Active HTTP session
         '''
+
+        if self._closed:
+            msg = 'BinanceAdapter is closed; refusing to create a new session'
+            raise RuntimeError(msg)
 
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(timeout=_SESSION_TIMEOUT)
