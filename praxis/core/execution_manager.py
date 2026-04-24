@@ -233,7 +233,7 @@ class ExecutionManager:
         symbols: set[str] = set()
         for order in runtime.trading_state.orders.values():
             symbols.add(order.symbol)
-        for pos in runtime.trading_state.positions.values():
+        for pos in runtime.trading_state.snapshot_positions().values():
             symbols.add(pos.symbol)
         return symbols
 
@@ -317,10 +317,7 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
-        return {
-            key: copy.copy(position)
-            for key, position in runtime.trading_state.positions.items()
-        }
+        return runtime.trading_state.snapshot_positions()
 
     def get_trading_state(self, account_id: str) -> TradingState | None:
         '''
