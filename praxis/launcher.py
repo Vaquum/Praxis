@@ -56,6 +56,8 @@ from nexus.core.validator import (
     validate_risk_stage,
 )
 from nexus.infrastructure.manifest import Manifest, load_manifest
+from nexus.infrastructure.praxis_connector.order_context import OrderContext
+from nexus.infrastructure.praxis_connector.outcome_processor import OutcomeProcessor
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
 from nexus.infrastructure.praxis_connector.trade_outcome import (
@@ -606,6 +608,66 @@ def _build_exit_context(
         state=state,
         config=nexus_config,
     )
+
+
+def _build_order_context(
+    *,
+    action: Action,
+    strategy_id: str,
+    command_id: str,
+    build_context: Callable[[Action, str], ValidationRequestContext | None],
+) -> OrderContext | None:
+    '''Reconstruct an `OrderContext` for a successfully submitted action.
+
+    Re-runs `build_context(action, strategy_id)` to recover the
+    `ValidationRequestContext` that the validator already used, then
+    maps its fields onto the `OrderContext` shape `OutcomeProcessor`
+    expects. Returns `None` (and logs) when the validation context
+    cannot be rebuilt or when the resulting fields fail
+    `OrderContext.__post_init__` invariants — the launcher then logs
+    and proceeds without registering the context, so the outcome
+    processor will skip the command rather than corrupt capital
+    state on a malformed input.
+
+    Args:
+        action: Strategy action that produced the command.
+        strategy_id: Owning strategy identifier.
+        command_id: Praxis-assigned command id from the SUBMITTED outcome.
+        build_context: Same closure used by `submit_actions` to rebuild
+            the validation request context for `action`.
+
+    Returns:
+        `OrderContext` ready for `OutcomeProcessor.process(...)`, or
+        `None` when the context cannot be safely constructed.
+    '''
+
+    validation_context = build_context(action, strategy_id)
+    if validation_context is None:
+        return None
+
+    if validation_context.order_side is None or validation_context.order_size is None:
+        _log.warning(
+            'cannot build OrderContext: validation context missing side/size',
+            extra={'strategy_id': strategy_id, 'command_id': command_id},
+        )
+        return None
+
+    try:
+        return OrderContext(
+            command_id=command_id,
+            strategy_id=strategy_id,
+            trade_id=validation_context.trade_id,
+            side=validation_context.order_side,
+            order_size=validation_context.order_size,
+            order_notional=validation_context.order_notional,
+            estimated_fees=validation_context.estimated_fees,
+        )
+    except ValueError:
+        _log.exception(
+            'OrderContext rejected by invariants',
+            extra={'strategy_id': strategy_id, 'command_id': command_id},
+        )
+        return None
 
 
 def _register_wired_kline_sizes(
@@ -1253,6 +1315,7 @@ class Launcher:
             )
 
         command_strategy_ids: dict[str, str] = {}
+        command_contexts: dict[str, OrderContext] = {}
 
         def submitter(actions: list[Action], strategy_id: str) -> None:
             results = submit_actions(
@@ -1265,15 +1328,74 @@ class Launcher:
                 now=lambda: datetime.now(UTC),
             )
 
-            for _action, outcome in results:
+            for action, outcome in results:
                 if (
-                    outcome.status == SubmissionStatus.SUBMITTED
-                    and outcome.command_id is not None
+                    outcome.status != SubmissionStatus.SUBMITTED
+                    or outcome.command_id is None
                 ):
-                    command_strategy_ids[outcome.command_id] = strategy_id
+                    continue
+
+                command_strategy_ids[outcome.command_id] = strategy_id
+
+                if (
+                    outcome.decision is not None
+                    and outcome.decision.reservation is not None
+                ):
+                    send_result = capital_controller.send_order(
+                        outcome.decision.reservation.reservation_id,
+                        outcome.command_id,
+                    )
+                    if not send_result.success:
+                        _log.warning(
+                            'send_order failed; OutcomeProcessor will skip ACK',
+                            extra={
+                                'command_id': outcome.command_id,
+                                'reason': send_result.reason,
+                            },
+                        )
+
+                order_context = _build_order_context(
+                    action=action,
+                    strategy_id=strategy_id,
+                    command_id=outcome.command_id,
+                    build_context=build_context,
+                )
+
+                if order_context is not None:
+                    command_contexts[outcome.command_id] = order_context
 
         def resolve_strategy_id(outcome: Any) -> str | None:
             return command_strategy_ids.get(outcome.command_id)
+
+        outcome_processor = OutcomeProcessor(
+            capital_controller=capital_controller,
+            instance_state=state,
+            state_store=state_store,
+        )
+
+        def process_outcome(outcome: NexusTradeOutcome) -> None:
+            order_context = command_contexts.get(outcome.command_id)
+            if order_context is None:
+                _log.warning(
+                    'no OrderContext for command; skipping processor',
+                    extra={'command_id': outcome.command_id},
+                )
+                return
+
+            result = outcome_processor.process(outcome, order_context)
+            if not result.success:
+                _log.warning(
+                    'OutcomeProcessor reported failure',
+                    extra={
+                        'command_id': outcome.command_id,
+                        'outcome_type': result.outcome_type.value,
+                        'error': result.error_reason,
+                    },
+                )
+
+            if outcome.outcome_type.is_terminal:
+                command_contexts.pop(outcome.command_id, None)
+                command_strategy_ids.pop(outcome.command_id, None)
 
         predict_loop = PredictLoop(
             runner=runner,
@@ -1304,6 +1426,7 @@ class Launcher:
             context_provider=context_provider,
             resolve_strategy_id=resolve_strategy_id,
             action_submit=submitter,
+            process_outcome=process_outcome,
         )
         outcome_loop.start()
 
