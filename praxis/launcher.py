@@ -58,6 +58,9 @@ from nexus.core.validator import (
 from nexus.infrastructure.manifest import Manifest, load_manifest
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
+from nexus.infrastructure.praxis_connector.trade_outcome import (
+    TradeOutcome as NexusTradeOutcome,
+)
 from nexus.infrastructure.state_store import StateStore
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
@@ -74,6 +77,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.market_data_poller import MarketDataPoller
+from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
@@ -841,7 +845,8 @@ class Launcher:
         self._poller: MarketDataPoller | None = None
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
-        self._outcome_queues: dict[str, queue.Queue[TradeOutcome]] = {}
+        self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
+        self._outcome_translator = OutcomeTranslator()
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -897,24 +902,40 @@ class Launcher:
             venue_adapter=self._venue_adapter,
         )
 
+        for inst in self._instances:
+            account_queue: queue.Queue[NexusTradeOutcome] = queue.Queue()
+            self._outcome_queues[inst.account_id] = account_queue
+
+        translator = self._outcome_translator
+        outcome_queues = self._outcome_queues
+
+        def _route_translated(praxis_outcome: TradeOutcome) -> None:
+            q = outcome_queues.get(praxis_outcome.account_id)
+            if q is None:
+                _log.warning(
+                    'no outcome queue for account, dropping outcome',
+                    extra={
+                        'account_id': praxis_outcome.account_id,
+                        'command_id': praxis_outcome.command_id,
+                    },
+                )
+                return
+
+            for nexus_outcome in translator.translate(praxis_outcome):
+                q.put_nowait(nexus_outcome)
+
         existing_on_trade_outcome = self._trading_config.on_trade_outcome
 
         if existing_on_trade_outcome is None:
-            self._trading.set_on_trade_outcome(self._trading.route_outcome)
+            self._trading.set_on_trade_outcome(_route_translated)
         else:
-            route_outcome = self._trading.route_outcome
             user_cb = existing_on_trade_outcome
 
             async def _composed(outcome: TradeOutcome) -> None:
-                route_outcome(outcome)
+                _route_translated(outcome)
                 await user_cb(outcome)
 
             self._trading.set_on_trade_outcome(_composed)
-
-        for inst in self._instances:
-            account_queue: queue.Queue[TradeOutcome] = queue.Queue()
-            self._outcome_queues[inst.account_id] = account_queue
-            self._trading.register_outcome_queue(inst.account_id, account_queue)
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
