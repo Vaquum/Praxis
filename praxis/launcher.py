@@ -72,6 +72,7 @@ from nexus.strategy.predict_loop import PredictLoop
 from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
+from praxis.command_translator import build_single_shot_params
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.event_spine import EventSpine
@@ -194,8 +195,18 @@ def _build_praxis_outbound(
             ),
         )
 
+    async def submit_command_with_translated_params(
+        *,
+        execution_params: Any,
+        **kwargs: Any,
+    ) -> str:
+        return await trading.submit_command(
+            execution_params=build_single_shot_params(execution_params),
+            **kwargs,
+        )
+
     return PraxisOutbound(
-        submit_fn=trading.submit_command,
+        submit_fn=submit_command_with_translated_params,
         loop=loop,
         register_fn=trading.register_account,
         unregister_fn=trading.unregister_account,
