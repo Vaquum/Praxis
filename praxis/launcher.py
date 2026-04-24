@@ -819,6 +819,7 @@ class Launcher:
         db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
         healthz_port: int | None = None,
+        market_data_testnet: bool = False,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -832,6 +833,7 @@ class Launcher:
         self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
         self._healthz_port = healthz_port
+        self._market_data_testnet = market_data_testnet
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
@@ -941,7 +943,7 @@ class Launcher:
         multiple Nexus instances can share kline sizes safely.
         '''
 
-        self._poller = MarketDataPoller()
+        self._poller = MarketDataPoller(testnet=self._market_data_testnet)
         self._poller.start()
 
     def _start_healthz(self) -> None:
@@ -1455,6 +1457,10 @@ def main() -> None:
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')
     healthz_port = int(port_raw) if port_raw else _DEFAULT_HEALTHZ_PORT
 
+    market_data_testnet = env.get('BINANCE_TESTNET', '').lower() in (
+        '1', 'true', 'yes', 'on',
+    )
+
     bind_context(epoch_id=trading_config.epoch_id)
 
     launcher = Launcher(
@@ -1462,6 +1468,7 @@ def main() -> None:
         instances=instances,
         db_path=state_base / 'event_spine.sqlite',
         healthz_port=healthz_port,
+        market_data_testnet=market_data_testnet,
     )
 
     _log.info(
