@@ -741,6 +741,29 @@ def _register_wired_kline_sizes(
     return tuple(sorted(sizes))
 
 
+def _ensure_strategies_path_importable(strategies_base_path: Path) -> None:
+    '''Prepend `strategies_base_path` to `sys.path` so user SFD modules import.
+
+    Limen `Trainer` resolves the SFD class via
+    `importlib.import_module(metadata['sfd_module'])`; the module path
+    recorded at training time must be importable in the launcher
+    process at boot. Foundational SFDs ship inside `vaquum_limen` so
+    they always resolve, but user-defined SFDs (e.g. a custom
+    `Round3SFD` co-located with strategies) need the strategy
+    directory on `sys.path` before `_wire_sensors` runs. This helper
+    is idempotent and prepends rather than appends so a user-supplied
+    module shadows any installed package of the same name.
+
+    Operators with SFDs outside `STRATEGIES_BASE_PATH` should add the
+    extra path to `PYTHONPATH` at deploy time; the launcher does not
+    enumerate alternative roots.
+    '''
+
+    resolved = str(strategies_base_path.resolve())
+    if resolved not in sys.path:
+        sys.path.insert(0, resolved)
+
+
 def _last_close_from_poller(
     poller: MarketDataPoller | None,
     kline_sizes: tuple[int, ...],
@@ -1242,6 +1265,8 @@ class Launcher:
         if self._trading is None or self._loop is None:
             msg = 'Launcher runtime not initialized'
             raise RuntimeError(msg)
+
+        _ensure_strategies_path_importable(inst.strategies_base_path)
 
         state_store = StateStore(inst.state_dir)
 

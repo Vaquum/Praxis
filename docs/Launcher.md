@@ -73,7 +73,7 @@ The launcher creates one per-account outcome queue and one per-account Nexus thr
 | `VENUE_REST_URL` | Venue REST base URL |
 | `VENUE_WS_URL` | Venue WebSocket base URL |
 | `MANIFESTS_DIR` | Directory containing per-account manifest YAML files (`*.yaml` / `*.yml`); the launcher enumerates them and spawns one instance per file |
-| `STRATEGIES_BASE_PATH` | Base path for resolving strategy `.py` files referenced from manifests |
+| `STRATEGIES_BASE_PATH` | Base path for resolving strategy `.py` files referenced from manifests. Also prepended to `sys.path` at boot so user-defined SFD modules co-located with strategies become importable by Limen `Trainer.importlib.import_module(metadata['sfd_module'])`. SFDs that live elsewhere should be added to `PYTHONPATH` at deploy time |
 | `STATE_BASE` | Root for per-account state; `state_dir = STATE_BASE / <account_id>`; event-spine SQLite lives at `STATE_BASE / event_spine.sqlite` |
 
 ### Per-account credentials
