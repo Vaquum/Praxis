@@ -1104,6 +1104,7 @@ class Launcher:
                 praxis_outbound=runtime.praxis_outbound,
                 praxis_inbound=runtime.praxis_inbound,
                 account_id=inst.account_id,
+                config=runtime.nexus_config,
             )
             shutdown.shutdown()
 
