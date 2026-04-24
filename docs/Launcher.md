@@ -91,10 +91,11 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 |---|---|---|
 | `SHUTDOWN_TIMEOUT` | `30` | Seconds to wait for orders to reach terminal state before forcing shutdown |
 | `STRATEGY_STATE_BASE` | unset | Base path for strategy state blobs; each instance gets `STRATEGY_STATE_BASE / <account_id>` |
-| `PORT` | — | Render injects this for Web services; used for the `/healthz` listener |
+| `PORT` | — | Container orchestrators that inject a port (`docker compose`, k8s, etc.) — bound by the `/healthz` listener |
 | `HEALTHZ_PORT` | `8080` | Fallback when `PORT` is not set |
 | `LOG_FORMAT` | `json` | `json` routes through `observability.configure_logging` (structlog + orjson); `text` uses stdlib `basicConfig` for local dev |
 | `LOG_LEVEL` | `INFO` | Root logger level |
+| `BINANCE_TESTNET` | `false` | When `true` (`1`/`true`/`yes`/`on`), the shared `MarketDataPoller` builds its `binance.client.Client` with `testnet=True` so REST kline fetches go to `testnet.binance.vision` instead of mainnet. Set this whenever `VENUE_REST_URL` / `VENUE_WS_URL` point at testnet — without it, ENTER notional sizing reads mainnet BTCUSDT prices while orders execute on testnet, miscalibrating capital reservations |
 
 ## Healthz
 
