@@ -15,7 +15,7 @@ import signal
 import sys
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -593,48 +593,67 @@ def _build_exit_context(
     )
 
 
-def _extract_kline_sizes(manifest: Manifest) -> tuple[int, ...]:
-    '''Return ascending-unique kline sizes used by a manifest's sensors.
+def _register_wired_kline_sizes(
+    poller: MarketDataPoller | None,
+    wired_sensors: Iterable[Any],
+) -> tuple[int, ...]:
+    '''Register kline sizes from wired sensors with the poller.
 
-    Used to drive the launcher's last-close fallback price provider when
-    a strategy emits an `ENTER` action without a `reference_price`.
-    Smallest kline-size first so the freshest available data wins.
+    Called from `_build_nexus_runtime` after `sequencer.start()` has
+    trained the manifest's sensors. Each `WiredSensor` carries a live
+    `limen_manifest` whose `data_source_config.params['kline_size']`
+    declares the bucket width the sensor needs. Pre-PR (PT-FIX-1) the
+    launcher tried to read `_limen_manifest` from raw `SensorSpec`
+    objects in the manifest YAML; that attribute is not set until the
+    Limen `Trainer` runs, so the lookup always returned `None`, the
+    poller started empty, and `signal_producer.produce_signal` raised
+    `ValueError("market_data is empty for sensor X")` on every tick.
 
-    Best-effort extraction: per-sensor parsing failures (missing
-    `_limen_manifest`, missing `params`, non-int-castable `kline_size`)
-    log a warning and skip that sensor rather than aborting account
-    startup. Mirrors the resilience of `Launcher._collect_kline_intervals`.
+    Each `(kline_size, interval_seconds)` tuple is registered via
+    `MarketDataPoller.add_kline_size`, which is idempotent + ref-counted
+    so multiple sensors sharing a kline_size register a single poller
+    thread. The same `kline_size` registered with different intervals
+    keeps the first-caller's interval (per `add_kline_size` contract).
+
+    Returns the sorted tuple of registered kline sizes for the
+    launcher's `fallback_price_provider` closure to iterate.
     '''
 
     sizes: set[int] = set()
 
-    for spec in manifest.strategies:
-        for sensor in spec.sensors:
-            try:
-                config = getattr(
-                    getattr(sensor, '_limen_manifest', None),
-                    'data_source_config',
-                    None,
-                )
+    if poller is None:
+        return ()
 
-                if config is None:
-                    continue
+    for wired in wired_sensors:
+        try:
+            config = getattr(
+                getattr(wired, 'limen_manifest', None),
+                'data_source_config',
+                None,
+            )
 
-                params = getattr(config, 'params', None)
+            if config is None:
+                continue
 
-                if params is None:
-                    continue
+            params = getattr(config, 'params', None)
 
-                kline_size = params.get('kline_size')
+            if params is None:
+                continue
 
-                if kline_size is not None:
-                    sizes.add(int(kline_size))
-            except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
-                _log.warning(
-                    'skipping sensor with invalid kline_size configuration',
-                    extra={'sensor_type': type(sensor).__name__},
-                    exc_info=True,
-                )
+            raw = params.get('kline_size')
+
+            if raw is None:
+                continue
+
+            kline_size = int(raw)
+            poller.add_kline_size(kline_size, wired.interval_seconds)
+            sizes.add(kline_size)
+        except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
+            _log.warning(
+                'skipping wired sensor with invalid kline_size configuration',
+                extra={'sensor_type': type(wired).__name__},
+                exc_info=True,
+            )
 
     return tuple(sorted(sizes))
 
@@ -913,8 +932,16 @@ class Launcher:
         return spine
 
     def _start_poller(self) -> None:
-        kline_intervals = self._collect_kline_intervals()
-        self._poller = MarketDataPoller(kline_intervals=kline_intervals or {})
+        '''Start the market data poller with no kline sizes registered.
+
+        Per-account kline sizes are registered later by
+        `_build_nexus_runtime` via `_register_wired_kline_sizes` once
+        `StartupSequencer.start()` has trained sensors and their
+        `limen_manifest` is populated. The poller is ref-counted so
+        multiple Nexus instances can share kline sizes safely.
+        '''
+
+        self._poller = MarketDataPoller()
         self._poller.start()
 
     def _start_healthz(self) -> None:
@@ -1143,7 +1170,10 @@ class Launcher:
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
-        kline_sizes = _extract_kline_sizes(manifest)
+        kline_sizes = _register_wired_kline_sizes(
+            self._poller,
+            sequencer.wired_sensors,
+        )
 
         def market_data_provider(kline_size: int) -> Any:
             if self._poller is None:
@@ -1265,43 +1295,6 @@ class Launcher:
             outcome_loop=outcome_loop,
             health_loop=health_loop,
         )
-
-    def _collect_kline_intervals(self) -> dict[int, int]:
-        '''Extract kline_size → min poll interval from all manifests.'''
-
-        kline_intervals: dict[int, int] = {}
-
-        for inst in self._instances:
-            try:
-                manifest = load_manifest(inst.manifest_path)
-
-                for spec in manifest.strategies:
-                    for sensor in spec.sensors:
-                        config = getattr(
-                            getattr(sensor, '_limen_manifest', None),
-                            'data_source_config',
-                            None,
-                        )
-
-                        kline_size = None
-
-                        if config is not None:
-                            kline_size = config.params.get('kline_size')
-
-                        if kline_size is not None:
-                            current = kline_intervals.get(int(kline_size))
-                            interval = sensor.interval_seconds
-
-                            if current is None or interval < current:
-                                kline_intervals[int(kline_size)] = interval
-            except Exception:  # noqa: BLE001 - best-effort extraction, skip on failure
-                _log.exception(
-                    'failed to extract kline intervals from manifest',
-                    extra={'account_id': inst.account_id},
-                )
-
-        return kline_intervals
-
 
 def _check_required_env(env: dict[str, str]) -> None:
     '''Raise if any required env var is missing or empty.'''
