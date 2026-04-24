@@ -134,7 +134,6 @@ The launcher already wires the paper-trading path end to end. It does not implem
 
 ## Read Next
 
-- [Deployment on Render](Deployment-Render.md)
 - [Trade Lifecycle](Trade-Lifecycle.md)
 - [Execution Manager](Execution-Manager.md)
 - [Event Spine](Event-Spine.md)
