@@ -29,6 +29,7 @@ from aiohttp import web
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.instance_state import InstanceState
+from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
 from nexus.core.health_loop import HealthLoop
 from nexus.core.outcome_loop import OutcomeLoop
@@ -616,12 +617,65 @@ def _build_exit_context(
     )
 
 
+def _ensure_entry_position(
+    *,
+    state: InstanceState,
+    action: Action,
+    strategy_id: str,
+    trade_id: str,
+    fallback_price_provider: Callable[[], Decimal | None],
+) -> None:
+    '''Pre-populate `state.positions[trade_id]` with a size=0 placeholder.
+
+    `OutcomeProcessor._handle_fill` → `_grow_position` requires both
+    `OrderContext.trade_id` to be non-`None` and a `Position` record at
+    `state.positions[trade_id]`. ENTER actions don't have a Nexus-side
+    `trade_id` until we mint one (PT-FIX-20), and Nexus has no
+    auto-create-on-first-fill path. The launcher therefore inserts a
+    `size=0` placeholder keyed by the Praxis-assigned command_id at
+    submission time so the first FILLED outcome can grow it via VWAP
+    (`_grow_position` math collapses to `new_entry_price = fill_price`
+    when `old_size == 0`).
+
+    Idempotent via `dict.setdefault` — repeated calls are no-ops.
+    Skips silently when no reference price is available; the action
+    would already have been rejected by `_build_enter_context`'s
+    no-price guard, so reaching this branch with `ref_price is None`
+    means a deeper bug — logging the skip rather than raising keeps
+    the submitter loop alive.
+    '''
+
+    ref_price = action.reference_price
+    if ref_price is None:
+        ref_price = fallback_price_provider()
+
+    if ref_price is None:
+        _log.warning(
+            'cannot pre-populate entry Position: no reference price',
+            extra={'strategy_id': strategy_id, 'trade_id': trade_id},
+        )
+        return
+
+    state.positions.setdefault(
+        trade_id,
+        Position(
+            trade_id=trade_id,
+            strategy_id=strategy_id,
+            symbol=_DEFAULT_SYMBOL,
+            side=action.direction or OrderSide.BUY,
+            size=_ZERO,
+            entry_price=ref_price,
+        ),
+    )
+
+
 def _build_order_context(
     *,
     action: Action,
     strategy_id: str,
     command_id: str,
     build_context: Callable[[Action, str], ValidationRequestContext | None],
+    forced_trade_id: str | None = None,
 ) -> OrderContext | None:
     '''Reconstruct an `OrderContext` for a successfully submitted action.
 
@@ -641,6 +695,11 @@ def _build_order_context(
         command_id: Praxis-assigned command id from the SUBMITTED outcome.
         build_context: Same closure used by `submit_actions` to rebuild
             the validation request context for `action`.
+        forced_trade_id: When set, overrides `validation_context.trade_id`
+            on the returned `OrderContext`. The launcher uses this for
+            ENTER actions (where the validator's trade_id is `None`) so
+            `OutcomeProcessor._grow_position` can find a `Position`
+            record keyed by the same id.
 
     Returns:
         `OrderContext` ready for `OutcomeProcessor.process(...)`, or
@@ -658,11 +717,13 @@ def _build_order_context(
         )
         return None
 
+    trade_id = forced_trade_id if forced_trade_id is not None else validation_context.trade_id
+
     try:
         return OrderContext(
             command_id=command_id,
             strategy_id=strategy_id,
-            trade_id=validation_context.trade_id,
+            trade_id=trade_id,
             side=validation_context.order_side,
             order_size=validation_context.order_size,
             order_notional=validation_context.order_notional,
@@ -1385,11 +1446,23 @@ class Launcher:
                             },
                         )
 
+                forced_trade_id: str | None = None
+                if action.action_type == ActionType.ENTER:
+                    forced_trade_id = outcome.command_id
+                    _ensure_entry_position(
+                        state=state,
+                        action=action,
+                        strategy_id=strategy_id,
+                        trade_id=forced_trade_id,
+                        fallback_price_provider=fallback_price_provider,
+                    )
+
                 order_context = _build_order_context(
                     action=action,
                     strategy_id=strategy_id,
                     command_id=outcome.command_id,
                     build_context=build_context,
+                    forced_trade_id=forced_trade_id,
                 )
 
                 if order_context is not None:
@@ -1427,6 +1500,13 @@ class Launcher:
             if outcome.outcome_type.is_terminal:
                 command_contexts.pop(outcome.command_id, None)
                 command_strategy_ids.pop(outcome.command_id, None)
+                if (
+                    order_context.is_entry
+                    and order_context.trade_id is not None
+                ):
+                    pos = state.positions.get(order_context.trade_id)
+                    if pos is not None and pos.size == _ZERO:
+                        del state.positions[order_context.trade_id]
 
         sequencer.drain_pending_startup_actions(submitter)
 
