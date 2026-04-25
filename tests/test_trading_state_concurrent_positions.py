@@ -20,8 +20,11 @@ import threading
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
+
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived, TradeClosed
+from praxis.core.domain.position import Position
 from praxis.core.trading_state import TradingState
 
 _TS = datetime(2026, 4, 24, 12, 0, 0, tzinfo=UTC)
@@ -72,7 +75,7 @@ def test_snapshot_positions_under_concurrent_mutation() -> None:
                 trade_id = f'trade-{i}'
                 state.apply(_fill('acct-1', trade_id, Decimal('1')))
                 state.apply(_close('acct-1', trade_id))
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             with error_lock:
                 errors.append(exc)
         finally:
@@ -85,7 +88,7 @@ def test_snapshot_positions_under_concurrent_mutation() -> None:
                 for key, position in snapshot.items():
                     _ = position.symbol
                     _ = key
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             with error_lock:
                 errors.append(exc)
 
@@ -122,3 +125,100 @@ def test_snapshot_after_close_excludes_closed_trade() -> None:
     snapshot = state.snapshot_positions()
 
     assert snapshot == {}
+
+
+def _fill_at_price(account_id: str, trade_id: str, price: int) -> FillReceived:
+    return FillReceived(
+        account_id=account_id,
+        timestamp=_TS,
+        venue_trade_id=f'venue-{trade_id}-{price}',
+        venue_order_id=f'venue-order-{trade_id}-{price}',
+        client_order_id=f'client-{trade_id}-{price}',
+        trade_id=trade_id,
+        command_id=f'cmd-{trade_id}-{price}',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        price=Decimal(price),
+        fee=Decimal('0'),
+        fee_asset='USDT',
+        is_maker=False,
+    )
+
+
+def test_field_update_branch_holds_positions_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    '''PT-FIX-23: `_update_position_on_fill` must hold `_positions_lock`
+    around the field-mutation branch, not just the dict-insert branch.
+    Pre-fix the lock was released after `self.positions.get(key)`, so
+    a concurrent `snapshot_positions` could complete (and return a
+    detached `copy.copy`) between the writer's `pos.avg_entry_price`
+    assignment and `pos.qty` assignment — exposing a torn
+    `(qty, avg_entry_price)` pair to consumers.
+
+    Pre-loads a position, then patches `Position.__setattr__` to gate
+    on a barrier between the two field assignments. With the fix
+    holding the lock through the mutation, a parallel
+    `snapshot_positions` call must block until the writer completes.
+    Without the fix, the snapshot returns mid-update and the reader
+    observes a torn (qty=old, avg=new) pair.'''
+
+    state = TradingState(account_id='acct-1')
+    state.apply(_fill_at_price('acct-1', 'trade-1', 100))
+
+    mid_update = threading.Event()
+    release_writer = threading.Event()
+    original_setattr = Position.__setattr__
+
+    def patched_setattr(self: Position, name: str, value: object) -> None:
+        original_setattr(self, name, value)
+        if name == 'avg_entry_price' and not mid_update.is_set():
+            mid_update.set()
+            release_writer.wait(timeout=5)
+
+    monkeypatch.setattr(Position, '__setattr__', patched_setattr)
+
+    snap_result: dict[str, object] = {}
+
+    def writer() -> None:
+        state.apply(_fill_at_price('acct-1', 'trade-1', 200))
+
+    def reader() -> None:
+        if not mid_update.wait(timeout=5):
+            return
+
+        snap_done = threading.Event()
+
+        def _snapshot() -> None:
+            snap_result['snapshot'] = state.snapshot_positions()
+            snap_done.set()
+
+        sub = threading.Thread(target=_snapshot, daemon=True)
+        sub.start()
+        snap_done.wait(timeout=0.5)
+        snap_result['blocked_during_window'] = not snap_done.is_set()
+        release_writer.set()
+        sub.join(timeout=5)
+
+    wt = threading.Thread(target=writer)
+    rt = threading.Thread(target=reader)
+    wt.start()
+    rt.start()
+    wt.join(timeout=10)
+    rt.join(timeout=10)
+
+    assert snap_result.get('blocked_during_window') is True, (
+        'snapshot_positions completed while writer was mid-update — '
+        '_update_position_on_fill is not holding _positions_lock around '
+        'the field-mutation branch'
+    )
+
+    snapshot = snap_result.get('snapshot')
+    assert isinstance(snapshot, dict) and snapshot, 'reader never produced a snapshot'
+    position = next(iter(snapshot.values()))
+    notional = position.qty * position.avg_entry_price
+    assert notional == Decimal(300), (
+        f'snapshot after writer completion is inconsistent: '
+        f'qty={position.qty} avg={position.avg_entry_price} notional={notional}'
+    )

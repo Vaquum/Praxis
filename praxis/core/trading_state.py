@@ -249,23 +249,23 @@ class TradingState:
                 )
                 return
 
-        if event.side == pos.side:
-            new_qty = pos.qty + event.qty
-            pos.avg_entry_price = (
-                (pos.qty * pos.avg_entry_price + event.qty * event.price) / new_qty
-            )
-            pos.qty = new_qty
-        else:
-            new_qty = pos.qty - event.qty
-            if new_qty < _ZERO:
-                _log.warning(
-                    'position qty went negative: trade_id=%s account=%s qty=%s',
-                    event.trade_id,
-                    event.account_id,
-                    new_qty,
+            if event.side == pos.side:
+                new_qty = pos.qty + event.qty
+                pos.avg_entry_price = (
+                    (pos.qty * pos.avg_entry_price + event.qty * event.price) / new_qty
                 )
-                new_qty = _ZERO
-            pos.qty = new_qty
+                pos.qty = new_qty
+            else:
+                new_qty = pos.qty - event.qty
+                if new_qty < _ZERO:
+                    _log.warning(
+                        'position qty went negative: trade_id=%s account=%s qty=%s',
+                        event.trade_id,
+                        event.account_id,
+                        new_qty,
+                    )
+                    new_qty = _ZERO
+                pos.qty = new_qty
 
     def _on_order_rejected(self, event: OrderRejected) -> None:
 
