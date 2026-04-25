@@ -295,6 +295,9 @@ class Trading:
         '''
 
         self._execution_manager.replay_events(account_id, account_events)
+        await self._execution_manager.reconcile_orphan_commands(
+            account_id, account_events,
+        )
 
         symbols = self._execution_manager.active_symbols(account_id)
         if symbols:
