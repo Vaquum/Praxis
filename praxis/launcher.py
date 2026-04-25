@@ -1428,6 +1428,8 @@ class Launcher:
                 command_contexts.pop(outcome.command_id, None)
                 command_strategy_ids.pop(outcome.command_id, None)
 
+        sequencer.drain_pending_startup_actions(submitter)
+
         predict_loop = PredictLoop(
             runner=runner,
             wired_sensors=sequencer.wired_sensors,
