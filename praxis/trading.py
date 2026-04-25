@@ -382,6 +382,13 @@ class Trading:
                     _log.exception('error closing user stream: %s', account_id)
                 self._user_streams.pop(account_id, None)
 
+            try:
+                await self._venue_adapter.close()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - shutdown teardown must not raise
+                _log.exception('error closing venue adapter')
+
             first_error: Exception | None = None
             for account_id in sorted(self._managed_accounts):
                 try:
@@ -396,6 +403,7 @@ class Trading:
 
             if first_error is not None:
                 raise first_error
+
             self._started = False
             self._loop = None
         finally:
