@@ -1380,6 +1380,7 @@ class Launcher:
         capital_controller = CapitalController(state.capital)
         pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
         positions_lock = threading.Lock()
+        command_registry_lock = threading.Lock()
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
@@ -1452,8 +1453,6 @@ class Launcher:
                 ):
                     continue
 
-                command_strategy_ids[outcome.command_id] = strategy_id
-
                 if (
                     outcome.decision is not None
                     and outcome.decision.reservation is not None
@@ -1491,11 +1490,14 @@ class Launcher:
                     forced_trade_id=forced_trade_id,
                 )
 
-                if order_context is not None:
-                    command_contexts[outcome.command_id] = order_context
+                with command_registry_lock:
+                    command_strategy_ids[outcome.command_id] = strategy_id
+                    if order_context is not None:
+                        command_contexts[outcome.command_id] = order_context
 
         def resolve_strategy_id(outcome: Any) -> str | None:
-            return command_strategy_ids.get(outcome.command_id)
+            with command_registry_lock:
+                return command_strategy_ids.get(outcome.command_id)
 
         outcome_processor = OutcomeProcessor(
             capital_controller=capital_controller,
@@ -1504,7 +1506,9 @@ class Launcher:
         )
 
         def process_outcome(outcome: NexusTradeOutcome) -> None:
-            order_context = command_contexts.get(outcome.command_id)
+            with command_registry_lock:
+                order_context = command_contexts.get(outcome.command_id)
+
             if order_context is None:
                 _log.warning(
                     'no OrderContext for command; skipping processor',
@@ -1524,8 +1528,9 @@ class Launcher:
                 )
 
             if outcome.outcome_type.is_terminal:
-                command_contexts.pop(outcome.command_id, None)
-                command_strategy_ids.pop(outcome.command_id, None)
+                with command_registry_lock:
+                    command_contexts.pop(outcome.command_id, None)
+                    command_strategy_ids.pop(outcome.command_id, None)
                 if (
                     order_context.is_entry
                     and order_context.trade_id is not None
