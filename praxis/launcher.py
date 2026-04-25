@@ -1298,6 +1298,7 @@ class Launcher:
 
         except Exception:  # noqa: BLE001 - top-level catch for thread, must not propagate
             _log.exception('nexus instance failed', extra={'account_id': inst.account_id})
+            self._stop_event.set()
 
     def _build_nexus_runtime(
         self,
