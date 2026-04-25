@@ -16,7 +16,7 @@ import sys
 import threading
 import uuid
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -624,6 +624,7 @@ def _ensure_entry_position(
     strategy_id: str,
     trade_id: str,
     fallback_price_provider: Callable[[], Decimal | None],
+    positions_lock: threading.Lock | None = None,
 ) -> None:
     '''Pre-populate `state.positions[trade_id]` with a size=0 placeholder.
 
@@ -656,17 +657,20 @@ def _ensure_entry_position(
         )
         return
 
-    state.positions.setdefault(
-        trade_id,
-        Position(
-            trade_id=trade_id,
-            strategy_id=strategy_id,
-            symbol=_DEFAULT_SYMBOL,
-            side=action.direction or OrderSide.BUY,
-            size=_ZERO,
-            entry_price=ref_price,
-        ),
+    placeholder = Position(
+        trade_id=trade_id,
+        strategy_id=strategy_id,
+        symbol=_DEFAULT_SYMBOL,
+        side=action.direction or OrderSide.BUY,
+        size=_ZERO,
+        entry_price=ref_price,
     )
+
+    if positions_lock is not None:
+        with positions_lock:
+            state.positions.setdefault(trade_id, placeholder)
+    else:
+        state.positions.setdefault(trade_id, placeholder)
 
 
 def _build_order_context(
@@ -860,6 +864,7 @@ def _build_strategy_context(
     state: InstanceState | None,
     manifest: Manifest | None,
     strategy_id: str,
+    positions_lock: threading.Lock | None = None,
 ) -> StrategyContext:
     '''Derive the per-strategy `StrategyContext` from live state + manifest.
 
@@ -874,10 +879,20 @@ def _build_strategy_context(
     safer than ACTIVE since strategies may treat empty positions as
     "no exposure" and act accordingly.
 
+    `positions_lock` (PT-FIX-28) is held only for the snapshot of
+    `state.positions.values()`; the OutcomeLoop's terminal-cleanup
+    `del state.positions[trade_id]` in `process_outcome` acquires the
+    same lock so a predict tick cannot iterate the dict while it is
+    being mutated. Filtering of the snapshot by `strategy_id` happens
+    after the lock is released.
+
     Args:
         state: Live `InstanceState` from `StartupSequencer.instance_state`.
         manifest: Loaded `Manifest` from `StartupSequencer.manifest`.
         strategy_id: Strategy whose context to build.
+        positions_lock: Optional `threading.Lock` shared with the
+            OutcomeLoop's mutation site. Tests pass `None` to skip
+            locking; production callers always pass the runtime lock.
     '''
 
     if state is None or manifest is None:
@@ -903,8 +918,14 @@ def _build_strategy_context(
     deployed = state.capital.per_strategy_deployed.get(strategy_id, _ZERO)
     capital_available = max(strategy_budget - deployed, _ZERO)
 
+    if positions_lock is not None:
+        with positions_lock:
+            positions_snapshot = list(state.positions.values())
+    else:
+        positions_snapshot = list(state.positions.values())
+
     positions = tuple(
-        pos for pos in state.positions.values() if pos.strategy_id == strategy_id
+        pos for pos in positions_snapshot if pos.strategy_id == strategy_id
     )
 
     sm = state.strategy_modes.get(strategy_id)
@@ -962,6 +983,7 @@ class _NexusRuntime:
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
     health_loop: HealthLoop
+    positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 class Launcher:
@@ -1357,6 +1379,7 @@ class Launcher:
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
         capital_controller = CapitalController(state.capital)
         pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
+        positions_lock = threading.Lock()
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
@@ -1375,6 +1398,7 @@ class Launcher:
                 sequencer.instance_state,
                 sequencer.manifest,
                 strategy_id,
+                positions_lock=positions_lock,
             )
 
         def fallback_price_provider() -> Decimal | None:
@@ -1456,6 +1480,7 @@ class Launcher:
                         strategy_id=strategy_id,
                         trade_id=forced_trade_id,
                         fallback_price_provider=fallback_price_provider,
+                        positions_lock=positions_lock,
                     )
 
                 order_context = _build_order_context(
@@ -1505,9 +1530,10 @@ class Launcher:
                     order_context.is_entry
                     and order_context.trade_id is not None
                 ):
-                    pos = state.positions.get(order_context.trade_id)
-                    if pos is not None and pos.size == _ZERO:
-                        del state.positions[order_context.trade_id]
+                    with positions_lock:
+                        pos = state.positions.get(order_context.trade_id)
+                        if pos is not None and pos.size == _ZERO:
+                            del state.positions[order_context.trade_id]
 
         sequencer.drain_pending_startup_actions(submitter)
 
@@ -1566,6 +1592,7 @@ class Launcher:
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
             health_loop=health_loop,
+            positions_lock=positions_lock,
         )
 
 def _check_required_env(env: dict[str, str]) -> None:

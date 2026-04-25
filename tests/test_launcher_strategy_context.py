@@ -8,8 +8,11 @@ into `PredictLoop` and `TimerLoop`.
 
 from __future__ import annotations
 
+import threading
 from decimal import Decimal
 from unittest.mock import MagicMock
+
+import pytest
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
@@ -262,3 +265,117 @@ class TestContextReflectsReservations:
         ctx = _build_strategy_context(state, manifest, 'strat_a')
 
         assert ctx.capital_available == Decimal('5000')
+
+
+class TestPositionsLock:
+    '''PT-FIX-28: `_build_strategy_context` reads `state.positions.values()`
+    on PredictLoop / TimerLoop threads while `process_outcome` deletes
+    terminal-entry placeholder entries on the OutcomeLoop thread. Without
+    the shared lock, the `del` racing the iteration raises
+    `RuntimeError: dictionary changed size during iteration`, which is
+    silently swallowed by the predict loop's broad except → tick lost,
+    signal dropped.'''
+
+    def test_concurrent_del_and_context_read_is_race_free(self) -> None:
+        capital_pool = Decimal('10000')
+        state = InstanceState.fresh(capital_pool)
+        manifest = _stub_manifest(
+            strategies=(_stub_strategy_spec('strat_a', Decimal('100')),),
+            capital_pool=capital_pool,
+        )
+        for i in range(50):
+            state.positions[f'trade-{i}'] = _position(f'trade-{i}', 'strat_a')
+
+        positions_lock = threading.Lock()
+        errors: list[BaseException] = []
+        error_lock = threading.Lock()
+        stop_event = threading.Event()
+
+        def writer() -> None:
+            try:
+                for _ in range(200):
+                    for i in range(50):
+                        key = f'trade-{i}'
+                        with positions_lock:
+                            state.positions.pop(key, None)
+                        with positions_lock:
+                            state.positions[key] = _position(key, 'strat_a')
+            except BaseException as exc:
+                with error_lock:
+                    errors.append(exc)
+            finally:
+                stop_event.set()
+
+        def reader() -> None:
+            try:
+                while not stop_event.is_set():
+                    ctx = _build_strategy_context(
+                        state, manifest, 'strat_a',
+                        positions_lock=positions_lock,
+                    )
+                    _ = len(ctx.positions)
+            except BaseException as exc:
+                with error_lock:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=reader, daemon=True) for _ in range(4)]
+        threads.append(threading.Thread(target=writer, daemon=True))
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        assert not errors, f'concurrent access raised: {errors[:3]}'
+
+    def test_unlocked_read_can_observe_dict_changed_during_iteration(self) -> None:
+        '''Sanity: without the lock, the bug exists. This test deliberately
+        proves the race is observable; with the lock (above) it must NOT.'''
+
+        capital_pool = Decimal('10000')
+        state = InstanceState.fresh(capital_pool)
+        manifest = _stub_manifest(
+            strategies=(_stub_strategy_spec('strat_a', Decimal('100')),),
+            capital_pool=capital_pool,
+        )
+        for i in range(200):
+            state.positions[f'trade-{i}'] = _position(f'trade-{i}', 'strat_a')
+
+        observed_runtime_error = threading.Event()
+        stop_event = threading.Event()
+
+        def writer() -> None:
+            try:
+                for _ in range(2000):
+                    if stop_event.is_set():
+                        return
+                    for i in range(200):
+                        key = f'trade-{i}'
+                        state.positions.pop(key, None)
+                        state.positions[key] = _position(key, 'strat_a')
+            finally:
+                stop_event.set()
+
+        def reader() -> None:
+            while not stop_event.is_set():
+                try:
+                    _build_strategy_context(state, manifest, 'strat_a')
+                except RuntimeError as exc:
+                    if 'dictionary changed size' in str(exc):
+                        observed_runtime_error.set()
+                        return
+
+        threads = [threading.Thread(target=reader, daemon=True) for _ in range(4)]
+        threads.append(threading.Thread(target=writer, daemon=True))
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        if not observed_runtime_error.is_set():
+            pytest.skip(
+                'race did not trigger in this run; CPython did not interleave '
+                'reader and writer in a way that exposed the bug — the '
+                "absence of an observation here doesn't disprove the race"
+            )
