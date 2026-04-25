@@ -1216,8 +1216,6 @@ class Launcher:
             thread.start()
 
     def _shutdown(self) -> None:
-        self._stop_healthz()
-
         for thread in self._nexus_threads:
             thread.join(timeout=30)
 
@@ -1241,6 +1239,8 @@ class Launcher:
             )
             close_future.result(timeout=10)
             self._db_conn = None
+
+        self._stop_healthz()
 
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._loop.stop)

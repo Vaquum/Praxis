@@ -133,6 +133,9 @@ class MockVenueAdapter:
     def parse_execution_report(self, _data: dict[str, object]) -> ExecutionReport:
         raise NotImplementedError
 
+    async def close(self) -> None:
+        pass
+
 
 def _make_manifest_yaml(
     tmp_path: Path,
