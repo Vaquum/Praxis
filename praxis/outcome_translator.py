@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -49,6 +50,8 @@ __all__ = ['OutcomeTranslator']
 _log = logging.getLogger(__name__)
 
 _ZERO = Decimal(0)
+
+_DEFAULT_TERMINAL_DEDUP_CAP = 10000
 
 
 @dataclass
@@ -69,9 +72,21 @@ class OutcomeTranslator:
             `actual_fees` for fill outcomes. Defaults to `Decimal(0)`;
             paper trading on testnet does not charge real fees and the
             downstream `OutcomeProcessor` accepts a zero fee.
+        terminal_dedup_cap: Maximum number of terminal `command_id`s
+            retained for post-terminal duplicate suppression. Once the
+            cap is reached, the oldest entry is evicted FIFO on each
+            new insertion (PT-FIX-39). The default of 10_000 covers
+            many days of paper trading; a duplicate terminal arriving
+            after eviction would emit a stray Nexus terminal outcome
+            that the downstream `OutcomeProcessor` already rejects
+            with `INVARIANT_BREACH: order not found`.
     '''
 
-    def __init__(self, fee_rate: Decimal = _ZERO) -> None:
+    def __init__(
+        self,
+        fee_rate: Decimal = _ZERO,
+        terminal_dedup_cap: int = _DEFAULT_TERMINAL_DEDUP_CAP,
+    ) -> None:
 
         if not isinstance(fee_rate, Decimal) or not fee_rate.is_finite():
             msg = f'fee_rate must be a finite Decimal, got {fee_rate!r}'
@@ -81,9 +96,14 @@ class OutcomeTranslator:
             msg = f'fee_rate must be non-negative, got {fee_rate}'
             raise ValueError(msg)
 
+        if not isinstance(terminal_dedup_cap, int) or terminal_dedup_cap <= 0:
+            msg = f'terminal_dedup_cap must be a positive int, got {terminal_dedup_cap!r}'
+            raise ValueError(msg)
+
         self._fee_rate = fee_rate
         self._state: dict[str, _CommandState] = {}
-        self._terminal_command_ids: set[str] = set()
+        self._terminal_command_ids: OrderedDict[str, None] = OrderedDict()
+        self._terminal_dedup_cap = terminal_dedup_cap
         self._lock = threading.Lock()
 
     def translate(
@@ -198,7 +218,10 @@ class OutcomeTranslator:
     ) -> None:
 
         state.terminal_emitted = True
-        self._terminal_command_ids.add(command_id)
+        self._terminal_command_ids[command_id] = None
+        self._terminal_command_ids.move_to_end(command_id)
+        while len(self._terminal_command_ids) > self._terminal_dedup_cap:
+            self._terminal_command_ids.popitem(last=False)
         self._state.pop(command_id, None)
 
     def _build_ack(self, outcome: PraxisTradeOutcome) -> NexusTradeOutcome:

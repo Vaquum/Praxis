@@ -319,3 +319,77 @@ def test_invalid_fee_rate_rejected() -> None:
 
     with pytest.raises(ValueError, match='non-negative'):
         OutcomeTranslator(fee_rate=Decimal('-0.001'))
+
+
+def test_terminal_dedup_set_is_bounded() -> None:
+    '''PT-FIX-39: `_terminal_command_ids` is bounded by
+    `terminal_dedup_cap`; on insertion past the cap the oldest entry
+    is evicted FIFO. Pre-fix the set grew without bound across a
+    sustained session — `len(...) == N` after N round-trips.
+
+    Drives 50 ENTER+FILLED round trips through a translator with
+    `terminal_dedup_cap=10`; asserts the dedup table size stays at
+    or below the cap and the LRU eviction order is correct.'''
+
+    translator = OutcomeTranslator(terminal_dedup_cap=10)
+
+    for i in range(50):
+        cid = f'cmd-{i:03d}'
+        translator.translate(_praxis_outcome(command_id=cid, status=TradeStatus.PENDING))
+        translator.translate(
+            _praxis_outcome(
+                command_id=cid,
+                status=TradeStatus.FILLED,
+                target_qty=Decimal('1'),
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+            ),
+        )
+
+    assert len(translator._terminal_command_ids) == 10
+    expected = [f'cmd-{i:03d}' for i in range(40, 50)]
+    assert list(translator._terminal_command_ids.keys()) == expected
+
+
+def test_evicted_command_id_no_longer_dedups() -> None:
+    '''After eviction, a duplicate terminal outcome for the evicted
+    command_id is no longer dropped — it produces a stray Nexus
+    terminal outcome. Downstream `OutcomeProcessor` handles this
+    with `INVARIANT_BREACH: order not found`; the bound is a
+    memory-vs-correctness tradeoff documented on the constructor.'''
+
+    translator = OutcomeTranslator(terminal_dedup_cap=2)
+
+    for cid in ('cmd-A', 'cmd-B', 'cmd-C'):
+        translator.translate(
+            _praxis_outcome(
+                command_id=cid,
+                status=TradeStatus.FILLED,
+                target_qty=Decimal('1'),
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+            ),
+        )
+
+    assert 'cmd-A' not in translator._terminal_command_ids
+    assert 'cmd-B' in translator._terminal_command_ids
+    assert 'cmd-C' in translator._terminal_command_ids
+
+    follow_up = translator.translate(
+        _praxis_outcome(
+            command_id='cmd-A',
+            status=TradeStatus.FILLED,
+            target_qty=Decimal('1'),
+            filled_qty=Decimal('1'),
+            avg_fill_price=Decimal('100'),
+        ),
+    )
+    assert follow_up != []
+
+
+def test_invalid_terminal_dedup_cap_rejected() -> None:
+    with pytest.raises(ValueError, match='terminal_dedup_cap'):
+        OutcomeTranslator(terminal_dedup_cap=0)
+
+    with pytest.raises(ValueError, match='terminal_dedup_cap'):
+        OutcomeTranslator(terminal_dedup_cap=-5)
