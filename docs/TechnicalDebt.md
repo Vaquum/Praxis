@@ -66,3 +66,55 @@ The per-account `command_strategy_ids: dict[str, str]` registry built inside `La
 
 **When to fix**: Before sustained mainnet operation past a few weeks per process.
 **Migration**: Have the OutcomeLoop drop `command_strategy_ids[outcome.command_id]` after dispatching a terminal `TradeOutcomeType` (`FILLED`, `REJECTED`, `EXPIRED`, `CANCELED`). Non-terminal outcomes (`ACK`, `PARTIAL`) keep the entry so subsequent fills still resolve.
+
+---
+
+## TD-021: Per-cancel REST has no individual timeout in `Trading.stop()`
+
+**Origin**: Round-7 audit (Praxis issue #77)
+**Severity**: Major (degraded-network only)
+**Module**: `praxis/trading.py:332-357`
+
+The shutdown drain loop in `Trading.stop()` calls `await self._venue_adapter.cancel_order(...)` for each open order with no per-call timeout. With `_request_with_retry` (up to 3 attempts × 30s session timeout) a single hung cancel can stall up to 90s. The outer `loop.time() + shutdown_timeout` deadline guards the post-cancel drain wait but not the cancel loop itself. Under transient testnet network stalls, `trading.stop()` can run far beyond `shutdown_timeout`; the launcher's `future.result(timeout=30)` then raises `TimeoutError` and the SQLite WAL `conn.close()` is skipped. SQLite WAL recovery handles this safely on next boot, but the abandoned daemon loop thread may execute briefly against a closed DB before OS reclaim.
+
+**When to fix**: Before any sustained mainnet deployment where shutdown latency matters.
+**Migration**: Wrap each cancel in `asyncio.wait_for(adapter.cancel_order(...), timeout=2.0)` with broad-except-and-continue inside the drain loop.
+
+---
+
+## TD-022: Sequential N×30s Nexus thread join in `Launcher._shutdown`
+
+**Origin**: Round-7 audit (Praxis issue #77)
+**Severity**: Major (multi-account only)
+**Module**: `praxis/launcher.py:1241-1243`
+
+`_shutdown` joins Nexus threads serially (`for thread in self._nexus_threads: thread.join(timeout=30)`). With N accounts, total nexus-shutdown wait is up to N×30s before `trading.stop()` even starts. For paper trade (N=1) this is irrelevant; for any future multi-account deployment the timing compounds and `trading.stop()`'s 30s budget may be exhausted before its drain loop runs.
+
+**When to fix**: Before deploying with more than one Nexus instance per process.
+**Migration**: Run the N joins concurrently via `concurrent.futures.wait(threads, timeout=30)` or a small ThreadPoolExecutor.
+
+---
+
+## TD-023: `_accepted_commands` and `_command_trade_ids` registries grow unbounded
+
+**Origin**: Round-7 audit (Praxis issue #77)
+**Severity**: Low (long-running sessions)
+**Module**: `praxis/core/execution_manager.py:135-137`
+
+`_accepted_commands: dict[str, str]` and `_command_trade_ids` accumulate one entry per `submit_command` call and are never pruned. `_terminal_commands` (separate set used only for the abort guard) is also unbounded. Same class as the now-fixed PT-FIX-39 (`OutcomeTranslator._terminal_command_ids`) and the deferred TD-020 (`command_strategy_ids`). At MMVP testnet throughput this is negligible; over multi-day paper-trade or production runs it warrants pruning.
+
+**When to fix**: Before sustained multi-day paper-trade or any production run.
+**Migration**: Same pattern as PT-FIX-39 — replace with `OrderedDict` LRU caches with size cap; evict FIFO on insertion past the cap. Consider a single registry with all per-command metadata to avoid drift between dicts.
+
+---
+
+## TD-024: Shutdown 30s + 30s timeout stack under broken WS
+
+**Origin**: Round-6 audit (Praxis issue #77)
+**Severity**: Low (degraded shutdown ergonomics)
+**Module**: `praxis/launcher.py:_shutdown`, `praxis/trading.py:Trading.stop`
+
+When the WS connection dies just before SIGTERM, the Nexus thread's `ShutdownSequencer.shutdown()` hits its `_wait_terminal` 30s timeout (no terminal outcomes arrive because WS is dead). `Launcher._shutdown` then waits another 30s in `trading.stop()`'s order-cancel drain. Total shutdown time exceeds 60s where the user might expect prompter exit.
+
+**When to fix**: When operator-facing shutdown UX matters (e.g., CI/CD pipelines, container orchestrators with hard kill timeouts).
+**Migration**: Detect WS-down condition (e.g., `_user_streams[...].connected is False`) and short-circuit `_wait_terminal` to escalation, OR pass a unified deadline through both phases.
