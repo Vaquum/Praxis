@@ -983,6 +983,7 @@ class _NexusRuntime:
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
     health_loop: HealthLoop
+    outcome_processor: OutcomeProcessor
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -1313,6 +1314,7 @@ class Launcher:
                 praxis_inbound=runtime.praxis_inbound,
                 account_id=inst.account_id,
                 config=runtime.nexus_config,
+                outcome_processor=runtime.outcome_processor,
             )
             shutdown.shutdown()
 
@@ -1597,6 +1599,7 @@ class Launcher:
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
             health_loop=health_loop,
+            outcome_processor=outcome_processor,
             positions_lock=positions_lock,
         )
 
