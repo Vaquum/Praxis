@@ -984,6 +984,7 @@ class _NexusRuntime:
     outcome_loop: OutcomeLoop
     health_loop: HealthLoop
     outcome_processor: OutcomeProcessor
+    process_outcome: Callable[[NexusTradeOutcome], None]
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -1315,6 +1316,7 @@ class Launcher:
                 account_id=inst.account_id,
                 config=runtime.nexus_config,
                 outcome_processor=runtime.outcome_processor,
+                non_pending_outcome_handler=runtime.process_outcome,
             )
             shutdown.shutdown()
 
@@ -1601,6 +1603,7 @@ class Launcher:
             outcome_loop=outcome_loop,
             health_loop=health_loop,
             outcome_processor=outcome_processor,
+            process_outcome=process_outcome,
             positions_lock=positions_lock,
         )
 
