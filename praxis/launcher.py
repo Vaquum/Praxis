@@ -1380,6 +1380,7 @@ class Launcher:
 
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
         capital_controller = CapitalController(state.capital)
+        capital_controller.reconcile_at_boot()
         pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
         positions_lock = threading.Lock()
         command_registry_lock = threading.Lock()
