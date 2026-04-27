@@ -129,7 +129,7 @@ def _build_fixture(tmp_path: Path) -> tuple[
 def test_ack_outcome_keeps_capital_in_working_state(tmp_path: Path) -> None:
     '''ACK transitions IN_FLIGHT -> WORKING; capital math is preserved.'''
 
-    capital_controller, _, loop, outcome_queue, state, command_id, _ = _build_fixture(
+    _capital_controller, _, loop, outcome_queue, state, command_id, _ = _build_fixture(
         tmp_path,
     )
 
@@ -249,7 +249,7 @@ def test_outcome_loop_calls_processor_before_strategy_runner(
 ) -> None:
     '''process_outcome runs before runner.dispatch_outcome.'''
 
-    capital_controller, _, loop, outcome_queue, state, command_id, _ = _build_fixture(
+    _capital_controller, _, loop, outcome_queue, state, command_id, _ = _build_fixture(
         tmp_path,
     )
 
