@@ -496,3 +496,37 @@
 - Add 4 tests in [`test_launcher_health_loop.py`](tests/test_launcher_health_loop.py) covering: the build helper returns a HealthLoop instance, a degraded snapshot (latency_p99_ms = 2000 ms exceeding `HealthThresholds.latency_halt_ms = 1000 ms`) flips `state.mode.mode` to `HALTED` with `trigger == 'health'` after `tick_once()`, healthy snapshot leaves `state.mode` untouched, and `start()`/`stop()` idempotency with a bounded-poll assertion that the worker thread actually ran (PT.5.4)
 - Add 4 tests in [`test_launcher_outbound_wiring.py`](tests/test_launcher_outbound_wiring.py) covering: sanity check that the build helper returns a `PraxisOutbound`, end-to-end `send_abort` round-trip on a real loop thread reaching `Trading.submit_abort` with the reconstructed `TradeAbort`, `get_health_snapshot` round-trip reaching `Trading.get_health_snapshot`, and a documentation-style test showing a bare `PraxisOutbound` raises `RuntimeError('submit_abort_fn not configured')` today (pins the regression PT.5.1 fixes) (PT.5.1)
 - 841 tests passing (up from 833). Bumps `vaquum-praxis` 0.43.0 → 0.44.0
+
+## v0.45.0 on 27th of April, 2026
+
+- Bump `vaquum-nexus` pin from `3bda07e7` to `f3fd91f1` (Nexus v0.32.0 — Vaquum/Nexus#45 merged), aligning Praxis with the Nexus paper-trade-readiness PT-FIX series and the new `OrderContext.is_entry` field
+- Add PT-FIX-1 lazy kline-size registration from wired sensors in [`launcher.py`](praxis/launcher.py) — kline sizes are now read from each `WiredSensor.limen_manifest` after `sequencer.start()` trains the manifest, so the poller is no longer empty at boot and `signal_producer.produce_signal` no longer raises `ValueError("market_data is empty for sensor X")` on every tick
+- Add PT-FIX-2 `ShutdownSequencer.config` wiring in [`launcher.py`](praxis/launcher.py) so `on_shutdown` actions execute through `translate_to_trade_command` instead of failing with `RuntimeError('config not configured')`
+- Add PT-FIX-3 testnet routing for `MarketDataPoller` in [`launcher.py`](praxis/launcher.py) when `BINANCE_TESTNET=true`
+- Add PT-FIX-4 Limen pin alignment to `v2.4.3` matching Nexus
+- Add PT-FIX-6 outcome translation seam in [`outcome_translator.py`](praxis/outcome_translator.py) — Praxis `TradeOutcome` is mapped to the Nexus shape on the per-account queue boundary so `OutcomeLoop` consumes the right type
+- Add PT-FIX-7 outbound `execution_params → SingleShotParams` wrapping in [`praxis_outbound.py`](praxis/infrastructure/praxis_outbound.py) so `submit_command` reaches the Praxis venue with the right param object
+- Add PT-FIX-8 per-account `OutcomeProcessor` wiring in [`launcher.py`](praxis/launcher.py) (`process_outcome` closure built from the per-account `CapitalController` + `InstanceState` + `StateStore`)
+- Add PT-FIX-10 lock around `TradingState.positions` reads in [`trading_state.py`](praxis/trading_state.py) — pairs with the writer-side lock to prevent partial-snapshot reads during concurrent fill ingestion
+- Add PT-FIX-11 `BINANCE_TESTNET` documentation in `docs/Launcher.md` optional-env table
+- Add PT-FIX-12 fixed pins for `vaquum-nexus` and `binancial` in `pyproject.toml` (no more floating `main` refs)
+- Add PT-FIX-13 `BinanceAdapter` post-close session re-creation refusal in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py) — once `close()` runs, subsequent `_session_factory()` calls raise instead of silently re-opening a session
+- Add PT-FIX-14 sync `HealthSnapshot` accessor on [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py) so the Nexus HealthLoop reads snapshots without crossing the asyncio boundary on every tick
+- Add PT-FIX-16 `on_startup` action drain in [`launcher.py`](praxis/launcher.py) — actions returned from `Strategy.on_startup` now flow through the same `submit_actions` pipeline as runtime actions
+- Add PT-FIX-19 `strategies_base_path` prepend to `sys.path` BEFORE `_wire_sensors` in [`launcher.py`](praxis/launcher.py) so user strategy packages resolve during sensor wiring
+- Add PT-FIX-20 ENTER `Position` pre-population in [`launcher.py`](praxis/launcher.py) — `_ensure_entry_position` registers the `Position(trade_id=command_id, …)` BEFORE the first FILL outcome lands, so `OutcomeProcessor._grow_position` finds the position record by `forced_trade_id` instead of raising "entry fill for missing position"
+- Add PT-FIX-21 venue-adapter close on `Trading.stop()` in [`trading.py`](praxis/trading.py) so the HTTP session is released
+- Add PT-FIX-22 `/healthz` listener kept up across shutdown in [`launcher.py`](praxis/launcher.py) — Render now gets a clean 503 with `failures:` payload on `SIGTERM` instead of connection-refused
+- Add PT-FIX-23 hold `_positions_lock` through field-mutation branch in [`outcome_processor.py`](praxis/core/outcome_processor.py)`_update_position_on_fill`
+- Add PT-FIX-24 set `_stop_event` on per-instance build failure in [`launcher.py`](praxis/launcher.py) so `launch()` unwinds cleanly when `_build_nexus_runtime` raises
+- Add PT-FIX-28 shared `positions_lock` in [`launcher.py`](praxis/launcher.py) — `state.positions` iteration in the `_NexusRuntime` and the terminal-cleanup `del` in `process_outcome` now hold the same lock so the dict doesn't mutate mid-iteration
+- Add PT-FIX-29 atomic `command_strategy_ids` + `command_contexts` writes under shared `command_registry_lock` in [`launcher.py`](praxis/launcher.py)
+- Add PT-FIX-30 boot-time orphan `CommandAccepted` reconciliation in [`execution_manager.py`](praxis/core/execution_manager.py) (`reconcile_orphan_commands`) so stranded Nexus reservations get released after a crash
+- Add PT-FIX-31 `OutcomeProcessor` threading through `_NexusRuntime` into `ShutdownSequencer` in [`launcher.py`](praxis/launcher.py) so shutdown EXIT FILLs decrement `state.positions` instead of being silently dropped
+- Add PT-FIX-35 `CapitalController.reconcile_at_boot()` call in [`launcher.py`](praxis/launcher.py) `_build_nexus_runtime` so stranded `in_flight_order_notional` / `working_order_notional` / `reservation_notional` from a crashed prior boot are reset
+- Add PT-FIX-39 bounded `OrderedDict` LRU for `OutcomeTranslator`'s terminal-dedup table in [`outcome_translator.py`](praxis/outcome_translator.py) — replaces an unbounded `set` with a default cap of 10000 + FIFO eviction
+- Add PT-FIX-41 pass `state.positions.values()` to `reconcile_at_boot` in [`launcher.py`](praxis/launcher.py) `_build_nexus_runtime` so `per_strategy_deployed` is rebuilt from live positions (without it, the persisted per-strategy attribution still includes pre-crash reservation/in-flight/working amounts and the next `check_and_reserve` permanently denies all new ENTERs)
+- Add PT-FIX-44 `process_outcome` threading through `_NexusRuntime` to `ShutdownSequencer.non_pending_outcome_handler` in [`launcher.py`](praxis/launcher.py) so pre-shutdown outcomes drained by `_poll_until_terminal` are routed through the same outcome handler the OutcomeLoop would have used
+- Thread `is_entry` through `_build_order_context` in [`launcher.py`](praxis/launcher.py) — `is_entry=action.action_type == ActionType.ENTER` matches the new required `OrderContext.is_entry` field in Nexus 0.32.0. Decouples intent from venue side so short-position EXITs (BUY-to-cover) are no longer mis-routed through `OutcomeProcessor`'s entry path
+- Add TD-021..024 (round-6/7 audit deferred edge cases) to [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md)
+- 925 tests passing (up from 841). Bumps `vaquum-praxis` 0.44.0 → 0.45.0
