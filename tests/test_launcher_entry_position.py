@@ -165,6 +165,7 @@ def test_outcome_processor_grows_pre_populated_position() -> None:
         order_size=Decimal('1'),
         order_notional=Decimal('100'),
         estimated_fees=Decimal('0.1'),
+        is_entry=True,
     )
     fill = TradeOutcome(
         outcome_id='out-1',

@@ -89,6 +89,7 @@ def _build_fixture(tmp_path: Path) -> tuple[
         order_size=Decimal('1'),
         order_notional=Decimal('100'),
         estimated_fees=Decimal('1'),
+        is_entry=True,
     )
 
     state.positions['trade-1'] = MagicMock(

@@ -732,6 +732,7 @@ def _build_order_context(
             order_size=validation_context.order_size,
             order_notional=validation_context.order_notional,
             estimated_fees=validation_context.estimated_fees,
+            is_entry=action.action_type == ActionType.ENTER,
         )
     except ValueError:
         _log.exception(
