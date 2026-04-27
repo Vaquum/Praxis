@@ -118,3 +118,42 @@ When the WS connection dies just before SIGTERM, the Nexus thread's `ShutdownSeq
 
 **When to fix**: When operator-facing shutdown UX matters (e.g., CI/CD pipelines, container orchestrators with hard kill timeouts).
 **Migration**: Detect WS-down condition (e.g., `_user_streams[...].connected is False`) and short-circuit `_wait_terminal` to escalation, OR pass a unified deadline through both phases.
+
+---
+
+## TD-025: `TradingState.orders` / `closed_orders` / `trade_strategy_ids` not lock-protected
+
+**Origin**: Greybeard pre-PR review of `feat/paper-trade-readiness-fixes`
+**Severity**: Low (paper trade), Major (production with cross-thread readers)
+**Module**: `praxis/core/trading_state.py:60-78,233-345`
+
+PT-FIX-10 added `_positions_lock` around `positions` reads/writes only. The other dicts mutated by `apply()` on the event-loop thread — `orders`, `closed_orders`, `trade_strategy_ids` — are not lock-protected. `get_trading_state()` returns a live reference to the `TradingState` instance, so any caller reading those dicts from a non-loop thread races the writes. Today no hot-path consumer does this (positions snapshots are the only documented use), so the bug is latent.
+
+**When to fix**: When the first cross-thread consumer of `TradingState.orders` lands, or before any production deployment with metrics/dashboards reading order state.
+**Migration**: Either widen `_positions_lock` to cover all four dicts (rename `_state_lock`) and add `snapshot_orders()` / `snapshot_trade_strategy_ids()` mirroring `snapshot_positions()`, OR document that `TradingState` mutation is event-loop-thread-only and force all consumers through accessor methods that snapshot under the lock.
+
+---
+
+## TD-026: `OutcomeTranslator` terminal-dedup eviction silently emits stray Nexus outcomes
+
+**Origin**: Greybeard pre-PR review of `feat/paper-trade-readiness-fixes`
+**Severity**: Low (bounded by 10000-command FIFO + downstream rejection)
+**Module**: `praxis/outcome_translator.py:155-159,172-180`
+
+When a duplicate Praxis terminal outcome arrives for a `command_id` that has already been evicted from `_terminal_command_ids` (FIFO at `terminal_dedup_cap=10000`), the translator does NOT detect the duplicate and emits a fresh Nexus terminal outcome. `OutcomeProcessor` rejects it with `INVARIANT_BREACH: order not found`, so the operational impact is bounded to a noise log and a no-op. The current docstring frames this as "downstream rejects it" — accurate but downplays that the seam emitted a wrong event we cannot detect locally.
+
+**When to fix**: If duplicate-terminal traffic ever turns the noise-log into operational signal-to-noise problems, or before any deployment where `OutcomeProcessor`'s `INVARIANT_BREACH` rejections are surfaced as alerts.
+**Migration**: Replace the in-memory dedup window with a content-addressed marker (e.g., the spine's `TradeOutcomeProduced` sequence number) so dedup survives restart and arbitrary lookback, OR raise `terminal_dedup_cap` to a multi-week working set.
+
+---
+
+## TD-027: Two-lock window in `Launcher.process_outcome` terminal cleanup
+
+**Origin**: Greybeard pre-PR review of `feat/paper-trade-readiness-fixes`
+**Severity**: Low (transient, no current consumer trips it)
+**Module**: `praxis/launcher.py:1500-1533`
+
+`process_outcome` releases `command_registry_lock` (after popping `command_contexts` / `command_strategy_ids`) and then re-acquires `positions_lock` to delete the position. A predict tick that runs between the two acquisitions sees a position whose strategy-id mapping has already been popped. Today the strategy-context build path filters positions by `strategy_id` independently of the registry, so the worst case is a tick that briefly observes a position that's about to be removed — benign for current consumers.
+
+**When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
+**Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.

@@ -1468,13 +1468,20 @@ class Launcher:
                         outcome.command_id,
                     )
                     if not send_result.success:
-                        _log.warning(
-                            'send_order failed; OutcomeProcessor will skip ACK',
+                        _log.error(
+                            'send_order failed; skipping OrderContext '
+                            'registration. The venue command was already '
+                            'submitted, so subsequent ACK/FILL outcomes '
+                            'will be dropped by OutcomeProcessor with '
+                            "'no OrderContext for command'. The Nexus "
+                            'reservation will be released by the next '
+                            'boot reconcile_at_boot pass.',
                             extra={
                                 'command_id': outcome.command_id,
                                 'reason': send_result.reason,
                             },
                         )
+                        continue
 
                 forced_trade_id: str | None = None
                 if action.action_type == ActionType.ENTER:
