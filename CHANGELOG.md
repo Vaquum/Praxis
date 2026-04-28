@@ -505,19 +505,19 @@
 - Add PT-FIX-3 testnet routing for `MarketDataPoller` in [`launcher.py`](praxis/launcher.py) when `BINANCE_TESTNET=true`
 - Add PT-FIX-4 Limen pin alignment to `v2.4.3` matching Nexus
 - Add PT-FIX-6 outcome translation seam in [`outcome_translator.py`](praxis/outcome_translator.py) — Praxis `TradeOutcome` is mapped to the Nexus shape on the per-account queue boundary so `OutcomeLoop` consumes the right type
-- Add PT-FIX-7 outbound `execution_params → SingleShotParams` wrapping in [`praxis_outbound.py`](praxis/infrastructure/praxis_outbound.py) so `submit_command` reaches the Praxis venue with the right param object
+- Add PT-FIX-7 outbound `execution_params → SingleShotParams` wrapping via [`launcher.py`](praxis/launcher.py)`_build_praxis_outbound` and [`command_translator.py`](praxis/command_translator.py)`build_single_shot_params` so `submit_command` reaches the Praxis venue with the right param object
 - Add PT-FIX-8 per-account `OutcomeProcessor` wiring in [`launcher.py`](praxis/launcher.py) (`process_outcome` closure built from the per-account `CapitalController` + `InstanceState` + `StateStore`)
 - Add PT-FIX-10 lock around `TradingState.positions` reads in [`trading_state.py`](praxis/trading_state.py) — pairs with the writer-side lock to prevent partial-snapshot reads during concurrent fill ingestion
 - Add PT-FIX-11 `BINANCE_TESTNET` documentation in `docs/Launcher.md` optional-env table
 - Add PT-FIX-12 fixed pins for `vaquum-nexus` and `binancial` in `pyproject.toml` (no more floating `main` refs)
 - Add PT-FIX-13 `BinanceAdapter` post-close session re-creation refusal in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py) — once `close()` runs, subsequent `_session_factory()` calls raise instead of silently re-opening a session
-- Add PT-FIX-14 sync `HealthSnapshot` accessor on [`venue_adapter.py`](praxis/infrastructure/venue_adapter.py) so the Nexus HealthLoop reads snapshots without crossing the asyncio boundary on every tick
+- Add PT-FIX-14 sync `Trading.get_health_snapshot_sync(account_id)` API in [`trading.py`](praxis/trading.py) (consumed by `_build_health_loop` in [`launcher.py`](praxis/launcher.py)) so the Nexus HealthLoop reads snapshots without crossing the asyncio boundary on every tick
 - Add PT-FIX-16 `on_startup` action drain in [`launcher.py`](praxis/launcher.py) — actions returned from `Strategy.on_startup` now flow through the same `submit_actions` pipeline as runtime actions
 - Add PT-FIX-19 `strategies_base_path` prepend to `sys.path` BEFORE `_wire_sensors` in [`launcher.py`](praxis/launcher.py) so user strategy packages resolve during sensor wiring
 - Add PT-FIX-20 ENTER `Position` pre-population in [`launcher.py`](praxis/launcher.py) — `_ensure_entry_position` registers the `Position(trade_id=command_id, …)` BEFORE the first FILL outcome lands, so `OutcomeProcessor._grow_position` finds the position record by `forced_trade_id` instead of raising "entry fill for missing position"
 - Add PT-FIX-21 venue-adapter close on `Trading.stop()` in [`trading.py`](praxis/trading.py) so the HTTP session is released
 - Add PT-FIX-22 `/healthz` listener kept up across shutdown in [`launcher.py`](praxis/launcher.py) — Render now gets a clean 503 with `failures:` payload on `SIGTERM` instead of connection-refused
-- Add PT-FIX-23 hold `_positions_lock` through field-mutation branch in [`outcome_processor.py`](praxis/core/outcome_processor.py)`_update_position_on_fill`
+- Add PT-FIX-23 hold `_positions_lock` through the field-mutation branches in [`trading_state.py`](praxis/core/trading_state.py) (`_update_position_on_fill` insert, accumulate, and reduce paths; plus `_on_trade_closed` pop)
 - Add PT-FIX-24 set `_stop_event` on per-instance build failure in [`launcher.py`](praxis/launcher.py) so `launch()` unwinds cleanly when `_build_nexus_runtime` raises
 - Add PT-FIX-28 shared `positions_lock` in [`launcher.py`](praxis/launcher.py) — `state.positions` iteration in the `_NexusRuntime` and the terminal-cleanup `del` in `process_outcome` now hold the same lock so the dict doesn't mutate mid-iteration
 - Add PT-FIX-29 atomic `command_strategy_ids` + `command_contexts` writes under shared `command_registry_lock` in [`launcher.py`](praxis/launcher.py)

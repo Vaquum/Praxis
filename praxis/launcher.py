@@ -1284,7 +1284,7 @@ class Launcher:
     def _run_nexus_instance(
         self,
         inst: InstanceConfig,
-        outcome_queue: queue.Queue[TradeOutcome],
+        outcome_queue: queue.Queue[NexusTradeOutcome],
     ) -> None:
         '''Build, run, and shut down one Nexus Manager instance in its own thread.'''
 
@@ -1330,7 +1330,7 @@ class Launcher:
     def _build_nexus_runtime(
         self,
         inst: InstanceConfig,
-        outcome_queue: queue.Queue[TradeOutcome],
+        outcome_queue: queue.Queue[NexusTradeOutcome],
     ) -> _NexusRuntime:
         '''Wire all per-account runtime components and start the loops.
 
@@ -1527,6 +1527,10 @@ class Launcher:
                     'no OrderContext for command; skipping processor',
                     extra={'command_id': outcome.command_id},
                 )
+                if outcome.outcome_type.is_terminal:
+                    with command_registry_lock:
+                        command_contexts.pop(outcome.command_id, None)
+                        command_strategy_ids.pop(outcome.command_id, None)
                 return
 
             result = outcome_processor.process(outcome, order_context)
