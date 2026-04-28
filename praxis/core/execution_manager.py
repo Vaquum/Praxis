@@ -22,6 +22,7 @@ from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
     OrderSide,
+    OrderStatus,
     OrderType,
     STPMode,
     TradeStatus,
@@ -32,6 +33,7 @@ from praxis.core.domain.events import (
     FillReceived,
     OrderCanceled,
     OrderExpired,
+    OrderRejected,
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
@@ -704,6 +706,18 @@ class ExecutionManager:
                             type(event).__name__,
                             runtime.account_id,
                         )
+                        continue
+                    try:
+                        await self._emit_ws_outcome(runtime, event)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        _log.exception(
+                            'failed to emit WS-driven TradeOutcome: '
+                            'event_type=%s account_id=%s',
+                            type(event).__name__,
+                            runtime.account_id,
+                        )
 
                 while not runtime.priority_queue.empty():
                     abort = runtime.priority_queue.get_nowait()
@@ -1225,6 +1239,87 @@ class ExecutionManager:
                 )
 
         return outcome
+
+    async def _emit_ws_outcome(
+        self,
+        runtime: _AccountRuntime,
+        event: Event,
+    ) -> None:
+        '''Emit a `TradeOutcome` for a WS-driven event after `trading_state.apply` runs.
+
+        The `_process_command` path emits outcomes for immediate fills
+        (MARKET orders) and the initial PENDING ACK (LIMIT orders). It
+        does NOT emit outcomes for subsequent venue WS fills, partial
+        cancels, terminal cancels/rejects/expires that arrive via the
+        WS user stream. Without this method, those events update only
+        `TradingState.orders` / `positions` projections; the launcher's
+        `_route_translated` → `OutcomeTranslator.translate` → Nexus
+        queue → `OutcomeLoop` → `process_outcome` chain never fires
+        for them, so capital stays parked in `working_order_notional`,
+        Nexus's `state.positions[trade_id]` keeps the size=0 placeholder,
+        and any operator LIMIT strategy silently loses every fill.
+
+        Skips the emission when:
+        - The event is not a fill / order-terminal type
+        - The command_id is already in `_terminal_commands` (the
+          `_process_command` path already emitted a terminal — typical
+          for MARKET orders that fill immediately, then the WS echo
+          arrives later)
+        - The originating command or order projection cannot be found
+          (defensive — should not happen during normal flow)
+        '''
+
+        if not isinstance(event, (FillReceived, OrderCanceled, OrderExpired, OrderRejected)):
+            return
+
+        client_order_id = event.client_order_id
+        order = (
+            runtime.trading_state.orders.get(client_order_id)
+            or runtime.trading_state.closed_orders.get(client_order_id)
+        )
+        if order is None:
+            return
+
+        command_id = order.command_id
+        if command_id in self._terminal_commands:
+            return
+
+        cmd = self._commands.get(command_id)
+        if cmd is None:
+            return
+
+        avg_fill_price: Decimal | None = (
+            order.cumulative_notional / order.filled_qty
+            if order.filled_qty > _ZERO else None
+        )
+
+        if isinstance(event, FillReceived):
+            status = (
+                TradeStatus.FILLED
+                if order.status == OrderStatus.FILLED else TradeStatus.PARTIAL
+            )
+            reason: str | None = None
+
+        elif isinstance(event, OrderCanceled):
+            status = TradeStatus.CANCELED
+            reason = event.reason
+
+        elif isinstance(event, OrderExpired):
+            status = TradeStatus.EXPIRED
+            reason = None
+
+        else:
+            status = TradeStatus.REJECTED
+            reason = event.reason
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=order.filled_qty,
+            avg_fill_price=avg_fill_price,
+            reason=reason,
+        )
 
     async def _build_outcome(
         self,

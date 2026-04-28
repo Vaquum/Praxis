@@ -25,7 +25,15 @@ from praxis.core.domain.enums import (
     STPMode,
     TradeStatus,
 )
-from praxis.core.domain.events import CommandAccepted, OrderExpired, OrderSubmitIntent, OrderSubmitted, TradeOutcomeProduced
+from praxis.core.domain.events import (
+    CommandAccepted,
+    FillReceived,
+    OrderCanceled,
+    OrderExpired,
+    OrderSubmitIntent,
+    OrderSubmitted,
+    TradeOutcomeProduced,
+)
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -1456,5 +1464,242 @@ class TestOcoAbortRouting:
         assert outcome.command_id == command_id
         assert outcome.trade_id == trade_id
         assert outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)
+
+
+class TestEmitWsOutcome:
+    '''A LIMIT order whose initial submit returns no immediate fills
+    leaves the command in PENDING after `_process_command`. Subsequent
+    venue WS fills (`FillReceived`) and terminal events
+    (`OrderCanceled` / `OrderRejected` / `OrderExpired`) must surface
+    a `TradeOutcome` aggregate via `_on_trade_outcome` so the
+    launcher's translator → Nexus queue → OutcomeProcessor chain can
+    update Nexus capital and position state.
+    '''
+
+    @pytest.mark.asyncio
+    async def test_ws_partial_fill_emits_partial_outcome(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**{**_CMD_KWARGS, 'qty': Decimal('2')})
+        await asyncio.sleep(0.3)
+
+        callback.reset_mock()
+
+        runtime = mgr._accounts[_ACCT]
+        coid = next(iter(runtime.trading_state.orders))
+        fill = FillReceived(
+            account_id=_ACCT,
+            timestamp=_TS,
+            client_order_id=coid,
+            venue_order_id='v-o1',
+            venue_trade_id='t-1',
+            trade_id=_TRADE,
+            command_id=command_id,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            price=Decimal('50000'),
+            fee=Decimal('0.05'),
+            fee_asset='USDT',
+            is_maker=True,
+        )
+        mgr.enqueue_ws_event(_ACCT, fill)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.PARTIAL
+        assert outcome.command_id == command_id
+        assert outcome.filled_qty == Decimal('1')
+        assert outcome.avg_fill_price == Decimal('50000')
+        assert not outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_ws_full_fill_emits_filled_terminal_outcome(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.reset_mock()
+
+        runtime = mgr._accounts[_ACCT]
+        coid = next(iter(runtime.trading_state.orders))
+        fill = FillReceived(
+            account_id=_ACCT,
+            timestamp=_TS,
+            client_order_id=coid,
+            venue_order_id='v-o1',
+            venue_trade_id='t-1',
+            trade_id=_TRADE,
+            command_id=command_id,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            price=Decimal('50000'),
+            fee=Decimal('0.05'),
+            fee_asset='USDT',
+            is_maker=True,
+        )
+        mgr.enqueue_ws_event(_ACCT, fill)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.FILLED
+        assert outcome.command_id == command_id
+        assert outcome.filled_qty == Decimal('1')
+        assert outcome.avg_fill_price == Decimal('50000')
+        assert outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_ws_cancel_after_partial_emits_canceled_with_filled_qty(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**{**_CMD_KWARGS, 'qty': Decimal('2')})
+        await asyncio.sleep(0.3)
+
+        runtime = mgr._accounts[_ACCT]
+        coid = next(iter(runtime.trading_state.orders))
+
+        partial = FillReceived(
+            account_id=_ACCT,
+            timestamp=_TS,
+            client_order_id=coid,
+            venue_order_id='v-o1',
+            venue_trade_id='t-1',
+            trade_id=_TRADE,
+            command_id=command_id,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            price=Decimal('50000'),
+            fee=Decimal('0.05'),
+            fee_asset='USDT',
+            is_maker=True,
+        )
+        cancel = OrderCanceled(
+            account_id=_ACCT,
+            timestamp=_TS,
+            client_order_id=coid,
+            venue_order_id='v-o1',
+            reason='user_canceled',
+        )
+        mgr.enqueue_ws_event(_ACCT, partial)
+        mgr.enqueue_ws_event(_ACCT, cancel)
+        await asyncio.sleep(0.3)
+
+        statuses = [
+            (call.args[0].status, call.args[0].command_id, call.args[0].filled_qty)
+            for call in callback.call_args_list
+            if call.args[0].command_id == command_id
+        ]
+        assert (TradeStatus.PARTIAL, command_id, Decimal('1')) in statuses
+        assert (TradeStatus.CANCELED, command_id, Decimal('1')) in statuses
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_ws_event_for_terminal_command_does_not_emit(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''If `_process_command` already marked the command terminal
+        (e.g. immediate-fill MARKET), a stale WS echo for the same
+        command_id must not double-emit.'''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-immediate',
+                    qty=Decimal('1'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.05'),
+                    fee_asset='USDT',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        assert callback.await_count == 1
+        callback.reset_mock()
+
+        coid = next(iter(mgr._accounts[_ACCT].trading_state.closed_orders))
+        echo = FillReceived(
+            account_id=_ACCT,
+            timestamp=_TS,
+            client_order_id=coid,
+            venue_order_id='v-o1',
+            venue_trade_id='t-echo',
+            trade_id=_TRADE,
+            command_id=command_id,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            price=Decimal('50000'),
+            fee=Decimal('0.05'),
+            fee_asset='USDT',
+            is_maker=False,
+        )
+        mgr.enqueue_ws_event(_ACCT, echo)
+        await asyncio.sleep(0.3)
+
+        callback.assert_not_awaited()
 
         await mgr.unregister_account(_ACCT)

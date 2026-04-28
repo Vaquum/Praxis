@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from datetime import datetime, UTC
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import aiosqlite
 
@@ -479,11 +479,29 @@ class TestLauncherLifecycle:
 
         time.sleep(0.5)
 
+        async def read_spine_events() -> list[Any]:
+            entries = await spine.read(epoch_id=config.epoch_id)
+            return [evt for _seq, evt in entries]
+
+        events = asyncio.run_coroutine_threadsafe(read_spine_events(), launcher._loop).result(timeout=5)
+        outcome_events = [
+            e for e in events
+            if e.__class__.__name__ == 'TradeOutcomeProduced'
+            and e.command_id == cmd_id
+        ]
+        terminal_outcomes = [
+            e for e in outcome_events
+            if e.status.value == 'FILLED'
+        ]
+        assert terminal_outcomes, (
+            f'no FILLED TradeOutcomeProduced for {cmd_id} after WS fill; '
+            f'all outcome events: {[(e.status.value) for e in outcome_events]}'
+        )
+
         positions = launcher._trading.pull_positions('test-acc')
-        filled = [p for p in positions.values() if p.qty > Decimal('0')]
-        assert filled, 'no position after fill'
-        assert filled[0].strategy_id == 'momentum_v1'
-        assert filled[0].trade_id == 'trade-1'
+        assert positions == {}, (
+            f'position should be deleted after FILLED outcome → TradeClosed; got {positions}'
+        )
 
         stop_future = asyncio.run_coroutine_threadsafe(launcher._trading.stop(), launcher._loop)
         stop_future.result(timeout=10)
