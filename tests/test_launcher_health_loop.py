@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 from nexus.core.domain.enums import OperationalMode
 from nexus.core.domain.instance_state import InstanceState
 from nexus.core.health_loop import HealthLoop
-from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
 
 from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.launcher import _build_health_loop
@@ -43,19 +42,19 @@ def _halt_snapshot() -> HealthSnapshot:
     )
 
 
-def _outbound_returning(snapshot: HealthSnapshot) -> MagicMock:
-    outbound = MagicMock(spec=PraxisOutbound)
-    outbound.get_health_snapshot.return_value = snapshot
-    return outbound
+def _trading_returning(snapshot: HealthSnapshot) -> MagicMock:
+    trading = MagicMock()
+    trading.get_health_snapshot_sync.return_value = snapshot
+    return trading
 
 
 def test_build_health_loop_returns_health_loop_instance() -> None:
     '''The helper returns a HealthLoop wired to the supplied state.'''
 
     state = _state()
-    outbound = _outbound_returning(_healthy_snapshot())
+    trading = _trading_returning(_healthy_snapshot())
 
-    loop = _build_health_loop(outbound, state, account_id='acct-pt54')
+    loop = _build_health_loop(trading, state, account_id='acct-pt54')
 
     assert isinstance(loop, HealthLoop)
     assert loop.running is False
@@ -67,14 +66,14 @@ def test_health_loop_transition_updates_instance_state_mode() -> None:
     state = _state()
     assert state.mode.mode == OperationalMode.ACTIVE
 
-    outbound = _outbound_returning(_halt_snapshot())
+    trading = _trading_returning(_halt_snapshot())
 
-    loop = _build_health_loop(outbound, state, account_id='acct-pt54')
+    loop = _build_health_loop(trading, state, account_id='acct-pt54')
     loop.tick_once()
 
     assert state.mode.mode == OperationalMode.HALTED
     assert state.mode.trigger == 'health'
-    outbound.get_health_snapshot.assert_called_once_with('acct-pt54')
+    trading.get_health_snapshot_sync.assert_called_once_with('acct-pt54')
 
 
 def test_health_loop_no_transition_when_snapshot_within_limits() -> None:
@@ -83,9 +82,9 @@ def test_health_loop_no_transition_when_snapshot_within_limits() -> None:
     state = _state()
     original_mode = state.mode
 
-    outbound = _outbound_returning(_healthy_snapshot())
+    trading = _trading_returning(_healthy_snapshot())
 
-    loop = _build_health_loop(outbound, state, account_id='acct-pt54')
+    loop = _build_health_loop(trading, state, account_id='acct-pt54')
     loop.tick_once()
 
     assert state.mode is original_mode
@@ -96,10 +95,10 @@ def test_health_loop_stop_after_start() -> None:
     '''start() then stop() leaves the loop not running; both are idempotent.'''
 
     state = _state()
-    outbound = _outbound_returning(_healthy_snapshot())
+    trading = _trading_returning(_healthy_snapshot())
 
     loop = _build_health_loop(
-        outbound,
+        trading,
         state,
         account_id='acct-pt54',
         interval_seconds=0.05,
@@ -111,13 +110,13 @@ def test_health_loop_stop_after_start() -> None:
 
     deadline = time.monotonic() + 1.0
     while (
-        outbound.get_health_snapshot.call_count == 0
+        trading.get_health_snapshot_sync.call_count == 0
         and time.monotonic() < deadline
     ):
         time.sleep(0.02)
 
-    assert outbound.get_health_snapshot.call_count > 0, (
-        'health loop worker did not call get_health_snapshot before stop()'
+    assert trading.get_health_snapshot_sync.call_count > 0, (
+        'health loop worker did not call get_health_snapshot_sync before stop()'
     )
 
     loop.stop()

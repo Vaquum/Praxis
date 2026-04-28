@@ -42,12 +42,22 @@ class MarketDataPoller:
         kline_intervals: Initial mapping of kline_size (seconds) to poll interval (seconds).
         n_rows: Number of klines to keep per kline_size. The fetch start date
             is computed as `now - n_rows * kline_size` seconds.
+        testnet: When `True`, build poller `binance.client.Client` with
+            `testnet=True` so REST calls go to `testnet.binance.vision`
+            instead of mainnet `api.binance.com`. Default `False` keeps
+            existing behavior. The launcher pipes the
+            `BINANCE_TESTNET` env var through this knob so paper trades
+            on testnet read prices from the same venue they execute
+            against — without it, ENTER notionals are sized against
+            mainnet BTCUSDT prices but reservations land on the testnet
+            capital pool.
     '''
 
     def __init__(
         self,
         kline_intervals: dict[int, int] | None = None,
         n_rows: int = 5000,
+        testnet: bool = False,
     ) -> None:
         self._n_rows = n_rows
         self._data: dict[int, pl.DataFrame] = {}
@@ -56,6 +66,7 @@ class MarketDataPoller:
         self._refcounts: dict[int, int] = {}
         self._started = False
         self._initial_intervals = dict(kline_intervals or {})
+        self._testnet = testnet
 
     @property
     def running(self) -> bool:
@@ -229,11 +240,11 @@ class MarketDataPoller:
         # health call against Binance — we only need the client for signed
         # or unsigned REST calls made explicitly by `get_spot_klines`.
         try:
-            client = Client(None, None, ping=False)
+            client = Client(None, None, ping=False, testnet=self._testnet)
         except Exception:  # noqa: BLE001 - thread-top exception; log and exit
             _log.exception(
                 'failed to create Binance client; poller thread exiting',
-                extra={'kline_size': kline_size},
+                extra={'kline_size': kline_size, 'testnet': self._testnet},
             )
             return
 

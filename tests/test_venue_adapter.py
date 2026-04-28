@@ -323,6 +323,8 @@ class TestVenueAdapterProtocol:
 
             def get_health_snapshot(self, *_args: Any, **_kwargs: Any) -> None: ...
 
+            async def close(self, *_args: Any, **_kwargs: Any) -> None: ...
+
         assert isinstance(_FakeAdapter(), VenueAdapter)
 
     def test_non_conforming_class_not_isinstance(self) -> None:

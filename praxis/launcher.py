@@ -15,8 +15,8 @@ import signal
 import sys
 import threading
 import uuid
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -29,6 +29,7 @@ from aiohttp import web
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.instance_state import InstanceState
+from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
 from nexus.core.health_loop import HealthLoop
 from nexus.core.outcome_loop import OutcomeLoop
@@ -56,8 +57,13 @@ from nexus.core.validator import (
     validate_risk_stage,
 )
 from nexus.infrastructure.manifest import Manifest, load_manifest
+from nexus.infrastructure.praxis_connector.order_context import OrderContext
+from nexus.infrastructure.praxis_connector.outcome_processor import OutcomeProcessor
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
+from nexus.infrastructure.praxis_connector.trade_outcome import (
+    TradeOutcome as NexusTradeOutcome,
+)
 from nexus.infrastructure.state_store import StateStore
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
@@ -69,11 +75,13 @@ from nexus.strategy.predict_loop import PredictLoop
 from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
+from praxis.command_translator import build_single_shot_params
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.market_data_poller import MarketDataPoller
+from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
@@ -190,8 +198,18 @@ def _build_praxis_outbound(
             ),
         )
 
+    async def submit_command_with_translated_params(
+        *,
+        execution_params: Any,
+        **kwargs: Any,
+    ) -> str:
+        return await trading.submit_command(
+            execution_params=build_single_shot_params(execution_params),
+            **kwargs,
+        )
+
     return PraxisOutbound(
-        submit_fn=trading.submit_command,
+        submit_fn=submit_command_with_translated_params,
         loop=loop,
         register_fn=trading.register_account,
         unregister_fn=trading.unregister_account,
@@ -202,7 +220,7 @@ def _build_praxis_outbound(
 
 
 def _build_health_loop(
-    praxis_outbound: PraxisOutbound,
+    trading: Trading,
     state: InstanceState,
     account_id: str,
     interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
@@ -210,10 +228,16 @@ def _build_health_loop(
     '''Build a per-account `HealthLoop` wired to Praxis health pulls.
 
     Each tick: pulls a `HealthSnapshot` via
-    `PraxisOutbound.get_health_snapshot(account_id)` (which crosses the
-    thread/loop boundary into Praxis via `run_coroutine_threadsafe`),
-    evaluates it through `HealthEvaluator(HealthThresholds())` with
-    MMVP-default thresholds (200/500/1000 ms latency warn/breach/halt,
+    `Trading.get_health_snapshot_sync(account_id)`, which reads the
+    `BinanceAdapter`'s in-memory trackers under their own lock without
+    crossing the asyncio loop. Going through `PraxisOutbound`'s async
+    bridge (`run_coroutine_threadsafe` + 30 s `future.result` timeout)
+    blocked the per-account `HealthLoop` thread for up to 30 s when
+    the loop was busy with a slow venue REST call, starving subsequent
+    health snapshots. The sync accessor sidesteps the loop entirely.
+
+    Each snapshot is evaluated through `HealthEvaluator(HealthThresholds())`
+    with MMVP-default thresholds (200/500/1000 ms latency warn/breach/halt,
     3/5/10 consecutive failures, 10%/20%/40% failure rate,
     70%/85%/90% rate-limit utilisation (`rate_limit_headroom`; 0.0
     idle, 1.0 at limit — higher is worse), 500 ms clock drift), and
@@ -231,7 +255,7 @@ def _build_health_loop(
     '''
 
     def snapshot_provider() -> Any:
-        return praxis_outbound.get_health_snapshot(account_id)
+        return trading.get_health_snapshot_sync(account_id)
 
     return HealthLoop(
         snapshot_provider=snapshot_provider,
@@ -593,50 +617,217 @@ def _build_exit_context(
     )
 
 
-def _extract_kline_sizes(manifest: Manifest) -> tuple[int, ...]:
-    '''Return ascending-unique kline sizes used by a manifest's sensors.
+def _ensure_entry_position(
+    *,
+    state: InstanceState,
+    action: Action,
+    strategy_id: str,
+    trade_id: str,
+    fallback_price_provider: Callable[[], Decimal | None],
+    positions_lock: threading.Lock | None = None,
+) -> None:
+    '''Pre-populate `state.positions[trade_id]` with a size=0 placeholder.
 
-    Used to drive the launcher's last-close fallback price provider when
-    a strategy emits an `ENTER` action without a `reference_price`.
-    Smallest kline-size first so the freshest available data wins.
+    `OutcomeProcessor._handle_fill` → `_grow_position` requires both
+    `OrderContext.trade_id` to be non-`None` and a `Position` record at
+    `state.positions[trade_id]`. ENTER actions don't have a Nexus-side
+    `trade_id` until we mint one (PT-FIX-20), and Nexus has no
+    auto-create-on-first-fill path. The launcher therefore inserts a
+    `size=0` placeholder keyed by the Praxis-assigned command_id at
+    submission time so the first FILLED outcome can grow it via VWAP
+    (`_grow_position` math collapses to `new_entry_price = fill_price`
+    when `old_size == 0`).
 
-    Best-effort extraction: per-sensor parsing failures (missing
-    `_limen_manifest`, missing `params`, non-int-castable `kline_size`)
-    log a warning and skip that sensor rather than aborting account
-    startup. Mirrors the resilience of `Launcher._collect_kline_intervals`.
+    Idempotent via `dict.setdefault` — repeated calls are no-ops.
+    Skips silently when no reference price is available; the action
+    would already have been rejected by `_build_enter_context`'s
+    no-price guard, so reaching this branch with `ref_price is None`
+    means a deeper bug — logging the skip rather than raising keeps
+    the submitter loop alive.
+    '''
+
+    ref_price = action.reference_price
+    if ref_price is None:
+        ref_price = fallback_price_provider()
+
+    if ref_price is None:
+        _log.warning(
+            'cannot pre-populate entry Position: no reference price',
+            extra={'strategy_id': strategy_id, 'trade_id': trade_id},
+        )
+        return
+
+    placeholder = Position(
+        trade_id=trade_id,
+        strategy_id=strategy_id,
+        symbol=_DEFAULT_SYMBOL,
+        side=action.direction or OrderSide.BUY,
+        size=_ZERO,
+        entry_price=ref_price,
+    )
+
+    if positions_lock is not None:
+        with positions_lock:
+            state.positions.setdefault(trade_id, placeholder)
+    else:
+        state.positions.setdefault(trade_id, placeholder)
+
+
+def _build_order_context(
+    *,
+    action: Action,
+    strategy_id: str,
+    command_id: str,
+    build_context: Callable[[Action, str], ValidationRequestContext | None],
+    forced_trade_id: str | None = None,
+) -> OrderContext | None:
+    '''Reconstruct an `OrderContext` for a successfully submitted action.
+
+    Re-runs `build_context(action, strategy_id)` to recover the
+    `ValidationRequestContext` that the validator already used, then
+    maps its fields onto the `OrderContext` shape `OutcomeProcessor`
+    expects. Returns `None` (and logs) when the validation context
+    cannot be rebuilt or when the resulting fields fail
+    `OrderContext.__post_init__` invariants — the launcher then logs
+    and proceeds without registering the context, so the outcome
+    processor will skip the command rather than corrupt capital
+    state on a malformed input.
+
+    Args:
+        action: Strategy action that produced the command.
+        strategy_id: Owning strategy identifier.
+        command_id: Praxis-assigned command id from the SUBMITTED outcome.
+        build_context: Same closure used by `submit_actions` to rebuild
+            the validation request context for `action`.
+        forced_trade_id: When set, overrides `validation_context.trade_id`
+            on the returned `OrderContext`. The launcher uses this for
+            ENTER actions (where the validator's trade_id is `None`) so
+            `OutcomeProcessor._grow_position` can find a `Position`
+            record keyed by the same id.
+
+    Returns:
+        `OrderContext` ready for `OutcomeProcessor.process(...)`, or
+        `None` when the context cannot be safely constructed.
+    '''
+
+    validation_context = build_context(action, strategy_id)
+    if validation_context is None:
+        return None
+
+    if validation_context.order_side is None or validation_context.order_size is None:
+        _log.warning(
+            'cannot build OrderContext: validation context missing side/size',
+            extra={'strategy_id': strategy_id, 'command_id': command_id},
+        )
+        return None
+
+    trade_id = forced_trade_id if forced_trade_id is not None else validation_context.trade_id
+
+    try:
+        return OrderContext(
+            command_id=command_id,
+            strategy_id=strategy_id,
+            trade_id=trade_id,
+            side=validation_context.order_side,
+            order_size=validation_context.order_size,
+            order_notional=validation_context.order_notional,
+            estimated_fees=validation_context.estimated_fees,
+            is_entry=action.action_type == ActionType.ENTER,
+        )
+    except ValueError:
+        _log.exception(
+            'OrderContext rejected by invariants',
+            extra={'strategy_id': strategy_id, 'command_id': command_id},
+        )
+        return None
+
+
+def _register_wired_kline_sizes(
+    poller: MarketDataPoller | None,
+    wired_sensors: Iterable[Any],
+) -> tuple[int, ...]:
+    '''Register kline sizes from wired sensors with the poller.
+
+    Called from `_build_nexus_runtime` after `sequencer.start()` has
+    trained the manifest's sensors. Each `WiredSensor` carries a live
+    `limen_manifest` whose `data_source_config.params['kline_size']`
+    declares the bucket width the sensor needs. Pre-PR (PT-FIX-1) the
+    launcher tried to read `_limen_manifest` from raw `SensorSpec`
+    objects in the manifest YAML; that attribute is not set until the
+    Limen `Trainer` runs, so the lookup always returned `None`, the
+    poller started empty, and `signal_producer.produce_signal` raised
+    `ValueError("market_data is empty for sensor X")` on every tick.
+
+    Each `(kline_size, interval_seconds)` tuple is registered via
+    `MarketDataPoller.add_kline_size`, which is idempotent + ref-counted
+    so multiple sensors sharing a kline_size register a single poller
+    thread. The same `kline_size` registered with different intervals
+    keeps the first-caller's interval (per `add_kline_size` contract).
+
+    Returns the sorted tuple of registered kline sizes for the
+    launcher's `fallback_price_provider` closure to iterate.
     '''
 
     sizes: set[int] = set()
 
-    for spec in manifest.strategies:
-        for sensor in spec.sensors:
-            try:
-                config = getattr(
-                    getattr(sensor, '_limen_manifest', None),
-                    'data_source_config',
-                    None,
-                )
+    if poller is None:
+        return ()
 
-                if config is None:
-                    continue
+    for wired in wired_sensors:
+        try:
+            config = getattr(
+                getattr(wired, 'limen_manifest', None),
+                'data_source_config',
+                None,
+            )
 
-                params = getattr(config, 'params', None)
+            if config is None:
+                continue
 
-                if params is None:
-                    continue
+            params = getattr(config, 'params', None)
 
-                kline_size = params.get('kline_size')
+            if params is None:
+                continue
 
-                if kline_size is not None:
-                    sizes.add(int(kline_size))
-            except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
-                _log.warning(
-                    'skipping sensor with invalid kline_size configuration',
-                    extra={'sensor_type': type(sensor).__name__},
-                    exc_info=True,
-                )
+            raw = params.get('kline_size')
+
+            if raw is None:
+                continue
+
+            kline_size = int(raw)
+            poller.add_kline_size(kline_size, wired.interval_seconds)
+            sizes.add(kline_size)
+        except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
+            _log.warning(
+                'skipping wired sensor with invalid kline_size configuration',
+                extra={'sensor_type': type(wired).__name__},
+                exc_info=True,
+            )
 
     return tuple(sorted(sizes))
+
+
+def _ensure_strategies_path_importable(strategies_base_path: Path) -> None:
+    '''Prepend `strategies_base_path` to `sys.path` so user SFD modules import.
+
+    Limen `Trainer` resolves the SFD class via
+    `importlib.import_module(metadata['sfd_module'])`; the module path
+    recorded at training time must be importable in the launcher
+    process at boot. Foundational SFDs ship inside `vaquum_limen` so
+    they always resolve, but user-defined SFDs (e.g. a custom
+    `Round3SFD` co-located with strategies) need the strategy
+    directory on `sys.path` before `_wire_sensors` runs. This helper
+    is idempotent and prepends rather than appends so a user-supplied
+    module shadows any installed package of the same name.
+
+    Operators with SFDs outside `STRATEGIES_BASE_PATH` should add the
+    extra path to `PYTHONPATH` at deploy time; the launcher does not
+    enumerate alternative roots.
+    '''
+
+    resolved = str(strategies_base_path.resolve())
+    if resolved not in sys.path:
+        sys.path.insert(0, resolved)
 
 
 def _last_close_from_poller(
@@ -674,6 +865,7 @@ def _build_strategy_context(
     state: InstanceState | None,
     manifest: Manifest | None,
     strategy_id: str,
+    positions_lock: threading.Lock | None = None,
 ) -> StrategyContext:
     '''Derive the per-strategy `StrategyContext` from live state + manifest.
 
@@ -688,10 +880,20 @@ def _build_strategy_context(
     safer than ACTIVE since strategies may treat empty positions as
     "no exposure" and act accordingly.
 
+    `positions_lock` (PT-FIX-28) is held only for the snapshot of
+    `state.positions.values()`; the OutcomeLoop's terminal-cleanup
+    `del state.positions[trade_id]` in `process_outcome` acquires the
+    same lock so a predict tick cannot iterate the dict while it is
+    being mutated. Filtering of the snapshot by `strategy_id` happens
+    after the lock is released.
+
     Args:
         state: Live `InstanceState` from `StartupSequencer.instance_state`.
         manifest: Loaded `Manifest` from `StartupSequencer.manifest`.
         strategy_id: Strategy whose context to build.
+        positions_lock: Optional `threading.Lock` shared with the
+            OutcomeLoop's mutation site. Tests pass `None` to skip
+            locking; production callers always pass the runtime lock.
     '''
 
     if state is None or manifest is None:
@@ -717,8 +919,14 @@ def _build_strategy_context(
     deployed = state.capital.per_strategy_deployed.get(strategy_id, _ZERO)
     capital_available = max(strategy_budget - deployed, _ZERO)
 
+    if positions_lock is not None:
+        with positions_lock:
+            positions_snapshot = list(state.positions.values())
+    else:
+        positions_snapshot = list(state.positions.values())
+
     positions = tuple(
-        pos for pos in state.positions.values() if pos.strategy_id == strategy_id
+        pos for pos in positions_snapshot if pos.strategy_id == strategy_id
     )
 
     sm = state.strategy_modes.get(strategy_id)
@@ -776,6 +984,9 @@ class _NexusRuntime:
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
     health_loop: HealthLoop
+    outcome_processor: OutcomeProcessor
+    process_outcome: Callable[[NexusTradeOutcome], None]
+    positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 class Launcher:
@@ -800,6 +1011,7 @@ class Launcher:
         db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
         healthz_port: int | None = None,
+        market_data_testnet: bool = False,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -813,6 +1025,7 @@ class Launcher:
         self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
         self._healthz_port = healthz_port
+        self._market_data_testnet = market_data_testnet
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
@@ -820,7 +1033,8 @@ class Launcher:
         self._poller: MarketDataPoller | None = None
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
-        self._outcome_queues: dict[str, queue.Queue[TradeOutcome]] = {}
+        self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
+        self._outcome_translator = OutcomeTranslator()
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -876,24 +1090,40 @@ class Launcher:
             venue_adapter=self._venue_adapter,
         )
 
+        for inst in self._instances:
+            account_queue: queue.Queue[NexusTradeOutcome] = queue.Queue()
+            self._outcome_queues[inst.account_id] = account_queue
+
+        translator = self._outcome_translator
+        outcome_queues = self._outcome_queues
+
+        def _route_translated(praxis_outcome: TradeOutcome) -> None:
+            q = outcome_queues.get(praxis_outcome.account_id)
+            if q is None:
+                _log.warning(
+                    'no outcome queue for account, dropping outcome',
+                    extra={
+                        'account_id': praxis_outcome.account_id,
+                        'command_id': praxis_outcome.command_id,
+                    },
+                )
+                return
+
+            for nexus_outcome in translator.translate(praxis_outcome):
+                q.put_nowait(nexus_outcome)
+
         existing_on_trade_outcome = self._trading_config.on_trade_outcome
 
         if existing_on_trade_outcome is None:
-            self._trading.set_on_trade_outcome(self._trading.route_outcome)
+            self._trading.set_on_trade_outcome(_route_translated)
         else:
-            route_outcome = self._trading.route_outcome
             user_cb = existing_on_trade_outcome
 
             async def _composed(outcome: TradeOutcome) -> None:
-                route_outcome(outcome)
+                _route_translated(outcome)
                 await user_cb(outcome)
 
             self._trading.set_on_trade_outcome(_composed)
-
-        for inst in self._instances:
-            account_queue: queue.Queue[TradeOutcome] = queue.Queue()
-            self._outcome_queues[inst.account_id] = account_queue
-            self._trading.register_outcome_queue(inst.account_id, account_queue)
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
@@ -913,8 +1143,16 @@ class Launcher:
         return spine
 
     def _start_poller(self) -> None:
-        kline_intervals = self._collect_kline_intervals()
-        self._poller = MarketDataPoller(kline_intervals=kline_intervals or {})
+        '''Start the market data poller with no kline sizes registered.
+
+        Per-account kline sizes are registered later by
+        `_build_nexus_runtime` via `_register_wired_kline_sizes` once
+        `StartupSequencer.start()` has trained sensors and their
+        `limen_manifest` is populated. The poller is ref-counted so
+        multiple Nexus instances can share kline sizes safely.
+        '''
+
+        self._poller = MarketDataPoller(testnet=self._market_data_testnet)
         self._poller.start()
 
     def _start_healthz(self) -> None:
@@ -1003,8 +1241,6 @@ class Launcher:
             thread.start()
 
     def _shutdown(self) -> None:
-        self._stop_healthz()
-
         for thread in self._nexus_threads:
             thread.join(timeout=30)
 
@@ -1029,6 +1265,8 @@ class Launcher:
             close_future.result(timeout=10)
             self._db_conn = None
 
+        self._stop_healthz()
+
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._loop.stop)
 
@@ -1046,7 +1284,7 @@ class Launcher:
     def _run_nexus_instance(
         self,
         inst: InstanceConfig,
-        outcome_queue: queue.Queue[TradeOutcome],
+        outcome_queue: queue.Queue[NexusTradeOutcome],
     ) -> None:
         '''Build, run, and shut down one Nexus Manager instance in its own thread.'''
 
@@ -1077,6 +1315,9 @@ class Launcher:
                 praxis_outbound=runtime.praxis_outbound,
                 praxis_inbound=runtime.praxis_inbound,
                 account_id=inst.account_id,
+                config=runtime.nexus_config,
+                outcome_processor=runtime.outcome_processor,
+                non_pending_outcome_handler=runtime.process_outcome,
             )
             shutdown.shutdown()
 
@@ -1084,11 +1325,12 @@ class Launcher:
 
         except Exception:  # noqa: BLE001 - top-level catch for thread, must not propagate
             _log.exception('nexus instance failed', extra={'account_id': inst.account_id})
+            self._stop_event.set()
 
     def _build_nexus_runtime(
         self,
         inst: InstanceConfig,
-        outcome_queue: queue.Queue[TradeOutcome],
+        outcome_queue: queue.Queue[NexusTradeOutcome],
     ) -> _NexusRuntime:
         '''Wire all per-account runtime components and start the loops.
 
@@ -1112,6 +1354,8 @@ class Launcher:
         if self._trading is None or self._loop is None:
             msg = 'Launcher runtime not initialized'
             raise RuntimeError(msg)
+
+        _ensure_strategies_path_importable(inst.strategies_base_path)
 
         state_store = StateStore(inst.state_dir)
 
@@ -1139,11 +1383,17 @@ class Launcher:
 
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
         capital_controller = CapitalController(state.capital)
+        capital_controller.reconcile_at_boot(positions=state.positions.values())
         pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
+        positions_lock = threading.Lock()
+        command_registry_lock = threading.Lock()
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
-        kline_sizes = _extract_kline_sizes(manifest)
+        kline_sizes = _register_wired_kline_sizes(
+            self._poller,
+            sequencer.wired_sensors,
+        )
 
         def market_data_provider(kline_size: int) -> Any:
             if self._poller is None:
@@ -1155,6 +1405,7 @@ class Launcher:
                 sequencer.instance_state,
                 sequencer.manifest,
                 strategy_id,
+                positions_lock=positions_lock,
             )
 
         def fallback_price_provider() -> Decimal | None:
@@ -1188,6 +1439,7 @@ class Launcher:
             )
 
         command_strategy_ids: dict[str, str] = {}
+        command_contexts: dict[str, OrderContext] = {}
 
         def submitter(actions: list[Action], strategy_id: str) -> None:
             results = submit_actions(
@@ -1200,15 +1452,112 @@ class Launcher:
                 now=lambda: datetime.now(UTC),
             )
 
-            for _action, outcome in results:
+            for action, outcome in results:
                 if (
-                    outcome.status == SubmissionStatus.SUBMITTED
-                    and outcome.command_id is not None
+                    outcome.status != SubmissionStatus.SUBMITTED
+                    or outcome.command_id is None
                 ):
+                    continue
+
+                if (
+                    outcome.decision is not None
+                    and outcome.decision.reservation is not None
+                ):
+                    send_result = capital_controller.send_order(
+                        outcome.decision.reservation.reservation_id,
+                        outcome.command_id,
+                    )
+                    if not send_result.success:
+                        _log.error(
+                            'send_order failed; skipping OrderContext '
+                            'registration. The venue command was already '
+                            'submitted, so subsequent ACK/FILL outcomes '
+                            'will be dropped by OutcomeProcessor with '
+                            "'no OrderContext for command'. The Nexus "
+                            'reservation will be released by the next '
+                            'boot reconcile_at_boot pass.',
+                            extra={
+                                'command_id': outcome.command_id,
+                                'reason': send_result.reason,
+                            },
+                        )
+                        continue
+
+                forced_trade_id: str | None = None
+                if action.action_type == ActionType.ENTER:
+                    forced_trade_id = outcome.command_id
+                    _ensure_entry_position(
+                        state=state,
+                        action=action,
+                        strategy_id=strategy_id,
+                        trade_id=forced_trade_id,
+                        fallback_price_provider=fallback_price_provider,
+                        positions_lock=positions_lock,
+                    )
+
+                order_context = _build_order_context(
+                    action=action,
+                    strategy_id=strategy_id,
+                    command_id=outcome.command_id,
+                    build_context=build_context,
+                    forced_trade_id=forced_trade_id,
+                )
+
+                with command_registry_lock:
                     command_strategy_ids[outcome.command_id] = strategy_id
+                    if order_context is not None:
+                        command_contexts[outcome.command_id] = order_context
 
         def resolve_strategy_id(outcome: Any) -> str | None:
-            return command_strategy_ids.get(outcome.command_id)
+            with command_registry_lock:
+                return command_strategy_ids.get(outcome.command_id)
+
+        outcome_processor = OutcomeProcessor(
+            capital_controller=capital_controller,
+            instance_state=state,
+            state_store=state_store,
+        )
+
+        def process_outcome(outcome: NexusTradeOutcome) -> None:
+            with command_registry_lock:
+                order_context = command_contexts.get(outcome.command_id)
+
+            if order_context is None:
+                _log.warning(
+                    'no OrderContext for command; skipping processor',
+                    extra={'command_id': outcome.command_id},
+                )
+                if outcome.outcome_type.is_terminal:
+                    with command_registry_lock:
+                        command_contexts.pop(outcome.command_id, None)
+                        command_strategy_ids.pop(outcome.command_id, None)
+                return
+
+            result = outcome_processor.process(outcome, order_context)
+            if not result.success:
+                _log.warning(
+                    'OutcomeProcessor reported failure',
+                    extra={
+                        'command_id': outcome.command_id,
+                        'outcome_type': result.outcome_type.value,
+                        'error': result.error_reason,
+                    },
+                )
+
+            if outcome.outcome_type.is_terminal:
+                with command_registry_lock:
+                    command_contexts.pop(outcome.command_id, None)
+                    command_strategy_ids.pop(outcome.command_id, None)
+                if (
+                    order_context.is_entry
+                    and order_context.trade_id is not None
+                ):
+                    with positions_lock:
+                        pos = state.positions.get(order_context.trade_id)
+                        if pos is not None and pos.size == _ZERO:
+                            del state.positions[order_context.trade_id]
+
+        sequencer.drain_pending_startup_actions(submitter)
 
         predict_loop = PredictLoop(
             runner=runner,
@@ -1239,11 +1588,12 @@ class Launcher:
             context_provider=context_provider,
             resolve_strategy_id=resolve_strategy_id,
             action_submit=submitter,
+            process_outcome=process_outcome,
         )
         outcome_loop.start()
 
         health_loop = _build_health_loop(
-            praxis_outbound=praxis_outbound,
+            trading=self._trading,
             state=state,
             account_id=inst.account_id,
         )
@@ -1264,44 +1614,10 @@ class Launcher:
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
             health_loop=health_loop,
+            outcome_processor=outcome_processor,
+            process_outcome=process_outcome,
+            positions_lock=positions_lock,
         )
-
-    def _collect_kline_intervals(self) -> dict[int, int]:
-        '''Extract kline_size → min poll interval from all manifests.'''
-
-        kline_intervals: dict[int, int] = {}
-
-        for inst in self._instances:
-            try:
-                manifest = load_manifest(inst.manifest_path)
-
-                for spec in manifest.strategies:
-                    for sensor in spec.sensors:
-                        config = getattr(
-                            getattr(sensor, '_limen_manifest', None),
-                            'data_source_config',
-                            None,
-                        )
-
-                        kline_size = None
-
-                        if config is not None:
-                            kline_size = config.params.get('kline_size')
-
-                        if kline_size is not None:
-                            current = kline_intervals.get(int(kline_size))
-                            interval = sensor.interval_seconds
-
-                            if current is None or interval < current:
-                                kline_intervals[int(kline_size)] = interval
-            except Exception:  # noqa: BLE001 - best-effort extraction, skip on failure
-                _log.exception(
-                    'failed to extract kline intervals from manifest',
-                    extra={'account_id': inst.account_id},
-                )
-
-        return kline_intervals
-
 
 def _check_required_env(env: dict[str, str]) -> None:
     '''Raise if any required env var is missing or empty.'''
@@ -1461,6 +1777,10 @@ def main() -> None:
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')
     healthz_port = int(port_raw) if port_raw else _DEFAULT_HEALTHZ_PORT
 
+    market_data_testnet = env.get('BINANCE_TESTNET', '').lower() in (
+        '1', 'true', 'yes', 'on',
+    )
+
     bind_context(epoch_id=trading_config.epoch_id)
 
     launcher = Launcher(
@@ -1468,6 +1788,7 @@ def main() -> None:
         instances=instances,
         db_path=state_base / 'event_spine.sqlite',
         healthz_port=healthz_port,
+        market_data_testnet=market_data_testnet,
     )
 
     _log.info(

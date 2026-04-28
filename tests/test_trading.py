@@ -62,6 +62,9 @@ _CREATED_AT = datetime(2099, 1, 1, tzinfo=UTC)
 
 
 class _InjectedVenueAdapter:
+    def __init__(self) -> None:
+        self.closed: bool = False
+
     def register_account(self, account_id: str, api_key: str, api_secret: str) -> None:
         del account_id, api_key, api_secret
 
@@ -177,6 +180,9 @@ class _InjectedVenueAdapter:
     def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
         del account_id
         return HealthSnapshot()
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 class _FakeInbound:
@@ -378,6 +384,72 @@ async def test_trading_stop_preserves_state_when_unregister_fails(
 
     await trading.stop()
     assert trading.started is False
+
+
+@pytest.mark.asyncio
+async def test_trading_stop_closes_injected_venue_adapter(spine: EventSpine) -> None:
+    '''PT-FIX-21: Trading.stop() must invoke venue_adapter.close() so the
+    HTTP session is released. Pre-fix Trading.stop() left the adapter open,
+    leaking aiohttp ClientSessions and (per PT-FIX-13) racing with
+    user-stream reconnect tasks.'''
+
+    adapter = _InjectedVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(epoch_id=1),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    await trading.stop()
+
+    assert adapter.closed is True
+
+
+@pytest.mark.asyncio
+async def test_trading_stop_closes_default_binance_adapter(spine: EventSpine) -> None:
+    '''Same contract against the real BinanceAdapter — _closed must flip
+    so concurrent _ensure_session calls raise instead of resurrecting a
+    fresh session post-close.'''
+
+    adapter = BinanceAdapter(base_url=TESTNET_REST_URL, ws_base_url=TESTNET_WS_URL)
+    trading = Trading(
+        config=TradingConfig(epoch_id=1),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    await trading.stop()
+
+    assert adapter._closed is True
+    assert adapter._session is None
+
+
+@pytest.mark.asyncio
+async def test_trading_stop_closes_adapter_even_when_unregister_fails(
+    spine: EventSpine,
+) -> None:
+    '''Audit ordering: close the adapter before the unregister loop so a
+    failing inbound cannot strand an open HTTP session.'''
+
+    adapter = _InjectedVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(epoch_id=1),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    fake_inbound = _FakeInbound()
+    fake_inbound.unregister_fail_once.add('acc-1')
+    trading._inbound = cast(TradingInbound, fake_inbound)
+
+    await trading.start()
+    trading.register_account('acc-1')
+
+    with pytest.raises(RuntimeError, match='unregister failed for acc-1'):
+        await trading.stop()
+
+    assert adapter.closed is True
 
 
 @pytest.mark.asyncio

@@ -295,6 +295,9 @@ class Trading:
         '''
 
         self._execution_manager.replay_events(account_id, account_events)
+        await self._execution_manager.reconcile_orphan_commands(
+            account_id, account_events,
+        )
 
         symbols = self._execution_manager.active_symbols(account_id)
         if symbols:
@@ -382,6 +385,13 @@ class Trading:
                     _log.exception('error closing user stream: %s', account_id)
                 self._user_streams.pop(account_id, None)
 
+            try:
+                await self._venue_adapter.close()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - shutdown teardown must not raise
+                _log.exception('error closing venue adapter')
+
             first_error: Exception | None = None
             for account_id in sorted(self._managed_accounts):
                 try:
@@ -396,6 +406,7 @@ class Trading:
 
             if first_error is not None:
                 raise first_error
+
             self._started = False
             self._loop = None
         finally:
@@ -831,6 +842,30 @@ class Trading:
 
         Raises:
             RuntimeError: If Trading.start() has not been awaited.
+        '''
+
+        self._require_started()
+        return self._venue_adapter.get_health_snapshot(account_id)
+
+    def get_health_snapshot_sync(self, account_id: str) -> HealthSnapshot:
+        '''Return a HealthSnapshot without crossing the asyncio loop.
+
+        The async `get_health_snapshot` exists so a Manager thread can
+        dispatch via `asyncio.run_coroutine_threadsafe`. The body is
+        already synchronous — `BinanceAdapter.get_health_snapshot` reads
+        its trackers under a `threading.Lock` so direct cross-thread
+        reads are safe. Callers on the per-account `HealthLoop` thread
+        use this entry point to avoid scheduling a coroutine on a busy
+        loop only to consume an in-memory snapshot.
+
+        Args:
+            account_id: Account whose snapshot is requested.
+
+        Returns:
+            HealthSnapshot: Latest known metrics.
+
+        Raises:
+            RuntimeError: If `Trading.start()` has not been awaited.
         '''
 
         self._require_started()

@@ -133,6 +133,9 @@ class MockVenueAdapter:
     def parse_execution_report(self, _data: dict[str, object]) -> ExecutionReport:
         raise NotImplementedError
 
+    async def close(self) -> None:
+        pass
+
 
 def _make_manifest_yaml(
     tmp_path: Path,
@@ -487,3 +490,64 @@ class TestLauncherLifecycle:
 
         launcher._loop.call_soon_threadsafe(launcher._loop.stop)
         launcher._loop_thread.join(timeout=5)
+
+    def test_build_failure_sets_stop_event_and_unwinds(self, tmp_path: Path) -> None:
+        '''PT-FIX-24: When `_build_nexus_runtime` raises, `_run_nexus_instance`
+        must set `_stop_event` so `launch()` exits the wait, runs `_shutdown`,
+        and the process can return non-zero. Pre-fix the exception was caught
+        and logged, the per-instance thread died, but the launcher kept
+        sleeping on `_stop_event.wait()` forever — paper trade with one
+        manifest left Praxis "alive" doing nothing, with no auto-exit.'''
+
+        exp_dir = tmp_path / 'experiment'
+        exp_dir.mkdir()
+        state_dir = tmp_path / 'state'
+        state_dir.mkdir()
+
+        manifest_path = _make_manifest_yaml(tmp_path, exp_dir)
+        config = TradingConfig(epoch_id=1)
+        inst = InstanceConfig(
+            account_id='test-acc',
+            manifest_path=manifest_path,
+            strategies_base_path=tmp_path,
+            state_dir=state_dir,
+        )
+
+        loop = asyncio.new_event_loop()
+        loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+        loop_thread.start()
+
+        async def make_spine() -> EventSpine:
+            conn = await aiosqlite.connect(':memory:')
+            es = EventSpine(conn)
+            await es.ensure_schema()
+            return es
+
+        spine = asyncio.run_coroutine_threadsafe(make_spine(), loop).result(timeout=5)
+
+        launcher = Launcher(
+            trading_config=config,
+            instances=[inst],
+            event_spine=spine,
+            venue_adapter=cast(VenueAdapter, MockVenueAdapter()),
+        )
+
+        def _broken_build(*_args: object, **_kwargs: object) -> object:
+            msg = 'simulated build failure'
+            raise RuntimeError(msg)
+
+        launcher._build_nexus_runtime = _broken_build  # type: ignore[method-assign]
+
+        launch_thread = threading.Thread(target=launcher.launch, daemon=True)
+        launch_thread.start()
+        launch_thread.join(timeout=30)
+
+        try:
+            assert not launch_thread.is_alive(), (
+                'launch() did not return after build failure — _stop_event '
+                'was not set, so the launcher hung on the wait'
+            )
+            assert launcher._stop_event.is_set()
+        finally:
+            loop.call_soon_threadsafe(loop.stop)
+            loop_thread.join(timeout=5)

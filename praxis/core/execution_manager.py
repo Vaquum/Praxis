@@ -66,6 +66,8 @@ _TERMINAL_STATUSES = frozenset({
     TradeStatus.REJECTED,
     TradeStatus.EXPIRED,
 })
+_BOOT_ORPHAN_REASON = 'boot_orphan_command'
+_ORPHAN_SENTINEL_QTY = Decimal(1)
 
 
 class AccountNotRegisteredError(Exception):
@@ -233,7 +235,7 @@ class ExecutionManager:
         symbols: set[str] = set()
         for order in runtime.trading_state.orders.values():
             symbols.add(order.symbol)
-        for pos in runtime.trading_state.positions.values():
+        for pos in runtime.trading_state.snapshot_positions().values():
             symbols.add(pos.symbol)
         return symbols
 
@@ -298,6 +300,115 @@ class ExecutionManager:
                 self._command_trade_ids[event.command_id] = event.trade_id
                 runtime.command_to_order[event.command_id] = event.client_order_id
 
+    async def reconcile_orphan_commands(
+        self,
+        account_id: str,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Synthesize REJECTED outcomes for orphan `CommandAccepted` events.
+
+        PT-FIX-30: a SIGKILL between `submit_command`'s spine append of
+        `CommandAccepted` and the in-memory queue/dict writes leaves a
+        durable `CommandAccepted` on the spine with no follow-up
+        `OrderSubmitIntent`. On reboot, replay reconstructs
+        `_accepted_commands` from the orphan but no outcome will ever
+        fire because Praxis never submitted to the venue. Meanwhile the
+        Nexus-side launcher had already called
+        `CapitalController.send_order(reservation_id, command_id)` so
+        the in-flight order notional is locked across restarts.
+
+        This method scans the per-account replay events, finds every
+        `CommandAccepted` whose `command_id` did not produce an
+        `OrderSubmitIntent` and is not already in a terminal state,
+        and emits a synthetic `TradeOutcome(REJECTED, reason=
+        'boot_orphan_command')`. The outcome is written to the spine
+        as `TradeOutcomeProduced` and routed through
+        `self._on_trade_outcome` so the launcher's
+        `OutcomeProcessor` releases Nexus's reservation via
+        `order_reject` lookup of the same `command_id`.
+
+        Args:
+            account_id: Account whose events were just replayed.
+            events: The same event sequence passed to `replay_events`.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        accepted_trade_ids: dict[str, str] = {}
+        seen_followup: set[str] = set()
+
+        for _seq, event in events:
+            if isinstance(event, CommandAccepted):
+                accepted_trade_ids[event.command_id] = event.trade_id
+            elif isinstance(event, OrderSubmitIntent) or (
+                isinstance(event, TradeOutcomeProduced)
+                and event.status in _TERMINAL_STATUSES
+            ):
+                seen_followup.add(event.command_id)
+
+        orphan_command_ids = [
+            cid for cid in accepted_trade_ids
+            if cid not in seen_followup
+        ]
+
+        for command_id in orphan_command_ids:
+            await self._emit_orphan_rejection(
+                runtime,
+                command_id,
+                accepted_trade_ids[command_id],
+            )
+
+    async def _emit_orphan_rejection(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        trade_id: str,
+    ) -> None:
+        ts = datetime.now(UTC)
+        produced = TradeOutcomeProduced(
+            account_id=runtime.account_id,
+            timestamp=ts,
+            command_id=command_id,
+            trade_id=trade_id,
+            status=TradeStatus.REJECTED,
+            reason=_BOOT_ORPHAN_REASON,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+        self._terminal_commands.add(command_id)
+
+        outcome = TradeOutcome(
+            command_id=command_id,
+            trade_id=trade_id,
+            account_id=runtime.account_id,
+            status=TradeStatus.REJECTED,
+            target_qty=_ORPHAN_SENTINEL_QTY,
+            filled_qty=_ZERO,
+            avg_fill_price=None,
+            slices_completed=0,
+            slices_total=1,
+            reason=_BOOT_ORPHAN_REASON,
+            created_at=ts,
+        )
+
+        _log.info(
+            'orphan command reconciled at boot: command_id=%s trade_id=%s account=%s',
+            command_id,
+            trade_id,
+            runtime.account_id,
+        )
+
+        if self._on_trade_outcome is not None:
+            try:
+                await self._on_trade_outcome(outcome)
+            except Exception:  # noqa: BLE001 - boot-time recovery must not abort startup
+                _log.exception(
+                    'on_trade_outcome callback failed for orphan: command_id=%s',
+                    command_id,
+                )
+
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
         Return a detached snapshot of current positions for an account.
@@ -317,10 +428,7 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
-        return {
-            key: copy.copy(position)
-            for key, position in runtime.trading_state.positions.items()
-        }
+        return runtime.trading_state.snapshot_positions()
 
     def get_trading_state(self, account_id: str) -> TradingState | None:
         '''

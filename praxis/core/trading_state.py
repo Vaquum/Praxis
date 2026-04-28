@@ -8,7 +8,9 @@ an independent store — it is a derived view of the event log.
 
 from __future__ import annotations
 
+import copy
 import logging
+import threading
 from decimal import Decimal
 
 from praxis.core.domain.enums import OrderStatus
@@ -55,6 +57,24 @@ class TradingState:
         self.orders: dict[str, Order] = {}
         self.closed_orders: dict[str, Order] = {}
         self.trade_strategy_ids: dict[str, str] = {}
+        self._positions_lock = threading.Lock()
+
+    def snapshot_positions(self) -> dict[tuple[str, str], Position]:
+
+        '''Return a thread-safe shallow snapshot of `positions`.
+
+        Iteration of `self.positions` happens under `_positions_lock` so
+        a concurrent insert or delete on the loop thread cannot raise
+        `RuntimeError: dictionary changed size during iteration`. Each
+        value is `copy.copy`'d so the caller can safely read field
+        values without observing a mid-update mutation.
+        '''
+
+        with self._positions_lock:
+            return {
+                key: copy.copy(position)
+                for key, position in self.positions.items()
+            }
 
     def apply(self, event: Event) -> None:
 
@@ -213,37 +233,39 @@ class TradingState:
         '''Update or create position from fill.'''
 
         key = (event.trade_id, event.account_id)
-        pos = self.positions.get(key)
 
-        if pos is None:
-            self.positions[key] = Position(
-                account_id=event.account_id,
-                trade_id=event.trade_id,
-                symbol=event.symbol,
-                side=event.side,
-                qty=event.qty,
-                avg_entry_price=event.price,
-                strategy_id=self.trade_strategy_ids.get(event.trade_id),
-            )
-            return
+        with self._positions_lock:
+            pos = self.positions.get(key)
 
-        if event.side == pos.side:
-            new_qty = pos.qty + event.qty
-            pos.avg_entry_price = (
-                (pos.qty * pos.avg_entry_price + event.qty * event.price) / new_qty
-            )
-            pos.qty = new_qty
-        else:
-            new_qty = pos.qty - event.qty
-            if new_qty < _ZERO:
-                _log.warning(
-                    'position qty went negative: trade_id=%s account=%s qty=%s',
-                    event.trade_id,
-                    event.account_id,
-                    new_qty,
+            if pos is None:
+                self.positions[key] = Position(
+                    account_id=event.account_id,
+                    trade_id=event.trade_id,
+                    symbol=event.symbol,
+                    side=event.side,
+                    qty=event.qty,
+                    avg_entry_price=event.price,
+                    strategy_id=self.trade_strategy_ids.get(event.trade_id),
                 )
-                new_qty = _ZERO
-            pos.qty = new_qty
+                return
+
+            if event.side == pos.side:
+                new_qty = pos.qty + event.qty
+                pos.avg_entry_price = (
+                    (pos.qty * pos.avg_entry_price + event.qty * event.price) / new_qty
+                )
+                pos.qty = new_qty
+            else:
+                new_qty = pos.qty - event.qty
+                if new_qty < _ZERO:
+                    _log.warning(
+                        'position qty went negative: trade_id=%s account=%s qty=%s',
+                        event.trade_id,
+                        event.account_id,
+                        new_qty,
+                    )
+                    new_qty = _ZERO
+                pos.qty = new_qty
 
     def _on_order_rejected(self, event: OrderRejected) -> None:
 
@@ -292,7 +314,8 @@ class TradingState:
         '''Remove position for the closed trade.'''
 
         key = (event.trade_id, self.account_id)
-        pos = self.positions.pop(key, None)
+        with self._positions_lock:
+            pos = self.positions.pop(key, None)
         self.trade_strategy_ids.pop(event.trade_id, None)
         if pos is None:
             _log.warning(
