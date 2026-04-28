@@ -157,3 +157,17 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 
 **When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
 **Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.
+
+---
+
+## TD-028: All `_AccountRuntime` queues + per-account outcome queue are unbounded
+
+**Origin**: Round-11 deep-coverage pass (Vaquum/Praxis#79 deferred set)
+**Severity**: Low (paper trade), Major (sustained production)
+**Module**: `praxis/core/execution_manager.py:191-193`, `praxis/launcher.py:1094`
+
+`command_queue`, `priority_queue`, `ws_event_queue` (all `asyncio.Queue()`) and the per-account `outcome_queue: queue.Queue()` are all instantiated with no `maxsize`. A slow consumer (Nexus runtime falling behind, blocked WS event drain, stuck launcher closure) leaves enqueued items in memory without bound. At MMVP testnet throughput this is irrelevant; over multi-day production runs with intermittent venue degradation this can OOM the launcher process.
+
+**When to fix**: Before any sustained multi-day paper-trade or production run, especially with multi-account workloads where a single slow consumer can drown the whole process.
+**Migration**: Set `maxsize` per queue based on expected burst capacity (e.g. `command_queue=128`, `ws_event_queue=4096`, `outcome_queue=4096`). On `put_nowait` overflow, choose between back-pressuring the producer (block-with-timeout) or dropping with a loud counter-incrementing log; the right choice differs per queue and needs a written policy.
+
