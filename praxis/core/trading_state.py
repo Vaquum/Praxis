@@ -266,6 +266,9 @@ class TradingState:
                     )
                     new_qty = _ZERO
                 pos.qty = new_qty
+                if new_qty == _ZERO:
+                    del self.positions[key]
+                    self.trade_strategy_ids.pop(event.trade_id, None)
 
     def _on_order_rejected(self, event: OrderRejected) -> None:
 

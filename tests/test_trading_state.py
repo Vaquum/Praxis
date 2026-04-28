@@ -489,3 +489,79 @@ def test_vwap_computed_from_cumulative_notional() -> None:
     order = state.closed_orders[_ORDER]
     vwap = order.cumulative_notional / order.filled_qty
     assert vwap == Decimal('51000')
+
+
+def test_position_removed_when_ws_exit_drives_qty_to_zero() -> None:
+    '''Opposite-side fill that exactly closes the position must `del`
+    the entry. `_on_trade_closed` is the only other deletion path
+    and only fires on `_build_outcome` emissions, not on WS-driven
+    `FillReceived`.
+    '''
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+    sell_oid = 'sell-order-1'
+    state.apply(_submit_intent(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+    state.apply(_fill_event(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+
+    assert (_TRADE, _ACCT) not in state.positions
+
+
+def test_trade_strategy_id_removed_when_ws_exit_drives_qty_to_zero() -> None:
+    state = _state()
+    state.trade_strategy_ids[_TRADE] = 'strat_001'
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+    sell_oid = 'sell-order-1'
+    state.apply(_submit_intent(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+    state.apply(_fill_event(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+
+    assert _TRADE not in state.trade_strategy_ids
+
+
+def test_position_remains_on_partial_close() -> None:
+    '''Partial close (event.qty < pos.qty) leaves the position in place
+    with the decremented qty.'''
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('2')))
+    state.apply(_fill_event(qty=Decimal('2')))
+    sell_oid = 'sell-order-1'
+    state.apply(_submit_intent(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+    state.apply(_fill_event(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+
+    assert (_TRADE, _ACCT) in state.positions
+    assert state.positions[(_TRADE, _ACCT)].qty == Decimal('1')
+
+
+def test_position_removed_on_overclose() -> None:
+    '''When event.qty > pos.qty, qty clamps to zero AND the entry is
+    deleted (defensive — overclose should never happen but if it does,
+    leaving a zombie is worse than deleting).'''
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+    sell_oid = 'sell-order-1'
+    state.apply(_submit_intent(client_order_id=sell_oid, qty=Decimal('2'), side=OrderSide.SELL))
+    state.apply(_fill_event(client_order_id=sell_oid, qty=Decimal('2'), side=OrderSide.SELL))
+
+    assert (_TRADE, _ACCT) not in state.positions
+
+
+def test_snapshot_positions_excludes_ws_closed_position() -> None:
+    '''`snapshot_positions` (consumed by the Nexus-side boot
+    reconciler) must not expose a position closed via the WS path —
+    a stale entry here drives the per-strategy attribution mismatch
+    denial on the next Nexus boot.'''
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+    sell_oid = 'sell-order-1'
+    state.apply(_submit_intent(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+    state.apply(_fill_event(client_order_id=sell_oid, qty=Decimal('1'), side=OrderSide.SELL))
+
+    snapshot = state.snapshot_positions()
+    assert snapshot == {}
