@@ -326,6 +326,8 @@ class TestPositionsLock:
         for t in threads:
             t.join(timeout=30)
 
+        alive = [t.name for t in threads if t.is_alive()]
+        assert not alive, f'threads did not finish within timeout: {alive}'
         assert not errors, f'concurrent access raised: {errors[:3]}'
 
     def test_unlocked_read_can_observe_dict_changed_during_iteration(self) -> None:

@@ -100,6 +100,8 @@ def test_snapshot_positions_under_concurrent_mutation() -> None:
     for t in threads:
         t.join(timeout=30)
 
+    alive = [t.name for t in threads if t.is_alive()]
+    assert not alive, f'threads did not finish within timeout: {alive}'
     assert not errors, f'concurrent access raised: {errors}'
 
 

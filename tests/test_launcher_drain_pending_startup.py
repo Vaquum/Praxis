@@ -16,10 +16,12 @@ regressions).
 
 from __future__ import annotations
 
-from pathlib import Path
+import inspect
+
+import praxis.launcher
 
 
 def test_launcher_calls_drain_pending_startup_actions() -> None:
 
-    launcher_src = Path('praxis/launcher.py').read_text()
+    launcher_src = inspect.getsource(praxis.launcher)
     assert 'sequencer.drain_pending_startup_actions(submitter)' in launcher_src

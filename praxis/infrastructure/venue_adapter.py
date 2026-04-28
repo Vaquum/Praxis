@@ -678,10 +678,10 @@ class VenueAdapter(Protocol):
         WS connections, file handles).
 
         Called once during `Trading.stop()` after user streams are closed
-        and accounts unregistered. Implementations with no persistent
-        resources may no-op. Implementations that own a session should
-        also flip an internal `_closed` flag so racing reconnect tasks
-        do not resurrect a fresh session post-close (see
+        and before accounts are unregistered. Implementations with no
+        persistent resources may no-op. Implementations that own a session
+        should also flip an internal `_closed` flag so racing reconnect
+        tasks do not resurrect a fresh session post-close (see
         `BinanceAdapter._closed` / PT-FIX-13).
         '''
 

@@ -120,6 +120,8 @@ class TestCommandRegistryLock:
         for t in threads:
             t.join(timeout=15)
 
+        alive = [t.name for t in threads if t.is_alive()]
+        assert not alive, f'threads did not finish within timeout: {alive}'
         torn = [obs for obs in observations if obs[0] != obs[1]]
         assert not torn, (
             f'observed {len(torn)} torn registrations '
@@ -168,6 +170,8 @@ class TestCommandRegistryLock:
         for t in threads:
             t.join(timeout=15)
 
+        alive = [t.name for t in threads if t.is_alive()]
+        assert not alive, f'threads did not finish within timeout: {alive}'
         torn = [obs for obs in observations if obs[0] != obs[1]]
         assert not torn, (
             f'observed {len(torn)} torn pops '
