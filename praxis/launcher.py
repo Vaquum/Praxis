@@ -1557,9 +1557,7 @@ class Launcher:
                         if pos is not None and pos.size == _ZERO:
                             del state.positions[order_context.trade_id]
 
-            if result.success and (
-                result.position_updated or result.capital_updated
-            ):
+            if result.success and result.position_updated:
                 try:
                     state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow

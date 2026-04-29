@@ -1308,9 +1308,17 @@ class ExecutionManager:
             status = TradeStatus.EXPIRED
             reason = None
 
-        else:
+        elif isinstance(event, OrderRejected):
             status = TradeStatus.REJECTED
             reason = event.reason
+
+        else:
+            msg = (
+                f'_emit_ws_outcome reached unreachable branch: '
+                f'event_type={type(event).__name__}; the outer isinstance '
+                f'filter and this if/elif chain are out of sync'
+            )
+            raise RuntimeError(msg)
 
         await self._build_outcome(
             runtime,
