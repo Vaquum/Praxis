@@ -157,3 +157,14 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 
 **When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
 **Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.
+
+## TD-028: `_on_trade_closed` WARNING fires on the WS-driven LIMIT EXIT happy path
+
+**Origin**: PR #80 review (zero-bang) of `fix/blocker-e-zombie-cleanup`
+**Severity**: Low (operational noise, no functional impact)
+**Module**: `praxis/core/trading_state.py:_on_trade_closed`
+
+The BLOCKER-E zombie cleanup deletes the position from `positions` immediately when an opposite-side fill drives `qty` to zero. The same fill triggers `_emit_ws_outcome` → `_build_outcome(FILLED)` → `TradeClosed` → `_on_trade_closed`, which calls `positions.pop(key, None)`. Because the position was already deleted in the fill handler, `pop` returns `None` and `_on_trade_closed` logs WARNING `"no position for TradeClosed"`. The warning fires on the happy path for every WS-driven LIMIT EXIT fill that fully closes a position. Both deletion paths are safe — this is operational noise that looks like a bug to operators reviewing logs.
+
+**When to fix**: When operators report log noise during paper-trade observation, OR when a future change introduces a real `TradeClosed` invariant that this WARNING would mask.
+**Migration**: Downgrade the `_on_trade_closed` log to DEBUG when `pop` returns `None`, OR carry a flag on `TradeClosed` indicating the position was already cleaned up by the same-batch fill so the handler can suppress the warning when it's expected.

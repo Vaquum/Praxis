@@ -30,6 +30,7 @@ from praxis.core.domain.events import (
     FillReceived,
     OrderCanceled,
     OrderExpired,
+    OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
     TradeOutcomeProduced,
@@ -1641,6 +1642,106 @@ class TestEmitWsOutcome:
         ]
         assert (TradeStatus.PARTIAL, command_id, Decimal('1')) in statuses
         assert (TradeStatus.CANCELED, command_id, Decimal('1')) in statuses
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_ws_expired_emits_expired_terminal_outcome(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A WS-driven `OrderExpired` for a still-open LIMIT command
+        must emit a terminal `TradeOutcome` with `EXPIRED` status and
+        `reason=None` (the EXPIRED branch of `_emit_ws_outcome` carries
+        no venue reason, distinct from REJECTED which forwards
+        `event.reason`).
+        '''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.reset_mock()
+
+        runtime = mgr._accounts[_ACCT]
+        coid = next(iter(runtime.trading_state.orders))
+        expired = OrderExpired(
+            account_id=_ACCT,
+            timestamp=_TS,
+            client_order_id=coid,
+            venue_order_id='v-o1',
+        )
+        mgr.enqueue_ws_event(_ACCT, expired)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.EXPIRED
+        assert outcome.command_id == command_id
+        assert outcome.reason is None
+        assert outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_ws_rejected_emits_rejected_terminal_outcome(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A WS-driven `OrderRejected` for a still-open LIMIT command
+        must emit a terminal `TradeOutcome` with `REJECTED` status and
+        `reason=event.reason` (forwarded from venue). Distinct from
+        `EXPIRED` which carries no reason. The greybeard fix hardened
+        this branch with an explicit `elif isinstance` + `RuntimeError`
+        guard against silent fallthrough.
+        '''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.reset_mock()
+
+        runtime = mgr._accounts[_ACCT]
+        coid = next(iter(runtime.trading_state.orders))
+        rejected = OrderRejected(
+            account_id=_ACCT,
+            timestamp=_TS,
+            client_order_id=coid,
+            venue_order_id='v-o1',
+            reason='post_ack_risk_reject',
+        )
+        mgr.enqueue_ws_event(_ACCT, rejected)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.REJECTED
+        assert outcome.command_id == command_id
+        assert outcome.reason == 'post_ack_risk_reject'
+        assert outcome.is_terminal
 
         await mgr.unregister_account(_ACCT)
 
