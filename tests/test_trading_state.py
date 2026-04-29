@@ -403,12 +403,14 @@ def test_warns_unknown_order_on_submitted(caplog: pytest.LogCaptureFixture) -> N
     assert 'unknown order' in caplog.text
 
 
-def test_warns_missing_position_on_trade_closed(caplog: pytest.LogCaptureFixture) -> None:
+def test_logs_missing_position_on_trade_closed_at_debug(caplog: pytest.LogCaptureFixture) -> None:
 
     state = _state()
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         state.apply(_trade_closed())
     assert 'no position for TradeClosed' in caplog.text
+    debug_records = [r for r in caplog.records if 'no position for TradeClosed' in r.getMessage()]
+    assert all(r.levelno == logging.DEBUG for r in debug_records)
 
 
 def test_warns_negative_qty_on_exit_fill(caplog: pytest.LogCaptureFixture) -> None:

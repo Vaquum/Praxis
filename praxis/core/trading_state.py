@@ -321,8 +321,10 @@ class TradingState:
             pos = self.positions.pop(key, None)
         self.trade_strategy_ids.pop(event.trade_id, None)
         if pos is None:
-            _log.warning(
-                'no position for TradeClosed: trade_id=%s account=%s',
+            _log.debug(
+                'no position for TradeClosed (already cleaned up by '
+                'prior fill in same batch — expected on the WS-driven '
+                'LIMIT EXIT happy path): trade_id=%s account=%s',
                 event.trade_id,
                 self.account_id,
             )
