@@ -1468,6 +1468,127 @@ class TestOcoAbortRouting:
 
         await mgr.unregister_account(_ACCT)
 
+    @pytest.mark.asyncio
+    async def test_ws_fill_after_replay_reaches_callback(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''After a Praxis restart, `replay_events` must repopulate
+        `_commands` so subsequent WS fills on resting LIMIT orders reach
+        `_on_trade_outcome`. Pre-fix `_emit_ws_outcome` returned silently
+        on `cmd is None` and Nexus never learned of post-restart fills
+        until the next reboot's reconcile (where the size-mismatch path
+        is also broken — see Vaquum/Nexus#46 BLOCKER-F).
+        '''
+
+        command_id = 'cmd-replay-fill-1'
+        trade_id = 'trade-replay-fill-1'
+        client_order_id = 'SS-replay-fill-00'
+
+        await spine.append(CommandAccepted(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+        ), _EPOCH)
+        await spine.append(OrderSubmitIntent(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+            client_order_id=client_order_id, symbol='BTCUSDT',
+            side=OrderSide.BUY, order_type=OrderType.LIMIT,
+            qty=Decimal('1'), price=Decimal('50000'),
+            stop_price=None, stop_limit_price=None,
+        ), _EPOCH)
+        await spine.append(OrderSubmitted(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=client_order_id, venue_order_id='v-replay-fill-1',
+        ), _EPOCH)
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        account_events = [(s, e) for s, e in events if e.account_id == _ACCT]
+        mgr.replay_events(_ACCT, account_events)
+
+        assert command_id in mgr._commands
+        assert mgr._commands[command_id].trade_id == trade_id
+        assert mgr._commands[command_id].qty == Decimal('1')
+
+        fill = FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=client_order_id,
+            venue_order_id='v-replay-fill-1',
+            venue_trade_id='vt-replay-fill-1',
+            trade_id=trade_id, command_id=command_id,
+            symbol='BTCUSDT', side=OrderSide.BUY,
+            qty=Decimal('1'), price=Decimal('50000'),
+            fee=Decimal('0.05'), fee_asset='USDT', is_maker=True,
+        )
+        mgr.enqueue_ws_event(_ACCT, fill)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.status == TradeStatus.FILLED
+        assert outcome.command_id == command_id
+        assert outcome.trade_id == trade_id
+        assert outcome.filled_qty == Decimal('1')
+        assert outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_replay_does_not_repopulate_commands_for_terminal(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''Replayed commands that already reached a terminal status on
+        the spine must NOT enter `_commands` (memory bound + dedup).
+        `_terminal_commands` membership is the gate.
+        '''
+
+        command_id = 'cmd-replay-terminal'
+        trade_id = 'trade-replay-terminal'
+        client_order_id = 'SS-replay-terminal-00'
+
+        await spine.append(CommandAccepted(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+        ), _EPOCH)
+        await spine.append(OrderSubmitIntent(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+            client_order_id=client_order_id, symbol='BTCUSDT',
+            side=OrderSide.BUY, order_type=OrderType.LIMIT,
+            qty=Decimal('1'), price=Decimal('50000'),
+            stop_price=None, stop_limit_price=None,
+        ), _EPOCH)
+        await spine.append(TradeOutcomeProduced(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+            status=TradeStatus.FILLED, reason=None,
+        ), _EPOCH)
+
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=AsyncMock(),
+        )
+        mgr.register_account(_ACCT)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        account_events = [(s, e) for s, e in events if e.account_id == _ACCT]
+        mgr.replay_events(_ACCT, account_events)
+
+        assert command_id in mgr._terminal_commands
+        assert command_id not in mgr._commands
+
+        await mgr.unregister_account(_ACCT)
+
 
 class TestEmitWsOutcome:
     '''A LIMIT order whose initial submit returns no immediate fills
@@ -1742,6 +1863,59 @@ class TestEmitWsOutcome:
         assert outcome.command_id == command_id
         assert outcome.reason == 'post_ack_risk_reject'
         assert outcome.is_terminal
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_ws_overfill_clamps_emitted_filled_qty(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''If the order projection's `filled_qty` exceeds `cmd.qty`
+        (duplicate / out-of-order venue fills, venue rounding past
+        target), `_emit_ws_outcome` must clamp the emitted `filled_qty`
+        to `cmd.qty` before calling `_build_outcome`. Pre-fix the
+        unclamped value would trip `TradeOutcome.__post_init__`'s
+        `filled_qty <= target_qty` invariant and raise, the
+        `_account_loop` would log+drop, and Nexus would never see
+        the outcome.
+        '''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-o1',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.reset_mock()
+
+        runtime = mgr._accounts[_ACCT]
+        coid = next(iter(runtime.trading_state.orders))
+        overfill = FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=coid, venue_order_id='v-o1',
+            venue_trade_id='t-overfill',
+            trade_id=_TRADE, command_id=command_id,
+            symbol='BTCUSDT', side=OrderSide.BUY,
+            qty=Decimal('5'), price=Decimal('50000'),
+            fee=Decimal('0.05'), fee_asset='USDT', is_maker=True,
+        )
+        mgr.enqueue_ws_event(_ACCT, overfill)
+        await asyncio.sleep(0.3)
+
+        callback.assert_awaited_once()
+        outcome: TradeOutcome = callback.call_args[0][0]
+        assert outcome.filled_qty == Decimal('1')
+        assert outcome.target_qty == Decimal('1')
 
         await mgr.unregister_account(_ACCT)
 

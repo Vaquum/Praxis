@@ -70,6 +70,7 @@ _TERMINAL_STATUSES = frozenset({
 })
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
+_REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
 
 class AccountNotRegisteredError(Exception):
@@ -297,10 +298,33 @@ class ExecutionManager:
 
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
+                self._commands.pop(event.command_id, None)
 
             if isinstance(event, OrderSubmitIntent):
                 self._command_trade_ids[event.command_id] = event.trade_id
                 runtime.command_to_order[event.command_id] = event.client_order_id
+
+                if event.command_id not in self._terminal_commands:
+                    self._commands[event.command_id] = TradeCommand(
+                        command_id=event.command_id,
+                        trade_id=event.trade_id,
+                        account_id=event.account_id,
+                        symbol=event.symbol,
+                        side=event.side,
+                        qty=event.qty,
+                        order_type=event.order_type,
+                        execution_mode=ExecutionMode.SINGLE_SHOT,
+                        execution_params=SingleShotParams(
+                            price=event.price,
+                            stop_price=event.stop_price,
+                            stop_limit_price=event.stop_limit_price,
+                        ),
+                        timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
+                        reference_price=None,
+                        maker_preference=MakerPreference.NO_PREFERENCE,
+                        stp_mode=STPMode.NONE,
+                        created_at=event.timestamp,
+                    )
 
     async def reconcile_orphan_commands(
         self,
@@ -1293,6 +1317,20 @@ class ExecutionManager:
             if order.filled_qty > _ZERO else None
         )
 
+        emitted_filled_qty = order.filled_qty
+        if emitted_filled_qty > cmd.qty:
+            _log.warning(
+                'WS-driven filled_qty exceeds command target_qty; '
+                'clamping to target. Likely cause: duplicate / out-of-order '
+                'venue fills or venue rounding past the order qty',
+                extra={
+                    'command_id': command_id,
+                    'order_filled_qty': str(order.filled_qty),
+                    'target_qty': str(cmd.qty),
+                },
+            )
+            emitted_filled_qty = cmd.qty
+
         if isinstance(event, FillReceived):
             status = (
                 TradeStatus.FILLED
@@ -1324,7 +1362,7 @@ class ExecutionManager:
             runtime,
             cmd,
             status,
-            filled_qty=order.filled_qty,
+            filled_qty=emitted_filled_qty,
             avg_fill_price=avg_fill_price,
             reason=reason,
         )
