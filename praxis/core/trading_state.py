@@ -266,6 +266,9 @@ class TradingState:
                     )
                     new_qty = _ZERO
                 pos.qty = new_qty
+                if new_qty == _ZERO:
+                    del self.positions[key]
+                    self.trade_strategy_ids.pop(event.trade_id, None)
 
     def _on_order_rejected(self, event: OrderRejected) -> None:
 
@@ -318,8 +321,10 @@ class TradingState:
             pos = self.positions.pop(key, None)
         self.trade_strategy_ids.pop(event.trade_id, None)
         if pos is None:
-            _log.warning(
-                'no position for TradeClosed: trade_id=%s account=%s',
+            _log.debug(
+                'no position for TradeClosed (already cleaned up by '
+                'prior fill in same batch — expected on the WS-driven '
+                'LIMIT EXIT happy path): trade_id=%s account=%s',
                 event.trade_id,
                 self.account_id,
             )

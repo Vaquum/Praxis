@@ -22,6 +22,7 @@ from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
     OrderSide,
+    OrderStatus,
     OrderType,
     STPMode,
     TradeStatus,
@@ -32,6 +33,7 @@ from praxis.core.domain.events import (
     FillReceived,
     OrderCanceled,
     OrderExpired,
+    OrderRejected,
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
@@ -68,6 +70,7 @@ _TERMINAL_STATUSES = frozenset({
 })
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
+_REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
 
 class AccountNotRegisteredError(Exception):
@@ -295,10 +298,33 @@ class ExecutionManager:
 
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
+                self._commands.pop(event.command_id, None)
 
             if isinstance(event, OrderSubmitIntent):
                 self._command_trade_ids[event.command_id] = event.trade_id
                 runtime.command_to_order[event.command_id] = event.client_order_id
+
+                if event.command_id not in self._terminal_commands:
+                    self._commands[event.command_id] = TradeCommand(
+                        command_id=event.command_id,
+                        trade_id=event.trade_id,
+                        account_id=event.account_id,
+                        symbol=event.symbol,
+                        side=event.side,
+                        qty=event.qty,
+                        order_type=event.order_type,
+                        execution_mode=ExecutionMode.SINGLE_SHOT,
+                        execution_params=SingleShotParams(
+                            price=event.price,
+                            stop_price=event.stop_price,
+                            stop_limit_price=event.stop_limit_price,
+                        ),
+                        timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
+                        reference_price=None,
+                        maker_preference=MakerPreference.NO_PREFERENCE,
+                        stp_mode=STPMode.NONE,
+                        created_at=event.timestamp,
+                    )
 
     async def reconcile_orphan_commands(
         self,
@@ -700,6 +726,18 @@ class ExecutionManager:
                     except Exception:  # noqa: BLE001
                         _log.exception(
                             'unhandled exception while applying event: '
+                            'event_type=%s account_id=%s',
+                            type(event).__name__,
+                            runtime.account_id,
+                        )
+                        continue
+                    try:
+                        await self._emit_ws_outcome(runtime, event)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001
+                        _log.exception(
+                            'failed to emit WS-driven TradeOutcome: '
                             'event_type=%s account_id=%s',
                             type(event).__name__,
                             runtime.account_id,
@@ -1225,6 +1263,109 @@ class ExecutionManager:
                 )
 
         return outcome
+
+    async def _emit_ws_outcome(
+        self,
+        runtime: _AccountRuntime,
+        event: Event,
+    ) -> None:
+        '''Emit a `TradeOutcome` for a WS-driven event after `trading_state.apply` runs.
+
+        The `_process_command` path emits outcomes for immediate fills
+        (MARKET orders) and the initial PENDING ACK (LIMIT orders). It
+        does NOT emit outcomes for subsequent venue WS fills, partial
+        cancels, terminal cancels/rejects/expires that arrive via the
+        WS user stream. Without this method, those events update only
+        `TradingState.orders` / `positions` projections; the launcher's
+        `_route_translated` → `OutcomeTranslator.translate` → Nexus
+        queue → `OutcomeLoop` → `process_outcome` chain never fires
+        for them, so capital stays parked in `working_order_notional`,
+        Nexus's `state.positions[trade_id]` keeps the size=0 placeholder,
+        and any operator LIMIT strategy silently loses every fill.
+
+        Skips the emission when:
+        - The event is not a fill / order-terminal type
+        - The command_id is already in `_terminal_commands` (the
+          `_process_command` path already emitted a terminal — typical
+          for MARKET orders that fill immediately, then the WS echo
+          arrives later)
+        - The originating command or order projection cannot be found
+          (defensive — should not happen during normal flow)
+        '''
+
+        if not isinstance(event, (FillReceived, OrderCanceled, OrderExpired, OrderRejected)):
+            return
+
+        client_order_id = event.client_order_id
+        order = (
+            runtime.trading_state.orders.get(client_order_id)
+            or runtime.trading_state.closed_orders.get(client_order_id)
+        )
+        if order is None:
+            return
+
+        command_id = order.command_id
+        if command_id in self._terminal_commands:
+            return
+
+        cmd = self._commands.get(command_id)
+        if cmd is None:
+            return
+
+        avg_fill_price: Decimal | None = (
+            order.cumulative_notional / order.filled_qty
+            if order.filled_qty > _ZERO else None
+        )
+
+        emitted_filled_qty = order.filled_qty
+        if emitted_filled_qty > cmd.qty:
+            _log.warning(
+                'WS-driven filled_qty exceeds command target_qty; '
+                'clamping to target. Likely cause: duplicate / out-of-order '
+                'venue fills or venue rounding past the order qty',
+                extra={
+                    'command_id': command_id,
+                    'order_filled_qty': str(order.filled_qty),
+                    'target_qty': str(cmd.qty),
+                },
+            )
+            emitted_filled_qty = cmd.qty
+
+        if isinstance(event, FillReceived):
+            status = (
+                TradeStatus.FILLED
+                if order.status == OrderStatus.FILLED else TradeStatus.PARTIAL
+            )
+            reason: str | None = None
+
+        elif isinstance(event, OrderCanceled):
+            status = TradeStatus.CANCELED
+            reason = event.reason
+
+        elif isinstance(event, OrderExpired):
+            status = TradeStatus.EXPIRED
+            reason = None
+
+        elif isinstance(event, OrderRejected):
+            status = TradeStatus.REJECTED
+            reason = event.reason
+
+        else:
+            msg = (
+                f'_emit_ws_outcome reached unreachable branch: '
+                f'event_type={type(event).__name__}; the outer isinstance '
+                f'filter and this if/elif chain are out of sync'
+            )
+            raise RuntimeError(msg)
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=emitted_filled_qty,
+            avg_fill_price=avg_fill_price,
+            reason=reason,
+        )
 
     async def _build_outcome(
         self,

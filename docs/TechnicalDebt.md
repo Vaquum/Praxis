@@ -157,3 +157,4 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 
 **When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
 **Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.
+
