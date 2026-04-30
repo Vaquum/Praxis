@@ -253,6 +253,17 @@ def _build_health_loop(
     `rate_limit_headroom` / `clock_drift_ms` attribute names), so the
     provider returns Praxis's type and `evaluate` duck-types it without
     conversion.
+
+    When `state_store` is provided, `state_store.refresh_rolling_losses`
+    is wired as the `HealthLoop.rolling_loss_refresher` callback. It
+    runs once per tick on the same daemon timer thread BEFORE
+    `snapshot_provider`, recomputing the 24h/7d/30d rolling-loss
+    aggregates from the WAL so the validator's
+    `RISK_ROLLING_LOSS_*_LIMIT` enforcement (Nexus MAJOR-H) sees decay
+    on idle windows instead of monotonically growing values. Failure
+    is best-effort: a refresh exception is logged at WARN by the
+    HealthLoop and the rest of the tick proceeds. When `state_store`
+    is None, no refresher is wired (legacy / lightweight test paths).
     '''
 
     def snapshot_provider() -> Any:

@@ -158,12 +158,13 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 **When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
 **Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.
 
+---
 
 ## TD-029: `command_contexts` and `command_strategy_ids` leak when `_grow_position` / `_reduce_position` raises
 
 **Origin**: Round-14 8-pass aggregation
 **Severity**: Low (bounded; few raise sites)
-**Module**: `praxis/launcher.py:1547-1558` (cleanup); cross-repo `nexus/infrastructure/praxis_connector/outcome_processor.py:325-381` (raise sites)
+**Module**: `praxis/launcher.py` (`process_outcome` terminal-cleanup block after `outcome_processor.process(...)`); cross-repo `nexus/infrastructure/praxis_connector/outcome_processor.py:325-381` (raise sites)
 
 `process_outcome`'s registry purge (`command_contexts.pop` / `command_strategy_ids.pop`) sits behind `if outcome.outcome_type.is_terminal:` AFTER `outcome_processor.process(...)`. A `RuntimeError` from `_grow_position` (`outcome_processor.py:341, 348`) or `_reduce_position` (`:380, 386, 396`) unwinds the call site, skipping the purge. OutcomeLoop's outermost catch swallows it. Memory grows on each defective outcome.
 

@@ -1,24 +1,27 @@
-'''Tests for PT-FIX-29 — `command_strategy_ids` / `command_contexts`
-mutated cross-thread without lock.
+'''Tests for the `command_strategy_ids` / `command_contexts` cross-thread
+visibility contract enforced by the launcher's `command_registry_lock`.
 
-Pre-fix the launcher's `submitter` closure wrote
-`command_strategy_ids[command_id] = strategy_id` first, did some work
-(`capital_controller.send_order`, `_ensure_entry_position`,
-`_build_order_context`), then wrote
-`command_contexts[command_id] = order_context` last. `process_outcome`
-running on the OutcomeLoop thread could read `command_contexts` between
-the two writes and see `None`, log a warning, and silently drop the
-`OutcomeProcessor.process` call. A theoretical race: by the time the
-launcher reaches the second write, the venue has not yet seen the
-command (it sits in `runtime.command_queue` awaiting `_account_loop`),
-so practically the race only fires under unusual GIL preemption — but
-the code now treats both writes as one critical section regardless.
+Two layers of fixes are pinned by this file:
 
-Post-fix `_build_nexus_runtime` allocates a `command_registry_lock`
-shared by `submitter`, `process_outcome`, and `resolve_strategy_id`.
-The submitter wraps both registry writes in one `with` block at the
-end of the per-action loop, so external observers never see a
-partially-populated registration.
+PT-FIX-29 — both registry mutations (`command_strategy_ids[cid] = sid`
+and `command_contexts[cid] = order_context`) and the cross-thread reads
+of those registries (`process_outcome`, `resolve_strategy_id`) now go
+through the shared `command_registry_lock` so external observers never
+see a torn dict-state. The `TestCommandRegistryLock` class pins the
+torn-read invariant on both registration and terminal-pop paths.
+
+MAJOR-P (round 14) — `command_strategy_ids[cid] = sid` is written
+BEFORE `capital_controller.send_order` (was: written AFTER, AT THE END
+of the loop body, under one combined `with` block). Pre-fix a fast
+venue ACK landing during `send_order` / `_ensure_entry_position` /
+`_build_order_context` would call `resolve_strategy_id` and miss,
+silently dropping the outcome. Post-fix the strategy_ids write happens
+at the TOP of the per-action loop body; the contexts write stays at
+the END (it needs `order_context` which is built later). On
+`send_order` failure the launcher pops the early strategy_ids entry
+back out under the lock to avoid a registry zombie. The
+`TestMajorPRegistryRaceWindow` class pins the early-write ordering
+and the post-failure cleanup.
 
 These tests pin down the lock invariant directly. The launcher's
 closures are not extracted to module-level helpers (they capture too
@@ -117,8 +120,11 @@ class TestCommandRegistryLock:
 
         for t in threads:
             t.start()
+
+        deadline = time.monotonic() + 15
         for t in threads:
-            t.join(timeout=15)
+            remaining = deadline - time.monotonic()
+            t.join(timeout=max(0.0, remaining))
 
         alive = [t.name for t in threads if t.is_alive()]
         assert not alive, f'threads did not finish within timeout: {alive}'
@@ -167,8 +173,11 @@ class TestCommandRegistryLock:
 
         for t in threads:
             t.start()
+
+        deadline = time.monotonic() + 15
         for t in threads:
-            t.join(timeout=15)
+            remaining = deadline - time.monotonic()
+            t.join(timeout=max(0.0, remaining))
 
         alive = [t.name for t in threads if t.is_alive()]
         assert not alive, f'threads did not finish within timeout: {alive}'
@@ -215,8 +224,11 @@ class TestCommandRegistryLock:
 
         for t in threads:
             t.start()
+
+        deadline = time.monotonic() + 10
         for t in threads:
-            t.join(timeout=10)
+            remaining = deadline - time.monotonic()
+            t.join(timeout=max(0.0, remaining))
 
         if not observed_torn.is_set():
             pytest.skip(
