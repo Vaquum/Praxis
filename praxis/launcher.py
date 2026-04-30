@@ -1458,6 +1458,7 @@ class Launcher:
                 validator=pipeline,
                 build_context=build_context,
                 now=lambda: datetime.now(UTC),
+                capital_controller=capital_controller,
             )
 
             for action, outcome in results:
