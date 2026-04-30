@@ -313,6 +313,7 @@ class TestMajorPRegistryRaceWindow:
         contexts: dict[str, str] = {}
 
         misses: list[str] = []
+        writer_failures: list[Exception] = []
         miss_lock = threading.Lock()
         stop_event = threading.Event()
 
@@ -329,6 +330,8 @@ class TestMajorPRegistryRaceWindow:
 
                     with lock:
                         contexts[cid] = f'ctx-{i}'
+            except Exception as exc:
+                writer_failures.append(exc)
             finally:
                 stop_event.set()
 
@@ -358,6 +361,14 @@ class TestMajorPRegistryRaceWindow:
 
         alive = [t.name for t in threads if t.is_alive()]
         assert not alive, f'threads did not finish within timeout: {alive}'
+        assert not writer_failures, (
+            f'writer thread raised — invariant test inconclusive: '
+            f'{writer_failures[:3]}'
+        )
+        assert len(strategy_ids) == 200, (
+            f'writer did not complete all 200 iterations: '
+            f'strategy_ids size={len(strategy_ids)}'
+        )
         assert not misses, (
             f'observed {len(misses)} cases where contexts was populated '
             f'but strategy_ids was missing — MAJOR-P invariant violated. '

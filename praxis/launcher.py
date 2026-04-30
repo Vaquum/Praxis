@@ -1502,6 +1502,8 @@ class Launcher:
                                 'reason': send_result.reason,
                             },
                         )
+                        with command_registry_lock:
+                            command_strategy_ids.pop(outcome.command_id, None)
                         continue
 
                 forced_trade_id: str | None = None
