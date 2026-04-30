@@ -880,12 +880,20 @@ def _build_strategy_context(
     safer than ACTIVE since strategies may treat empty positions as
     "no exposure" and act accordingly.
 
-    `positions_lock` (PT-FIX-28) is held only for the snapshot of
-    `state.positions.values()`; the OutcomeLoop's terminal-cleanup
-    `del state.positions[trade_id]` in `process_outcome` acquires the
-    same lock so a predict tick cannot iterate the dict while it is
-    being mutated. Filtering of the snapshot by `strategy_id` happens
-    after the lock is released.
+    `positions_lock` (PT-FIX-28 + MAJOR-J) is held only for the
+    snapshot of `state.positions.values()`. Mutations come from two
+    classes of writer, each of which now honors the same lock:
+    (a) the launcher's terminal-cleanup `del state.positions[trade_id]`
+    in `process_outcome` and `_ensure_entry_position`'s placeholder
+    insert, both wrapped in `with positions_lock`; (b) the
+    `OutcomeProcessor`'s `_grow_position` field-assignment block
+    (`size`/`entry_price`/`avg_cost_basis`) and `_reduce_position`
+    field-assignment + `del` block (post-MAJOR-J fix —
+    `OutcomeProcessor` now accepts `positions_lock` via its
+    constructor and wraps both mutation regions). Filtering of the
+    snapshot by `strategy_id` happens after the lock is released
+    (`Position.strategy_id` is immutable post-construction so the
+    read-without-lock is safe).
 
     Args:
         state: Live `InstanceState` from `StartupSequencer.instance_state`.
@@ -1518,6 +1526,7 @@ class Launcher:
             capital_controller=capital_controller,
             instance_state=state,
             state_store=state_store,
+            positions_lock=positions_lock,
         )
 
         def process_outcome(outcome: NexusTradeOutcome) -> None:
