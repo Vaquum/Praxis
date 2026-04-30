@@ -76,13 +76,17 @@ def _is_result_attr(node: ast.AST, attr: str) -> bool:
 def _append_mutation_guard_mentions_capital_updated() -> bool:
     '''Walk `process_outcome`'s body, find the `if` whose body contains
     `state_store.append_mutation`, and verify its condition matches
-    `result.success and (result.position_updated or result.capital_updated)`.
+    `result.success and (result.position_updated or result.capital_updated)`
+    EXACTLY: a 2-operand `And` whose operands are `result.success` and a
+    2-operand `Or` containing `result.position_updated` and
+    `result.capital_updated` (any order).
 
-    Pins MAJOR-M's fix and rejects shapes that drop `result.success`,
-    drop `result.position_updated`, or hide `capital_updated` behind
-    a different object. The base-name check on `result` prevents a
-    drift where some other object's `.capital_updated` would satisfy
-    a permissive `attr == 'capital_updated'` predicate.
+    Pins MAJOR-M's fix and rejects: (a) shapes that drop `result.success`;
+    (b) shapes that drop `result.position_updated`; (c) shapes that hide
+    `capital_updated` behind a different object; (d) shapes that bolt on
+    extra `and` terms that would silently weaken or strengthen the gate
+    (e.g. `result.success and X and (...)` would have passed the prior
+    looser predicate even if X was an unrelated guard).
     '''
 
     src = inspect.getsource(praxis.launcher)
@@ -116,20 +120,26 @@ def _append_mutation_guard_mentions_capital_updated() -> bool:
             if not isinstance(test, ast.BoolOp) or not isinstance(test.op, ast.And):
                 continue
             and_operands = test.values
-            if not any(_is_result_attr(op, 'success') for op in and_operands):
+            if len(and_operands) != 2:
                 continue
-            for op in and_operands:
-                if not isinstance(op, ast.BoolOp) or not isinstance(op.op, ast.Or):
-                    continue
-                or_operands = op.values
-                has_position = any(
-                    _is_result_attr(o, 'position_updated') for o in or_operands
-                )
-                has_capital = any(
-                    _is_result_attr(o, 'capital_updated') for o in or_operands
-                )
-                if has_position and has_capital:
-                    return True
+            success_ops = [o for o in and_operands if _is_result_attr(o, 'success')]
+            or_ops = [
+                o for o in and_operands
+                if isinstance(o, ast.BoolOp) and isinstance(o.op, ast.Or)
+            ]
+            if len(success_ops) != 1 or len(or_ops) != 1:
+                continue
+            or_operands = or_ops[0].values
+            if len(or_operands) != 2:
+                continue
+            has_position = any(
+                _is_result_attr(o, 'position_updated') for o in or_operands
+            )
+            has_capital = any(
+                _is_result_attr(o, 'capital_updated') for o in or_operands
+            )
+            if has_position and has_capital:
+                return True
     return False
 
 
