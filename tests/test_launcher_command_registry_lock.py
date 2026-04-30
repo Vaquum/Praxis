@@ -18,10 +18,12 @@ venue ACK landing during `send_order` / `_ensure_entry_position` /
 silently dropping the outcome. Post-fix the strategy_ids write happens
 at the TOP of the per-action loop body; the contexts write stays at
 the END (it needs `order_context` which is built later). On
-`send_order` failure the launcher pops the early strategy_ids entry
-back out under the lock to avoid a registry zombie. The
-`TestMajorPRegistryRaceWindow` class pins the early-write ordering
-and the post-failure cleanup.
+`send_order` failure the launcher also pops the early strategy_ids
+entry back out under the lock to avoid a registry zombie — that
+post-failure cleanup is exercised by the integration tests covering
+`_build_nexus_runtime`, not by this file. The
+`TestMajorPRegistryRaceWindow` class here pins only the early-write
+ordering invariant.
 
 These tests pin down the lock invariant directly. The launcher's
 closures are not extracted to module-level helpers (they capture too
