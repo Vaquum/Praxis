@@ -61,11 +61,28 @@ def test_launcher_calls_append_mutation_after_successful_outcome() -> None:
     )
 
 
+def _is_result_attr(node: ast.AST, attr: str) -> bool:
+    '''True iff `node` is the AST of `result.<attr>`.'''
+
+    if not isinstance(node, ast.Attribute):
+        return False
+    if node.attr != attr:
+        return False
+    if not isinstance(node.value, ast.Name):
+        return False
+    return node.value.id == 'result'
+
+
 def _append_mutation_guard_mentions_capital_updated() -> bool:
     '''Walk `process_outcome`'s body, find the `if` whose body contains
-    the `state_store.append_mutation` call, return True if its condition
-    references `capital_updated`. Pins MAJOR-M's fix that capital-only
-    mutations (ACK / non-fill REJECT / non-fill CANCEL) also persist.
+    `state_store.append_mutation`, and verify its condition matches
+    `result.success and (result.position_updated or result.capital_updated)`.
+
+    Pins MAJOR-M's fix and rejects shapes that drop `result.success`,
+    drop `result.position_updated`, or hide `capital_updated` behind
+    a different object. The base-name check on `result` prevents a
+    drift where some other object's `.capital_updated` would satisfy
+    a permissive `attr == 'capital_updated'` predicate.
     '''
 
     src = inspect.getsource(praxis.launcher)
@@ -95,8 +112,23 @@ def _append_mutation_guard_mentions_capital_updated() -> bool:
                     break
             if not body_has_append_mutation:
                 continue
-            for sub in ast.walk(inner.test):
-                if isinstance(sub, ast.Attribute) and sub.attr == 'capital_updated':
+            test = inner.test
+            if not isinstance(test, ast.BoolOp) or not isinstance(test.op, ast.And):
+                continue
+            and_operands = test.values
+            if not any(_is_result_attr(op, 'success') for op in and_operands):
+                continue
+            for op in and_operands:
+                if not isinstance(op, ast.BoolOp) or not isinstance(op.op, ast.Or):
+                    continue
+                or_operands = op.values
+                has_position = any(
+                    _is_result_attr(o, 'position_updated') for o in or_operands
+                )
+                has_capital = any(
+                    _is_result_attr(o, 'capital_updated') for o in or_operands
+                )
+                if has_position and has_capital:
                     return True
     return False
 

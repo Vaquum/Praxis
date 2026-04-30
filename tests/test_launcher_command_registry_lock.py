@@ -350,14 +350,18 @@ class TestMajorPRegistryRaceWindow:
                                 f'strategy_ids missing (expected '
                                 f'{expected_strategy})'
                             )
+                time.sleep(0.0001)
 
         threads = [threading.Thread(target=reader, daemon=True) for _ in range(4)]
         threads.append(threading.Thread(target=writer, daemon=True))
 
         for t in threads:
             t.start()
+
+        deadline = time.monotonic() + 15
         for t in threads:
-            t.join(timeout=15)
+            remaining = deadline - time.monotonic()
+            t.join(timeout=max(0.0, remaining))
 
         alive = [t.name for t in threads if t.is_alive()]
         assert not alive, f'threads did not finish within timeout: {alive}'
