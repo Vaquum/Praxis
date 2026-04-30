@@ -224,6 +224,7 @@ def _build_health_loop(
     state: InstanceState,
     account_id: str,
     interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
+    state_store: StateStore | None = None,
 ) -> HealthLoop:
     '''Build a per-account `HealthLoop` wired to Praxis health pulls.
 
@@ -257,11 +258,18 @@ def _build_health_loop(
     def snapshot_provider() -> Any:
         return trading.get_health_snapshot_sync(account_id)
 
+    rolling_loss_refresher = (
+        state_store.refresh_rolling_losses
+        if state_store is not None
+        else None
+    )
+
     return HealthLoop(
         snapshot_provider=snapshot_provider,
         evaluator=HealthEvaluator(HealthThresholds()),
         state=state,
         interval_seconds=interval_seconds,
+        rolling_loss_refresher=rolling_loss_refresher,
     )
 
 
@@ -1620,6 +1628,7 @@ class Launcher:
             trading=self._trading,
             state=state,
             account_id=inst.account_id,
+            state_store=state_store,
         )
         health_loop.start()
 
