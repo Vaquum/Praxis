@@ -224,6 +224,7 @@ def _build_health_loop(
     state: InstanceState,
     account_id: str,
     interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
+    state_store: StateStore | None = None,
 ) -> HealthLoop:
     '''Build a per-account `HealthLoop` wired to Praxis health pulls.
 
@@ -252,16 +253,34 @@ def _build_health_loop(
     `rate_limit_headroom` / `clock_drift_ms` attribute names), so the
     provider returns Praxis's type and `evaluate` duck-types it without
     conversion.
+
+    When `state_store` is provided, `state_store.refresh_rolling_losses`
+    is wired as the `HealthLoop.rolling_loss_refresher` callback. It
+    runs once per tick on the same daemon timer thread BEFORE
+    `snapshot_provider`, recomputing the 24h/7d/30d rolling-loss
+    aggregates from the WAL so the validator's
+    `RISK_ROLLING_LOSS_*_LIMIT` enforcement (Nexus MAJOR-H) sees decay
+    on idle windows instead of monotonically growing values. Failure
+    is best-effort: a refresh exception is logged at WARN by the
+    HealthLoop and the rest of the tick proceeds. When `state_store`
+    is None, no refresher is wired (legacy / lightweight test paths).
     '''
 
     def snapshot_provider() -> Any:
         return trading.get_health_snapshot_sync(account_id)
+
+    rolling_loss_refresher = (
+        state_store.refresh_rolling_losses
+        if state_store is not None
+        else None
+    )
 
     return HealthLoop(
         snapshot_provider=snapshot_provider,
         evaluator=HealthEvaluator(HealthThresholds()),
         state=state,
         interval_seconds=interval_seconds,
+        rolling_loss_refresher=rolling_loss_refresher,
     )
 
 
@@ -880,12 +899,20 @@ def _build_strategy_context(
     safer than ACTIVE since strategies may treat empty positions as
     "no exposure" and act accordingly.
 
-    `positions_lock` (PT-FIX-28) is held only for the snapshot of
-    `state.positions.values()`; the OutcomeLoop's terminal-cleanup
-    `del state.positions[trade_id]` in `process_outcome` acquires the
-    same lock so a predict tick cannot iterate the dict while it is
-    being mutated. Filtering of the snapshot by `strategy_id` happens
-    after the lock is released.
+    `positions_lock` (PT-FIX-28 + MAJOR-J) is held only for the
+    snapshot of `state.positions.values()`. Mutations come from two
+    classes of writer, each of which now honors the same lock:
+    (a) the launcher's terminal-cleanup `del state.positions[trade_id]`
+    in `process_outcome` and `_ensure_entry_position`'s placeholder
+    insert, both wrapped in `with positions_lock`; (b) the
+    `OutcomeProcessor`'s `_grow_position` field-assignment block
+    (`size`/`entry_price`/`avg_cost_basis`) and `_reduce_position`
+    field-assignment + `del` block (post-MAJOR-J fix —
+    `OutcomeProcessor` now accepts `positions_lock` via its
+    constructor and wraps both mutation regions). Filtering of the
+    snapshot by `strategy_id` happens after the lock is released
+    (`Position.strategy_id` is immutable post-construction so the
+    read-without-lock is safe).
 
     Args:
         state: Live `InstanceState` from `StartupSequencer.instance_state`.
@@ -1318,6 +1345,7 @@ class Launcher:
                 config=runtime.nexus_config,
                 outcome_processor=runtime.outcome_processor,
                 non_pending_outcome_handler=runtime.process_outcome,
+                positions_lock=runtime.positions_lock,
             )
             shutdown.shutdown()
 
@@ -1450,6 +1478,7 @@ class Launcher:
                 validator=pipeline,
                 build_context=build_context,
                 now=lambda: datetime.now(UTC),
+                capital_controller=capital_controller,
             )
 
             for action, outcome in results:
@@ -1458,6 +1487,9 @@ class Launcher:
                     or outcome.command_id is None
                 ):
                     continue
+
+                with command_registry_lock:
+                    command_strategy_ids[outcome.command_id] = strategy_id
 
                 if (
                     outcome.decision is not None
@@ -1481,6 +1513,8 @@ class Launcher:
                                 'reason': send_result.reason,
                             },
                         )
+                        with command_registry_lock:
+                            command_strategy_ids.pop(outcome.command_id, None)
                         continue
 
                 forced_trade_id: str | None = None
@@ -1503,9 +1537,8 @@ class Launcher:
                     forced_trade_id=forced_trade_id,
                 )
 
-                with command_registry_lock:
-                    command_strategy_ids[outcome.command_id] = strategy_id
-                    if order_context is not None:
+                if order_context is not None:
+                    with command_registry_lock:
                         command_contexts[outcome.command_id] = order_context
 
         def resolve_strategy_id(outcome: Any) -> str | None:
@@ -1516,6 +1549,7 @@ class Launcher:
             capital_controller=capital_controller,
             instance_state=state,
             state_store=state_store,
+            positions_lock=positions_lock,
         )
 
         def process_outcome(outcome: NexusTradeOutcome) -> None:
@@ -1557,7 +1591,7 @@ class Launcher:
                         if pos is not None and pos.size == _ZERO:
                             del state.positions[order_context.trade_id]
 
-            if result.success and result.position_updated:
+            if result.success and (result.position_updated or result.capital_updated):
                 try:
                     state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
@@ -1607,6 +1641,7 @@ class Launcher:
             trading=self._trading,
             state=state,
             account_id=inst.account_id,
+            state_store=state_store,
         )
         health_loop.start()
 

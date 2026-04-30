@@ -158,3 +158,93 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 **When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
 **Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.
 
+---
+
+## TD-029: `command_contexts` and `command_strategy_ids` leak when `_grow_position` / `_reduce_position` raises
+
+**Origin**: Round-14 8-pass aggregation
+**Severity**: Low (bounded; few raise sites)
+**Module**: `praxis/launcher.py` (`process_outcome` terminal-cleanup block after `outcome_processor.process(...)`); cross-repo `nexus/infrastructure/praxis_connector/outcome_processor.py:325-381` (raise sites)
+
+`process_outcome`'s registry purge (`command_contexts.pop` / `command_strategy_ids.pop`) sits behind `if outcome.outcome_type.is_terminal:` AFTER `outcome_processor.process(...)`. A `RuntimeError` from `_grow_position` (`outcome_processor.py:341, 348`) or `_reduce_position` (`:380, 386, 396`) unwinds the call site, skipping the purge. OutcomeLoop's outermost catch swallows it. Memory grows on each defective outcome.
+
+**When to fix**: When defective outcomes are observed in production (e.g., venue ID drift causing missing trade_id), OR when long-running deployments accumulate measurable memory growth.
+**Migration**: Wrap `outcome_processor.process(...)` in try/finally that unconditionally runs the registry purge for terminal types, OR couple with Nexus TD-048 (post-success exception path) for a unified fix.
+
+---
+
+## TD-030: `OutcomeTranslator` `fee_rate=0` latent inconsistency with capital reserve estimate
+
+**Origin**: Round-13 audit, re-verified round-14
+**Severity**: Low (latent; safe under fee_rate=0)
+**Module**: `praxis/launcher.py:1037` (translator default `fee_rate=_ZERO`); `praxis/launcher.py:105` (`_DEFAULT_FEE_RATE = Decimal('0.001')` for capital reserve estimate)
+
+Capital reserve at action-submit time uses `_DEFAULT_FEE_RATE = 0.001`. Translator emits `actual_fees=0` because `fee_rate=_ZERO`. `order_fill` reconciles via the `fee_delta > 0` branch (`capital_controller.py:759-760`). Currently safe. If a future deployment switches `OutcomeTranslator.fee_rate` to non-zero AND the venue actually charges more than estimated, `fee_delta < 0` and `abs(fee_delta) > fee_reserve` (which starts at zero) → `order_fill` returns `EXPECTED_MISS` → position FAILS to grow on FILL → silent state drift.
+
+**When to fix**: Before any deployment switches `OutcomeTranslator.fee_rate` to non-zero. Couples with Nexus TD-051 (realized_pnl exit-fee accounting).
+**Migration**: Bring translator `fee_rate` in line with the validator's `_DEFAULT_FEE_RATE`, OR document the asymmetry and gate any future fee_rate change on a `_reduce_position` exit-fee accounting update.
+
+---
+
+## TD-031: `OutcomeTranslator` REJECTED branch asymmetry vs CANCELED / EXPIRED
+
+**Origin**: Round-13 audit (REBUTTAL → docs-only)
+**Severity**: Documentation only (safe under current flow)
+**Module**: `praxis/outcome_translator.py:143-146,193-209`
+
+CANCELED / EXPIRED branches handle `delta_size > 0 → emit PARTIAL` pattern; REJECTED does not. Verified safe: under MMVP venue flow REJECTED never carries an unflushed delta because the WS PARTIAL has already landed (the implied PARTIAL was already emitted by an earlier WS pass before the reject). Asymmetry by design.
+
+**When to fix**: When a future translator refactor unifies the terminal branches, OR when a venue path emits REJECTED with `delta_size > _ZERO` and no preceding PARTIAL.
+**Migration**: Add a code-adjacent comment at `outcome_translator.py:143-146` explaining the asymmetry and the assumed prior-PARTIAL invariant; OR add a sentinel branch matching CANCELED/EXPIRED for symmetric handling.
+
+---
+
+## TD-032: `_build_partial` divide-by-zero risk under malformed venue payload
+
+**Origin**: Round-13 audit (currently guarded)
+**Severity**: Documentation only (safe under current call-site guards)
+**Module**: `praxis/outcome_translator.py:244` (`delta_price = delta_notional / delta_size`)
+
+Reachable only via direct call with `delta_size == _ZERO`. Currently guarded at `outcome_translator.py:166` (PARTIAL path) and `:194` (CANCELED/EXPIRED path) — every call site checks `if delta_size > _ZERO` first. Safe today but fragile.
+
+**When to fix**: When a future translator refactor adds a new call site for `_build_partial`.
+**Migration**: Add a defensive `assert delta_size > _ZERO` (or explicit raise) at function entry rather than relying on caller guards.
+
+---
+
+## TD-033: Praxis ExecutionManager registries grow without purge
+
+**Origin**: Round-14 8-pass aggregation
+**Severity**: Low (slow leak; scales linearly with throughput)
+**Module**: `praxis/core/execution_manager.py:139-140,304`
+
+`_accepted_commands` (line 139), `_terminal_commands` (line 140), `_command_trade_ids` (populated at line 304) all grow on event arrival with no `pop` / `discard` / `del` anywhere. Bounded by command issuance rate over process lifetime. At MMVP rates this is far from OOM but scales linearly.
+
+**When to fix**: Before long-running (>weeks) single-process deployments, OR when memory monitoring shows growth.
+**Migration**: Purge `_accepted_commands` and `_command_trade_ids` on terminal `TradeOutcomeProduced` (mirror `_commands.pop` at `_build_outcome`); cap `_terminal_commands` with LRU eviction or rotate per epoch.
+
+---
+
+## TD-034: Unbounded queues in launcher and ExecutionManager
+
+**Origin**: Round-14 8-pass aggregation
+**Severity**: Low (no observability; OOM is the only ceiling)
+**Module**: `praxis/launcher.py:1094` (`account_queue: queue.Queue[NexusTradeOutcome]` no `maxsize`); `praxis/core/execution_manager.py:194-196` (`command_queue` / `priority_queue` / `ws_event_queue` likewise)
+
+A stalled consumer (e.g., slow `state_store.append_mutation` synchronous fsync) lets the queue grow without bound. Zero observability into the stall — no metric, no warning. OOM is the only ceiling.
+
+**When to fix**: When operational observability is added, OR when a stalled-consumer incident occurs in paper-trade.
+**Migration**: Bounded queues with shed-on-full + WARNING log, OR a watermark-based health metric exposed to HealthLoop so a stall transitions the operational mode.
+
+---
+
+## TD-035: `_emit_ws_outcome` clamp silently drops surplus venue fill
+
+**Origin**: Round-14 8-pass aggregation
+**Severity**: Low (mid-run state inconsistency; self-heals on next boot)
+**Module**: `praxis/core/execution_manager.py:1320-1332`
+
+When `order.filled_qty > cmd.qty` (duplicate WS fill, venue rounding past target), the code WARNs and clamps the emitted `filled_qty` to `cmd.qty`. Nexus position sized to command target, not venue truth. `_reconcile_capital` next boot detects via "size mismatch — adopting Praxis qty as truth" (`sequencer.py:414-421`), but mid-run the strategy's view of position is undersized and `avg_cost_basis` becomes inconsistent with venue.
+
+**When to fix**: When venue overfill behavior becomes operationally observable, OR when strategies need a consistent mid-run view of venue truth.
+**Migration**: Raise an explicit reconcile event (or persist the clamp on the spine) so mid-run state is not silently undersized, OR honor venue truth and let Nexus aggregates absorb the surplus via a `_grow_position` extension.
