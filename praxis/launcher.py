@@ -1459,6 +1459,9 @@ class Launcher:
                 ):
                     continue
 
+                with command_registry_lock:
+                    command_strategy_ids[outcome.command_id] = strategy_id
+
                 if (
                     outcome.decision is not None
                     and outcome.decision.reservation is not None
@@ -1503,9 +1506,8 @@ class Launcher:
                     forced_trade_id=forced_trade_id,
                 )
 
-                with command_registry_lock:
-                    command_strategy_ids[outcome.command_id] = strategy_id
-                    if order_context is not None:
+                if order_context is not None:
+                    with command_registry_lock:
                         command_contexts[outcome.command_id] = order_context
 
         def resolve_strategy_id(outcome: Any) -> str | None:
