@@ -853,6 +853,27 @@ class TestTradeOutcome:
         ) / unclamped_qty
         assert outcome.avg_fill_price == expected_vwap
 
+        unclamped_notional = (
+            Decimal('0.7') * Decimal('50000')
+            + Decimal('0.5') * Decimal('50200')
+        )
+        expected_clamped_notional = (
+            unclamped_notional * Decimal('1') / unclamped_qty
+        )
+        assert outcome.cumulative_notional == expected_clamped_notional, (
+            f'PR #85 review: _process_command overfill clamp must scale '
+            f'total_notional to match clamped filled_qty so cumulative_notional '
+            f'stays consistent with filled_qty downstream in OutcomeTranslator. '
+            f'got cumulative_notional={outcome.cumulative_notional} '
+            f'expected={expected_clamped_notional} '
+            f'(filled_qty={outcome.filled_qty})'
+        )
+        derived_avg = outcome.cumulative_notional / outcome.filled_qty
+        assert derived_avg == expected_vwap, (
+            f'cumulative_notional / filled_qty must round-trip to avg_fill_price '
+            f'after the clamp; got {derived_avg} expected {expected_vwap}'
+        )
+
         await mgr.unregister_account(_ACCT)
 
 

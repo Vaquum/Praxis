@@ -1026,6 +1026,8 @@ class ExecutionManager:
                 filled_qty,
                 cmd.qty,
             )
+            if filled_qty > _ZERO:
+                total_notional = total_notional * cmd.qty / filled_qty
             filled_qty = cmd.qty
         if filled_qty >= cmd.qty:
             status = TradeStatus.FILLED
