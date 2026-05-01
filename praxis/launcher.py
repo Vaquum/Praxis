@@ -1415,6 +1415,7 @@ class Launcher:
         pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
         positions_lock = threading.Lock()
         command_registry_lock = threading.Lock()
+        state.risk.lock = positions_lock
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
