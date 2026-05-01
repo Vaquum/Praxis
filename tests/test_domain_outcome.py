@@ -27,7 +27,14 @@ def _outcome(
     slices_completed: int = 5,
     slices_total: int = 5,
     missed_iterations: int | None = None,
+    cumulative_notional: Decimal | None = None,
 ) -> TradeOutcome:
+
+    if cumulative_notional is None:
+        if filled_qty > Decimal('0') and avg_fill_price is not None:
+            cumulative_notional = filled_qty * avg_fill_price
+        else:
+            cumulative_notional = Decimal('0')
 
     return TradeOutcome(
         command_id='cmd-001',
@@ -42,6 +49,7 @@ def _outcome(
         reason='done',
         created_at=_TS,
         missed_iterations=missed_iterations,
+        cumulative_notional=cumulative_notional,
     )
 
 
@@ -180,6 +188,7 @@ def test_trade_outcome_rejects_naive_created_at() -> None:
             slices_total=5,
             reason='done',
             created_at=datetime(2026, 1, 1),
+            cumulative_notional=Decimal('500000.00'),
         )
 
 
@@ -242,6 +251,7 @@ def test_trade_outcome_rejects_empty_string(field: str) -> None:
         'slices_total': 5,
         'reason': 'done',
         'created_at': _TS,
+        'cumulative_notional': Decimal('500000.00'),
     }
     kwargs[field] = ''
     with pytest.raises(ValueError, match='non-empty string'):
