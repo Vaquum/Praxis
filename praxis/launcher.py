@@ -1491,54 +1491,52 @@ class Launcher:
                 with command_registry_lock:
                     command_strategy_ids[outcome.command_id] = strategy_id
 
-                if (
-                    outcome.decision is not None
-                    and outcome.decision.reservation is not None
-                ):
-                    send_result = capital_controller.send_order(
-                        outcome.decision.reservation.reservation_id,
-                        outcome.command_id,
-                    )
-                    if not send_result.success:
-                        _log.error(
-                            'send_order failed; skipping OrderContext '
-                            'registration. The venue command was already '
-                            'submitted, so subsequent ACK/FILL outcomes '
-                            'will be dropped by OutcomeProcessor with '
-                            "'no OrderContext for command'. The Nexus "
-                            'reservation will be released by the next '
-                            'boot reconcile_at_boot pass.',
-                            extra={
-                                'command_id': outcome.command_id,
-                                'reason': send_result.reason,
-                            },
+                    if (
+                        outcome.decision is not None
+                        and outcome.decision.reservation is not None
+                    ):
+                        send_result = capital_controller.send_order(
+                            outcome.decision.reservation.reservation_id,
+                            outcome.command_id,
                         )
-                        with command_registry_lock:
+                        if not send_result.success:
+                            _log.error(
+                                'send_order failed; skipping OrderContext '
+                                'registration. The venue command was already '
+                                'submitted, so subsequent ACK/FILL outcomes '
+                                'will be dropped by OutcomeProcessor with '
+                                "'no OrderContext for command'. The Nexus "
+                                'reservation will be released by the next '
+                                'boot reconcile_at_boot pass.',
+                                extra={
+                                    'command_id': outcome.command_id,
+                                    'reason': send_result.reason,
+                                },
+                            )
                             command_strategy_ids.pop(outcome.command_id, None)
-                        continue
+                            continue
 
-                forced_trade_id: str | None = None
-                if action.action_type == ActionType.ENTER:
-                    forced_trade_id = outcome.command_id
-                    _ensure_entry_position(
-                        state=state,
+                    forced_trade_id: str | None = None
+                    if action.action_type == ActionType.ENTER:
+                        forced_trade_id = outcome.command_id
+                        _ensure_entry_position(
+                            state=state,
+                            action=action,
+                            strategy_id=strategy_id,
+                            trade_id=forced_trade_id,
+                            fallback_price_provider=fallback_price_provider,
+                            positions_lock=positions_lock,
+                        )
+
+                    order_context = _build_order_context(
                         action=action,
                         strategy_id=strategy_id,
-                        trade_id=forced_trade_id,
-                        fallback_price_provider=fallback_price_provider,
-                        positions_lock=positions_lock,
+                        command_id=outcome.command_id,
+                        build_context=build_context,
+                        forced_trade_id=forced_trade_id,
                     )
 
-                order_context = _build_order_context(
-                    action=action,
-                    strategy_id=strategy_id,
-                    command_id=outcome.command_id,
-                    build_context=build_context,
-                    forced_trade_id=forced_trade_id,
-                )
-
-                if order_context is not None:
-                    with command_registry_lock:
+                    if order_context is not None:
                         command_contexts[outcome.command_id] = order_context
 
         def resolve_strategy_id(outcome: Any) -> str | None:

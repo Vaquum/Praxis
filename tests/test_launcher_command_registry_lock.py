@@ -392,3 +392,168 @@ class TestMajorPRegistryRaceWindow:
             f'but strategy_ids was missing — MAJOR-P invariant violated. '
             f'first few: {misses[:5]}'
         )
+
+
+def _submitter_pattern_post_final_major_01(
+    *,
+    lock: threading.Lock,
+    strategy_ids: dict[str, str],
+    contexts: dict[str, Any],
+    command_id: str,
+    strategy_id: str,
+    order_context: Any,
+    work_delay: float,
+) -> None:
+    '''Mirror the post-FINAL-MAJOR-01 submitter atomic pattern.
+
+    Both registry writes plus the simulated `send_order` /
+    `_ensure_entry_position` / `_build_order_context` work happen under
+    ONE `command_registry_lock` acquisition. No external reader can
+    observe a gap between the strategy_ids write and the contexts write
+    because the lock spans the entire critical section.
+
+    `work_delay` widens the window inside the lock so a contended
+    reader has a chance to attempt to take the lock during the work;
+    the assertion is that the reader BLOCKS until both registries are
+    populated, never observing a torn state.
+    '''
+
+    with lock:
+        strategy_ids[command_id] = strategy_id
+        time.sleep(work_delay)
+        if order_context is not None:
+            contexts[command_id] = order_context
+
+
+class TestFinalMajor01AtomicRegistration:
+    '''FINAL-MAJOR-01: the launcher submitter holds
+    `command_registry_lock` across the ENTIRE critical section
+    (`command_strategy_ids` write → `send_order` → `_ensure_entry_position`
+    → `_build_order_context` → `command_contexts` write). Pre-fix the
+    writes were under separate lock acquisitions with `send_order` /
+    context build in between; a fast venue ACK or terminal non-fill
+    landing in that window would resolve the strategy_id, find
+    `command_contexts.get(...)` is None, and silently drop the outcome
+    — stranding `_orders[command_id]` and inflating capital aggregates.
+    '''
+
+    def test_no_torn_observation_either_direction(self) -> None:
+        '''Writer holds lock across both writes. Reader takes the same
+        lock and observes both registries. Assertion: for any command_id
+        seen in either registry, BOTH must be present (when contexts
+        is supposed to be set). Pre-fix this fails because the writer
+        releases between strategy_ids and contexts writes.
+        '''
+
+        lock = threading.Lock()
+        strategy_ids: dict[str, str] = {}
+        contexts: dict[str, str] = {}
+
+        torn_observations: list[str] = []
+        torn_lock = threading.Lock()
+        stop_event = threading.Event()
+        writer_failures: list[Exception] = []
+
+        def writer() -> None:
+            try:
+                for i in range(200):
+                    _submitter_pattern_post_final_major_01(
+                        lock=lock,
+                        strategy_ids=strategy_ids,
+                        contexts=contexts,
+                        command_id=f'cmd-{i}',
+                        strategy_id=f'strat-{i % 3}',
+                        order_context=f'ctx-{i}',
+                        work_delay=0.0001,
+                    )
+            except Exception as exc:
+                writer_failures.append(exc)
+            finally:
+                stop_event.set()
+
+        def reader() -> None:
+            while not stop_event.is_set():
+                for i in range(200):
+                    cid = f'cmd-{i}'
+                    with lock:
+                        has_strat = cid in strategy_ids
+                        has_ctx = cid in contexts
+                    if has_strat != has_ctx:
+                        with torn_lock:
+                            torn_observations.append(
+                                f'{cid}: has_strat={has_strat} '
+                                f'has_ctx={has_ctx}'
+                            )
+                time.sleep(0.0001)
+
+        threads = [threading.Thread(target=reader, daemon=True) for _ in range(4)]
+        threads.append(threading.Thread(target=writer, daemon=True))
+
+        for t in threads:
+            t.start()
+
+        deadline = time.monotonic() + 15
+        for t in threads:
+            remaining = deadline - time.monotonic()
+            t.join(timeout=max(0.0, remaining))
+
+        alive = [t.name for t in threads if t.is_alive()]
+        assert not alive, f'threads did not finish within timeout: {alive}'
+        assert not writer_failures, (
+            f'writer thread raised: {writer_failures[:3]}'
+        )
+        assert len(strategy_ids) == 200, (
+            f'writer did not complete: strategy_ids size={len(strategy_ids)}'
+        )
+        assert not torn_observations, (
+            f'observed {len(torn_observations)} torn registrations — '
+            f'FINAL-MAJOR-01 atomic-writer invariant violated. '
+            f'first few: {torn_observations[:5]}'
+        )
+
+    def test_reader_blocks_until_both_registries_populated(self) -> None:
+        '''The OutcomeLoop's `process_outcome` and `resolve_strategy_id`
+        both take `command_registry_lock`. While the writer holds the
+        lock during the critical section, the reader's lock acquisition
+        BLOCKS — guaranteeing it cannot observe a partially-populated
+        registry. This test proves the blocking behavior.
+        '''
+
+        lock = threading.Lock()
+        strategy_ids: dict[str, str] = {}
+        contexts: dict[str, str] = {}
+
+        writer_done = threading.Event()
+        reader_observations: list[tuple[bool, bool]] = []
+
+        def writer() -> None:
+            with lock:
+                strategy_ids['cmd-0'] = 'strat-A'
+                time.sleep(0.05)
+                contexts['cmd-0'] = 'ctx-0'
+            writer_done.set()
+
+        def reader() -> None:
+            time.sleep(0.005)
+            with lock:
+                reader_observations.append(
+                    ('cmd-0' in strategy_ids, 'cmd-0' in contexts)
+                )
+
+        w = threading.Thread(target=writer, daemon=True)
+        r = threading.Thread(target=reader, daemon=True)
+        w.start()
+        r.start()
+        w.join(timeout=5)
+        r.join(timeout=5)
+
+        assert writer_done.is_set(), 'writer did not complete'
+        assert len(reader_observations) == 1, (
+            f'reader did not observe: {reader_observations}'
+        )
+        has_strat, has_ctx = reader_observations[0]
+        assert has_strat and has_ctx, (
+            f'reader observed torn state — lock did not block reader '
+            f'until writer completed: has_strat={has_strat} '
+            f'has_ctx={has_ctx}'
+        )
