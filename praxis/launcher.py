@@ -1416,6 +1416,13 @@ class Launcher:
         pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
         positions_lock = threading.Lock()
         command_registry_lock = threading.Lock()
+        if not hasattr(state.risk, 'lock'):
+            msg = (
+                'state.risk has no `lock` slot; FINAL-MAJOR-02 cross-thread '
+                'serialization requires Nexus RiskState to expose a transient '
+                'lock attribute. Refusing to boot with broken concurrency.'
+            )
+            raise RuntimeError(msg)
         state.risk.lock = positions_lock
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies

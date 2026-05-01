@@ -129,6 +129,10 @@ class TradeOutcome:
             msg = 'TradeOutcome.cumulative_notional must be zero when filled_qty is zero'
             raise ValueError(msg)
 
+        if self.filled_qty > _ZERO and self.cumulative_notional == _ZERO:
+            msg = 'TradeOutcome.cumulative_notional must be positive when filled_qty is positive'
+            raise ValueError(msg)
+
     @property
     def is_terminal(self) -> bool:
 
