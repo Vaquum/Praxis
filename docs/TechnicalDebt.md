@@ -248,3 +248,47 @@ When `order.filled_qty > cmd.qty` (duplicate WS fill, venue rounding past target
 
 **When to fix**: When venue overfill behavior becomes operationally observable, OR when strategies need a consistent mid-run view of venue truth.
 **Migration**: Raise an explicit reconcile event (or persist the clamp on the spine) so mid-run state is not silently undersized, OR honor venue truth and let Nexus aggregates absorb the surplus via a `_grow_position` extension.
+
+---
+
+## TD-037: Overflow-clamp path reintroduces precision drift on `cumulative_notional`
+
+**Origin**: Round-17 pre-PR review (Greybeard)
+**Severity**: Low (rare overflow guard path, paper-trade Decimal precision is sufficient)
+**Module**: `praxis/core/execution_manager.py:1335-1337`
+
+`_emit_ws_outcome` overflow guard recomputes `emitted_cumulative_notional = order.cumulative_notional * cmd.qty / order.filled_qty` with default Decimal precision. This is exactly the kind of round-trip drift FINAL-MAJOR-07 removed for the non-overflow path. The non-overflow path forwards the venue-side `cumulative_notional` byte-for-byte; the overflow path divides and re-multiplies, reintroducing sub-ULP drift on a defensive code path that fires when WS-driven `order.filled_qty > cmd.qty` (duplicate fill, venue rounding).
+
+**When to fix**: Before tightening sub-ULP invariants on the overflow path or before the overflow path becomes load-bearing for capital aggregates.
+**Migration**: Either keep the venue cumulative as-is and let the downstream consumer reconcile against the clamped `filled_qty`, or compute the clamp using the per-fill list (sum the prefix that fits within `cmd.qty`) so no division round-trip occurs.
+
+---
+
+## TD-038: `command_registry_lock` chain establishes a new lock-order pair
+
+**Origin**: Round-17 pre-PR review (Greybeard)
+**Severity**: Low (no reverse-order caller exists today)
+**Module**: `praxis/launcher.py:1494-1543`
+
+The post-FINAL-MAJOR-01 critical section now holds `command_registry_lock` across `capital_controller.send_order` (touches `CapitalController._lock`), `_ensure_entry_position` (takes `positions_lock`), and `_build_order_context` (synchronous work). This establishes two new lock-order pairs:
+
+- `command_registry_lock → CapitalController._lock`
+- `command_registry_lock → positions_lock`
+
+Both are consistent with the documented Nexus lock-order chain (`command_registry_lock → positions_lock → CapitalController._lock → _wal_lock`). No existing caller takes them in the reverse order.
+
+**When to fix**: Before introducing any caller that would take `positions_lock` or `CapitalController._lock` and then reach for `command_registry_lock`.
+**Migration**: Document the lock-order chain explicitly in `praxis/launcher.py` module docstring; add a runtime lock-order check (`limen` debug-only assertion) in CI to detect inversions early.
+
+---
+
+## TD-039: `command_registry_lock` test exercises a local helper, not the real submitter
+
+**Origin**: Round-17 pre-PR review (Greybeard)
+**Severity**: Low (lock invariant is pinned; integration tests cover end-to-end)
+**Module**: `tests/test_launcher_command_registry_lock.py:397-559`
+
+`TestFinalMajor01AtomicRegistration` reproduces the post-fix submitter pattern in a module-level helper (`_submitter_pattern_post_final_major_01`) instead of importing `praxis/launcher.py`'s submitter closure directly. The closure is intentionally not extracted because it captures too much state (build_context, fallback_price_provider, validation pipeline outputs). Result: if the real submitter at `launcher.py:1494` regresses to the pre-FINAL-MAJOR-01 split-lock pattern, this test still passes.
+
+**When to fix**: Before the next round of launcher submitter restructuring, or when the cost of an integration harness drops (e.g., a refactor that makes the submitter unit-testable).
+**Migration**: Either (a) extract the submitter critical section into a module-level helper that takes the closure-captured state as kwargs and have the test import it, or (b) add an integration test that boots a real `_build_nexus_runtime` and races a fast venue ACK against a slow submitter to assert no torn observation.
