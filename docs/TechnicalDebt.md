@@ -248,3 +248,17 @@ When `order.filled_qty > cmd.qty` (duplicate WS fill, venue rounding past target
 
 **When to fix**: When venue overfill behavior becomes operationally observable, OR when strategies need a consistent mid-run view of venue truth.
 **Migration**: Raise an explicit reconcile event (or persist the clamp on the spine) so mid-run state is not silently undersized, OR honor venue truth and let Nexus aggregates absorb the surplus via a `_grow_position` extension.
+
+
+---
+
+## TD-036: Round-14 MAJOR-P regression test asserts only one race direction
+
+**Origin**: Round-17 Codex-supervised audit (R15 TD-007 carried forward as FINAL-TD-15)
+**Severity**: Low (test asymmetry; remediation test for Nexus FINAL-MAJOR-01 supersedes this)
+**Module**: `tests/test_launcher_command_registry_lock.py:303-381`
+
+`test_strategy_id_resolvable_during_send_order_concurrent` asserts that whenever the reader sees an entry in `command_contexts`, it ALSO sees an entry in `command_strategy_ids` — the post-MAJOR-P invariant that strategy_ids is set FIRST. The dangerous direction (reader sees `strategy_ids[cid]` populated but `contexts.get(cid)` returns None — the actual FINAL-MAJOR-01 race window) is NOT asserted; the test passes vacuously against the remaining race window.
+
+**When to fix**: When FINAL-MAJOR-01 is fixed (cross-repo: register Praxis-side launcher PR holding `command_registry_lock` across the entire critical section). Test priority is HIGH at that point — this test is the regression guard for FINAL-MAJOR-01.
+**Migration**: Add the symmetric `'observed strategy_ids[cid] populated but contexts missing for {cid}'` assertion in the reader; drive a synthetic outcome during the work between strategy_ids write and contexts write; assert the outcome is processed (not dropped).
