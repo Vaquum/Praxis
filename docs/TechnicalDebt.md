@@ -6,7 +6,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ## TD-009: VWAP re-read from spine on abort
 
-**Origin**: PR #52 (Copilot review)
+**Origin**: PR #52 (PR review)
 **Severity**: Low (epochs are small currently)
 **Module**: `praxis/core/execution_manager.py`
 
@@ -45,7 +45,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ## TD-019: MarketDataPoller refetches the full window on every tick
 
-**Origin**: PR #72 (Copilot review)
+**Origin**: PR #72 (PR review)
 **Severity**: Low for MMVP paper trading; moderate at production cadence
 **Module**: `praxis/market_data_poller.py`
 
