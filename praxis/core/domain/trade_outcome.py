@@ -48,6 +48,15 @@ class TradeOutcome:
         missed_iterations (int | None): Skipped DCA iterations, must be non-negative if set.
         missed_reason (str | None): Why DCA iterations were missed.
         created_at (datetime): Outcome creation time, must be timezone-aware.
+        cumulative_notional (Decimal): Venue-side cumulative notional for
+            this command, sum of `qty * price` over all fills. FINAL-MAJOR-07:
+            carried verbatim from `Order.cumulative_notional` so the
+            OutcomeTranslator does not have to reverse-derive
+            `cumulative_notional = filled_qty * avg_fill_price` (a
+            precision-lossy round trip after the venue already did
+            `total_notional / filled_qty` for `avg_fill_price`). Must be
+            non-negative; must be zero when `filled_qty` is zero. Default
+            `_ZERO` for synthetic / no-fill outcomes (boot-orphan REJECTED).
     '''
 
     command_id: str
@@ -63,6 +72,7 @@ class TradeOutcome:
     created_at: datetime
     missed_iterations: int | None = None
     missed_reason: str | None = None
+    cumulative_notional: Decimal = _ZERO
 
     def __post_init__(self) -> None:
 
@@ -109,6 +119,14 @@ class TradeOutcome:
 
         if self.missed_iterations is not None and self.missed_iterations < 0:
             msg = 'TradeOutcome.missed_iterations must be non-negative'
+            raise ValueError(msg)
+
+        if self.cumulative_notional < _ZERO:
+            msg = 'TradeOutcome.cumulative_notional must be non-negative'
+            raise ValueError(msg)
+
+        if self.filled_qty == _ZERO and self.cumulative_notional != _ZERO:
+            msg = 'TradeOutcome.cumulative_notional must be zero when filled_qty is zero'
             raise ValueError(msg)
 
     @property

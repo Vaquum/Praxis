@@ -151,11 +151,13 @@ class OutcomeTranslator:
                     state.ack_emitted = True
                 return results
 
-            cumulative_notional = (
-                outcome.filled_qty * outcome.avg_fill_price
-                if outcome.avg_fill_price is not None
-                else _ZERO
-            )
+            # FINAL-MAJOR-07: use the venue-side cumulative_notional carried
+            # verbatim from `Order.cumulative_notional` (sum of fill qty * price),
+            # not the reverse-derived `filled_qty * avg_fill_price` round trip
+            # which can drift sub-ULP and flip `delta_notional` negative across
+            # multi-partial sequences (silently dropped at execution_manager
+            # `_emit_outcome` via `TradeOutcome.__post_init__` ValueError).
+            cumulative_notional = outcome.cumulative_notional
             delta_size = outcome.filled_qty - state.last_filled_qty
             delta_notional = cumulative_notional - state.last_cumulative_notional
 
