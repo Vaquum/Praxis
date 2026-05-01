@@ -517,24 +517,34 @@ class TestFinalMajor01AtomicRegistration:
         lock during the critical section, the reader's lock acquisition
         BLOCKS — guaranteeing it cannot observe a partially-populated
         registry. This test proves the blocking behavior.
+
+        Synchronization is deterministic via two `threading.Event`
+        signals (writer_inside_critical_section + reader_attempted_lock)
+        so the test does not rely on `time.sleep` to order the
+        writer-acquires-first then reader-attempts sequence — that
+        would race on slow / contended CI runners.
         '''
 
         lock = threading.Lock()
         strategy_ids: dict[str, str] = {}
         contexts: dict[str, str] = {}
 
+        writer_inside_critical_section = threading.Event()
+        reader_attempted_lock = threading.Event()
         writer_done = threading.Event()
         reader_observations: list[tuple[bool, bool]] = []
 
         def writer() -> None:
             with lock:
                 strategy_ids['cmd-0'] = 'strat-A'
-                time.sleep(0.05)
+                writer_inside_critical_section.set()
+                reader_attempted_lock.wait(timeout=5)
                 contexts['cmd-0'] = 'ctx-0'
             writer_done.set()
 
         def reader() -> None:
-            time.sleep(0.005)
+            writer_inside_critical_section.wait(timeout=5)
+            reader_attempted_lock.set()
             with lock:
                 reader_observations.append(
                     ('cmd-0' in strategy_ids, 'cmd-0' in contexts)

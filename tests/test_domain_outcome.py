@@ -148,6 +148,40 @@ def test_trade_outcome_rejects_avg_fill_price_when_no_fills() -> None:
         _outcome(filled_qty=Decimal('0'), avg_fill_price=Decimal('100'))
 
 
+def test_trade_outcome_rejects_negative_cumulative_notional() -> None:
+
+    with pytest.raises(ValueError, match='cumulative_notional must be non-negative'):
+        _outcome(cumulative_notional=Decimal('-1'))
+
+
+def test_trade_outcome_rejects_nonzero_cumulative_notional_when_filled_qty_zero() -> None:
+
+    with pytest.raises(
+        ValueError,
+        match='cumulative_notional must be zero when filled_qty is zero',
+    ):
+        _outcome(
+            status=TradeStatus.PENDING,
+            filled_qty=Decimal('0'),
+            avg_fill_price=None,
+            slices_completed=0,
+            cumulative_notional=Decimal('500'),
+        )
+
+
+def test_trade_outcome_rejects_zero_cumulative_notional_when_filled_qty_positive() -> None:
+
+    with pytest.raises(
+        ValueError,
+        match='cumulative_notional must be positive when filled_qty is positive',
+    ):
+        _outcome(
+            filled_qty=Decimal('10'),
+            avg_fill_price=Decimal('50000'),
+            cumulative_notional=Decimal('0'),
+        )
+
+
 def test_trade_outcome_rejects_negative_slices_completed() -> None:
 
     with pytest.raises(ValueError, match='non-negative'):
