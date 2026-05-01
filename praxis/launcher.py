@@ -1480,6 +1480,7 @@ class Launcher:
                 build_context=build_context,
                 now=lambda: datetime.now(UTC),
                 capital_controller=capital_controller,
+                positions_lock=positions_lock,
             )
 
             for action, outcome in results:
