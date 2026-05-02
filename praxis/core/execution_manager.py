@@ -1335,10 +1335,6 @@ class ExecutionManager:
                     'target_qty': str(cmd.qty),
                 },
             )
-            if order.filled_qty > _ZERO:
-                emitted_cumulative_notional = (
-                    order.cumulative_notional * cmd.qty / order.filled_qty
-                )
             emitted_filled_qty = cmd.qty
 
         if isinstance(event, FillReceived):

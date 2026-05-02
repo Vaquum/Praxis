@@ -533,17 +533,27 @@ class TestFinalMajor01AtomicRegistration:
         reader_attempted_lock = threading.Event()
         writer_done = threading.Event()
         reader_observations: list[tuple[bool, bool]] = []
+        sync_failures: list[str] = []
 
         def writer() -> None:
             with lock:
                 strategy_ids['cmd-0'] = 'strat-A'
                 writer_inside_critical_section.set()
-                reader_attempted_lock.wait(timeout=5)
+                if not reader_attempted_lock.wait(timeout=5):
+                    sync_failures.append(
+                        'writer: reader_attempted_lock wait timed out — '
+                        'reader never reached the lock acquisition'
+                    )
                 contexts['cmd-0'] = 'ctx-0'
             writer_done.set()
 
         def reader() -> None:
-            writer_inside_critical_section.wait(timeout=5)
+            if not writer_inside_critical_section.wait(timeout=5):
+                sync_failures.append(
+                    'reader: writer_inside_critical_section wait timed out — '
+                    'writer never acquired the lock'
+                )
+                return
             reader_attempted_lock.set()
             with lock:
                 reader_observations.append(
@@ -557,6 +567,11 @@ class TestFinalMajor01AtomicRegistration:
         w.join(timeout=5)
         r.join(timeout=5)
 
+        assert not sync_failures, (
+            f'PR #85 round-6: deterministic sync failed — '
+            f'{sync_failures}. Test cannot prove blocking semantics if '
+            f'the writer-then-reader ordering was not established.'
+        )
         assert writer_done.is_set(), 'writer did not complete'
         assert len(reader_observations) == 1, (
             f'reader did not observe: {reader_observations}'

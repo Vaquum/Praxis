@@ -251,16 +251,18 @@ When `order.filled_qty > cmd.qty` (duplicate WS fill, venue rounding past target
 
 ---
 
-## TD-037: Overflow-clamp path reintroduces precision drift on `cumulative_notional`
+## TD-037: `_process_command` overflow clamp leaves `cumulative_notional` not equal to `filled_qty * avg_fill_price`
 
-**Origin**: Round-17 pre-PR review (Greybeard)
-**Severity**: Low (rare overflow guard path, paper-trade Decimal precision is sufficient)
-**Module**: `praxis/core/execution_manager.py:1335-1337`
+**Origin**: Round-17 pre-PR review (Greybeard); narrowed in PR #85 round-6 review
+**Severity**: Low (rare overflow guard path; downstream consumers use `cumulative_notional` directly per FINAL-MAJOR-07)
+**Module**: `praxis/core/execution_manager.py:1029-1031`
 
-`_emit_ws_outcome` overflow guard recomputes `emitted_cumulative_notional = order.cumulative_notional * cmd.qty / order.filled_qty` with default Decimal precision. This is exactly the kind of round-trip drift FINAL-MAJOR-07 removed for the non-overflow path. The non-overflow path forwards the venue-side `cumulative_notional` byte-for-byte; the overflow path divides and re-multiplies, reintroducing sub-ULP drift on a defensive code path that fires when WS-driven `order.filled_qty > cmd.qty` (duplicate fill, venue rounding).
+`_process_command`'s immediate-fill overflow clamp scales `total_notional = total_notional * cmd.qty / filled_qty` so the emitted `cumulative_notional` matches the clamped `filled_qty`. That preserves the `cumulative_notional / filled_qty == avg_fill_price` consistency invariant for that single emission. The trade-off is sub-ULP precision drift introduced by the round-trip `(N/q) * (q'/q)` at default Decimal precision — same shape as FINAL-MAJOR-06.
 
-**When to fix**: Before tightening sub-ULP invariants on the overflow path or before the overflow path becomes load-bearing for capital aggregates.
-**Migration**: Either keep the venue cumulative as-is and let the downstream consumer reconcile against the clamped `filled_qty`, or compute the clamp using the per-fill list (sum the prefix that fits within `cmd.qty`) so no division round-trip occurs.
+The WS path (`_emit_ws_outcome`) does NOT scale (PR #85 round-6 fix) because there can be a prior PARTIAL emission with the unscaled cumulative; scaling on the overfill clamp could produce a SMALLER cumulative than the previous emission and OutcomeTranslator would compute negative `delta_notional` for the terminal step. The two paths intentionally use different strategies — `_process_command` is one-shot, so monotonicity is not at risk; `_emit_ws_outcome` is multi-emit, so monotonicity wins over per-emission consistency.
+
+**When to fix**: Before tightening sub-ULP invariants on the immediate-fill path, OR before any consumer relies on `cumulative_notional / filled_qty == avg_fill_price` for the WS path (none today — FINAL-MAJOR-07 mandates `cumulative_notional` is read directly).
+**Migration**: For `_process_command`, compute the clamp using the per-fill list (sum the prefix that fits within `cmd.qty`) so no division round-trip occurs. For `_emit_ws_outcome`, document the cumulative-vs-clamped-filled inconsistency as expected and add a translator-side defensive log when the inconsistency is observed.
 
 ---
 
