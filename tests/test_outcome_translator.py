@@ -468,7 +468,7 @@ class TestFinalMajor07TranslatorUsesVenueCumulativeNotional:
 
         assert sum(emitted_partials, Decimal('0')) == cumulative_notional, (
             f'translator-emitted fill_notional sum '
-            f'{sum(emitted_partials, Decimal("0"))} drifted from venue '
+            f'{sum(emitted_partials, Decimal('0'))} drifted from venue '
             f'cumulative_notional {cumulative_notional}'
         )
 
