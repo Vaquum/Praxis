@@ -87,7 +87,7 @@ from praxis.infrastructure.binance_urls import (
 )
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
-from praxis.market_data_poller import MarketDataPoller
+from praxis.market_data_poller import MarketDataPoller, StaleMarketDataError
 from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
@@ -862,19 +862,34 @@ def _last_close_from_poller(
     poller: MarketDataPoller | None,
     kline_sizes: tuple[int, ...],
 ) -> Decimal | None:
-    '''Return the last-known close from the poller, or `None` if absent.
+    '''Return the last-known close from the poller, or `None` if absent or stale.
 
     Iterates `kline_sizes` (smallest first) and returns the close value
-    of the last row in the first non-empty DataFrame found. Returns
-    `None` when the poller is absent, no kline-size has data yet, or the
-    DataFrame lacks a `close` column.
+    of the last row in the first non-empty, non-stale DataFrame found.
+    Returns `None` when the poller is absent, every kline_size is empty
+    or stale, or no DataFrame has a `close` column.
+
+    Round-18 MAJOR-005: a stale entry now raises `StaleMarketDataError`
+    from `get_market_data`. This helper swallows the exception per
+    kline_size and falls through to the next; if every kline_size is
+    stale (or empty), the caller (`fallback_price_provider`) returns
+    `None`, which the validator's PRICE stage rejects with a clear
+    reason. Pre-fix the helper returned the indefinitely-stale cached
+    value, sizing ENTERs against ancient prices.
     '''
 
     if poller is None:
         return None
 
     for kline_size in kline_sizes:
-        df = poller.get_market_data(kline_size)
+        try:
+            df = poller.get_market_data(kline_size)
+        except StaleMarketDataError as exc:
+            _log.warning(
+                'fallback_price_provider skipping stale kline_size: %s',
+                exc,
+            )
+            continue
 
         if df.height == 0 or 'close' not in df.columns:
             continue

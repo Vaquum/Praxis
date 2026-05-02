@@ -1,0 +1,154 @@
+'''Tests for MarketDataPoller cache freshness (MAJOR-005).
+
+Pre-fix `_fetch` swallowed exceptions and `get_market_data` returned
+the previous DataFrame indefinitely. Post-fix every cache entry is
+stamped with `fetched_at`; reads beyond `max_age_seconds` raise
+`StaleMarketDataError`. The launcher's `fallback_price_provider`
+swallows the exception per kline_size and falls back to None so the
+validator's PRICE stage rejects ENTERs with a clear reason.
+'''
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+import polars as pl
+import pytest
+
+from praxis.market_data_poller import MarketDataPoller, StaleMarketDataError
+
+
+_KLINE_SIZE = 60
+
+
+def _seed_cache(
+    poller: MarketDataPoller,
+    kline_size: int,
+    fetched_at: datetime,
+    df: pl.DataFrame | None = None,
+) -> None:
+    '''Inject a cache entry with a chosen `fetched_at` timestamp.'''
+
+    if df is None:
+        df = pl.DataFrame({'close': [50000.0]})
+    with poller._lock:
+        poller._data[kline_size] = df
+        poller._fetched_at[kline_size] = fetched_at
+
+
+class TestGetMarketDataFreshness:
+
+    def test_fresh_cache_returns_dataframe(self) -> None:
+        poller = MarketDataPoller()
+        now = datetime.now(tz=UTC)
+        _seed_cache(poller, _KLINE_SIZE, fetched_at=now)
+
+        df = poller.get_market_data(_KLINE_SIZE)
+
+        assert df.height == 1
+
+    def test_no_cache_returns_empty_dataframe(self) -> None:
+        poller = MarketDataPoller()
+
+        df = poller.get_market_data(_KLINE_SIZE)
+
+        assert df.is_empty()
+
+    def test_stale_cache_raises(self) -> None:
+        poller = MarketDataPoller()
+        # Default max_age = 2 * kline_size = 120s. Stamp 200s ago.
+        stale_ts = datetime.now(tz=UTC) - timedelta(seconds=200)
+        _seed_cache(poller, _KLINE_SIZE, fetched_at=stale_ts)
+
+        with pytest.raises(StaleMarketDataError) as exc_info:
+            poller.get_market_data(_KLINE_SIZE)
+
+        assert exc_info.value.kline_size == _KLINE_SIZE
+        assert exc_info.value.max_age_seconds == 120.0
+        assert exc_info.value.age_seconds > 120.0
+
+    def test_max_age_override_honoured(self) -> None:
+        '''Custom per-kline max_age_seconds overrides the 2 * kline_size default.'''
+
+        poller = MarketDataPoller(max_age_seconds={_KLINE_SIZE: 30.0})
+        # 60s ago — fresh under default (120s) but stale under 30s override.
+        ts = datetime.now(tz=UTC) - timedelta(seconds=60)
+        _seed_cache(poller, _KLINE_SIZE, fetched_at=ts)
+
+        with pytest.raises(StaleMarketDataError) as exc_info:
+            poller.get_market_data(_KLINE_SIZE)
+
+        assert exc_info.value.max_age_seconds == 30.0
+
+    def test_is_stale_returns_true_for_stale_cache(self) -> None:
+        poller = MarketDataPoller()
+        stale_ts = datetime.now(tz=UTC) - timedelta(seconds=200)
+        _seed_cache(poller, _KLINE_SIZE, fetched_at=stale_ts)
+
+        assert poller.is_stale(_KLINE_SIZE) is True
+
+    def test_is_stale_returns_false_for_fresh_cache(self) -> None:
+        poller = MarketDataPoller()
+        _seed_cache(poller, _KLINE_SIZE, fetched_at=datetime.now(tz=UTC))
+
+        assert poller.is_stale(_KLINE_SIZE) is False
+
+    def test_is_stale_returns_true_when_no_cache(self) -> None:
+        poller = MarketDataPoller()
+
+        assert poller.is_stale(_KLINE_SIZE) is True
+
+
+class TestFallbackPriceProviderStaleGuard:
+    '''The launcher's `fallback_price_provider` calls
+    `_last_close_from_poller`, which must skip stale kline_sizes
+    rather than returning their cached values (MAJOR-005 M05.5).
+    '''
+
+    def test_last_close_returns_none_when_all_kline_sizes_stale(
+        self,
+    ) -> None:
+        from praxis.launcher import _last_close_from_poller
+
+        poller = MarketDataPoller()
+        stale_ts = datetime.now(tz=UTC) - timedelta(seconds=10000)
+        _seed_cache(poller, 60, fetched_at=stale_ts)
+        _seed_cache(poller, 300, fetched_at=stale_ts)
+
+        result = _last_close_from_poller(poller, kline_sizes=(60, 300))
+
+        assert result is None
+
+    def test_last_close_returns_value_when_kline_fresh(self) -> None:
+        from decimal import Decimal
+
+        from praxis.launcher import _last_close_from_poller
+
+        poller = MarketDataPoller()
+        _seed_cache(poller, 60, fetched_at=datetime.now(tz=UTC))
+
+        result = _last_close_from_poller(poller, kline_sizes=(60,))
+
+        assert result == Decimal('50000.0')
+
+    def test_last_close_falls_through_stale_to_fresh_kline(self) -> None:
+        '''If the smallest kline is stale but a larger one is fresh,
+        return the larger one's last close instead of swallowing both.'''
+
+        from decimal import Decimal
+
+        from praxis.launcher import _last_close_from_poller
+
+        poller = MarketDataPoller()
+        stale_ts = datetime.now(tz=UTC) - timedelta(seconds=10000)
+        _seed_cache(poller, 60, fetched_at=stale_ts)
+        _seed_cache(
+            poller,
+            300,
+            fetched_at=datetime.now(tz=UTC),
+            df=pl.DataFrame({'close': [49500.0]}),
+        )
+
+        result = _last_close_from_poller(poller, kline_sizes=(60, 300))
+
+        assert result == Decimal('49500.0')

@@ -17,11 +17,48 @@ import polars as pl
 from binance.client import Client
 from binancial.compute.get_spot_klines import get_spot_klines
 
-__all__ = ['MarketDataPoller']
+__all__ = ['MarketDataPoller', 'StaleMarketDataError']
 
 _log = logging.getLogger(__name__)
 
 _BINANCE_SYMBOL = 'BTCUSDT'
+_DEFAULT_MAX_AGE_MULTIPLIER = 2
+
+
+class StaleMarketDataError(Exception):
+    '''Raised by `MarketDataPoller.get_market_data` when the cache is stale.
+
+    Round-18 MAJOR-005: pre-fix `_fetch` swallowed all exceptions and
+    `get_market_data` returned the previous DataFrame indefinitely.
+    Strategies could trade on hours-old klines after Binance public
+    REST/testnet outages with no signal. Post-fix every cache entry
+    is stamped with `fetched_at`; reads beyond `max_age_seconds` (per
+    kline_size, default `2 * kline_size`) raise this exception so
+    callers see explicit failure instead of silently old data.
+
+    Args:
+        kline_size: kline_size whose cache exceeded its max age.
+        fetched_at: timestamp the stale entry was last written.
+        age_seconds: observed age in seconds at read time.
+        max_age_seconds: configured max age the read exceeded.
+    '''
+
+    def __init__(
+        self,
+        kline_size: int,
+        fetched_at: datetime,
+        age_seconds: float,
+        max_age_seconds: float,
+    ) -> None:
+        self.kline_size = kline_size
+        self.fetched_at = fetched_at
+        self.age_seconds = age_seconds
+        self.max_age_seconds = max_age_seconds
+        super().__init__(
+            f'market data for kline_size={kline_size} is stale: '
+            f'age={age_seconds:.1f}s exceeds max_age={max_age_seconds:.1f}s '
+            f'(last fetched at {fetched_at.isoformat()})'
+        )
 
 
 @dataclass
@@ -58,15 +95,18 @@ class MarketDataPoller:
         kline_intervals: dict[int, int] | None = None,
         n_rows: int = 5000,
         testnet: bool = False,
+        max_age_seconds: dict[int, float] | None = None,
     ) -> None:
         self._n_rows = n_rows
         self._data: dict[int, pl.DataFrame] = {}
+        self._fetched_at: dict[int, datetime] = {}
         self._lock = threading.Lock()
         self._pollers: dict[int, _PollerThread] = {}
         self._refcounts: dict[int, int] = {}
         self._started = False
         self._initial_intervals = dict(kline_intervals or {})
         self._testnet = testnet
+        self._max_age_overrides = dict(max_age_seconds or {})
 
     @property
     def running(self) -> bool:
@@ -126,6 +166,7 @@ class MarketDataPoller:
             self._pollers.clear()
             self._refcounts.clear()
             self._data.clear()
+            self._fetched_at.clear()
 
         _log.info('market data poller stopped')
 
@@ -185,6 +226,7 @@ class MarketDataPoller:
                 self._refcounts.pop(kline_size, None)
                 pt = self._pollers.pop(kline_size, None)
                 self._data.pop(kline_size, None)
+                self._fetched_at.pop(kline_size, None)
             else:
                 self._refcounts[kline_size] = count - 1
                 return
@@ -202,15 +244,69 @@ class MarketDataPoller:
     def get_market_data(self, kline_size: int) -> pl.DataFrame:
         '''Return latest kline DataFrame for a given kline_size.
 
+        Round-18 MAJOR-005: raises `StaleMarketDataError` when the cache
+        for this kline_size exceeds `max_age_seconds` (default
+        `2 * kline_size`). Pre-fix the previous DataFrame was returned
+        indefinitely after polling failures, letting strategies trade
+        on arbitrarily old prices. Callers that want a stale-OK read
+        should call `is_stale(kline_size)` and decide explicitly.
+
         Args:
             kline_size: Kline bucket width in seconds.
 
         Returns:
-            Rolling DataFrame of klines. Empty DataFrame if no data yet.
+            Rolling DataFrame of klines. Empty DataFrame if no fetch
+            has succeeded yet for this kline_size.
+
+        Raises:
+            StaleMarketDataError: When the cached entry is older than
+                the configured max age.
         '''
 
         with self._lock:
-            return self._data.get(kline_size, pl.DataFrame())
+            df = self._data.get(kline_size)
+            fetched_at = self._fetched_at.get(kline_size)
+
+        if df is None or fetched_at is None:
+            return pl.DataFrame()
+
+        max_age = self._resolve_max_age(kline_size)
+        age = (datetime.now(tz=UTC) - fetched_at).total_seconds()
+        if age > max_age:
+            raise StaleMarketDataError(
+                kline_size=kline_size,
+                fetched_at=fetched_at,
+                age_seconds=age,
+                max_age_seconds=max_age,
+            )
+
+        return df
+
+    def is_stale(self, kline_size: int) -> bool:
+        '''Return True when cached data for `kline_size` exceeds max age.
+
+        Non-raising counterpart to `get_market_data` for callers (e.g.,
+        `fallback_price_provider`) that want to short-circuit on
+        staleness without exception flow control.
+        '''
+
+        with self._lock:
+            fetched_at = self._fetched_at.get(kline_size)
+
+        if fetched_at is None:
+            return True
+
+        max_age = self._resolve_max_age(kline_size)
+        age = (datetime.now(tz=UTC) - fetched_at).total_seconds()
+        return age > max_age
+
+    def _resolve_max_age(self, kline_size: int) -> float:
+        '''Per-kline max age, falling back to `2 * kline_size`.'''
+
+        override = self._max_age_overrides.get(kline_size)
+        if override is not None:
+            return override
+        return float(_DEFAULT_MAX_AGE_MULTIPLIER * kline_size)
 
     def _start_thread_locked(self, kline_size: int, interval: int) -> None:
         '''Create and start a poller thread. Must be called with lock held.'''
@@ -269,6 +365,7 @@ class MarketDataPoller:
 
             with self._lock:
                 self._data[kline_size] = df
+                self._fetched_at[kline_size] = datetime.now(tz=UTC)
 
             _log.debug(
                 'fetched klines',

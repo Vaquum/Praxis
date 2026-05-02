@@ -297,7 +297,6 @@ Both are consistent with the documented Nexus lock-order chain (`command_registr
 
 ---
 
-<<<<<<< HEAD
 ## TD-040: EventSpine SQLite PRAGMAs are implicit and untested
 
 **Origin**: Round-18 codex-supervised audit (Pass 8)
@@ -472,3 +471,24 @@ The runtime retry handles transient callback failures; the `OutcomeAcked` event 
 3. In `Trading.start`, after `replay_events` and `reconcile_orphan_commands`, scan per-account `TradeOutcomeProduced` events that lack a matching `OutcomeAcked.outcome_id`; reconstruct the Praxis `TradeOutcome` from the spine fields and re-deliver via `self._on_trade_outcome`.
 4. Nexus's in-memory dedup (already keyed on outcome_id from MAJOR-004 part A) catches re-delivered outcomes within a single process lifetime; cross-restart safety comes from the `OutcomeAcked` filter at boot-replay-emission time.
 5. Add integration test: simulate Nexus crash after spine append but before consumption → restart → boot replay drives Nexus to the same end state as if no crash had occurred.
+
+---
+
+## TD-053: HealthLoop demote to REDUCE_ONLY on sustained market-data failure
+
+**Origin**: Round-18 MAJOR-005 part scope deferral (Praxis #86)
+**Severity**: Major (defense-in-depth on top of validator PRICE-stage rejection)
+**Module**: `praxis/market_data_poller.py`; cross-repo: `nexus/core/health_loop.py`, `praxis/core/domain/health_snapshot.py`
+
+MAJOR-005 landed cache-freshness enforcement (`StaleMarketDataError` from `MarketDataPoller.get_market_data` after `max_age_seconds`, default `2 * kline_size`) and `fallback_price_provider` now returns `None` on stale data, so the validator's PRICE stage rejects ENTERs cleanly. The bigger M05.4 / M05.7 acceptance — counting consecutive `_fetch` failures and surfacing them to `HealthSnapshot` so HealthLoop demotes `state.mode` to `REDUCE_ONLY` (EXITs still work, ENTERs blocked) — was scoped out because it requires plumbing a new health-signal field into `HealthSnapshot`, wiring it through the `health_snapshot_provider` callback the launcher gives to `HealthLoop`, and verifying mode-transition semantics in the cross-repo loop.
+
+The current behavior is safe for paper trading: stale data raises in the predict tick (loop catches, signal skipped), and stale fallback rejects ENTER at PRICE-stage. Mode demotion would add a single coherent system-wide signal instead of relying on per-callsite rejection.
+
+**When to fix**: Before sustained mainnet operation, OR when a single operator-facing health signal is needed for "venue feed degraded; trading reduced".
+
+**Migration**:
+1. Add a `consecutive_fetch_failures: int` counter to `MarketDataPoller` (per-kline_size dict); reset on `_fetch` success, increment on failure.
+2. Expose `health_status() -> dict[int, MarketDataHealth]` (or similar) reporting per-kline failure counts and stale flags.
+3. Add a `market_data_healthy: bool` field to `HealthSnapshot` (Praxis-side dataclass); the launcher's `_build_health_snapshot` callback samples `MarketDataPoller.health_status()` and sets it.
+4. In Nexus `HealthLoop` / `HealthEvaluator`, add a transition: `market_data_healthy=False` → `REDUCE_ONLY` (EXITs still work, ENTERs blocked).
+5. Test: simulate repeated `_fetch` failures → after N attempts, snapshot reports unhealthy → HealthLoop demotes mode within next tick → validator's MODE stage rejects ENTERs.
