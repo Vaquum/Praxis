@@ -25,6 +25,7 @@ __all__ = [
     'DuplicateClientOrderIdError',
     'ExecutionReport',
     'ImmediateFill',
+    'LocalOrderRejectedError',
     'NotFoundError',
     'OrderBookLevel',
     'OrderBookSnapshot',
@@ -336,6 +337,21 @@ class OrderRejectedError(VenueError):
         self.reason = reason
         super().__init__(message)
         self.args = (message, venue_code, reason)
+
+
+class LocalOrderRejectedError(OrderRejectedError):
+    '''Raised by the adapter when a local pre-flight check rejects the order.
+
+    Distinct from `OrderRejectedError` (which represents a venue-side
+    rejection) so callers can tell whether the order ever reached the
+    venue (round-18 MAJOR-007). Inherits from `OrderRejectedError` so
+    the existing `except VenueError` flow in `_process_command`
+    synthesizes a proper `OrderSubmitFailed` event and REJECTED
+    `TradeOutcome` — the local rejection is no longer silently
+    orphaned. The conventional `venue_code` is `-1013` (Binance's
+    code for filter failures); the rejection reason explains which
+    filter failed.
+    '''
 
 
 class RateLimitError(VenueError):

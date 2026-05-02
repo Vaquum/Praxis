@@ -21,6 +21,7 @@ from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     CancelResult,
     ExecutionReport,
+    LocalOrderRejectedError,
     NotFoundError,
     OrderRejectedError,
     RateLimitError,
@@ -1859,35 +1860,35 @@ class TestValidateOrder:
 
         adapter = _make_adapter()
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
-        with pytest.raises(ValueError, match='not a multiple of tick size'):
+        with pytest.raises(LocalOrderRejectedError, match='not a multiple of tick size'):
             adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('1.0'), Decimal('50000.005'))
 
     def test_qty_not_multiple_of_lot_step_raises(self) -> None:
 
         adapter = _make_adapter()
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
-        with pytest.raises(ValueError, match='not a multiple of lot step'):
+        with pytest.raises(LocalOrderRejectedError, match='not a multiple of lot step'):
             adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('0.000012'), Decimal('50000.00'))
 
     def test_qty_below_lot_min_raises(self) -> None:
 
         adapter = _make_adapter()
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
-        with pytest.raises(ValueError, match='below lot minimum'):
+        with pytest.raises(LocalOrderRejectedError, match='below lot minimum'):
             adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('0.0001'), Decimal('50000.00'))
 
     def test_qty_above_lot_max_raises(self) -> None:
 
         adapter = _make_adapter()
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
-        with pytest.raises(ValueError, match='above lot maximum'):
+        with pytest.raises(LocalOrderRejectedError, match='above lot maximum'):
             adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('10000.0'), Decimal('50000.00'))
 
     def test_below_min_notional_raises(self) -> None:
 
         adapter = _make_adapter()
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
-        with pytest.raises(ValueError, match='below minimum'):
+        with pytest.raises(LocalOrderRejectedError, match='below minimum'):
             adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('0.001'), Decimal('100.00'))
 
     def test_skips_notional_check_for_market_orders(self) -> None:
@@ -1909,7 +1910,7 @@ class TestValidateOrder:
         adapter = _make_adapter()
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
         _patch_session(adapter, _mock_response(200, _BINANCE_FILLED_RESPONSE))
-        with pytest.raises(ValueError, match='not a multiple of tick size'):
+        with pytest.raises(LocalOrderRejectedError, match='not a multiple of tick size'):
             await adapter.submit_order(
                 _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.LIMIT,
                 Decimal('1.0'), price=Decimal('50000.005'),

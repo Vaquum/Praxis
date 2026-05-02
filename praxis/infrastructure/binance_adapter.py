@@ -42,6 +42,7 @@ from praxis.infrastructure.venue_adapter import (
     DuplicateClientOrderIdError,
     ExecutionReport,
     ImmediateFill,
+    LocalOrderRejectedError,
     NotFoundError,
     OrderBookLevel,
     OrderBookSnapshot,
@@ -77,6 +78,7 @@ _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
 _DUPLICATE_CLIENT_ORDER_ID_CODE = -2010
+_LOCAL_FILTER_REJECT_CODE = -1013
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
 _DEFAULT_WEIGHT_LIMIT = 6000
@@ -971,6 +973,15 @@ class BinanceAdapter:
         Logs a warning and returns without validation if filters are not
         cached for the symbol.
 
+        Round-18 MAJOR-007: filter violations raise
+        `LocalOrderRejectedError` (a `VenueError` / `OrderRejectedError`
+        subclass) so the caller's `except VenueError` flow synthesizes
+        a proper `OrderSubmitFailed` event and REJECTED `TradeOutcome`.
+        Pre-fix the helper raised plain `ValueError`, which the
+        `except VenueError` block did not catch, leaving the command
+        orphaned (intent in spine, no terminal outcome) and capital
+        parked in `in_flight_order_notional` until restart.
+
         Args:
             symbol (str): Trading pair symbol
             order_type (OrderType): Order type
@@ -985,25 +996,39 @@ class BinanceAdapter:
             return
 
         if qty % filters.lot_step != 0:
-            msg = f"qty {qty} is not a multiple of lot step {filters.lot_step}"
-            raise ValueError(msg)
+            reason = f"qty {qty} is not a multiple of lot step {filters.lot_step}"
+            raise LocalOrderRejectedError(
+                reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
+            )
 
         if qty < filters.lot_min:
-            msg = f"qty {qty} is below lot minimum {filters.lot_min}"
-            raise ValueError(msg)
+            reason = f"qty {qty} is below lot minimum {filters.lot_min}"
+            raise LocalOrderRejectedError(
+                reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
+            )
 
         if qty > filters.lot_max:
-            msg = f"qty {qty} is above lot maximum {filters.lot_max}"
-            raise ValueError(msg)
+            reason = f"qty {qty} is above lot maximum {filters.lot_max}"
+            raise LocalOrderRejectedError(
+                reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
+            )
 
         if price is not None and order_type != OrderType.MARKET:
             if price % filters.tick_size != 0:
-                msg = f"price {price} is not a multiple of tick size {filters.tick_size}"
-                raise ValueError(msg)
+                reason = (
+                    f"price {price} is not a multiple of tick size {filters.tick_size}"
+                )
+                raise LocalOrderRejectedError(
+                    reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
+                )
 
             if price * qty < filters.min_notional:
-                msg = f"notional {price * qty} is below minimum {filters.min_notional}"
-                raise ValueError(msg)
+                reason = (
+                    f"notional {price * qty} is below minimum {filters.min_notional}"
+                )
+                raise LocalOrderRejectedError(
+                    reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
+                )
 
 
     async def submit_order(

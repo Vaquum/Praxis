@@ -338,24 +338,34 @@ class ExecutionManager:
         account_id: str,
         events: list[tuple[int, Event]],
     ) -> None:
-        '''Synthesize REJECTED outcomes for orphan `CommandAccepted` events.
+        '''Synthesize REJECTED outcomes for orphan command events at boot.
 
-        PT-FIX-30: a SIGKILL between `submit_command`'s spine append of
-        `CommandAccepted` and the in-memory queue/dict writes leaves a
-        durable `CommandAccepted` on the spine with no follow-up
-        `OrderSubmitIntent`. On reboot, replay reconstructs
+        Two orphan classes are reconciled:
+
+        Class A (PT-FIX-30) — `CommandAccepted` without `OrderSubmitIntent`
+        and without terminal `TradeOutcomeProduced`. A SIGKILL between
+        `submit_command`'s spine append of `CommandAccepted` and the
+        in-memory queue/dict writes leaves a durable `CommandAccepted`
+        on the spine with no follow-up. Replay reconstructs
         `_accepted_commands` from the orphan but no outcome will ever
         fire because Praxis never submitted to the venue. Meanwhile the
         Nexus-side launcher had already called
         `CapitalController.send_order(reservation_id, command_id)` so
         the in-flight order notional is locked across restarts.
 
-        This method scans the per-account replay events, finds every
-        `CommandAccepted` whose `command_id` did not produce an
-        `OrderSubmitIntent` and is not already in a terminal state,
-        and emits a synthetic `TradeOutcome(REJECTED, reason=
-        'boot_orphan_command')`. The outcome is written to the spine
-        as `TradeOutcomeProduced` and routed through
+        Class B (round-18 MAJOR-007) — `OrderSubmitIntent` without
+        `OrderSubmitted`, `OrderSubmitFailed`, or terminal
+        `TradeOutcomeProduced`. A pre-fix `_validate_order` `ValueError`
+        bypassed the `except VenueError` branch and left the intent in
+        the spine with no follow-up. Post-MAJOR-007 the local rejection
+        raises `LocalOrderRejectedError` (a `VenueError`) so this
+        boot-time rescue is defense-in-depth: any future code path that
+        again leaves an intent without a follow-up will be cleaned up
+        on the next boot rather than stranding capital indefinitely.
+
+        Both classes synthesize `TradeOutcome(REJECTED,
+        reason='boot_orphan_command')`, written to the spine as
+        `TradeOutcomeProduced` and routed through
         `self._on_trade_outcome` so the launcher's
         `OutcomeProcessor` releases Nexus's reservation via
         `order_reject` lookup of the same `command_id`.
@@ -370,28 +380,51 @@ class ExecutionManager:
             return
 
         accepted_trade_ids: dict[str, str] = {}
-        seen_followup: set[str] = set()
+        intent_trade_ids: dict[str, str] = {}
+        intent_clients: dict[str, str] = {}
+        completed_via_terminal: set[str] = set()
+        completed_via_submit: set[str] = set()
 
         for _seq, event in events:
             if isinstance(event, CommandAccepted):
                 accepted_trade_ids[event.command_id] = event.trade_id
-            elif isinstance(event, OrderSubmitIntent) or (
+            elif isinstance(event, OrderSubmitIntent):
+                intent_trade_ids[event.command_id] = event.trade_id
+                intent_clients[event.client_order_id] = event.command_id
+            elif isinstance(event, (OrderSubmitted, OrderSubmitFailed)):
+                command_id = intent_clients.get(event.client_order_id)
+                if command_id is not None:
+                    completed_via_submit.add(command_id)
+            elif (
                 isinstance(event, TradeOutcomeProduced)
                 and event.status in _TERMINAL_STATUSES
             ):
-                seen_followup.add(event.command_id)
+                completed_via_terminal.add(event.command_id)
 
-        orphan_command_ids = [
+        intent_command_ids = set(intent_trade_ids)
+        completed = completed_via_submit | completed_via_terminal
+
+        class_a_orphans = [
             cid for cid in accepted_trade_ids
-            if cid not in seen_followup
+            if cid not in intent_command_ids and cid not in completed
+        ]
+        class_b_orphans = [
+            cid for cid in intent_command_ids
+            if cid not in completed
         ]
 
-        for command_id in orphan_command_ids:
+        for command_id in class_a_orphans:
             await self._emit_orphan_rejection(
                 runtime,
                 command_id,
                 accepted_trade_ids[command_id],
             )
+
+        for command_id in class_b_orphans:
+            trade_id = intent_trade_ids.get(command_id)
+            if trade_id is None:
+                continue
+            await self._emit_orphan_rejection(runtime, command_id, trade_id)
 
     async def _emit_orphan_rejection(
         self,
