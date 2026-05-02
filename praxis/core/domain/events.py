@@ -27,6 +27,7 @@ __all__ = [
     'OrderSubmitFailed',
     'OrderSubmitIntent',
     'OrderSubmitted',
+    'OutcomeAcked',
     'TradeClosed',
     'TradeOutcomeProduced',
 ]
@@ -416,6 +417,36 @@ class TradeOutcomeProduced(_EventBase):
         _require_str(name, 'trade_id', self.trade_id)
         _require_str(name, 'reason', self.reason, optional=True)
 
+
+@dataclass(frozen=True)
+class OutcomeAcked(_EventBase):
+
+    '''
+    Represent successful application of a TradeOutcome at the consumer.
+
+    Round-18 MAJOR-004: appended by the launcher's process_outcome
+    closure after `OutcomeProcessor.process` returns success and the
+    follow-on `state_store.append_mutation` lands. Boot replay scans
+    `TradeOutcomeProduced` events that lack a matching `OutcomeAcked`
+    and re-delivers them through the wired callback so a crash
+    between produced-and-acked recovers cleanly.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        outcome_id (str): TradeOutcome.outcome_id that was acked.
+    '''
+
+    outcome_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'outcome_id', self.outcome_id)
+
+
 type Event = (
     CommandAccepted
     | OrderSubmitIntent
@@ -428,4 +459,5 @@ type Event = (
     | OrderExpired
     | TradeClosed
     | TradeOutcomeProduced
+    | OutcomeAcked
 )

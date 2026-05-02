@@ -69,6 +69,8 @@ _QUEUE_POLL_INTERVAL = 0.1
 _ZERO = Decimal(0)
 _BPS_MULTIPLIER = Decimal('10000')
 _SLIPPAGE_BOOK_LIMIT = 20
+_OUTCOME_CALLBACK_MAX_ATTEMPTS = 3
+_OUTCOME_CALLBACK_BASE_DELAY = 0.5
 _TERMINAL_STATUSES = frozenset({
     TradeStatus.FILLED,
     TradeStatus.CANCELED,
@@ -173,6 +175,55 @@ class ExecutionManager:
         '''
 
         self._on_trade_outcome = cb
+
+    async def _dispatch_outcome_with_retry(
+        self,
+        outcome: TradeOutcome,
+        *,
+        source: str,
+    ) -> None:
+        '''Deliver outcome to `_on_trade_outcome` with bounded retries.
+
+        Round-18 MAJOR-004: pre-fix the callback exception was logged
+        and swallowed once, leaving `TradeOutcomeProduced` durably on
+        the spine but the consumer (Nexus) unaware. Bounded retry with
+        exponential backoff gives transient failures a chance to clear
+        before giving up. On full exhaustion, the spine record is the
+        durable evidence and a future boot-replay-from-spine pass
+        (deferred TD) can re-deliver.
+        '''
+
+        if self._on_trade_outcome is None:
+            return
+
+        for attempt in range(1, _OUTCOME_CALLBACK_MAX_ATTEMPTS + 1):
+            try:
+                await self._on_trade_outcome(outcome)
+                return
+            except Exception as exc:  # noqa: BLE001 - callback is operator code
+                if attempt == _OUTCOME_CALLBACK_MAX_ATTEMPTS:
+                    _log.error(
+                        'on_trade_outcome callback exhausted retries (%s): '
+                        'command_id=%s attempts=%d last_error=%s — outcome '
+                        'durably persisted on spine for future replay',
+                        source,
+                        outcome.command_id,
+                        attempt,
+                        exc,
+                    )
+                    return
+                delay = _OUTCOME_CALLBACK_BASE_DELAY * (2 ** (attempt - 1))
+                _log.warning(
+                    'on_trade_outcome callback failed (%s, attempt %d/%d), '
+                    'retrying in %.2fs: command_id=%s error=%s',
+                    source,
+                    attempt,
+                    _OUTCOME_CALLBACK_MAX_ATTEMPTS,
+                    delay,
+                    outcome.command_id,
+                    exc,
+                )
+                await asyncio.sleep(delay)
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -466,14 +517,7 @@ class ExecutionManager:
             runtime.account_id,
         )
 
-        if self._on_trade_outcome is not None:
-            try:
-                await self._on_trade_outcome(outcome)
-            except Exception:  # noqa: BLE001 - boot-time recovery must not abort startup
-                _log.exception(
-                    'on_trade_outcome callback failed for orphan: command_id=%s',
-                    command_id,
-                )
+        await self._dispatch_outcome_with_retry(outcome, source='orphan')
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
@@ -1403,14 +1447,7 @@ class ExecutionManager:
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
 
-        if self._on_trade_outcome is not None:
-            try:
-                await self._on_trade_outcome(outcome)
-            except Exception:  # noqa: BLE001
-                _log.exception(
-                    'on_trade_outcome callback failed: command_id=%s',
-                    order.command_id,
-                )
+        await self._dispatch_outcome_with_retry(outcome, source='ws_emit')
 
         return outcome
 
@@ -1593,13 +1630,6 @@ class ExecutionManager:
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
 
-        if self._on_trade_outcome is not None:
-            try:
-                await self._on_trade_outcome(outcome)
-            except Exception:  # noqa: BLE001
-                _log.exception(
-                    'on_trade_outcome callback failed: command_id=%s',
-                    cmd.command_id,
-                )
+        await self._dispatch_outcome_with_retry(outcome, source='process_command')
 
         return outcome

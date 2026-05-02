@@ -77,6 +77,7 @@ from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.command_translator import build_single_shot_params
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.events import OutcomeAcked
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.binance_urls import (
     MAINNET_REST_URL,
@@ -1177,6 +1178,45 @@ class Launcher:
         _log.info('event spine opened', extra={'db_path': str(self._db_path)})
         return spine
 
+    def _append_outcome_acked(self, account_id: str, outcome_id: str) -> None:
+        '''Append a durable OutcomeAcked event after Nexus accepted the outcome.
+
+        Round-18 MAJOR-004: marks `outcome_id` as fully consumed by the
+        Nexus consumer so the boot replay-from-spine pass does not
+        re-deliver it. Runs on the Nexus thread (caller is the
+        per-account `process_outcome` closure); dispatches the async
+        spine append onto the Praxis loop. Failure is logged but does
+        not abort outcome processing — the worst case is that the next
+        boot replays the (already-applied) outcome and Nexus's
+        idempotent OutcomeProcessor returns success no-op.
+        '''
+
+        if self._loop is None or self._trading is None:
+            _log.warning(
+                'cannot append OutcomeAcked: loop or trading not initialised',
+                extra={'outcome_id': outcome_id, 'account_id': account_id},
+            )
+            return
+
+        event = OutcomeAcked(
+            account_id=account_id,
+            timestamp=datetime.now(UTC),
+            outcome_id=outcome_id,
+        )
+        epoch_id = self._trading_config.epoch_id
+        spine = self._trading._event_spine
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                spine.append(event, epoch_id), self._loop,
+            )
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - ack failure must not abort outcome flow
+            _log.exception(
+                'OutcomeAcked append failed; boot replay will re-deliver',
+                extra={'outcome_id': outcome_id, 'account_id': account_id},
+            )
+
     def _start_poller(self) -> None:
         '''Start the market data poller with no kline sizes registered.
 
@@ -1630,6 +1670,9 @@ class Launcher:
                         'the last clean checkpoint',
                         extra={'command_id': outcome.command_id},
                     )
+
+            if result.success:
+                self._append_outcome_acked(inst.account_id, outcome.outcome_id)
 
         sequencer.drain_pending_startup_actions(submitter)
 

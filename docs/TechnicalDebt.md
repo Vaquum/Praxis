@@ -297,6 +297,7 @@ Both are consistent with the documented Nexus lock-order chain (`command_registr
 
 ---
 
+<<<<<<< HEAD
 ## TD-040: EventSpine SQLite PRAGMAs are implicit and untested
 
 **Origin**: Round-18 codex-supervised audit (Pass 8)
@@ -450,3 +451,24 @@ The events table has no `account_id` column; the field lives only inside the orj
 
 **When to fix**: Before any deployment where operator caps must enforce per-order or per-day limits, OR before the next round of platform-limits configuration work.
 **Migration**: Read `PlatformLimitsStageLimits` fields from manifest (or env vars) and populate at construction. Add a regression test asserting non-default limits flow through to the validator and reject ENTER appropriately.
+
+---
+
+## TD-052: Boot replay-from-spine for unconsumed `TradeOutcomeProduced` events
+
+**Origin**: Round-18 MAJOR-004 part B scope deferral (Praxis #86)
+**Severity**: Major (closes the cross-restart half of MAJOR-004; runtime retry already lands)
+**Module**: `praxis/trading.py` (`Trading.start`); `praxis/outcome_translator.py` (`_new_outcome_id`); cross-cutting (`OutcomeAcked` event already exists)
+
+MAJOR-004 part B added a runtime retry for `_on_trade_outcome` callback failures and a durable `OutcomeAcked` marker that the launcher's `process_outcome` appends after `OutcomeProcessor.process` returns success. Boot replay-from-spine — re-delivering `TradeOutcomeProduced` events that lack a matching `OutcomeAcked` — was scoped out because it requires translator-determinism prework: `outcome_translator._new_outcome_id` currently generates `uuid.uuid4().hex` per call, so re-translating the same Praxis `TradeOutcome` after restart produces NEW Nexus `outcome_id`s that do NOT match Nexus's idempotency dedup set. Without stable IDs, boot replay would either skip outcomes (if matched on a non-existent Praxis-side outcome_id) or double-apply them (if Nexus dedup misses).
+
+The runtime retry handles transient callback failures; the `OutcomeAcked` event is already on the spine for forward use. Cross-restart loss of an outcome that was produced but never consumed by Nexus still requires manual operator intervention (e.g., re-issue the command).
+
+**When to fix**: Before any sustained multi-day paper trading where dropped outcomes accumulate, OR before MAJOR-005 / future audits surface this as a hot path.
+
+**Migration**:
+1. Add stable `outcome_id: str` field to `praxis.core.domain.trade_outcome.TradeOutcome` (in-memory) and to the `TradeOutcomeProduced` event (durable) — generated once in `ExecutionManager._build_outcome` / `_emit_ws_outcome`.
+2. Update `OutcomeTranslator` so derived Nexus outcome_ids are deterministic from the Praxis `outcome_id` (e.g., `f"{praxis_outcome_id}-{seq}"`).
+3. In `Trading.start`, after `replay_events` and `reconcile_orphan_commands`, scan per-account `TradeOutcomeProduced` events that lack a matching `OutcomeAcked.outcome_id`; reconstruct the Praxis `TradeOutcome` from the spine fields and re-deliver via `self._on_trade_outcome`.
+4. Nexus's in-memory dedup (already keyed on outcome_id from MAJOR-004 part A) catches re-delivered outcomes within a single process lifetime; cross-restart safety comes from the `OutcomeAcked` filter at boot-replay-emission time.
+5. Add integration test: simulate Nexus crash after spine append but before consumption → restart → boot replay drives Nexus to the same end state as if no crash had occurred.
