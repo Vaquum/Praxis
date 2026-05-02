@@ -356,6 +356,7 @@ class TestLauncherLifecycle:
             slices_total=1,
             reason=None,
             created_at=datetime.now(tz=UTC),
+            cumulative_notional=Decimal('50000'),
         )
 
         launcher._trading.route_outcome(outcome)

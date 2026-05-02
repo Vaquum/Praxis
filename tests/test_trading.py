@@ -1905,6 +1905,7 @@ async def test_outcome_routing_to_correct_queue(spine: EventSpine) -> None:
         slices_total=1,
         reason=None,
         created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        cumulative_notional=Decimal('50000'),
     )
     outcome2 = TradeOutcome(
         command_id='cmd-2',
@@ -1947,6 +1948,7 @@ async def test_outcome_routing_unknown_account_drops(spine: EventSpine) -> None:
         slices_total=1,
         reason=None,
         created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        cumulative_notional=Decimal('50000'),
     )
 
     trading.route_outcome(outcome)
@@ -1976,6 +1978,7 @@ async def test_unregister_outcome_queue(spine: EventSpine) -> None:
         slices_total=1,
         reason=None,
         created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        cumulative_notional=Decimal('50000'),
     )
 
     trading.route_outcome(outcome)
@@ -2029,6 +2032,7 @@ async def test_set_on_trade_outcome_with_sync_callback(spine: EventSpine) -> Non
         slices_total=1,
         reason=None,
         created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        cumulative_notional=Decimal('50000'),
     )
 
     cb_async = trading.execution_manager._on_trade_outcome
@@ -2063,6 +2067,7 @@ async def test_set_on_trade_outcome_with_async_callback(spine: EventSpine) -> No
         slices_total=1,
         reason=None,
         created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        cumulative_notional=Decimal('50000'),
     )
 
     cb_installed = trading.execution_manager._on_trade_outcome
@@ -2105,6 +2110,7 @@ async def test_set_on_trade_outcome_with_partial_around_async(
         slices_total=1,
         reason=None,
         created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        cumulative_notional=Decimal('50000'),
     )
 
     cb_installed = trading.execution_manager._on_trade_outcome
@@ -2218,6 +2224,7 @@ async def test_outcome_routed_through_callback_reaches_queue(
         slices_total=1,
         reason=None,
         created_at=datetime(2099, 1, 1, tzinfo=UTC),
+        cumulative_notional=Decimal('50000'),
     )
 
     cb = trading.execution_manager._on_trade_outcome

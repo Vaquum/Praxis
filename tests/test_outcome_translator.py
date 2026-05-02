@@ -38,8 +38,15 @@ def _praxis_outcome(
     target_qty: Decimal = Decimal('1'),
     filled_qty: Decimal = Decimal('0'),
     avg_fill_price: Decimal | None = None,
+    cumulative_notional: Decimal | None = None,
     reason: str | None = None,
 ) -> PraxisTradeOutcome:
+
+    if cumulative_notional is None:
+        if avg_fill_price is not None:
+            cumulative_notional = filled_qty * avg_fill_price
+        else:
+            cumulative_notional = Decimal('0')
 
     return PraxisTradeOutcome(
         command_id=command_id,
@@ -53,6 +60,7 @@ def _praxis_outcome(
         slices_total=1,
         reason=reason,
         created_at=_TS,
+        cumulative_notional=cumulative_notional,
     )
 
 
@@ -393,3 +401,118 @@ def test_invalid_terminal_dedup_cap_rejected() -> None:
 
     with pytest.raises(ValueError, match='terminal_dedup_cap'):
         OutcomeTranslator(terminal_dedup_cap=-5)
+
+
+class TestFinalMajor07TranslatorUsesVenueCumulativeNotional:
+    '''FINAL-MAJOR-07: pre-fix the translator computed
+    `cumulative_notional = outcome.filled_qty * outcome.avg_fill_price`,
+    a precision-lossy round trip after the venue had already done
+    `total_notional / filled_qty` for `avg_fill_price`. On multi-partial
+    sequences the two round trips can flip `delta_notional` negative,
+    producing `delta_price < 0`, which `TradeOutcome.__post_init__`
+    rejects with ValueError; the partial fill is silently dropped at
+    `execution_manager._emit_outcome`, capital stays parked, position
+    never grows.
+
+    Post-fix the translator uses `outcome.cumulative_notional` carried
+    verbatim from `Order.cumulative_notional` (the venue-side
+    `sum(qty * price)`), so per-fill deltas equal the exact venue
+    deltas with no reverse-derivation drift.
+    '''
+
+    def test_multi_partial_with_drift_inducing_avg_price_no_negative_delta(
+        self,
+    ) -> None:
+        '''Construct a multi-partial sequence where the reverse-derived
+        cumulative would drift due to ROUND_HALF_EVEN at default
+        Decimal precision. Verify the translator emits successive
+        partials with non-negative delta_notional matching the venue
+        cumulative deltas exactly.
+        '''
+
+        translator = OutcomeTranslator()
+
+        partials = [
+            (Decimal('1'), Decimal('100')),
+            (Decimal('1'), Decimal('100.000000000000000000000000007')),
+            (Decimal('1'), Decimal('99.999999999999999999999999993')),
+        ]
+
+        cumulative_qty = Decimal('0')
+        cumulative_notional = Decimal('0')
+        emitted_partials = []
+
+        for qty, notional in partials:
+            cumulative_qty += qty
+            cumulative_notional += notional
+            avg_fill_price = cumulative_notional / cumulative_qty
+
+            results = translator.translate(
+                _praxis_outcome(
+                    status=TradeStatus.PARTIAL,
+                    target_qty=Decimal('10'),
+                    filled_qty=cumulative_qty,
+                    avg_fill_price=avg_fill_price,
+                    cumulative_notional=cumulative_notional,
+                )
+            )
+
+            for r in results:
+                if r.fill_notional is None:
+                    continue
+                assert r.fill_notional >= Decimal('0'), (
+                    f'pre-fix would drift negative on round-trip; '
+                    f'got fill_notional={r.fill_notional}'
+                )
+                emitted_partials.append(r.fill_notional)
+
+        assert sum(emitted_partials, Decimal('0')) == cumulative_notional, (
+            f'translator-emitted fill_notional sum '
+            f'{sum(emitted_partials, Decimal('0'))} drifted from venue '
+            f'cumulative_notional {cumulative_notional}'
+        )
+
+    def test_translator_per_fill_deltas_byte_equal_venue_cumulative(
+        self,
+    ) -> None:
+        '''For any sequence of partial fills, the sum of translator-
+        emitted fill_notional values must equal the venue's final
+        cumulative_notional exactly (no per-fill drift introduced).
+        '''
+
+        translator = OutcomeTranslator()
+
+        venue_fills = [
+            (Decimal('0.5'), Decimal('60123.456789012345')),
+            (Decimal('0.3'), Decimal('60125.789012345678')),
+            (Decimal('0.2'), Decimal('60127.345678901234')),
+            (Decimal('1.0'), Decimal('60130.111111111111')),
+        ]
+
+        cumulative_qty = Decimal('0')
+        cumulative_notional = Decimal('0')
+        sum_emitted = Decimal('0')
+
+        for qty, price in venue_fills:
+            cumulative_qty += qty
+            cumulative_notional += qty * price
+
+            results = translator.translate(
+                _praxis_outcome(
+                    status=TradeStatus.PARTIAL,
+                    target_qty=Decimal('10'),
+                    filled_qty=cumulative_qty,
+                    avg_fill_price=cumulative_notional / cumulative_qty,
+                    cumulative_notional=cumulative_notional,
+                )
+            )
+
+            for r in results:
+                if r.fill_notional is not None:
+                    sum_emitted += r.fill_notional
+
+        assert sum_emitted == cumulative_notional, (
+            f'translator drift: emitted={sum_emitted} '
+            f'venue_cumulative={cumulative_notional} '
+            f'delta={sum_emitted - cumulative_notional}'
+        )

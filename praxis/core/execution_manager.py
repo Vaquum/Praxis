@@ -980,12 +980,13 @@ class ExecutionManager:
         filled_qty = sum((f.qty for f in result.immediate_fills), _ZERO)
 
         if filled_qty > _ZERO:
-            total_notional = sum(
+            total_notional: Decimal = sum(
                 (f.qty * f.price for f in result.immediate_fills),
                 _ZERO,
             )
             avg_fill_price: Decimal | None = total_notional / filled_qty
         else:
+            total_notional = _ZERO
             avg_fill_price = None
 
         if estimate is not None and avg_fill_price is not None:
@@ -1025,6 +1026,8 @@ class ExecutionManager:
                 filled_qty,
                 cmd.qty,
             )
+            if filled_qty > _ZERO:
+                total_notional = total_notional * cmd.qty / filled_qty
             filled_qty = cmd.qty
         if filled_qty >= cmd.qty:
             status = TradeStatus.FILLED
@@ -1076,6 +1079,7 @@ class ExecutionManager:
             filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             reason=reason,
+            cumulative_notional=total_notional,
         )
 
     async def _process_abort(
@@ -1226,6 +1230,7 @@ class ExecutionManager:
             slices_total=1,
             reason=reason,
             created_at=ts,
+            cumulative_notional=order.cumulative_notional,
         )
 
         self._terminal_commands.add(order.command_id)
@@ -1318,6 +1323,7 @@ class ExecutionManager:
         )
 
         emitted_filled_qty = order.filled_qty
+        emitted_cumulative_notional = order.cumulative_notional
         if emitted_filled_qty > cmd.qty:
             _log.warning(
                 'WS-driven filled_qty exceeds command target_qty; '
@@ -1365,6 +1371,7 @@ class ExecutionManager:
             filled_qty=emitted_filled_qty,
             avg_fill_price=avg_fill_price,
             reason=reason,
+            cumulative_notional=emitted_cumulative_notional,
         )
 
     async def _build_outcome(
@@ -1376,6 +1383,7 @@ class ExecutionManager:
         filled_qty: Decimal,
         avg_fill_price: Decimal | None,
         reason: str | None,
+        cumulative_notional: Decimal = _ZERO,
     ) -> TradeOutcome:
         '''
         Construct TradeOutcome, emit spine events, and invoke callback.
@@ -1387,6 +1395,11 @@ class ExecutionManager:
             filled_qty (Decimal): Cumulative filled quantity.
             avg_fill_price (Decimal | None): VWAP of fills.
             reason (str | None): Descriptive reason for status.
+            cumulative_notional (Decimal): Venue-side cumulative notional
+                (sum of qty * price across fills). Carried verbatim from
+                `Order.cumulative_notional` for FINAL-MAJOR-07 so the
+                OutcomeTranslator does not have to reverse-derive it.
+                Default `_ZERO` for synthetic / no-fill outcomes.
 
         Returns:
             TradeOutcome: The constructed outcome.
@@ -1406,6 +1419,7 @@ class ExecutionManager:
             slices_total=1,
             reason=reason,
             created_at=ts,
+            cumulative_notional=cumulative_notional,
         )
 
         if outcome.is_terminal:

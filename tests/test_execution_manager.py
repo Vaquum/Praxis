@@ -853,6 +853,27 @@ class TestTradeOutcome:
         ) / unclamped_qty
         assert outcome.avg_fill_price == expected_vwap
 
+        unclamped_notional = (
+            Decimal('0.7') * Decimal('50000')
+            + Decimal('0.5') * Decimal('50200')
+        )
+        expected_clamped_notional = (
+            unclamped_notional * Decimal('1') / unclamped_qty
+        )
+        assert outcome.cumulative_notional == expected_clamped_notional, (
+            f'PR #85 review: _process_command overfill clamp must scale '
+            f'total_notional to match clamped filled_qty so cumulative_notional '
+            f'stays consistent with filled_qty downstream in OutcomeTranslator. '
+            f'got cumulative_notional={outcome.cumulative_notional} '
+            f'expected={expected_clamped_notional} '
+            f'(filled_qty={outcome.filled_qty})'
+        )
+        derived_avg = outcome.cumulative_notional / outcome.filled_qty
+        assert derived_avg == expected_vwap, (
+            f'cumulative_notional / filled_qty must round-trip to avg_fill_price '
+            f'after the clamp; got {derived_avg} expected {expected_vwap}'
+        )
+
         await mgr.unregister_account(_ACCT)
 
 
@@ -1916,6 +1937,95 @@ class TestEmitWsOutcome:
         outcome: TradeOutcome = callback.call_args[0][0]
         assert outcome.filled_qty == Decimal('1')
         assert outcome.target_qty == Decimal('1')
+        assert outcome.cumulative_notional == Decimal('5') * Decimal('50000'), (
+            f'PR #85 round-6 review: WS overfill clamp must NOT scale '
+            f'cumulative_notional. Pre-fix the scaling would have produced '
+            f'250000 * 1 / 5 = 50000, which on a multi-emit sequence with '
+            f'an earlier larger PARTIAL would make the cumulative go BACKWARD '
+            f'and trip OutcomeTranslator delta_notional < 0. Post-fix the '
+            f'venue-side cumulative is forwarded verbatim. '
+            f'got cumulative_notional={outcome.cumulative_notional}'
+        )
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_ws_partial_then_overfill_keeps_cumulative_monotonic(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''PR #85 round-6 review: pre-fix `_emit_ws_outcome` scaled
+        `cumulative_notional` by `cmd.qty / order.filled_qty` on the
+        overfill clamp path. If a PARTIAL outcome was emitted earlier
+        with the unscaled cumulative, the subsequent overfill clamp
+        could produce a SMALLER cumulative than the previous emission
+        — OutcomeTranslator then computes a negative `delta_notional`
+        and the terminal outcome is silently dropped at the validator.
+
+        Post-fix the WS path forwards `order.cumulative_notional`
+        verbatim (no scaling on the clamp), so cumulative_notional
+        is monotonic across the PARTIAL → overfill sequence.
+        '''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH,
+            venue_adapter=adapter, on_trade_outcome=callback,
+        )
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-mono',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        callback.reset_mock()
+
+        runtime = mgr._accounts[_ACCT]
+        coid = next(iter(runtime.trading_state.orders))
+
+        partial = FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=coid, venue_order_id='v-mono',
+            venue_trade_id='t-partial-hi',
+            trade_id=_TRADE, command_id=command_id,
+            symbol='BTCUSDT', side=OrderSide.BUY,
+            qty=Decimal('0.5'), price=Decimal('100000'),
+            fee=Decimal('0.05'), fee_asset='USDT', is_maker=True,
+        )
+        mgr.enqueue_ws_event(_ACCT, partial)
+        await asyncio.sleep(0.3)
+
+        partial_outcome: TradeOutcome = callback.call_args[0][0]
+        partial_cumulative = partial_outcome.cumulative_notional
+        assert partial_cumulative == Decimal('0.5') * Decimal('100000')
+
+        callback.reset_mock()
+
+        overfill = FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=coid, venue_order_id='v-mono',
+            venue_trade_id='t-overfill-lo',
+            trade_id=_TRADE, command_id=command_id,
+            symbol='BTCUSDT', side=OrderSide.BUY,
+            qty=Decimal('1.0'), price=Decimal('10'),
+            fee=Decimal('0.05'), fee_asset='USDT', is_maker=True,
+        )
+        mgr.enqueue_ws_event(_ACCT, overfill)
+        await asyncio.sleep(0.3)
+
+        terminal_outcome: TradeOutcome = callback.call_args[0][0]
+        assert terminal_outcome.filled_qty == Decimal('1')
+        assert terminal_outcome.cumulative_notional >= partial_cumulative, (
+            f'PR #85 round-6: cumulative_notional must be monotonic '
+            f'across emissions for the same command. Pre-fix scaling '
+            f'(50010 * 1 / 1.5 = 33340) would have been LESS than the '
+            f'PARTIAL emission (50000), tripping translator delta < 0. '
+            f'partial={partial_cumulative} terminal={terminal_outcome.cumulative_notional}'
+        )
 
         await mgr.unregister_account(_ACCT)
 
