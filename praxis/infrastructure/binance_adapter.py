@@ -39,12 +39,14 @@ from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
     CancelResult,
+    DuplicateClientOrderIdError,
     ExecutionReport,
     ImmediateFill,
     NotFoundError,
     OrderBookLevel,
     OrderBookSnapshot,
     OrderRejectedError,
+    OrderSubmitTimeoutError,
     RateLimitError,
     SubmitResult,
     SymbolFilters,
@@ -74,6 +76,7 @@ _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
+_DUPLICATE_CLIENT_ORDER_ID_CODE = -2010
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
 _DEFAULT_WEIGHT_LIMIT = 6000
@@ -361,6 +364,8 @@ class BinanceAdapter:
         path: str,
         account_id: str,
         build_request: Callable[[], AbstractAsyncContextManager[aiohttp.ClientResponse]],
+        *,
+        idempotent: bool = True,
     ) -> Any:
 
         '''
@@ -371,19 +376,28 @@ class BinanceAdapter:
             path (str): API endpoint path for logging
             account_id (str): Account identifier for weight tracking
             build_request (Callable): Factory returning async context manager for the request
+            idempotent (bool): When False, transport-level failures
+                (TimeoutError, ClientError, TransientError) raise on the
+                first attempt instead of being retried. Required for
+                order POSTs where the venue may have accepted the
+                request before the response was lost (round-18
+                MAJOR-002). Rate-limit retries (HTTP 429) are still
+                honoured — those guarantee the venue did not accept.
 
         Returns:
             Any: Parsed JSON response body
 
         Raises:
-            TransientError: After all retry attempts are exhausted
+            TransientError: After all retry attempts are exhausted, or
+                immediately when `idempotent=False`.
             RateLimitError: On non-429 rate limit responses, or after retry exhaustion
         '''
 
         last_error: TransientError | None = None
         start = time.perf_counter()
+        max_attempts = _MAX_RETRIES if idempotent else 1
 
-        for attempt in range(_MAX_RETRIES):
+        for attempt in range(max_attempts):
             try:
                 async with build_request() as response:
                     self._update_weight_from_headers(response, account_id)
@@ -393,12 +407,12 @@ class BinanceAdapter:
                     return data
             except TransientError as exc:
                 last_error = exc
-                if attempt + 1 == _MAX_RETRIES:
+                if attempt + 1 == max_attempts:
                     break
                 delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
                 _log.warning(
                     'Transient error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                    method, path, attempt + 1, max_attempts, delay, exc,
                 )
                 await asyncio.sleep(delay)
             except RateLimitError as exc:
@@ -418,22 +432,22 @@ class BinanceAdapter:
                 msg = f"Request failed: {exc}"
                 last_error = TransientError(msg)
                 last_error.__cause__ = exc
-                if attempt + 1 == _MAX_RETRIES:
+                if attempt + 1 == max_attempts:
                     break
                 delay = random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
                 _log.warning(
                     'Transport error on %s %s (attempt %d/%d), retrying in %.2fs: %s',
-                    method, path, attempt + 1, _MAX_RETRIES, delay, exc,
+                    method, path, attempt + 1, max_attempts, delay, exc,
                 )
                 await asyncio.sleep(delay)
 
         self._record_health(account_id, start, succeeded=False)
         _log.error(
             'All %d attempts exhausted on %s %s: %s',
-            _MAX_RETRIES, method, path, last_error,
+            max_attempts, method, path, last_error,
         )
         if last_error is None:
-            raise TransientError(f"All {_MAX_RETRIES} attempts exhausted on {method} {path}")
+            raise TransientError(f"All {max_attempts} attempts exhausted on {method} {path}")
         raise last_error
 
     async def _signed_request(
@@ -442,6 +456,8 @@ class BinanceAdapter:
         path: str,
         params: dict[str, str],
         account_id: str,
+        *,
+        idempotent: bool = True,
     ) -> Any:
 
         '''
@@ -458,6 +474,11 @@ class BinanceAdapter:
             path (str): API endpoint path
             params (dict[str, str]): Request parameters to sign and send
             account_id (str): Account identifier for credential lookup
+            idempotent (bool): When False, transport-level failures
+                (timeout, connection drop) raise on the first attempt
+                rather than being retried. Required for order POSTs
+                where the venue may have already accepted (round-18
+                MAJOR-002).
 
         Returns:
             Any: Parsed JSON response body
@@ -479,7 +500,9 @@ class BinanceAdapter:
                 headers=headers,
             )
 
-        return await self._request_with_retry(method, path, account_id, build_request)
+        return await self._request_with_retry(
+            method, path, account_id, build_request, idempotent=idempotent,
+        )
 
     async def _api_key_request(
         self,
@@ -1030,8 +1053,8 @@ class BinanceAdapter:
                 client_order_id=client_order_id,
                 time_in_force=time_in_force,
             )
-            data = await self._signed_request(
-                'POST', '/api/v3/order/oco', params, account_id,
+            data = await self._post_order(
+                '/api/v3/order/oco', params, account_id, client_order_id,
             )
             return self._parse_oco_response(data)
 
@@ -1045,8 +1068,66 @@ class BinanceAdapter:
             client_order_id=client_order_id,
             time_in_force=time_in_force,
         )
-        data = await self._signed_request('POST', '/api/v3/order', params, account_id)
+        data = await self._post_order(
+            '/api/v3/order', params, account_id, client_order_id,
+        )
         return self._parse_submit_response(data)
+
+    async def _post_order(
+        self,
+        path: str,
+        params: dict[str, str],
+        account_id: str,
+        client_order_id: str | None,
+    ) -> Any:
+        '''Submit an order POST; enable rescue triggers when clientOrderId is set.
+
+        Order POSTs are non-idempotent: the venue may have accepted the
+        request even when the response was lost (round-18 MAJOR-002).
+        When `client_order_id` is present (production always passes it),
+        the request runs without transport retries; transient failures
+        surface as `OrderSubmitTimeoutError` and `-2010` venue rejections
+        surface as `DuplicateClientOrderIdError` so the caller can rescue
+        by querying the venue with the deterministic clientOrderId.
+        Without a clientOrderId there is no rescue handle, so the
+        request falls back to the idempotent retry path; this branch
+        exists for tests that exercise the venue mock directly without
+        the execution-manager-supplied id.
+
+        Args:
+            path: Order POST endpoint (e.g., `/api/v3/order`).
+            params: Request parameters (already signed by caller logic).
+            account_id: Account identifier for credential lookup.
+            client_order_id: clientOrderId stamped on the order. Optional
+                only for tests; production callers always pass one.
+
+        Returns:
+            Parsed JSON response body on success.
+        '''
+
+        if not client_order_id:
+            return await self._signed_request('POST', path, params, account_id)
+
+        try:
+            return await self._signed_request(
+                'POST', path, params, account_id, idempotent=False,
+            )
+        except TransientError as exc:
+            wrapped = OrderSubmitTimeoutError(
+                f'Order POST {path} failed at transport layer: {exc}',
+                client_order_id=client_order_id,
+            )
+            wrapped.__cause__ = exc
+            raise wrapped from exc
+        except OrderRejectedError as exc:
+            if exc.venue_code == _DUPLICATE_CLIENT_ORDER_ID_CODE:
+                wrapped_dup = DuplicateClientOrderIdError(
+                    f'Order POST {path} rejected as duplicate clientOrderId: {exc.reason}',
+                    client_order_id=client_order_id,
+                )
+                wrapped_dup.__cause__ = exc
+                raise wrapped_dup from exc
+            raise
 
     async def cancel_order(
         self,

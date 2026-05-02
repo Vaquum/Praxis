@@ -52,7 +52,14 @@ from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
-from praxis.infrastructure.venue_adapter import NotFoundError, VenueAdapter, VenueError
+from praxis.infrastructure.venue_adapter import (
+    DuplicateClientOrderIdError,
+    NotFoundError,
+    OrderSubmitTimeoutError,
+    SubmitResult,
+    VenueAdapter,
+    VenueError,
+)
 
 __all__ = ['AccountNotRegisteredError', 'ExecutionManager']
 
@@ -917,27 +924,19 @@ class ExecutionManager:
                 client_order_id=client_order_id,
             )
             post_venue_ts = datetime.now(UTC)
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                return await self._record_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+            result = rescued
+            post_venue_ts = datetime.now(UTC)
         except VenueError as exc:
-            failed = OrderSubmitFailed(
-                account_id=cmd.account_id,
-                timestamp=datetime.now(UTC),
-                client_order_id=client_order_id,
-                reason=str(exc.args[0]),
-            )
-            await self._event_spine.append(failed, self._epoch_id)
-            runtime.trading_state.apply(failed)
-            _log.warning(
-                'order submit failed: client_order_id=%s reason=%s',
-                client_order_id,
-                str(exc.args[0]),
-            )
-            return await self._build_outcome(
-                runtime,
-                cmd,
-                TradeStatus.REJECTED,
-                filled_qty=_ZERO,
-                avg_fill_price=None,
-                reason=str(exc.args[0]),
+            return await self._record_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
             )
 
         submitted = OrderSubmitted(
@@ -1080,6 +1079,119 @@ class ExecutionManager:
             avg_fill_price=avg_fill_price,
             reason=reason,
             cumulative_notional=total_notional,
+        )
+
+    async def _record_submit_failed(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        reason: str,
+    ) -> TradeOutcome:
+        '''Persist `OrderSubmitFailed` and emit a REJECTED `TradeOutcome`.
+
+        Shared sink for submit failures that the rescue path could not
+        salvage and for direct venue rejections (round-18 MAJOR-002).
+        '''
+
+        failed = OrderSubmitFailed(
+            account_id=cmd.account_id,
+            timestamp=datetime.now(UTC),
+            client_order_id=client_order_id,
+            reason=reason,
+        )
+        await self._event_spine.append(failed, self._epoch_id)
+        runtime.trading_state.apply(failed)
+        _log.warning(
+            'order submit failed: client_order_id=%s reason=%s',
+            client_order_id,
+            reason,
+        )
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.REJECTED,
+            filled_qty=_ZERO,
+            avg_fill_price=None,
+            reason=reason,
+        )
+
+    async def _rescue_by_client_order_id(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        trigger: VenueError,
+    ) -> SubmitResult | None:
+        '''Query the venue by `client_order_id` after a non-idempotent POST failure.
+
+        Round-18 MAJOR-002: when a POST times out at the transport
+        layer (`OrderSubmitTimeoutError`) or the venue rejects with
+        `-2010 Duplicate clientOrderId`
+        (`DuplicateClientOrderIdError`), the venue may have already
+        accepted an earlier copy of the order. Synthesizing REJECTED
+        without confirming would let the venue carry a live order
+        Praxis no longer tracks. The rescue queries the venue with
+        the deterministic `client_order_id`; on success the caller
+        treats the returned `VenueOrder` as the canonical
+        `submit_order` result and continues the normal lifecycle.
+
+        Args:
+            runtime: Per-account runtime (logging context).
+            cmd: Original command (carries symbol for the query).
+            client_order_id: clientOrderId stamped on the original POST.
+            trigger: The exception that triggered the rescue
+                (logged for operator forensics).
+
+        Returns:
+            VenueOrder when the venue confirms the order exists.
+            None when the venue reports the order does not exist
+            (caller must classify as REJECTED), or when the rescue
+            query itself fails (caller must classify as REJECTED;
+            conservative default — operator will see the warn log
+            and the WS reconcile path will repair if the venue
+            actually held the order).
+        '''
+
+        try:
+            venue_order = await self._venue_adapter.query_order(
+                cmd.account_id,
+                cmd.symbol,
+                client_order_id=client_order_id,
+            )
+        except NotFoundError:
+            _log.warning(
+                'rescue confirmed no venue order: account_id=%s '
+                'client_order_id=%s trigger=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+            )
+            return None
+        except VenueError as query_exc:
+            _log.exception(
+                'rescue query failed: account_id=%s client_order_id=%s '
+                'trigger=%s query_error=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+                str(query_exc.args[0]) if query_exc.args else str(query_exc),
+            )
+            return None
+
+        _log.warning(
+            'rescue confirmed live venue order: account_id=%s '
+            'client_order_id=%s venue_order_id=%s status=%s trigger=%s',
+            runtime.account_id,
+            client_order_id,
+            venue_order.venue_order_id,
+            venue_order.status.value,
+            type(trigger).__name__,
+        )
+        return SubmitResult(
+            venue_order_id=venue_order.venue_order_id,
+            status=venue_order.status,
+            immediate_fills=(),
         )
 
     async def _process_abort(

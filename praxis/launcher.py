@@ -1581,6 +1581,19 @@ class Launcher:
                     with command_registry_lock:
                         command_contexts.pop(outcome.command_id, None)
                         command_strategy_ids.pop(outcome.command_id, None)
+                    recover_result = capital_controller.recover_orphaned_order(
+                        outcome.command_id,
+                        outcome.outcome_type.value,
+                    )
+                    if not recover_result.success:
+                        _log.warning(
+                            'recover_orphaned_order rejected the orphan release',
+                            extra={
+                                'command_id': outcome.command_id,
+                                'outcome_type': outcome.outcome_type.value,
+                                'reason': recover_result.reason,
+                            },
+                        )
                 return
 
             result = outcome_processor.process(outcome, order_context)
