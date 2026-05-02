@@ -155,8 +155,11 @@ class OutcomeTranslator:
             # verbatim from `Order.cumulative_notional` (sum of fill qty * price),
             # not the reverse-derived `filled_qty * avg_fill_price` round trip
             # which can drift sub-ULP and flip `delta_notional` negative across
-            # multi-partial sequences (silently dropped at execution_manager
-            # `_emit_outcome` via `TradeOutcome.__post_init__` ValueError).
+            # multi-partial sequences. TradeOutcome construction happens in
+            # `ExecutionManager._build_outcome` (called from `_process_command`,
+            # `_process_abort`, and `_emit_ws_outcome`); a negative
+            # `delta_notional` here would produce a `delta_price < 0` that
+            # downstream consumers reject as malformed.
             cumulative_notional = outcome.cumulative_notional
             delta_size = outcome.filled_qty - state.last_filled_qty
             delta_notional = cumulative_notional - state.last_cumulative_notional
