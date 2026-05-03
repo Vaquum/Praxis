@@ -524,3 +524,66 @@ The current behavior is conservative — it does not lose state, it only delays 
 **Migration**: After the existing `query_order` succeeds with `venue_order.filled_qty > 0`, call `query_trades(account_id, symbol, start_time=cmd.created_at)` and filter to `vt.venue_order_id == venue_order.venue_order_id`. Map each `VenueTrade` to an `ImmediateFill` (`venue_trade_id`, `qty`, `price`, `fee`, `fee_asset`, `is_maker`) and pass the tuple as `SubmitResult.immediate_fills`. New failure modes to handle: (a) `query_trades` raises — fall back to the current `immediate_fills=()` behavior with a warning so the outcome path still emits a result, (b) `query_trades` returns fewer trades than `venue_order.filled_qty` implies (cumulative fills lag the order endpoint by one venue cycle) — emit what is available and log the discrepancy; the WS reconcile path will fill in the rest, (c) Binance returns trades for the wrong order due to a `client_order_id` collision — the `venue_order_id` filter prevents this, but tests should cover the empty-trades case explicitly.
 
 Add tests covering: (1) rescue returns ImmediateFill tuple matching VenueTrade records when filled_qty > 0; (2) rescue returns empty tuple when filled_qty = 0 (no regression); (3) rescue falls back to empty tuple when query_trades raises VenueError; (4) rescue logs and emits empty tuple when query_trades returns zero records despite filled_qty > 0 (lag case).
+
+---
+
+## TD-056: `_ensure_entry_position` logs and skips when ref_price is None, allowing context-without-position if upstream PRICE gating regresses
+
+**Origin**: Supervised audit (Pass 3) — paper-trade end-to-end audit
+**Severity**: Low (defense-in-depth; gated upstream by validator PRICE stage)
+**Module**: `praxis/launcher.py` (`_ensure_entry_position`); downstream effect at `nexus/infrastructure/praxis_connector/outcome_processor.py` (`_grow_position`)
+
+`_ensure_entry_position` returns silently when `ref_price is None` (the existing docstring justifies this as "logging the skip rather than raising keeps the submitter loop alive" on a branch that the validator PRICE stage is supposed to make unreachable). The submitter then registers `command_contexts[command_id] = order_context` — `_build_order_context` does not depend on `ref_price`. When the ENTER FILL arrives, `_handle_fill` ENTRY path: `order_fill` mutates capital (succeeds because the TrackedOrder is in WORKING state), then `_update_position_on_fill` → `_grow_position` raises `RuntimeError('entry fill for missing position')`. `OutcomeLoop` catches the exception and logs it. Net result: capital incremented (in_flight → position_notional) but no `Position` record in `state.positions` → drift between capital aggregates and positions.
+
+If an ENTER command is registered without a placeholder Position, a later ENTER fill can mutate `CapitalController` via `order_fill` and then raise in `_grow_position` because the position is missing. This leaves in-memory capital/position drift until restart. Today this is guarded by the validator PRICE stage (`_build_enter_context`'s no-price guard rejects the action before `_ensure_entry_position` runs), so the gap is defense-in-depth — only fires under a "deeper bug" path.
+
+**Tradeoff to weigh before fixing**: the current `log and continue` behavior was intentional — the original author chose to keep the submitter loop alive on a "shouldn't happen" branch rather than crash it on a stale-data condition. Either resolution is defensible; pick one explicitly:
+
+1. Make `_ensure_entry_position` fail the submit path when `ref_price is None` (raise / mark the action SUBMIT_FAILED so capital is released cleanly). Loses the loop-alive property; gains audibility on the upstream regression.
+2. Keep the silent-skip in `_ensure_entry_position` but tighten the upstream guard so reaching this branch with `ref_price=None` becomes structurally impossible (e.g., an assertion in `_build_enter_context` that ENTER actions without ref_price never produce a granted CAPITAL decision). Preserves the current loop-alive property; relies on the upstream invariant.
+
+**When to fix**: Before sustained multi-account or multi-strategy paper trading where any upstream regression in PRICE-stage gating would surface this drift, OR alongside any refactor of the validator PRICE stage.
+
+**Migration**: Pick one of the two options above. Whichever way it goes, add a regression test that constructs an ENTER context with `ref_price=None` and asserts the failure mode the chosen option implies — either `submit_actions` returns SUBMIT_FAILED + capital released, OR `_build_enter_context` refuses to grant a CAPITAL decision in the first place.
+
+---
+
+## TD-057: Binance code -2010 is overloaded but `_post_order` treats every -2010 as `DuplicateClientOrderIdError`
+
+**Origin**: Supervised audit (Pass 5) — paper-trade end-to-end audit
+**Severity**: Low (functionally safe; ergonomics + wasted REST weight)
+**Module**: `praxis/infrastructure/binance_adapter.py` (`_post_order` `OrderRejectedError` handler)
+
+Binance documents venue code -2010 as `NEW_ORDER_REJECTED`, with the specific rejection reason carried in the response message string rather than encoded as a distinct numeric sub-code. Operationally the code is therefore message-overloaded — observed messages on this code include "Duplicate clientOrderId" and other order-rejection conditions whose exact catalog should be confirmed against the current Binance Spot REST error reference before fixing. The current code wraps ALL `OrderRejectedError(venue_code=-2010)` as `DuplicateClientOrderIdError` based on the venue code alone, ignoring the message string. The rescue path then queries the venue for `client_order_id`; if no order was created (the non-duplicate case), `query_order` returns `NotFoundError` → rescue returns None → `_record_submit_failed` → REJECTED outcome carrying a misleading "duplicate clientOrderId" reason instead of the actual venue message.
+
+Functionally safe: capital still released, outcome correctly REJECTED, dedup intact. Two costs: (1) wasted `query_order` REST weight for every non-duplicate -2010 — irrelevant at MMVP rate, observable at high cadence; (2) the REJECTED outcome's `reason` string says "duplicate clientOrderId" when the venue actually meant something else, making operator forensics harder during incident triage.
+
+**When to fix**: Before sustained mainnet operation, OR when operator-facing reason strings become load-bearing for incident triage.
+
+**Migration**: First, sample real `-2010` responses against the Binance Spot REST testnet (or pull the canonical message catalog from the current Binance error reference) to confirm which messages are actually emitted and which are duplicate-clientOrderId. Then discriminate `-2010` by venue message in `_post_order`. Only duplicate-clientOrderId messages should raise `DuplicateClientOrderIdError`; other `-2010` responses should remain plain `OrderRejectedError` with the original reason preserved. Implementation options: (a) substring check on `exc.reason` for the confirmed duplicate-clientOrderId fragment before wrapping; (b) maintain a small lookup table keyed on canonical venue-message fragments. Option (a) is simpler; option (b) is more durable against Binance message-wording changes. Add tests covering `-2010` with the confirmed duplicate-clientOrderId message (rescue) and `-2010` with each other observed variant (REJECTED with original reason, no rescue).
+
+---
+
+## TD-058: No end-to-end crash-window recovery harness
+
+**Origin**: Supervised audit (Pass 6) — paper-trade end-to-end audit
+**Severity**: Low (test gap, not a runtime defect)
+**Module**: `tests/` across both repos (Praxis + Nexus); cross-cutting recovery contract
+
+Current recovery guarantees are covered by unit/component tests (orphan reconcile, OutcomeAcked gate, WAL torn-tail, replay idempotency, boot reconciliation), but no test kills the process between key durability boundaries and verifies restart behavior end to end. Future regressions in EventSpine ordering, OutcomeAcked gating, Nexus WAL persistence, or boot reconciliation could pass unit tests while breaking the cross-repo recovery chain. Detection deferred to operator forensics during paper-trade run.
+
+The crash windows that need coverage (per Pass 6 matrix):
+
+1. After `CommandAccepted`, before `OrderSubmitIntent` (Class A orphan recovery).
+2. After `OrderSubmitIntent`, before REST POST (Class B orphan recovery).
+3. After REST accepted, before `OrderSubmitted` (TD-042 ghost-order risk).
+4. After `OrderSubmitted`, before `TradeOutcomeProduced` (Praxis `_reconcile_account` flow).
+5. After `TradeOutcomeProduced`, before Nexus callback (TD-052 latent gap).
+6. After Nexus mutation, before `append_mutation` (TD-086 dedup-after-mutation gap).
+7. After `append_mutation`, before `OutcomeAcked` (TD-052 + TD-086 double-mutation hazard).
+8. After `OutcomeAcked`, before final checkpoint (FINAL-TD-01/02 derivation paths).
+9. During final checkpoint (FINAL-MAJOR-04 atomic WAL).
+
+**When to fix**: LOW-MEDIUM priority; build alongside TD-052 implementation since they overlap (a TD-052 boot-replay producer needs the crash-window harness to verify acceptance). Also useful as a one-time regression guard before any Praxis/Nexus refactor that touches EventSpine or `state_store`.
+
+**Migration**: Build a crash-window integration harness covering at least the seven boundary types above. For each window: spin up a Praxis launcher with both repos wired, drive it to the boundary state via deterministic test inputs, simulate process kill (e.g., raise `KeyboardInterrupt` mid-flight or use `os.kill(pid, SIGKILL)` in a subprocess), then restart with the same state directory and assert the recovery contract (capital aggregates correct, no double-mutation, no stranded orders, no stale risk gates). Place harness in either repo (the recovery flow spans both); cross-reference the other repo's TD entry. Recommended location: a new `tests/integration/crash_recovery/` directory in Praxis since the launcher orchestrates the cross-repo boot.
