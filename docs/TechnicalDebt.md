@@ -506,3 +506,21 @@ The current behavior is safe for paper trading: stale data raises in the predict
 **When to fix**: Before sustained mainnet operation, OR when an operator dashboard surfaces "OutcomeAcked latency" as a tracked metric.
 
 **Migration**: Either (a) batch `OutcomeAcked` events and append asynchronously via a dedicated coroutine that the launcher schedules at startup, or (b) fire-and-forget the `run_coroutine_threadsafe` future without awaiting `.result()` and rely on the future's exception to log via `add_done_callback`. Option (b) is simpler and matches the "ack failure must not abort outcome flow" comment intent; the trade-off is the next-boot replay sees a brief window of acked-but-not-persisted outcomes that get redelivered (already idempotent on the Nexus side via the MAJOR-004 part A dedup).
+
+---
+
+## TD-055: `_rescue_by_client_order_id` returns `immediate_fills=()` even when the rescued order is FILLED / partially-filled
+
+**Origin**: Copilot PR #87 review (round-18 MAJOR-002 follow-up)
+**Severity**: Low under WS-healthy operation (the missed fill is reconciled by the next WS `executionReport`); Major if WS connection is broken at the moment of rescue or the venue's user-data stream lags
+**Module**: `praxis/core/execution_manager.py:1196-1275` (`_rescue_by_client_order_id`); cross-call `praxis/infrastructure/binance_adapter.py:1338` (`query_trades`)
+
+`_rescue_by_client_order_id` calls `query_order(client_order_id)` and returns `SubmitResult(immediate_fills=())` regardless of `venue_order.filled_qty` or `venue_order.status`. When `_post_order` is rescued from `OrderSubmitTimeoutError` / `DuplicateClientOrderIdError` and the venue had already executed fills before the response was lost, `_process_command` derives `filled_qty` solely from `result.immediate_fills` and emits the outcome as `PENDING` with `filled_qty=0`. Capital and position state stay un-credited until the next WS `executionReport` carrying those fills lands and the WS reconcile path catches up. If WS is disconnected or the user-data stream lags, the system can sit indefinitely with the venue holding live exposure that Praxis reports as zero-filled.
+
+The current behavior is conservative — it does not lose state, it only delays correction — and the conservative-default reasoning is documented in the rescue docstring. But Copilot's point stands: the rescue path has a `filled_qty` signal in hand and discards it.
+
+**When to fix**: Before sustained mainnet operation, OR before any deployment where the WS user-data stream has known reconnection gaps.
+
+**Migration**: After the existing `query_order` succeeds with `venue_order.filled_qty > 0`, call `query_trades(account_id, symbol, start_time=cmd.created_at)` and filter to `vt.venue_order_id == venue_order.venue_order_id`. Map each `VenueTrade` to an `ImmediateFill` (`venue_trade_id`, `qty`, `price`, `fee`, `fee_asset`, `is_maker`) and pass the tuple as `SubmitResult.immediate_fills`. New failure modes to handle: (a) `query_trades` raises — fall back to the current `immediate_fills=()` behavior with a warning so the outcome path still emits a result, (b) `query_trades` returns fewer trades than `venue_order.filled_qty` implies (cumulative fills lag the order endpoint by one venue cycle) — emit what is available and log the discrepancy; the WS reconcile path will fill in the rest, (c) Binance returns trades for the wrong order due to a `client_order_id` collision — the `venue_order_id` filter prevents this, but tests should cover the empty-trades case explicitly.
+
+Add tests covering: (1) rescue returns ImmediateFill tuple matching VenueTrade records when filled_qty > 0; (2) rescue returns empty tuple when filled_qty = 0 (no regression); (3) rescue falls back to empty tuple when query_trades raises VenueError; (4) rescue logs and emits empty tuple when query_trades returns zero records despite filled_qty > 0 (lag case).
