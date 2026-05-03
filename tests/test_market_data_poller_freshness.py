@@ -56,7 +56,6 @@ class TestGetMarketDataFreshness:
 
     def test_stale_cache_raises(self) -> None:
         poller = MarketDataPoller()
-        # Default max_age = 2 * kline_size = 120s. Stamp 200s ago.
         stale_ts = datetime.now(tz=UTC) - timedelta(seconds=200)
         _seed_cache(poller, _KLINE_SIZE, fetched_at=stale_ts)
 
@@ -71,7 +70,6 @@ class TestGetMarketDataFreshness:
         '''Custom per-kline max_age_seconds overrides the 2 * kline_size default.'''
 
         poller = MarketDataPoller(max_age_seconds={_KLINE_SIZE: 30.0})
-        # 60s ago — fresh under default (120s) but stale under 30s override.
         ts = datetime.now(tz=UTC) - timedelta(seconds=60)
         _seed_cache(poller, _KLINE_SIZE, fetched_at=ts)
 

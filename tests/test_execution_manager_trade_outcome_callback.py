@@ -117,15 +117,11 @@ async def test_callback_failure_does_not_block_outcome_production(
 
     await mgr.submit_command(**_CMD_KWARGS)
     await mgr.submit_command(**{**_CMD_KWARGS, 'trade_id': 'trade-2'})
-    # Two outcomes; each retried MAX_ATTEMPTS times with exponential
-    # backoff (0.5 + 1.0 = 1.5s of sleep per outcome). 4s gives the
-    # worker headroom over the worst-case sequential pair.
     await asyncio.sleep(4.0)
 
     events = await spine.read(_EPOCH, after_seq=0)
     produced = [e for _, e in events if isinstance(e, TradeOutcomeProduced)]
     assert len(produced) == 2
-    # Each outcome triggers MAX_ATTEMPTS callback invocations now.
     assert callback_calls == len(produced) * _OUTCOME_CALLBACK_MAX_ATTEMPTS
 
     await mgr.unregister_account(_ACCT)

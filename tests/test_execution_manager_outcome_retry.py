@@ -108,7 +108,6 @@ class TestDispatchOutcomeWithRetry:
             await mgr._dispatch_outcome_with_retry(_outcome(), source='test')
 
         assert callback.await_count == _OUTCOME_CALLBACK_MAX_ATTEMPTS
-        # N attempts → N-1 sleeps with exponential backoff.
         expected_delays = [
             _OUTCOME_CALLBACK_BASE_DELAY * (2 ** i)
             for i in range(_OUTCOME_CALLBACK_MAX_ATTEMPTS - 1)

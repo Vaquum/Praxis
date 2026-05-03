@@ -1219,7 +1219,7 @@ class Launcher:
             outcome_id=outcome_id,
         )
         epoch_id = self._trading_config.epoch_id
-        spine = self._trading._event_spine
+        spine = self._trading.event_spine
 
         try:
             future = asyncio.run_coroutine_threadsafe(

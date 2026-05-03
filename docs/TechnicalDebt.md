@@ -492,3 +492,17 @@ The current behavior is safe for paper trading: stale data raises in the predict
 3. Add a `market_data_healthy: bool` field to `HealthSnapshot` (Praxis-side dataclass); the launcher's `_build_health_snapshot` callback samples `MarketDataPoller.health_status()` and sets it.
 4. In Nexus `HealthLoop` / `HealthEvaluator`, add a transition: `market_data_healthy=False` → `REDUCE_ONLY` (EXITs still work, ENTERs blocked).
 5. Test: simulate repeated `_fetch` failures → after N attempts, snapshot reports unhealthy → HealthLoop demotes mode within next tick → validator's MODE stage rejects ENTERs.
+
+---
+
+## TD-054: `Launcher._append_outcome_acked` synchronously blocks the Nexus thread on the Praxis loop
+
+**Origin**: Greybeard pre-PR review of round-18 MAJOR-004 part B
+**Severity**: Low at MMVP cadence; Major when Praxis loop overload becomes plausible
+**Module**: `praxis/launcher.py:1199-1235` (`_append_outcome_acked`)
+
+`_append_outcome_acked` is called from the `process_outcome` closure on the Nexus thread after `OutcomeProcessor.process` returns success. It dispatches the spine append onto the Praxis loop via `asyncio.run_coroutine_threadsafe(...).result(timeout=10)` — synchronous wait on the future. Under loop overload, every successful outcome incurs up to a 10s tax on the Nexus thread before the warning logs and outcome processing continues. There is no batching, no fire-and-forget option, and no metric. At MMVP cadence (~100 outcomes/day per account) this is invisible; on a degraded asyncio loop or a high-frequency strategy it becomes a real per-outcome stall.
+
+**When to fix**: Before sustained mainnet operation, OR when an operator dashboard surfaces "OutcomeAcked latency" as a tracked metric.
+
+**Migration**: Either (a) batch `OutcomeAcked` events and append asynchronously via a dedicated coroutine that the launcher schedules at startup, or (b) fire-and-forget the `run_coroutine_threadsafe` future without awaiting `.result()` and rely on the future's exception to log via `add_done_callback`. Option (b) is simpler and matches the "ack failure must not abort outcome flow" comment intent; the trade-off is the next-boot replay sees a brief window of acked-but-not-persisted outcomes that get redelivered (already idempotent on the Nexus side via the MAJOR-004 part A dedup).
