@@ -200,6 +200,13 @@ class ExecutionManager:
             try:
                 await self._on_trade_outcome(outcome)
                 return
+            except asyncio.CancelledError:
+                # On Python 3.8+ `CancelledError` is `BaseException`,
+                # so the `except Exception` below does not catch it,
+                # but the explicit branch documents the intent and
+                # protects against accidental future widening of the
+                # broad catch.
+                raise
             except Exception as exc:  # noqa: BLE001 - callback is operator code
                 if attempt == _OUTCOME_CALLBACK_MAX_ATTEMPTS:
                     _log.exception(
