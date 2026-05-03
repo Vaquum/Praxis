@@ -1210,7 +1210,7 @@ class ExecutionManager:
         without confirming would let the venue carry a live order
         Praxis no longer tracks. The rescue queries the venue with
         the deterministic `client_order_id`; on success the caller
-        treats the returned `VenueOrder` as the canonical
+        treats the returned `SubmitResult` as the canonical
         `submit_order` result and continues the normal lifecycle.
 
         Args:
@@ -1221,7 +1221,10 @@ class ExecutionManager:
                 (logged for operator forensics).
 
         Returns:
-            VenueOrder when the venue confirms the order exists.
+            `SubmitResult` (status from the venue query,
+            `immediate_fills=()` because any fills carried at
+            confirmation time arrive separately via the WS reconcile
+            path) when the venue confirms the order exists.
             None when the venue reports the order does not exist
             (caller must classify as REJECTED), or when the rescue
             query itself fails (caller must classify as REJECTED;
