@@ -109,7 +109,7 @@ class TestCommandRegistryLock:
 
         def reader() -> None:
             # Bounded loop so a slow CI runner cannot starve the
-            # writer. 50 batches × 200 lookups = 10k observations
+            # writer. 50 batches of 200 lookups = 10k observations
             # per reader; with 4 readers that is 40k observations,
             # plenty of coverage of the writer's 200 iterations
             # without spinning indefinitely on the lock.
