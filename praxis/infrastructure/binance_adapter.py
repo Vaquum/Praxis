@@ -378,13 +378,18 @@ class BinanceAdapter:
             path (str): API endpoint path for logging
             account_id (str): Account identifier for weight tracking
             build_request (Callable): Factory returning async context manager for the request
-            idempotent (bool): When False, transport-level failures
-                (TimeoutError, ClientError, TransientError) raise on the
-                first attempt instead of being retried. Required for
-                order POSTs where the venue may have accepted the
-                request before the response was lost (round-18
-                MAJOR-002). Rate-limit retries (HTTP 429) are still
-                honoured — those guarantee the venue did not accept.
+            idempotent (bool): When False, `max_attempts` collapses to
+                1 — every retryable handler (TransientError,
+                RateLimitError, transport TimeoutError/ClientError)
+                exits on the first iteration so the caller can
+                classify the failure without firing the
+                duplicate-detection rescue path. Required for order
+                POSTs where the venue may have accepted the request
+                before the response was lost (round-18 MAJOR-002).
+                A 429 on a non-idempotent call is therefore re-raised
+                as `RateLimitError` rather than retried; that
+                guarantees the venue did not accept and the caller
+                classifies as REJECTED.
 
         Returns:
             Any: Parsed JSON response body
@@ -418,13 +423,13 @@ class BinanceAdapter:
                 )
                 await asyncio.sleep(delay)
             except RateLimitError as exc:
-                if attempt + 1 == _MAX_RETRIES or exc.status_code != _HTTP_TOO_MANY:
+                if attempt + 1 == max_attempts or exc.status_code != _HTTP_TOO_MANY:
                     self._record_health(account_id, start, succeeded=False)
                     raise
                 delay = max(0.0, exc.retry_after) if exc.retry_after is not None else random.uniform(0, _RETRY_BASE_DELAY * 2 ** attempt)
                 _log.warning(
                     'Rate limited on %s %s (attempt %d/%d), retrying in %.2fs',
-                    method, path, attempt + 1, _MAX_RETRIES, delay,
+                    method, path, attempt + 1, max_attempts, delay,
                 )
                 await asyncio.sleep(delay)
             except VenueError:

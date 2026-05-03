@@ -821,6 +821,44 @@ class TestRetry:
 
         session.request.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_non_idempotent_429_reraised_immediately(self) -> None:
+        '''Round-18 MAJOR-002: with `idempotent=False` (`max_attempts=1`)
+        a HTTP 429 must re-raise as `RateLimitError` on the first
+        attempt rather than fall through the loop and surface as a
+        generic `TransientError`. The latter would be wrapped as
+        `OrderSubmitTimeoutError` by `_post_order` and incorrectly
+        trigger the rescue-by-clientOrderId query for a guaranteed
+        non-acceptance, wasting rate-limit budget.
+        '''
+
+        adapter = _make_adapter()
+        rate_resp = _mock_response(429, headers={'Retry-After': '1'})
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=rate_resp)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[ctx])
+        session.closed = False
+        adapter._session = session
+
+        with (
+            patch(
+                'praxis.infrastructure.binance_adapter.asyncio.sleep',
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            pytest.raises(RateLimitError),
+        ):
+            await adapter._signed_request(
+                'POST', '/api/v3/order', {}, _ACCOUNT_ID, idempotent=False,
+            )
+
+        session.request.assert_called_once()
+        mock_sleep.assert_not_called()
+
+
 class TestBuildOrderParams:
 
     def test_market_order(self) -> None:
