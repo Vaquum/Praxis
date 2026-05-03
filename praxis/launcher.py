@@ -77,10 +77,17 @@ from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.command_translator import build_single_shot_params
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.events import OutcomeAcked
 from praxis.core.domain.trade_outcome import TradeOutcome
+from praxis.infrastructure.binance_urls import (
+    MAINNET_REST_URL,
+    MAINNET_WS_URL,
+    TESTNET_REST_URL,
+    TESTNET_WS_URL,
+)
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
-from praxis.market_data_poller import MarketDataPoller
+from praxis.market_data_poller import MarketDataPoller, StaleMarketDataError
 from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
@@ -92,12 +99,14 @@ _log = logging.getLogger(__name__)
 
 _REQUIRED_ENV_VARS = (
     'EPOCH_ID',
-    'VENUE_REST_URL',
-    'VENUE_WS_URL',
+    'TRADE_MODE',
     'MANIFESTS_DIR',
     'STRATEGIES_BASE_PATH',
     'STATE_BASE',
 )
+_TRADE_MODE_PAPER = 'paper'
+_TRADE_MODE_LIVE = 'live'
+_TRADE_MODES = (_TRADE_MODE_PAPER, _TRADE_MODE_LIVE)
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
@@ -853,19 +862,34 @@ def _last_close_from_poller(
     poller: MarketDataPoller | None,
     kline_sizes: tuple[int, ...],
 ) -> Decimal | None:
-    '''Return the last-known close from the poller, or `None` if absent.
+    '''Return the last-known close from the poller, or `None` if absent or stale.
 
     Iterates `kline_sizes` (smallest first) and returns the close value
-    of the last row in the first non-empty DataFrame found. Returns
-    `None` when the poller is absent, no kline-size has data yet, or the
-    DataFrame lacks a `close` column.
+    of the last row in the first non-empty, non-stale DataFrame found.
+    Returns `None` when the poller is absent, every kline_size is empty
+    or stale, or no DataFrame has a `close` column.
+
+    Round-18 MAJOR-005: a stale entry now raises `StaleMarketDataError`
+    from `get_market_data`. This helper swallows the exception per
+    kline_size and falls through to the next; if every kline_size is
+    stale (or empty), the caller (`fallback_price_provider`) returns
+    `None`, which the validator's PRICE stage rejects with a clear
+    reason. Pre-fix the helper returned the indefinitely-stale cached
+    value, sizing ENTERs against ancient prices.
     '''
 
     if poller is None:
         return None
 
     for kline_size in kline_sizes:
-        df = poller.get_market_data(kline_size)
+        try:
+            df = poller.get_market_data(kline_size)
+        except StaleMarketDataError as exc:
+            _log.warning(
+                'fallback_price_provider skipping stale kline_size: %s',
+                exc,
+            )
+            continue
 
         if df.height == 0 or 'close' not in df.columns:
             continue
@@ -1168,6 +1192,45 @@ class Launcher:
 
         _log.info('event spine opened', extra={'db_path': str(self._db_path)})
         return spine
+
+    def _append_outcome_acked(self, account_id: str, outcome_id: str) -> None:
+        '''Append a durable OutcomeAcked event after Nexus accepted the outcome.
+
+        Round-18 MAJOR-004: marks `outcome_id` as fully consumed by the
+        Nexus consumer so the boot replay-from-spine pass does not
+        re-deliver it. Runs on the Nexus thread (caller is the
+        per-account `process_outcome` closure); dispatches the async
+        spine append onto the Praxis loop. Failure is logged but does
+        not abort outcome processing — the worst case is that the next
+        boot replays the (already-applied) outcome and Nexus's
+        idempotent OutcomeProcessor returns success no-op.
+        '''
+
+        if self._loop is None or self._trading is None:
+            _log.warning(
+                'cannot append OutcomeAcked: loop or trading not initialised',
+                extra={'outcome_id': outcome_id, 'account_id': account_id},
+            )
+            return
+
+        event = OutcomeAcked(
+            account_id=account_id,
+            timestamp=datetime.now(UTC),
+            outcome_id=outcome_id,
+        )
+        epoch_id = self._trading_config.epoch_id
+        spine = self._trading.event_spine
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                spine.append(event, epoch_id), self._loop,
+            )
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - ack failure must not abort outcome flow
+            _log.exception(
+                'OutcomeAcked append failed; boot replay will re-deliver',
+                extra={'outcome_id': outcome_id, 'account_id': account_id},
+            )
 
     def _start_poller(self) -> None:
         '''Start the market data poller with no kline sizes registered.
@@ -1573,6 +1636,19 @@ class Launcher:
                     with command_registry_lock:
                         command_contexts.pop(outcome.command_id, None)
                         command_strategy_ids.pop(outcome.command_id, None)
+                    recover_result = capital_controller.recover_orphaned_order(
+                        outcome.command_id,
+                        outcome.outcome_type.value,
+                    )
+                    if not recover_result.success:
+                        _log.warning(
+                            'recover_orphaned_order rejected the orphan release',
+                            extra={
+                                'command_id': outcome.command_id,
+                                'outcome_type': outcome.outcome_type.value,
+                                'reason': recover_result.reason,
+                            },
+                        )
                 return
 
             result = outcome_processor.process(outcome, order_context)
@@ -1599,16 +1675,22 @@ class Launcher:
                         if pos is not None and pos.size == _ZERO:
                             del state.positions[order_context.trade_id]
 
+            mutation_persisted = True
             if result.success and (result.position_updated or result.capital_updated):
                 try:
                     state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
+                    mutation_persisted = False
                     _log.exception(
                         'append_mutation failed; mid-run state durability '
-                        'lost for this outcome — recovery will roll back to '
-                        'the last clean checkpoint',
+                        'lost for this outcome — OutcomeAcked withheld so '
+                        'replay-from-spine will re-deliver and recovery '
+                        'rolls back to the last clean checkpoint',
                         extra={'command_id': outcome.command_id},
                     )
+
+            if result.success and mutation_persisted:
+                self._append_outcome_acked(inst.account_id, outcome.outcome_id)
 
         sequencer.drain_pending_startup_actions(submitter)
 
@@ -1680,6 +1762,27 @@ def _check_required_env(env: dict[str, str]) -> None:
     if missing:
         msg = f'missing required env vars: {", ".join(missing)}'
         raise RuntimeError(msg)
+
+
+def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, bool]:
+    '''Map `TRADE_MODE` to the venue REST/WS URLs and the testnet flag.
+
+    Operators set `TRADE_MODE=paper` or `TRADE_MODE=live`; both URLs
+    and the market-data poller's testnet routing are derived from the
+    in-code constants in `binance_urls`. There is no operator path
+    that can submit orders to mainnet while the rest of the system
+    thinks it is on testnet (MAJOR-001).
+    '''
+
+    raw = env['TRADE_MODE'].strip().lower()
+    if raw == _TRADE_MODE_PAPER:
+        return TESTNET_REST_URL, TESTNET_WS_URL, True
+    if raw == _TRADE_MODE_LIVE:
+        return MAINNET_REST_URL, MAINNET_WS_URL, False
+    msg = (
+        f'TRADE_MODE must be one of {list(_TRADE_MODES)!r}; got {env["TRADE_MODE"]!r}'
+    )
+    raise RuntimeError(msg)
 
 
 _ACCOUNT_ID_SAFE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
@@ -1756,6 +1859,8 @@ def main() -> None:
     env = dict(os.environ)
     _check_required_env(env)
 
+    venue_rest_url, venue_ws_url, market_data_testnet = _resolve_trade_mode(env)
+
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
     strategies_base_path = Path(env['STRATEGIES_BASE_PATH'])
@@ -1822,18 +1927,14 @@ def main() -> None:
 
     trading_config = TradingConfig(
         epoch_id=int(env['EPOCH_ID']),
-        venue_rest_url=env['VENUE_REST_URL'],
-        venue_ws_url=env['VENUE_WS_URL'],
+        venue_rest_url=venue_rest_url,
+        venue_ws_url=venue_ws_url,
         account_credentials=account_credentials,
         shutdown_timeout=float(env.get('SHUTDOWN_TIMEOUT', _DEFAULT_SHUTDOWN_TIMEOUT)),
     )
 
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')
     healthz_port = int(port_raw) if port_raw else _DEFAULT_HEALTHZ_PORT
-
-    market_data_testnet = env.get('BINANCE_TESTNET', '').lower() in (
-        '1', 'true', 'yes', 'on',
-    )
 
     bind_context(epoch_id=trading_config.epoch_id)
 

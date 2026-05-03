@@ -294,3 +294,233 @@ Both are consistent with the documented Nexus lock-order chain (`command_registr
 
 **When to fix**: Before the next round of launcher submitter restructuring, or when the cost of an integration harness drops (e.g., a refactor that makes the submitter unit-testable).
 **Migration**: Either (a) extract the submitter critical section into a module-level helper that takes the closure-captured state as kwargs and have the test import it, or (b) add an integration test that boots a real `_build_nexus_runtime` and races a fast venue ACK against a slow submitter to assert no torn observation.
+
+---
+
+## TD-040: EventSpine SQLite PRAGMAs are implicit and untested
+
+**Origin**: Round-18 codex-supervised audit (Pass 8)
+**Severity**: Low (defaults are durable; no concurrency requirement today)
+**Module**: `praxis/launcher.py` (`Launcher._build_event_spine`, the `aiosqlite.connect(str(self._db_path))` call); `praxis/infrastructure/event_spine.py` (`EventSpine.ensure_schema`)
+
+`EventSpine` opens its SQLite database via `aiosqlite.connect(str(self._db_path))` with no PRAGMA statements. Journal mode and synchronous level fall through to SQLite/aiosqlite defaults (`journal_mode=DELETE`, `synchronous=FULL`). Defaults provide ACID durability but not the concurrent-reader semantics of WAL mode. No regression test asserts the chosen settings; a future SQLite or aiosqlite default change could silently flip durability.
+
+**When to fix**: Before adding a concurrent reader (analytics, metrics) against the same DB, OR before any production deployment where durability/perf characteristics are load-bearing.
+**Migration**: Issue `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` (typical for WAL + single writer) inside `ensure_schema`. Add a regression test asserting both PRAGMAs survive `ensure_schema`. Document the choice in the EventSpine docstring.
+
+---
+
+## TD-041: Per-outcome `state_store.append_mutation` failure is logged but not propagated
+
+**Origin**: Round-18 codex-supervised audit (Pass 8)
+**Severity**: Low at MMVP cadence (next checkpoint heals; Praxis remains source of truth for positions); Major where mid-run risk-state durability matters
+**Module**: `praxis/launcher.py` (the `process_outcome` closure inside `Launcher._build_nexus_runtime` — the `state_store.append_mutation(state)` call gated on `result.success and (result.position_updated or result.capital_updated)`)
+
+The launcher's outcome wrapper calls `state_store.append_mutation(state)` after `outcome_processor.process(...)` returns success-with-mutation. The call is wrapped in `try: ... except Exception: _log.exception(...)` per the comment "persistence failure must not abort outcome flow". On failure, in-memory state continues to mutate but the WAL has no STATE_MUTATION entry. There is no counter, no health-loop signal, no mode demotion on repeated failures. Operators only see a log line.
+
+**When to fix**: Before any deployment whose WAL is on flaky storage, OR before alerting/observability on persistence failures becomes load-bearing.
+**Migration**: (a) Maintain a per-account counter of consecutive `append_mutation` failures and surface it through `HealthSnapshot` so HealthLoop can demote `state.mode` after N failures, OR (b) propagate the exception to the OutcomeLoop which already logs once and re-raises into the worker's catch-all so the failure is at least observable in error metrics.
+
+---
+
+## TD-042: `_reconcile_account` does not query venue open orders absent from EventSpine
+
+**Origin**: Round-18 codex-supervised audit (Pass 8)
+**Severity**: Low (defense-in-depth; normal path appends `OrderSubmitIntent` before REST POST)
+**Module**: `praxis/trading.py:451-494` (`_reconcile_account`); `praxis/core/execution_manager.py:329-380` (`reconcile_orphan_commands`)
+
+Boot reconciliation walks `trading_state.orders` (rebuilt from EventSpine) and queries the venue for each known order. It does NOT enumerate the venue's full open-order list (`query_open_orders`). `reconcile_orphan_commands` only flags `CommandAccepted`-without-followup. Combined, no path discovers an open venue order whose `OrderSubmitIntent` / `OrderSubmitted` was never appended to spine (e.g., SIGKILL between venue ACK and `event_spine.append`).
+
+**When to fix**: Before any deployment with manual order placement on the same account, OR if mid-run spine writes ever fail after venue ACK in observed traffic.
+**Migration**: At end of `_startup_account`, call `query_open_orders(account_id)` and synthesize `OrderSubmitIntent` + `OrderSubmitted` events for any venue order with no local projection. Or escalate to operator log instead of auto-correcting.
+
+---
+
+## TD-043: Cross-repo state mismatch (Nexus snapshot present, Praxis spine cleared) is not detected at boot
+
+**Origin**: Round-18 codex-supervised audit (Pass 8)
+**Severity**: Operator-only (manual state directory deletion required)
+**Module**: `praxis/launcher.py:1389` (StateStore wiring); cross-repo: `nexus/startup/sequencer.py:358-484` (`_reconcile_capital`)
+
+`EPOCH_ID` is a single env var shared across all accounts. If an operator deletes the Praxis SQLite DB but keeps Nexus snapshots, boot reconcile sees zero positions and clears Nexus's remembered positions; per-strategy risk fields keep their stale values. No assertion compares the Nexus snapshot's epoch to Praxis spine presence.
+
+**When to fix**: When manual state-management workflows are formalized (runbook), or before adding a `--reset-state` operator flag.
+**Migration**: Persist `epoch_id` in the Nexus snapshot. At boot, compare against Praxis spine's max event_seq presence; on disagreement, log a loud warning and require an explicit `--reset-state` flag before continuing. Belongs in the operator runbook regardless.
+
+---
+
+## TD-044: Shutdown EXIT submission silently fails if launcher asyncio loop has died before `_submit_exit`
+
+**Origin**: Round-18 codex-supervised audit (Pass 9)
+**Severity**: Low (requires loop-thread death scenario; graceful path is bounded)
+**Module**: `praxis/launcher.py:1095-1097` (loop thread); cross-repo: `nexus/infrastructure/praxis_connector/praxis_outbound.py:74-100` (`send_command` via `run_coroutine_threadsafe`); `nexus/startup/shutdown_sequencer.py:434-442` (`_submit_exit` try/except)
+
+`PraxisOutbound.send_command` uses `asyncio.run_coroutine_threadsafe(submit_command(...), loop).result(timeout=...)`. ShutdownSequencer's `_submit_exit` wraps it in try/except and logs on failure. If the launcher's asyncio loop is already dead by the time `_submit_exit` runs (e.g., loop thread aborted earlier in some failure path while nexus thread continues into shutdown), every shutdown EXIT silently fails. Final checkpoint still runs and persists state; venue orders may stay open until next boot's reconcile.
+
+**When to fix**: When loop-thread failure modes are catalogued in operations, OR before adding any operator dashboard that surfaces "shutdown left orders open" as a metric.
+**Migration**: Detect loop liveness in `_submit_exit` (e.g., `loop.is_running()`) and short-circuit to a queued local marker so the next boot's reconcile can pick up the dangling order; log loudly that the shutdown could not communicate with venue.
+
+---
+
+## TD-045: Symbol filters not loaded for fresh accounts; `_validate_order` fails open
+
+**Origin**: Round-18 codex-supervised audit (Pass 10)
+**Severity**: Low (Binance applies its own filter checks; rate limit waste only)
+**Module**: `praxis/trading.py:302-304` (`_startup_account`); `praxis/core/execution_manager.py:219-243` (`active_symbols`); `praxis/infrastructure/binance_adapter.py:958-962` (`_validate_order` cache miss)
+
+`load_filters` runs only when `active_symbols(account_id)` is non-empty at boot, which requires existing orders or positions from the spine. A fresh account with no exposure starts with no filters loaded for the strategies' target symbols. `BinanceAdapter._validate_order` logs a warning and returns without validation when cache misses (`self._filters.get(symbol) is None`). Binance's server-side check is the only remaining safety net.
+
+**When to fix**: Before any deployment where venue rate-limit budget matters, OR alongside MAJOR-007 (filter ValueError orphan) — the no-preload fail-open path is what currently shields fresh accounts from MAJOR-007's orphan trap.
+**Migration**: At boot, walk the manifest's strategy specs to compute the union of intended symbols and call `load_filters(symbols)` before any strategy callback fires. Alternatively, on-demand load inside `_validate_order` on cache miss.
+
+---
+
+## TD-046: MARKET ENTER reservation lacks slippage buffer
+
+**Origin**: Round-18 codex-supervised audit (Pass 10)
+**Severity**: Low for liquid pairs (BTCUSDT testnet); Major for thin books or large notionals
+**Module**: `praxis/launcher.py:540-579` (`_build_enter_context`)
+
+For ENTER actions, `order_notional = action.size * reference_price` and `estimated_fees = order_notional * fee_rate`. The slippage estimate computed in `praxis/core/execution_manager.py:858` (`estimate_slippage(book, qty, side)`) is logged only — it does not feed back into reservation sizing. A high-slippage MARKET fill where `fill_notional > reservation_notional + reserved_fees` trips `INVARIANT_BREACH` in `CapitalController.order_fill`; `OutcomeProcessor` returns `success=False`, position state stays unmutated, capital reservation parked.
+
+**When to fix**: Before deploying on illiquid pairs, OR if INVARIANT_BREACH on MARKET fills is observed in testnet.
+**Migration**: Add a configurable slippage buffer (default ~50 bps) to the ENTER reservation: `order_notional = action.size * reference_price * (1 + slippage_bps / 10000)`. Or short-circuit MARKET ENTERs to use the slippage-estimated VWAP from `estimate_slippage` instead of `reference_price`.
+
+---
+
+## TD-047: No boot-time venue free-balance probe
+
+**Origin**: Round-18 codex-supervised audit (Pass 10)
+**Severity**: Low (operator misconfiguration only; first ENTER's REJECTED outcome surfaces it)
+**Module**: `praxis/infrastructure/binance_adapter.py` (no balance API exposed); `praxis/launcher.py` (no balance probe at boot)
+
+There is no `get_account_info` or balance-query method in `BinanceAdapter`, and no boot-time probe to confirm the account has enough USDT/BTC for the configured `capital_pool`. An operator misconfiguring credentials with empty testnet balance discovers this only after the first ENTER's `-2010 INSUFFICIENT_BALANCE` reject; strategies may keep retrying until rate-limited.
+
+**When to fix**: When the operator runbook formalizes credential validation, OR before first multi-account paper trading (where the failure mode is harder to diagnose from logs).
+**Migration**: At end of `_startup_account`, call a Binance `GET /api/v3/account` probe and warn if `free_quote_balance < capital_pool` for the account's quote asset. Optional gate on a `--require-balance` flag.
+
+---
+
+## TD-048: Command routing dicts are keyed by `command_id` only, not `(account_id, command_id)`
+
+**Origin**: Round-18 codex-supervised audit (Pass 11)
+**Severity**: Low (UUID4 collision probability ≈ 5×10⁻³⁷ at 1B items)
+**Module**: `praxis/outcome_translator.py:104-105`; `praxis/core/execution_manager.py:139-143`
+
+`OutcomeTranslator._state` and `_terminal_command_ids` are keyed by `command_id`. `ExecutionManager._accepted_commands`, `_terminal_commands`, `_commands`, `_aborted_commands`, `_command_trade_ids` likewise. `command_id = str(uuid.uuid4())` per `submit_command`. Cross-account collision is essentially zero today, but a future change to a deterministic-hash or human-readable ID would silently invite cross-account dispatch errors.
+
+**When to fix**: Before any change to `command_id` derivation away from UUID4, OR alongside hardening defense-in-depth across registries.
+**Migration**: Either (a) re-key the dicts as `dict[tuple[str, str], ...]` — `(account_id, command_id)` — or (b) add an architectural test asserting `command_id` is UUID4-shaped at every `submit_command` callsite.
+
+---
+
+## TD-049: No multi-account integration test asserts cross-account outcome routing isolation
+
+**Origin**: Round-18 codex-supervised audit (Pass 11)
+**Severity**: Low (current code is structurally sound; gap is test coverage only)
+**Module**: tests (no existing two-account end-to-end test); production paths verified clean in audit
+
+All multi-account assertions are static (uniqueness, dedup scope, epoch isolation, suffix collision). No test runs two Nexus instances concurrently with overlapping symbols and asserts that fills/outcomes are routed correctly per-account, capital/position state stays per-account, and the translator does not cross-contaminate. A future refactor of `_route_translated`, `_outcome_queues`, or translator state keys could silently cross-route outcomes without any test failure.
+
+**When to fix**: Before any deployment with more than one Nexus instance per process, OR before any refactor of the outcome routing closures in the launcher.
+**Migration**: Add an integration test that boots two Nexus instances against a shared ExecutionManager, drives outcomes for both accounts in interleaved order, and asserts each account's queue receives exactly its own outcomes and its OutcomeProcessor mutates only its own InstanceState.
+
+---
+
+## TD-050: EventSpine `account_id` is payload-only, not a column or index
+
+**Origin**: Round-18 codex-supervised audit (Pass 11)
+**Severity**: Low (no runtime corruption path observed; performance only)
+**Module**: `praxis/infrastructure/event_spine.py:39-46` (events table schema); `praxis/trading.py:267-271` (replay reads then partitions in-memory)
+
+The events table has no `account_id` column; the field lives only inside the orjson-serialized payload. `read(epoch_id)` returns ALL events for the epoch; `Trading.start` partitions in-memory by `event.account_id`. This is O(all rows) per-account-replay scan, and account routing trusts the deserialized payload. A wrong-account_id payload (programmer error or external corruption — SQLite cannot detect since payload is opaque) would route the event to the wrong account at replay.
+
+**When to fix**: When per-account replay performance becomes load-bearing, OR before adding any database-level integrity tooling.
+**Migration**: Add `account_id` as an indexed column on the events table. Per-account replay becomes O(rows-for-account). Existing rows would need a one-shot backfill from payload.
+
+---
+
+## TD-051: Launcher constructs `PlatformLimitsStageLimits()` with all-None defaults — operator-platform-caps are effectively disabled
+
+**Origin**: Round-18 codex-supervised audit (Pass 12)
+**Severity**: Major (operator safety caps designed in, not wired up; manifest `capital_pct` is the only ENTER cap)
+**Module**: `praxis/launcher.py:371`; cross-repo: `nexus/core/validator/platform_limits_stage.py:115-208`
+
+`platform_limits = PlatformLimitsStageLimits()` is constructed with no fields supplied — every operator cap (`max_order_notional`, `max_order_rate`, `max_position`, `max_daily_loss`, `max_capital_utilization`) defaults to None. The validator stage gates each check on `if limits.X is not None`, so all checks are skipped and the stage returns `allowed=True` unconditionally. A misconfigured strategy can submit an ENTER for the entire `strategy_budget` (or up to `capital_pool` if multiple strategies). The only safety net is per-strategy `capital_pct` budget computation in `CapitalController`.
+
+**When to fix**: Before any deployment where operator caps must enforce per-order or per-day limits, OR before the next round of platform-limits configuration work.
+**Migration**: Read `PlatformLimitsStageLimits` fields from manifest (or env vars) and populate at construction. Add a regression test asserting non-default limits flow through to the validator and reject ENTER appropriately.
+
+---
+
+## TD-052: Boot replay-from-spine for unconsumed `TradeOutcomeProduced` events
+
+**Origin**: Round-18 MAJOR-004 part B scope deferral (Praxis #86)
+**Severity**: Major (closes the cross-restart half of MAJOR-004; runtime retry already lands)
+**Module**: `praxis/trading.py` (`Trading.start`); `praxis/outcome_translator.py` (`_new_outcome_id`); cross-cutting (`OutcomeAcked` event already exists)
+
+MAJOR-004 part B added a runtime retry for `_on_trade_outcome` callback failures and a durable `OutcomeAcked` marker that the launcher's `process_outcome` appends after `OutcomeProcessor.process` returns success. Boot replay-from-spine — re-delivering `TradeOutcomeProduced` events that lack a matching `OutcomeAcked` — was scoped out because it requires translator-determinism prework: `outcome_translator._new_outcome_id` currently generates `uuid.uuid4().hex` per call, so re-translating the same Praxis `TradeOutcome` after restart produces NEW Nexus `outcome_id`s that do NOT match Nexus's idempotency dedup set. Without stable IDs, boot replay would either skip outcomes (if matched on a non-existent Praxis-side outcome_id) or double-apply them (if Nexus dedup misses).
+
+The runtime retry handles transient callback failures; the `OutcomeAcked` event is already on the spine for forward use. Cross-restart loss of an outcome that was produced but never consumed by Nexus still requires manual operator intervention (e.g., re-issue the command).
+
+**When to fix**: Before any sustained multi-day paper trading where dropped outcomes accumulate, OR before MAJOR-005 / future audits surface this as a hot path.
+
+**Migration**:
+1. Add stable `outcome_id: str` field to `praxis.core.domain.trade_outcome.TradeOutcome` (in-memory) and to the `TradeOutcomeProduced` event (durable) — generated once in `ExecutionManager._build_outcome` / `_emit_ws_outcome`.
+2. Update `OutcomeTranslator` so derived Nexus outcome_ids are deterministic from the Praxis `outcome_id` (e.g., `f"{praxis_outcome_id}-{seq}"`).
+3. In `Trading.start`, after `replay_events` and `reconcile_orphan_commands`, scan per-account `TradeOutcomeProduced` events that lack a matching `OutcomeAcked.outcome_id`; reconstruct the Praxis `TradeOutcome` from the spine fields and re-deliver via `self._on_trade_outcome`.
+4. Nexus's in-memory dedup (already keyed on outcome_id from MAJOR-004 part A) catches re-delivered outcomes within a single process lifetime; cross-restart safety comes from the `OutcomeAcked` filter at boot-replay-emission time.
+5. Add integration test: simulate Nexus crash after spine append but before consumption → restart → boot replay drives Nexus to the same end state as if no crash had occurred.
+
+---
+
+## TD-053: HealthLoop demote to REDUCE_ONLY on sustained market-data failure
+
+**Origin**: Round-18 MAJOR-005 part scope deferral (Praxis #86)
+**Severity**: Major (defense-in-depth on top of validator PRICE-stage rejection)
+**Module**: `praxis/market_data_poller.py`; cross-repo: `nexus/core/health_loop.py`, `praxis/core/domain/health_snapshot.py`
+
+MAJOR-005 landed cache-freshness enforcement (`StaleMarketDataError` from `MarketDataPoller.get_market_data` after `max_age_seconds`, default `2 * kline_size`) and `fallback_price_provider` now returns `None` on stale data, so the validator's PRICE stage rejects ENTERs cleanly. The bigger M05.4 / M05.7 acceptance — counting consecutive `_fetch` failures and surfacing them to `HealthSnapshot` so HealthLoop demotes `state.mode` to `REDUCE_ONLY` (EXITs still work, ENTERs blocked) — was scoped out because it requires plumbing a new health-signal field into `HealthSnapshot`, wiring it through the `health_snapshot_provider` callback the launcher gives to `HealthLoop`, and verifying mode-transition semantics in the cross-repo loop.
+
+The current behavior is safe for paper trading: stale data raises in the predict tick (loop catches, signal skipped), and stale fallback rejects ENTER at PRICE-stage. Mode demotion would add a single coherent system-wide signal instead of relying on per-callsite rejection.
+
+**When to fix**: Before sustained mainnet operation, OR when a single operator-facing health signal is needed for "venue feed degraded; trading reduced".
+
+**Migration**:
+1. Add a `consecutive_fetch_failures: int` counter to `MarketDataPoller` (per-kline_size dict); reset on `_fetch` success, increment on failure.
+2. Expose `health_status() -> dict[int, MarketDataHealth]` (or similar) reporting per-kline failure counts and stale flags.
+3. Add a `market_data_healthy: bool` field to `HealthSnapshot` (Praxis-side dataclass); the launcher's `_build_health_snapshot` callback samples `MarketDataPoller.health_status()` and sets it.
+4. In Nexus `HealthLoop` / `HealthEvaluator`, add a transition: `market_data_healthy=False` → `REDUCE_ONLY` (EXITs still work, ENTERs blocked).
+5. Test: simulate repeated `_fetch` failures → after N attempts, snapshot reports unhealthy → HealthLoop demotes mode within next tick → validator's MODE stage rejects ENTERs.
+
+---
+
+## TD-054: `Launcher._append_outcome_acked` synchronously blocks the Nexus thread on the Praxis loop
+
+**Origin**: Greybeard pre-PR review of round-18 MAJOR-004 part B
+**Severity**: Low at MMVP cadence; Major when Praxis loop overload becomes plausible
+**Module**: `praxis/launcher.py:1199-1235` (`_append_outcome_acked`)
+
+`_append_outcome_acked` is called from the `process_outcome` closure on the Nexus thread after `OutcomeProcessor.process` returns success. It dispatches the spine append onto the Praxis loop via `asyncio.run_coroutine_threadsafe(...).result(timeout=10)` — synchronous wait on the future. Under loop overload, every successful outcome incurs up to a 10s tax on the Nexus thread before the warning logs and outcome processing continues. There is no batching, no fire-and-forget option, and no metric. At MMVP cadence (~100 outcomes/day per account) this is invisible; on a degraded asyncio loop or a high-frequency strategy it becomes a real per-outcome stall.
+
+**When to fix**: Before sustained mainnet operation, OR when an operator dashboard surfaces "OutcomeAcked latency" as a tracked metric.
+
+**Migration**: Either (a) batch `OutcomeAcked` events and append asynchronously via a dedicated coroutine that the launcher schedules at startup, or (b) fire-and-forget the `run_coroutine_threadsafe` future without awaiting `.result()` and rely on the future's exception to log via `add_done_callback`. Option (b) is simpler and matches the "ack failure must not abort outcome flow" comment intent; the trade-off is the next-boot replay sees a brief window of acked-but-not-persisted outcomes that get redelivered (already idempotent on the Nexus side via the MAJOR-004 part A dedup).
+
+---
+
+## TD-055: `_rescue_by_client_order_id` returns `immediate_fills=()` even when the rescued order is FILLED / partially-filled
+
+**Origin**: Copilot PR #87 review (round-18 MAJOR-002 follow-up)
+**Severity**: Low under WS-healthy operation (the missed fill is reconciled by the next WS `executionReport`); Major if WS connection is broken at the moment of rescue or the venue's user-data stream lags
+**Module**: `praxis/core/execution_manager.py:1196-1275` (`_rescue_by_client_order_id`); cross-call `praxis/infrastructure/binance_adapter.py:1338` (`query_trades`)
+
+`_rescue_by_client_order_id` calls `query_order(client_order_id)` and returns `SubmitResult(immediate_fills=())` regardless of `venue_order.filled_qty` or `venue_order.status`. When `_post_order` is rescued from `OrderSubmitTimeoutError` / `DuplicateClientOrderIdError` and the venue had already executed fills before the response was lost, `_process_command` derives `filled_qty` solely from `result.immediate_fills` and emits the outcome as `PENDING` with `filled_qty=0`. Capital and position state stay un-credited until the next WS `executionReport` carrying those fills lands and the WS reconcile path catches up. If WS is disconnected or the user-data stream lags, the system can sit indefinitely with the venue holding live exposure that Praxis reports as zero-filled.
+
+The current behavior is conservative — it does not lose state, it only delays correction — and the conservative-default reasoning is documented in the rescue docstring. But Copilot's point stands: the rescue path has a `filled_qty` signal in hand and discards it.
+
+**When to fix**: Before sustained mainnet operation, OR before any deployment where the WS user-data stream has known reconnection gaps.
+
+**Migration**: After the existing `query_order` succeeds with `venue_order.filled_qty > 0`, call `query_trades(account_id, symbol, start_time=cmd.created_at)` and filter to `vt.venue_order_id == venue_order.venue_order_id`. Map each `VenueTrade` to an `ImmediateFill` (`venue_trade_id`, `qty`, `price`, `fee`, `fee_asset`, `is_maker`) and pass the tuple as `SubmitResult.immediate_fills`. New failure modes to handle: (a) `query_trades` raises — fall back to the current `immediate_fills=()` behavior with a warning so the outcome path still emits a result, (b) `query_trades` returns fewer trades than `venue_order.filled_qty` implies (cumulative fills lag the order endpoint by one venue cycle) — emit what is available and log the discrepancy; the WS reconcile path will fill in the rest, (c) Binance returns trades for the wrong order due to a `client_order_id` collision — the `venue_order_id` filter prevents this, but tests should cover the empty-trades case explicitly.
+
+Add tests covering: (1) rescue returns ImmediateFill tuple matching VenueTrade records when filled_qty > 0; (2) rescue returns empty tuple when filled_qty = 0 (no regression); (3) rescue falls back to empty tuple when query_trades raises VenueError; (4) rescue logs and emits empty tuple when query_trades returns zero records despite filled_qty > 0 (lag case).

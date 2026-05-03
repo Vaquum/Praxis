@@ -52,7 +52,14 @@ from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
-from praxis.infrastructure.venue_adapter import NotFoundError, VenueAdapter, VenueError
+from praxis.infrastructure.venue_adapter import (
+    DuplicateClientOrderIdError,
+    NotFoundError,
+    OrderSubmitTimeoutError,
+    SubmitResult,
+    VenueAdapter,
+    VenueError,
+)
 
 __all__ = ['AccountNotRegisteredError', 'ExecutionManager']
 
@@ -62,6 +69,8 @@ _QUEUE_POLL_INTERVAL = 0.1
 _ZERO = Decimal(0)
 _BPS_MULTIPLIER = Decimal('10000')
 _SLIPPAGE_BOOK_LIMIT = 20
+_OUTCOME_CALLBACK_MAX_ATTEMPTS = 3
+_OUTCOME_CALLBACK_BASE_DELAY = 0.5
 _TERMINAL_STATUSES = frozenset({
     TradeStatus.FILLED,
     TradeStatus.CANCELED,
@@ -166,6 +175,62 @@ class ExecutionManager:
         '''
 
         self._on_trade_outcome = cb
+
+    async def _dispatch_outcome_with_retry(
+        self,
+        outcome: TradeOutcome,
+        *,
+        source: str,
+    ) -> None:
+        '''Deliver outcome to `_on_trade_outcome` with bounded retries.
+
+        Round-18 MAJOR-004: pre-fix the callback exception was logged
+        and swallowed once, leaving `TradeOutcomeProduced` durably on
+        the spine but the consumer (Nexus) unaware. Bounded retry with
+        exponential backoff gives transient failures a chance to clear
+        before giving up. On full exhaustion, the spine record is the
+        durable evidence and a future boot-replay-from-spine pass
+        (deferred TD) can re-deliver.
+        '''
+
+        if self._on_trade_outcome is None:
+            return
+
+        for attempt in range(1, _OUTCOME_CALLBACK_MAX_ATTEMPTS + 1):
+            try:
+                await self._on_trade_outcome(outcome)
+                return
+            except asyncio.CancelledError:
+                # `CancelledError` is a `BaseException` on every
+                # supported Python version, so the broad `except
+                # Exception` below does not catch it; the explicit
+                # branch documents intent and protects against
+                # accidental future widening of the broad catch.
+                raise
+            except Exception as exc:  # noqa: BLE001 - callback is operator code
+                if attempt == _OUTCOME_CALLBACK_MAX_ATTEMPTS:
+                    _log.exception(
+                        'on_trade_outcome callback exhausted retries (%s): '
+                        'command_id=%s attempts=%d last_error=%s — outcome '
+                        'durably persisted on spine for future replay',
+                        source,
+                        outcome.command_id,
+                        attempt,
+                        exc,
+                    )
+                    return
+                delay = _OUTCOME_CALLBACK_BASE_DELAY * (2 ** (attempt - 1))
+                _log.warning(
+                    'on_trade_outcome callback failed (%s, attempt %d/%d), '
+                    'retrying in %.2fs: command_id=%s error=%s',
+                    source,
+                    attempt,
+                    _OUTCOME_CALLBACK_MAX_ATTEMPTS,
+                    delay,
+                    outcome.command_id,
+                    exc,
+                )
+                await asyncio.sleep(delay)
 
     def register_account(self, account_id: str) -> None:
         '''
@@ -331,24 +396,34 @@ class ExecutionManager:
         account_id: str,
         events: list[tuple[int, Event]],
     ) -> None:
-        '''Synthesize REJECTED outcomes for orphan `CommandAccepted` events.
+        '''Synthesize REJECTED outcomes for orphan command events at boot.
 
-        PT-FIX-30: a SIGKILL between `submit_command`'s spine append of
-        `CommandAccepted` and the in-memory queue/dict writes leaves a
-        durable `CommandAccepted` on the spine with no follow-up
-        `OrderSubmitIntent`. On reboot, replay reconstructs
+        Two orphan classes are reconciled:
+
+        Class A (PT-FIX-30) — `CommandAccepted` without `OrderSubmitIntent`
+        and without terminal `TradeOutcomeProduced`. A SIGKILL between
+        `submit_command`'s spine append of `CommandAccepted` and the
+        in-memory queue/dict writes leaves a durable `CommandAccepted`
+        on the spine with no follow-up. Replay reconstructs
         `_accepted_commands` from the orphan but no outcome will ever
         fire because Praxis never submitted to the venue. Meanwhile the
         Nexus-side launcher had already called
         `CapitalController.send_order(reservation_id, command_id)` so
         the in-flight order notional is locked across restarts.
 
-        This method scans the per-account replay events, finds every
-        `CommandAccepted` whose `command_id` did not produce an
-        `OrderSubmitIntent` and is not already in a terminal state,
-        and emits a synthetic `TradeOutcome(REJECTED, reason=
-        'boot_orphan_command')`. The outcome is written to the spine
-        as `TradeOutcomeProduced` and routed through
+        Class B (round-18 MAJOR-007) — `OrderSubmitIntent` without
+        `OrderSubmitted`, `OrderSubmitFailed`, or terminal
+        `TradeOutcomeProduced`. A pre-fix `_validate_order` `ValueError`
+        bypassed the `except VenueError` branch and left the intent in
+        the spine with no follow-up. Post-MAJOR-007 the local rejection
+        raises `LocalOrderRejectedError` (a `VenueError`) so this
+        boot-time rescue is defense-in-depth: any future code path that
+        again leaves an intent without a follow-up will be cleaned up
+        on the next boot rather than stranding capital indefinitely.
+
+        Both classes synthesize `TradeOutcome(REJECTED,
+        reason='boot_orphan_command')`, written to the spine as
+        `TradeOutcomeProduced` and routed through
         `self._on_trade_outcome` so the launcher's
         `OutcomeProcessor` releases Nexus's reservation via
         `order_reject` lookup of the same `command_id`.
@@ -363,28 +438,51 @@ class ExecutionManager:
             return
 
         accepted_trade_ids: dict[str, str] = {}
-        seen_followup: set[str] = set()
+        intent_trade_ids: dict[str, str] = {}
+        intent_clients: dict[str, str] = {}
+        completed_via_terminal: set[str] = set()
+        completed_via_submit: set[str] = set()
 
         for _seq, event in events:
             if isinstance(event, CommandAccepted):
                 accepted_trade_ids[event.command_id] = event.trade_id
-            elif isinstance(event, OrderSubmitIntent) or (
+            elif isinstance(event, OrderSubmitIntent):
+                intent_trade_ids[event.command_id] = event.trade_id
+                intent_clients[event.client_order_id] = event.command_id
+            elif isinstance(event, (OrderSubmitted, OrderSubmitFailed)):
+                command_id = intent_clients.get(event.client_order_id)
+                if command_id is not None:
+                    completed_via_submit.add(command_id)
+            elif (
                 isinstance(event, TradeOutcomeProduced)
                 and event.status in _TERMINAL_STATUSES
             ):
-                seen_followup.add(event.command_id)
+                completed_via_terminal.add(event.command_id)
 
-        orphan_command_ids = [
+        intent_command_ids = set(intent_trade_ids)
+        completed = completed_via_submit | completed_via_terminal
+
+        class_a_orphans = [
             cid for cid in accepted_trade_ids
-            if cid not in seen_followup
+            if cid not in intent_command_ids and cid not in completed
+        ]
+        class_b_orphans = [
+            cid for cid in intent_command_ids
+            if cid not in completed
         ]
 
-        for command_id in orphan_command_ids:
+        for command_id in class_a_orphans:
             await self._emit_orphan_rejection(
                 runtime,
                 command_id,
                 accepted_trade_ids[command_id],
             )
+
+        for command_id in class_b_orphans:
+            trade_id = intent_trade_ids.get(command_id)
+            if trade_id is None:
+                continue
+            await self._emit_orphan_rejection(runtime, command_id, trade_id)
 
     async def _emit_orphan_rejection(
         self,
@@ -426,14 +524,7 @@ class ExecutionManager:
             runtime.account_id,
         )
 
-        if self._on_trade_outcome is not None:
-            try:
-                await self._on_trade_outcome(outcome)
-            except Exception:  # noqa: BLE001 - boot-time recovery must not abort startup
-                _log.exception(
-                    'on_trade_outcome callback failed for orphan: command_id=%s',
-                    command_id,
-                )
+        await self._dispatch_outcome_with_retry(outcome, source='orphan')
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
@@ -917,27 +1008,19 @@ class ExecutionManager:
                 client_order_id=client_order_id,
             )
             post_venue_ts = datetime.now(UTC)
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                return await self._record_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+            result = rescued
+            post_venue_ts = datetime.now(UTC)
         except VenueError as exc:
-            failed = OrderSubmitFailed(
-                account_id=cmd.account_id,
-                timestamp=datetime.now(UTC),
-                client_order_id=client_order_id,
-                reason=str(exc.args[0]),
-            )
-            await self._event_spine.append(failed, self._epoch_id)
-            runtime.trading_state.apply(failed)
-            _log.warning(
-                'order submit failed: client_order_id=%s reason=%s',
-                client_order_id,
-                str(exc.args[0]),
-            )
-            return await self._build_outcome(
-                runtime,
-                cmd,
-                TradeStatus.REJECTED,
-                filled_qty=_ZERO,
-                avg_fill_price=None,
-                reason=str(exc.args[0]),
+            return await self._record_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
             )
 
         submitted = OrderSubmitted(
@@ -1080,6 +1163,122 @@ class ExecutionManager:
             avg_fill_price=avg_fill_price,
             reason=reason,
             cumulative_notional=total_notional,
+        )
+
+    async def _record_submit_failed(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        reason: str,
+    ) -> TradeOutcome:
+        '''Persist `OrderSubmitFailed` and emit a REJECTED `TradeOutcome`.
+
+        Shared sink for submit failures that the rescue path could not
+        salvage and for direct venue rejections (round-18 MAJOR-002).
+        '''
+
+        failed = OrderSubmitFailed(
+            account_id=cmd.account_id,
+            timestamp=datetime.now(UTC),
+            client_order_id=client_order_id,
+            reason=reason,
+        )
+        await self._event_spine.append(failed, self._epoch_id)
+        runtime.trading_state.apply(failed)
+        _log.warning(
+            'order submit failed: client_order_id=%s reason=%s',
+            client_order_id,
+            reason,
+        )
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.REJECTED,
+            filled_qty=_ZERO,
+            avg_fill_price=None,
+            reason=reason,
+        )
+
+    async def _rescue_by_client_order_id(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        trigger: VenueError,
+    ) -> SubmitResult | None:
+        '''Query the venue by `client_order_id` after a non-idempotent POST failure.
+
+        Round-18 MAJOR-002: when a POST times out at the transport
+        layer (`OrderSubmitTimeoutError`) or the venue rejects with
+        `-2010 Duplicate clientOrderId`
+        (`DuplicateClientOrderIdError`), the venue may have already
+        accepted an earlier copy of the order. Synthesizing REJECTED
+        without confirming would let the venue carry a live order
+        Praxis no longer tracks. The rescue queries the venue with
+        the deterministic `client_order_id`; on success the caller
+        treats the returned `SubmitResult` as the canonical
+        `submit_order` result and continues the normal lifecycle.
+
+        Args:
+            runtime: Per-account runtime (logging context).
+            cmd: Original command (carries symbol for the query).
+            client_order_id: clientOrderId stamped on the original POST.
+            trigger: The exception that triggered the rescue
+                (logged for operator forensics).
+
+        Returns:
+            `SubmitResult` (status from the venue query,
+            `immediate_fills=()` because any fills carried at
+            confirmation time arrive separately via the WS reconcile
+            path) when the venue confirms the order exists.
+            None when the venue reports the order does not exist
+            (caller must classify as REJECTED), or when the rescue
+            query itself fails (caller must classify as REJECTED;
+            conservative default — operator will see the warn log
+            and the WS reconcile path will repair if the venue
+            actually held the order).
+        '''
+
+        try:
+            venue_order = await self._venue_adapter.query_order(
+                cmd.account_id,
+                cmd.symbol,
+                client_order_id=client_order_id,
+            )
+        except NotFoundError:
+            _log.warning(
+                'rescue confirmed no venue order: account_id=%s '
+                'client_order_id=%s trigger=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+            )
+            return None
+        except VenueError as query_exc:
+            _log.exception(
+                'rescue query failed: account_id=%s client_order_id=%s '
+                'trigger=%s query_error=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+                str(query_exc.args[0]) if query_exc.args else str(query_exc),
+            )
+            return None
+
+        _log.warning(
+            'rescue confirmed live venue order: account_id=%s '
+            'client_order_id=%s venue_order_id=%s status=%s trigger=%s',
+            runtime.account_id,
+            client_order_id,
+            venue_order.venue_order_id,
+            venue_order.status.value,
+            type(trigger).__name__,
+        )
+        return SubmitResult(
+            venue_order_id=venue_order.venue_order_id,
+            status=venue_order.status,
+            immediate_fills=(),
         )
 
     async def _process_abort(
@@ -1258,14 +1457,7 @@ class ExecutionManager:
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
 
-        if self._on_trade_outcome is not None:
-            try:
-                await self._on_trade_outcome(outcome)
-            except Exception:  # noqa: BLE001
-                _log.exception(
-                    'on_trade_outcome callback failed: command_id=%s',
-                    order.command_id,
-                )
+        await self._dispatch_outcome_with_retry(outcome, source='ws_emit')
 
         return outcome
 
@@ -1448,13 +1640,6 @@ class ExecutionManager:
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
 
-        if self._on_trade_outcome is not None:
-            try:
-                await self._on_trade_outcome(outcome)
-            except Exception:  # noqa: BLE001
-                _log.exception(
-                    'on_trade_outcome callback failed: command_id=%s',
-                    cmd.command_id,
-                )
+        await self._dispatch_outcome_with_retry(outcome, source='process_command')
 
         return outcome

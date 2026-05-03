@@ -22,12 +22,15 @@ __all__ = [
     'AuthenticationError',
     'BalanceEntry',
     'CancelResult',
+    'DuplicateClientOrderIdError',
     'ExecutionReport',
     'ImmediateFill',
+    'LocalOrderRejectedError',
     'NotFoundError',
     'OrderBookLevel',
     'OrderBookSnapshot',
     'OrderRejectedError',
+    'OrderSubmitTimeoutError',
     'RateLimitError',
     'SubmitResult',
     'SymbolFilters',
@@ -336,6 +339,21 @@ class OrderRejectedError(VenueError):
         self.args = (message, venue_code, reason)
 
 
+class LocalOrderRejectedError(OrderRejectedError):
+    '''Raised by the adapter when a local pre-flight check rejects the order.
+
+    Distinct from `OrderRejectedError` (which represents a venue-side
+    rejection) so callers can tell whether the order ever reached the
+    venue (round-18 MAJOR-007). Inherits from `OrderRejectedError` so
+    the existing `except VenueError` flow in `_process_command`
+    synthesizes a proper `OrderSubmitFailed` event and REJECTED
+    `TradeOutcome` — the local rejection is no longer silently
+    orphaned. The conventional `venue_code` is `-1013` (Binance's
+    code for filter failures); the rejection reason explains which
+    filter failed.
+    '''
+
+
 class RateLimitError(VenueError):
     '''
     Raised when the venue indicates a rate limit has been exceeded.
@@ -377,6 +395,44 @@ class TransientError(VenueError):
 
 class NotFoundError(VenueError):
     '''Raised when the requested order or resource does not exist on the venue.'''
+
+
+class OrderSubmitTimeoutError(VenueError):
+    '''Raised when a non-idempotent order POST fails at the transport layer.
+
+    The venue may or may not have accepted the order. Callers must
+    rescue by querying the venue with the supplied `client_order_id`
+    before classifying the order as REJECTED (round-18 MAJOR-002).
+
+    Args:
+        message: Human-readable error description.
+        client_order_id: clientOrderId attached to the original POST.
+    '''
+
+    def __init__(self, message: str, client_order_id: str) -> None:
+        self.client_order_id = client_order_id
+        super().__init__(message)
+        self.args = (message, client_order_id)
+
+
+class DuplicateClientOrderIdError(VenueError):
+    '''Raised when the venue rejects a POST as a duplicate `clientOrderId`.
+
+    Treated as evidence that an earlier POST with the same id was
+    accepted. Callers must rescue by querying the venue with the
+    supplied `client_order_id` (round-18 MAJOR-002). Distinct from
+    `OrderRejectedError` so the rescue path can fire without
+    inspecting venue codes.
+
+    Args:
+        message: Human-readable error description.
+        client_order_id: clientOrderId that the venue reported as duplicate.
+    '''
+
+    def __init__(self, message: str, client_order_id: str) -> None:
+        self.client_order_id = client_order_id
+        super().__init__(message)
+        self.args = (message, client_order_id)
 
 
 @runtime_checkable

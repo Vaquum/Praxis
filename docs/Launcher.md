@@ -70,8 +70,7 @@ The launcher creates one per-account outcome queue and one per-account Nexus thr
 | Var | Purpose |
 |---|---|
 | `EPOCH_ID` | Event-spine epoch identifier (positive integer) |
-| `VENUE_REST_URL` | Venue REST base URL |
-| `VENUE_WS_URL` | Venue WebSocket base URL |
+| `TRADE_MODE` | Trading mode selector. `paper` routes the venue adapter and `MarketDataPoller` at `https://testnet.binance.vision` (REST) and `wss://stream.testnet.binance.vision` (WebSocket); `live` routes both at `https://api.binance.com` and `wss://stream.binance.com:9443`. Endpoints are the `MAINNET_*_URL` / `TESTNET_*_URL` constants in `praxis/infrastructure/binance_urls.py`. Set explicitly per environment — there is no default and no separate URL or testnet env var |
 | `MANIFESTS_DIR` | Directory containing per-account manifest YAML files (`*.yaml` / `*.yml`); the launcher enumerates them and spawns one instance per file |
 | `STRATEGIES_BASE_PATH` | Base path for resolving strategy `.py` files referenced from manifests. Also prepended to `sys.path` at boot so user-defined SFD modules co-located with strategies become importable by Limen `Trainer.importlib.import_module(metadata['sfd_module'])`. SFDs that live elsewhere should be added to `PYTHONPATH` at deploy time |
 | `STATE_BASE` | Root for per-account state; `state_dir = STATE_BASE / <account_id>`; event-spine SQLite lives at `STATE_BASE / event_spine.sqlite` |
@@ -95,7 +94,6 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 | `HEALTHZ_PORT` | `8080` | Fallback when `PORT` is not set |
 | `LOG_FORMAT` | `json` | `json` routes through `observability.configure_logging` (structlog + orjson); `text` uses stdlib `basicConfig` for local dev |
 | `LOG_LEVEL` | `INFO` | Root logger level |
-| `BINANCE_TESTNET` | `false` | When `true` (`1`/`true`/`yes`/`on`), the shared `MarketDataPoller` builds its `binance.client.Client` with `testnet=True` so REST kline fetches go to `testnet.binance.vision` instead of mainnet. Set this whenever `VENUE_REST_URL` / `VENUE_WS_URL` point at testnet — without it, ENTER notional sizing reads mainnet BTCUSDT prices while orders execute on testnet, miscalibrating capital reservations |
 
 ## Healthz
 

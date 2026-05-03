@@ -19,7 +19,10 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import TradeOutcomeProduced
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import (
+    _OUTCOME_CALLBACK_MAX_ATTEMPTS,
+    ExecutionManager,
+)
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import SubmitResult, VenueAdapter
 
@@ -86,6 +89,11 @@ async def test_callback_failure_does_not_block_outcome_production(
     spine: EventSpine,
     adapter: AsyncMock,
 ) -> None:
+    '''Round-18 MAJOR-004: callback failures are now retried up to N
+    attempts before being swallowed. The TradeOutcomeProduced spine
+    record must still land for every command (the durable evidence
+    is independent of consumer success).'''
+
     callback_calls = 0
 
     async def callback(outcome: TradeOutcome) -> None:
@@ -109,11 +117,21 @@ async def test_callback_failure_does_not_block_outcome_production(
 
     await mgr.submit_command(**_CMD_KWARGS)
     await mgr.submit_command(**{**_CMD_KWARGS, 'trade_id': 'trade-2'})
-    await asyncio.sleep(0.5)
+
+    expected_calls = 2 * _OUTCOME_CALLBACK_MAX_ATTEMPTS
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 10.0
+    while callback_calls < expected_calls:
+        if loop.time() >= deadline:
+            raise AssertionError(
+                f'callback retries did not converge: '
+                f'callback_calls={callback_calls} expected={expected_calls}'
+            )
+        await asyncio.sleep(0.05)
 
     events = await spine.read(_EPOCH, after_seq=0)
     produced = [e for _, e in events if isinstance(e, TradeOutcomeProduced)]
     assert len(produced) == 2
-    assert callback_calls == len(produced)
+    assert callback_calls == len(produced) * _OUTCOME_CALLBACK_MAX_ATTEMPTS
 
     await mgr.unregister_account(_ACCT)

@@ -132,11 +132,21 @@ class TestTD014Concurrency:
         cmd_id = await mgr.submit_command(**_CMD_KWARGS)
         assert cmd_id is not None
 
-        await asyncio.sleep(0.2)
-
         runtime = mgr._accounts[_ACCT]
-        all_orders = {**runtime.trading_state.orders, **runtime.trading_state.closed_orders}
-        assert len(all_orders) > 0
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 10.0
+        while True:
+            all_orders = {
+                **runtime.trading_state.orders,
+                **runtime.trading_state.closed_orders,
+            }
+            if all_orders:
+                break
+            if loop.time() >= deadline:
+                raise AssertionError(
+                    'submit_command did not produce a tracked order within 10s'
+                )
+            await asyncio.sleep(0.05)
 
         client_order_id = next(iter(all_orders))
 

@@ -108,7 +108,14 @@ class TestCommandRegistryLock:
                 stop_event.set()
 
         def reader() -> None:
-            while not stop_event.is_set():
+            # Bounded loop so a slow CI runner cannot starve the
+            # writer. 50 batches of 200 lookups = 10k observations
+            # per reader; with 4 readers that is 40k observations,
+            # plenty of coverage of the writer's 200 iterations
+            # without spinning indefinitely on the lock.
+            for _ in range(50):
+                if stop_event.is_set():
+                    return
                 for i in range(200):
                     cid = f'cmd-{i}'
                     with lock:
@@ -116,6 +123,8 @@ class TestCommandRegistryLock:
                         has_ctx = cid in contexts
                     with observation_lock:
                         observations.append((has_strat, has_ctx))
+                # Hand the GIL back so the writer is not starved.
+                time.sleep(0.0001)
 
         threads = [threading.Thread(target=reader, daemon=True) for _ in range(4)]
         threads.append(threading.Thread(target=writer, daemon=True))

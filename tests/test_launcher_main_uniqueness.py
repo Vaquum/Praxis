@@ -68,8 +68,7 @@ class TestMainUniquenessGuards:
     ) -> dict[str, str]:
         env = {
             'EPOCH_ID': '1',
-            'VENUE_REST_URL': 'https://example.invalid',
-            'VENUE_WS_URL': 'wss://example.invalid',
+            'TRADE_MODE': 'paper',
             'MANIFESTS_DIR': str(manifests_dir),
             'STRATEGIES_BASE_PATH': str(strategies_base_path),
             'STATE_BASE': str(state_base),

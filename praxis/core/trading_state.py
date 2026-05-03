@@ -25,6 +25,7 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    OutcomeAcked,
     TradeClosed,
     TradeOutcomeProduced,
 )
@@ -111,6 +112,12 @@ class TradingState:
                 'trade outcome produced: command_id=%s trade_id=%s account=%s',
                 event.command_id,
                 event.trade_id,
+                self.account_id,
+            )
+        elif isinstance(event, OutcomeAcked):
+            _log.debug(
+                'outcome acked: outcome_id=%s account=%s',
+                event.outcome_id,
                 self.account_id,
             )
         else:

@@ -39,6 +39,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import (
     CommandAccepted,
     OrderSubmitIntent,
+    OrderSubmitted,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -110,6 +111,15 @@ def _terminal_outcome(command_id: str, trade_id: str) -> TradeOutcomeProduced:
     )
 
 
+def _order_submitted(command_id: str) -> OrderSubmitted:
+    return OrderSubmitted(
+        account_id=_ACCT,
+        timestamp=_TS,
+        client_order_id=f'client-{command_id}',
+        venue_order_id=f'venue-{command_id}',
+    )
+
+
 class TestReconcileOrphanCommands:
 
     @pytest.mark.asyncio
@@ -150,13 +160,19 @@ class TestReconcileOrphanCommands:
         await mgr.unregister_account(_ACCT)
 
     @pytest.mark.asyncio
-    async def test_command_with_intent_is_not_orphan(
+    async def test_command_with_submitted_followup_is_not_orphan(
         self,
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
-        '''CommandAccepted followed by OrderSubmitIntent is in-flight,
-        not an orphan — no synthetic outcome should fire.'''
+        '''CommandAccepted + OrderSubmitIntent + OrderSubmitted is fully
+        in-flight at the venue — not an orphan, no synthetic outcome.
+
+        Round-18 MAJOR-007 (M07.2) tightened the contract: an intent
+        without a submitted/failed/terminal followup IS an orphan, so
+        a real "in flight at venue" fixture must include the
+        OrderSubmitted event that confirms the venue accepted.
+        '''
 
         callback = AsyncMock()
         mgr = ExecutionManager(
@@ -170,6 +186,7 @@ class TestReconcileOrphanCommands:
         events = [
             (1, _command_accepted('cmd-inflight', 'trade-inflight')),
             (2, _order_submit_intent('cmd-inflight', 'trade-inflight')),
+            (3, _order_submitted('cmd-inflight')),
         ]
         mgr.replay_events(_ACCT, events)
 
@@ -265,6 +282,7 @@ class TestReconcileOrphanCommands:
             (2, _command_accepted('cmd-b', 'trade-b')),
             (3, _command_accepted('cmd-c', 'trade-c')),
             (4, _order_submit_intent('cmd-b', 'trade-b')),
+            (5, _order_submitted('cmd-b')),
         ]
         mgr.replay_events(_ACCT, events)
 
