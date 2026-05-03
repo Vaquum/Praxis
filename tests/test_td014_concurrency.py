@@ -133,7 +133,8 @@ class TestTD014Concurrency:
         assert cmd_id is not None
 
         runtime = mgr._accounts[_ACCT]
-        deadline = asyncio.get_event_loop().time() + 10.0
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 10.0
         while True:
             all_orders = {
                 **runtime.trading_state.orders,
@@ -141,7 +142,7 @@ class TestTD014Concurrency:
             }
             if all_orders:
                 break
-            if asyncio.get_event_loop().time() >= deadline:
+            if loop.time() >= deadline:
                 raise AssertionError(
                     'submit_command did not produce a tracked order within 10s'
                 )

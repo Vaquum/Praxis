@@ -119,9 +119,10 @@ async def test_callback_failure_does_not_block_outcome_production(
     await mgr.submit_command(**{**_CMD_KWARGS, 'trade_id': 'trade-2'})
 
     expected_calls = 2 * _OUTCOME_CALLBACK_MAX_ATTEMPTS
-    deadline = asyncio.get_event_loop().time() + 10.0
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 10.0
     while callback_calls < expected_calls:
-        if asyncio.get_event_loop().time() >= deadline:
+        if loop.time() >= deadline:
             raise AssertionError(
                 f'callback retries did not converge: '
                 f'callback_calls={callback_calls} expected={expected_calls}'
