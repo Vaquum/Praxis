@@ -301,7 +301,7 @@ Both are consistent with the documented Nexus lock-order chain (`command_registr
 
 **Origin**: Round-18 codex-supervised audit (Pass 8)
 **Severity**: Low (defaults are durable; no concurrency requirement today)
-**Module**: `praxis/launcher.py:1165` (`aiosqlite.connect`); `praxis/infrastructure/event_spine.py:202-216` (`ensure_schema`)
+**Module**: `praxis/launcher.py` (`Launcher._build_event_spine`, the `aiosqlite.connect(str(self._db_path))` call); `praxis/infrastructure/event_spine.py` (`EventSpine.ensure_schema`)
 
 `EventSpine` opens its SQLite database via `aiosqlite.connect(str(self._db_path))` with no PRAGMA statements. Journal mode and synchronous level fall through to SQLite/aiosqlite defaults (`journal_mode=DELETE`, `synchronous=FULL`). Defaults provide ACID durability but not the concurrent-reader semantics of WAL mode. No regression test asserts the chosen settings; a future SQLite or aiosqlite default change could silently flip durability.
 
@@ -314,7 +314,7 @@ Both are consistent with the documented Nexus lock-order chain (`command_registr
 
 **Origin**: Round-18 codex-supervised audit (Pass 8)
 **Severity**: Low at MMVP cadence (next checkpoint heals; Praxis remains source of truth for positions); Major where mid-run risk-state durability matters
-**Module**: `praxis/launcher.py:1602-1611`
+**Module**: `praxis/launcher.py` (the `process_outcome` closure inside `Launcher._build_nexus_runtime` — the `state_store.append_mutation(state)` call gated on `result.success and (result.position_updated or result.capital_updated)`)
 
 The launcher's outcome wrapper calls `state_store.append_mutation(state)` after `outcome_processor.process(...)` returns success-with-mutation. The call is wrapped in `try: ... except Exception: _log.exception(...)` per the comment "persistence failure must not abort outcome flow". On failure, in-memory state continues to mutate but the WAL has no STATE_MUTATION entry. There is no counter, no health-loop signal, no mode demotion on repeated failures. Operators only see a log line.
 
