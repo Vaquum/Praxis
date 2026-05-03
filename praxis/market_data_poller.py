@@ -107,6 +107,19 @@ class MarketDataPoller:
         self._started = False
         self._initial_intervals = dict(kline_intervals or {})
         self._testnet = testnet
+        for ks, max_age in (max_age_seconds or {}).items():
+            if ks <= 0:
+                msg = (
+                    f'max_age_seconds key (kline_size) must be positive; '
+                    f'got {ks!r}'
+                )
+                raise ValueError(msg)
+            if max_age <= 0.0:
+                msg = (
+                    f'max_age_seconds value for kline_size={ks} must be > 0.0; '
+                    f'got {max_age!r}'
+                )
+                raise ValueError(msg)
         self._max_age_overrides = dict(max_age_seconds or {})
 
     @property

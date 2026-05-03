@@ -96,6 +96,21 @@ class TestGetMarketDataFreshness:
 
         assert poller.is_stale(_KLINE_SIZE) is True
 
+    def test_max_age_overrides_reject_zero_value(self) -> None:
+        '''PR #87 review: a misconfigured `{60: 0}` would make every read
+        immediately stale. Validate at construction.'''
+
+        with pytest.raises(ValueError, match=r'must be > 0\.0'):
+            MarketDataPoller(max_age_seconds={_KLINE_SIZE: 0.0})
+
+    def test_max_age_overrides_reject_negative_value(self) -> None:
+        with pytest.raises(ValueError, match=r'must be > 0\.0'):
+            MarketDataPoller(max_age_seconds={_KLINE_SIZE: -1.0})
+
+    def test_max_age_overrides_reject_non_positive_kline_size(self) -> None:
+        with pytest.raises(ValueError, match='must be positive'):
+            MarketDataPoller(max_age_seconds={0: 30.0})
+
 
 class TestFallbackPriceProviderStaleGuard:
     '''The launcher's `fallback_price_provider` calls

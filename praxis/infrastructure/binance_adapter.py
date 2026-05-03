@@ -1114,15 +1114,21 @@ class BinanceAdapter:
 
         Order POSTs are non-idempotent: the venue may have accepted the
         request even when the response was lost (round-18 MAJOR-002).
+        Every code path here therefore runs the underlying transport
+        with `idempotent=False` (no automatic retries), so a TimeoutError
+        cannot create duplicate venue orders.
+
         When `client_order_id` is present (production always passes it),
-        the request runs without transport retries; transient failures
-        surface as `OrderSubmitTimeoutError` and `-2010` venue rejections
-        surface as `DuplicateClientOrderIdError` so the caller can rescue
-        by querying the venue with the deterministic clientOrderId.
+        transient failures surface as `OrderSubmitTimeoutError` and
+        `-2010` venue rejections surface as
+        `DuplicateClientOrderIdError` so the caller can rescue by
+        querying the venue with the deterministic clientOrderId.
+
         Without a clientOrderId there is no rescue handle, so the
-        request falls back to the idempotent retry path; this branch
-        exists for tests that exercise the venue mock directly without
-        the execution-manager-supplied id.
+        request still runs `idempotent=False` and the original venue
+        errors propagate verbatim; this branch exists for tests that
+        exercise the venue mock directly without the
+        execution-manager-supplied id.
 
         Args:
             path: Order POST endpoint (e.g., `/api/v3/order`).
@@ -1136,7 +1142,9 @@ class BinanceAdapter:
         '''
 
         if not client_order_id:
-            return await self._signed_request('POST', path, params, account_id)
+            return await self._signed_request(
+                'POST', path, params, account_id, idempotent=False,
+            )
 
         try:
             return await self._signed_request(
