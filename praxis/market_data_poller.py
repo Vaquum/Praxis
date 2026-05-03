@@ -228,18 +228,22 @@ class MarketDataPoller:
                 pt = self._pollers.pop(kline_size, None)
                 self._data.pop(kline_size, None)
                 self._fetched_at.pop(kline_size, None)
+                if pt is not None:
+                    pt.stop_event.set()
             else:
                 self._refcounts[kline_size] = count - 1
                 return
 
         if pt is not None:
-            pt.stop_event.set()
             pt.thread.join(timeout=10)
             if pt.thread.is_alive():
                 _log.warning(
                     'poller thread did not stop within timeout',
                     extra={'kline_size': pt.kline_size, 'thread_name': pt.thread.name},
                 )
+            with self._lock:
+                self._data.pop(kline_size, None)
+                self._fetched_at.pop(kline_size, None)
             _log.info('removed kline_size', extra={'kline_size': kline_size})
 
     def get_market_data(self, kline_size: int) -> pl.DataFrame:
@@ -264,24 +268,22 @@ class MarketDataPoller:
                 the configured max age.
         '''
 
+        max_age = self._resolve_max_age(kline_size)
+
         with self._lock:
             df = self._data.get(kline_size)
             fetched_at = self._fetched_at.get(kline_size)
-
-        if df is None or fetched_at is None:
-            return pl.DataFrame()
-
-        max_age = self._resolve_max_age(kline_size)
-        age = (datetime.now(tz=UTC) - fetched_at).total_seconds()
-        if age > max_age:
-            raise StaleMarketDataError(
-                kline_size=kline_size,
-                fetched_at=fetched_at,
-                age_seconds=age,
-                max_age_seconds=max_age,
-            )
-
-        return df
+            if df is None or fetched_at is None:
+                return pl.DataFrame()
+            age = (datetime.now(tz=UTC) - fetched_at).total_seconds()
+            if age > max_age:
+                raise StaleMarketDataError(
+                    kline_size=kline_size,
+                    fetched_at=fetched_at,
+                    age_seconds=age,
+                    max_age_seconds=max_age,
+                )
+            return df
 
     def is_stale(self, kline_size: int) -> bool:
         '''Return True when cached data for `kline_size` exceeds max age.
@@ -291,15 +293,14 @@ class MarketDataPoller:
         staleness without exception flow control.
         '''
 
+        max_age = self._resolve_max_age(kline_size)
+
         with self._lock:
             fetched_at = self._fetched_at.get(kline_size)
-
-        if fetched_at is None:
-            return True
-
-        max_age = self._resolve_max_age(kline_size)
-        age = (datetime.now(tz=UTC) - fetched_at).total_seconds()
-        return age > max_age
+            if fetched_at is None:
+                return True
+            age = (datetime.now(tz=UTC) - fetched_at).total_seconds()
+            return age > max_age
 
     def _resolve_max_age(self, kline_size: int) -> float:
         '''Per-kline max age, falling back to `2 * kline_size`.'''
