@@ -1137,7 +1137,9 @@ class BinanceAdapter:
 
         Args:
             path: Order POST endpoint (e.g., `/api/v3/order`).
-            params: Request parameters (already signed by caller logic).
+            params: Unsigned request parameters; `_signed_request` adds
+                `timestamp` / `recvWindow` and computes the HMAC
+                signature before dispatch.
             account_id: Account identifier for credential lookup.
             client_order_id: clientOrderId stamped on the order. Optional
                 only for tests; production callers always pass one.
