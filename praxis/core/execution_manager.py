@@ -202,7 +202,7 @@ class ExecutionManager:
                 return
             except Exception as exc:  # noqa: BLE001 - callback is operator code
                 if attempt == _OUTCOME_CALLBACK_MAX_ATTEMPTS:
-                    _log.error(
+                    _log.exception(
                         'on_trade_outcome callback exhausted retries (%s): '
                         'command_id=%s attempts=%d last_error=%s — outcome '
                         'durably persisted on spine for future replay',

@@ -1675,18 +1675,21 @@ class Launcher:
                         if pos is not None and pos.size == _ZERO:
                             del state.positions[order_context.trade_id]
 
+            mutation_persisted = True
             if result.success and (result.position_updated or result.capital_updated):
                 try:
                     state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
+                    mutation_persisted = False
                     _log.exception(
                         'append_mutation failed; mid-run state durability '
-                        'lost for this outcome — recovery will roll back to '
-                        'the last clean checkpoint',
+                        'lost for this outcome — OutcomeAcked withheld so '
+                        'replay-from-spine will re-deliver and recovery '
+                        'rolls back to the last clean checkpoint',
                         extra={'command_id': outcome.command_id},
                     )
 
-            if result.success:
+            if result.success and mutation_persisted:
                 self._append_outcome_acked(inst.account_id, outcome.outcome_id)
 
         sequencer.drain_pending_startup_actions(submitter)

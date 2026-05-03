@@ -82,12 +82,13 @@ class MarketDataPoller:
         testnet: When `True`, build poller `binance.client.Client` with
             `testnet=True` so REST calls go to `testnet.binance.vision`
             instead of mainnet `api.binance.com`. Default `False` keeps
-            existing behavior. The launcher pipes the
-            `BINANCE_TESTNET` env var through this knob so paper trades
-            on testnet read prices from the same venue they execute
-            against — without it, ENTER notionals are sized against
-            mainnet BTCUSDT prices but reservations land on the testnet
-            capital pool.
+            existing behavior. The launcher derives this flag from
+            `TRADE_MODE` (`paper` → `True`, `live` → `False`) and pipes
+            it through this constructor so paper trades read prices
+            from the same venue they execute against — without it,
+            ENTER notionals would be sized against mainnet BTCUSDT
+            prices but reservations would land on the testnet capital
+            pool.
     '''
 
     def __init__(
