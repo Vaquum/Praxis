@@ -111,6 +111,53 @@ class TestGetMarketDataFreshness:
         with pytest.raises(ValueError, match='must be positive'):
             MarketDataPoller(max_age_seconds={0: 30.0})
 
+    def test_fetch_skips_cache_write_when_stop_event_set(self) -> None:
+        '''PR #87 review: a fetch in flight when `remove_kline_size`
+        sets `stop_event` (and the join times out) must not write to
+        the cache and resurrect a removed kline_size. `_fetch` checks
+        `stop_event.is_set()` under the lock and returns without
+        mutating `_data` / `_fetched_at`.
+        '''
+
+        import threading
+        from unittest.mock import patch
+
+        poller = MarketDataPoller()
+        stop_event = threading.Event()
+        stop_event.set()
+
+        fake_pd_df = pl.DataFrame({'close': [50000.0]}).to_pandas()
+        with patch(
+            'praxis.market_data_poller.get_spot_klines',
+            return_value=fake_pd_df,
+        ):
+            poller._fetch(_KLINE_SIZE, client=None, stop_event=stop_event)
+
+        assert _KLINE_SIZE not in poller._data
+        assert _KLINE_SIZE not in poller._fetched_at
+
+    def test_fetch_writes_cache_when_stop_event_not_set(self) -> None:
+        '''Inverse case: when `stop_event` is clear the fetch path
+        writes the new DataFrame and `fetched_at` stamp as before.
+        '''
+
+        import threading
+        from unittest.mock import patch
+
+        poller = MarketDataPoller()
+        stop_event = threading.Event()
+
+        fake_pd_df = pl.DataFrame({'close': [50000.0]}).to_pandas()
+        with patch(
+            'praxis.market_data_poller.get_spot_klines',
+            return_value=fake_pd_df,
+        ):
+            poller._fetch(_KLINE_SIZE, client=None, stop_event=stop_event)
+
+        assert _KLINE_SIZE in poller._data
+        assert poller._data[_KLINE_SIZE].height == 1
+        assert _KLINE_SIZE in poller._fetched_at
+
 
 class TestFallbackPriceProviderStaleGuard:
     '''The launcher's `fallback_price_provider` calls

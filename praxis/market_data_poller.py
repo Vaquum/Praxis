@@ -359,12 +359,17 @@ class MarketDataPoller:
             )
             return
 
-        self._fetch(kline_size, client)
+        self._fetch(kline_size, client, stop_event)
 
         while not stop_event.wait(timeout=interval):
-            self._fetch(kline_size, client)
+            self._fetch(kline_size, client, stop_event)
 
-    def _fetch(self, kline_size: int, client: Client) -> None:
+    def _fetch(
+        self,
+        kline_size: int,
+        client: Client,
+        stop_event: threading.Event,
+    ) -> None:
         try:
             start_dt = datetime.now(tz=UTC) - timedelta(
                 seconds=kline_size * self._n_rows,
@@ -379,6 +384,16 @@ class MarketDataPoller:
             df = pl.from_pandas(df_pd)
 
             with self._lock:
+                # Round-18 PR #87 review: a fetch that started before
+                # `remove_kline_size` set `stop_event` can land here
+                # after `thread.join(timeout=10)` returned. Writing in
+                # that window would resurrect a removed kline_size and
+                # could race a freshly-started thread for the same
+                # size. Skip the write when stopping; the post-join
+                # cleanup pop in `remove_kline_size` then leaves the
+                # cache empty.
+                if stop_event.is_set():
+                    return
                 self._data[kline_size] = df
                 self._fetched_at[kline_size] = datetime.now(tz=UTC)
 
