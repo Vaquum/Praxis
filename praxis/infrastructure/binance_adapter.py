@@ -1119,10 +1119,15 @@ class BinanceAdapter:
         cannot create duplicate venue orders.
 
         When `client_order_id` is present (production always passes it),
-        transient failures surface as `OrderSubmitTimeoutError` and
-        `-2010` venue rejections surface as
-        `DuplicateClientOrderIdError` so the caller can rescue by
-        querying the venue with the deterministic clientOrderId.
+        transport-layer failures (`TransientError`) are wrapped as
+        `OrderSubmitTimeoutError` and `-2010` venue rejections are
+        wrapped as `DuplicateClientOrderIdError` so the caller can
+        rescue by querying the venue with the deterministic
+        clientOrderId. Other venue errors propagate unchanged — in
+        particular, `RateLimitError` (HTTP 429) is re-raised as-is and
+        is not eligible for the rescue path because the venue
+        guaranteed it did not accept the order (`_request_with_retry`
+        re-raises 429 immediately when `idempotent=False`).
 
         Without a clientOrderId there is no rescue handle, so the
         request still runs `idempotent=False` and the original venue
