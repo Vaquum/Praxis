@@ -437,14 +437,20 @@ class OutcomeAcked(_EventBase):
     matching `OutcomeAcked`. Missing `OutcomeAcked` is not by itself
     sufficient evidence that Nexus did not mutate, because Nexus may
     have applied the outcome and persisted a checkpoint before the ack
-    landed; the replay implementation must additionally consult a
-    Nexus-side durable applied-outcome marker (TD-086) or rely on an
-    idempotent consumer.
+    landed; the replay implementation must additionally consult the
+    Nexus-side durable applied-outcome marker provided by TD-086, which
+    is a paired-boundary requirement (TD-052 must not ship without
+    TD-086).
 
     Args:
         account_id (str): Account that owns this event.
         timestamp (datetime): Event time, must be timezone-aware.
-        outcome_id (str): TradeOutcome.outcome_id that was acked.
+        outcome_id (str): Nexus-side outcome identifier
+            (`NexusTradeOutcome.outcome_id`) emitted by `OutcomeTranslator`
+            and acked by the launcher after `OutcomeProcessor.process`
+            returns success. Praxis `TradeOutcome` does not carry an
+            `outcome_id` field today; that field is part of the TD-052
+            prework (migration step 1).
     '''
 
     outcome_id: str
