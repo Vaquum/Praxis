@@ -426,10 +426,16 @@ class OutcomeAcked(_EventBase):
 
     Round-18 MAJOR-004: appended by the launcher's process_outcome
     closure after `OutcomeProcessor.process` returns success and the
-    follow-on `state_store.append_mutation` lands. Boot replay scans
-    `TradeOutcomeProduced` events that lack a matching `OutcomeAcked`
-    and re-delivers them through the wired callback so a crash
-    between produced-and-acked recovers cleanly.
+    follow-on `state_store.append_mutation` lands. Boot replay (TD-052,
+    deferred) scans `TradeOutcomeProduced` events that lack a matching
+    `OutcomeAcked` and re-delivers them through the wired callback. See
+    TD-052 for the refined replay contract: missing `OutcomeAcked` is
+    not by itself sufficient because (a) Nexus may have mutated state
+    and persisted a checkpoint before the ack landed, and (b) one Praxis
+    `TradeOutcome` fans out to multiple Nexus `outcome_id`s via
+    `OutcomeTranslator`. The replay implementation must consult a
+    Nexus-side durable applied-outcome marker (TD-086) or rely on an
+    idempotent consumer.
 
     Args:
         account_id (str): Account that owns this event.
