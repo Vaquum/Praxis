@@ -426,15 +426,31 @@ class OutcomeAcked(_EventBase):
 
     Round-18 MAJOR-004: appended by the launcher's process_outcome
     closure after `OutcomeProcessor.process` returns success and the
-    follow-on `state_store.append_mutation` lands. Boot replay scans
-    `TradeOutcomeProduced` events that lack a matching `OutcomeAcked`
-    and re-delivers them through the wired callback so a crash
-    between produced-and-acked recovers cleanly.
+    follow-on `state_store.append_mutation` lands. The recorded
+    `outcome_id` is the Nexus-side `outcome_id`, not a Praxis-level
+    identifier, and one Praxis `TradeOutcome` fans out via
+    `OutcomeTranslator` to multiple Nexus outcomes (ACK + zero-or-more
+    PARTIAL + a terminal), each producing its own `OutcomeAcked`. Boot
+    replay (TD-052, deferred) computes the full set of derived Nexus
+    outcome_ids for each `TradeOutcomeProduced` and re-delivers any
+    `TradeOutcomeProduced` with at least one derived id missing a
+    matching `OutcomeAcked`. Missing `OutcomeAcked` is not by itself
+    sufficient evidence that Nexus did not mutate, because Nexus may
+    have applied the outcome and persisted a checkpoint before the ack
+    landed; the replay implementation must additionally consult the
+    Nexus-side durable applied-outcome marker provided by TD-086, which
+    is a paired-boundary requirement (TD-052 must not ship without
+    TD-086).
 
     Args:
         account_id (str): Account that owns this event.
         timestamp (datetime): Event time, must be timezone-aware.
-        outcome_id (str): TradeOutcome.outcome_id that was acked.
+        outcome_id (str): Nexus-side outcome identifier
+            (`NexusTradeOutcome.outcome_id`) emitted by `OutcomeTranslator`
+            and acked by the launcher after `OutcomeProcessor.process`
+            returns success. Praxis `TradeOutcome` does not carry an
+            `outcome_id` field today; that field is part of the TD-052
+            prework (migration step 1).
     '''
 
     outcome_id: str
