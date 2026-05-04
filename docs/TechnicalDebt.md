@@ -334,6 +334,13 @@ Boot reconciliation walks `trading_state.orders` (rebuilt from EventSpine) and q
 **When to fix**: Before any deployment with manual order placement on the same account, OR if mid-run spine writes ever fail after venue ACK in observed traffic.
 **Migration**: At end of `_startup_account`, call `query_open_orders(account_id)` and synthesize `OrderSubmitIntent` + `OrderSubmitted` events for any venue order with no local projection. Or escalate to operator log instead of auto-correcting.
 
+**Acceptance addendum (codex-supervised audit re-run, 2026-05-04)**:
+- **Boot-time open-order sweep**: at end of `_startup_account` (after `_reconcile_account`), call `query_open_orders(account_id, symbol)` per managed symbol. For each returned venue open order whose `client_order_id` is not in `trading_state.orders`: log at WARNING level, include `venue_order_id` + `client_order_id` + `symbol` + `original_qty` + `executed_qty` + `time_in_force`. Default behavior is alert-and-block (refuse to enter ready state); auto-cancel only behind explicit `--auto-cancel-orphan-venue-orders` flag.
+- **Class B reconcile must verify before terminalizing**: `reconcile_orphan_commands` Class B path must call `query_order(client_order_id)` before emitting `_emit_orphan_rejection`. If venue reports the order as live (any non-terminal status): synthesize `OrderSubmitted` (using venue-returned `venue_order_id`) instead of REJECTED. If venue reports terminal FILLED / PARTIALLY_FILLED: must NOT synthesize REJECTED — must reconstruct enough `OrderSubmitted` + `FillReceived` + `TradeOutcomeProduced` state to bring Praxis/Nexus into venue truth, OR halt startup with operator-required reconciliation error.
+- **WS unknown-order escalation**: promote `praxis/trading.py` `_on_execution_report` unknown-`client_order_id` log from `_log.debug` to `_log.warning`. Add per-account `unknown_ws_orders_seen` counter for health metrics.
+- **Coverage**: external venue order placed before boot → boot sweep alerts; Class B orphan with venue-confirmed-live → no REJECTED synth; Class B orphan with venue-confirmed-FILLED → recovery reconstruction or halt; WS executionReport for unseen `client_order_id` → warning + counter increment.
+- **Promotion gate**: blocks any of unattended/multi-day paper trading, shared Binance account, manual/operator orders on the same account, resting LIMIT/STOP-heavy strategies, or live trading.
+
 ---
 
 ## TD-043: Cross-repo state mismatch (Nexus snapshot present, Praxis spine cleared) is not detected at boot
@@ -471,6 +478,12 @@ The runtime retry handles transient callback failures; the `OutcomeAcked` event 
 3. In `Trading.start`, after `replay_events` and `reconcile_orphan_commands`, scan per-account `TradeOutcomeProduced` events that lack a matching `OutcomeAcked.outcome_id`; reconstruct the Praxis `TradeOutcome` from the spine fields and re-deliver via `self._on_trade_outcome`.
 4. Nexus's in-memory dedup (already keyed on outcome_id from MAJOR-004 part A) catches re-delivered outcomes within a single process lifetime; cross-restart safety comes from the `OutcomeAcked` filter at boot-replay-emission time.
 5. Add integration test: simulate Nexus crash after spine append but before consumption → restart → boot replay drives Nexus to the same end state as if no crash had occurred.
+
+**Acceptance addendum (codex-supervised audit re-run, 2026-05-04)**:
+- Replay must handle the case where Nexus state was checkpointed (via `_final_checkpoint` at shutdown OR via `_reconcile_capital` boot adjustment) AFTER memory mutation but BEFORE `OutcomeAcked` was emitted.
+- Replay must NOT assume "missing `OutcomeAcked`" implies "Nexus did not mutate". The check must consult a durable Nexus-side applied-outcome record OR the replay consumer must produce the same end-state as a successful first delivery did (idempotent `_handle_*`).
+- Boot replay scan order: read all `TradeOutcomeProduced` for epoch, filter by stable Praxis `outcome_id` against `OutcomeAcked.outcome_id`, additionally filter against any Nexus-side durable applied-outcome marker. Re-deliver remainder via the same callback chain.
+- TD-052 must NOT ship without TD-086 (paired implementation boundary).
 
 ---
 
