@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: build-image-praxis
+  group: build-image-praxis-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
