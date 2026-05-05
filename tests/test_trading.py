@@ -238,6 +238,25 @@ async def test_trading_wires_default_dependencies(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_trading_default_adapter_forwards_all_three_venue_urls(
+    spine: EventSpine,
+) -> None:
+    config = TradingConfig(
+        epoch_id=1,
+        venue_rest_url='https://rest.test',
+        venue_ws_url='wss://ws.test',
+        venue_ws_api_url='wss://ws-api.test/ws-api/v3',
+    )
+    trading = Trading(config=config, event_spine=spine)
+
+    adapter = trading.venue_adapter
+    assert isinstance(adapter, BinanceAdapter)
+    assert adapter._base_url == 'https://rest.test'
+    assert adapter._ws_base_url == 'wss://ws.test'
+    assert adapter._ws_api_url == 'wss://ws-api.test/ws-api/v3'
+
+
+@pytest.mark.asyncio
 async def test_trading_uses_injected_venue_adapter(spine: EventSpine) -> None:
     adapter = cast(VenueAdapter, _InjectedVenueAdapter())
     trading = Trading(

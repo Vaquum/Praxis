@@ -363,6 +363,27 @@ class TestSubscribeFraming:
         with pytest.raises(VenueError, match='missing subscriptionId'):
             await stream.initiate_connection()
 
+    @pytest.mark.asyncio
+    async def test_subscribe_bool_subscription_id_raises(self) -> None:
+        adapter = _make_adapter()
+        ws = AsyncMock()
+        ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        bad_ack = MagicMock()
+        bad_ack.type = aiohttp.WSMsgType.TEXT
+        bad_ack.data = json.dumps(
+            {'id': 'r', 'status': 200, 'result': {'subscriptionId': True}},
+        )
+        ws.receive = AsyncMock(return_value=bad_ack)
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        adapter._ensure_session.return_value = session
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(VenueError, match='missing subscriptionId'):
+            await stream.initiate_connection()
+
 
 class TestClose:
 

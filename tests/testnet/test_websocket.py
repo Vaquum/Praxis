@@ -98,7 +98,8 @@ async def test_ws_api_subscribe_returns_subscription_id() -> None:
         ack = json.loads(await asyncio.wait_for(ws.recv(), timeout=WS_RECV_TIMEOUT))
 
     assert ack['status'] == _OK_STATUS, f'subscribe rejected: {ack}'
-    assert isinstance(ack['result']['subscriptionId'], int)
+    sub_id = ack['result']['subscriptionId']
+    assert isinstance(sub_id, int) and not isinstance(sub_id, bool)
 
 
 @skip_no_creds
