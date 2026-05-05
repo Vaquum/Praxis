@@ -600,3 +600,9 @@
 - Fix [`MarketDataPoller.get_market_data`](praxis/market_data_poller.py) returning the previous DataFrame indefinitely after `_fetch` swallowed exceptions — strategies and `fallback_price_provider` could trade on hours-old klines after Binance public REST/testnet outages with no signal (round-18 MAJOR-005)
 - Fix [`Launcher._append_outcome_acked`](praxis/launcher.py) reaching into `Trading._event_spine` private attribute; switched to the public `Trading.event_spine` property (Greybeard pre-PR review)
 - Bump version to `0.49.0`
+
+## v0.50.0 on 5th of May, 2026
+
+- Add [`.github/workflows/build_image.yml`](.github/workflows/build_image.yml) — builds the existing `Dockerfile` on push to main (and on `workflow_dispatch`), pushes to `ghcr.io/vaquum/praxis` via `docker/login-action@v3` + `docker/build-push-action@v6` with GitHub Actions docker layer caching (`cache-from: type=gha` + `cache-to: type=gha,mode=max`). Tagging: `:sha-<commit>` is always published; `:<version>` (parsed from `pyproject.toml`'s `version = ...` field) and `:main` are published only when `github.ref == 'refs/heads/main'` so a `workflow_dispatch` from a feature branch cannot overwrite the floating tags with a non-main image. Auth uses `secrets.GITHUB_TOKEN` against the calling workflow's identity. Mirrors the build-job pattern from `Vaquum/experiment_runner`'s `deploy.yml` minus the deploy-to-host step (deferred until the operator runbook for `/opt/praxis/` lands)
+- Bump `vaquum-nexus` git+https pin from Nexus 0.38.0 main HEAD `1097d18e7e5a29ffcb212dee33b703e31f5c39ac` to Nexus 0.39.0 main HEAD `52ed0f0a4b7859b941191f85b73f4aaa22911226` (Vaquum/Nexus#59 — example `logreg_binary_evsfd` strategy + manifest + README for paper-trade bring-up under `examples/`)
+- Bump version to `0.50.0`
