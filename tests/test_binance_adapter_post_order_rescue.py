@@ -25,6 +25,7 @@ from praxis.infrastructure.venue_adapter import (
 
 _BASE_URL = 'https://stub'
 _WS_BASE_URL = 'wss://stub'
+_WS_API_URL = 'wss://stub-ws-api'
 _ACCOUNT_ID = 'acc1'
 _API_KEY = 'k'
 _API_SECRET = 's'  # noqa: S105 - test fixture, not a real secret
@@ -33,7 +34,8 @@ _CLIENT_ORDER_ID = 'cid-test-001'
 
 def _make_adapter() -> BinanceAdapter:
     return BinanceAdapter(
-        _BASE_URL, _WS_BASE_URL, {_ACCOUNT_ID: (_API_KEY, _API_SECRET)},
+        _BASE_URL, _WS_BASE_URL, _WS_API_URL,
+        {_ACCOUNT_ID: (_API_KEY, _API_SECRET)},
     )
 
 

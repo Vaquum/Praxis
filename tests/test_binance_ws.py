@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
+import hmac
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,27 +20,90 @@ from praxis.infrastructure.venue_adapter import VenueError
 
 
 _ACCOUNT_ID = 'test-account'
+_API_KEY = 'k'
+_API_SECRET = 's'  # noqa: S105 - test fixture, not a real secret
+_FIXTURE_API_SECRET = 'SECRET'  # noqa: S105 - test fixture, not a real secret
+_WS_API_URL = 'wss://ws-api.testnet.binance.vision/ws-api/v3'
 
 
-def _make_adapter(ws_base_url: str = 'wss://stream.testnet.binance.vision') -> Any:
+def _make_adapter(
+    ws_api_url: str = _WS_API_URL,
+    api_key: str = _API_KEY,
+    api_secret: str = _API_SECRET,
+) -> Any:
 
     '''
-    Create a mock BinanceAdapter with stubbed listen key methods.
+    Create a mock BinanceAdapter exposing the attributes BinanceUserStream
+    reads: `_ws_api_url`, `_credentials`, `_ensure_session`.
 
     Args:
-        ws_base_url (str): WebSocket base URL for the adapter
+        ws_api_url (str): WS-API base URL
+        api_key (str): API key registered for `_ACCOUNT_ID`
+        api_secret (str): API secret registered for `_ACCOUNT_ID`
 
     Returns:
-        Any: Mock adapter with async listen key method stubs
+        Any: Mock adapter
     '''
 
     adapter = MagicMock()
-    adapter._ws_base_url = ws_base_url
-    adapter._create_listen_key = AsyncMock(return_value='listen-key')
-    adapter._keepalive_listen_key = AsyncMock()
-    adapter._close_listen_key = AsyncMock()
+    adapter._ws_api_url = ws_api_url
+    adapter._credentials = {_ACCOUNT_ID: (api_key, api_secret)}
     adapter._ensure_session = AsyncMock()
     return adapter
+
+
+def _make_ack_msg(
+    status: int = 200,
+    subscription_id: int = 0,
+) -> MagicMock:
+
+    '''
+    Build a mock WS-API subscribe-ack TEXT frame.
+
+    Args:
+        status (int): WS-API ack status code
+        subscription_id (int): subscriptionId to embed in `result`
+
+    Returns:
+        MagicMock: Mock aiohttp WSMessage
+    '''
+
+    msg = MagicMock()
+    msg.type = aiohttp.WSMsgType.TEXT
+    msg.data = json.dumps({
+        'id': 'req-1',
+        'status': status,
+        'result': {'subscriptionId': subscription_id},
+    })
+    return msg
+
+
+def _make_session_with_ack(
+    ws_mock: AsyncMock,
+    ack_msg: MagicMock | None = None,
+) -> MagicMock:
+
+    '''
+    Build a mock aiohttp ClientSession whose `ws_connect` returns the
+    given ws and whose ws.receive returns the given ack frame.
+
+    Args:
+        ws_mock (AsyncMock): Mock WebSocket to return from `ws_connect`
+        ack_msg (MagicMock | None): Ack frame to deliver via `receive`;
+            defaults to a 200 / subscriptionId=0 ack
+
+    Returns:
+        MagicMock: Mock session
+    '''
+
+    if ack_msg is None:
+        ack_msg = _make_ack_msg()
+    ws_mock.receive = AsyncMock(return_value=ack_msg)
+    ws_mock.send_str = AsyncMock()
+    ws_mock.close = AsyncMock()
+    session = MagicMock()
+    session.ws_connect = AsyncMock(return_value=ws_mock)
+    return session
 
 
 class _AsyncIter:
@@ -60,122 +125,122 @@ class _AsyncIter:
             raise StopAsyncIteration from None
 
 
-class TestBinanceUserStream:
-
-    def test_build_ws_url_wss_base(self) -> None:
-        adapter = _make_adapter('wss://stream.testnet.binance.vision')
-        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
-        result = stream._build_ws_url('abc123')
-        assert result == 'wss://stream.testnet.binance.vision/ws/abc123'
-
-    def test_build_ws_url_invalid_scheme_raises(self) -> None:
-        adapter = _make_adapter('ftp://example.com')
-        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
-        with pytest.raises(ValueError, match='Unsupported WS base URL scheme'):
-            stream._build_ws_url('abc123')
+class TestSetupConnection:
 
     @pytest.mark.asyncio
-    async def test_connect_creates_listen_key_and_starts_keepalive(self) -> None:
+    async def test_initiate_connection_subscribes_and_stores_ws(self) -> None:
         adapter = _make_adapter()
         ws = AsyncMock()
         ws.closed = False
-        session = MagicMock()
-        session.ws_connect = AsyncMock(return_value=ws)
+        session = _make_session_with_ack(ws, _make_ack_msg(subscription_id=42))
         adapter._ensure_session.return_value = session
 
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=9999,
-        )
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         await stream.initiate_connection()
 
-        adapter._create_listen_key.assert_awaited_once_with(_ACCOUNT_ID)
-        session.ws_connect.assert_awaited_once_with(
-            'wss://stream.testnet.binance.vision/ws/listen-key',
-        )
-        assert stream.listen_key == 'listen-key'
+        session.ws_connect.assert_awaited_once_with(_WS_API_URL)
+        ws.send_str.assert_awaited_once()
         assert stream.websocket is ws
-        assert stream._keepalive_task is not None
-
-        await stream.close()
+        assert stream.subscription_id == 42
 
     @pytest.mark.asyncio
-    async def test_connect_skips_when_already_connected(self) -> None:
-
+    async def test_initiate_connection_skips_when_already_connected(self) -> None:
         adapter = _make_adapter()
         ws = AsyncMock()
         ws.closed = False
-        session = MagicMock()
-        session.ws_connect = AsyncMock(return_value=ws)
+        session = _make_session_with_ack(ws)
         adapter._ensure_session.return_value = session
 
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=9999,
-        )
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         await stream.initiate_connection()
-        adapter._create_listen_key.reset_mock()
+        session.ws_connect.reset_mock()
 
         await stream.initiate_connection()
 
-        adapter._create_listen_key.assert_not_awaited()
-
-        await stream.close()
+        session.ws_connect.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_connect_skips_when_reconnect_task_running(self) -> None:
+    async def test_initiate_connection_skips_when_reconnect_task_running(self) -> None:
         adapter = _make_adapter()
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=9999,
-        )
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         stream._reconnect_task = asyncio.create_task(asyncio.sleep(999))
 
         await stream.initiate_connection()
 
-        adapter._create_listen_key.assert_not_awaited()
+        adapter._ensure_session.assert_not_awaited()
 
         stream._reconnect_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await stream._reconnect_task
 
     @pytest.mark.asyncio
-    async def test_connect_cleans_stale_listen_key_on_closed_ws(self) -> None:
+    async def test_initiate_connection_replaces_stale_ws(self) -> None:
+        adapter = _make_adapter()
+        ws_first = AsyncMock()
+        ws_first.closed = False
+        ws_first.send_str = AsyncMock()
+        ws_first.close = AsyncMock()
+        ws_first.receive = AsyncMock(return_value=_make_ack_msg(subscription_id=1))
 
+        session = MagicMock()
+        adapter._ensure_session.return_value = session
+        session.ws_connect = AsyncMock(return_value=ws_first)
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        await stream.initiate_connection()
+        assert stream.subscription_id == 1
+
+        ws_first.closed = True
+        ws_second = AsyncMock()
+        ws_second.closed = False
+        ws_second.send_str = AsyncMock()
+        ws_second.close = AsyncMock()
+        ws_second.receive = AsyncMock(return_value=_make_ack_msg(subscription_id=2))
+        session.ws_connect = AsyncMock(return_value=ws_second)
+
+        await stream.initiate_connection()
+
+        ws_first.close.assert_awaited()
+        assert stream.websocket is ws_second
+        assert stream.subscription_id == 2
+
+    @pytest.mark.asyncio
+    async def test_invalid_ws_api_scheme_raises(self) -> None:
+        adapter = _make_adapter(ws_api_url='ftp://bad.example.com')
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(ValueError, match='Unsupported WS-API URL scheme'):
+            await stream.initiate_connection()
+
+    @pytest.mark.asyncio
+    async def test_missing_credentials_raises_venue_error(self) -> None:
+        adapter = _make_adapter()
+        adapter._credentials = {}
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(VenueError, match='No credentials registered'):
+            await stream.initiate_connection()
+
+    @pytest.mark.asyncio
+    async def test_subscribe_failure_closes_ws_and_propagates(self) -> None:
         adapter = _make_adapter()
         ws = AsyncMock()
         ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive = AsyncMock(return_value=_make_ack_msg(status=400))
         session = MagicMock()
         session.ws_connect = AsyncMock(return_value=ws)
         adapter._ensure_session.return_value = session
 
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=9999,
-        )
-        await stream.initiate_connection()
-        assert stream._listen_key == 'listen-key'
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(VenueError, match='WS-API subscribe failed'):
+            await stream.initiate_connection()
 
-        ws.closed = True
-        adapter._close_listen_key.reset_mock()
-        new_ws = AsyncMock()
-        new_ws.closed = False
-        session.ws_connect.return_value = new_ws
-        adapter._create_listen_key.return_value = 'new-listen-key'
-
-        await stream.initiate_connection()
-
-        adapter._close_listen_key.assert_any_await(_ACCOUNT_ID, 'listen-key')
-        assert stream._listen_key == 'new-listen-key'
-
-        await stream.close()
+        ws.close.assert_awaited()
+        assert stream.websocket is None
 
     @pytest.mark.asyncio
-    async def test_connect_failure_closes_listen_key(self) -> None:
+    async def test_ws_connect_failure_propagates(self) -> None:
         adapter = _make_adapter()
         session = MagicMock()
         session.ws_connect = AsyncMock(side_effect=aiohttp.ClientError('boom'))
@@ -185,65 +250,202 @@ class TestBinanceUserStream:
         with pytest.raises(aiohttp.ClientError, match='boom'):
             await stream.initiate_connection()
 
-        adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
+
+class TestSubscribeFraming:
 
     @pytest.mark.asyncio
-    async def test_close_shuts_down_resources(self) -> None:
-        adapter = _make_adapter()
+    async def test_subscribe_frame_uses_signed_params(self) -> None:
+        adapter = _make_adapter(api_key='APIKEY', api_secret=_FIXTURE_API_SECRET)
         ws = AsyncMock()
         ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive = AsyncMock(return_value=_make_ack_msg())
         session = MagicMock()
         session.ws_connect = AsyncMock(return_value=ws)
         adapter._ensure_session.return_value = session
 
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=9999,
-        )
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
         await stream.initiate_connection()
-        await stream.close()
 
-        ws.close.assert_awaited_once()
-        adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
-        assert stream.listen_key is None
-        assert stream.websocket is None
-        assert stream._keepalive_task is None
+        ws.send_str.assert_awaited_once()
+        sent_payload = json.loads(ws.send_str.await_args.args[0])
+        assert sent_payload['method'] == 'userDataStream.subscribe.signature'
+        params = sent_payload['params']
+        assert params['apiKey'] == 'APIKEY'
+        assert params['recvWindow'] == 5000
+        assert isinstance(params['timestamp'], int)
 
-    @pytest.mark.asyncio
-    async def test_keepalive_loop_exits_when_listen_key_missing(self) -> None:
-        adapter = _make_adapter()
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=0,
-        )
-        await stream._keepalive_loop()
-        adapter._keepalive_listen_key.assert_not_awaited()
+        signing_params = {k: v for k, v in params.items() if k != 'signature'}
+        qs = '&'.join(f'{k}={signing_params[k]}' for k in sorted(signing_params))
+        expected = hmac.new(
+            _FIXTURE_API_SECRET.encode(), qs.encode(), hashlib.sha256,
+        ).hexdigest()
+        assert params['signature'] == expected
 
     @pytest.mark.asyncio
-    async def test_async_context_manager_connects_and_closes(self) -> None:
+    async def test_subscribe_ack_timeout_raises_timeout_error(self) -> None:
         adapter = _make_adapter()
         ws = AsyncMock()
         ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive = AsyncMock(side_effect=TimeoutError())
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        adapter._ensure_session.return_value = session
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(TimeoutError, match='WS-API subscribe ack timed out'):
+            await stream.initiate_connection()
+
+        ws.close.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_subscribe_non_text_frame_raises(self) -> None:
+        adapter = _make_adapter()
+        ws = AsyncMock()
+        ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        non_text = MagicMock()
+        non_text.type = aiohttp.WSMsgType.BINARY
+        ws.receive = AsyncMock(return_value=non_text)
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        adapter._ensure_session.return_value = session
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(VenueError, match='non-text frame'):
+            await stream.initiate_connection()
+
+    @pytest.mark.asyncio
+    async def test_subscribe_non_json_frame_raises(self) -> None:
+        adapter = _make_adapter()
+        ws = AsyncMock()
+        ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        bad = MagicMock()
+        bad.type = aiohttp.WSMsgType.TEXT
+        bad.data = 'not-json'
+        ws.receive = AsyncMock(return_value=bad)
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        adapter._ensure_session.return_value = session
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(VenueError, match='non-JSON frame'):
+            await stream.initiate_connection()
+
+    @pytest.mark.asyncio
+    async def test_subscribe_missing_subscription_id_raises(self) -> None:
+        adapter = _make_adapter()
+        ws = AsyncMock()
+        ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        bad_ack = MagicMock()
+        bad_ack.type = aiohttp.WSMsgType.TEXT
+        bad_ack.data = json.dumps({'id': 'r', 'status': 200, 'result': {}})
+        ws.receive = AsyncMock(return_value=bad_ack)
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        adapter._ensure_session.return_value = session
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(VenueError, match='missing subscriptionId'):
+            await stream.initiate_connection()
+
+
+class TestClose:
+
+    @pytest.mark.asyncio
+    async def test_close_sends_unsubscribe_and_closes_ws(self) -> None:
+        adapter = _make_adapter()
+        ws = AsyncMock()
+        ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive = AsyncMock(return_value=_make_ack_msg(subscription_id=99))
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        adapter._ensure_session.return_value = session
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        await stream.initiate_connection()
+
+        ws.send_str.reset_mock()
+        await stream.close()
+
+        ws.send_str.assert_awaited_once()
+        sent = json.loads(ws.send_str.await_args.args[0])
+        assert sent['method'] == 'userDataStream.unsubscribe'
+        assert sent['params'] == {'subscriptionId': 99}
+        ws.close.assert_awaited()
+        assert stream.websocket is None
+        assert stream.subscription_id is None
+
+    @pytest.mark.asyncio
+    async def test_close_handles_no_ws(self) -> None:
+        adapter = _make_adapter()
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        await stream.close()
+
+    @pytest.mark.asyncio
+    async def test_close_swallows_unsubscribe_failure(self) -> None:
+        adapter = _make_adapter()
+        ws = AsyncMock()
+        ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive = AsyncMock(return_value=_make_ack_msg())
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        adapter._ensure_session.return_value = session
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        await stream.initiate_connection()
+        ws.send_str.side_effect = aiohttp.ClientError('boom')
+        await stream.close()
+
+        ws.close.assert_awaited()
+
+
+class TestAsyncContextManager:
+
+    @pytest.mark.asyncio
+    async def test_context_manager_connects_and_closes(self) -> None:
+        adapter = _make_adapter()
+        ws = AsyncMock()
+        ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive = AsyncMock(return_value=_make_ack_msg(subscription_id=7))
         session = MagicMock()
         session.ws_connect = AsyncMock(return_value=ws)
         adapter._ensure_session.return_value = session
 
         async with BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=9999,
+            adapter=adapter, account_id=_ACCOUNT_ID,
         ) as stream:
-            assert stream.listen_key == 'listen-key'
+            assert stream.subscription_id == 7
 
-        adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
+        ws.close.assert_awaited()
+
+
+class TestReceiveLoop:
 
     @pytest.mark.asyncio
-    async def test_initiate_connection_with_on_message_starts_reconnect_task(self) -> None:
+    async def test_initiate_connection_with_on_message_starts_reconnect_task(
+        self,
+    ) -> None:
         adapter = _make_adapter()
         ws = AsyncMock()
         ws.closed = False
+        ws.send_str = AsyncMock()
+        ws.close = AsyncMock()
+        ws.receive = AsyncMock(return_value=_make_ack_msg())
         ws.__aiter__ = MagicMock(return_value=_AsyncIter([]))
         session = MagicMock()
         session.ws_connect = AsyncMock(return_value=ws)
@@ -251,10 +453,7 @@ class TestBinanceUserStream:
 
         callback = AsyncMock()
         stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            on_message=callback,
-            keepalive_interval_seconds=9999,
+            adapter=adapter, account_id=_ACCOUNT_ID, on_message=callback,
         )
         await stream.initiate_connection()
 
@@ -262,25 +461,39 @@ class TestBinanceUserStream:
         await stream.close()
 
     @pytest.mark.asyncio
-    async def test_receive_loop_dispatches_json_text_frame(self) -> None:
+    async def test_receive_loop_dispatches_event_envelope(self) -> None:
         adapter = _make_adapter()
-        payload = {'e': 'executionReport', 's': 'BTCUSDT'}
+        event_payload = {'e': 'executionReport', 's': 'BTCUSDT'}
         msg = MagicMock()
         msg.type = aiohttp.WSMsgType.TEXT
-        msg.data = json.dumps(payload)
+        msg.data = json.dumps({'event': event_payload})
 
         ws = _AsyncIter([msg])
-
         callback = AsyncMock()
         stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            on_message=callback,
+            adapter=adapter, account_id=_ACCOUNT_ID, on_message=callback,
         )
         stream._ws = ws  # type: ignore[assignment]
 
         await stream._receive_loop()
-        callback.assert_awaited_once_with(payload)
+        callback.assert_awaited_once_with(event_payload)
+
+    @pytest.mark.asyncio
+    async def test_receive_loop_skips_non_event_frame(self) -> None:
+        adapter = _make_adapter()
+        msg = MagicMock()
+        msg.type = aiohttp.WSMsgType.TEXT
+        msg.data = json.dumps({'id': 'r', 'status': 200, 'result': {}})
+
+        ws = _AsyncIter([msg])
+        callback = AsyncMock()
+        stream = BinanceUserStream(
+            adapter=adapter, account_id=_ACCOUNT_ID, on_message=callback,
+        )
+        stream._ws = ws  # type: ignore[assignment]
+
+        await stream._receive_loop()
+        callback.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_receive_loop_skips_non_json_frame(self) -> None:
@@ -290,12 +503,9 @@ class TestBinanceUserStream:
         msg.data = 'not-json'
 
         ws = _AsyncIter([msg])
-
         callback = AsyncMock()
         stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            on_message=callback,
+            adapter=adapter, account_id=_ACCOUNT_ID, on_message=callback,
         )
         stream._ws = ws  # type: ignore[assignment]
 
@@ -308,22 +518,19 @@ class TestBinanceUserStream:
     @pytest.mark.asyncio
     async def test_receive_loop_survives_callback_exception(self) -> None:
         adapter = _make_adapter()
-        payload_1 = {'e': 'first'}
-        payload_2 = {'e': 'second'}
+        ev_1 = {'e': 'first'}
+        ev_2 = {'e': 'second'}
         msg_1 = MagicMock()
         msg_1.type = aiohttp.WSMsgType.TEXT
-        msg_1.data = json.dumps(payload_1)
+        msg_1.data = json.dumps({'event': ev_1})
         msg_2 = MagicMock()
         msg_2.type = aiohttp.WSMsgType.TEXT
-        msg_2.data = json.dumps(payload_2)
+        msg_2.data = json.dumps({'event': ev_2})
 
         ws = _AsyncIter([msg_1, msg_2])
-
         callback = AsyncMock(side_effect=[ValueError('boom'), None])
         stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            on_message=callback,
+            adapter=adapter, account_id=_ACCOUNT_ID, on_message=callback,
         )
         stream._ws = ws  # type: ignore[assignment]
 
@@ -335,17 +542,14 @@ class TestBinanceUserStream:
         adapter = _make_adapter()
         close_msg = MagicMock()
         close_msg.type = aiohttp.WSMsgType.CLOSED
-        trailing_msg = MagicMock()
-        trailing_msg.type = aiohttp.WSMsgType.TEXT
-        trailing_msg.data = json.dumps({'e': 'should-not-reach'})
+        trailing = MagicMock()
+        trailing.type = aiohttp.WSMsgType.TEXT
+        trailing.data = json.dumps({'event': {'e': 'should-not-reach'}})
 
-        ws = _AsyncIter([close_msg, trailing_msg])
-
+        ws = _AsyncIter([close_msg, trailing])
         callback = AsyncMock()
         stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            on_message=callback,
+            adapter=adapter, account_id=_ACCOUNT_ID, on_message=callback,
         )
         stream._ws = ws  # type: ignore[assignment]
 
@@ -355,73 +559,21 @@ class TestBinanceUserStream:
     @pytest.mark.asyncio
     async def test_receive_loop_breaks_on_error_message(self) -> None:
         adapter = _make_adapter()
-        error_msg = MagicMock()
-        error_msg.type = aiohttp.WSMsgType.ERROR
+        err = MagicMock()
+        err.type = aiohttp.WSMsgType.ERROR
 
-        ws = _AsyncIter([error_msg])
-
+        ws = _AsyncIter([err])
         callback = AsyncMock()
         stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            on_message=callback,
+            adapter=adapter, account_id=_ACCOUNT_ID, on_message=callback,
         )
         stream._ws = ws  # type: ignore[assignment]
 
         await stream._receive_loop()
         callback.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_keepalive_loop_calls_adapter(self) -> None:
 
-        adapter = _make_adapter()
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=0,
-        )
-        stream._listen_key = 'listen-key'
-
-        with patch('praxis.infrastructure.binance_ws.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, asyncio.CancelledError]
-            with pytest.raises(asyncio.CancelledError):
-                await stream._keepalive_loop()
-
-        adapter._keepalive_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
-
-    @pytest.mark.asyncio
-    async def test_connect_build_ws_url_failure_closes_listen_key(self) -> None:
-
-        adapter = _make_adapter('ftp://bad-scheme.example.com')
-        session = MagicMock()
-        adapter._ensure_session.return_value = session
-
-        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
-        with pytest.raises(ValueError, match='Unsupported WS base URL scheme'):
-            await stream.initiate_connection()
-
-        adapter._close_listen_key.assert_awaited_once_with(_ACCOUNT_ID, 'listen-key')
-
-    @pytest.mark.asyncio
-    async def test_keepalive_loop_logs_and_continues_on_failure(self) -> None:
-
-        adapter = _make_adapter()
-        adapter._keepalive_listen_key = AsyncMock(
-            side_effect=[VenueError('boom'), None],
-        )
-        stream = BinanceUserStream(
-            adapter=adapter,
-            account_id=_ACCOUNT_ID,
-            keepalive_interval_seconds=0,
-        )
-        stream._listen_key = 'listen-key'
-
-        with patch('praxis.infrastructure.binance_ws.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-            mock_sleep.side_effect = [None, None, asyncio.CancelledError]
-            with pytest.raises(asyncio.CancelledError):
-                await stream._keepalive_loop()
-
-        assert adapter._keepalive_listen_key.await_count == 2
+class TestAutoReconnect:
 
     @pytest.mark.asyncio
     async def test_auto_reconnect_reconnects_after_ws_disconnect(self) -> None:
@@ -483,7 +635,9 @@ class TestBinanceUserStream:
         assert delays == [0.75, 1.5, 3.0]
 
     @pytest.mark.asyncio
-    async def test_auto_reconnect_resets_attempts_after_successful_reconnect(self) -> None:
+    async def test_auto_reconnect_resets_attempts_after_successful_reconnect(
+        self,
+    ) -> None:
         adapter = _make_adapter()
         callback = AsyncMock()
         stream = BinanceUserStream(

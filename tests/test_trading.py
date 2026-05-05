@@ -39,7 +39,11 @@ from praxis.core.domain.events import (
 )
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.binance_adapter import BinanceAdapter
-from praxis.infrastructure.binance_urls import TESTNET_REST_URL, TESTNET_WS_URL
+from praxis.infrastructure.binance_urls import (
+    TESTNET_REST_URL,
+    TESTNET_WS_API_URL,
+    TESTNET_WS_URL,
+)
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
@@ -412,7 +416,11 @@ async def test_trading_stop_closes_default_binance_adapter(spine: EventSpine) ->
     so concurrent _ensure_session calls raise instead of resurrecting a
     fresh session post-close.'''
 
-    adapter = BinanceAdapter(base_url=TESTNET_REST_URL, ws_base_url=TESTNET_WS_URL)
+    adapter = BinanceAdapter(
+        base_url=TESTNET_REST_URL,
+        ws_base_url=TESTNET_WS_URL,
+        ws_api_url=TESTNET_WS_API_URL,
+    )
     trading = Trading(
         config=TradingConfig(epoch_id=1),
         event_spine=spine,
@@ -624,6 +632,7 @@ async def test_trading_start_creates_user_stream_for_binance_adapter() -> None:
     adapter = BinanceAdapter(
         base_url=TESTNET_REST_URL,
         ws_base_url=TESTNET_WS_URL,
+        ws_api_url=TESTNET_WS_API_URL,
         credentials={'acc-1': ('key', 'secret')},
     )
     trading = Trading(
@@ -638,8 +647,6 @@ async def test_trading_start_creates_user_stream_for_binance_adapter() -> None:
     import unittest.mock
     with (
         unittest.mock.patch.object(
-            adapter, '_create_listen_key', return_value='mock-listen-key',
-    ), unittest.mock.patch.object(
             adapter, '_ensure_session',
             return_value=unittest.mock.AsyncMock(),
         ),

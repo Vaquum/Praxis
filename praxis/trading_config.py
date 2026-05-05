@@ -5,7 +5,11 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.infrastructure.binance_urls import TESTNET_REST_URL, TESTNET_WS_URL
+from praxis.infrastructure.binance_urls import (
+    TESTNET_REST_URL,
+    TESTNET_WS_API_URL,
+    TESTNET_WS_URL,
+)
 
 __all__ = ['TradingConfig']
 
@@ -20,7 +24,9 @@ class TradingConfig:
     Args:
         epoch_id (int): Event epoch identifier used for Event Spine appends.
         venue_rest_url (str): Venue REST base URL.
-        venue_ws_url (str): Venue WebSocket base URL.
+        venue_ws_url (str): Venue WebSocket stream base URL (market data).
+        venue_ws_api_url (str): Venue WebSocket API base URL (signed requests
+            and user-data-stream subscription).
         account_credentials (Mapping[str, tuple[str, str]]): Mapping of account_id
             to (api_key, api_secret).
         on_trade_outcome (Callable[[TradeOutcome], Awaitable[None]] | None):
@@ -32,6 +38,7 @@ class TradingConfig:
     epoch_id: int
     venue_rest_url: str = TESTNET_REST_URL
     venue_ws_url: str = TESTNET_WS_URL
+    venue_ws_api_url: str = TESTNET_WS_API_URL
     account_credentials: Mapping[str, tuple[str, str]] = field(default_factory=dict)
     on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None
     shutdown_timeout: float = 30.0
@@ -49,6 +56,10 @@ class TradingConfig:
 
         if not self.venue_ws_url:
             msg = 'TradingConfig.venue_ws_url must be non-empty'
+            raise ValueError(msg)
+
+        if not self.venue_ws_api_url:
+            msg = 'TradingConfig.venue_ws_api_url must be non-empty'
             raise ValueError(msg)
 
         if self.shutdown_timeout <= 0:

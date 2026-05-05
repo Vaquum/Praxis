@@ -144,6 +144,7 @@ class BinanceAdapter:
         self,
         base_url: str,
         ws_base_url: str,
+        ws_api_url: str,
         credentials: dict[str, tuple[str, str]] | None = None,
     ) -> None:
 
@@ -152,13 +153,16 @@ class BinanceAdapter:
 
         Args:
             base_url (str): Binance REST API base URL
-            ws_base_url (str): Binance WebSocket base URL
+            ws_base_url (str): Binance WebSocket stream base URL (market data)
+            ws_api_url (str): Binance WebSocket API base URL (signed
+                requests + user-data-stream subscription)
             credentials (dict[str, tuple[str, str]] | None): Initial
                 account credentials
         '''
 
         self._base_url = base_url.rstrip('/')
         self._ws_base_url = ws_base_url.rstrip('/')
+        self._ws_api_url = ws_api_url.rstrip('/')
         self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
         self._closed: bool = False
@@ -509,110 +513,6 @@ class BinanceAdapter:
 
         return await self._request_with_retry(
             method, path, account_id, build_request, idempotent=idempotent,
-        )
-
-    async def _api_key_request(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, str],
-        account_id: str,
-    ) -> Any:
-
-        '''
-        Execute an API-key-authenticated HTTP request without HMAC signing.
-
-        Used for endpoints that require the API key header but no
-        query string signature (e.g. user data stream management).
-        Retries on TransientError and HTTP 429 with the same policy
-        as _signed_request.
-
-        Args:
-            method (str): HTTP method (GET, POST, PUT, DELETE)
-            path (str): API endpoint path
-            params (dict[str, str]): Query parameters
-            account_id (str): Account identifier for credential lookup
-
-        Returns:
-            Any: Parsed JSON response body
-
-        Raises:
-            TransientError: After all retry attempts are exhausted
-            RateLimitError: On non-429 rate limit responses, or after retry exhaustion
-        '''
-
-        session = await self._ensure_session()
-        api_key, _ = self._get_credentials(account_id)
-        headers = {_API_KEY_HEADER: api_key}
-
-        def build_request() -> AbstractAsyncContextManager[aiohttp.ClientResponse]:
-            return session.request(
-                method,
-                f"{self._base_url}{path}",
-                params=params,
-                headers=headers,
-            )
-
-        return await self._request_with_retry(method, path, account_id, build_request)
-
-    async def _create_listen_key(self, account_id: str) -> str:
-
-        '''
-        Create a new user data stream listen key.
-
-        Args:
-            account_id (str): Account identifier for API key routing
-
-        Returns:
-            str: Listen key for WebSocket connection
-        '''
-
-        data = await self._api_key_request(
-            'POST', '/api/v3/userDataStream', {}, account_id,
-        )
-        listen_key = data.get('listenKey') if isinstance(data, dict) else None
-
-        if not isinstance(listen_key, str) or not listen_key:
-            msg = f"Missing listenKey in userDataStream response for {account_id!r}"
-            raise VenueError(msg)
-
-        return listen_key
-
-    async def _keepalive_listen_key(
-        self, account_id: str, listen_key: str,
-    ) -> None:
-
-        '''
-        Extend the validity of a user data stream listen key.
-
-        Must be called at least every 60 minutes to prevent expiry.
-        Recommended interval is 30 minutes.
-
-        Args:
-            account_id (str): Account identifier for API key routing
-            listen_key (str): Active listen key to keep alive
-        '''
-
-        await self._api_key_request(
-            'PUT', '/api/v3/userDataStream',
-            {'listenKey': listen_key}, account_id,
-        )
-
-    async def _close_listen_key(
-        self, account_id: str, listen_key: str,
-    ) -> None:
-
-        '''
-        Close a user data stream and invalidate its listen key.
-
-        Args:
-            account_id (str): Account identifier for API key routing
-            listen_key (str): Listen key to close
-        '''
-
-        await self._api_key_request(
-            'DELETE', '/api/v3/userDataStream',
-            {'listenKey': listen_key}, account_id,
         )
 
     def _build_order_params(

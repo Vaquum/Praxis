@@ -35,6 +35,7 @@ from praxis.infrastructure.venue_adapter import (
 
 _BASE_URL = 'https://testnet.binance.vision'
 _WS_BASE_URL = 'wss://stream.testnet.binance.vision'
+_WS_API_URL = 'wss://ws-api.testnet.binance.vision/ws-api/v3'
 _ACCOUNT_ID = 'test-account'
 _API_KEY = 'test-api-key'
 _API_SECRET = 'test-api-secret'  # noqa: S105
@@ -288,7 +289,7 @@ def _make_adapter(
     '''
 
     creds = credentials or {_ACCOUNT_ID: (_API_KEY, _API_SECRET)}
-    return BinanceAdapter(_BASE_URL, _WS_BASE_URL, creds)
+    return BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL, creds)
 
 
 def _mock_response(
@@ -339,7 +340,7 @@ class TestCredentialManagement:
 
     def test_register_account(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter.register_account('acc1', 'key1', 'secret1')
         assert adapter._get_credentials('acc1') == ('key1', 'secret1')
 
@@ -352,13 +353,13 @@ class TestCredentialManagement:
 
     def test_unregister_unknown_raises_key_error(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         with pytest.raises(KeyError):
             adapter.unregister_account('nonexistent')
 
     def test_get_credentials_unknown_raises_auth_error(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         with pytest.raises(AuthenticationError, match='No credentials'):
             adapter._get_credentials('unknown')
 
@@ -1268,14 +1269,14 @@ class TestSessionLifecycle:
     @pytest.mark.asyncio
     async def test_context_manager_creates_and_closes_session(self) -> None:
 
-        async with BinanceAdapter(_BASE_URL, _WS_BASE_URL) as adapter:
+        async with BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL) as adapter:
             assert adapter._session is not None
         assert adapter._session is None
 
     @pytest.mark.asyncio
     async def test_close_cleans_up_session(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         mock_session = AsyncMock()
         mock_session.closed = False
         adapter._session = mock_session
@@ -1286,7 +1287,7 @@ class TestSessionLifecycle:
     @pytest.mark.asyncio
     async def test_ensure_session_creates_if_none(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         session = await adapter._ensure_session()
         assert session is not None
         await session.close()
@@ -1334,7 +1335,7 @@ class TestSubmitOrder:
     @pytest.mark.asyncio
     async def test_unregistered_account_raises_auth_error(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         with pytest.raises(AuthenticationError, match='No credentials'):
             await adapter.submit_order(
                 'unknown', 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
@@ -2082,116 +2083,6 @@ class TestQueryOrderBook:
             result.last_update_id = 999  # type: ignore[misc]
 
 
-class TestApiKeyRequest:
-
-    @pytest.mark.asyncio
-    async def test_sends_api_key_header_without_signature(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, {'result': 'ok'}))
-        await adapter._api_key_request('POST', '/api/v3/userDataStream', {}, _ACCOUNT_ID)
-        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
-        method = call_args[0][0]
-        url = call_args[0][1]
-        headers = call_args.kwargs['headers']
-        assert method == 'POST'
-        assert url == f"{_BASE_URL}/api/v3/userDataStream"
-        assert headers['X-MBX-APIKEY'] == _API_KEY
-        assert 'signature' not in url
-
-    @pytest.mark.asyncio
-    async def test_passes_query_params(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, {}))
-        await adapter._api_key_request(
-            'PUT', '/api/v3/userDataStream',
-            {'listenKey': 'abc123'}, _ACCOUNT_ID,
-        )
-        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
-        params = call_args.kwargs['params']
-        assert params == {'listenKey': 'abc123'}
-
-    @pytest.mark.asyncio
-    async def test_transport_error_retried_and_raises_transient(self) -> None:
-
-        adapter = _make_adapter()
-        session = MagicMock()
-        session.request = MagicMock(side_effect=aiohttp.ClientError())
-        session.closed = False
-        adapter._session = session
-        with (
-            patch('praxis.infrastructure.binance_adapter.asyncio.sleep', new_callable=AsyncMock),
-            pytest.raises(TransientError, match='Request failed'),
-        ):
-            await adapter._api_key_request('POST', '/api/v3/userDataStream', {}, _ACCOUNT_ID)
-
-
-class TestCreateListenKey:
-
-    @pytest.mark.asyncio
-    async def test_returns_listen_key_string(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, {'listenKey': 'abc123'}))
-        result = await adapter._create_listen_key(_ACCOUNT_ID)
-        assert result == 'abc123'
-
-    @pytest.mark.asyncio
-    async def test_missing_listen_key_raises_venue_error(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, {}))
-        with pytest.raises(VenueError, match='Missing listenKey'):
-            await adapter._create_listen_key(_ACCOUNT_ID)
-
-    @pytest.mark.asyncio
-    async def test_empty_listen_key_raises_venue_error(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, {'listenKey': ''}))
-        with pytest.raises(VenueError, match='Missing listenKey'):
-            await adapter._create_listen_key(_ACCOUNT_ID)
-
-    @pytest.mark.asyncio
-    async def test_non_dict_response_raises_venue_error(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, 'not-a-dict'))
-        with pytest.raises(VenueError, match='Missing listenKey'):
-            await adapter._create_listen_key(_ACCOUNT_ID)
-
-
-class TestKeepaliveListenKey:
-
-    @pytest.mark.asyncio
-    async def test_sends_put_with_listen_key(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, {}))
-        await adapter._keepalive_listen_key(_ACCOUNT_ID, 'abc123')
-        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
-        method = call_args[0][0]
-        params = call_args.kwargs['params']
-        assert method == 'PUT'
-        assert params == {'listenKey': 'abc123'}
-
-
-class TestCloseListenKey:
-
-    @pytest.mark.asyncio
-    async def test_sends_delete_with_listen_key(self) -> None:
-
-        adapter = _make_adapter()
-        _patch_session(adapter, _mock_response(200, {}))
-        await adapter._close_listen_key(_ACCOUNT_ID, 'abc123')
-        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
-        method = call_args[0][0]
-        params = call_args.kwargs['params']
-        assert method == 'DELETE'
-        assert params == {'listenKey': 'abc123'}
-
-
 _BINANCE_EXECUTION_REPORT_TRADE: dict[str, Any] = {
     'e': 'executionReport',
     'E': 1700000000000,
@@ -2683,7 +2574,7 @@ class TestHealthSignals:
 
     def test_register_account_creates_health_tracker(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter.register_account('acc1', 'k', 's')
 
         assert 'acc1' in adapter._health_trackers
@@ -2697,7 +2588,7 @@ class TestHealthSignals:
 
     def test_get_health_snapshot_defaults_when_unknown(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         snapshot = adapter.get_health_snapshot('unknown')
 
         assert snapshot.latency_p99_ms == 0.0
@@ -2705,7 +2596,7 @@ class TestHealthSignals:
 
     def test_rate_limit_utilization_reflects_used_weight(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter._used_weight = 300
         adapter._weight_limit = 1000
 
@@ -2713,7 +2604,7 @@ class TestHealthSignals:
 
     def test_rate_limit_utilization_clamps_above_one(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter._used_weight = 2000
         adapter._weight_limit = 1000
 
@@ -2760,7 +2651,7 @@ class TestHealthSignals:
 
     def test_health_trackers_are_isolated_per_account(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter.register_account('acc-a', 'k', 's')
         adapter.register_account('acc-b', 'k', 's')
 
@@ -2778,7 +2669,7 @@ class TestHealthSignals:
     @pytest.mark.asyncio
     async def test_sync_clock_drift_populates_drift_ms(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         target_drift_ms = 12345.0
 
         response = AsyncMock()
@@ -2801,7 +2692,7 @@ class TestHealthSignals:
     @pytest.mark.asyncio
     async def test_sync_clock_drift_silent_on_non_ok_status(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
 
         response = AsyncMock()
         response.status = 503
@@ -2821,7 +2712,7 @@ class TestHealthSignals:
     @pytest.mark.asyncio
     async def test_sync_clock_drift_silent_on_transport_error(self) -> None:
 
-        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL)
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
 
         session = MagicMock()
         session.get = MagicMock(side_effect=aiohttp.ClientError('boom'))

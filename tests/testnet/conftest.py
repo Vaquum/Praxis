@@ -27,11 +27,13 @@ import pytest
 from dotenv import load_dotenv
 
 from praxis.infrastructure.binance_adapter import TESTNET_REST_URL, TESTNET_WS_URL
+from praxis.infrastructure.binance_urls import TESTNET_WS_API_URL
 
 load_dotenv()
 
 REST_BASE = TESTNET_REST_URL
 WS_BASE = TESTNET_WS_URL
+WS_API_BASE = TESTNET_WS_API_URL
 SYMBOL = 'BTCUSDT'
 
 HTTP_OK = 200
