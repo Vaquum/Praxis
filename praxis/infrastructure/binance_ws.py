@@ -106,6 +106,7 @@ class BinanceUserStream:
         on_message is set.
 
         Raises:
+            AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If subscription ack times out
             ValueError: If WS-API URL scheme is not wss
@@ -128,6 +129,7 @@ class BinanceUserStream:
         `userDataStream.subscribe.signature` frame, await ack.
 
         Raises:
+            AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If subscription ack times out
             ValueError: If WS-API URL scheme is not wss
@@ -145,11 +147,7 @@ class BinanceUserStream:
             msg = f"Unsupported WS-API URL scheme: {ws_api_url!r}"
             raise ValueError(msg)
 
-        credentials = self._adapter._credentials.get(self._account_id)
-        if credentials is None:
-            msg = f"No credentials registered for account {self._account_id!r}"
-            raise VenueError(msg)
-        api_key, api_secret = credentials
+        api_key, api_secret = self._adapter._get_credentials(self._account_id)
 
         session = await self._adapter._ensure_session()
         ws = await session.ws_connect(ws_api_url)

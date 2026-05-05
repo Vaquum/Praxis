@@ -16,7 +16,7 @@ import pytest
 import aiohttp
 
 from praxis.infrastructure.binance_ws import BinanceUserStream
-from praxis.infrastructure.venue_adapter import VenueError
+from praxis.infrastructure.venue_adapter import AuthenticationError, VenueError
 
 
 _ACCOUNT_ID = 'test-account'
@@ -47,7 +47,7 @@ def _make_adapter(
 
     adapter = MagicMock()
     adapter._ws_api_url = ws_api_url
-    adapter._credentials = {_ACCOUNT_ID: (api_key, api_secret)}
+    adapter._get_credentials = MagicMock(return_value=(api_key, api_secret))
     adapter._ensure_session = AsyncMock()
     return adapter
 
@@ -212,12 +212,18 @@ class TestSetupConnection:
             await stream.initiate_connection()
 
     @pytest.mark.asyncio
-    async def test_missing_credentials_raises_venue_error(self) -> None:
-        adapter = _make_adapter()
-        adapter._credentials = {}
+    async def test_missing_credentials_raises_authentication_error(self) -> None:
+        adapter = MagicMock()
+        adapter._ws_api_url = _WS_API_URL
+        adapter._ensure_session = AsyncMock()
+        adapter._get_credentials = MagicMock(
+            side_effect=AuthenticationError(
+                f"No credentials registered for account '{_ACCOUNT_ID}'",
+            ),
+        )
 
         stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
-        with pytest.raises(VenueError, match='No credentials registered'):
+        with pytest.raises(AuthenticationError, match='No credentials registered'):
             await stream.initiate_connection()
 
     @pytest.mark.asyncio
