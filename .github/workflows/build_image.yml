@@ -40,7 +40,7 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          version=$(grep -E '^version = "' pyproject.toml | head -1 | sed -E 's/version = "(.+)"/\1/')
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
           test -n "$version" || { echo "::error::could not parse version from pyproject.toml"; exit 1; }
           echo "value=${version}" >> "$GITHUB_OUTPUT"
           echo "resolved version: ${version}"
