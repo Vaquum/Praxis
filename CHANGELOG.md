@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.50.0 on 5th of May, 2026
+
+- Add [`.github/workflows/build_image.yml`](.github/workflows/build_image.yml) — builds the existing `Dockerfile` on push to main (and on `workflow_dispatch`), tags `ghcr.io/vaquum/praxis:sha-<commit>` and `:main`, pushes to GHCR via `docker/login-action@v3` + `docker/build-push-action@v6`. Auth uses `secrets.GITHUB_TOKEN` against the calling workflow's identity. Mirrors the build-job pattern from `Vaquum/experiment_runner`'s `deploy.yml` minus the deploy-to-host step (deferred until the operator runbook for `/opt/praxis/` lands)
+- Bump `vaquum-nexus` git+https pin from Nexus 0.38.0 main HEAD `1097d18e7e5a29ffcb212dee33b703e31f5c39ac` to Nexus 0.39.0 main HEAD `52ed0f0a4b7859b941191f85b73f4aaa22911226` (Vaquum/Nexus#59 — example `logreg_binary_evsfd` strategy + manifest + README for paper-trade bring-up under `examples/`)
+- Verified locally: `docker build -t praxis-test:local .` succeeds in ~6 minutes, all four wheels (`vaquum-praxis-0.50.0`, `vaquum-nexus-0.39.0`, `vaquum_limen-2.4.3`, `binancial-0.2.2`) build cleanly; `docker run --rm praxis-test:local --help` reaches the env-check stage and fails as expected with `RuntimeError: missing required env vars: EPOCH_ID, TRADE_MODE, MANIFESTS_DIR, STRATEGIES_BASE_PATH, STATE_BASE`
+
 ## v0.1.0 on 23rd of February, 2026
 
 - Add Binance Spot testnet connectivity verification tests in [`tests/testnet/`](tests/testnet/)
