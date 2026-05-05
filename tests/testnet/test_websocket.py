@@ -109,11 +109,16 @@ async def test_ws_api_unsubscribe_after_subscribe() -> None:
         WS_API_BASE, close_timeout=WS_CLOSE_TIMEOUT,
     ) as ws:
         await ws.send(_subscribe_frame(api_key, api_secret))
-        await asyncio.wait_for(ws.recv(), timeout=WS_RECV_TIMEOUT)
+        sub_ack = json.loads(
+            await asyncio.wait_for(ws.recv(), timeout=WS_RECV_TIMEOUT),
+        )
+        assert sub_ack['status'] == _OK_STATUS, f'subscribe rejected: {sub_ack}'
+        sub_id = sub_ack['result']['subscriptionId']
 
         await ws.send(json.dumps({
             'id': str(uuid.uuid4()),
             'method': 'userDataStream.unsubscribe',
+            'params': {'subscriptionId': sub_id},
         }))
         ack = json.loads(await asyncio.wait_for(ws.recv(), timeout=WS_RECV_TIMEOUT))
 
