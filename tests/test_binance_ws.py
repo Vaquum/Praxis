@@ -33,13 +33,15 @@ def _make_adapter(
 ) -> Any:
 
     '''
-    Create a mock BinanceAdapter exposing the attributes BinanceUserStream
-    reads: `_ws_api_url`, `_credentials`, `_ensure_session`.
+    Create a mock BinanceAdapter exposing the surface BinanceUserStream
+    reads: `_ws_api_url`, `_get_credentials`, `_ensure_session`.
 
     Args:
         ws_api_url (str): WS-API base URL
-        api_key (str): API key registered for `_ACCOUNT_ID`
-        api_secret (str): API secret registered for `_ACCOUNT_ID`
+        api_key (str): API key returned by the mocked `_get_credentials`
+            for `_ACCOUNT_ID`
+        api_secret (str): API secret returned by the mocked
+            `_get_credentials` for `_ACCOUNT_ID`
 
     Returns:
         Any: Mock adapter

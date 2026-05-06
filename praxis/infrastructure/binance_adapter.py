@@ -135,7 +135,9 @@ class BinanceAdapter:
 
     Args:
         base_url (str): Binance REST API base URL
-        ws_base_url (str): Binance WebSocket base URL
+        ws_base_url (str): Binance WebSocket stream base URL (market data)
+        ws_api_url (str): Binance WebSocket API base URL (signed requests
+            and user-data-stream subscription)
         credentials (dict[str, tuple[str, str]] | None): Mapping of account_id
             to (api_key, api_secret) pairs
     '''
