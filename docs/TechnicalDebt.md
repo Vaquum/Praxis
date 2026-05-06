@@ -604,3 +604,17 @@ The crash windows that need coverage (per Pass 6 matrix):
 **When to fix**: Alongside TD-052 implementation (a TD-052 boot-replay producer needs the crash-window harness to verify acceptance), OR before any Praxis/Nexus refactor that touches EventSpine or `state_store` and would benefit from a regression guard on the cross-repo recovery contract.
 
 **Migration**: Build a crash-window integration harness covering at least the nine boundary types above. For each window: spin up a Praxis launcher with both repos wired, drive it to the boundary state via deterministic test inputs, simulate process kill (e.g., raise `KeyboardInterrupt` mid-flight or use `os.kill(pid, SIGKILL)` in a subprocess), then restart with the same state directory and assert the recovery contract (capital aggregates correct, no double-mutation, no stranded orders, no stale risk gates). Place harness in either repo (the recovery flow spans both); cross-reference the other repo's TD entry. Recommended location: a new `tests/integration/crash_recovery/` directory in Praxis since the launcher orchestrates the cross-repo boot.
+
+---
+
+## TD-059: `BinanceUserStream._clean_setup_connection` leaks freshly-opened ws on `CancelledError`
+
+**Origin**: Greybeard pre-PR review (fix/binance-ws-api-user-data-stream)
+**Severity**: Low (resource leak, not correctness)
+**Module**: `praxis/infrastructure/binance_ws.py:_clean_setup_connection`
+
+Between `await session.ws_connect(ws_api_url)` and the success-path assignment `self._ws = ws`, a `CancelledError` raised by `close()` cancelling `_reconnect_task` is not handled by the `except (aiohttp.ClientError, TimeoutError, VenueError):` block. The freshly-opened `ws` therefore goes out of scope without an explicit `await ws.close()`. The asyncio garbage collector will eventually destroy the `ClientWebSocketResponse`, but until then the socket and the underlying TCP connection are held open. Pre-existing pattern from the listen-key-era code; the WS-API rewrite preserves it rather than introduces it.
+
+**When to fix**: When sustained reconnect activity on a long-lived paper-trade run produces observable file-descriptor or connection-pool exhaustion in operator metrics, OR when the next refactor of `_clean_setup_connection` happens for any other reason.
+
+**Migration**: Replace the bare `except (aiohttp.ClientError, TimeoutError, VenueError):` with a `try/finally` that closes the local `ws` whenever `self._ws` was not assigned the new value, OR add `BaseException` to the except tuple and re-raise. The `try/finally` shape is preferred since it also covers the `_subscribe` happy path where the publisher goes away mid-call.

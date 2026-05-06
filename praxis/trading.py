@@ -81,6 +81,7 @@ class Trading:
                 BinanceAdapter(
                     base_url=config.venue_rest_url,
                     ws_base_url=config.venue_ws_url,
+                    ws_api_url=config.venue_ws_api_url,
                     credentials=dict(config.account_credentials),
                 ),
             )

@@ -1,16 +1,20 @@
 '''
-Binance Spot user data stream lifecycle management.
+Binance Spot user data stream lifecycle management via the WebSocket API.
 
-Manage listen key creation, WebSocket connection, keepalive scheduling,
-and stream shutdown for a single account.
+Manage WebSocket connection, signed `userDataStream.subscribe.signature`
+subscription, and stream shutdown for a single account.
 '''
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
+import hmac
 import logging
 import random
+import time
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -29,29 +33,31 @@ __all__ = ['BinanceUserStream']
 _log = logging.getLogger(__name__)
 
 
-_DEFAULT_KEEPALIVE_INTERVAL_SECONDS = 1800
 _DEFAULT_RECONNECT_BASE_DELAY = 1.0
 _DEFAULT_RECONNECT_MAX_DELAY = 60.0
 _MAX_BACKOFF_EXPONENT = 30
+_SUBSCRIBE_RECV_WINDOW_MS = 5000
+_SUBSCRIBE_ACK_TIMEOUT_SECONDS = 10.0
+_OK_STATUS = 200
 
 
 class BinanceUserStream:
 
     '''
-    Manage a single Binance user data WebSocket stream lifecycle.
+    Manage a single Binance user data WebSocket-API session lifecycle.
 
-    This class owns one listen key and one WebSocket connection for a single
-    account_id. When on_message is provided, automatically reconnects with
-    exponential backoff on disconnect.
+    Owns one WS-API connection per account_id. Subscribes via
+    `userDataStream.subscribe.signature` and consumes pushed user-data
+    events on the same connection. Auto-reconnects with exponential
+    backoff on disconnect when on_message is set.
 
     Args:
-        adapter (BinanceAdapter): Binance REST adapter used for credentials,
-            session access, and listen key REST calls
+        adapter (BinanceAdapter): Binance adapter; provides credentials,
+            shared aiohttp session, and the WS-API base URL
         account_id (str): Account identifier
-        on_message (Callable[[dict], Awaitable[None]] | None): Async callback
-            invoked with each parsed JSON frame from the stream
-        keepalive_interval_seconds (int): Listen key keepalive interval
-            in seconds
+        on_message (Callable[[dict], Awaitable[None]] | None): Async
+            callback invoked with each pushed event payload (the inner
+            object of the WS-API `event` envelope)
         reconnect_base_delay (float): Initial reconnect delay in seconds
         reconnect_max_delay (float): Maximum reconnect delay in seconds
     '''
@@ -61,72 +67,50 @@ class BinanceUserStream:
         adapter: BinanceAdapter,
         account_id: str,
         on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
-        keepalive_interval_seconds: int = _DEFAULT_KEEPALIVE_INTERVAL_SECONDS,
         reconnect_base_delay: float = _DEFAULT_RECONNECT_BASE_DELAY,
         reconnect_max_delay: float = _DEFAULT_RECONNECT_MAX_DELAY,
     ) -> None:
 
-        '''
-        Initialize stream lifecycle state.
-
-        Args:
-            adapter (BinanceAdapter): Binance REST adapter instance
-            account_id (str): Account identifier
-            on_message (Callable[[dict], Awaitable[None]] | None): Async
-                callback for incoming JSON frames
-            keepalive_interval_seconds (int): Keepalive interval in seconds
-            reconnect_base_delay (float): Initial reconnect delay in seconds
-            reconnect_max_delay (float): Maximum reconnect delay in seconds
-        '''
-
         self._adapter = adapter
         self._account_id = account_id
-        self._keepalive_interval_seconds = keepalive_interval_seconds
-        self._listen_key: str | None = None
         self._ws: aiohttp.ClientWebSocketResponse | None = None
-        self._keepalive_task: asyncio.Task[None] | None = None
         self._on_message = on_message
         self._reconnect_task: asyncio.Task[None] | None = None
         self._reconnect_base_delay = reconnect_base_delay
         self._reconnect_max_delay = reconnect_max_delay
-
-    @property
-    def listen_key(self) -> str | None:
-
-        '''
-        Return the active listen key if connected.
-
-        Returns:
-            str | None: Active listen key, or None when disconnected
-        '''
-
-        return self._listen_key
+        self._subscription_id: int | None = None
 
     @property
     def websocket(self) -> aiohttp.ClientWebSocketResponse | None:
 
         '''
         Return the active WebSocket connection if connected.
-
-        Returns:
-            aiohttp.ClientWebSocketResponse | None: Active WebSocket,
-                or None when disconnected
         '''
 
         return self._ws
 
+    @property
+    def subscription_id(self) -> int | None:
+
+        '''
+        Return the active user-data-stream subscription id if subscribed.
+        '''
+
+        return self._subscription_id
+
     async def initiate_connection(self) -> None:
 
         '''
-        Create listen key, open WebSocket, start keepalive and auto-reconnect loop.
-
-        Auto-reconnect loop is only started when on_message callback is set.
+        Open WS-API connection, subscribe to user-data-stream, start
+        auto-reconnect loop. Auto-reconnect is only started when
+        on_message is set.
 
         Raises:
+            AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
-            TimeoutError: If network operations time out
-            ValueError: If adapter WS base URL scheme is not wss
-            VenueError: If listen key management fails via adapter methods
+            TimeoutError: If subscription ack times out
+            ValueError: If WS-API URL scheme is not wss
+            VenueError: If subscription is rejected by the venue
         '''
 
         if self._ws is not None and not self._ws.closed:
@@ -141,52 +125,125 @@ class BinanceUserStream:
     async def _clean_setup_connection(self) -> None:
 
         '''
-        Clean up stale state, create listen key, open WebSocket, start keepalive.
-
-        Called by initiate_connection() on initial connection and by _auto_reconnect() on
-        reconnection. Handles full teardown of previous connection state before
-        setting up a new one.
+        Tear down stale WS, open new WS-API connection, send signed
+        `userDataStream.subscribe.signature` frame, await ack.
 
         Raises:
+            AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
-            TimeoutError: If network operations time out
-            ValueError: If adapter WS base URL scheme is not wss
-            VenueError: If listen key management fails via adapter methods
+            TimeoutError: If subscription ack times out
+            ValueError: If WS-API URL scheme is not wss
+            VenueError: If subscription is rejected by the venue
         '''
 
-        if self._keepalive_task is not None:
-            self._keepalive_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._keepalive_task
-            self._keepalive_task = None
         if self._ws is not None:
             with contextlib.suppress(aiohttp.ClientError):
                 await self._ws.close()
             self._ws = None
-        if self._listen_key is not None:
-            with contextlib.suppress(VenueError):
-                await self._adapter._close_listen_key(self._account_id, self._listen_key)
-            self._listen_key = None
+        self._subscription_id = None
 
-        listen_key = await self._adapter._create_listen_key(self._account_id)
+        ws_api_url = self._adapter._ws_api_url
+        if not ws_api_url.startswith('wss://'):
+            msg = f"Unsupported WS-API URL scheme: {ws_api_url!r}"
+            raise ValueError(msg)
+
+        api_key, api_secret = self._adapter._get_credentials(self._account_id)
+
+        session = await self._adapter._ensure_session()
+        ws = await session.ws_connect(ws_api_url)
 
         try:
-            ws_url = self._build_ws_url(listen_key)
-            session = await self._adapter._ensure_session()
-            ws = await session.ws_connect(ws_url)
-        except (aiohttp.ClientError, TimeoutError, ValueError):
-            with contextlib.suppress(VenueError):
-                await self._adapter._close_listen_key(self._account_id, listen_key)
+            await self._subscribe(ws, api_key, api_secret)
+        except (aiohttp.ClientError, TimeoutError, VenueError):
+            with contextlib.suppress(aiohttp.ClientError):
+                await ws.close()
             raise
 
-        self._listen_key = listen_key
         self._ws = ws
-        self._keepalive_task = asyncio.create_task(self._keepalive_loop())
+
+    async def _subscribe(
+        self,
+        ws: aiohttp.ClientWebSocketResponse,
+        api_key: str,
+        api_secret: str,
+    ) -> None:
+
+        '''
+        Send the signed `userDataStream.subscribe.signature` frame and
+        validate the ack. The signature covers the alphabetically-sorted
+        params (`apiKey`, `recvWindow`, `timestamp`) joined as
+        `key=value&...` and HMAC-SHA256-signed with `api_secret`.
+
+        Raises:
+            TimeoutError: If ack does not arrive within the timeout
+            VenueError: If ack status is non-200 or response is malformed
+        '''
+
+        timestamp = int(time.time() * 1000)
+        params: dict[str, str | int] = {
+            'apiKey': api_key,
+            'recvWindow': _SUBSCRIBE_RECV_WINDOW_MS,
+            'timestamp': timestamp,
+        }
+        qs = '&'.join(f'{k}={params[k]}' for k in sorted(params))
+        signature = hmac.new(api_secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        params['signature'] = signature
+
+        request = {
+            'id': str(uuid.uuid4()),
+            'method': 'userDataStream.subscribe.signature',
+            'params': params,
+        }
+        await ws.send_str(orjson.dumps(request).decode('utf-8'))
+
+        try:
+            ack = await asyncio.wait_for(
+                ws.receive(), timeout=_SUBSCRIBE_ACK_TIMEOUT_SECONDS,
+            )
+        except TimeoutError as exc:
+            text = f"WS-API subscribe ack timed out for account {self._account_id!r}"
+            raise TimeoutError(text) from exc
+
+        if ack.type != aiohttp.WSMsgType.TEXT:
+            text = (
+                f"WS-API subscribe returned non-text frame for account "
+                f"{self._account_id!r}: type={ack.type.name}"
+            )
+            raise VenueError(text)
+
+        try:
+            response = orjson.loads(ack.data.encode('utf-8'))
+        except orjson.JSONDecodeError as exc:
+            text = (
+                f"WS-API subscribe returned non-JSON frame for account "
+                f"{self._account_id!r}: {ack.data[:200]}"
+            )
+            raise VenueError(text) from exc
+
+        status = response.get('status') if isinstance(response, dict) else None
+        if status != _OK_STATUS:
+            text = (
+                f"WS-API subscribe failed for account {self._account_id!r}: "
+                f"{response}"
+            )
+            raise VenueError(text)
+
+        result = response.get('result')
+        sub_id = result.get('subscriptionId') if isinstance(result, dict) else None
+        if not isinstance(sub_id, int) or isinstance(sub_id, bool):
+            text = (
+                f"WS-API subscribe ack missing subscriptionId for account "
+                f"{self._account_id!r}: {response}"
+            )
+            raise VenueError(text)
+
+        self._subscription_id = sub_id
 
     async def close(self) -> None:
 
         '''
-        Stop reconnect loop, keepalive, close WebSocket, and invalidate listen key.
+        Stop reconnect loop, send unsubscribe frame (best-effort), close
+        the WS connection.
         '''
 
         if self._reconnect_task is not None:
@@ -195,30 +252,26 @@ class BinanceUserStream:
                 await self._reconnect_task
             self._reconnect_task = None
 
-        if self._keepalive_task is not None:
-            self._keepalive_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._keepalive_task
-            self._keepalive_task = None
-
         if self._ws is not None:
-            with contextlib.suppress(aiohttp.ClientError):
-                await self._ws.close()
+            ws = self._ws
+            sub_id = self._subscription_id
             self._ws = None
-
-        if self._listen_key is not None:
-            listen_key = self._listen_key
-            self._listen_key = None
-            with contextlib.suppress(VenueError):
-                await self._adapter._close_listen_key(self._account_id, listen_key)
+            self._subscription_id = None
+            with contextlib.suppress(aiohttp.ClientError, TimeoutError):
+                request: dict[str, Any] = {
+                    'id': str(uuid.uuid4()),
+                    'method': 'userDataStream.unsubscribe',
+                }
+                if sub_id is not None:
+                    request['params'] = {'subscriptionId': sub_id}
+                await ws.send_str(orjson.dumps(request).decode('utf-8'))
+            with contextlib.suppress(aiohttp.ClientError):
+                await ws.close()
 
     async def __aenter__(self) -> BinanceUserStream:
 
         '''
         Connect on entering async context.
-
-        Returns:
-            BinanceUserStream: Connected stream manager
         '''
 
         await self.initiate_connection()
@@ -237,33 +290,16 @@ class BinanceUserStream:
 
         await self.close()
 
-    async def _keepalive_loop(self) -> None:
-
-        '''
-        Periodically renew the active listen key until cancelled.
-        '''
-
-        while True:
-            await asyncio.sleep(self._keepalive_interval_seconds)
-            listen_key = self._listen_key
-
-            if listen_key is None:
-                return
-
-            try:
-                await self._adapter._keepalive_listen_key(self._account_id, listen_key)
-            except (VenueError, aiohttp.ClientError, TimeoutError):
-                _log.warning('keepalive failed for %s', self._account_id, exc_info=True)
-
     async def _auto_reconnect(self) -> None:
 
         '''
         Run receive loop with automatic reconnection on disconnect.
 
-        Calls _receive_loop() to read frames. When _receive_loop() returns (WebSocket
-        closed or errored), waits with exponential backoff and calls
-        _clean_setup_connection() to reconnect. Resets attempt counter on successful
-        reconnection. Exits cleanly on CancelledError from close().
+        Calls _receive_loop() to read frames. When _receive_loop() returns
+        (WebSocket closed or errored), waits with exponential backoff and
+        calls _clean_setup_connection() to reconnect. Resets attempt
+        counter on successful reconnection. Exits cleanly on
+        CancelledError from close().
         '''
 
         attempts = 0
@@ -294,7 +330,10 @@ class BinanceUserStream:
     async def _receive_loop(self) -> None:
 
         '''
-        Read WebSocket frames and dispatch parsed JSON to the on_message callback.
+        Read WS-API frames and dispatch pushed user-data events to the
+        on_message callback. WS-API push events are wrapped in an
+        `event` envelope; non-event frames (e.g. unsolicited acks for
+        in-flight requests) are ignored.
         '''
 
         assert self._ws is not None
@@ -307,32 +346,13 @@ class BinanceUserStream:
                 except orjson.JSONDecodeError:
                     _log.warning('non-JSON frame: %s', msg.data[:200])
                     continue
+                event = data.get('event') if isinstance(data, dict) else None
+                if not isinstance(event, dict):
+                    _log.debug('non-event frame: %s', str(data)[:200])
+                    continue
                 try:
-                    await self._on_message(data)
+                    await self._on_message(event)
                 except Exception:  # noqa: BLE001
                     _log.exception('on_message callback error')
             elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                 break
-
-    def _build_ws_url(self, listen_key: str) -> str:
-
-        '''
-        Build user data stream WebSocket URL from adapter WS base URL.
-
-        Args:
-            listen_key (str): Active listen key
-
-        Returns:
-            str: WebSocket URL for the stream
-
-        Raises:
-            ValueError: If adapter WS base URL scheme is not wss
-        '''
-
-        ws_base_url = self._adapter._ws_base_url
-
-        if not ws_base_url.startswith('wss://'):
-            msg = f"Unsupported WS base URL scheme: {ws_base_url!r}"
-            raise ValueError(msg)
-
-        return f"{ws_base_url}/ws/{listen_key}"

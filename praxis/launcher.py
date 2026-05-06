@@ -81,8 +81,10 @@ from praxis.core.domain.events import OutcomeAcked
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.binance_urls import (
     MAINNET_REST_URL,
+    MAINNET_WS_API_URL,
     MAINNET_WS_URL,
     TESTNET_REST_URL,
+    TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
 from praxis.infrastructure.event_spine import EventSpine
@@ -1764,10 +1766,10 @@ def _check_required_env(env: dict[str, str]) -> None:
         raise RuntimeError(msg)
 
 
-def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, bool]:
-    '''Map `TRADE_MODE` to the venue REST/WS URLs and the testnet flag.
+def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
+    '''Map `TRADE_MODE` to the venue REST/WS-stream/WS-API URLs and the testnet flag.
 
-    Operators set `TRADE_MODE=paper` or `TRADE_MODE=live`; both URLs
+    Operators set `TRADE_MODE=paper` or `TRADE_MODE=live`; all three URLs
     and the market-data poller's testnet routing are derived from the
     in-code constants in `binance_urls`. There is no operator path
     that can submit orders to mainnet while the rest of the system
@@ -1776,9 +1778,9 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, bool]:
 
     raw = env['TRADE_MODE'].strip().lower()
     if raw == _TRADE_MODE_PAPER:
-        return TESTNET_REST_URL, TESTNET_WS_URL, True
+        return TESTNET_REST_URL, TESTNET_WS_URL, TESTNET_WS_API_URL, True
     if raw == _TRADE_MODE_LIVE:
-        return MAINNET_REST_URL, MAINNET_WS_URL, False
+        return MAINNET_REST_URL, MAINNET_WS_URL, MAINNET_WS_API_URL, False
     msg = (
         f'TRADE_MODE must be one of {list(_TRADE_MODES)!r}; got {env["TRADE_MODE"]!r}'
     )
@@ -1859,7 +1861,7 @@ def main() -> None:
     env = dict(os.environ)
     _check_required_env(env)
 
-    venue_rest_url, venue_ws_url, market_data_testnet = _resolve_trade_mode(env)
+    venue_rest_url, venue_ws_url, venue_ws_api_url, market_data_testnet = _resolve_trade_mode(env)
 
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
@@ -1929,6 +1931,7 @@ def main() -> None:
         epoch_id=int(env['EPOCH_ID']),
         venue_rest_url=venue_rest_url,
         venue_ws_url=venue_ws_url,
+        venue_ws_api_url=venue_ws_api_url,
         account_credentials=account_credentials,
         shutdown_timeout=float(env.get('SHUTDOWN_TIMEOUT', _DEFAULT_SHUTDOWN_TIMEOUT)),
     )

@@ -6,7 +6,11 @@ from typing import cast
 
 import pytest
 
-from praxis.infrastructure.binance_urls import TESTNET_REST_URL, TESTNET_WS_URL
+from praxis.infrastructure.binance_urls import (
+    TESTNET_REST_URL,
+    TESTNET_WS_API_URL,
+    TESTNET_WS_URL,
+)
 from praxis.trading_config import TradingConfig
 
 
@@ -15,9 +19,25 @@ def test_trading_config_defaults() -> None:
 
     assert cfg.venue_rest_url == TESTNET_REST_URL
     assert cfg.venue_ws_url == TESTNET_WS_URL
+    assert cfg.venue_ws_api_url == TESTNET_WS_API_URL
     assert cfg.account_credentials == {}
     assert isinstance(cfg.account_credentials, MappingProxyType)
     assert cfg.on_trade_outcome is None
+
+
+def test_trading_config_rejects_empty_venue_rest_url() -> None:
+    with pytest.raises(ValueError, match='venue_rest_url must be non-empty'):
+        TradingConfig(epoch_id=1, venue_rest_url='')
+
+
+def test_trading_config_rejects_empty_venue_ws_url() -> None:
+    with pytest.raises(ValueError, match='venue_ws_url must be non-empty'):
+        TradingConfig(epoch_id=1, venue_ws_url='')
+
+
+def test_trading_config_rejects_empty_venue_ws_api_url() -> None:
+    with pytest.raises(ValueError, match='venue_ws_api_url must be non-empty'):
+        TradingConfig(epoch_id=1, venue_ws_api_url='')
 
 
 def test_trading_config_rejects_non_positive_epoch() -> None:

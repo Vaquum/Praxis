@@ -23,6 +23,7 @@ def _build_adapter() -> BinanceAdapter:
     return BinanceAdapter(
         base_url='https://example.test',
         ws_base_url='wss://example.test',
+        ws_api_url='wss://example.test/ws-api/v3',
         credentials={},
     )
 
