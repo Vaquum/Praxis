@@ -186,7 +186,7 @@ def test_translate_order_side_rekeys_foreign_enum_to_praxis() -> None:
 
 def test_translate_order_side_rejects_non_enum_value() -> None:
 
-    with pytest.raises(TypeError, match='side must be a OrderSide'):
+    with pytest.raises(TypeError, match='side must be OrderSide'):
         translate_order_side('BUY')
 
 
@@ -264,5 +264,5 @@ def test_translate_rejects_unknown_value() -> None:
 
 def test_translate_rejects_none() -> None:
 
-    with pytest.raises(TypeError, match='must be a OrderSide'):
+    with pytest.raises(TypeError, match='must be OrderSide'):
         translate_order_side(None)

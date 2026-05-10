@@ -71,7 +71,7 @@ def _translate_enum[E: Enum](
     raw = getattr(value, 'value', None)
     if not isinstance(raw, str):
         msg = (
-            f'{field_name} must be a {praxis_enum_cls.__name__} or an '
+            f'{field_name} must be {praxis_enum_cls.__name__} or an '
             f'enum with a string .value, got {type(value).__name__}'
         )
         raise TypeError(msg)
