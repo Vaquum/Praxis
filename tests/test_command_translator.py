@@ -262,7 +262,26 @@ def test_translate_rejects_unknown_value() -> None:
         translate_execution_mode(_Foreign.FROBNICATE)
 
 
-def test_translate_rejects_none() -> None:
+def test_translate_order_side_passes_none_through() -> None:
 
-    with pytest.raises(TypeError, match='must be OrderSide'):
-        translate_order_side(None)
+    assert translate_order_side(None) is None
+
+
+def test_translate_order_type_passes_none_through() -> None:
+
+    assert translate_order_type(None) is None
+
+
+def test_translate_execution_mode_passes_none_through() -> None:
+
+    assert translate_execution_mode(None) is None
+
+
+def test_translate_maker_preference_passes_none_through() -> None:
+
+    assert translate_maker_preference(None) is None
+
+
+def test_translate_stp_mode_passes_none_through() -> None:
+
+    assert translate_stp_mode(None) is None

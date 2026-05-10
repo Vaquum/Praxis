@@ -65,7 +65,9 @@ def _translate_enum[E: Enum](
     praxis_enum_cls: type[E],
     field_name: str,
     value_map: Mapping[str, str] | None = None,
-) -> E:
+) -> E | None:
+    if value is None:
+        return None
     if isinstance(value, praxis_enum_cls):
         return value
     raw = getattr(value, 'value', None)
@@ -86,36 +88,50 @@ def _translate_enum[E: Enum](
         raise ValueError(msg) from exc
 
 
-def translate_order_side(value: object) -> OrderSide:
+def translate_order_side(value: object) -> OrderSide | None:
     '''Re-key a foreign `OrderSide` to the Praxis `OrderSide` member.'''
 
     return _translate_enum(value, OrderSide, 'side')
 
 
-def translate_order_type(value: object) -> OrderType:
+def translate_order_type(value: object) -> OrderType | None:
     '''Re-key a foreign `OrderType` to the Praxis `OrderType` member.'''
 
     return _translate_enum(value, OrderType, 'order_type')
 
 
-def translate_execution_mode(value: object) -> ExecutionMode:
+def translate_execution_mode(value: object) -> ExecutionMode | None:
     '''Re-key a foreign `ExecutionMode` to the Praxis member.'''
 
     return _translate_enum(value, ExecutionMode, 'execution_mode')
 
 
-def translate_maker_preference(value: object) -> MakerPreference:
-    '''Re-key a foreign `MakerPreference` to the Praxis member.'''
+def translate_maker_preference(value: object) -> MakerPreference | None:
+    '''Re-key a foreign `MakerPreference` to the Praxis member.
+
+    `None` passes through unchanged: Nexus emits `Action` instances
+    with `maker_preference=None` whenever the strategy did not set the
+    field, and the downstream Praxis `validate_trade_command` already
+    treats `None` as "anything except `MAKER_ONLY`" (the inequality
+    check on line 217 of `validate_trade_command.py` returns true for
+    `None`). Rejecting `None` here would be a stricter contract than
+    Praxis itself enforces and would block every order from a Nexus
+    `Action` that omits the field.
+    '''
 
     return _translate_enum(value, MakerPreference, 'maker_preference')
 
 
-def translate_stp_mode(value: object) -> STPMode:
+def translate_stp_mode(value: object) -> STPMode | None:
     '''Re-key a foreign `STPMode` to the Praxis member.
 
     The two enums use different value strings (Nexus `CANCEL_*` vs
     Praxis `EXPIRE_*`); `_STP_MODE_VALUE_MAP` records the semantic
-    equivalence used during translation.
+    equivalence used during translation. `None` passes through
+    unchanged for the same reason as `translate_maker_preference`:
+    Nexus's `translate_to_trade_command` sets `stp_mode=None` for
+    AMEND/CANCEL paths, and Praxis stores the field on
+    `TradeCommand` without ever reading it at the venue boundary.
     '''
 
     return _translate_enum(value, STPMode, 'stp_mode', _STP_MODE_VALUE_MAP)
