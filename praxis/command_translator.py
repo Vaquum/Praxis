@@ -65,9 +65,7 @@ def _translate_enum[E: Enum](
     praxis_enum_cls: type[E],
     field_name: str,
     value_map: Mapping[str, str] | None = None,
-) -> E | None:
-    if value is None:
-        return None
+) -> E:
     if isinstance(value, praxis_enum_cls):
         return value
     raw = getattr(value, 'value', None)
@@ -88,52 +86,62 @@ def _translate_enum[E: Enum](
         raise ValueError(msg) from exc
 
 
-def translate_order_side(value: object) -> OrderSide | None:
+def translate_order_side(value: object) -> OrderSide:
     '''Re-key a foreign `OrderSide` to the Praxis `OrderSide` member.'''
 
     return _translate_enum(value, OrderSide, 'side')
 
 
-def translate_order_type(value: object) -> OrderType | None:
+def translate_order_type(value: object) -> OrderType:
     '''Re-key a foreign `OrderType` to the Praxis `OrderType` member.'''
 
     return _translate_enum(value, OrderType, 'order_type')
 
 
-def translate_execution_mode(value: object) -> ExecutionMode | None:
+def translate_execution_mode(value: object) -> ExecutionMode:
     '''Re-key a foreign `ExecutionMode` to the Praxis member.'''
 
     return _translate_enum(value, ExecutionMode, 'execution_mode')
 
 
-def translate_maker_preference(value: object) -> MakerPreference | None:
+def translate_maker_preference(value: object) -> MakerPreference:
     '''Re-key a foreign `MakerPreference` to the Praxis member.
 
-    `None` passes through unchanged: Nexus emits `Action` instances
-    with `maker_preference=None` whenever the strategy did not set the
-    field, and the downstream Praxis `validate_trade_command` already
-    treats `None` as "anything except `MAKER_ONLY`" (the inequality
-    check on line 217 of `validate_trade_command.py` returns true for
-    `None`). Rejecting `None` here would be a stricter contract than
-    Praxis itself enforces and would block every order from a Nexus
-    `Action` that omits the field.
+    `None` substitutes to `MakerPreference.NO_PREFERENCE`: Nexus's
+    [`Action`](https://github.com/Vaquum/Nexus/blob/v0.46.0/nexus/strategy/action.py)
+    dataclass declares `maker_preference: MakerPreference | None = None`
+    and only validates the type when the field is set, so any Nexus
+    strategy that omits `maker_preference` ships `None` through to the
+    Praxis seam. Pre-v0.58.0 the Praxis `validate_trade_command`
+    short-circuited on `cmd.maker_preference != MakerPreference.MAKER_ONLY`
+    and `None` flowed through harmlessly. Substituting `NO_PREFERENCE`
+    here keeps the historical "no opinion" semantics while letting the
+    Praxis dataclass and validator see a real enum (so the type
+    contract on `Trading.submit_command` is honest end-to-end).
     '''
 
+    if value is None:
+        return MakerPreference.NO_PREFERENCE
     return _translate_enum(value, MakerPreference, 'maker_preference')
 
 
-def translate_stp_mode(value: object) -> STPMode | None:
+def translate_stp_mode(value: object) -> STPMode:
     '''Re-key a foreign `STPMode` to the Praxis member.
 
     The two enums use different value strings (Nexus `CANCEL_*` vs
     Praxis `EXPIRE_*`); `_STP_MODE_VALUE_MAP` records the semantic
-    equivalence used during translation. `None` passes through
-    unchanged for the same reason as `translate_maker_preference`:
-    Nexus's `translate_to_trade_command` sets `stp_mode=None` for
-    AMEND/CANCEL paths, and Praxis stores the field on
-    `TradeCommand` without ever reading it at the venue boundary.
+    equivalence used during translation. `None` substitutes to
+    `STPMode.NONE`: Nexus's
+    [`translate_to_trade_command`](https://github.com/Vaquum/Nexus/blob/v0.46.0/nexus/infrastructure/praxis_connector/translate.py)
+    sets `stp_mode=None` for AMEND / CANCEL paths, and Praxis stores
+    the field on `TradeCommand` without ever reading it at the venue
+    boundary, so `None` had no observable effect pre-v0.58.0.
+    Substituting `STPMode.NONE` keeps the type contract honest while
+    preserving the existing zero-effect behaviour.
     '''
 
+    if value is None:
+        return STPMode.NONE
     return _translate_enum(value, STPMode, 'stp_mode', _STP_MODE_VALUE_MAP)
 
 

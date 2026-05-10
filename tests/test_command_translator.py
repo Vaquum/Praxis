@@ -262,26 +262,29 @@ def test_translate_rejects_unknown_value() -> None:
         translate_execution_mode(_Foreign.FROBNICATE)
 
 
-def test_translate_order_side_passes_none_through() -> None:
+def test_translate_maker_preference_substitutes_no_preference_for_none() -> None:
 
-    assert translate_order_side(None) is None
-
-
-def test_translate_order_type_passes_none_through() -> None:
-
-    assert translate_order_type(None) is None
+    assert translate_maker_preference(None) is MakerPreference.NO_PREFERENCE
 
 
-def test_translate_execution_mode_passes_none_through() -> None:
+def test_translate_stp_mode_substitutes_none_member_for_none() -> None:
 
-    assert translate_execution_mode(None) is None
-
-
-def test_translate_maker_preference_passes_none_through() -> None:
-
-    assert translate_maker_preference(None) is None
+    assert translate_stp_mode(None) is STPMode.NONE
 
 
-def test_translate_stp_mode_passes_none_through() -> None:
+def test_translate_order_side_rejects_none() -> None:
 
-    assert translate_stp_mode(None) is None
+    with pytest.raises(TypeError, match='must be OrderSide'):
+        translate_order_side(None)
+
+
+def test_translate_order_type_rejects_none() -> None:
+
+    with pytest.raises(TypeError, match='must be OrderType'):
+        translate_order_type(None)
+
+
+def test_translate_execution_mode_rejects_none() -> None:
+
+    with pytest.raises(TypeError, match='must be ExecutionMode'):
+        translate_execution_mode(None)
