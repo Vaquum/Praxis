@@ -1880,6 +1880,46 @@ class TestLoadFilters:
         with pytest.raises(TypeError, match='not a single string'):
             await adapter.load_filters('BTCUSDT')
 
+    @pytest.mark.asyncio
+    async def test_skips_already_cached_symbols(self) -> None:
+
+        adapter = _make_adapter()
+        filters_btc = SymbolFilters(
+            symbol='BTCUSDT', tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'), lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'), min_notional=Decimal('5.0'),
+        )
+        adapter._filters['BTCUSDT'] = filters_btc
+        adapter.get_exchange_info = AsyncMock()  # type: ignore[method-assign]
+
+        await adapter.load_filters(['BTCUSDT'])
+
+        adapter.get_exchange_info.assert_not_called()
+        assert adapter._filters['BTCUSDT'] is filters_btc
+
+    @pytest.mark.asyncio
+    async def test_only_fetches_uncached_symbols_in_mixed_set(self) -> None:
+
+        adapter = _make_adapter()
+        filters_btc = SymbolFilters(
+            symbol='BTCUSDT', tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'), lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'), min_notional=Decimal('5.0'),
+        )
+        filters_eth = SymbolFilters(
+            symbol='ETHUSDT', tick_size=Decimal('0.1'),
+            lot_step=Decimal('0.0001'), lot_min=Decimal('0.001'),
+            lot_max=Decimal('10000.0'), min_notional=Decimal('10.0'),
+        )
+        adapter._filters['BTCUSDT'] = filters_btc
+        adapter.get_exchange_info = AsyncMock(return_value=filters_eth)  # type: ignore[method-assign]
+
+        await adapter.load_filters(['BTCUSDT', 'ETHUSDT'])
+
+        adapter.get_exchange_info.assert_called_once_with('ETHUSDT')
+        assert adapter._filters['BTCUSDT'] is filters_btc
+        assert adapter._filters['ETHUSDT'] is filters_eth
+
 
 class TestValidateOrder:
 

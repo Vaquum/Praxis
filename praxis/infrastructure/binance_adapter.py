@@ -977,13 +977,20 @@ class BinanceAdapter:
         for a missing filter cache rather than masking it with a
         silent no-op.
 
-        The floor-divide step makes the snap inherently
-        round-toward-zero, so the snapped order never exceeds the
-        strategy's requested size. The post-snap qty might fall below
-        `lot_min` or below `min_notional`, but `_validate_order`
-        catches both cases as `LocalOrderRejectedError` and the
-        rejection surfaces as a normal terminal `OrderRejected`
-        outcome upstream.
+        Floor-divide on `Decimal` rounds toward negative infinity,
+        not toward zero — the two only coincide for non-negative
+        operands. Praxis enforces the `qty > 0` invariant on every
+        callable path that reaches this helper:
+        [`TradeCommand.__post_init__`](praxis/core/domain/trade_command.py)
+        rejects `qty <= 0` at command construction, and Nexus's
+        [`Action.__post_init__`](https://github.com/Vaquum/Nexus/blob/v0.46.0/nexus/strategy/action.py)
+        rejects non-positive `size`. With that invariant, floor
+        toward -∞ collapses to round-toward-zero and the snapped
+        order never exceeds the strategy's requested size. The
+        post-snap qty might fall below `lot_min` or below
+        `min_notional`, but `_validate_order` catches both cases as
+        `LocalOrderRejectedError` and the rejection surfaces as a
+        normal terminal `OrderRejected` outcome upstream.
 
         Args:
             symbol (str): Trading pair symbol used to look up filters.
@@ -1355,12 +1362,29 @@ class BinanceAdapter:
         '''
         Pre-load trading filters for one or more symbols.
 
-        Calls get_exchange_info for each symbol and caches the result.
-        Intended to be called once on startup before trading begins.
-        Raises on first failure to ensure filters are available.
+        Calls `get_exchange_info` for each symbol that does not already
+        have cached filters and stores the result in `_filters`. The
+        skip-if-cached behaviour makes the call idempotent: a multi-
+        account boot, where each `Trading._startup_account` invocation
+        passes the same union of bootstrap + active symbols, fetches
+        each symbol's `exchangeInfo` exactly once across the process
+        instead of once per account. Without this, the per-account
+        loop in `_startup_account` would burn N venue weight units per
+        bootstrap symbol on N accounts and increase startup latency
+        proportionally.
+
+        Filters are immutable per symbol within a process lifetime
+        (Binance's symbol-filter changes are deploy-gated, never
+        in-process), so re-fetching the same symbol cannot surface a
+        useful update. To force a refresh, callers must explicitly
+        pop the symbol from `_filters` before calling.
+
+        Raises on the first venue failure for any symbol that needs
+        loading, so a partial cache after `load_filters` returns
+        successfully is impossible.
 
         Args:
-            symbols (Sequence[str]): Trading pair symbols to load
+            symbols (Sequence[str]): Trading pair symbols to load.
         '''
 
         if isinstance(symbols, str):
@@ -1368,6 +1392,8 @@ class BinanceAdapter:
             raise TypeError(msg)
 
         for symbol in symbols:
+            if symbol in self._filters:
+                continue
             self._filters[symbol] = await self.get_exchange_info(symbol)
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
