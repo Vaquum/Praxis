@@ -20,7 +20,7 @@ import time
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, UTC
-from decimal import ROUND_DOWN, Decimal
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
 
@@ -954,19 +954,33 @@ class BinanceAdapter:
         digits) — `format(qty, 'f')` faithfully renders all of them
         and Binance rejects every order.
 
+        Snaps via `(qty // lot_step) * lot_step` (floor-divide then
+        multiply) rather than `Decimal.quantize(lot_step, ...)`.
+        `quantize` rounds to the *exponent* of `lot_step` rather than
+        to an integer multiple of it. Binance's `exchangeInfo`
+        returns `stepSize='0.00001000'` (exponent `-8`) for BTCUSDT
+        — `Decimal.quantize(Decimal('0.00001000'), ROUND_DOWN)` would
+        leave eight fractional digits like `0.00024552`, which is
+        neither a multiple of the numeric step `0.00001` nor what
+        Binance's LOT_SIZE filter accepts. The same trap fires for
+        any non-pure-`10^-n` step (e.g. a hypothetical `stepSize=5`
+        would not round `13` down to `10`). Floor-divide-then-multiply
+        is exact for any `lot_step` shape.
+
         The local `_validate_order` enforces `qty % lot_step == 0`,
         but only when the symbol's filters are cached. Snapping first
         guarantees the modulo check passes for well-formed inputs and
         keeps strategies free of venue-specific precision rules
-        (`stepSize=0.00001` on BTCUSDT Spot, etc.). When filters are
-        not cached, return `qty` unchanged so the downstream
+        (`stepSize=0.00001000` on BTCUSDT Spot, etc.). When filters
+        are not cached, return `qty` unchanged so the downstream
         "skipping validation" warning path stays the single signal
         for a missing filter cache rather than masking it with a
         silent no-op.
 
-        Rounds with `ROUND_DOWN` so the snapped order never exceeds
-        the strategy's requested size — the post-snap qty might fall
-        below `lot_min` or below `min_notional`, but `_validate_order`
+        The floor-divide step makes the snap inherently
+        round-toward-zero, so the snapped order never exceeds the
+        strategy's requested size. The post-snap qty might fall below
+        `lot_min` or below `min_notional`, but `_validate_order`
         catches both cases as `LocalOrderRejectedError` and the
         rejection surfaces as a normal terminal `OrderRejected`
         outcome upstream.
@@ -976,14 +990,15 @@ class BinanceAdapter:
             qty (Decimal): Strategy-supplied order quantity.
 
         Returns:
-            Decimal: `qty` rounded down to the symbol's `lot_step`
-            grid when filters are cached; otherwise `qty` unchanged.
+            Decimal: `qty` floored to the nearest integer multiple of
+            the symbol's `lot_step` when filters are cached;
+            otherwise `qty` unchanged.
         '''
 
         filters = self._filters.get(symbol)
         if filters is None:
             return qty
-        return qty.quantize(filters.lot_step, rounding=ROUND_DOWN)
+        return (qty // filters.lot_step) * filters.lot_step
 
 
     async def submit_order(

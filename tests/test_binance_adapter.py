@@ -1999,6 +1999,41 @@ class TestSnapQtyToLotStep:
 
         assert snapped is raw
 
+    def test_snap_handles_lot_step_with_trailing_zeros_from_venue_wire_format(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01000000'),
+            lot_step=Decimal('0.00001000'),
+            lot_min=Decimal('0.00001000'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+        raw = Decimal('20') / Decimal('81458')
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', raw)
+
+        assert snapped == Decimal('0.00024')
+        assert snapped % Decimal('0.00001') == 0
+        assert snapped % adapter._filters['BTCUSDT'].lot_step == 0
+
+    def test_snap_floors_to_integer_multiple_for_non_power_of_ten_step(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['XYZUSDT'] = SymbolFilters(
+            symbol='XYZUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('5'),
+            lot_min=Decimal('5'),
+            lot_max=Decimal('1000'),
+            min_notional=Decimal('5.0'),
+        )
+
+        snapped = adapter._snap_qty_to_lot_step('XYZUSDT', Decimal('13'))
+
+        assert snapped == Decimal('10')
+
     @pytest.mark.asyncio
     async def test_submit_order_snaps_qty_so_post_request_quantity_is_grid_aligned(self) -> None:
 

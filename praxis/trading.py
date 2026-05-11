@@ -62,6 +62,15 @@ class Trading:
         event_spine (EventSpine): Event Spine instance to use.
         venue_adapter (VenueAdapter | None): Optional injected venue adapter.
             If omitted, a BinanceAdapter is created from config URLs.
+        bootstrap_filter_symbols (frozenset[str]): Trading symbols whose
+            venue filters must be cached before any orders submit,
+            regardless of whether the account has open orders or
+            positions at boot. Merged with the per-account
+            `ExecutionManager.active_symbols` set inside
+            `_startup_account` so a fresh paper-trade boot still
+            primes `BinanceAdapter._filters` for the launcher's
+            default symbol. Defaults to `frozenset()` (preserves
+            historical behaviour).
     '''
 
     def __init__(
