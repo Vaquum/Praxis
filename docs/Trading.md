@@ -43,7 +43,7 @@ The object also keeps track of:
 3. groups those events by account
 4. registers each configured account
 5. replays each account's event history into the execution manager
-6. loads venue filters for active symbols
+6. loads venue filters for the union of active symbols (from replay state — open orders or positions) and `bootstrap_filter_symbols` (configured at `Trading(...)` construction; the launcher passes `frozenset({_DEFAULT_SYMBOL})` so a fresh paper-trade boot still primes filters before any sensor's first ENTER tick). `BinanceAdapter.load_filters` is idempotent — symbols already present in the cache are not refetched, so a multi-account boot that passes the same bootstrap set per account fetches each symbol's `exchangeInfo` exactly once
 7. starts the Binance user stream when relevant
 8. reconciles the local projection against venue state
 9. marks the account ready for new commands

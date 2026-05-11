@@ -986,11 +986,22 @@ class BinanceAdapter:
         [`Action.__post_init__`](https://github.com/Vaquum/Nexus/blob/v0.46.0/nexus/strategy/action.py)
         rejects non-positive `size`. With that invariant, floor
         toward -∞ collapses to round-toward-zero and the snapped
-        order never exceeds the strategy's requested size. The
-        post-snap qty might fall below `lot_min` or below
-        `min_notional`, but `_validate_order` catches both cases as
-        `LocalOrderRejectedError` and the rejection surfaces as a
-        normal terminal `OrderRejected` outcome upstream.
+        order never exceeds the strategy's requested size.
+
+        The post-snap qty might fall below `lot_min` — `_validate_order`
+        catches that branch unconditionally as
+        `LocalOrderRejectedError`. The post-snap qty might also fall
+        below `min_notional`, but `_validate_order`'s `min_notional`
+        branch is gated behind `price is not None and order_type !=
+        OrderType.MARKET`, so it does NOT catch a too-small notional
+        on MARKET orders (the stub-strategy path). For MARKET orders
+        Binance's NOTIONAL filter declares `applyMinToMarket: true`
+        so the venue itself rejects the under-notional order with
+        code `-1013` (`Filter failure: NOTIONAL`); the rejection
+        still surfaces as a normal terminal `OrderRejected` outcome
+        upstream, just from the venue rather than the local
+        validator. Strategies sizing at or near `min_notional` should
+        budget headroom for the snap rounding error.
 
         Args:
             symbol (str): Trading pair symbol used to look up filters.
