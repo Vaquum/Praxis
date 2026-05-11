@@ -1384,11 +1384,17 @@ class BinanceAdapter:
         bootstrap symbol on N accounts and increase startup latency
         proportionally.
 
-        Filters are immutable per symbol within a process lifetime
-        (Binance's symbol-filter changes are deploy-gated, never
-        in-process), so re-fetching the same symbol cannot surface a
-        useful update. To force a refresh, callers must explicitly
-        pop the symbol from `_filters` before calling.
+        In-process filter refresh is intentionally unsupported.
+        Binance's symbol-filter changes are deploy-gated (the venue
+        publishes new `tickSize` / `stepSize` / `minNotional` values
+        in coordination with a versioned exchange release), never
+        delivered mid-session, so a long-lived Praxis process cannot
+        observe a useful change by re-polling. The only way to pick
+        up new filters is to restart the process. If a future use
+        case ever needs in-process refresh, add an explicit method
+        on the `VenueAdapter` protocol — do not work around the
+        idempotency by mutating the private `_filters` mapping from
+        outside the adapter.
 
         Raises on the first venue failure for any symbol that needs
         loading, so a partial cache after `load_filters` returns
