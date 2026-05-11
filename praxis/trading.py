@@ -70,11 +70,27 @@ class Trading:
         config: TradingConfig,
         event_spine: EventSpine,
         venue_adapter: VenueAdapter | None = None,
+        bootstrap_filter_symbols: frozenset[str] = frozenset(),
     ) -> None:
-        '''Compose core trading dependencies and manager-facing facade.'''
+        '''Compose core trading dependencies and manager-facing facade.
+
+        `bootstrap_filter_symbols` is the set of trading symbols the
+        adapter must have cached venue filters for *before any orders
+        are submitted*, regardless of whether the account has open
+        orders or positions at boot. On a fresh paper-trade boot the
+        `ExecutionManager.active_symbols(account_id)` set is empty —
+        the launcher's `_DEFAULT_SYMBOL='BTCUSDT'` is discovered only
+        when the first strategy emits an ENTER action, which is after
+        `_startup_account` has already completed. Without this
+        bootstrap set, `BinanceAdapter._validate_order` falls through
+        on the "No cached filters for X, skipping validation" warning
+        path and the first venue submission fails with Binance error
+        code -1100 (`Illegal characters found in parameter 'quantity'`).
+        '''
 
         self._config = config
         self._event_spine = event_spine
+        self._bootstrap_filter_symbols = frozenset(bootstrap_filter_symbols)
         if venue_adapter is None:
             self._venue_adapter = cast(
                 VenueAdapter,
@@ -300,7 +316,8 @@ class Trading:
             account_id, account_events,
         )
 
-        symbols = self._execution_manager.active_symbols(account_id)
+        symbols = set(self._execution_manager.active_symbols(account_id))
+        symbols |= self._bootstrap_filter_symbols
         if symbols:
             await self._venue_adapter.load_filters(sorted(symbols))
 

@@ -20,7 +20,7 @@ import time
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, UTC
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Any
 from urllib.parse import urlencode
 
@@ -938,6 +938,54 @@ class BinanceAdapter:
                 )
 
 
+    def _snap_qty_to_lot_step(self, symbol: str, qty: Decimal) -> Decimal:
+
+        '''Snap `qty` down to the symbol's cached LOT_SIZE step grid.
+
+        Binance Spot rejects any `quantity` parameter that does not
+        match the regex `^([0-9]{1,20})(\\.[0-9]{1,20})?$` — at most 20
+        digits before and 20 digits after the decimal point — with
+        error code -1100 (`Illegal characters found in parameter
+        'quantity'`). Nexus strategies frequently size an ENTER as
+        `notional / reference_price` with no quantization, which
+        produces a `Decimal` carrying the full `getcontext().prec`
+        (default 28) digits. With BTCUSDT around $80k a $20 notional
+        yields ~`0.0002455253013823074467823909254` (31 fractional
+        digits) — `format(qty, 'f')` faithfully renders all of them
+        and Binance rejects every order.
+
+        The local `_validate_order` enforces `qty % lot_step == 0`,
+        but only when the symbol's filters are cached. Snapping first
+        guarantees the modulo check passes for well-formed inputs and
+        keeps strategies free of venue-specific precision rules
+        (`stepSize=0.00001` on BTCUSDT Spot, etc.). When filters are
+        not cached, return `qty` unchanged so the downstream
+        "skipping validation" warning path stays the single signal
+        for a missing filter cache rather than masking it with a
+        silent no-op.
+
+        Rounds with `ROUND_DOWN` so the snapped order never exceeds
+        the strategy's requested size — the post-snap qty might fall
+        below `lot_min` or below `min_notional`, but `_validate_order`
+        catches both cases as `LocalOrderRejectedError` and the
+        rejection surfaces as a normal terminal `OrderRejected`
+        outcome upstream.
+
+        Args:
+            symbol (str): Trading pair symbol used to look up filters.
+            qty (Decimal): Strategy-supplied order quantity.
+
+        Returns:
+            Decimal: `qty` rounded down to the symbol's `lot_step`
+            grid when filters are cached; otherwise `qty` unchanged.
+        '''
+
+        filters = self._filters.get(symbol)
+        if filters is None:
+            return qty
+        return qty.quantize(filters.lot_step, rounding=ROUND_DOWN)
+
+
     async def submit_order(
         self,
         account_id: str,
@@ -971,6 +1019,8 @@ class BinanceAdapter:
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
         '''
+
+        qty = self._snap_qty_to_lot_step(symbol, qty)
 
         self._validate_order(symbol, order_type, qty, price)
 

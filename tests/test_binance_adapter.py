@@ -1957,6 +1957,72 @@ class TestValidateOrder:
         adapter._session.request.assert_not_called()  # type: ignore[union-attr]
 
 
+class TestSnapQtyToLotStep:
+
+    def test_snaps_high_precision_decimal_down_to_lot_step(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        raw = Decimal('20') / Decimal('81458')
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', raw)
+
+        assert snapped == Decimal('0.00024')
+        assert snapped % _TEST_FILTERS.lot_step == 0
+
+    def test_snap_rounds_down_never_exceeds_input(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        raw = Decimal('0.0001999999')
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', raw)
+
+        assert snapped == Decimal('0.00019')
+        assert snapped <= raw
+
+    def test_snap_preserves_already_aligned_qty(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', Decimal('1.50000'))
+
+        assert snapped == Decimal('1.50000')
+
+    def test_snap_returns_qty_unchanged_when_filters_missing(self) -> None:
+
+        adapter = _make_adapter()
+        raw = Decimal('0.0002455253013823074467823909254')
+
+        snapped = adapter._snap_qty_to_lot_step('UNKNOWN', raw)
+
+        assert snapped is raw
+
+    @pytest.mark.asyncio
+    async def test_submit_order_snaps_qty_so_post_request_quantity_is_grid_aligned(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+        _patch_session(adapter, _mock_response(200, _BINANCE_FILLED_RESPONSE))
+
+        await adapter.submit_order(
+            _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
+            Decimal('0.0002455253013823074467823909254'),
+        )
+
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        url = call_args[0][1]
+        assert 'quantity=0.00024&' in url or url.endswith('quantity=0.00024')
+
+
 class TestQueryOrderBook:
 
     @pytest.mark.asyncio
