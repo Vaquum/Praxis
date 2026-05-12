@@ -130,20 +130,32 @@ class TestMarketDataPoller:
 
         poller.stop()
 
-    def test_slow_fetch_does_not_shift_subsequent_fetch_cadence(self) -> None:
-        '''Realized fetch period stays at `interval` even when one fetch is slow.
+    def test_slow_fetch_does_not_accumulate_drift_in_fetch_schedule(self) -> None:
+        '''Anchored scheduling — a slow fetch does not push every subsequent
+        start by `slow_overrun`.
 
-        Pre-fix the loop did `wait(timeout=interval)` *after* the fetch
-        body returned, so a slow fetch (200-500s on Binance testnet
-        under load) made realized period = `interval + fetch_duration`
-        and tripped `StaleMarketDataError` on the next sensor tick. The
-        regression pin: when fetch #2 takes longer than `interval`, the
-        gap between fetch #2's start and fetch #3's start is `interval`
-        (anchored from the original schedule), not `interval + delay`.
+        Cumulative timeline math (with `interval=0.1`, `slow_delay=0.15`):
+
+        | fetch | anchored start (this PR)        | pre-fix start (sleep-after) |
+        | ----- | ------------------------------- | --------------------------- |
+        | 1     | anchor                          | anchor                      |
+        | 2     | anchor + 1*interval = +0.10     | anchor + 1*interval = +0.10 |
+        | 3     | max(+0.20, +0.10 + slow) = 0.25 | (+0.10 + slow) + interval = 0.35 |
+        | 4     | max(+0.30, 0.25)        = 0.30  | 0.35 + interval         = 0.45 |
+
+        So fetch #4's offset from fetch #1 is `3 * interval = 0.30` for
+        the anchored loop versus `3 * interval + slow_delay = 0.45` for
+        the pre-fix loop. The slow fetch's overrun is absorbed once
+        (into fetch #3's wait window) instead of paid forward
+        cumulatively. The assertion below pins the anchored offset's
+        upper bound at `3 * interval + slow_delay / 2 = 0.375`, which
+        is between the two values and distinguishes the implementations
+        deterministically; a pre-fix implementation that sleeps
+        `interval` after each fetch returns would fail this assertion.
         '''
 
         interval = 0.1
-        slow_delay = 0.15  # > interval, so fetch #2 eats into fetch #3's window
+        slow_delay = 0.15  # > interval — fetch #2 overruns its own wait window
         fetch_starts: list[float] = []
         call_count = {'n': 0}
 
@@ -163,10 +175,14 @@ class TestMarketDataPoller:
             assert _wait_until(lambda: call_count['n'] >= 4, deadline=2.0)
             poller.stop()
 
-        gap_2_to_3 = fetch_starts[2] - fetch_starts[1]
-        gap_3_to_4 = fetch_starts[3] - fetch_starts[2]
-        assert gap_2_to_3 >= slow_delay
-        assert gap_3_to_4 < interval + 0.05
+        timeline_4 = fetch_starts[3] - fetch_starts[0]
+        anchored_cap = 3 * interval + slow_delay / 2
+        assert timeline_4 < anchored_cap, (
+            f'fetch #4 started at +{timeline_4:.3f}s from fetch #1; '
+            f'anchored upper bound is {anchored_cap:.3f}s. Pre-fix '
+            f'sleep-after-fetch behaviour would push fetch #4 to '
+            f'~{3 * interval + slow_delay:.3f}s.'
+        )
 
     @patch(
         'praxis.market_data_poller.get_spot_klines',
