@@ -67,7 +67,7 @@ class _PollerThread:
     thread: threading.Thread
     stop_event: threading.Event
     kline_size: int
-    interval: int
+    interval: float
 
 
 class MarketDataPoller:
@@ -77,7 +77,7 @@ class MarketDataPoller:
     addition and removal of kline_sizes without restarting.
 
     Args:
-        kline_intervals: Initial mapping of kline_size (seconds) to poll interval (seconds).
+        kline_intervals: Initial mapping of kline_size (integer seconds) to poll interval (seconds, `float` to allow sub-second test cadences).
         n_rows: Number of klines to keep per kline_size. The fetch start date
             is computed as `now - n_rows * kline_size` seconds.
         testnet: When `True`, build poller `binance.client.Client` with
@@ -94,7 +94,7 @@ class MarketDataPoller:
 
     def __init__(
         self,
-        kline_intervals: dict[int, int] | None = None,
+        kline_intervals: dict[int, float] | None = None,
         n_rows: int = 5000,
         testnet: bool = False,
         max_age_seconds: dict[int, float] | None = None,
@@ -185,16 +185,20 @@ class MarketDataPoller:
 
         _log.info('market data poller stopped')
 
-    def add_kline_size(self, kline_size: int, interval: int) -> None:
+    def add_kline_size(self, kline_size: int, interval: float) -> None:
         '''Add a reference to a kline_size. Starts polling if first reference.
 
         Multiple strategies can reference the same kline_size. The poller
         thread only stops when all references are removed.
 
         Args:
-            kline_size: Kline bucket width in seconds.
-            interval: Poll interval in seconds. If already polling, the
-                existing interval is kept (first caller wins).
+            kline_size: Kline bucket width in seconds (integer — Binance
+                kline sizes are all integer seconds: 60, 300, 900, etc.).
+            interval: Poll interval in seconds, accepted as `float` so
+                tests can use sub-second cadences (e.g. `0.1`) and
+                production can use integer cadences (e.g. `300`) on the
+                same code path. If already polling, the existing
+                interval is kept (first caller wins).
 
         Raises:
             RuntimeError: If start() has not been called.
@@ -324,7 +328,7 @@ class MarketDataPoller:
             return override
         return float(_DEFAULT_MAX_AGE_MULTIPLIER * kline_size)
 
-    def _start_thread_locked(self, kline_size: int, interval: int) -> None:
+    def _start_thread_locked(self, kline_size: int, interval: float) -> None:
         '''Create and start a poller thread. Must be called with lock held.'''
 
         stop_event = threading.Event()
@@ -345,7 +349,7 @@ class MarketDataPoller:
         self._pollers[kline_size] = pt
         thread.start()
 
-    def _poll_loop(self, kline_size: int, interval: int, stop_event: threading.Event) -> None:
+    def _poll_loop(self, kline_size: int, interval: float, stop_event: threading.Event) -> None:
         # Per-thread Binance client: public klines only, no credentials.
         # One client per poller thread avoids sharing a requests.Session
         # across threads. ping=False skips python-binance's default startup
