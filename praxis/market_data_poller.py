@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, UTC
 
@@ -359,10 +360,33 @@ class MarketDataPoller:
             )
             return
 
+        # Fixed-cadence schedule: each subsequent fetch fires `interval`
+        # seconds after the PREVIOUS fetch's *scheduled* start, not after
+        # its body returned. Pre-fix the loop did `wait(timeout=interval)`
+        # *between* fetches, so realized period was `interval +
+        # fetch_duration`. On Binance testnet under load `_fetch` regularly
+        # takes 200-500s (the `get_spot_klines` HTTP call queues behind
+        # rate-limited concurrent requests from the venue adapter), which
+        # for `interval=300` (5m kline) pushed realized period past
+        # `_DEFAULT_MAX_AGE_MULTIPLIER * kline_size = 600s` and tripped
+        # `StaleMarketDataError` on the next sensor tick. Anchoring
+        # `next_fire = anchor + n * interval` keeps the cadence exact
+        # regardless of fetch latency, so a slow fetch eats into the next
+        # fetch's wait window instead of shifting it. When a fetch takes
+        # longer than `interval`, `wait(timeout=0)` returns immediately
+        # and the next fetch starts as soon as the previous returns —
+        # the schedule reorganises naturally without ever paying the
+        # latency twice.
+        anchor = time.monotonic()
         self._fetch(kline_size, client, stop_event)
+        n = 1
 
-        while not stop_event.wait(timeout=interval):
+        while True:
+            wait_seconds = max(0.0, anchor + n * interval - time.monotonic())
+            if stop_event.wait(timeout=wait_seconds):
+                return
             self._fetch(kline_size, client, stop_event)
+            n += 1
 
     def _fetch(
         self,

@@ -130,6 +130,44 @@ class TestMarketDataPoller:
 
         poller.stop()
 
+    def test_slow_fetch_does_not_shift_subsequent_fetch_cadence(self) -> None:
+        '''Realized fetch period stays at `interval` even when one fetch is slow.
+
+        Pre-fix the loop did `wait(timeout=interval)` *after* the fetch
+        body returned, so a slow fetch (200-500s on Binance testnet
+        under load) made realized period = `interval + fetch_duration`
+        and tripped `StaleMarketDataError` on the next sensor tick. The
+        regression pin: when fetch #2 takes longer than `interval`, the
+        gap between fetch #2's start and fetch #3's start is `interval`
+        (anchored from the original schedule), not `interval + delay`.
+        '''
+
+        interval = 0.1
+        slow_delay = 0.15  # > interval, so fetch #2 eats into fetch #3's window
+        fetch_starts: list[float] = []
+        call_count = {'n': 0}
+
+        def slow_then_fast_fetch(*_args: object, **_kwargs: object) -> pd.DataFrame:
+            call_count['n'] += 1
+            fetch_starts.append(time.monotonic())
+            if call_count['n'] == 2:
+                time.sleep(slow_delay)
+            return _mock_klines()
+
+        with patch(
+            'praxis.market_data_poller.get_spot_klines',
+            side_effect=slow_then_fast_fetch,
+        ):
+            poller = MarketDataPoller(kline_intervals={3600: interval})
+            poller.start()
+            assert _wait_until(lambda: call_count['n'] >= 4, deadline=2.0)
+            poller.stop()
+
+        gap_2_to_3 = fetch_starts[2] - fetch_starts[1]
+        gap_3_to_4 = fetch_starts[3] - fetch_starts[2]
+        assert gap_2_to_3 >= slow_delay
+        assert gap_3_to_4 < interval + 0.05
+
     @patch(
         'praxis.market_data_poller.get_spot_klines',
         side_effect=_mock_klines,
