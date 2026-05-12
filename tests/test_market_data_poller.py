@@ -42,10 +42,10 @@ def _wait_until(predicate: Callable[[], bool], deadline: float = 5.0, step: floa
 class TestNextSlotIndex:
     '''Unit tests for the FP-safe `_next_slot_index` helper.
 
-    The naive `int((now - anchor) / interval) + 1` formula is *almost
+    The naive `int((now - anchor) // interval) + 1` formula is *almost
     always* correct, but binary FP rounding can leave
     `anchor + n * interval == now` exactly for unlucky pairs. The
-    helper'\''s defensive while-loop bumps `n` until the strict-future
+    helper's defensive while-loop bumps `n` until the strict-future
     invariant holds, so the poll loop never schedules a back-to-back
     fetch with `wait_seconds = 0` from this corner case.
     '''
@@ -90,7 +90,7 @@ class TestNextSlotIndex:
         assert n == 3
 
     def test_min_n_floor_enforced(self) -> None:
-        '''min_n bounds the result from below — caller'\''s "next
+        '''min_n bounds the result from below — caller's "next
         ordinal at minimum". Used inside the poll loop as
         `current_n + 1` so a fast fetch still advances by at least 1.
         '''

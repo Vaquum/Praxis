@@ -27,7 +27,7 @@ def _next_slot_index(anchor: float, interval: float, now: float, min_n: int) -> 
 
     Used by `MarketDataPoller._poll_loop` to advance the fetch ordinal
     past any "missed" slots after a slow fetch. The naive
-    `int((now - anchor) / interval) + 1` is *almost always* correct,
+    `int((now - anchor) // interval) + 1` is *almost always* correct,
     but binary FP rounding can leave `anchor + n * interval == now`
     for unlucky `(elapsed, interval)` pairs — e.g. `elapsed=1.0,
     interval=0.1` gives `n=10` and `10 * 0.1 == 1.0` exactly, so
