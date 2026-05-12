@@ -360,28 +360,34 @@ class MarketDataPoller:
             )
             return
 
-        # Anchored-cadence schedule: subsequent fetches fire at
-        # `anchor + n * interval` rather than `interval` after the
-        # previous fetch's body returned. The guarantee is "no
-        # cumulative drift" — a slow fetch's overrun is absorbed once
-        # (into the next fetch's wait window) and the schedule remains
-        # anchored to the original timeline, so `n` slow fetches do
-        # not produce `n * overrun` cumulative drift. When a fetch
-        # outruns its `interval` window the next fetch necessarily
-        # starts late (it cannot start before the previous returned),
-        # but the one *after* that catches back up to the anchored
-        # timeline — `wait(timeout=0)` returns immediately and the
-        # latency is paid once, not paid forward. Pre-fix the loop did
-        # `while not stop_event.wait(timeout=interval): self._fetch(...)`
-        # — the wait fired *after* `_fetch` returned, so realized period
-        # was `interval + fetch_duration` and every slow fetch shifted
-        # the entire downstream schedule by `slow_overrun`. On Binance
-        # testnet under load `_fetch` regularly takes 200-500s (the
-        # `get_spot_klines` HTTP call queues behind rate-limited
-        # concurrent requests from the venue adapter), which for
-        # `interval=300` (5m kline) pushed realized period past
-        # `_DEFAULT_MAX_AGE_MULTIPLIER * kline_size = 600s` and tripped
-        # `StaleMarketDataError` on the next sensor tick.
+        # Anchored-cadence schedule with skip-missed-slots: subsequent
+        # fetches fire at `anchor + n * interval` rather than
+        # `interval` after the previous fetch's body returned. After
+        # each fetch returns, `n` advances to the smallest integer
+        # such that `anchor + n * interval` is in the future; this
+        # collapses any number of "missed" slots into a single
+        # catch-up fetch instead of firing back-to-back. The
+        # guarantee is "no cumulative drift": a slow fetch's overrun
+        # is absorbed once (into the next fetch's wait window) and
+        # the schedule remains anchored to the original timeline, so
+        # `n` slow fetches do not produce `n * overrun` cumulative
+        # drift. When a fetch outruns its `interval` window the next
+        # fetch necessarily starts late (it cannot start before the
+        # previous returned); when the overrun spans `k` intervals,
+        # `k - 1` scheduled slots are skipped (their freshness goal
+        # is moot — the slow fetch's return brings data through
+        # `now`) and the next fetch fires at the next future slot,
+        # then cadence resumes. Pre-fix the loop did `while not
+        # stop_event.wait(timeout=interval): self._fetch(...)` — the
+        # wait fired *after* `_fetch` returned, so realized period
+        # was `interval + fetch_duration` and every slow fetch
+        # shifted the entire downstream schedule by `slow_overrun`.
+        # On Binance testnet under load `_fetch` regularly takes
+        # 200-500s (the `get_spot_klines` HTTP call queues behind
+        # rate-limited concurrent requests from the venue adapter),
+        # which for `interval=300` (5m kline) pushed realized period
+        # past `_DEFAULT_MAX_AGE_MULTIPLIER * kline_size = 600s` and
+        # tripped `StaleMarketDataError` on the next sensor tick.
         anchor = time.monotonic()
         self._fetch(kline_size, client, stop_event)
         n = 1
@@ -391,7 +397,8 @@ class MarketDataPoller:
             if stop_event.wait(timeout=wait_seconds):
                 return
             self._fetch(kline_size, client, stop_event)
-            n += 1
+            elapsed = time.monotonic() - anchor
+            n = max(n + 1, int(elapsed // interval) + 1)
 
     def _fetch(
         self,

@@ -134,24 +134,28 @@ class TestMarketDataPoller:
         '''Anchored scheduling — a slow fetch does not push every subsequent
         start by `slow_overrun`.
 
-        Cumulative timeline math (with `interval=0.1`, `slow_delay=0.15`):
+        Cumulative timeline math (with `interval=0.1`, `slow_delay=0.15`,
+        i.e. fetch #2 overruns by `0.5 * interval` — its own slot only,
+        not enough to skip the next slot):
 
-        | fetch | anchored start (this PR)        | pre-fix start (sleep-after) |
-        | ----- | ------------------------------- | --------------------------- |
-        | 1     | anchor                          | anchor                      |
-        | 2     | anchor + 1*interval = +0.10     | anchor + 1*interval = +0.10 |
-        | 3     | max(+0.20, +0.10 + slow) = 0.25 | (+0.10 + slow) + interval = 0.35 |
-        | 4     | max(+0.30, 0.25)        = 0.30  | 0.35 + interval         = 0.45 |
+        | fetch | anchored start (this PR)               | pre-fix start (sleep-after) |
+        | ----- | -------------------------------------- | --------------------------- |
+        | 1     | anchor                                 | anchor                      |
+        | 2     | anchor + 1*interval = 0.10, slow→0.25  | anchor + 1*interval = 0.10  |
+        | 3     | n=max(3, int(0.25/0.1)+1)=3 → wait→0.30 | wait(0.1) after slow → 0.35 |
+        | 4     | n=4 → 0.40                             | wait(0.1) → 0.45            |
 
-        So fetch #4's offset from fetch #1 is `3 * interval = 0.30` for
-        the anchored loop versus `3 * interval + slow_delay = 0.45` for
-        the pre-fix loop. The slow fetch's overrun is absorbed once
-        (into fetch #3's wait window) instead of paid forward
-        cumulatively. The assertion below pins the anchored offset's
-        upper bound at `3 * interval + slow_delay / 2 = 0.375`, which
-        is between the two values and distinguishes the implementations
-        deterministically; a pre-fix implementation that sleeps
-        `interval` after each fetch returns would fail this assertion.
+        So fetch #4's offset from fetch #1 is `4 * interval = 0.40` for
+        the anchored loop (skip-missed-slots makes fetch #3 skip the
+        already-past slot 2 and land at slot 3) versus `3 * interval +
+        slow_delay = 0.45` for the pre-fix loop. The slow fetch's
+        overrun is absorbed once (into fetch #3's wait window) instead
+        of paid forward cumulatively. The assertion below pins the
+        anchored offset's upper bound at `4 * interval + interval / 4
+        = 0.425`, which is between the two values and distinguishes
+        the implementations deterministically; a pre-fix implementation
+        that sleeps `interval` after each fetch returns would fail
+        this assertion.
         '''
 
         interval = 0.1
@@ -176,12 +180,68 @@ class TestMarketDataPoller:
             poller.stop()
 
         timeline_4 = fetch_starts[3] - fetch_starts[0]
-        anchored_cap = 3 * interval + slow_delay / 2
+        anchored_cap = 4 * interval + interval / 4
         assert timeline_4 < anchored_cap, (
             f'fetch #4 started at +{timeline_4:.3f}s from fetch #1; '
             f'anchored upper bound is {anchored_cap:.3f}s. Pre-fix '
             f'sleep-after-fetch behaviour would push fetch #4 to '
             f'~{3 * interval + slow_delay:.3f}s.'
+        )
+
+    def test_multi_interval_slow_fetch_collapses_missed_slots(self) -> None:
+        '''Skip-missed-slots — a fetch overrunning `k * interval` (k >= 2)
+        triggers exactly ONE catch-up fetch at the next future scheduled
+        slot, not `k - 1` back-to-back fetches that fire with `wait(0)`.
+
+        Cumulative timeline math (with `interval=0.1`, `slow_delay=0.25`,
+        i.e. fetch #2 spans 2.5 intervals):
+
+        | fetch | with skip-missed-slots                 | without (n += 1)            |
+        | ----- | -------------------------------------- | --------------------------- |
+        | 1     | anchor                                 | anchor                      |
+        | 2     | anchor + 1*interval = 0.10, slow→0.35  | anchor + 1*interval = 0.10  |
+        | 3     | n=max(3, int(0.35/0.1)+1)=4 → 0.40     | n=3 → wait(0) → fires 0.35  |
+        | 4     | n=5 → 0.50                             | n=4 → 0.40                  |
+
+        Without skip, fetches #3 and #2's-return cluster at t=0.35 with
+        gap=0 — a back-to-back burst that hits the venue rate limiter.
+        With skip, fetch #3 waits to the next future slot (anchor +
+        4*interval = 0.40), so the gap from fetch #2's start to
+        fetch #3's start is `slow_delay + (next_slot_offset)` =
+        `0.25 + 0.05 = 0.30`, strictly greater than `slow_delay`.
+
+        Assertion: `gap_2_to_3 > slow_delay + interval / 4`. With skip:
+        `0.30 > 0.275` ✓. Without skip: `0.25 > 0.275` ✗.
+        '''
+
+        interval = 0.1
+        slow_delay = 0.25  # 2.5 * interval — fetch #2 spans multiple slots
+        fetch_starts: list[float] = []
+        call_count = {'n': 0}
+
+        def slow_then_fast_fetch(*_args: object, **_kwargs: object) -> pd.DataFrame:
+            call_count['n'] += 1
+            fetch_starts.append(time.monotonic())
+            if call_count['n'] == 2:
+                time.sleep(slow_delay)
+            return _mock_klines()
+
+        with patch(
+            'praxis.market_data_poller.get_spot_klines',
+            side_effect=slow_then_fast_fetch,
+        ):
+            poller = MarketDataPoller(kline_intervals={3600: interval})
+            poller.start()
+            assert _wait_until(lambda: call_count['n'] >= 3, deadline=2.0)
+            poller.stop()
+
+        gap_2_to_3 = fetch_starts[2] - fetch_starts[1]
+        skip_threshold = slow_delay + interval / 4
+        assert gap_2_to_3 > skip_threshold, (
+            f'gap from fetch #2 to fetch #3 was {gap_2_to_3:.3f}s; '
+            f'skip-missed-slots threshold is {skip_threshold:.3f}s. '
+            f'Without-skip behaviour would fire fetch #3 immediately '
+            f'after fetch #2 returns (gap ~= slow_delay = {slow_delay:.3f}s).'
         )
 
     @patch(
