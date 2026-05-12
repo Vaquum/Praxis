@@ -618,3 +618,29 @@ Between `await session.ws_connect(ws_api_url)` and the success-path assignment `
 **When to fix**: When sustained reconnect activity on a long-lived paper-trade run produces observable file-descriptor or connection-pool exhaustion in operator metrics, OR when the next refactor of `_clean_setup_connection` happens for any other reason.
 
 **Migration**: Replace the bare `except (aiohttp.ClientError, TimeoutError, VenueError):` with a `try/finally` that closes the local `ws` whenever `self._ws` was not assigned the new value, OR add `BaseException` to the except tuple and re-raise. The `try/finally` shape is preferred since it also covers the `_subscribe` happy path where the publisher goes away mid-call.
+
+---
+
+## TD-060: `MarketDataPoller` test cleanup not protected by `try/finally`
+
+**Origin**: Copilot review on PR #103 (fix/poller-fixed-cadence)
+**Severity**: Low (test hygiene; theoretical pollution risk, never observed)
+**Module**: `tests/test_market_data_poller.py` — 18 of 20 `poller.start()` callsites
+
+Most `MarketDataPoller` tests follow the pattern `poller.start(); ...assertions...; poller.stop()` without a `try/finally` guard between them. If any assertion in the middle raises, `poller.stop()` is skipped and the daemon poller thread leaks for the rest of the pytest session. Once the calling test's `with patch('...get_spot_klines', ...)` context exits, the leaked thread reverts to the real `get_spot_klines` import and starts hitting Binance for real. The next test that patches the same symbol then sees its mock's `call_count` bumped by the leaked thread, causing flake.
+
+The risk is real but theoretical: 18 unprotected sites have run consistently green across many CI cycles. Copilot flagged 3 specific instances on PR #103 but the lack of `try/finally` is the project-wide convention in this file, not a regression introduced by that PR.
+
+**When to fix**: When a `poller.*` test starts flaking in CI for unexplained reasons (the leaked-thread pollution mechanism would be a candidate), OR when the next refactor of `tests/test_market_data_poller.py` happens for any other reason and the sweep cost is amortised.
+
+**Migration**: Wrap all 18 `poller.start()`-with-assertion sites in `try/finally`:
+
+```python
+poller.start()
+try:
+    ...assertions...
+finally:
+    poller.stop()
+```
+
+Or extract a small `_run_with_poller(poller, fn)` context manager / pytest fixture so individual tests don't pay the boilerplate. Keep the 2 already-wrapped sites (which use the right pattern) as the template.
