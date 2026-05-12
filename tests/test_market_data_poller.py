@@ -453,10 +453,10 @@ class TestMarketDataPoller:
         try:
             import pytest
 
-            with pytest.raises(ValueError, match='interval must be positive'):
+            with pytest.raises(ValueError, match='interval must be a finite positive number'):
                 poller.add_kline_size(3600, 0)
 
-            with pytest.raises(ValueError, match='interval must be positive'):
+            with pytest.raises(ValueError, match='interval must be a finite positive number'):
                 poller.add_kline_size(3600, -1)
 
             with pytest.raises(ValueError, match='kline_size must be positive'):
@@ -474,5 +474,49 @@ class TestMarketDataPoller:
             poller.start()
 
         poller = MarketDataPoller(kline_intervals={3600: 0})
-        with pytest.raises(ValueError, match='interval must be positive'):
+        with pytest.raises(ValueError, match='interval must be a finite positive number'):
             poller.start()
+
+    def test_add_kline_size_rejects_nan_and_inf_interval(self) -> None:
+        '''add_kline_size raises ValueError for NaN or inf interval.
+
+        Float widening (38984d9) exposed two failure modes int-typed
+        validation didn't have: `NaN` slips through `<= 0` (any
+        comparison with NaN is False) and propagates to
+        `wait_seconds = anchor + n * NaN - now = NaN` which makes
+        `Event.wait(NaN)` undefined; `inf` passes `<= 0` and makes
+        `wait(inf)` block the poller thread forever with no
+        re-fetches. The `math.isfinite()` guard rejects both at the
+        API boundary.
+        '''
+
+        import pytest
+
+        poller = MarketDataPoller()
+        poller.start()
+
+        try:
+            with pytest.raises(ValueError, match='interval must be a finite positive number'):
+                poller.add_kline_size(3600, float('nan'))
+
+            with pytest.raises(ValueError, match='interval must be a finite positive number'):
+                poller.add_kline_size(3600, float('inf'))
+
+            with pytest.raises(ValueError, match='interval must be a finite positive number'):
+                poller.add_kline_size(3600, float('-inf'))
+        finally:
+            poller.stop()
+
+    def test_start_rejects_nan_and_inf_initial_intervals(self) -> None:
+        '''start() raises ValueError for NaN or inf in initial intervals.
+
+        Same finite-number invariant as `add_kline_size` — applied to
+        the `kline_intervals` mapping passed at construction.
+        '''
+
+        import pytest
+
+        for bad_value in (float('nan'), float('inf'), float('-inf')):
+            poller = MarketDataPoller(kline_intervals={3600: bad_value})
+            with pytest.raises(ValueError, match='interval must be a finite positive number'):
+                poller.start()

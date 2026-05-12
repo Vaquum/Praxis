@@ -9,6 +9,7 @@ Supports runtime addition and removal of kline_sizes.
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from dataclasses import dataclass
@@ -143,8 +144,8 @@ class MarketDataPoller:
             if kline_size <= 0:
                 msg = f'kline_size must be positive, got {kline_size}'
                 raise ValueError(msg)
-            if interval <= 0:
-                msg = f'interval must be positive, got {interval}'
+            if not math.isfinite(interval) or interval <= 0:
+                msg = f'interval must be a finite positive number, got {interval}'
                 raise ValueError(msg)
 
         self._started = True
@@ -213,8 +214,8 @@ class MarketDataPoller:
             msg = f'kline_size must be positive, got {kline_size}'
             raise ValueError(msg)
 
-        if interval <= 0:
-            msg = f'interval must be positive, got {interval}'
+        if not math.isfinite(interval) or interval <= 0:
+            msg = f'interval must be a finite positive number, got {interval}'
             raise ValueError(msg)
 
         with self._lock:
