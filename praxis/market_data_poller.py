@@ -442,15 +442,24 @@ class MarketDataPoller:
         # to populate the symbol filter cache, then the actual
         # historical kline fetch); advance `n` past any slots it spent
         # so iter 1 doesn't fire immediately back-to-back the same
-        # way subsequent slow fetches don't.
-        n = _next_slot_index(anchor, interval, time.monotonic(), min_n=1)
+        # way subsequent slow fetches don't. Capture `now` once and
+        # reuse it for both `_next_slot_index`'s strict-future
+        # invariant AND `wait_seconds` — a separate clock read
+        # between the two would let microsecond-scale wakeup jitter
+        # push `time.monotonic()` past the just-computed slot
+        # boundary, collapsing `wait_seconds` to 0 and re-firing the
+        # back-to-back-fetch failure mode the bump is meant to
+        # prevent.
+        now = time.monotonic()
+        n = _next_slot_index(anchor, interval, now, min_n=1)
 
         while True:
-            wait_seconds = max(0.0, anchor + n * interval - time.monotonic())
+            wait_seconds = max(0.0, anchor + n * interval - now)
             if stop_event.wait(timeout=wait_seconds):
                 return
             self._fetch(kline_size, client, stop_event)
-            n = _next_slot_index(anchor, interval, time.monotonic(), min_n=n + 1)
+            now = time.monotonic()
+            n = _next_slot_index(anchor, interval, now, min_n=n + 1)
 
     def _fetch(
         self,
