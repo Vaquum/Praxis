@@ -21,6 +21,40 @@ from binancial.compute.get_spot_klines import get_spot_klines
 
 __all__ = ['MarketDataPoller', 'StaleMarketDataError']
 
+
+def _next_slot_index(anchor: float, interval: float, now: float, min_n: int) -> int:
+    '''Smallest integer `n >= min_n` such that `anchor + n * interval > now`.
+
+    Used by `MarketDataPoller._poll_loop` to advance the fetch ordinal
+    past any "missed" slots after a slow fetch. The naive
+    `int((now - anchor) / interval) + 1` is *almost always* correct,
+    but binary FP rounding can leave `anchor + n * interval == now`
+    for unlucky `(elapsed, interval)` pairs — e.g. `elapsed=1.0,
+    interval=0.1` gives `n=10` and `10 * 0.1 == 1.0` exactly, so
+    `wait_seconds = max(0, anchor + n * interval - now) = 0` would
+    fire the next fetch back-to-back, defeating skip-missed-slots.
+    The post-naive `while` loop bumps `n` until the strict-future
+    invariant holds; runs 0 times in the common case, 1-2 times in
+    the FP-corner case.
+
+    Args:
+        anchor: `time.monotonic()` reference for the schedule.
+        interval: Slot width in seconds (must be > 0).
+        now: Current `time.monotonic()` reading.
+        min_n: Lower bound — caller's "next ordinal at minimum"
+            (typically `current_n + 1` inside the loop, or `1` after
+            the explicit pre-loop fetch).
+
+    Returns:
+        int: Smallest `n` satisfying the strict-future invariant.
+    '''
+
+    elapsed = now - anchor
+    n = max(min_n, int(elapsed // interval) + 1)
+    while anchor + n * interval <= now:
+        n += 1
+    return n
+
 _log = logging.getLogger(__name__)
 
 _BINANCE_SYMBOL = 'BTCUSDT'
@@ -409,16 +443,14 @@ class MarketDataPoller:
         # historical kline fetch); advance `n` past any slots it spent
         # so iter 1 doesn't fire immediately back-to-back the same
         # way subsequent slow fetches don't.
-        elapsed = time.monotonic() - anchor
-        n = max(1, int(elapsed // interval) + 1)
+        n = _next_slot_index(anchor, interval, time.monotonic(), min_n=1)
 
         while True:
             wait_seconds = max(0.0, anchor + n * interval - time.monotonic())
             if stop_event.wait(timeout=wait_seconds):
                 return
             self._fetch(kline_size, client, stop_event)
-            elapsed = time.monotonic() - anchor
-            n = max(n + 1, int(elapsed // interval) + 1)
+            n = _next_slot_index(anchor, interval, time.monotonic(), min_n=n + 1)
 
     def _fetch(
         self,

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from praxis.market_data_poller import MarketDataPoller
+from praxis.market_data_poller import MarketDataPoller, _next_slot_index
 
 
 def _mock_klines(*_args: object, **_kwargs: object) -> pd.DataFrame:
@@ -37,6 +37,86 @@ def _wait_until(predicate: Callable[[], bool], deadline: float = 5.0, step: floa
         time.sleep(step)
         deadline -= step
     return predicate()
+
+
+class TestNextSlotIndex:
+    '''Unit tests for the FP-safe `_next_slot_index` helper.
+
+    The naive `int((now - anchor) / interval) + 1` formula is *almost
+    always* correct, but binary FP rounding can leave
+    `anchor + n * interval == now` exactly for unlucky pairs. The
+    helper'\''s defensive while-loop bumps `n` until the strict-future
+    invariant holds, so the poll loop never schedules a back-to-back
+    fetch with `wait_seconds = 0` from this corner case.
+    '''
+
+    def test_strict_future_invariant_holds_for_exact_multiple(self) -> None:
+        '''elapsed = 1.0, interval = 0.1 → 10 * 0.1 == 1.0 exactly in FP.
+
+        Without the defensive bump: `int(1.0 // 0.1) + 1 = 10`, and
+        `0.0 + 10 * 0.1 = 1.0` is NOT strictly greater than `1.0` —
+        wait_seconds = 0, back-to-back fetch. With the bump: n = 11,
+        slot at 1.1 > 1.0.
+        '''
+
+        anchor = 0.0
+        interval = 0.1
+        now = 1.0  # 10 * interval exactly; 10 * 0.1 == 1.0 in FP
+
+        n = _next_slot_index(anchor, interval, now, min_n=0)
+
+        assert anchor + n * interval > now, (
+            f'invariant violated: anchor + {n} * {interval} = '
+            f'{anchor + n * interval} not > {now}'
+        )
+        assert n == 11
+
+    def test_strict_future_invariant_holds_for_fp_undercount(self) -> None:
+        '''elapsed = 0.3, interval = 0.1 → `0.3 // 0.1 == 2.0` in FP.
+
+        Naive formula gives n = 3 (= int(2.0) + 1). Slot 3 sits at
+        `3 * 0.1 = 0.30000000000000004`, which IS strictly > 0.3 in
+        FP — so the defensive bump runs 0 times here. Pin that
+        the helper still produces a future-only result for this case.
+        '''
+
+        anchor = 0.0
+        interval = 0.1
+        now = 0.3
+
+        n = _next_slot_index(anchor, interval, now, min_n=0)
+
+        assert anchor + n * interval > now
+        assert n == 3
+
+    def test_min_n_floor_enforced(self) -> None:
+        '''min_n bounds the result from below — caller'\''s "next
+        ordinal at minimum". Used inside the poll loop as
+        `current_n + 1` so a fast fetch still advances by at least 1.
+        '''
+
+        anchor = 0.0
+        interval = 0.1
+        now = 0.0  # no time elapsed; naive n would be 1
+
+        n = _next_slot_index(anchor, interval, now, min_n=5)
+
+        assert n == 5
+        assert anchor + n * interval > now
+
+    def test_initial_fetch_min_n_is_1(self) -> None:
+        '''After the explicit pre-loop fetch with no time elapsed,
+        the schedule starts at slot 1 (not slot 0 = anchor).
+        '''
+
+        anchor = 0.0
+        interval = 0.1
+        now = 0.0
+
+        n = _next_slot_index(anchor, interval, now, min_n=1)
+
+        assert n == 1
+        assert anchor + n * interval > now
 
 
 class TestMarketDataPoller:
