@@ -134,7 +134,11 @@ class MarketDataPoller:
         '''Start poller threads for initial kline_sizes.
 
         Raises:
-            ValueError: If any initial kline_size or interval is not positive.
+            ValueError: If any initial `kline_size` is not positive, or
+                if any initial `interval` is not a finite positive
+                number (rejects `<= 0`, `NaN`, and `±inf` — the
+                latter two became reachable when `interval`'s type
+                widened from `int` to `float`).
         '''
 
         if self._started:
@@ -203,7 +207,11 @@ class MarketDataPoller:
 
         Raises:
             RuntimeError: If start() has not been called.
-            ValueError: If kline_size or interval is not positive.
+            ValueError: If `kline_size` is not positive, or if
+                `interval` is not a finite positive number (rejects
+                `<= 0`, `NaN`, and `±inf` — the latter two became
+                reachable when `interval`'s type widened from `int`
+                to `float`).
         '''
 
         if not self._started:

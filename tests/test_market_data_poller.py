@@ -242,11 +242,11 @@ class TestMarketDataPoller:
         gap_1_to_2 = fetch_starts[1] - fetch_starts[0]
         skip_threshold = (slow_delay + 2 * interval) / 2
         assert gap_1_to_2 > skip_threshold, (
-            f'gap from fetch #1 to fetch #2 was {gap_1_to_2:.3f}s; '
-            f'skip-missed-slots threshold is {skip_threshold:.3f}s. '
-            f'A `n = 1` initialization that ignores initial-fetch '
-            f'elapsed time would fire fetch #2 immediately at '
-            f'fetch #1'"'"'s return (gap ~= slow_delay = {slow_delay:.3f}s).'
+            f"gap from fetch #1 to fetch #2 was {gap_1_to_2:.3f}s; "
+            f"skip-missed-slots threshold is {skip_threshold:.3f}s. "
+            f"A `n = 1` initialization that ignores initial-fetch "
+            f"elapsed time would fire fetch #2 immediately at "
+            f"fetch #1's return (gap ~= slow_delay = {slow_delay:.3f}s)."
         )
 
     def test_multi_interval_slow_fetch_collapses_missed_slots(self) -> None:
