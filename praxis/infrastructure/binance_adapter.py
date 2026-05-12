@@ -938,6 +938,87 @@ class BinanceAdapter:
                 )
 
 
+    def _snap_qty_to_lot_step(self, symbol: str, qty: Decimal) -> Decimal:
+
+        '''Snap `qty` down to the symbol's cached LOT_SIZE step grid.
+
+        Binance Spot rejects any `quantity` parameter that does not
+        match the regex `^([0-9]{1,20})(\\.[0-9]{1,20})?$` — at most 20
+        digits before and 20 digits after the decimal point — with
+        error code -1100 (`Illegal characters found in parameter
+        'quantity'`). Nexus strategies frequently size an ENTER as
+        `notional / reference_price` with no quantization, which
+        produces a `Decimal` carrying the full `getcontext().prec`
+        (default 28) digits. With BTCUSDT around $80k a $20 notional
+        yields ~`0.0002455253013823074467823909254` (31 fractional
+        digits) — `format(qty, 'f')` faithfully renders all of them
+        and Binance rejects every order.
+
+        Snaps via `(qty // lot_step) * lot_step` (floor-divide then
+        multiply) rather than `Decimal.quantize(lot_step, ...)`.
+        `quantize` rounds to the *exponent* of `lot_step` rather than
+        to an integer multiple of it. Binance's `exchangeInfo`
+        returns `stepSize='0.00001000'` (exponent `-8`) for BTCUSDT
+        — `Decimal.quantize(Decimal('0.00001000'), ROUND_DOWN)` would
+        leave eight fractional digits like `0.00024552`, which is
+        neither a multiple of the numeric step `0.00001` nor what
+        Binance's LOT_SIZE filter accepts. The same trap fires for
+        any non-pure-`10^-n` step (e.g. a hypothetical `stepSize=5`
+        would not round `13` down to `10`). Floor-divide-then-multiply
+        is exact for any `lot_step` shape.
+
+        The local `_validate_order` enforces `qty % lot_step == 0`,
+        but only when the symbol's filters are cached. Snapping first
+        guarantees the modulo check passes for well-formed inputs and
+        keeps strategies free of venue-specific precision rules
+        (`stepSize=0.00001000` on BTCUSDT Spot, etc.). When filters
+        are not cached, return `qty` unchanged so the downstream
+        "skipping validation" warning path stays the single signal
+        for a missing filter cache rather than masking it with a
+        silent no-op.
+
+        Floor-divide on `Decimal` rounds toward negative infinity,
+        not toward zero — the two only coincide for non-negative
+        operands. Praxis enforces the `qty > 0` invariant on every
+        callable path that reaches this helper:
+        [`TradeCommand.__post_init__`](praxis/core/domain/trade_command.py)
+        rejects `qty <= 0` at command construction, and Nexus's
+        [`Action.__post_init__`](https://github.com/Vaquum/Nexus/blob/v0.46.0/nexus/strategy/action.py)
+        rejects non-positive `size`. With that invariant, floor
+        toward -∞ collapses to round-toward-zero and the snapped
+        order never exceeds the strategy's requested size.
+
+        The post-snap qty might fall below `lot_min` — `_validate_order`
+        catches that branch unconditionally as
+        `LocalOrderRejectedError`. The post-snap qty might also fall
+        below `min_notional`, but `_validate_order`'s `min_notional`
+        branch is gated behind `price is not None and order_type !=
+        OrderType.MARKET`, so it does NOT catch a too-small notional
+        on MARKET orders (the stub-strategy path). For MARKET orders
+        Binance's NOTIONAL filter declares `applyMinToMarket: true`
+        so the venue itself rejects the under-notional order with
+        code `-1013` (`Filter failure: NOTIONAL`); the rejection
+        still surfaces as a normal terminal `OrderRejected` outcome
+        upstream, just from the venue rather than the local
+        validator. Strategies sizing at or near `min_notional` should
+        budget headroom for the snap rounding error.
+
+        Args:
+            symbol (str): Trading pair symbol used to look up filters.
+            qty (Decimal): Strategy-supplied order quantity.
+
+        Returns:
+            Decimal: `qty` floored to the nearest integer multiple of
+            the symbol's `lot_step` when filters are cached;
+            otherwise `qty` unchanged.
+        '''
+
+        filters = self._filters.get(symbol)
+        if filters is None:
+            return qty
+        return (qty // filters.lot_step) * filters.lot_step
+
+
     async def submit_order(
         self,
         account_id: str,
@@ -971,6 +1052,8 @@ class BinanceAdapter:
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
         '''
+
+        qty = self._snap_qty_to_lot_step(symbol, qty)
 
         self._validate_order(symbol, order_type, qty, price)
 
@@ -1290,12 +1373,35 @@ class BinanceAdapter:
         '''
         Pre-load trading filters for one or more symbols.
 
-        Calls get_exchange_info for each symbol and caches the result.
-        Intended to be called once on startup before trading begins.
-        Raises on first failure to ensure filters are available.
+        Calls `get_exchange_info` for each symbol that does not already
+        have cached filters and stores the result in `_filters`. The
+        skip-if-cached behaviour makes the call idempotent: a multi-
+        account boot, where each `Trading._startup_account` invocation
+        passes the same union of bootstrap + active symbols, fetches
+        each symbol's `exchangeInfo` exactly once across the process
+        instead of once per account. Without this, the per-account
+        loop in `_startup_account` would burn N venue weight units per
+        bootstrap symbol on N accounts and increase startup latency
+        proportionally.
+
+        In-process filter refresh is intentionally unsupported.
+        Binance's symbol-filter changes are deploy-gated (the venue
+        publishes new `tickSize` / `stepSize` / `minNotional` values
+        in coordination with a versioned exchange release), never
+        delivered mid-session, so a long-lived Praxis process cannot
+        observe a useful change by re-polling. The only way to pick
+        up new filters is to restart the process. If a future use
+        case ever needs in-process refresh, add an explicit method
+        on the `VenueAdapter` protocol — do not work around the
+        idempotency by mutating the private `_filters` mapping from
+        outside the adapter.
+
+        Raises on the first venue failure for any symbol that needs
+        loading, so a partial cache after `load_filters` returns
+        successfully is impossible.
 
         Args:
-            symbols (Sequence[str]): Trading pair symbols to load
+            symbols (Sequence[str]): Trading pair symbols to load.
         '''
 
         if isinstance(symbols, str):
@@ -1303,6 +1409,8 @@ class BinanceAdapter:
             raise TypeError(msg)
 
         for symbol in symbols:
+            if symbol in self._filters:
+                continue
             self._filters[symbol] = await self.get_exchange_info(symbol)
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:

@@ -1158,6 +1158,7 @@ class Launcher:
             config=self._trading_config,
             event_spine=self._event_spine,
             venue_adapter=self._venue_adapter,
+            bootstrap_filter_symbols=frozenset({_DEFAULT_SYMBOL}),
         )
 
         for inst in self._instances:

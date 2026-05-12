@@ -1880,6 +1880,46 @@ class TestLoadFilters:
         with pytest.raises(TypeError, match='not a single string'):
             await adapter.load_filters('BTCUSDT')
 
+    @pytest.mark.asyncio
+    async def test_skips_already_cached_symbols(self) -> None:
+
+        adapter = _make_adapter()
+        filters_btc = SymbolFilters(
+            symbol='BTCUSDT', tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'), lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'), min_notional=Decimal('5.0'),
+        )
+        adapter._filters['BTCUSDT'] = filters_btc
+        adapter.get_exchange_info = AsyncMock()  # type: ignore[method-assign]
+
+        await adapter.load_filters(['BTCUSDT'])
+
+        adapter.get_exchange_info.assert_not_called()
+        assert adapter._filters['BTCUSDT'] is filters_btc
+
+    @pytest.mark.asyncio
+    async def test_only_fetches_uncached_symbols_in_mixed_set(self) -> None:
+
+        adapter = _make_adapter()
+        filters_btc = SymbolFilters(
+            symbol='BTCUSDT', tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'), lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'), min_notional=Decimal('5.0'),
+        )
+        filters_eth = SymbolFilters(
+            symbol='ETHUSDT', tick_size=Decimal('0.1'),
+            lot_step=Decimal('0.0001'), lot_min=Decimal('0.001'),
+            lot_max=Decimal('10000.0'), min_notional=Decimal('10.0'),
+        )
+        adapter._filters['BTCUSDT'] = filters_btc
+        adapter.get_exchange_info = AsyncMock(return_value=filters_eth)  # type: ignore[method-assign]
+
+        await adapter.load_filters(['BTCUSDT', 'ETHUSDT'])
+
+        adapter.get_exchange_info.assert_called_once_with('ETHUSDT')
+        assert adapter._filters['BTCUSDT'] is filters_btc
+        assert adapter._filters['ETHUSDT'] is filters_eth
+
 
 class TestValidateOrder:
 
@@ -1955,6 +1995,107 @@ class TestValidateOrder:
                 Decimal('1.0'), price=Decimal('50000.005'),
             )
         adapter._session.request.assert_not_called()  # type: ignore[union-attr]
+
+
+class TestSnapQtyToLotStep:
+
+    def test_snaps_high_precision_decimal_down_to_lot_step(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        raw = Decimal('20') / Decimal('81458')
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', raw)
+
+        assert snapped == Decimal('0.00024')
+        assert snapped % _TEST_FILTERS.lot_step == 0
+
+    def test_snap_rounds_down_never_exceeds_input(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        raw = Decimal('0.0001999999')
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', raw)
+
+        assert snapped == Decimal('0.00019')
+        assert snapped <= raw
+
+    def test_snap_preserves_already_aligned_qty(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', Decimal('1.50000'))
+
+        assert snapped == Decimal('1.50000')
+
+    def test_snap_returns_qty_unchanged_when_filters_missing(self) -> None:
+
+        adapter = _make_adapter()
+        raw = Decimal('0.0002455253013823074467823909254')
+
+        snapped = adapter._snap_qty_to_lot_step('UNKNOWN', raw)
+
+        assert snapped is raw
+
+    def test_snap_handles_lot_step_with_trailing_zeros_from_venue_wire_format(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01000000'),
+            lot_step=Decimal('0.00001000'),
+            lot_min=Decimal('0.00001000'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+        raw = Decimal('20') / Decimal('81458')
+
+        snapped = adapter._snap_qty_to_lot_step('BTCUSDT', raw)
+
+        assert snapped == Decimal('0.00024')
+        assert snapped % Decimal('0.00001') == 0
+        assert snapped % adapter._filters['BTCUSDT'].lot_step == 0
+
+    def test_snap_floors_to_integer_multiple_for_non_power_of_ten_step(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['XYZUSDT'] = SymbolFilters(
+            symbol='XYZUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('5'),
+            lot_min=Decimal('5'),
+            lot_max=Decimal('1000'),
+            min_notional=Decimal('5.0'),
+        )
+
+        snapped = adapter._snap_qty_to_lot_step('XYZUSDT', Decimal('13'))
+
+        assert snapped == Decimal('10')
+
+    @pytest.mark.asyncio
+    async def test_submit_order_snaps_qty_so_post_request_quantity_is_grid_aligned(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+        _patch_session(adapter, _mock_response(200, _BINANCE_FILLED_RESPONSE))
+
+        await adapter.submit_order(
+            _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
+            Decimal('0.0002455253013823074467823909254'),
+        )
+
+        call_args = adapter._session.request.call_args  # type: ignore[union-attr]
+        url = call_args[0][1]
+        assert 'quantity=0.00024&' in url or url.endswith('quantity=0.00024')
 
 
 class TestQueryOrderBook:
