@@ -188,6 +188,67 @@ class TestMarketDataPoller:
             f'~{3 * interval + slow_delay:.3f}s.'
         )
 
+    def test_slow_initial_fetch_skips_to_next_future_slot(self) -> None:
+        '''Skip-missed-slots covers the *initial* fetch too — a slow first
+        fetch (e.g. cold-cache exchangeInfo round-trip + historical kline
+        fetch) does not cause iter 1 to fire immediately back-to-back.
+
+        Pre-patch this commit set `n = 1` unconditionally after the
+        initial fetch. If the initial fetch took `>= interval`, iter 1's
+        `wait_seconds = max(0, 1 * interval - elapsed) = 0` fired the
+        next fetch immediately — exactly the back-to-back behaviour
+        skip-missed-slots is meant to prevent. Patch advances `n` after
+        the initial fetch the same way it advances after each
+        subsequent fetch: `n = max(1, int(elapsed // interval) + 1)`.
+
+        Choose `slow_delay = 1.05 * interval` so `slow_delay % interval`
+        is small (i.e. fetch #1 *just barely* overruns its slot). This
+        maximises the gap between the with-skip and without-skip
+        outcomes — the next future slot sits ~`interval` ahead of the
+        slow fetch's return:
+
+        | fetch | with skip on initial fetch (this PR)         | without skip on initial fetch       |
+        | ----- | -------------------------------------------- | ----------------------------------- |
+        | 1     | anchor, slow returns 0.105; n=max(1,2)=2     | anchor, slow returns 0.105; n=1     |
+        | 2     | wait(0.095) → 0.200                          | wait(0) → fires immediately at 0.105 |
+
+        With skip: gap ≈ next slot = `0.2s`. Without skip: gap ≈
+        `slow_delay = 0.105s`. Threshold at midpoint `(0.105 + 0.2) /
+        2 = 0.1525s` distinguishes deterministically with ~0.045s
+        margin each side, robust against thread-scheduling jitter.
+        '''
+
+        interval = 0.1
+        slow_delay = 0.105  # 1.05 * interval — barely overruns, max wait_to_next_slot
+        fetch_starts: list[float] = []
+        call_count = {'n': 0}
+
+        def slow_first_fetch(*_args: object, **_kwargs: object) -> pd.DataFrame:
+            call_count['n'] += 1
+            fetch_starts.append(time.monotonic())
+            if call_count['n'] == 1:
+                time.sleep(slow_delay)
+            return _mock_klines()
+
+        with patch(
+            'praxis.market_data_poller.get_spot_klines',
+            side_effect=slow_first_fetch,
+        ):
+            poller = MarketDataPoller(kline_intervals={3600: interval})
+            poller.start()
+            assert _wait_until(lambda: call_count['n'] >= 2, deadline=2.0)
+            poller.stop()
+
+        gap_1_to_2 = fetch_starts[1] - fetch_starts[0]
+        skip_threshold = (slow_delay + 2 * interval) / 2
+        assert gap_1_to_2 > skip_threshold, (
+            f'gap from fetch #1 to fetch #2 was {gap_1_to_2:.3f}s; '
+            f'skip-missed-slots threshold is {skip_threshold:.3f}s. '
+            f'A `n = 1` initialization that ignores initial-fetch '
+            f'elapsed time would fire fetch #2 immediately at '
+            f'fetch #1'"'"'s return (gap ~= slow_delay = {slow_delay:.3f}s).'
+        )
+
     def test_multi_interval_slow_fetch_collapses_missed_slots(self) -> None:
         '''Skip-missed-slots — a fetch overrunning `k * interval` (k >= 2)
         triggers exactly ONE catch-up fetch at the next future scheduled

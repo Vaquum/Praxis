@@ -390,7 +390,14 @@ class MarketDataPoller:
         # tripped `StaleMarketDataError` on the next sensor tick.
         anchor = time.monotonic()
         self._fetch(kline_size, client, stop_event)
-        n = 1
+        # The initial fetch can itself overrun `interval` on a cold
+        # cache (Binance's first call needs an exchangeInfo round-trip
+        # to populate the symbol filter cache, then the actual
+        # historical kline fetch); advance `n` past any slots it spent
+        # so iter 1 doesn't fire immediately back-to-back the same
+        # way subsequent slow fetches don't.
+        elapsed = time.monotonic() - anchor
+        n = max(1, int(elapsed // interval) + 1)
 
         while True:
             wait_seconds = max(0.0, anchor + n * interval - time.monotonic())
