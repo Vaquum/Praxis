@@ -457,13 +457,23 @@ async def test_append_commits_so_separate_connection_sees_event(tmp_path: Path) 
 
 @pytest.mark.asyncio
 async def test_append_survives_writer_connection_loss(tmp_path: Path) -> None:
-    '''Events appended before unclean writer-connection close survive on disk.
+    '''Events appended before connection close-without-commit survive on disk.
 
-    Simulates the production crash mode: launcher writes events,
-    process is killed (`docker compose up -d` recreate), original
-    connection never gets a clean `close()`. With per-append commit
-    every event before the kill is on disk; without it, all writes
-    are rolled back when sqlite reopens the file.
+    Simulates the production failure mode: launcher writes events,
+    then the connection is closed without an explicit
+    `await connection.commit()` (e.g. on `docker compose up -d`
+    recreate's SIGTERM where the launcher's shutdown handler doesn't
+    drain). With per-append commit every event before close is on
+    disk; without it, all writes are rolled back when sqlite reopens
+    the file.
+
+    Closes the writer connection EXPLICITLY (rather than relying on
+    `del` + GC, which is implementation-dependent and can leave the
+    aiosqlite worker thread alive). The strict test scenario is "no
+    explicit `commit()` on close" — `aiosqlite.Connection.close()`
+    forwards to `sqlite3.Connection.close()` which does not commit
+    pending transactions. So per-append commit is the only thing
+    standing between disk and data loss.
     '''
 
     import aiosqlite
@@ -471,7 +481,7 @@ async def test_append_survives_writer_connection_loss(tmp_path: Path) -> None:
 
     db_path = tmp_path / 'spine.sqlite'
 
-    # Round 1: write events, abandon connection without explicit commit/close.
+    # Round 1: write events, close the writer with no extra commit.
     writer_conn = await aiosqlite.connect(str(db_path))
     spine = EventSpine(writer_conn)
     await spine.ensure_schema()
@@ -483,12 +493,10 @@ async def test_append_survives_writer_connection_loss(tmp_path: Path) -> None:
             ),
             _EPOCH,
         )
-    # Simulate crash: drop the connection reference without close().
-    # The underlying sqlite3 connection is GC'd; any uncommitted data
-    # in the rollback journal is lost. Per-append commit ensures the
-    # 5 events above are already durable on the main DB file.
-    del writer_conn
-    del spine
+    # Explicit close — no extra commit. `sqlite3.Connection.close()`
+    # does not commit pending transactions, so per-append commit is
+    # the only thing keeping these events on disk.
+    await writer_conn.close()
 
     # Round 2: fresh connection on same file. Pre-fix sees 0 events
     # (rolled back); post-fix sees all 5.

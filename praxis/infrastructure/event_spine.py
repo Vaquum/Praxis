@@ -272,17 +272,25 @@ class EventSpine:
                     _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
                 )
                 if cursor.rowcount == 0:
-                    await self._conn.execute('RELEASE fill_atomic')
-                    await self._conn.commit()
-                    return None
-                seq = await self._append_event(event, epoch_id)
+                    seq = None
+                else:
+                    seq = await self._append_event(event, epoch_id)
                 await self._conn.execute('RELEASE fill_atomic')
-                await self._conn.commit()
-                return seq
             except Exception:
                 await self._conn.execute('ROLLBACK TO fill_atomic')
                 await self._conn.execute('RELEASE fill_atomic')
                 raise
+            # Commit outside the SAVEPOINT-protected `try`: by this point
+            # `RELEASE fill_atomic` has already removed the savepoint
+            # from the stack. If `commit()` raised inside the `try`,
+            # the `except` would attempt `ROLLBACK TO fill_atomic`
+            # against a non-existent savepoint and the second error
+            # would mask the first. Hoisting the commit makes its
+            # failure mode a plain unhandled exception bubbling to the
+            # caller (with the outer transaction left in a clean
+            # not-yet-committed state for the caller to handle).
+            await self._conn.commit()
+            return seq
 
         seq = await self._append_event(event, epoch_id)
         await self._conn.commit()
