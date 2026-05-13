@@ -411,8 +411,8 @@ async def test_append_commits_so_separate_connection_sees_event(tmp_path: Path) 
     Pre-fix `EventSpine.append` did the INSERT but never called
     `commit()`. With aiosqlite's default `isolation_level=""` (implicit
     transactions), every write sat in the rollback journal —
-    invisible to any other connection and rolled back on uncrashed
-    shutdown. Production observed the spine main DB file's modtime
+    invisible to any other connection and rolled back on connection
+    close without explicit `commit()` (and on crash/unclean shutdown). Production observed the spine main DB file's modtime
     stuck on the boot date for days while the journal grew, and every
     container recreate wiped the entire event history.
 

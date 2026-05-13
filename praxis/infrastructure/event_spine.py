@@ -2,9 +2,16 @@
 Append-only event log backed by SQLite.
 
 Provide durable, monotonically sequenced storage for domain events.
-Caller owns the aiosqlite connection and transaction boundaries,
-enabling atomic writes spanning event append, projection update,
-and outbox insertion.
+Caller owns the `aiosqlite` connection's lifecycle (open/close);
+`EventSpine` owns the transaction boundaries internally — every
+successful `append()` calls `commit()` before returning, so the
+returned `seq` means "this event is on disk and visible to other
+connections". The pre-fix design (caller owns transaction boundaries
+spanning event append, projection update, and outbox insertion) was
+never actually exercised by any caller, and silently relied on
+implicit-transaction-without-commit behaviour to lose every spine
+write across container recreate. Per-event commit is the correct
+contract for an append-only log on the order critical path.
 '''
 
 from __future__ import annotations
@@ -240,7 +247,7 @@ class EventSpine:
         returns. Without the commit, `aiosqlite`'s default
         implicit-transaction mode (`isolation_level=""`) leaves writes
         in the rollback journal, invisible to any other connection and
-        rolled back on uncrashed shutdown — observed in production
+        rolled back on connection close without explicit `commit()` and on crash/unclean shutdown — observed in production
         where the spine file's main DB stayed empty for days while the
         journal grew, and every container recreate wiped 24+ hours of
         spine data. Commit-per-append is the minimal correct fix:
