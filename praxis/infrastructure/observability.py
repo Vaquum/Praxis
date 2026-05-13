@@ -68,7 +68,10 @@ def configure_logging(log_level: str = 'INFO') -> None:
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             structlog.processors.JSONRenderer(serializer=_orjson_dumps_str),
         ],
-        foreign_pre_chain=shared_processors,
+        foreign_pre_chain=[
+            structlog.stdlib.ExtraAdder(),
+            *shared_processors,
+        ],
     )
 
     handler = logging.StreamHandler(sys.stdout)

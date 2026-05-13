@@ -185,3 +185,36 @@ def test_stdlib_integration() -> None:
     assert result['event'] == 'connection reset'
     assert result['level'] == 'warning'
     assert 'timestamp' in result
+
+
+def test_stdlib_extras_appear_in_json() -> None:
+    '''Stdlib `_log.info('msg', extra={...})` extras must merge into JSON output.
+
+    Pre-fix `configure_logging`'s `ProcessorFormatter` had no
+    `structlog.stdlib.ExtraAdder` in its `foreign_pre_chain`. Every
+    `_log.info('msg', extra={'strategy_id': X, ...})` call from a
+    stdlib logger silently dropped its extras — only `event`, `level`,
+    `timestamp` made it to JSON. This affected ~70% of the codebase
+    (every module using `_log = logging.getLogger(__name__)` — see
+    the module docstring on `praxis/infrastructure/observability.py`).
+
+    The pin: emit a stdlib log with structured extras and assert the
+    merged JSON contains them as top-level fields. Pre-fix this test
+    fails with `KeyError: 'strategy_id'` because extras are missing.
+    '''
+
+    result = _capture_stdlib(
+        lambda: logging.getLogger('praxis.test').info(
+            'action rejected by validator',
+            extra={
+                'strategy_id': 'stub_always_one',
+                'failed_stage': 'capital',
+                'reason_code': 'CAPITAL_BUDGET_EXCEEDED',
+            },
+        )
+    )
+    assert result['event'] == 'action rejected by validator'
+    assert result['level'] == 'info'
+    assert result['strategy_id'] == 'stub_always_one'
+    assert result['failed_stage'] == 'capital'
+    assert result['reason_code'] == 'CAPITAL_BUDGET_EXCEEDED'
