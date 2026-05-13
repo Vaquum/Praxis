@@ -266,19 +266,24 @@ class EventSpine:
         '''
 
         if isinstance(event, FillReceived):
-            await self._conn.execute('SAVEPOINT fill_atomic')
+            async with self._conn.execute('SAVEPOINT fill_atomic'):
+                pass
             try:
-                cursor = await self._conn.execute(
+                async with self._conn.execute(
                     _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
-                )
-                if cursor.rowcount == 0:
+                ) as cursor:
+                    rowcount = cursor.rowcount
+                if rowcount == 0:
                     seq = None
                 else:
                     seq = await self._append_event(event, epoch_id)
-                await self._conn.execute('RELEASE fill_atomic')
+                async with self._conn.execute('RELEASE fill_atomic'):
+                    pass
             except Exception:
-                await self._conn.execute('ROLLBACK TO fill_atomic')
-                await self._conn.execute('RELEASE fill_atomic')
+                async with self._conn.execute('ROLLBACK TO fill_atomic'):
+                    pass
+                async with self._conn.execute('RELEASE fill_atomic'):
+                    pass
                 raise
             # Commit outside the SAVEPOINT-protected `try`: by this point
             # `RELEASE fill_atomic` has already removed the savepoint

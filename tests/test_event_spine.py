@@ -412,8 +412,10 @@ async def test_append_commits_so_separate_connection_sees_event(tmp_path: Path) 
     `commit()`. With aiosqlite's default `isolation_level=""` (implicit
     transactions), every write sat in the rollback journal —
     invisible to any other connection and rolled back on connection
-    close without explicit `commit()` (and on crash/unclean shutdown). Production observed the spine main DB file's modtime
-    stuck on the boot date for days while the journal grew, and every
+    close without explicit `commit()` (and on crash/unclean shutdown).
+
+    Production observed the spine main DB file's modtime stuck on
+    the boot date for days while the journal grew, and every
     container recreate wiped the entire event history.
 
     The pin: after `await spine.append(event, epoch_id)` returns, a
