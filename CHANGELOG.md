@@ -692,3 +692,7 @@
 - Fix [`configure_logging`](praxis/infrastructure/observability.py) to add `structlog.stdlib.ExtraAdder()` to `ProcessorFormatter.foreign_pre_chain` so stdlib `_log.info('msg', extra={...})` payloads survive into JSON output instead of being silently dropped
 - Add structured logging emit sites to [`EventSpine`](praxis/infrastructure/event_spine.py): schema-ensured info, append debug, dedup warning, fill-atomic rollback exception
 - Add `test_stdlib_extras_appear_in_json` regression test in [`tests/test_observability.py`](tests/test_observability.py)
+
+## v0.59.4 on 13th of May, 2026
+
+- Bump `vaquum-nexus` git+https pin from Nexus 0.46.0 main HEAD `b075042aa0cd5aad6da8355ce7d672983fb71eb1` to Nexus 0.47.0 main HEAD `902c895f8151318b285c64f6242cad62b720457a` ([Vaquum/Nexus#67](https://github.com/Vaquum/Nexus/pull/67) — ExtraAdder fix in `nexus/infrastructure/observability.py` + per-action `bound_context` wrapping in `submit_actions`). Pairs with the Praxis-side ExtraAdder fix in v0.59.3 so both observability modules in the deployed image honour stdlib `_log.info('msg', extra={...})` extras and the Nexus-side trade-lifecycle emits carry `strategy_id` / `action_type` / `trade_id` / `command_id` via structlog contextvars
