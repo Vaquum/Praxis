@@ -2,9 +2,16 @@
 Append-only event log backed by SQLite.
 
 Provide durable, monotonically sequenced storage for domain events.
-Caller owns the aiosqlite connection and transaction boundaries,
-enabling atomic writes spanning event append, projection update,
-and outbox insertion.
+Caller owns the `aiosqlite` connection's lifecycle (open/close);
+`EventSpine` owns the transaction boundaries internally — every
+successful `append()` calls `commit()` before returning, so the
+returned `seq` means "this event is on disk and visible to other
+connections". The pre-fix design (caller owns transaction boundaries
+spanning event append, projection update, and outbox insertion) was
+never actually exercised by any caller, and silently relied on
+implicit-transaction-without-commit behaviour to lose every spine
+write across container recreate. Per-event commit is the correct
+contract for an append-only log on the order critical path.
 '''
 
 from __future__ import annotations
@@ -206,6 +213,12 @@ class EventSpine:
         '''
         Create the events table, epoch index, and fill dedup table if they do not exist.
 
+        Calls `commit()` after the DDL so the schema is durable on the
+        main DB file (not just the rollback journal) before any caller
+        starts appending. Without this, every spine read from a
+        separate connection sees an empty file until the first
+        successful commit elsewhere.
+
         Returns:
             None
         '''
@@ -216,6 +229,7 @@ class EventSpine:
             pass
         async with self._conn.execute(_CREATE_FILL_DEDUP):
             pass
+        await self._conn.commit()
 
     async def append(self, event: Event, epoch_id: int) -> int | None:
 
@@ -228,6 +242,21 @@ class EventSpine:
         either both the dedup insert and event insert succeed, or both
         roll back.
 
+        Calls `await self._conn.commit()` after every successful insert
+        so each event is durable on the main DB file before this method
+        returns. Without the commit, `aiosqlite`'s default
+        implicit-transaction mode (`isolation_level=""`) leaves writes
+        in the rollback journal, invisible to any other connection and
+        rolled back on connection close without explicit `commit()` and on crash/unclean shutdown — observed in production
+        where the spine file's main DB stayed empty for days while the
+        journal grew, and every container recreate wiped 24+ hours of
+        spine data. Commit-per-append is the minimal correct fix:
+        per-event durability matches the at-least-once log semantics
+        the caller already assumes (every `await append(...)` returning
+        a `seq` means "this event is on disk"), and the per-event
+        `fsync` cost is negligible compared to the venue REST round
+        trip on the same critical path.
+
         Args:
             event (Event): Domain event dataclass to persist
             epoch_id (int): Current epoch identifier
@@ -237,23 +266,46 @@ class EventSpine:
         '''
 
         if isinstance(event, FillReceived):
-            await self._conn.execute('SAVEPOINT fill_atomic')
+            async with self._conn.execute('SAVEPOINT fill_atomic'):
+                pass
             try:
-                cursor = await self._conn.execute(
+                async with self._conn.execute(
                     _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
-                )
-                if cursor.rowcount == 0:
-                    await self._conn.execute('RELEASE fill_atomic')
-                    return None
-                seq = await self._append_event(event, epoch_id)
-                await self._conn.execute('RELEASE fill_atomic')
-                return seq
+                ) as cursor:
+                    rowcount = cursor.rowcount
+                if rowcount == 0:
+                    seq = None
+                else:
+                    seq = await self._append_event(event, epoch_id)
+                async with self._conn.execute('RELEASE fill_atomic'):
+                    pass
             except Exception:
-                await self._conn.execute('ROLLBACK TO fill_atomic')
-                await self._conn.execute('RELEASE fill_atomic')
+                async with self._conn.execute('ROLLBACK TO fill_atomic'):
+                    pass
+                async with self._conn.execute('RELEASE fill_atomic'):
+                    pass
                 raise
+            # Commit outside the SAVEPOINT-protected `try`: by this point
+            # `RELEASE fill_atomic` has already removed the savepoint
+            # from the stack. If `commit()` raised inside the `try`,
+            # the `except` would attempt `ROLLBACK TO fill_atomic`
+            # against a non-existent savepoint and the second sqlite
+            # error would mask the first. Hoisting the commit lets
+            # its failure surface as a plain unhandled exception. The
+            # connection is left with the outer (uncommitted)
+            # transaction still open; the connection-lifecycle owner
+            # (the launcher's `_db_conn` field) recovers by tearing
+            # down the connection — `EventSpine` itself owns the
+            # transaction boundaries (per module docstring), but the
+            # connection is the caller's resource to manage and a
+            # commit-failure crash is the only way out of an
+            # unrecoverable disk-write error anyway.
+            await self._conn.commit()
+            return seq
 
-        return await self._append_event(event, epoch_id)
+        seq = await self._append_event(event, epoch_id)
+        await self._conn.commit()
+        return seq
 
     async def _append_event(self, event: Event, epoch_id: int) -> int:
 

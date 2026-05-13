@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, UTC
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -397,3 +398,110 @@ def test_coerce_nested_dataclass() -> None:
     assert result.inner.value == Decimal('123.45')
     assert result.inner.name == 'test'
     assert result.timestamp == _TS
+
+
+# ---------------------------------------------------------------------------
+# Per-append commit durability (PT-FIX-spine-commit)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_append_commits_so_separate_connection_sees_event(tmp_path: Path) -> None:
+    '''A separate sqlite connection to the same file must see appended events.
+
+    Pre-fix `EventSpine.append` did the INSERT but never called
+    `commit()`. With aiosqlite's default `isolation_level=""` (implicit
+    transactions), every write sat in the rollback journal —
+    invisible to any other connection and rolled back on connection
+    close without explicit `commit()` (and on crash/unclean shutdown).
+
+    Production observed the spine main DB file's modtime stuck on
+    the boot date for days while the journal grew, and every
+    container recreate wiped the entire event history.
+
+    The pin: after `await spine.append(event, epoch_id)` returns, a
+    FRESH sqlite connection opened to the same file must see the
+    inserted row. Pre-fix this assertion fails with `events count = 0`
+    on the fresh connection. Post-fix it passes because `append`
+    explicitly commits before returning.
+    '''
+
+    import aiosqlite
+    import sqlite3
+
+    db_path = tmp_path / 'spine.sqlite'
+    async with aiosqlite.connect(str(db_path)) as writer_conn:
+        spine = EventSpine(writer_conn)
+        await spine.ensure_schema()
+
+        seq = await spine.append(
+            CommandAccepted(
+                account_id=_ACCT, timestamp=_TS,
+                command_id=_CMD, trade_id=_TRADE,
+            ),
+            _EPOCH,
+        )
+        assert seq == 1
+
+        # Separate connection — pre-fix this would see 0 rows because the
+        # writer's INSERT was uncommitted; post-fix it sees 1 row because
+        # `append` commits before returning.
+        with sqlite3.connect(str(db_path)) as reader_conn:
+            count = reader_conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]
+            assert count == 1
+
+            event_type, payload = reader_conn.execute(
+                'SELECT event_type, payload FROM events WHERE event_seq = ?',
+                (seq,),
+            ).fetchone()
+            assert event_type == 'CommandAccepted'
+            assert _CMD.encode() in payload
+
+
+@pytest.mark.asyncio
+async def test_append_survives_writer_connection_loss(tmp_path: Path) -> None:
+    '''Events appended before connection close-without-commit survive on disk.
+
+    Simulates the production failure mode: launcher writes events,
+    then the connection is closed without an explicit
+    `await connection.commit()` (e.g. on `docker compose up -d`
+    recreate's SIGTERM where the launcher's shutdown handler doesn't
+    drain). With per-append commit every event before close is on
+    disk; without it, all writes are rolled back when sqlite reopens
+    the file.
+
+    Closes the writer connection EXPLICITLY (rather than relying on
+    `del` + GC, which is implementation-dependent and can leave the
+    aiosqlite worker thread alive). The strict test scenario is "no
+    explicit `commit()` on close" — `aiosqlite.Connection.close()`
+    forwards to `sqlite3.Connection.close()` which does not commit
+    pending transactions. So per-append commit is the only thing
+    standing between disk and data loss.
+    '''
+
+    import aiosqlite
+    import sqlite3
+
+    db_path = tmp_path / 'spine.sqlite'
+
+    # Round 1: write events, close the writer with no extra commit.
+    writer_conn = await aiosqlite.connect(str(db_path))
+    spine = EventSpine(writer_conn)
+    await spine.ensure_schema()
+    for i in range(5):
+        await spine.append(
+            CommandAccepted(
+                account_id=_ACCT, timestamp=_TS,
+                command_id=f'cmd-{i}', trade_id=f'trade-{i}',
+            ),
+            _EPOCH,
+        )
+    # Explicit close — no extra commit. `sqlite3.Connection.close()`
+    # does not commit pending transactions, so per-append commit is
+    # the only thing keeping these events on disk.
+    await writer_conn.close()
+
+    # Round 2: fresh connection on same file. Pre-fix sees 0 events
+    # (rolled back); post-fix sees all 5.
+    with sqlite3.connect(str(db_path)) as reader_conn:
+        count = reader_conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]
+        assert count == 5
