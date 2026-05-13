@@ -206,6 +206,12 @@ class EventSpine:
         '''
         Create the events table, epoch index, and fill dedup table if they do not exist.
 
+        Calls `commit()` after the DDL so the schema is durable on the
+        main DB file (not just the rollback journal) before any caller
+        starts appending. Without this, every spine read from a
+        separate connection sees an empty file until the first
+        successful commit elsewhere.
+
         Returns:
             None
         '''
@@ -216,6 +222,7 @@ class EventSpine:
             pass
         async with self._conn.execute(_CREATE_FILL_DEDUP):
             pass
+        await self._conn.commit()
 
     async def append(self, event: Event, epoch_id: int) -> int | None:
 
@@ -227,6 +234,21 @@ class EventSpine:
         FillReceived atomicity is guaranteed internally via SAVEPOINT:
         either both the dedup insert and event insert succeed, or both
         roll back.
+
+        Calls `await self._conn.commit()` after every successful insert
+        so each event is durable on the main DB file before this method
+        returns. Without the commit, `aiosqlite`'s default
+        implicit-transaction mode (`isolation_level=""`) leaves writes
+        in the rollback journal, invisible to any other connection and
+        rolled back on uncrashed shutdown — observed in production
+        where the spine file's main DB stayed empty for days while the
+        journal grew, and every container recreate wiped 24+ hours of
+        spine data. Commit-per-append is the minimal correct fix:
+        per-event durability matches the at-least-once log semantics
+        the caller already assumes (every `await append(...)` returning
+        a `seq` means "this event is on disk"), and the per-event
+        `fsync` cost is negligible compared to the venue REST round
+        trip on the same critical path.
 
         Args:
             event (Event): Domain event dataclass to persist
@@ -244,16 +266,20 @@ class EventSpine:
                 )
                 if cursor.rowcount == 0:
                     await self._conn.execute('RELEASE fill_atomic')
+                    await self._conn.commit()
                     return None
                 seq = await self._append_event(event, epoch_id)
                 await self._conn.execute('RELEASE fill_atomic')
+                await self._conn.commit()
                 return seq
             except Exception:
                 await self._conn.execute('ROLLBACK TO fill_atomic')
                 await self._conn.execute('RELEASE fill_atomic')
                 raise
 
-        return await self._append_event(event, epoch_id)
+        seq = await self._append_event(event, epoch_id)
+        await self._conn.commit()
+        return seq
 
     async def _append_event(self, event: Event, epoch_id: int) -> int:
 
