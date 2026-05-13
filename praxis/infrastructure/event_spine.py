@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import logging
 import types
 from datetime import datetime
 from decimal import Decimal
@@ -43,6 +44,8 @@ from praxis.core.domain.events import (
 )
 
 __all__ = ['EventSpine']
+
+_log = logging.getLogger(__name__)
 
 _CREATE_TABLE = '''
 CREATE TABLE IF NOT EXISTS events (
@@ -230,6 +233,7 @@ class EventSpine:
         async with self._conn.execute(_CREATE_FILL_DEDUP):
             pass
         await self._conn.commit()
+        _log.info('event spine schema ensured')
 
     async def append(self, event: Event, epoch_id: int) -> int | None:
 
@@ -284,6 +288,15 @@ class EventSpine:
                     pass
                 async with self._conn.execute('RELEASE fill_atomic'):
                     pass
+                _log.exception(
+                    'event spine fill-atomic rollback',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'account_id': event.account_id,
+                        'venue_trade_id': event.venue_trade_id,
+                        'venue_order_id': event.venue_order_id,
+                    },
+                )
                 raise
             # Commit outside the SAVEPOINT-protected `try`: by this point
             # `RELEASE fill_atomic` has already removed the savepoint
@@ -301,10 +314,39 @@ class EventSpine:
             # commit-failure crash is the only way out of an
             # unrecoverable disk-write error anyway.
             await self._conn.commit()
+            if seq is None:
+                _log.warning(
+                    'event spine fill deduplicated',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'account_id': event.account_id,
+                        'venue_trade_id': event.venue_trade_id,
+                        'venue_order_id': event.venue_order_id,
+                    },
+                )
+            else:
+                _log.debug(
+                    'event spine appended',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'event_type': type(event).__name__,
+                        'event_seq': seq,
+                        'account_id': event.account_id,
+                    },
+                )
             return seq
 
         seq = await self._append_event(event, epoch_id)
         await self._conn.commit()
+        _log.debug(
+            'event spine appended',
+            extra={
+                'epoch_id': epoch_id,
+                'event_type': type(event).__name__,
+                'event_seq': seq,
+                'account_id': event.account_id,
+            },
+        )
         return seq
 
     async def _append_event(self, event: Event, epoch_id: int) -> int:

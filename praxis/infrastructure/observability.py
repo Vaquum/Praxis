@@ -68,7 +68,27 @@ def configure_logging(log_level: str = 'INFO') -> None:
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             structlog.processors.JSONRenderer(serializer=_orjson_dumps_str),
         ],
-        foreign_pre_chain=shared_processors,
+        # `ExtraAdder` extracts `extra={...}` fields from the stdlib
+        # `LogRecord` and merges them into the structlog event dict
+        # BEFORE `JSONRenderer` serializes it. Without this, every
+        # `_log.info('msg', extra={'strategy_id': X, ...})` call from
+        # a stdlib logger silently drops its `extra` payload — only
+        # `event` / `level` / `timestamp` make it to JSON. Pre-fix
+        # this affected ~70% of the codebase: every log emit site in
+        # `launcher.py`, `trading.py`, `execution_manager.py`,
+        # `binance_adapter.py`, `action_submit.py`, `outcome_loop.py`,
+        # `outcome_processor.py`, `praxis_outbound.py`, etc. was
+        # emitting `{"event": "action rejected by validator"}` with
+        # no `strategy_id` / `failed_stage` / `reason_code`. The
+        # native structlog API (`_log = structlog.get_logger(...)`,
+        # `_log.info('msg', strategy_id=X)`) bypasses the stdlib
+        # path entirely so it was unaffected — but only `sequencer.py`
+        # and `shutdown_sequencer.py` use that API; everything else
+        # in the trade lifecycle uses stdlib `logging.getLogger(...)`.
+        foreign_pre_chain=[
+            structlog.stdlib.ExtraAdder(),
+            *shared_processors,
+        ],
     )
 
     handler = logging.StreamHandler(sys.stdout)
