@@ -9,7 +9,9 @@ Supports runtime addition and removal of kline_sizes.
 from __future__ import annotations
 
 import logging
+import math
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, UTC
 
@@ -18,6 +20,40 @@ from binance.client import Client
 from binancial.compute.get_spot_klines import get_spot_klines
 
 __all__ = ['MarketDataPoller', 'StaleMarketDataError']
+
+
+def _next_slot_index(anchor: float, interval: float, now: float, min_n: int) -> int:
+    '''Smallest integer `n >= min_n` such that `anchor + n * interval > now`.
+
+    Used by `MarketDataPoller._poll_loop` to advance the fetch ordinal
+    past any "missed" slots after a slow fetch. The naive
+    `int((now - anchor) // interval) + 1` is *almost always* correct,
+    but binary FP rounding can leave `anchor + n * interval == now`
+    for unlucky `(elapsed, interval)` pairs — e.g. `elapsed=1.0,
+    interval=0.1` gives `n=10` and `10 * 0.1 == 1.0` exactly, so
+    `wait_seconds = max(0, anchor + n * interval - now) = 0` would
+    fire the next fetch back-to-back, defeating skip-missed-slots.
+    The post-naive `while` loop bumps `n` until the strict-future
+    invariant holds; runs 0 times in the common case, 1-2 times in
+    the FP-corner case.
+
+    Args:
+        anchor: `time.monotonic()` reference for the schedule.
+        interval: Slot width in seconds (must be > 0).
+        now: Current `time.monotonic()` reading.
+        min_n: Lower bound — caller's "next ordinal at minimum"
+            (typically `current_n + 1` inside the loop, or `1` after
+            the explicit pre-loop fetch).
+
+    Returns:
+        int: Smallest `n` satisfying the strict-future invariant.
+    '''
+
+    elapsed = now - anchor
+    n = max(min_n, int(elapsed // interval) + 1)
+    while anchor + n * interval <= now:
+        n += 1
+    return n
 
 _log = logging.getLogger(__name__)
 
@@ -66,7 +102,7 @@ class _PollerThread:
     thread: threading.Thread
     stop_event: threading.Event
     kline_size: int
-    interval: int
+    interval: float
 
 
 class MarketDataPoller:
@@ -76,7 +112,7 @@ class MarketDataPoller:
     addition and removal of kline_sizes without restarting.
 
     Args:
-        kline_intervals: Initial mapping of kline_size (seconds) to poll interval (seconds).
+        kline_intervals: Initial mapping of kline_size (integer seconds) to poll interval (seconds, `float` to allow sub-second test cadences).
         n_rows: Number of klines to keep per kline_size. The fetch start date
             is computed as `now - n_rows * kline_size` seconds.
         testnet: When `True`, build poller `binance.client.Client` with
@@ -93,7 +129,7 @@ class MarketDataPoller:
 
     def __init__(
         self,
-        kline_intervals: dict[int, int] | None = None,
+        kline_intervals: dict[int, float] | None = None,
         n_rows: int = 5000,
         testnet: bool = False,
         max_age_seconds: dict[int, float] | None = None,
@@ -132,7 +168,11 @@ class MarketDataPoller:
         '''Start poller threads for initial kline_sizes.
 
         Raises:
-            ValueError: If any initial kline_size or interval is not positive.
+            ValueError: If any initial `kline_size` is not positive, or
+                if any initial `interval` is not a finite positive
+                number (rejects `<= 0`, `NaN`, and `±inf` — the
+                latter two became reachable when `interval`'s type
+                widened from `int` to `float`).
         '''
 
         if self._started:
@@ -142,8 +182,8 @@ class MarketDataPoller:
             if kline_size <= 0:
                 msg = f'kline_size must be positive, got {kline_size}'
                 raise ValueError(msg)
-            if interval <= 0:
-                msg = f'interval must be positive, got {interval}'
+            if not math.isfinite(interval) or interval <= 0:
+                msg = f'interval must be a finite positive number, got {interval}'
                 raise ValueError(msg)
 
         self._started = True
@@ -184,20 +224,28 @@ class MarketDataPoller:
 
         _log.info('market data poller stopped')
 
-    def add_kline_size(self, kline_size: int, interval: int) -> None:
+    def add_kline_size(self, kline_size: int, interval: float) -> None:
         '''Add a reference to a kline_size. Starts polling if first reference.
 
         Multiple strategies can reference the same kline_size. The poller
         thread only stops when all references are removed.
 
         Args:
-            kline_size: Kline bucket width in seconds.
-            interval: Poll interval in seconds. If already polling, the
-                existing interval is kept (first caller wins).
+            kline_size: Kline bucket width in seconds (integer — Binance
+                kline sizes are all integer seconds: 60, 300, 900, etc.).
+            interval: Poll interval in seconds, accepted as `float` so
+                tests can use sub-second cadences (e.g. `0.1`) and
+                production can use integer cadences (e.g. `300`) on the
+                same code path. If already polling, the existing
+                interval is kept (first caller wins).
 
         Raises:
             RuntimeError: If start() has not been called.
-            ValueError: If kline_size or interval is not positive.
+            ValueError: If `kline_size` is not positive, or if
+                `interval` is not a finite positive number (rejects
+                `<= 0`, `NaN`, and `±inf` — the latter two became
+                reachable when `interval`'s type widened from `int`
+                to `float`).
         '''
 
         if not self._started:
@@ -208,8 +256,8 @@ class MarketDataPoller:
             msg = f'kline_size must be positive, got {kline_size}'
             raise ValueError(msg)
 
-        if interval <= 0:
-            msg = f'interval must be positive, got {interval}'
+        if not math.isfinite(interval) or interval <= 0:
+            msg = f'interval must be a finite positive number, got {interval}'
             raise ValueError(msg)
 
         with self._lock:
@@ -323,7 +371,7 @@ class MarketDataPoller:
             return override
         return float(_DEFAULT_MAX_AGE_MULTIPLIER * kline_size)
 
-    def _start_thread_locked(self, kline_size: int, interval: int) -> None:
+    def _start_thread_locked(self, kline_size: int, interval: float) -> None:
         '''Create and start a poller thread. Must be called with lock held.'''
 
         stop_event = threading.Event()
@@ -344,7 +392,7 @@ class MarketDataPoller:
         self._pollers[kline_size] = pt
         thread.start()
 
-    def _poll_loop(self, kline_size: int, interval: int, stop_event: threading.Event) -> None:
+    def _poll_loop(self, kline_size: int, interval: float, stop_event: threading.Event) -> None:
         # Per-thread Binance client: public klines only, no credentials.
         # One client per poller thread avoids sharing a requests.Session
         # across threads. ping=False skips python-binance's default startup
@@ -359,10 +407,59 @@ class MarketDataPoller:
             )
             return
 
+        # Anchored-cadence schedule with skip-missed-slots: subsequent
+        # fetches fire at `anchor + n * interval` rather than
+        # `interval` after the previous fetch's body returned. After
+        # each fetch returns, `n` advances to the smallest integer
+        # such that `anchor + n * interval` is in the future; this
+        # collapses any number of "missed" slots into a single
+        # catch-up fetch instead of firing back-to-back. The
+        # guarantee is "no cumulative drift": a slow fetch's overrun
+        # is absorbed once (into the next fetch's wait window) and
+        # the schedule remains anchored to the original timeline, so
+        # `n` slow fetches do not produce `n * overrun` cumulative
+        # drift. When a fetch outruns its `interval` window the next
+        # fetch necessarily starts late (it cannot start before the
+        # previous returned); when the overrun spans `k` intervals,
+        # `k - 1` scheduled slots are skipped (their freshness goal
+        # is moot — the slow fetch's return brings data through
+        # `now`) and the next fetch fires at the next future slot,
+        # then cadence resumes. Pre-fix the loop did `while not
+        # stop_event.wait(timeout=interval): self._fetch(...)` — the
+        # wait fired *after* `_fetch` returned, so realized period
+        # was `interval + fetch_duration` and every slow fetch
+        # shifted the entire downstream schedule by `slow_overrun`.
+        # On Binance testnet under load `_fetch` regularly takes
+        # 200-500s (the `get_spot_klines` HTTP call queues behind
+        # rate-limited concurrent requests from the venue adapter),
+        # which for `interval=300` (5m kline) pushed realized period
+        # past `_DEFAULT_MAX_AGE_MULTIPLIER * kline_size = 600s` and
+        # tripped `StaleMarketDataError` on the next sensor tick.
+        anchor = time.monotonic()
         self._fetch(kline_size, client, stop_event)
+        # The initial fetch can itself overrun `interval` on a cold
+        # cache (Binance's first call needs an exchangeInfo round-trip
+        # to populate the symbol filter cache, then the actual
+        # historical kline fetch); advance `n` past any slots it spent
+        # so iter 1 doesn't fire immediately back-to-back the same
+        # way subsequent slow fetches don't. Capture `now` once and
+        # reuse it for both `_next_slot_index`'s strict-future
+        # invariant AND `wait_seconds` — a separate clock read
+        # between the two would let microsecond-scale wakeup jitter
+        # push `time.monotonic()` past the just-computed slot
+        # boundary, collapsing `wait_seconds` to 0 and re-firing the
+        # back-to-back-fetch failure mode the bump is meant to
+        # prevent.
+        now = time.monotonic()
+        n = _next_slot_index(anchor, interval, now, min_n=1)
 
-        while not stop_event.wait(timeout=interval):
+        while True:
+            wait_seconds = max(0.0, anchor + n * interval - now)
+            if stop_event.wait(timeout=wait_seconds):
+                return
             self._fetch(kline_size, client, stop_event)
+            now = time.monotonic()
+            n = _next_slot_index(anchor, interval, now, min_n=n + 1)
 
     def _fetch(
         self,
