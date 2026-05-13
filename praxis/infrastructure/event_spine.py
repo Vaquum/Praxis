@@ -284,11 +284,17 @@ class EventSpine:
             # `RELEASE fill_atomic` has already removed the savepoint
             # from the stack. If `commit()` raised inside the `try`,
             # the `except` would attempt `ROLLBACK TO fill_atomic`
-            # against a non-existent savepoint and the second error
-            # would mask the first. Hoisting the commit makes its
-            # failure mode a plain unhandled exception bubbling to the
-            # caller (with the outer transaction left in a clean
-            # not-yet-committed state for the caller to handle).
+            # against a non-existent savepoint and the second sqlite
+            # error would mask the first. Hoisting the commit lets
+            # its failure surface as a plain unhandled exception. The
+            # connection is left with the outer (uncommitted)
+            # transaction still open; the connection-lifecycle owner
+            # (the launcher's `_db_conn` field) recovers by tearing
+            # down the connection — `EventSpine` itself owns the
+            # transaction boundaries (per module docstring), but the
+            # connection is the caller's resource to manage and a
+            # commit-failure crash is the only way out of an
+            # unrecoverable disk-write error anyway.
             await self._conn.commit()
             return seq
 
