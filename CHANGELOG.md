@@ -699,5 +699,5 @@
 
 ## v0.59.5 on 14th of May, 2026
 
-- Fix [`BinanceAdapter._used_weight`](praxis/infrastructure/binance_adapter.py) to decay linearly to zero over 60s (Binance's per-IP sliding window). Pre-patch a startup `load_filters` burst pinned the value at the testnet weight limit, kept `HealthEvaluator` returning REDUCE_ONLY, and blocked every ENTER with `INTAKE_MODE_BLOCKS_ENTER` for 4+ hours
-- Add three regression tests in [`tests/test_binance_adapter.py`](tests/test_binance_adapter.py) covering full decay past window, linear midpoint, and the exact 2026-05-14 pinned-mode failure mode
+- Fix [`BinanceAdapter._used_weight`](praxis/infrastructure/binance_adapter.py) to step-down to zero after Binance's 60s per-IP sliding window elapses (held unchanged within the window). Pre-patch a startup `load_filters` burst pinned the value at the testnet weight limit, kept `HealthEvaluator` returning REDUCE_ONLY, and blocked every ENTER with `INTAKE_MODE_BLOCKS_ENTER` for 4+ hours
+- Add three regression tests in [`tests/test_binance_adapter.py`](tests/test_binance_adapter.py) covering drop-to-zero past window, hold-pinned within window, and the exact 2026-05-14 pinned-mode failure mode

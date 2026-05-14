@@ -185,7 +185,7 @@ class BinanceAdapter:
     def _decayed_used_weight(self) -> int:
 
         '''
-        Time-decayed `_used_weight` modeling Binance's 1-minute sliding window.
+        Step-down model for `_used_weight` against Binance's 1-minute window.
 
         `_used_weight` is set from the `X-MBX-USED-WEIGHT-1M` response
         header, which reflects the venue-side count of weight consumed
@@ -198,22 +198,29 @@ class BinanceAdapter:
         HealthLoop tick and locking the operational mode in
         REDUCE_ONLY for the rest of the process lifetime — every
         downstream ENTER then fails validation with
-        `INTAKE_MODE_BLOCKS_ENTER`. Linear decay-to-zero across
-        `_WEIGHT_WINDOW_SECONDS` matches the venue-side semantics
-        closely enough to release the mode lock once the venue's
-        actual window has rolled forward.
+        `INTAKE_MODE_BLOCKS_ENTER`.
+
+        Step-down (not linear decay): the value is held unchanged for
+        the full `_WEIGHT_WINDOW_SECONDS` window, then drops to zero.
+        This matches the venue-side behaviour for the failure mode
+        being fixed — a one-shot burst at t=0 keeps the venue's
+        sliding-window count at ~burst-size for nearly the full 60s
+        before the burst rolls off in one block. Linear decay would
+        report sub-breach utilisation by t≈9s while the venue still
+        considers the IP at-limit, risking a re-trip on the very
+        next request and mode flapping. For sustained-traffic cases
+        the decay path is never reached because each fresh header
+        replaces `_used_weight` and resets `_weight_updated_at`.
 
         Returns:
-            int: Decayed weight count, or `_used_weight` unchanged when
-                a fresh header arrived less than `_WEIGHT_WINDOW_SECONDS`
-                ago (linear decay) or zero when older.
+            int: `_used_weight` unchanged when the last header arrived
+                less than `_WEIGHT_WINDOW_SECONDS` ago, otherwise zero.
         '''
 
         elapsed = time.monotonic() - self._weight_updated_at
         if elapsed >= _WEIGHT_WINDOW_SECONDS:
             return 0
-        decay_fraction = elapsed / _WEIGHT_WINDOW_SECONDS
-        return max(0, int(self._used_weight * (1.0 - decay_fraction)))
+        return self._used_weight
 
     @property
     def weight_headroom(self) -> float:

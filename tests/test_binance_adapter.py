@@ -1795,7 +1795,7 @@ class TestHeadroom:
         adapter._weight_limit = 1000
         adapter._used_weight = 800
         adapter._weight_updated_at = time.monotonic()
-        assert adapter.weight_headroom == pytest.approx(0.2, abs=0.005)
+        assert adapter.weight_headroom == pytest.approx(0.2)
 
     def test_weight_headroom_exhausted(self) -> None:
 
@@ -1803,7 +1803,7 @@ class TestHeadroom:
         adapter._weight_limit = 1000
         adapter._used_weight = 1000
         adapter._weight_updated_at = time.monotonic()
-        assert adapter.weight_headroom == pytest.approx(0.0, abs=0.005)
+        assert adapter.weight_headroom == 0.0
 
     def test_weight_headroom_zero_limit(self) -> None:
 
@@ -2744,7 +2744,7 @@ class TestHealthSignals:
         adapter._weight_limit = 1000
         adapter._weight_updated_at = time.monotonic()
 
-        assert adapter.rate_limit_utilization == pytest.approx(0.3, abs=0.005)
+        assert adapter.rate_limit_utilization == pytest.approx(0.3)
 
     def test_rate_limit_utilization_clamps_above_one(self) -> None:
 
@@ -2755,7 +2755,7 @@ class TestHealthSignals:
 
         assert adapter.rate_limit_utilization == 1.0
 
-    def test_rate_limit_utilization_decays_to_zero_after_window(self) -> None:
+    def test_rate_limit_utilization_drops_to_zero_after_window(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter._used_weight = 6091
@@ -2764,20 +2764,28 @@ class TestHealthSignals:
 
         assert adapter.rate_limit_utilization == 0.0
 
-    def test_rate_limit_utilization_linear_decay_partial(self) -> None:
+    def test_rate_limit_utilization_holds_pinned_within_window(self) -> None:
+        '''Step-down model: value held unchanged for the full window.
+
+        Linear decay was rejected in PR #107 review (Copilot) because
+        a one-shot burst at t=0 keeps the venue's sliding-window count
+        at ~burst-size for nearly the full 60s; reporting 50% at t=30s
+        would unlock the mode while the venue still considers the IP
+        at-limit, risking re-trip and flapping.
+        '''
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter._used_weight = 1000
         adapter._weight_limit = 1000
         adapter._weight_updated_at = time.monotonic() - 30.0
 
-        assert adapter.rate_limit_utilization == pytest.approx(0.5, abs=0.02)
+        assert adapter.rate_limit_utilization == 1.0
 
     def test_used_weight_decay_unblocks_pinned_mode(self) -> None:
-        '''Regression: post-startup-burst, mode must not stay locked.
+        '''Regression: post-startup-burst, mode must not stay locked forever.
 
         2026-05-14: a startup `load_filters` burst pinned `_used_weight`
-        at the testnet 6000/min limit. Without decay,
+        at the testnet 6000/min limit. Without time-based release,
         `rate_limit_utilization` returned 1.0 forever, tripping
         `HealthEvaluator.headroom_breach` (0.85) and locking the mode
         in REDUCE_ONLY for 4+ hours despite zero subsequent traffic.
@@ -2829,7 +2837,7 @@ class TestHealthSignals:
 
         snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
 
-        assert snapshot.rate_limit_headroom == pytest.approx(0.6, abs=0.005)
+        assert snapshot.rate_limit_headroom == pytest.approx(0.6)
         assert snapshot.clock_drift_ms == 8.0
 
     def test_health_trackers_are_isolated_per_account(self) -> None:
