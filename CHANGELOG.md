@@ -696,3 +696,8 @@
 ## v0.59.4 on 13th of May, 2026
 
 - Bump `vaquum-nexus` git+https pin from Nexus 0.46.0 main HEAD `b075042aa0cd5aad6da8355ce7d672983fb71eb1` to Nexus 0.47.0 main HEAD `902c895f8151318b285c64f6242cad62b720457a` ([Vaquum/Nexus#67](https://github.com/Vaquum/Nexus/pull/67) — ExtraAdder fix in `nexus/infrastructure/observability.py` + per-action `bound_context` wrapping in `submit_actions`). Pairs with the Praxis-side ExtraAdder fix in v0.59.3 so both observability modules in the deployed image honour stdlib `_log.info('msg', extra={...})` extras and the Nexus-side trade-lifecycle emits carry `strategy_id` / `action_type` / `trade_id` / `command_id` via structlog contextvars
+
+## v0.59.5 on 14th of May, 2026
+
+- Fix [`BinanceAdapter._used_weight`](praxis/infrastructure/binance_adapter.py) to decay linearly to zero over 60s (Binance's per-IP sliding window). Pre-patch a startup `load_filters` burst pinned the value at the testnet weight limit, kept `HealthEvaluator` returning REDUCE_ONLY, and blocked every ENTER with `INTAKE_MODE_BLOCKS_ENTER` for 4+ hours
+- Add three regression tests in [`tests/test_binance_adapter.py`](tests/test_binance_adapter.py) covering full decay past window, linear midpoint, and the exact 2026-05-14 pinned-mode failure mode

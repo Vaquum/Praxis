@@ -1794,14 +1794,16 @@ class TestHeadroom:
         adapter = _make_adapter()
         adapter._weight_limit = 1000
         adapter._used_weight = 800
-        assert adapter.weight_headroom == pytest.approx(0.2)
+        adapter._weight_updated_at = time.monotonic()
+        assert adapter.weight_headroom == pytest.approx(0.2, abs=0.005)
 
     def test_weight_headroom_exhausted(self) -> None:
 
         adapter = _make_adapter()
         adapter._weight_limit = 1000
         adapter._used_weight = 1000
-        assert adapter.weight_headroom == 0.0
+        adapter._weight_updated_at = time.monotonic()
+        assert adapter.weight_headroom == pytest.approx(0.0, abs=0.005)
 
     def test_weight_headroom_zero_limit(self) -> None:
 
@@ -2740,16 +2742,55 @@ class TestHealthSignals:
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter._used_weight = 300
         adapter._weight_limit = 1000
+        adapter._weight_updated_at = time.monotonic()
 
-        assert adapter.rate_limit_utilization == pytest.approx(0.3)
+        assert adapter.rate_limit_utilization == pytest.approx(0.3, abs=0.005)
 
     def test_rate_limit_utilization_clamps_above_one(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
         adapter._used_weight = 2000
         adapter._weight_limit = 1000
+        adapter._weight_updated_at = time.monotonic()
 
         assert adapter.rate_limit_utilization == 1.0
+
+    def test_rate_limit_utilization_decays_to_zero_after_window(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
+        adapter._used_weight = 6091
+        adapter._weight_limit = 6000
+        adapter._weight_updated_at = time.monotonic() - 60.0
+
+        assert adapter.rate_limit_utilization == 0.0
+
+    def test_rate_limit_utilization_linear_decay_partial(self) -> None:
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
+        adapter._used_weight = 1000
+        adapter._weight_limit = 1000
+        adapter._weight_updated_at = time.monotonic() - 30.0
+
+        assert adapter.rate_limit_utilization == pytest.approx(0.5, abs=0.02)
+
+    def test_used_weight_decay_unblocks_pinned_mode(self) -> None:
+        '''Regression: post-startup-burst, mode must not stay locked.
+
+        2026-05-14: a startup `load_filters` burst pinned `_used_weight`
+        at the testnet 6000/min limit. Without decay,
+        `rate_limit_utilization` returned 1.0 forever, tripping
+        `HealthEvaluator.headroom_breach` (0.85) and locking the mode
+        in REDUCE_ONLY for 4+ hours despite zero subsequent traffic.
+        Every ENTER was rejected with `INTAKE_MODE_BLOCKS_ENTER`.
+        '''
+
+        adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
+        adapter._used_weight = 6091
+        adapter._weight_limit = 6000
+        adapter._weight_updated_at = time.monotonic() - 90.0
+
+        assert adapter.rate_limit_utilization == 0.0
+        assert adapter.weight_headroom == 1.0
 
     @pytest.mark.asyncio
     async def test_successful_signed_request_records_success(self) -> None:
@@ -2783,11 +2824,12 @@ class TestHealthSignals:
         tracker.record_request(latency_ms=12.0, succeeded=True)
         adapter._used_weight = 600
         adapter._weight_limit = 1000
+        adapter._weight_updated_at = time.monotonic()
         adapter._clock_drift_ms = 8.0
 
         snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
 
-        assert snapshot.rate_limit_headroom == pytest.approx(0.6)
+        assert snapshot.rate_limit_headroom == pytest.approx(0.6, abs=0.005)
         assert snapshot.clock_drift_ms == 8.0
 
     def test_health_trackers_are_isolated_per_account(self) -> None:
