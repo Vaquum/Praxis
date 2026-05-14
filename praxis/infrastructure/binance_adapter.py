@@ -86,6 +86,7 @@ _DEFAULT_ORDER_COUNT_LIMIT = 10
 _RATE_LIMIT_WARN_THRESHOLD = 0.2
 _WEIGHT_INTERVAL_NUM = 1
 _ORDER_COUNT_INTERVAL_NUM = 10
+_WEIGHT_WINDOW_SECONDS = 60.0
 
 _log = logging.getLogger(__name__)
 
@@ -170,6 +171,7 @@ class BinanceAdapter:
         self._closed: bool = False
         self._filters: dict[str, SymbolFilters] = {}
         self._used_weight: int = 0
+        self._weight_updated_at: float = time.monotonic()
         self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
         self._order_count: dict[str, int] = {}
         self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
@@ -179,6 +181,46 @@ class BinanceAdapter:
         }
         self._clock_drift_ms: float = 0.0
         self._health_lock = threading.Lock()
+
+    def _decayed_used_weight(self) -> int:
+
+        '''
+        Step-down model for `_used_weight` against Binance's 1-minute window.
+
+        `_used_weight` is set from the `X-MBX-USED-WEIGHT-1M` response
+        header, which reflects the venue-side count of weight consumed
+        in the trailing 60 seconds. Without fresh responses to refresh
+        the header, the local copy stays stuck at its last value while
+        the venue-side count drains. A startup spike (e.g. `load_filters`
+        bursting past the testnet 6000/min limit) would otherwise pin
+        the cached value at the limit indefinitely, tripping
+        `HealthEvaluator.headroom_breach` (default 0.85) on every
+        HealthLoop tick and locking the operational mode in
+        REDUCE_ONLY for the rest of the process lifetime — every
+        downstream ENTER then fails validation with
+        `INTAKE_MODE_BLOCKS_ENTER`.
+
+        Step-down (not linear decay): the value is held unchanged for
+        the full `_WEIGHT_WINDOW_SECONDS` window, then drops to zero.
+        This matches the venue-side behaviour for the failure mode
+        being fixed — a one-shot burst at t=0 keeps the venue's
+        sliding-window count at ~burst-size for nearly the full 60s
+        before the burst rolls off in one block. Linear decay would
+        report sub-breach utilisation by t≈9s while the venue still
+        considers the IP at-limit, risking a re-trip on the very
+        next request and mode flapping. For sustained-traffic cases
+        the decay path is never reached because each fresh header
+        replaces `_used_weight` and resets `_weight_updated_at`.
+
+        Returns:
+            int: `_used_weight` unchanged when the last header arrived
+                less than `_WEIGHT_WINDOW_SECONDS` ago, otherwise zero.
+        '''
+
+        elapsed = time.monotonic() - self._weight_updated_at
+        if elapsed >= _WEIGHT_WINDOW_SECONDS:
+            return 0
+        return self._used_weight
 
     @property
     def weight_headroom(self) -> float:
@@ -193,7 +235,7 @@ class BinanceAdapter:
         if self._weight_limit <= 0:
             return 1.0
 
-        return min(1.0, max(0.0, (self._weight_limit - self._used_weight) / self._weight_limit))
+        return min(1.0, max(0.0, (self._weight_limit - self._decayed_used_weight()) / self._weight_limit))
 
     def order_count_headroom(self, account_id: str) -> float:
 
@@ -1584,7 +1626,7 @@ class BinanceAdapter:
         if self._weight_limit <= 0:
             return 0.0
 
-        return min(1.0, max(0.0, self._used_weight / self._weight_limit))
+        return min(1.0, max(0.0, self._decayed_used_weight() / self._weight_limit))
 
     @property
     def clock_drift_ms(self) -> float:
@@ -1686,6 +1728,7 @@ class BinanceAdapter:
                 parsed_weight = int(weight_raw)
                 if parsed_weight >= 0:
                     self._used_weight = parsed_weight
+                    self._weight_updated_at = time.monotonic()
 
         if account_id is not None:
             order_raw = response.headers.get('X-MBX-ORDER-COUNT-10S')
