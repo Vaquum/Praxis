@@ -120,15 +120,21 @@ class MainCache:
 
         '''Highest `datetime` covered by the on-disk cache.
 
+        Always returned as an aware UTC `datetime` so callers
+        (notably `refresh_from_binancial`'s `last_covered_ts >= now`
+        check, where `now` is aware UTC) never face a naive-vs-aware
+        `TypeError`. A naive ISO string on disk is assumed to be
+        UTC; an aware ISO string is converted to UTC.
+
         Returns:
-            datetime | None: ISO 8601 UTC timestamp of the most
-                recent bar in the cache, or `None` when the state
-                file does not exist yet (first-ever boot) or when
-                the state file is unreadable / corrupt — in the
-                corrupt case a warning is logged and `None` is
-                returned so the bootstrap / binancial paths can
-                self-heal the cache instead of permanently breaking
-                both refresh paths.
+            datetime | None: Aware UTC timestamp of the most recent
+                bar in the cache, or `None` when the state file
+                does not exist yet (first-ever boot) or when the
+                state file is unreadable / corrupt — in the corrupt
+                case a warning is logged and `None` is returned so
+                the bootstrap / binancial paths can self-heal the
+                cache instead of permanently breaking both refresh
+                paths.
         '''
 
         if not self._main_cache_state_path.exists():
@@ -141,7 +147,12 @@ class MainCache:
             if raw is None:
                 return None
 
-            return datetime.fromisoformat(raw)
+            parsed = datetime.fromisoformat(raw)
+
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=UTC)
+
+            return parsed.astimezone(UTC)
 
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             _log.warning(

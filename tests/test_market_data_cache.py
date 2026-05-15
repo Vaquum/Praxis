@@ -292,6 +292,47 @@ def test_last_covered_ts_returns_none_on_corrupt_state_file(
     )
 
 
+def test_last_covered_ts_normalizes_naive_iso_to_utc(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''A naive ISO string on disk is assumed to be UTC and returned
+    as an aware UTC datetime so the downstream `last_covered_ts >= now`
+    check in `refresh_from_binancial` (where `now` is aware UTC)
+    never raises naive-vs-aware `TypeError`.
+    '''
+
+    parquet_path, state_path = cache_paths
+    state_path.write_text(json.dumps({
+        'last_covered_ts': '2026-05-15T12:00:00',
+    }))
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    result = cache.last_covered_ts
+
+    assert result == datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
+    assert result is not None
+    assert result.tzinfo is UTC
+
+
+def test_last_covered_ts_converts_non_utc_aware_to_utc(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''An aware ISO string in a non-UTC offset is converted to UTC.
+    '''
+
+    parquet_path, state_path = cache_paths
+    state_path.write_text(json.dumps({
+        'last_covered_ts': '2026-05-15T14:00:00+02:00',
+    }))
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    result = cache.last_covered_ts
+
+    assert result == datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
+    assert result is not None
+    assert result.utcoffset() == timedelta(0)
+
+
 def test_last_covered_ts_returns_none_on_invalid_iso_timestamp(
     cache_paths: tuple[Path, Path],
     caplog: pytest.LogCaptureFixture,
