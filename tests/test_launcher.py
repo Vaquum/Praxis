@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import aiosqlite
+import pytest
 
 from praxis.core.domain.enums import (
     ExecutionMode,
@@ -166,6 +167,7 @@ def _make_manifest_yaml(
 
 class TestLauncherLifecycle:
 
+    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_start_and_shutdown(self, tmp_path: Path) -> None:
         '''Launcher starts, runs briefly, then shuts down cleanly.'''
 
@@ -510,6 +512,7 @@ class TestLauncherLifecycle:
         launcher._loop.call_soon_threadsafe(launcher._loop.stop)
         launcher._loop_thread.join(timeout=5)
 
+    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_build_failure_sets_stop_event_and_unwinds(self, tmp_path: Path) -> None:
         '''PT-FIX-24: When `_build_nexus_runtime` raises, `_run_nexus_instance`
         must set `_stop_event` so `launch()` exits the wait, runs `_shutdown`,

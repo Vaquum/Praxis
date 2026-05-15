@@ -54,6 +54,7 @@ def _get_healthz(port: int) -> tuple[int, str]:
 
 class TestHealthzEndpoint:
 
+    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_healthz_returns_200_when_healthy(self, tmp_path: Path) -> None:
         '''GET /healthz returns 200 while Trading is up.'''
 
@@ -116,6 +117,7 @@ class TestHealthzEndpoint:
             loop.call_soon_threadsafe(loop.stop)
             loop_thread.join(timeout=5)
 
+    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_healthz_serves_503_while_shutdown_runs(self, tmp_path: Path) -> None:
         '''PT-FIX-22: `_stop_healthz` must run only after `_trading.stop()`
         completes so `/healthz` keeps returning 503 with
@@ -220,6 +222,7 @@ class TestHealthzEndpoint:
             loop.call_soon_threadsafe(loop.stop)
             loop_thread.join(timeout=5)
 
+    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_healthz_returns_503_during_shutdown(self, tmp_path: Path) -> None:
         '''GET /healthz returns 503 once the stop event is set.'''
 

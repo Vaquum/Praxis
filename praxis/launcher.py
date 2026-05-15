@@ -25,6 +25,7 @@ from typing import Any
 import aiosqlite
 import polars as pl
 from aiohttp import web
+from binance.client import Client
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
@@ -96,6 +97,7 @@ from praxis.infrastructure.binance_urls import (
 )
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
+from praxis.market_data_cache import CacheScheduler, MainCache
 from praxis.market_data_poller import MarketDataPoller, StaleMarketDataError
 from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.venue_adapter import VenueAdapter
@@ -805,14 +807,14 @@ def _register_wired_kline_sizes(
     poller started empty, and `signal_producer.produce_signal` raised
     `ValueError("market_data is empty for sensor X")` on every tick.
 
-    Each `(kline_size, interval_seconds)` tuple is registered via
-    `MarketDataPoller.add_kline_size`, which is idempotent + ref-counted
-    so multiple sensors sharing a kline_size register a single poller
-    thread. The same `kline_size` registered with different intervals
-    keeps the first-caller's interval (per `add_kline_size` contract).
-
-    Returns the sorted tuple of registered kline sizes for the
-    launcher's `fallback_price_provider` closure to iterate.
+    Returns the sorted tuple of declared kline sizes for the
+    launcher's `fallback_price_provider` closure to iterate. Post
+    market-data-cache rewire (Praxis #108) the cache is
+    symbol-scoped — there is no per-kline_size registration to
+    perform, so this function only collects the sizes from wired
+    sensor manifests; the `poller` argument is accepted for
+    backward-compat with existing call sites and is otherwise
+    unused.
     '''
 
     sizes: set[int] = set()
@@ -841,9 +843,7 @@ def _register_wired_kline_sizes(
             if raw is None:
                 continue
 
-            kline_size = int(raw)
-            poller.add_kline_size(kline_size, wired.interval_seconds)
-            sizes.add(kline_size)
+            sizes.add(int(raw))
         except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
             _log.warning(
                 'skipping wired sensor with invalid kline_size configuration',
@@ -1100,6 +1100,8 @@ class Launcher:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
         self._trading: Trading | None = None
+        self._cache: MainCache | None = None
+        self._cache_scheduler: CacheScheduler | None = None
         self._poller: MarketDataPoller | None = None
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
@@ -1253,17 +1255,38 @@ class Launcher:
             )
 
     def _start_poller(self) -> None:
-        '''Start the market data poller with no kline sizes registered.
+        '''Build the MainCache, fill it at boot, start CacheScheduler, wrap in MarketDataPoller.
 
-        Per-account kline sizes are registered later by
-        `_build_nexus_runtime` via `_register_wired_kline_sizes` once
-        `StartupSequencer.start()` has trained sensors and their
-        `limen_manifest` is populated. The poller is ref-counted so
-        multiple Nexus instances can share kline sizes safely.
+        On first-ever boot the on-disk parquet at `MAIN_CACHE_DIR`
+        is missing; `bootstrap_if_empty()` triggers a synchronous
+        `refresh_from_limen()` to populate it from the HF dataset.
+        Then a synchronous `refresh_from_binancial()` fills the
+        trailing-day gap that Limen does not cover, so when
+        `CacheScheduler.start()` returns and the first sensor tick
+        fires, the cache already has fresh data — no 1-minute
+        warm-up window where strategies see only Limen bars.
+        Restart-with-existing-parquet skips bootstrap and just
+        calls `load()` to populate the in-memory mirror.
+
+        The `MarketDataPoller` adapter wraps the cache for
+        backward-compat with the existing `market_data_provider`
+        callback and the staleness-aware `fallback_price_provider`.
+        Lifecycle is owned by `CacheScheduler`, not the adapter.
         '''
 
-        self._poller = MarketDataPoller(testnet=self._market_data_testnet)
-        self._poller.start()
+        client = Client(None, None, ping=False, testnet=self._market_data_testnet)
+        cache_dir = Path(os.environ.get('MAIN_CACHE_DIR', '/var/lib/praxis/maincache'))
+        self._cache = MainCache(
+            client,
+            parquet_path=cache_dir / 'btcusdt_1m.parquet',
+            main_cache_state_path=cache_dir / 'main_cache_state.json',
+        )
+        self._cache.load()
+        self._cache.bootstrap_if_empty()
+        self._cache.refresh_from_binancial()
+        self._cache_scheduler = CacheScheduler(self._cache)
+        self._cache_scheduler.start()
+        self._poller = MarketDataPoller(self._cache)
 
     def _start_healthz(self) -> None:
         '''Start the /healthz HTTP listener on the launcher's asyncio loop.
@@ -1360,8 +1383,8 @@ class Launcher:
                     extra={'thread': thread.name},
                 )
 
-        if self._poller is not None:
-            self._poller.stop()
+        if self._cache_scheduler is not None:
+            self._cache_scheduler.stop()
 
         if self._trading is not None and self._loop is not None:
             future = asyncio.run_coroutine_threadsafe(self._trading.stop(), self._loop)
