@@ -142,10 +142,25 @@ class MainCache:
 
         try:
             payload = json.loads(self._main_cache_state_path.read_text())
+
+            if not isinstance(payload, dict):
+                msg = (
+                    f'expected JSON object at top level, got '
+                    f'{type(payload).__name__}'
+                )
+                raise TypeError(msg)
+
             raw = payload.get('last_covered_ts')
 
             if raw is None:
                 return None
+
+            if not isinstance(raw, str):
+                msg = (
+                    f'expected `last_covered_ts` to be a string, got '
+                    f'{type(raw).__name__}'
+                )
+                raise TypeError(msg)
 
             parsed = datetime.fromisoformat(raw)
 
@@ -154,7 +169,13 @@ class MainCache:
 
             return parsed.astimezone(UTC)
 
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
+        except (
+            OSError,
+            json.JSONDecodeError,
+            ValueError,
+            TypeError,
+            AttributeError,
+        ) as exc:
             _log.warning(
                 'main cache state file unreadable or corrupt; treating as '
                 'absent so refresh paths self-heal',

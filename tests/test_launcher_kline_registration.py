@@ -16,6 +16,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
 from praxis.launcher import _register_wired_kline_sizes
 
 
@@ -160,6 +162,25 @@ def test_skips_kline_size_not_multiple_of_60() -> None:
     )
 
     assert sizes == ()
+
+
+def test_warning_messages_distinguish_non_positive_from_non_multiple(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''The two halves of the guard log distinct messages so operators
+    can tell whether the offending `kline_size` was non-positive or
+    just not a multiple of 60.
+    '''
+
+    with caplog.at_level('WARNING', logger='praxis.launcher'):
+        _register_wired_kline_sizes([
+            _wired_sensor(kline_size=-60),
+            _wired_sensor(kline_size=59),
+        ])
+
+    messages = [record.message for record in caplog.records]
+    assert any('non-positive kline_size' in m for m in messages)
+    assert any('non-multiple-of-60 kline_size' in m for m in messages)
 
 
 def test_invalid_kline_size_does_not_drop_other_valid_sensors() -> None:

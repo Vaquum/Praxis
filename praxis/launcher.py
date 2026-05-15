@@ -839,7 +839,17 @@ def _register_wired_kline_sizes(
 
             kline_size = int(raw)
 
-            if kline_size <= 0 or kline_size % 60 != 0:
+            if kline_size <= 0:
+                _log.warning(
+                    'skipping wired sensor with non-positive kline_size',
+                    extra={
+                        'sensor_type': type(wired).__name__,
+                        'kline_size': kline_size,
+                    },
+                )
+                continue
+
+            if kline_size % 60 != 0:
                 _log.warning(
                     'skipping wired sensor with non-multiple-of-60 kline_size',
                     extra={

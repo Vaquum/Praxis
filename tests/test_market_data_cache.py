@@ -333,6 +333,48 @@ def test_last_covered_ts_converts_non_utc_aware_to_utc(
     assert result.utcoffset() == timedelta(0)
 
 
+def test_last_covered_ts_returns_none_when_state_is_not_an_object(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''State file with valid JSON of the wrong shape (e.g. a list at
+    the top level) is treated as corrupt so the cache self-heals
+    instead of raising `AttributeError` on the missing `.get`.
+    '''
+
+    parquet_path, state_path = cache_paths
+    state_path.write_text(json.dumps([]))
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    with caplog.at_level('WARNING', logger='praxis.market_data_cache'):
+        result = cache.last_covered_ts
+
+    assert result is None
+    assert any(
+        'state file unreadable or corrupt' in record.message
+        for record in caplog.records
+    )
+
+
+def test_last_covered_ts_returns_none_when_value_is_not_a_string(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''State file where `last_covered_ts` is a non-string value
+    (e.g. a number) is treated as corrupt so the cache self-heals
+    instead of raising `TypeError` on `datetime.fromisoformat`.
+    '''
+
+    parquet_path, state_path = cache_paths
+    state_path.write_text(json.dumps({'last_covered_ts': 1234567890}))
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    with caplog.at_level('WARNING', logger='praxis.market_data_cache'):
+        result = cache.last_covered_ts
+
+    assert result is None
+
+
 def test_last_covered_ts_returns_none_on_invalid_iso_timestamp(
     cache_paths: tuple[Path, Path],
     caplog: pytest.LogCaptureFixture,
