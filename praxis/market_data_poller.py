@@ -26,7 +26,6 @@ per-kline_size, and lifecycle is owned by `CacheScheduler`.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import cast
 
 import polars as pl
 
@@ -126,11 +125,13 @@ class MarketDataPoller:
 
         '''Return klines at `kline_size`, raising on stale cache.
 
-        Aggregates the cache's in-memory 1-min frame up to the
-        requested kline_size via `MainCache.get_market_data`. Before
-        returning, checks the latest bar's `datetime` against
-        `now - max_age_seconds`; raises `StaleMarketDataError` when
-        the bar is older than the threshold.
+        Calls `MainCache.snapshot(kline_size)` once so the staleness
+        check and the returned aggregated frame both come from the
+        same `MainCache._frame` reference. Without this single-call
+        snapshot, a refresh that swapped `_frame` between two
+        separate reads could surface a false `StaleMarketDataError`
+        (decision made on the old frame, data taken from the new
+        one) or vice versa.
 
         An empty in-memory frame is treated as fresh-but-empty and
         returned as-is — staleness only fires when there IS data
@@ -150,10 +151,10 @@ class MarketDataPoller:
                 is older than the configured max age.
         '''
 
-        latest = self._latest_bar_ts()
+        aggregated, latest = self._cache.snapshot(kline_size)
 
         if latest is None:
-            return self._cache.get_market_data(kline_size)
+            return aggregated
 
         max_age_seconds = self._max_age_seconds(kline_size)
         age_seconds = (datetime.now(tz=UTC) - latest).total_seconds()
@@ -166,11 +167,14 @@ class MarketDataPoller:
                 max_age_seconds=max_age_seconds,
             )
 
-        return self._cache.get_market_data(kline_size)
+        return aggregated
 
     def is_stale(self, kline_size: int) -> bool:
 
         '''Non-raising staleness check.
+
+        Uses `MainCache.snapshot(kline_size)` for the same
+        single-snapshot read consistency as `get_market_data`.
 
         Used by `fallback_price_provider` (and any other caller
         that wants to short-circuit on stale data without
@@ -183,7 +187,7 @@ class MarketDataPoller:
                 `False` otherwise.
         '''
 
-        latest = self._latest_bar_ts()
+        _, latest = self._cache.snapshot(kline_size)
 
         if latest is None:
             return True
@@ -191,27 +195,6 @@ class MarketDataPoller:
         max_age_seconds = self._max_age_seconds(kline_size)
         age_seconds = (datetime.now(tz=UTC) - latest).total_seconds()
         return age_seconds > max_age_seconds
-
-    def _latest_bar_ts(self) -> datetime | None:
-
-        '''Highest `datetime` in the cache's in-memory frame, or `None`.'''
-
-        frame = self._cache.frame
-
-        if frame.is_empty():
-            return None
-
-        raw_latest = frame['datetime'].max()
-
-        if raw_latest is None:
-            return None
-
-        latest = cast(datetime, raw_latest)
-
-        if latest.tzinfo is None:
-            latest = latest.replace(tzinfo=UTC)
-
-        return latest
 
     def _max_age_seconds(self, kline_size: int) -> float:
 

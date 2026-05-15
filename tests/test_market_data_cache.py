@@ -333,6 +333,94 @@ def test_last_covered_ts_converts_non_utc_aware_to_utc(
     assert result.utcoffset() == timedelta(0)
 
 
+def test_apply_new_bars_does_not_re_read_parquet(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: `_apply_new_bars` no longer calls `pl.read_parquet` on
+    every refresh. Pre-fix the merge re-loaded the entire on-disk
+    parquet under `_write_lock` on every tick, scaling per-refresh
+    I/O as O(size_of_cache); post-fix the in-memory `_frame` is the
+    source of truth during merge so per-minute refreshes are O(new
+    bars), not O(whole cache).
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    snapshot_pd = _make_klines_pandas(_BASE_TS, count=3)
+
+    with (
+        patch(
+            'praxis.market_data_cache.get_spot_klines',
+            return_value=snapshot_pd,
+        ),
+        patch(
+            'praxis.market_data_cache.pl.read_parquet',
+        ) as mock_read,
+    ):
+        cache.refresh_from_binancial()
+        cache.refresh_from_binancial()
+        cache.refresh_from_binancial()
+
+    assert mock_read.call_count == 0
+
+
+def test_snapshot_returns_aggregated_frame_and_latest_ts_atomically(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: `MainCache.snapshot` derives both pieces from a single
+    `_frame` reference captured at call entry. Verified by
+    asserting the returned `latest` matches the source frame's max
+    `datetime` and the aggregated frame matches what
+    `get_market_data` returns for the same kline_size.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    bars = _make_klines(_BASE_TS, count=10)
+
+    with patch(
+        'praxis.market_data_cache.HistoricalData',
+    ) as mock_hd_cls:
+        mock_hd_cls.return_value.get_spot_klines.return_value = bars
+        cache.refresh_from_limen()
+
+    aggregated, latest = cache.snapshot(60)
+
+    assert latest == bars['datetime'].max()
+    assert latest is not None
+    assert latest.utcoffset() == timedelta(0)
+    assert aggregated.height == cache.get_market_data(60).height
+
+
+def test_snapshot_returns_empty_and_none_when_cache_unpopulated(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Empty in-memory frame yields `(empty_frame, None)`.'''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    aggregated, latest = cache.snapshot(60)
+
+    assert aggregated.is_empty()
+    assert latest is None
+
+
+def test_snapshot_validates_kline_size(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Same `kline_size` validation as `get_market_data`.'''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    with pytest.raises(ValueError, match='positive multiple'):
+        cache.snapshot(0)
+
+    with pytest.raises(ValueError, match='positive multiple'):
+        cache.snapshot(59)
+
+
 def test_load_quarantines_corrupt_parquet_and_resets_frame(
     cache_paths: tuple[Path, Path],
     caplog: pytest.LogCaptureFixture,

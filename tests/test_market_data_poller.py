@@ -128,7 +128,7 @@ def test_get_market_data_empty_cache_does_not_raise() -> None:
 
     cache = MagicMock(spec=MainCache)
     cache.frame = pl.DataFrame()
-    cache.get_market_data.return_value = pl.DataFrame()
+    cache.snapshot.return_value = (pl.DataFrame(), None)
 
     poller = MarketDataPoller(cache)
     result = poller.get_market_data(300)
@@ -158,11 +158,39 @@ def test_get_market_data_respects_max_age_override(
     assert exc_info.value.max_age_seconds == 60.0
 
 
+def test_get_market_data_uses_single_snapshot_call() -> None:
+    '''Pin: `get_market_data` calls `cache.snapshot(kline_size)`
+    exactly once and never touches `cache.frame` or
+    `cache.get_market_data` separately. Without this the staleness
+    decision and the returned data could be derived from different
+    `_frame` references when a refresh thread swaps the frame
+    between the two reads.
+    '''
+
+    cache = MagicMock(spec=MainCache)
+    fresh_frame = _make_klines(_BASE_TS, count=5)
+    cache.snapshot.return_value = (
+        fresh_frame,
+        _BASE_TS + timedelta(minutes=4),
+    )
+    poller = MarketDataPoller(cache)
+
+    fixed_now = _BASE_TS + timedelta(minutes=4, seconds=30)
+    with patch('praxis.market_data_poller.datetime') as mock_dt:
+        mock_dt.now.return_value = fixed_now
+        result = poller.get_market_data(60)
+
+    assert result is fresh_frame
+    cache.snapshot.assert_called_once_with(60)
+    cache.get_market_data.assert_not_called()
+
+
 def test_is_stale_returns_true_when_empty() -> None:
     '''Non-raising counterpart: an empty cache reports stale.'''
 
     cache = MagicMock(spec=MainCache)
     cache.frame = pl.DataFrame()
+    cache.snapshot.return_value = (pl.DataFrame(), None)
     poller = MarketDataPoller(cache)
 
     assert poller.is_stale(300) is True

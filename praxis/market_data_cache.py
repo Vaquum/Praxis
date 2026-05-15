@@ -429,19 +429,86 @@ class MainCache:
             _limen_aggregate_spot_klines(self._frame, kline_size),
         )
 
+    def snapshot(
+        self,
+        kline_size: int,
+    ) -> tuple[pl.DataFrame, datetime | None]:
+
+        '''Return aggregated frame + latest bar ts from one frame ref.
+
+        Captures `self._frame` once into a local name then derives
+        both pieces of data from THAT reference, so a refresh that
+        swaps `self._frame` between the two reads cannot make the
+        caller's staleness check disagree with the data it returns.
+        Used by `MarketDataPoller` to gate hot-path reads on
+        per-kline_size max-age without the read-race that would
+        exist if the poller called `cache.frame` and
+        `cache.get_market_data` separately.
+
+        Args:
+            kline_size (int): Requested kline bucket width in
+                seconds. Must be a positive multiple of
+                `_BASE_KLINE_SIZE_SECONDS` (60).
+
+        Raises:
+            ValueError: When `kline_size <= 0` or
+                `kline_size % _BASE_KLINE_SIZE_SECONDS != 0`.
+
+        Returns:
+            tuple[pl.DataFrame, datetime | None]: Aggregated frame
+                at `kline_size` and the highest `datetime` in the
+                source 1-min frame (aware UTC), or an empty frame
+                + `None` when nothing has been loaded yet. Both
+                values are derived from the same `self._frame`
+                reference captured atomically at call entry.
+        '''
+
+        if kline_size <= 0 or kline_size % _BASE_KLINE_SIZE_SECONDS != 0:
+            msg = (
+                f'kline_size must be a positive multiple of '
+                f'{_BASE_KLINE_SIZE_SECONDS}, got {kline_size}'
+            )
+            raise ValueError(msg)
+
+        frame = self._frame
+
+        if frame.is_empty():
+            return frame, None
+
+        raw_latest = frame['datetime'].max()
+        latest = cast(datetime, raw_latest) if raw_latest is not None else None
+
+        if latest is not None and latest.tzinfo is None:
+            latest = latest.replace(tzinfo=UTC)
+
+        if kline_size == _BASE_KLINE_SIZE_SECONDS:
+            return frame, latest
+
+        aggregated = cast(
+            pl.DataFrame,
+            _limen_aggregate_spot_klines(frame, kline_size),
+        )
+        return aggregated, latest
+
     def _apply_new_bars(self, new_bars: pl.DataFrame, source: str) -> None:
 
         '''Concat, dedupe, sort, atomic-write — under `_write_lock`.
 
         Shared post-fetch path used by both `refresh_from_limen`
-        and `refresh_from_binancial`. The lock prevents the daily
-        Limen refresh and the per-minute binancial refresh from
-        interleaving their disk writes (they would otherwise both
-        rewrite the parquet from `self.load()` snapshots taken at
-        different points and the later writer would clobber the
-        earlier writer's bars). Reload happens inside the lock too
-        so the in-memory mirror is always consistent with what is
-        on disk.
+        and `refresh_from_binancial`. The lock serializes the two
+        refresh threads so they cannot interleave their disk writes
+        (and so `self._frame = merged` is the only write to the
+        in-memory mirror in flight at any time). Because we are the
+        only writer to both the parquet and `self._frame`, the
+        in-memory mirror is the authoritative current state — there
+        is no need to re-read the parquet from disk inside the lock
+        on every refresh tick. Re-reading would scale per-refresh I/O
+        as O(size_of_cache) and become a real cost as the cache grows
+        (~1MB/day). The on-disk parquet is read at boot via
+        `Launcher._start_poller -> cache.load()` and on a runtime
+        corruption recovery via `load()`'s self-heal path; otherwise
+        the in-memory frame and the on-disk parquet are kept in
+        lock-step by the atomic write at the bottom of this method.
 
         Args:
             new_bars (pl.DataFrame): The freshly-fetched 17-column
@@ -451,7 +518,6 @@ class MainCache:
         '''
 
         with self._write_lock:
-            self.load()
             merged = (
                 pl.concat([self._frame, new_bars])
                 if not self._frame.is_empty() else new_bars
