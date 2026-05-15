@@ -394,3 +394,167 @@ class MainCache:
         except Exception:
             tmp.unlink(missing_ok=True)
             raise
+
+
+def _seconds_until_next_limen_fire() -> float:
+
+    '''Seconds from `now` until the next 05:00 UTC.
+
+    The HF dataset publisher (out-of-tree, owned by the vaquum HF
+    org) updates `latest.json` daily; 05:00 UTC gives the publisher
+    a wide window after midnight to land the new snapshot before
+    we pull. Returns a float so tests can patch this with a tiny
+    constant for fast scheduler-loop coverage.
+    '''
+
+    now = datetime.now(tz=UTC)
+    today_05 = now.replace(hour=5, minute=0, second=0, microsecond=0)
+    target = today_05 if now < today_05 else today_05 + timedelta(days=1)
+    return (target - now).total_seconds()
+
+
+class CacheScheduler:
+
+    '''Background scheduler that drives MainCache's two refresh paths.
+
+    Owns two daemon threads:
+
+    * a Limen thread that fires `cache.refresh_from_limen()` once a
+      day at 05:00 UTC (waits, then fires, then waits again), and
+    * a binancial thread that fires `cache.refresh_from_binancial()`
+      immediately on start and then every `binancial_interval_seconds`.
+
+    Both threads catch all exceptions inside the loop body — a
+    single bad refresh logs at exception level and the thread keeps
+    running. Shutdown is via `stop()` which sets a `threading.Event`
+    that both threads check after every cycle (and that they sleep
+    on, via `Event.wait(timeout=...)`, so a stop arriving mid-sleep
+    cancels the sleep promptly).
+
+    Args:
+        cache (MainCache): The cache to refresh.
+        binancial_interval_seconds (float): Sleep between consecutive
+            binancial refreshes. Production default 60s; tests pass
+            a tiny value for fast loop coverage.
+        limen_schedule_fn (callable | None): Returns seconds to wait
+            until the next Limen fire. Defaults to "seconds until
+            next 05:00 UTC". Tests pass a `lambda: 0.05` to drive
+            the Limen loop without waiting a full day.
+    '''
+
+    def __init__(
+        self,
+        cache: MainCache,
+        binancial_interval_seconds: float = 60.0,
+        limen_schedule_fn: Any = None,
+    ) -> None:
+
+        self._cache = cache
+        self._binancial_interval_seconds = float(binancial_interval_seconds)
+        self._limen_schedule_fn = (
+            limen_schedule_fn or _seconds_until_next_limen_fire
+        )
+        self._stop_event = threading.Event()
+        self._limen_thread: threading.Thread | None = None
+        self._binancial_thread: threading.Thread | None = None
+
+    def start(self) -> None:
+
+        '''Start the two refresh threads (idempotent).
+
+        Returns:
+            None
+        '''
+
+        if self._limen_thread is not None or self._binancial_thread is not None:
+            return
+
+        self._stop_event.clear()
+        self._limen_thread = threading.Thread(
+            target=self._limen_loop,
+            name='cache-scheduler-limen',
+            daemon=True,
+        )
+        self._binancial_thread = threading.Thread(
+            target=self._binancial_loop,
+            name='cache-scheduler-binancial',
+            daemon=True,
+        )
+        self._limen_thread.start()
+        self._binancial_thread.start()
+
+        _log.info(
+            'cache scheduler started',
+            extra={
+                'binancial_interval_seconds': self._binancial_interval_seconds,
+            },
+        )
+
+    def stop(self, timeout_seconds: float = 10.0) -> None:
+
+        '''Signal stop and join both threads with `timeout_seconds`.
+
+        Idempotent — calling twice is a no-op the second time.
+
+        Args:
+            timeout_seconds (float): Per-thread join timeout. Loops
+                check the stop event after each tick and inside
+                their sleeps, so this should rarely block.
+        '''
+
+        self._stop_event.set()
+
+        for thread in (self._limen_thread, self._binancial_thread):
+            if thread is None:
+                continue
+
+            thread.join(timeout=timeout_seconds)
+
+            if thread.is_alive():
+                _log.warning(
+                    'cache scheduler thread did not stop within timeout',
+                    extra={'thread_name': thread.name},
+                )
+
+        self._limen_thread = None
+        self._binancial_thread = None
+
+    def _limen_loop(self) -> None:
+
+        '''Wait until the next Limen fire time, refresh, repeat.
+
+        Limen is wall-clock-scheduled, not interval-scheduled, so we
+        wait FIRST and refresh second; the at-boot population is
+        handled by `MainCache.bootstrap_if_empty()` before the
+        scheduler is started.
+        '''
+
+        while not self._stop_event.is_set():
+            wait_seconds = self._limen_schedule_fn()
+
+            if self._stop_event.wait(timeout=wait_seconds):
+                return
+
+            try:
+                self._cache.refresh_from_limen()
+            except Exception:  # noqa: BLE001 - daemon must survive any refresh failure
+                _log.exception('limen refresh failed in scheduler')
+
+    def _binancial_loop(self) -> None:
+
+        '''Refresh immediately on start, sleep `interval`, repeat.
+
+        Binancial fires immediately at start so the first scheduler
+        tick fills the trailing-day gap that Limen does not cover
+        (the HF snapshot is at most a day stale). Subsequent cycles
+        wait `binancial_interval_seconds` between fires.
+        '''
+
+        while not self._stop_event.is_set():
+            try:
+                self._cache.refresh_from_binancial()
+            except Exception:  # noqa: BLE001 - daemon must survive any refresh failure
+                _log.exception('binancial refresh failed in scheduler')
+
+            if self._stop_event.wait(timeout=self._binancial_interval_seconds):
+                return

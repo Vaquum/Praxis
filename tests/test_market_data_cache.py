@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,7 +12,7 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from praxis.market_data_cache import MainCache
+from praxis.market_data_cache import CacheScheduler, MainCache
 
 
 _BASE_TS = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
@@ -423,3 +424,129 @@ def test_concurrent_refreshes_do_not_corrupt_disk(
     expected_last = on_disk['datetime'].max()
     assert state['last_covered_ts'] == expected_last.isoformat()
     assert on_disk.height == 15
+
+
+def test_scheduler_starts_both_threads(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''start() spawns two named daemon threads (limen + binancial).'''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache.refresh_from_binancial = MagicMock(return_value=None)
+    cache.refresh_from_limen = MagicMock(return_value=None)
+
+    scheduler = CacheScheduler(
+        cache,
+        binancial_interval_seconds=10.0,
+        limen_schedule_fn=lambda: 10.0,
+    )
+    scheduler.start()
+    try:
+        assert scheduler._limen_thread is not None
+        assert scheduler._binancial_thread is not None
+        assert scheduler._limen_thread.is_alive()
+        assert scheduler._binancial_thread.is_alive()
+        assert scheduler._limen_thread.daemon is True
+        assert scheduler._binancial_thread.daemon is True
+        assert scheduler._limen_thread.name == 'cache-scheduler-limen'
+        assert scheduler._binancial_thread.name == 'cache-scheduler-binancial'
+    finally:
+        scheduler.stop(timeout_seconds=2.0)
+
+
+def test_scheduler_stops_cleanly_on_stop_event(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''stop() sets the stop event and both threads exit promptly.'''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache.refresh_from_binancial = MagicMock(return_value=None)
+    cache.refresh_from_limen = MagicMock(return_value=None)
+
+    scheduler = CacheScheduler(
+        cache,
+        binancial_interval_seconds=10.0,
+        limen_schedule_fn=lambda: 10.0,
+    )
+    scheduler.start()
+    limen_thread = scheduler._limen_thread
+    binancial_thread = scheduler._binancial_thread
+
+    scheduler.stop(timeout_seconds=2.0)
+
+    assert limen_thread is not None
+    assert binancial_thread is not None
+    assert not limen_thread.is_alive()
+    assert not binancial_thread.is_alive()
+    assert scheduler._limen_thread is None
+    assert scheduler._binancial_thread is None
+
+
+def test_limen_refresh_exception_does_not_kill_thread(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''A raising refresh_from_limen logs at exception level and the
+    thread keeps looping; the next tick fires normally.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    fire_count = threading.Event()
+    calls = {'n': 0}
+
+    def _flaky() -> None:
+        calls['n'] += 1
+        if calls['n'] == 1:
+            raise RuntimeError('synthetic limen failure')
+        fire_count.set()
+
+    cache.refresh_from_limen = _flaky
+    cache.refresh_from_binancial = MagicMock(return_value=None)
+
+    scheduler = CacheScheduler(
+        cache,
+        binancial_interval_seconds=60.0,
+        limen_schedule_fn=lambda: 0.01,
+    )
+    scheduler.start()
+    try:
+        assert fire_count.wait(timeout=2.0), 'limen thread did not survive the exception'
+        assert calls['n'] >= 2
+    finally:
+        scheduler.stop(timeout_seconds=2.0)
+
+
+def test_binancial_refresh_exception_does_not_kill_thread(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''A raising refresh_from_binancial logs at exception level and
+    the thread keeps looping; the next tick fires normally.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    fire_count = threading.Event()
+    calls = {'n': 0}
+
+    def _flaky() -> None:
+        calls['n'] += 1
+        if calls['n'] == 1:
+            raise RuntimeError('synthetic binancial failure')
+        fire_count.set()
+
+    cache.refresh_from_binancial = _flaky
+    cache.refresh_from_limen = MagicMock(return_value=None)
+
+    scheduler = CacheScheduler(
+        cache,
+        binancial_interval_seconds=0.01,
+        limen_schedule_fn=lambda: 60.0,
+    )
+    scheduler.start()
+    try:
+        assert fire_count.wait(timeout=2.0), 'binancial thread did not survive the exception'
+        assert calls['n'] >= 2
+    finally:
+        scheduler.stop(timeout_seconds=2.0)
