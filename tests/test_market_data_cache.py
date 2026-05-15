@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import polars as pl
 import pytest
@@ -58,14 +58,14 @@ def test_load_from_existing_disk_parquet(cache_paths: tuple[Path, Path]) -> None
     expected = _make_klines(_BASE_TS, count=5)
     expected.write_parquet(parquet_path)
 
-    cache = MainCache(parquet_path, state_path)
+    cache = MainCache(MagicMock(), parquet_path, state_path)
     cache.load()
 
     assert cache.frame.height == 5
     assert cache.frame['datetime'].to_list() == expected['datetime'].to_list()
 
 
-def test_refresh_first_boot_writes_full_snapshot(
+def test_refresh_from_limen_first_boot_writes_full_snapshot(
     cache_paths: tuple[Path, Path],
 ) -> None:
     '''First-ever `refresh()` (sidecar absent) calls Limen with no
@@ -73,14 +73,14 @@ def test_refresh_first_boot_writes_full_snapshot(
     '''
 
     parquet_path, state_path = cache_paths
-    cache = MainCache(parquet_path, state_path)
+    cache = MainCache(MagicMock(), parquet_path, state_path)
     snapshot = _make_klines(_BASE_TS, count=10)
 
     with patch(
         'praxis.market_data_cache.HistoricalData',
     ) as mock_hd_cls:
         mock_hd_cls.return_value.get_spot_klines.return_value = snapshot
-        cache.refresh()
+        cache.refresh_from_limen()
 
     call_kwargs = mock_hd_cls.return_value.get_spot_klines.call_args.kwargs
     assert call_kwargs.get('start_date_limit') is None
@@ -94,7 +94,7 @@ def test_refresh_first_boot_writes_full_snapshot(
     assert cache.last_covered_ts == snapshot['datetime'].max()
 
 
-def test_refresh_incremental_appends_only_new_bars(
+def test_refresh_from_limen_incremental_appends_only_new_bars(
     cache_paths: tuple[Path, Path],
 ) -> None:
     '''Subsequent `refresh()` reads `last_covered_ts` from the state
@@ -104,7 +104,7 @@ def test_refresh_incremental_appends_only_new_bars(
     '''
 
     parquet_path, state_path = cache_paths
-    cache = MainCache(parquet_path, state_path)
+    cache = MainCache(MagicMock(), parquet_path, state_path)
     initial = _make_klines(_BASE_TS, count=5)
     later = _make_klines(_BASE_TS.replace(minute=10), count=3)
 
@@ -112,8 +112,8 @@ def test_refresh_incremental_appends_only_new_bars(
         'praxis.market_data_cache.HistoricalData',
     ) as mock_hd_cls:
         mock_hd_cls.return_value.get_spot_klines.side_effect = [initial, later]
-        cache.refresh()
-        cache.refresh()
+        cache.refresh_from_limen()
+        cache.refresh_from_limen()
 
     second_call_kwargs = (
         mock_hd_cls.return_value.get_spot_klines.call_args_list[1].kwargs
@@ -126,7 +126,7 @@ def test_refresh_incremental_appends_only_new_bars(
     assert cache.last_covered_ts == later['datetime'].max()
 
 
-def test_refresh_no_op_when_limen_returns_empty(
+def test_refresh_from_limen_no_op_when_returns_empty(
     cache_paths: tuple[Path, Path],
 ) -> None:
     '''If Limen returns an empty frame (HF cron behind our daily
@@ -135,7 +135,7 @@ def test_refresh_no_op_when_limen_returns_empty(
     '''
 
     parquet_path, state_path = cache_paths
-    cache = MainCache(parquet_path, state_path)
+    cache = MainCache(MagicMock(), parquet_path, state_path)
     initial = _make_klines(_BASE_TS, count=3)
 
     with patch(
@@ -144,10 +144,10 @@ def test_refresh_no_op_when_limen_returns_empty(
         mock_hd_cls.return_value.get_spot_klines.side_effect = [
             initial, pl.DataFrame(),
         ]
-        cache.refresh()
+        cache.refresh_from_limen()
         first_state = json.loads(state_path.read_text())
         first_parquet_mtime = parquet_path.stat().st_mtime_ns
-        cache.refresh()
+        cache.refresh_from_limen()
 
     second_state = json.loads(state_path.read_text())
     second_parquet_mtime = parquet_path.stat().st_mtime_ns
@@ -166,7 +166,7 @@ def test_bootstrap_if_empty_skips_when_disk_present(
     parquet_path, state_path = cache_paths
     _make_klines(_BASE_TS, count=2).write_parquet(parquet_path)
 
-    cache = MainCache(parquet_path, state_path)
+    cache = MainCache(MagicMock(), parquet_path, state_path)
 
     with patch(
         'praxis.market_data_cache.HistoricalData',
@@ -185,7 +185,7 @@ def test_bootstrap_if_empty_refreshes_when_disk_missing(
     '''
 
     parquet_path, state_path = cache_paths
-    cache = MainCache(parquet_path, state_path)
+    cache = MainCache(MagicMock(), parquet_path, state_path)
     snapshot = _make_klines(_BASE_TS, count=4)
 
     with patch(
