@@ -123,19 +123,36 @@ class MainCache:
         Returns:
             datetime | None: ISO 8601 UTC timestamp of the most
                 recent bar in the cache, or `None` when the state
-                file does not exist yet (first-ever boot).
+                file does not exist yet (first-ever boot) or when
+                the state file is unreadable / corrupt — in the
+                corrupt case a warning is logged and `None` is
+                returned so the bootstrap / binancial paths can
+                self-heal the cache instead of permanently breaking
+                both refresh paths.
         '''
 
         if not self._main_cache_state_path.exists():
             return None
 
-        payload = json.loads(self._main_cache_state_path.read_text())
-        raw = payload.get('last_covered_ts')
+        try:
+            payload = json.loads(self._main_cache_state_path.read_text())
+            raw = payload.get('last_covered_ts')
 
-        if raw is None:
+            if raw is None:
+                return None
+
+            return datetime.fromisoformat(raw)
+
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            _log.warning(
+                'main cache state file unreadable or corrupt; treating as '
+                'absent so refresh paths self-heal',
+                extra={
+                    'main_cache_state_path': str(self._main_cache_state_path),
+                    'error': repr(exc),
+                },
+            )
             return None
-
-        return datetime.fromisoformat(raw)
 
     def load(self) -> None:
 
@@ -452,12 +469,16 @@ class CacheScheduler:
 
     '''Background scheduler that drives MainCache's two refresh paths.
 
-    Owns two daemon threads:
+    Owns two daemon threads, both wait-first-then-fire:
 
     * a Limen thread that fires `cache.refresh_from_limen()` once a
-      day at 05:00 UTC (waits, then fires, then waits again), and
-    * a binancial thread that fires `cache.refresh_from_binancial()`
-      immediately on start and then every `binancial_interval_seconds`.
+      day at 05:00 UTC (waits until the next 05:00 UTC, then fires,
+      then waits again), and
+    * a binancial thread that waits `binancial_interval_seconds`
+      and then fires `cache.refresh_from_binancial()`, repeating
+      forever. Wait-first avoids a double refresh at boot because
+      the launcher already calls `cache.refresh_from_binancial()`
+      synchronously before starting the scheduler.
 
     Both threads catch all exceptions inside the loop body — a
     single bad refresh logs at exception level and the thread keeps

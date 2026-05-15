@@ -267,6 +267,49 @@ def test_refresh_from_binancial_incremental_uses_last_covered_ts(
     assert call_kwargs['start_date'] == _BASE_TS.strftime('%Y-%m-%d %H:%M:%S')
 
 
+def test_last_covered_ts_returns_none_on_corrupt_state_file(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Corrupt state file is treated as absent so refresh paths
+    self-heal instead of permanently breaking. Pin: truncated JSON
+    on disk yields `None` from `last_covered_ts` and a warning is
+    logged with the path that failed to parse.
+    '''
+
+    parquet_path, state_path = cache_paths
+    state_path.write_text('{"last_covered_ts": "2026-05-')
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    with caplog.at_level('WARNING', logger='praxis.market_data_cache'):
+        result = cache.last_covered_ts
+
+    assert result is None
+    assert any(
+        'state file unreadable or corrupt' in record.message
+        and str(state_path) in str(record.__dict__.get('main_cache_state_path', ''))
+        for record in caplog.records
+    )
+
+
+def test_last_covered_ts_returns_none_on_invalid_iso_timestamp(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Valid JSON but unparseable `last_covered_ts` value is also
+    treated as absent so the cache self-heals.
+    '''
+
+    parquet_path, state_path = cache_paths
+    state_path.write_text(json.dumps({'last_covered_ts': 'not-a-timestamp'}))
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    with caplog.at_level('WARNING', logger='praxis.market_data_cache'):
+        result = cache.last_covered_ts
+
+    assert result is None
+
+
 def test_refresh_from_binancial_drops_median_and_iqr_columns(
     cache_paths: tuple[Path, Path],
 ) -> None:
