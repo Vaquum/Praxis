@@ -195,6 +195,16 @@ class MainCache:
         raised; the bootstrap path will populate it on first
         `refresh_from_limen()`.
 
+        When the parquet exists but cannot be read (corrupt bytes,
+        OS error, etc.), the parquet and state file are quarantined
+        (renamed to `<name>.corrupt-<UTC-iso>` so the bad bytes are
+        preserved for forensic inspection), the in-memory mirror
+        is reset to empty, and a warning is logged. The next
+        refresh through `_apply_new_bars` will then write a fresh
+        parquet and state file from the freshly-fetched bars — so
+        a runtime corruption self-heals on the next refresh tick
+        instead of looping forever inside the scheduler.
+
         Returns:
             None
         '''
@@ -203,7 +213,50 @@ class MainCache:
             self._frame = pl.DataFrame()
             return
 
-        self._frame = pl.read_parquet(self._parquet_path)
+        try:
+            self._frame = pl.read_parquet(self._parquet_path)
+        except Exception as exc:  # noqa: BLE001 - quarantine + self-heal
+            _log.warning(
+                'main cache parquet unreadable; quarantining and resetting '
+                'in-memory frame so the next refresh self-heals',
+                extra={
+                    'parquet_path': str(self._parquet_path),
+                    'error': repr(exc),
+                },
+            )
+            self._quarantine_corrupt_files()
+            self._frame = pl.DataFrame()
+
+    def _quarantine_corrupt_files(self) -> None:
+
+        '''Rename parquet + state to `<name>.corrupt-<UTC-iso>`.
+
+        Each file is handled independently and missing files are
+        skipped — partial-state pairs are meaningless without their
+        matching parquet so both are renamed when present. Failures
+        to rename are logged but not raised; the caller has already
+        reset the in-memory frame and the next refresh will overwrite
+        the original paths regardless.
+        '''
+
+        suffix = f'.corrupt-{datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")}'
+
+        for path in (self._parquet_path, self._main_cache_state_path):
+            if not path.exists():
+                continue
+
+            quarantined = path.with_name(path.name + suffix)
+            try:
+                path.replace(quarantined)
+            except OSError as exc:
+                _log.warning(
+                    'main cache: failed to quarantine corrupt file',
+                    extra={
+                        'path': str(path),
+                        'quarantined_to': str(quarantined),
+                        'error': repr(exc),
+                    },
+                )
 
     def refresh_from_limen(self) -> None:
 

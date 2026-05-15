@@ -333,6 +333,70 @@ def test_last_covered_ts_converts_non_utc_aware_to_utc(
     assert result.utcoffset() == timedelta(0)
 
 
+def test_load_quarantines_corrupt_parquet_and_resets_frame(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''A corrupt on-disk parquet does not loop the scheduler forever.
+    `load()` catches the read error, renames the corrupt parquet (and
+    state) to `*.corrupt-<UTC-iso>` so the bad bytes are kept for
+    forensics, resets the in-memory frame to empty, and logs a
+    warning. The next refresh through `_apply_new_bars` then writes
+    a fresh parquet from the freshly-fetched bars, self-healing
+    without manual intervention.
+    '''
+
+    parquet_path, state_path = cache_paths
+    parquet_path.write_bytes(b'not a parquet')
+    state_path.write_text(json.dumps({
+        'last_covered_ts': _BASE_TS.isoformat(),
+    }))
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    with caplog.at_level('WARNING', logger='praxis.market_data_cache'):
+        cache.load()
+
+    assert cache.frame.is_empty()
+    assert not parquet_path.exists()
+    assert not state_path.exists()
+    quarantined_parquet = list(parquet_path.parent.glob(
+        f'{parquet_path.name}.corrupt-*',
+    ))
+    quarantined_state = list(state_path.parent.glob(
+        f'{state_path.name}.corrupt-*',
+    ))
+    assert len(quarantined_parquet) == 1
+    assert len(quarantined_state) == 1
+    assert any(
+        'parquet unreadable' in record.message
+        for record in caplog.records
+    )
+
+
+def test_refresh_after_corrupt_parquet_self_heals(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''End-to-end self-heal: corrupt parquet on disk, then a
+    `refresh_from_binancial()` call replaces it with a fresh one and
+    the in-memory frame contains the new bars (no manual intervention).
+    '''
+
+    parquet_path, state_path = cache_paths
+    parquet_path.write_bytes(b'not a parquet')
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    snapshot = _make_klines_pandas(_BASE_TS, count=3)
+
+    with patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=snapshot,
+    ):
+        cache.refresh_from_binancial()
+
+    assert cache.frame.height == 3
+    assert parquet_path.exists()
+    assert state_path.exists()
+
+
 def test_last_covered_ts_returns_none_when_state_is_not_an_object(
     cache_paths: tuple[Path, Path],
     caplog: pytest.LogCaptureFixture,

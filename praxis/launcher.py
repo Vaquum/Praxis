@@ -1294,11 +1294,20 @@ class Launcher:
         cache_dir = Path(os.environ.get('MAIN_CACHE_DIR', '/var/lib/praxis/maincache'))
         parquet_path = cache_dir / 'btcusdt_1m.parquet'
         state_path = cache_dir / 'main_cache_state.json'
-        self._cache = MainCache(
-            client,
-            parquet_path=parquet_path,
-            main_cache_state_path=state_path,
-        )
+
+        try:
+            self._cache = MainCache(
+                client,
+                parquet_path=parquet_path,
+                main_cache_state_path=state_path,
+            )
+        except OSError as exc:
+            msg = (
+                f'failed to initialize MainCache at {cache_dir}: {exc!r}. '
+                f'Set the MAIN_CACHE_DIR environment variable to a writable '
+                f'host bind mount (default: /var/lib/praxis/maincache).'
+            )
+            raise RuntimeError(msg) from exc
 
         try:
             self._cache.load()

@@ -210,6 +210,43 @@ class TestLauncherLifecycle:
             call_kwargs = mock_client_cls.call_args.kwargs
             assert call_kwargs['testnet'] is testnet
 
+    def test_start_poller_raises_runtime_error_on_unwritable_cache_dir(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        '''Pin: when `MAIN_CACHE_DIR` is unwritable, `_start_poller`
+        wraps the underlying `OSError` in a `RuntimeError` carrying
+        an operator-actionable message (set MAIN_CACHE_DIR to a
+        writable host bind mount). Without this wrapping the raw
+        `PermissionError` aborts `Launcher.launch()` before the
+        `/healthz` endpoint exists, leaving operators with only a
+        stack trace.
+        '''
+
+        config = TradingConfig(
+            epoch_id=1,
+            account_credentials={'test-acc': ('key', 'secret')},
+        )
+        venue_adapter = cast(VenueAdapter, MockVenueAdapter())
+        launcher = Launcher(
+            trading_config=config,
+            instances=[],
+            db_path=tmp_path / 'spine.db',
+            venue_adapter=venue_adapter,
+        )
+
+        with patch('praxis.launcher.MainCache') as mock_cache_cls:
+            mock_cache_cls.side_effect = PermissionError(
+                "[Errno 13] Permission denied: '/var/lib/praxis/maincache'",
+            )
+
+            with pytest.raises(RuntimeError) as exc_info:
+                launcher._start_poller()
+
+        assert 'failed to initialize MainCache' in str(exc_info.value)
+        assert 'MAIN_CACHE_DIR' in str(exc_info.value)
+        assert isinstance(exc_info.value.__cause__, PermissionError)
+
     @pytest.mark.usefixtures('mock_market_data_cache')
     def test_start_and_shutdown(self, tmp_path: Path) -> None:
         '''Launcher starts, runs briefly, then shuts down cleanly.'''
