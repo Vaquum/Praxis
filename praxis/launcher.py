@@ -837,7 +837,19 @@ def _register_wired_kline_sizes(
             if raw is None:
                 continue
 
-            sizes.add(int(raw))
+            kline_size = int(raw)
+
+            if kline_size <= 0 or kline_size % 60 != 0:
+                _log.warning(
+                    'skipping wired sensor with non-multiple-of-60 kline_size',
+                    extra={
+                        'sensor_type': type(wired).__name__,
+                        'kline_size': kline_size,
+                    },
+                )
+                continue
+
+            sizes.add(kline_size)
         except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
             _log.warning(
                 'skipping wired sensor with invalid kline_size configuration',
@@ -1270,12 +1282,22 @@ class Launcher:
 
         client = Client(None, None, ping=False, testnet=self._market_data_testnet)
         cache_dir = Path(os.environ.get('MAIN_CACHE_DIR', '/var/lib/praxis/maincache'))
+        parquet_path = cache_dir / 'btcusdt_1m.parquet'
+        state_path = cache_dir / 'main_cache_state.json'
         self._cache = MainCache(
             client,
-            parquet_path=cache_dir / 'btcusdt_1m.parquet',
-            main_cache_state_path=cache_dir / 'main_cache_state.json',
+            parquet_path=parquet_path,
+            main_cache_state_path=state_path,
         )
-        self._cache.load()
+
+        try:
+            self._cache.load()
+        except Exception:  # noqa: BLE001 - resilience: quarantine + bootstrap
+            _log.exception(
+                'cache load failed at boot; quarantining the on-disk parquet '
+                'and state file, falling back to bootstrap_if_empty',
+            )
+            self._quarantine_cache_files(parquet_path, state_path)
 
         try:
             self._cache.bootstrap_if_empty()
@@ -1297,6 +1319,50 @@ class Launcher:
         self._cache_scheduler = CacheScheduler(self._cache)
         self._cache_scheduler.start()
         self._poller = MarketDataPoller(self._cache)
+
+    def _quarantine_cache_files(
+        self,
+        parquet_path: Path,
+        state_path: Path,
+    ) -> None:
+        '''Move corrupt cache files aside so `bootstrap_if_empty` rebuilds.
+
+        Renames `<file>` → `<file>.corrupt-<timestamp>` so the bad
+        bytes are preserved for forensic inspection but no longer
+        block `bootstrap_if_empty()` from writing a fresh parquet.
+        Each file is handled independently — if only one is corrupt,
+        the other gets moved too (the pair is treated as one
+        atomic-by-spec unit; partial state is meaningless without
+        the matching parquet).
+
+        Args:
+            parquet_path (Path): On-disk kline parquet path.
+            state_path (Path): On-disk main_cache_state.json path.
+        '''
+
+        suffix = f'.corrupt-{datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")}'
+
+        for path in (parquet_path, state_path):
+            if not path.exists():
+                continue
+
+            quarantined = path.with_name(path.name + suffix)
+            try:
+                path.replace(quarantined)
+            except OSError:
+                _log.exception(
+                    'failed to quarantine corrupt cache file',
+                    extra={'path': str(path)},
+                )
+                continue
+
+            _log.warning(
+                'quarantined corrupt cache file',
+                extra={
+                    'original_path': str(path),
+                    'quarantined_path': str(quarantined),
+                },
+            )
 
     def _start_healthz(self) -> None:
         '''Start the /healthz HTTP listener on the launcher's asyncio loop.

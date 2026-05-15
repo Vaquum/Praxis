@@ -586,19 +586,25 @@ class CacheScheduler:
 
     def _binancial_loop(self) -> None:
 
-        '''Refresh immediately on start, sleep `interval`, repeat.
+        '''Wait `binancial_interval_seconds`, refresh, repeat.
 
-        Binancial fires immediately at start so the first scheduler
-        tick fills the trailing-day gap that Limen does not cover
-        (the HF snapshot is at most a day stale). Subsequent cycles
-        wait `binancial_interval_seconds` between fires.
+        Wait-FIRST-then-refresh (mirrors `_limen_loop`) so the boot
+        flow is a single source of refreshes: the launcher does one
+        synchronous `refresh_from_binancial()` at startup, then the
+        scheduler takes over after waiting one full interval. Pre-fix
+        the loop refreshed immediately on thread start, which combined
+        with the launcher's synchronous boot fill produced two
+        back-to-back binancial fetches (~doubled trade-walk cost +
+        rate-limit pressure). The first scheduler-driven fire now
+        lands at boot + `binancial_interval_seconds`, which is the
+        cadence the operator already expects.
         '''
 
         while not self._stop_event.is_set():
+            if self._stop_event.wait(timeout=self._binancial_interval_seconds):
+                return
+
             try:
                 self._cache.refresh_from_binancial()
             except Exception:  # noqa: BLE001 - daemon must survive any refresh failure
                 _log.exception('binancial refresh failed in scheduler')
-
-            if self._stop_event.wait(timeout=self._binancial_interval_seconds):
-                return

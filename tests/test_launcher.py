@@ -13,6 +13,7 @@ from datetime import datetime, UTC
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 
 import aiosqlite
 import pytest
@@ -166,6 +167,48 @@ def _make_manifest_yaml(
 
 
 class TestLauncherLifecycle:
+
+    @pytest.mark.usefixtures('mock_market_data_cache')
+    def test_start_poller_constructs_binance_client_with_testnet_flag(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        '''Pin: `_start_poller` builds the binance.Client with
+        `testnet=self._market_data_testnet`.
+
+        Pre-rewire regression (PT-FIX-3): `_poll_loop` constructed
+        `Client(None, None, ping=False)` with no testnet flag, so a
+        Praxis instance running paper trades on Binance testnet was
+        reading klines from mainnet BTCUSDT — a separate market with
+        separate prices. ENTER notional sizing went haywire. Post-
+        cache-rewire (Praxis #108) the Client construction moved from
+        the poller to `_start_poller`; the test moved with it. Asserts
+        both `testnet=True` and `testnet=False` paths.
+        '''
+
+        config = TradingConfig(
+            epoch_id=1,
+            account_credentials={'test-acc': ('key', 'secret')},
+        )
+        venue_adapter = cast(VenueAdapter, MockVenueAdapter())
+
+        for i, testnet in enumerate((True, False)):
+            launcher = Launcher(
+                trading_config=config,
+                instances=[],
+                db_path=tmp_path / f'spine_{i}.db',
+                venue_adapter=venue_adapter,
+                market_data_testnet=testnet,
+            )
+
+            with patch('praxis.launcher.Client') as mock_client_cls:
+                launcher._start_poller()
+                if launcher._cache_scheduler is not None:
+                    launcher._cache_scheduler.stop(timeout_seconds=1.0)
+
+            mock_client_cls.assert_called_once()
+            call_kwargs = mock_client_cls.call_args.kwargs
+            assert call_kwargs['testnet'] is testnet
 
     @pytest.mark.usefixtures('mock_market_data_cache')
     def test_start_and_shutdown(self, tmp_path: Path) -> None:
