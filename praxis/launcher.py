@@ -1276,8 +1276,24 @@ class Launcher:
             main_cache_state_path=cache_dir / 'main_cache_state.json',
         )
         self._cache.load()
-        self._cache.bootstrap_if_empty()
-        self._cache.refresh_from_binancial()
+
+        try:
+            self._cache.bootstrap_if_empty()
+        except Exception:  # noqa: BLE001 - resilience: scheduler retries
+            _log.exception(
+                'cache bootstrap_if_empty failed at boot; '
+                'CacheScheduler will retry on the next 05:00 UTC tick',
+            )
+
+        try:
+            self._cache.refresh_from_binancial()
+        except Exception:  # noqa: BLE001 - resilience: scheduler retries
+            _log.exception(
+                'cache refresh_from_binancial failed at boot; '
+                'CacheScheduler will retry on the next 60s tick. '
+                'Sensors will see StaleMarketDataError until refresh succeeds',
+            )
+
         self._cache_scheduler = CacheScheduler(self._cache)
         self._cache_scheduler.start()
         self._poller = MarketDataPoller(self._cache)

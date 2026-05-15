@@ -25,7 +25,6 @@ per-kline_size, and lifecycle is owned by `CacheScheduler`.
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from typing import cast
 
@@ -34,8 +33,6 @@ import polars as pl
 from praxis.market_data_cache import MainCache
 
 __all__ = ['MarketDataPoller', 'StaleMarketDataError']
-
-_log = logging.getLogger(__name__)
 
 _DEFAULT_MAX_AGE_MULTIPLIER = 2
 

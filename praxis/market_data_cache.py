@@ -34,7 +34,7 @@ from limen.data.historical_data import (
     _aggregate_spot_klines as _limen_aggregate_spot_klines,
 )
 
-__all__ = ['MainCache']
+__all__ = ['CacheScheduler', 'MainCache']
 
 _log = logging.getLogger(__name__)
 
@@ -253,6 +253,9 @@ class MainCache:
         new_bars = pl.from_pandas(
             df_pd.drop(columns=list(_BINANCIAL_DROP_COLUMNS), errors='ignore'),
         )
+        new_bars = new_bars.with_columns(
+            pl.col('datetime').cast(pl.Datetime('us', 'UTC')),
+        )
         self._apply_new_bars(new_bars, source='binancial')
 
     def bootstrap_if_empty(self) -> None:
@@ -293,13 +296,25 @@ class MainCache:
 
         Args:
             kline_size (int): Requested kline bucket width in
-                seconds. Must be a positive multiple of 60.
+                seconds. Must be a positive multiple of
+                `_BASE_KLINE_SIZE_SECONDS` (60).
+
+        Raises:
+            ValueError: When `kline_size <= 0` or
+                `kline_size % _BASE_KLINE_SIZE_SECONDS != 0`.
 
         Returns:
             pl.DataFrame: 17-column kline frame at the requested
                 bucket width. Empty when the in-memory frame is
                 empty.
         '''
+
+        if kline_size <= 0 or kline_size % _BASE_KLINE_SIZE_SECONDS != 0:
+            msg = (
+                f'kline_size must be a positive multiple of '
+                f'{_BASE_KLINE_SIZE_SECONDS}, got {kline_size}'
+            )
+            raise ValueError(msg)
 
         if self._frame.is_empty():
             return self._frame
@@ -469,6 +484,13 @@ class CacheScheduler:
         limen_schedule_fn: Any = None,
     ) -> None:
 
+        if binancial_interval_seconds <= 0:
+            msg = (
+                f'binancial_interval_seconds must be positive, '
+                f'got {binancial_interval_seconds}'
+            )
+            raise ValueError(msg)
+
         self._cache = cache
         self._binancial_interval_seconds = float(binancial_interval_seconds)
         self._limen_schedule_fn = (
@@ -524,7 +546,9 @@ class CacheScheduler:
 
         self._stop_event.set()
 
-        for thread in (self._limen_thread, self._binancial_thread):
+        for attr_name in ('_limen_thread', '_binancial_thread'):
+            thread = getattr(self, attr_name)
+
             if thread is None:
                 continue
 
@@ -535,9 +559,9 @@ class CacheScheduler:
                     'cache scheduler thread did not stop within timeout',
                     extra={'thread_name': thread.name},
                 )
+                continue
 
-        self._limen_thread = None
-        self._binancial_thread = None
+            setattr(self, attr_name, None)
 
     def _limen_loop(self) -> None:
 
@@ -550,7 +574,7 @@ class CacheScheduler:
         '''
 
         while not self._stop_event.is_set():
-            wait_seconds = self._limen_schedule_fn()
+            wait_seconds = max(0.0, float(self._limen_schedule_fn()))
 
             if self._stop_event.wait(timeout=wait_seconds):
                 return
