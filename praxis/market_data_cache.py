@@ -25,7 +25,7 @@ import tempfile
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 from binancial.compute.get_spot_klines import get_spot_klines
@@ -307,7 +307,10 @@ class MainCache:
         if kline_size == _BASE_KLINE_SIZE_SECONDS:
             return self._frame
 
-        return _limen_aggregate_spot_klines(self._frame, kline_size)
+        return cast(
+            pl.DataFrame,
+            _limen_aggregate_spot_klines(self._frame, kline_size),
+        )
 
     def _apply_new_bars(self, new_bars: pl.DataFrame, source: str) -> None:
 
@@ -340,7 +343,7 @@ class MainCache:
                 subset=['datetime'], keep='last',
             ).sort('datetime')
 
-            new_high_water = merged['datetime'].max()
+            new_high_water = cast(datetime, merged['datetime'].max())
             self._atomic_write_parquet(merged)
             self._atomic_write_main_cache_state(new_high_water)
             self._frame = merged

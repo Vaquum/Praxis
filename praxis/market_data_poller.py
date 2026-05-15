@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import cast
 
 import polars as pl
 
@@ -203,10 +204,12 @@ class MarketDataPoller:
         if frame.is_empty():
             return None
 
-        latest = frame['datetime'].max()
+        raw_latest = frame['datetime'].max()
 
-        if latest is None:
+        if raw_latest is None:
             return None
+
+        latest = cast(datetime, raw_latest)
 
         if latest.tzinfo is None:
             latest = latest.replace(tzinfo=UTC)
