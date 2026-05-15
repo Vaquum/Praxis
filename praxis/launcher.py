@@ -792,10 +792,9 @@ def _build_order_context(
 
 
 def _register_wired_kline_sizes(
-    poller: MarketDataPoller | None,
     wired_sensors: Iterable[Any],
 ) -> tuple[int, ...]:
-    '''Register kline sizes from wired sensors with the poller.
+    '''Collect kline sizes from wired sensors.
 
     Called from `_build_nexus_runtime` after `sequencer.start()` has
     trained the manifest's sensors. Each `WiredSensor` carries a live
@@ -812,15 +811,10 @@ def _register_wired_kline_sizes(
     market-data-cache rewire (Praxis #108) the cache is
     symbol-scoped — there is no per-kline_size registration to
     perform, so this function only collects the sizes from wired
-    sensor manifests; the `poller` argument is accepted for
-    backward-compat with existing call sites and is otherwise
-    unused.
+    sensor manifests.
     '''
 
     sizes: set[int] = set()
-
-    if poller is None:
-        return ()
 
     for wired in wired_sensors:
         try:
@@ -1533,10 +1527,7 @@ class Launcher:
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
-        kline_sizes = _register_wired_kline_sizes(
-            self._poller,
-            sequencer.wired_sensors,
-        )
+        kline_sizes = _register_wired_kline_sizes(sequencer.wired_sensors)
 
         def market_data_provider(kline_size: int) -> Any:
             if self._poller is None:

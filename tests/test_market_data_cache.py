@@ -13,34 +13,10 @@ import polars as pl
 import pytest
 
 from praxis.market_data_cache import CacheScheduler, MainCache
+from tests.conftest import make_canonical_klines as _make_klines
 
 
 _BASE_TS = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
-
-
-def _make_klines(start_ts: datetime, count: int) -> pl.DataFrame:
-
-    '''Build a 17-column 1-min kline frame matching Limen's canonical shape.'''
-
-    return pl.DataFrame({
-        'datetime': [start_ts + timedelta(minutes=i) for i in range(count)],
-        'open': [50000.0 + i for i in range(count)],
-        'high': [50100.0 + i for i in range(count)],
-        'low': [49900.0 + i for i in range(count)],
-        'close': [50050.0 + i for i in range(count)],
-        'mean': [50025.0 + i for i in range(count)],
-        'std': [10.0] * count,
-        'volume': [1.0] * count,
-        'maker_ratio': [0.5] * count,
-        'no_of_trades': [100] * count,
-        'open_liquidity': [50.0] * count,
-        'high_liquidity': [55.0] * count,
-        'low_liquidity': [49.0] * count,
-        'close_liquidity': [51.0] * count,
-        'liquidity_sum': [205.0] * count,
-        'maker_volume': [0.5] * count,
-        'maker_liquidity': [102.5] * count,
-    })
 
 
 @pytest.fixture
@@ -385,13 +361,18 @@ def test_concurrent_refreshes_do_not_corrupt_disk(
 ) -> None:
     '''Pin: `_write_lock` serializes the two refresh paths so a
     Limen refresh + binancial refresh firing simultaneously cannot
-    leave the disk parquet inconsistent with the state file. Both
-    paths run via real threads; afterward the on-disk parquet's
-    bar count must match the state's `last_covered_ts` (i.e. no
-    in-flight reorder lost a write).
+    leave the disk parquet inconsistent with the state file.
+
+    Both mocked fetchers `time.sleep(0.1)` before returning so the
+    two refresh threads actually overlap inside `_apply_new_bars`
+    (without the sleep, mocked fetches return in microseconds and
+    the threads serialize trivially — the lock is never exercised).
+    Afterward the on-disk parquet's bar count must match the
+    state's `last_covered_ts` (no in-flight reorder lost a write).
     '''
 
     import threading as _threading
+    import time as _time
 
     parquet_path, state_path = cache_paths
     cache = MainCache(MagicMock(), parquet_path, state_path)
@@ -401,13 +382,21 @@ def test_concurrent_refreshes_do_not_corrupt_disk(
         _BASE_TS + timedelta(minutes=10), count=5,
     )
 
+    def _slow_limen(**_kwargs: object) -> pl.DataFrame:
+        _time.sleep(0.1)
+        return limen_bars
+
+    def _slow_binancial(*_args: object, **_kwargs: object) -> pd.DataFrame:
+        _time.sleep(0.1)
+        return binancial_bars
+
     with patch(
         'praxis.market_data_cache.HistoricalData',
     ) as mock_hd_cls, patch(
         'praxis.market_data_cache.get_spot_klines',
-        return_value=binancial_bars,
+        side_effect=_slow_binancial,
     ):
-        mock_hd_cls.return_value.get_spot_klines.return_value = limen_bars
+        mock_hd_cls.return_value.get_spot_klines.side_effect = _slow_limen
 
         t_limen = _threading.Thread(target=cache.refresh_from_limen)
         t_binancial = _threading.Thread(target=cache.refresh_from_binancial)

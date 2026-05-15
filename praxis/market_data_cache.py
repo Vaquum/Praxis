@@ -29,7 +29,10 @@ from typing import Any
 
 import polars as pl
 from binancial.compute.get_spot_klines import get_spot_klines
-from limen.data.historical_data import HistoricalData, _aggregate_spot_klines
+from limen.data.historical_data import HistoricalData
+from limen.data.historical_data import (
+    _aggregate_spot_klines as _limen_aggregate_spot_klines,
+)
 
 __all__ = ['MainCache']
 
@@ -214,6 +217,18 @@ class MainCache:
         last_covered_ts = self.last_covered_ts or (
             now - timedelta(hours=_BINANCIAL_BOOTSTRAP_HOURS)
         )
+
+        if last_covered_ts >= now:
+            _log.warning(
+                'main cache refresh_from_binancial: last_covered_ts is not in '
+                'the past, skipping (clock skew or corrupt state file?)',
+                extra={
+                    'last_covered_ts': last_covered_ts.isoformat(),
+                    'now': now.isoformat(),
+                },
+            )
+            return
+
         start_str = last_covered_ts.strftime(_DATETIME_FMT)
         end_str = now.strftime(_DATETIME_FMT)
 
@@ -269,6 +284,8 @@ class MainCache:
         Hot-path read used by sensors. Returns the in-memory frame
         as-is when `kline_size == 60` (the base granularity);
         otherwise delegates to Limen's `_aggregate_spot_klines`
+        (imported as `_limen_aggregate_spot_klines` — see TD note
+        in `docs/TechnicalDebt.md` on pushing for a public Limen API)
         which weighted-merges 1-min bars into `kline_size`-second
         buckets (weighted mean, sum-of-squares for std, sum for
         volume / liquidity / maker_volume, first / last for OHLC,
@@ -290,7 +307,7 @@ class MainCache:
         if kline_size == _BASE_KLINE_SIZE_SECONDS:
             return self._frame
 
-        return _aggregate_spot_klines(self._frame, kline_size)
+        return _limen_aggregate_spot_klines(self._frame, kline_size)
 
     def _apply_new_bars(self, new_bars: pl.DataFrame, source: str) -> None:
 

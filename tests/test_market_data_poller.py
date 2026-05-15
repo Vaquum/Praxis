@@ -19,34 +19,10 @@ import pytest
 
 from praxis.market_data_cache import MainCache
 from praxis.market_data_poller import MarketDataPoller, StaleMarketDataError
+from tests.conftest import make_canonical_klines as _make_klines
 
 
 _BASE_TS = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
-
-
-def _make_klines(start_ts: datetime, count: int) -> pl.DataFrame:
-
-    '''Build a 17-column 1-min kline frame matching MainCache's shape.'''
-
-    return pl.DataFrame({
-        'datetime': [start_ts + timedelta(minutes=i) for i in range(count)],
-        'open': [50000.0 + i for i in range(count)],
-        'high': [50100.0 + i for i in range(count)],
-        'low': [49900.0 + i for i in range(count)],
-        'close': [50050.0 + i for i in range(count)],
-        'mean': [50025.0 + i for i in range(count)],
-        'std': [10.0] * count,
-        'volume': [1.0] * count,
-        'maker_ratio': [0.5] * count,
-        'no_of_trades': [100] * count,
-        'open_liquidity': [50.0] * count,
-        'high_liquidity': [55.0] * count,
-        'low_liquidity': [49.0] * count,
-        'close_liquidity': [51.0] * count,
-        'liquidity_sum': [205.0] * count,
-        'maker_volume': [0.5] * count,
-        'maker_liquidity': [102.5] * count,
-    })
 
 
 @pytest.fixture

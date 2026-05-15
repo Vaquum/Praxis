@@ -6,11 +6,9 @@ poller started empty, signals never had data). The new helper reads
 from `WiredSensor.limen_manifest`, populated only after Limen
 `Trainer(experiment_dir).train(...)` runs inside `StartupSequencer`.
 
-Post-cache-rewire (Praxis #108) the function no longer calls
-`poller.add_kline_size` (cache is symbol-scoped, not per-kline_size).
-The `poller` argument is accepted for backward-compat with existing
-call sites and is otherwise unused; only the kline_size-collection
-behavior is asserted here.
+Post-cache-rewire (Praxis #108) the function only collects + returns
+the kline_sizes (no `poller.add_kline_size` call); the cache is
+symbol-scoped so per-kline_size registration is gone.
 '''
 
 from __future__ import annotations
@@ -57,21 +55,14 @@ def _wired_sensor(
     )
 
 
-def test_returns_empty_when_poller_is_none() -> None:
-    sizes = _register_wired_kline_sizes(None, [_wired_sensor()])
-
-    assert sizes == ()
-
-
 def test_returns_empty_when_no_wired_sensors() -> None:
-    sizes = _register_wired_kline_sizes(MagicMock(), [])
+    sizes = _register_wired_kline_sizes([])
 
     assert sizes == ()
 
 
 def test_collects_single_kline_size() -> None:
     sizes = _register_wired_kline_sizes(
-        MagicMock(),
         [_wired_sensor(kline_size=7200, interval_seconds=60)],
     )
 
@@ -79,14 +70,11 @@ def test_collects_single_kline_size() -> None:
 
 
 def test_collects_distinct_kline_sizes_sorted_ascending() -> None:
-    sizes = _register_wired_kline_sizes(
-        MagicMock(),
-        [
-            _wired_sensor(kline_size=14400, interval_seconds=120),
-            _wired_sensor(kline_size=7200, interval_seconds=60),
-            _wired_sensor(kline_size=3600, interval_seconds=30),
-        ],
-    )
+    sizes = _register_wired_kline_sizes([
+        _wired_sensor(kline_size=14400, interval_seconds=120),
+        _wired_sensor(kline_size=7200, interval_seconds=60),
+        _wired_sensor(kline_size=3600, interval_seconds=30),
+    ])
 
     assert sizes == (3600, 7200, 14400)
 
@@ -97,32 +85,25 @@ def test_duplicate_kline_size_collapsed_in_returned_tuple() -> None:
     registration to refcount).
     '''
 
-    sizes = _register_wired_kline_sizes(
-        MagicMock(),
-        [
-            _wired_sensor(kline_size=7200, interval_seconds=60),
-            _wired_sensor(kline_size=7200, interval_seconds=60),
-        ],
-    )
+    sizes = _register_wired_kline_sizes([
+        _wired_sensor(kline_size=7200, interval_seconds=60),
+        _wired_sensor(kline_size=7200, interval_seconds=60),
+    ])
 
     assert sizes == (7200,)
 
 
 def test_skips_sensor_with_missing_limen_manifest() -> None:
-    sizes = _register_wired_kline_sizes(
-        MagicMock(),
-        [
-            _wired_sensor(omit_limen_manifest=True),
-            _wired_sensor(kline_size=7200, interval_seconds=60),
-        ],
-    )
+    sizes = _register_wired_kline_sizes([
+        _wired_sensor(omit_limen_manifest=True),
+        _wired_sensor(kline_size=7200, interval_seconds=60),
+    ])
 
     assert sizes == (7200,)
 
 
 def test_skips_sensor_with_missing_data_source_config() -> None:
     sizes = _register_wired_kline_sizes(
-        MagicMock(),
         [_wired_sensor(omit_data_source_config=True)],
     )
 
@@ -131,7 +112,6 @@ def test_skips_sensor_with_missing_data_source_config() -> None:
 
 def test_skips_sensor_with_missing_params() -> None:
     sizes = _register_wired_kline_sizes(
-        MagicMock(),
         [_wired_sensor(omit_params=True)],
     )
 
@@ -140,7 +120,6 @@ def test_skips_sensor_with_missing_params() -> None:
 
 def test_skips_sensor_with_missing_kline_size_key() -> None:
     sizes = _register_wired_kline_sizes(
-        MagicMock(),
         [_wired_sensor(kline_size=None)],
     )
 
@@ -161,7 +140,6 @@ def test_one_bad_sensor_does_not_abort_remaining() -> None:
     )
 
     sizes = _register_wired_kline_sizes(
-        MagicMock(),
         [bad, _wired_sensor(kline_size=7200, interval_seconds=60)],
     )
 
