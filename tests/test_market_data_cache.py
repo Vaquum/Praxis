@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import polars as pl
 import pytest
 
@@ -197,3 +198,228 @@ def test_bootstrap_if_empty_refreshes_when_disk_missing(
     mock_hd_cls.return_value.get_spot_klines.assert_called_once()
     assert parquet_path.exists()
     assert cache.frame.height == 4
+
+
+def _make_klines_pandas(start_ts: datetime, count: int) -> pd.DataFrame:
+
+    '''Build a 19-column 1-min kline frame in pandas, mimicking binancial.
+
+    binancial.get_spot_klines returns the same canonical columns
+    Limen does plus `median` and `iqr`. The MainCache binancial
+    path drops those two so the merged shape stays 17 columns.
+    '''
+
+    return pd.DataFrame({
+        'datetime': [start_ts + timedelta(minutes=i) for i in range(count)],
+        'open': [50000.0 + i for i in range(count)],
+        'high': [50100.0 + i for i in range(count)],
+        'low': [49900.0 + i for i in range(count)],
+        'close': [50050.0 + i for i in range(count)],
+        'mean': [50025.0 + i for i in range(count)],
+        'std': [10.0] * count,
+        'median': [50025.0 + i for i in range(count)],
+        'iqr': [5.0] * count,
+        'volume': [1.0] * count,
+        'maker_ratio': [0.5] * count,
+        'no_of_trades': [100] * count,
+        'open_liquidity': [50.0] * count,
+        'high_liquidity': [55.0] * count,
+        'low_liquidity': [49.0] * count,
+        'close_liquidity': [51.0] * count,
+        'liquidity_sum': [205.0] * count,
+        'maker_volume': [0.5] * count,
+        'maker_liquidity': [102.5] * count,
+    })
+
+
+def test_refresh_from_binancial_first_boot_uses_default_window(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''First-ever `refresh_from_binancial()` (state file absent)
+    asks binancial for `now - 1h` to `now`, then writes the result.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    snapshot = _make_klines_pandas(_BASE_TS, count=4)
+
+    fixed_now = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
+
+    with patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=snapshot,
+    ) as mock_fetch, patch(
+        'praxis.market_data_cache.datetime',
+    ) as mock_dt:
+        mock_dt.now.return_value = fixed_now
+        mock_dt.fromisoformat = datetime.fromisoformat
+        cache.refresh_from_binancial()
+
+    call_kwargs = mock_fetch.call_args.kwargs
+    assert call_kwargs['start_date'] == (
+        (fixed_now - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+    )
+    assert call_kwargs['end_date'] == fixed_now.strftime('%Y-%m-%d %H:%M:%S')
+    assert call_kwargs['kline_size'] == 60
+    assert cache.frame.height == 4
+
+
+def test_refresh_from_binancial_incremental_uses_last_covered_ts(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Subsequent `refresh_from_binancial()` reads the state's
+    `last_covered_ts` and uses it as `start_date`.
+    '''
+
+    parquet_path, state_path = cache_paths
+    state_path.write_text(json.dumps({
+        'last_covered_ts': _BASE_TS.isoformat(),
+    }))
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    snapshot = _make_klines_pandas(
+        _BASE_TS + timedelta(minutes=1), count=2,
+    )
+
+    with patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=snapshot,
+    ) as mock_fetch:
+        cache.refresh_from_binancial()
+
+    call_kwargs = mock_fetch.call_args.kwargs
+    assert call_kwargs['start_date'] == _BASE_TS.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def test_refresh_from_binancial_drops_median_and_iqr_columns(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''binancial returns 19 columns including `median` and `iqr`;
+    those two are dropped before append so the disk parquet retains
+    Limen's 17-column shape.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    snapshot = _make_klines_pandas(_BASE_TS, count=3)
+    assert 'median' in snapshot.columns
+    assert 'iqr' in snapshot.columns
+
+    with patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=snapshot,
+    ):
+        cache.refresh_from_binancial()
+
+    assert 'median' not in cache.frame.columns
+    assert 'iqr' not in cache.frame.columns
+    assert cache.frame.width == 17
+
+
+def test_refresh_from_binancial_wins_on_overlap_with_limen_bars(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''When binancial returns a bar at a `datetime` already present
+    from a prior Limen refresh, the binancial bar wins (last-write
+    on `unique(keep='last')`). Verifies that the per-minute trailing
+    refresh supersedes the daily Limen bars on the overlap window.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    limen_bars = _make_klines(_BASE_TS, count=3)
+    overlapping_pd = _make_klines_pandas(_BASE_TS, count=3)
+    overlapping_pd['close'] = pd.Series([99999.0, 99999.0, 99999.0])
+
+    with patch(
+        'praxis.market_data_cache.HistoricalData',
+    ) as mock_hd_cls:
+        mock_hd_cls.return_value.get_spot_klines.return_value = limen_bars
+        cache.refresh_from_limen()
+
+    assert cache.frame['close'].to_list() == [50050.0, 50051.0, 50052.0]
+
+    with patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=overlapping_pd,
+    ):
+        cache.refresh_from_binancial()
+
+    assert cache.frame.height == 3
+    assert cache.frame['close'].to_list() == [99999.0, 99999.0, 99999.0]
+
+
+def test_get_market_data_aggregates_5m_from_1m(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''`get_market_data(300)` aggregates 1-min bars into 5-min
+    buckets. Pin: shape (height/12 buckets), datetime spacing
+    (300s), open/high/low/close behave as first/max/min/last.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    snapshot = _make_klines(_BASE_TS, count=15)
+
+    with patch(
+        'praxis.market_data_cache.HistoricalData',
+    ) as mock_hd_cls:
+        mock_hd_cls.return_value.get_spot_klines.return_value = snapshot
+        cache.refresh_from_limen()
+
+    aggregated = cache.get_market_data(300)
+
+    assert aggregated.height == 3
+    assert aggregated['datetime'].to_list() == [
+        _BASE_TS,
+        _BASE_TS + timedelta(minutes=5),
+        _BASE_TS + timedelta(minutes=10),
+    ]
+    assert aggregated['open'].to_list() == [50000.0, 50005.0, 50010.0]
+    assert aggregated['close'].to_list() == [50054.0, 50059.0, 50064.0]
+
+
+def test_concurrent_refreshes_do_not_corrupt_disk(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: `_write_lock` serializes the two refresh paths so a
+    Limen refresh + binancial refresh firing simultaneously cannot
+    leave the disk parquet inconsistent with the state file. Both
+    paths run via real threads; afterward the on-disk parquet's
+    bar count must match the state's `last_covered_ts` (i.e. no
+    in-flight reorder lost a write).
+    '''
+
+    import threading as _threading
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    limen_bars = _make_klines(_BASE_TS, count=10)
+    binancial_bars = _make_klines_pandas(
+        _BASE_TS + timedelta(minutes=10), count=5,
+    )
+
+    with patch(
+        'praxis.market_data_cache.HistoricalData',
+    ) as mock_hd_cls, patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=binancial_bars,
+    ):
+        mock_hd_cls.return_value.get_spot_klines.return_value = limen_bars
+
+        t_limen = _threading.Thread(target=cache.refresh_from_limen)
+        t_binancial = _threading.Thread(target=cache.refresh_from_binancial)
+        t_limen.start()
+        t_binancial.start()
+        t_limen.join(timeout=10)
+        t_binancial.join(timeout=10)
+
+    assert not t_limen.is_alive()
+    assert not t_binancial.is_alive()
+
+    on_disk = pl.read_parquet(parquet_path)
+    state = json.loads(state_path.read_text())
+    expected_last = on_disk['datetime'].max()
+    assert state['last_covered_ts'] == expected_last.isoformat()
+    assert on_disk.height == 15
