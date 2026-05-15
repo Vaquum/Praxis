@@ -126,6 +126,57 @@ def test_skips_sensor_with_missing_kline_size_key() -> None:
     assert sizes == ()
 
 
+def test_skips_zero_kline_size() -> None:
+    '''`kline_size == 0` is invalid (cannot fetch a 0-second bar) and
+    is skipped by the `<= 0` half of the guard.
+    '''
+
+    sizes = _register_wired_kline_sizes(
+        [_wired_sensor(kline_size=0)],
+    )
+
+    assert sizes == ()
+
+
+def test_skips_negative_kline_size() -> None:
+    '''Negative `kline_size` is rejected by the `<= 0` half of the guard.
+    '''
+
+    sizes = _register_wired_kline_sizes(
+        [_wired_sensor(kline_size=-60)],
+    )
+
+    assert sizes == ()
+
+
+def test_skips_kline_size_not_multiple_of_60() -> None:
+    '''Positive `kline_size` that is not a multiple of 60 is rejected
+    by the `% 60 != 0` half of the guard (the cache only stores 1-min
+    base bars and only aggregates up to multiples of 60).
+    '''
+
+    sizes = _register_wired_kline_sizes(
+        [_wired_sensor(kline_size=59)],
+    )
+
+    assert sizes == ()
+
+
+def test_invalid_kline_size_does_not_drop_other_valid_sensors() -> None:
+    '''A bad `kline_size` is skipped without aborting the function;
+    valid sizes from other sensors are still returned.
+    '''
+
+    sizes = _register_wired_kline_sizes([
+        _wired_sensor(kline_size=59, interval_seconds=30),
+        _wired_sensor(kline_size=7200, interval_seconds=60),
+        _wired_sensor(kline_size=-60, interval_seconds=30),
+        _wired_sensor(kline_size=3600, interval_seconds=30),
+    ])
+
+    assert sizes == (3600, 7200)
+
+
 def test_one_bad_sensor_does_not_abort_remaining() -> None:
     '''Per-sensor parse exception logs a warning and skips that sensor only.'''
 
