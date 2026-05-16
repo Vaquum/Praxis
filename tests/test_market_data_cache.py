@@ -1006,6 +1006,64 @@ def test_concurrent_refreshes_do_not_corrupt_disk(
     assert on_disk.height == 15
 
 
+def test_scheduler_init_rejects_nan_interval() -> None:
+    '''NaN binancial_interval_seconds would crash the daemon via
+    Event.wait(timeout=NaN), so reject at construction time.
+    '''
+
+    with pytest.raises(ValueError, match='must be finite'):
+        CacheScheduler(
+            MagicMock(spec=MainCache),
+            binancial_interval_seconds=float('nan'),
+        )
+
+
+def test_scheduler_init_rejects_inf_interval() -> None:
+    '''inf binancial_interval_seconds would stall refresh forever.'''
+
+    with pytest.raises(ValueError, match='must be finite'):
+        CacheScheduler(
+            MagicMock(spec=MainCache),
+            binancial_interval_seconds=float('inf'),
+        )
+
+
+def test_scheduler_limen_loop_falls_back_on_non_finite_schedule(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Defensive: if a user-supplied limen_schedule_fn returns
+    NaN/inf, the loop logs a warning and uses a 1-hour fallback
+    rather than passing the bad value into Event.wait.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    nan_then_stop = iter([float('nan')])
+
+    def _bad_schedule() -> float:
+        try:
+            return next(nan_then_stop)
+        except StopIteration:
+            return 3600.0
+
+    scheduler = CacheScheduler(
+        cache,
+        binancial_interval_seconds=10.0,
+        limen_schedule_fn=_bad_schedule,
+    )
+
+    with caplog.at_level('WARNING', logger='praxis.market_data_cache'):
+        scheduler.start()
+        scheduler.stop(timeout_seconds=2.0)
+
+    assert any(
+        'non-finite seconds' in record.message
+        for record in caplog.records
+    )
+
+
 def test_scheduler_starts_both_threads(
     cache_paths: tuple[Path, Path],
 ) -> None:

@@ -59,6 +59,33 @@ def test_init_rejects_non_positive_max_age_value() -> None:
         MarketDataPoller(cache, max_age_overrides={300: 0.0})
 
 
+def test_init_rejects_nan_max_age_value() -> None:
+    '''NaN would silently disable staleness (`age > NaN` always False).'''
+
+    cache = MagicMock()
+
+    with pytest.raises(ValueError, match='must be finite'):
+        MarketDataPoller(cache, max_age_overrides={300: float('nan')})
+
+
+def test_init_rejects_inf_max_age_value() -> None:
+    '''Inf would make the cache appear never-stale.'''
+
+    cache = MagicMock()
+
+    with pytest.raises(ValueError, match='must be finite'):
+        MarketDataPoller(cache, max_age_overrides={300: float('inf')})
+
+
+def test_init_rejects_non_numeric_max_age_value() -> None:
+    '''Non-numeric max_age fails fast with a clear type error.'''
+
+    cache = MagicMock()
+
+    with pytest.raises(TypeError, match='must be int or float'):
+        MarketDataPoller(cache, max_age_overrides={300: '60'})  # type: ignore[dict-item]
+
+
 def test_get_market_data_delegates_to_cache(populated_cache: MainCache) -> None:
     '''get_market_data forwards the kline_size to MainCache and
     returns whatever MainCache returns when the cache is fresh.

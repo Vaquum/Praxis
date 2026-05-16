@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import tempfile
 import threading
@@ -781,6 +782,15 @@ class CacheScheduler:
         limen_schedule_fn: Any = None,
     ) -> None:
 
+        if not math.isfinite(binancial_interval_seconds):
+            msg = (
+                f'binancial_interval_seconds must be finite (no NaN/inf); '
+                f'got {binancial_interval_seconds!r}. NaN would crash the '
+                f'daemon via Event.wait(timeout=NaN); inf would stall '
+                f'refresh forever.'
+            )
+            raise ValueError(msg)
+
         if binancial_interval_seconds <= 0:
             msg = (
                 f'binancial_interval_seconds must be positive, '
@@ -899,7 +909,17 @@ class CacheScheduler:
         '''
 
         while not self._stop_event.is_set():
-            wait_seconds = max(0.0, float(self._limen_schedule_fn()))
+            raw_wait = float(self._limen_schedule_fn())
+
+            if not math.isfinite(raw_wait):
+                _log.warning(
+                    'limen_schedule_fn returned non-finite seconds; '
+                    'falling back to 1-hour wait',
+                    extra={'raw_wait_seconds': raw_wait},
+                )
+                wait_seconds = 3600.0
+            else:
+                wait_seconds = max(0.0, raw_wait)
 
             if self._stop_event.wait(timeout=wait_seconds):
                 return

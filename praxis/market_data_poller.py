@@ -25,6 +25,7 @@ per-kline_size, and lifecycle is owned by `CacheScheduler`.
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 
 import polars as pl
@@ -108,6 +109,23 @@ class MarketDataPoller:
                 msg = (
                     f'max_age_overrides key (kline_size) must be '
                     f'positive; got {ks!r}'
+                )
+                raise ValueError(msg)
+
+            if not isinstance(max_age, (int, float)) or isinstance(max_age, bool):
+                msg = (
+                    f'max_age_overrides value for kline_size={ks} '
+                    f'must be int or float; got {type(max_age).__name__}'
+                )
+                raise TypeError(msg)
+
+            if not math.isfinite(max_age):
+                msg = (
+                    f'max_age_overrides value for kline_size={ks} '
+                    f'must be finite (no NaN/inf); got {max_age!r}. '
+                    f'NaN would silently disable staleness '
+                    f'(age > NaN is always False); inf would make '
+                    f'the cache never stale.'
                 )
                 raise ValueError(msg)
 
