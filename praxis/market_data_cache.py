@@ -234,7 +234,11 @@ class MainCache:
         Used as the second-priority fallback in
         `refresh_from_binancial` so a missing-state-file scenario
         (operator deleted it, partial atomic write, etc.) does not
-        skip from the last on-disk bar back to `now - 1h`.
+        skip from the last on-disk bar back to `now - 1h`. The
+        return value is always normalized to UTC (naive → `replace`,
+        aware non-UTC → `astimezone`) so a downstream `strftime`
+        cannot silently drop a non-zero offset and turn `start_date`
+        into the wrong wall-clock window.
         '''
 
         if self._frame.is_empty():
@@ -248,9 +252,9 @@ class MainCache:
         latest = cast(datetime, raw)
 
         if latest.tzinfo is None:
-            latest = latest.replace(tzinfo=UTC)
+            return latest.replace(tzinfo=UTC)
 
-        return latest
+        return latest.astimezone(UTC)
 
     def _quarantine_corrupt_files(self) -> None:
 
@@ -546,8 +550,12 @@ class MainCache:
         raw_latest = frame['datetime'].max()
         latest = cast(datetime, raw_latest) if raw_latest is not None else None
 
-        if latest is not None and latest.tzinfo is None:
-            latest = latest.replace(tzinfo=UTC)
+        if latest is not None:
+            latest = (
+                latest.replace(tzinfo=UTC)
+                if latest.tzinfo is None
+                else latest.astimezone(UTC)
+            )
 
         if kline_size == _BASE_KLINE_SIZE_SECONDS:
             return frame, latest
@@ -769,28 +777,56 @@ class CacheScheduler:
 
     def start(self) -> None:
 
-        '''Start the two refresh threads (idempotent).
+        '''Start the two refresh threads (idempotent and recovery-safe).
+
+        No-ops only when BOTH thread refs are non-None AND alive.
+        Dead refs (left over from a `stop()` that timed out and
+        skipped its `setattr(..., None)` cleanup, or from a thread
+        that exited unexpectedly) are cleared and replaced with
+        fresh threads so a stop → start cycle and recovery from a
+        dead thread both work reliably. Pre-fix `start()` no-oped
+        on any non-None ref and a timed-out stop made every
+        subsequent start a permanent no-op even with no live
+        threads.
 
         Returns:
             None
         '''
 
-        if self._limen_thread is not None or self._binancial_thread is not None:
+        limen_alive = (
+            self._limen_thread is not None and self._limen_thread.is_alive()
+        )
+        binancial_alive = (
+            self._binancial_thread is not None
+            and self._binancial_thread.is_alive()
+        )
+
+        if limen_alive and binancial_alive:
             return
 
+        if not limen_alive:
+            self._limen_thread = None
+
+        if not binancial_alive:
+            self._binancial_thread = None
+
         self._stop_event.clear()
-        self._limen_thread = threading.Thread(
-            target=self._limen_loop,
-            name='cache-scheduler-limen',
-            daemon=True,
-        )
-        self._binancial_thread = threading.Thread(
-            target=self._binancial_loop,
-            name='cache-scheduler-binancial',
-            daemon=True,
-        )
-        self._limen_thread.start()
-        self._binancial_thread.start()
+
+        if self._limen_thread is None:
+            self._limen_thread = threading.Thread(
+                target=self._limen_loop,
+                name='cache-scheduler-limen',
+                daemon=True,
+            )
+            self._limen_thread.start()
+
+        if self._binancial_thread is None:
+            self._binancial_thread = threading.Thread(
+                target=self._binancial_loop,
+                name='cache-scheduler-binancial',
+                daemon=True,
+            )
+            self._binancial_thread.start()
 
         _log.info(
             'cache scheduler started',

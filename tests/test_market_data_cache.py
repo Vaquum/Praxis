@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -782,6 +782,58 @@ def test_refresh_from_binancial_clamps_when_frame_ts_also_in_future(
     )
 
 
+def test_latest_frame_ts_converts_non_utc_aware_to_utc(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: `_latest_frame_ts` normalizes an aware non-UTC datetime
+    in the frame's max position to UTC. Without normalization the
+    downstream `strftime` would silently drop the offset and
+    produce a `start_date` for the wrong wall-clock window.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    tokyo = timezone(timedelta(hours=9))
+    cache._frame = pl.DataFrame({
+        'datetime': pl.Series(
+            'datetime',
+            [datetime(2026, 5, 16, 9, 0, 0, tzinfo=tokyo)],
+            dtype=pl.Datetime('us', 'Asia/Tokyo'),
+        ),
+    })
+
+    result = cache._latest_frame_ts()
+
+    assert result is not None
+    assert result.utcoffset() == timedelta(0)
+    assert result == datetime(2026, 5, 16, 0, 0, 0, tzinfo=UTC)
+
+
+def test_snapshot_converts_non_utc_aware_to_utc(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Same normalization contract on the `snapshot` path so the
+    poller's staleness comparison is always against a UTC value.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    tokyo = timezone(timedelta(hours=9))
+    cache._frame = pl.DataFrame({
+        'datetime': pl.Series(
+            'datetime',
+            [datetime(2026, 5, 16, 9, 0, 0, tzinfo=tokyo)],
+            dtype=pl.Datetime('us', 'Asia/Tokyo'),
+        ),
+    })
+
+    _, latest = cache.snapshot(60)
+
+    assert latest is not None
+    assert latest.utcoffset() == timedelta(0)
+    assert latest == datetime(2026, 5, 16, 0, 0, 0, tzinfo=UTC)
+
+
 def test_apply_new_bars_rejects_unknown_source(
     cache_paths: tuple[Path, Path],
 ) -> None:
@@ -940,6 +992,55 @@ def test_scheduler_stops_cleanly_on_stop_event(
     assert not binancial_thread.is_alive()
     assert scheduler._limen_thread is None
     assert scheduler._binancial_thread is None
+
+
+def test_scheduler_start_recovers_from_dead_thread_refs(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: `start()` is recovery-safe — if the existing thread refs
+    are non-None but no longer alive (e.g. a prior `stop()` timed
+    out and left the refs in place, or a thread exited unexpectedly),
+    the next `start()` recreates and starts fresh threads instead of
+    no-oping. Pre-fix the non-None check made every subsequent
+    `start()` a permanent no-op after a timed-out stop.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache.refresh_from_binancial = MagicMock(return_value=None)
+    cache.refresh_from_limen = MagicMock(return_value=None)
+
+    scheduler = CacheScheduler(
+        cache,
+        binancial_interval_seconds=10.0,
+        limen_schedule_fn=lambda: 10.0,
+    )
+    scheduler.start()
+    scheduler.stop(timeout_seconds=2.0)
+    assert scheduler._limen_thread is None
+    assert scheduler._binancial_thread is None
+
+    dead_limen = threading.Thread(target=lambda: None, daemon=True)
+    dead_limen.start()
+    dead_limen.join()
+    dead_binancial = threading.Thread(target=lambda: None, daemon=True)
+    dead_binancial.start()
+    dead_binancial.join()
+    scheduler._limen_thread = dead_limen
+    scheduler._binancial_thread = dead_binancial
+    assert not dead_limen.is_alive()
+    assert not dead_binancial.is_alive()
+
+    scheduler.start()
+
+    assert scheduler._limen_thread is not dead_limen
+    assert scheduler._binancial_thread is not dead_binancial
+    assert scheduler._limen_thread is not None
+    assert scheduler._binancial_thread is not None
+    assert scheduler._limen_thread.is_alive()
+    assert scheduler._binancial_thread.is_alive()
+
+    scheduler.stop(timeout_seconds=2.0)
 
 
 def test_limen_refresh_exception_does_not_kill_thread(
