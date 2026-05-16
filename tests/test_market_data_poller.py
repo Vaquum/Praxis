@@ -212,6 +212,36 @@ def test_get_market_data_uses_single_snapshot_call() -> None:
     cache.get_market_data.assert_not_called()
 
 
+def test_get_market_data_raises_on_future_latest_bar() -> None:
+    '''Pin: a latest bar timestamped in the future yields a negative
+    `age_seconds`. Pre-fix the `> max_age_seconds` check passed
+    silently (negative is never > positive) and trading would
+    proceed on a corrupt cache. Post-fix this is treated as stale
+    and `StaleMarketDataError` is raised.
+    '''
+
+    cache = MagicMock(spec=MainCache)
+    future_ts = datetime.now(tz=UTC) + timedelta(hours=1)
+    cache.snapshot.return_value = (_make_klines(_BASE_TS, count=3), future_ts)
+    poller = MarketDataPoller(cache)
+
+    with pytest.raises(StaleMarketDataError) as exc_info:
+        poller.get_market_data(60)
+
+    assert exc_info.value.age_seconds < 0
+
+
+def test_is_stale_returns_true_on_future_latest_bar() -> None:
+    '''Non-raising counterpart: future latest bar reports stale.'''
+
+    cache = MagicMock(spec=MainCache)
+    future_ts = datetime.now(tz=UTC) + timedelta(hours=1)
+    cache.snapshot.return_value = (pl.DataFrame(), future_ts)
+    poller = MarketDataPoller(cache)
+
+    assert poller.is_stale(60) is True
+
+
 def test_is_stale_returns_true_when_empty() -> None:
     '''Non-raising counterpart: an empty cache reports stale.'''
 

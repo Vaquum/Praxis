@@ -177,7 +177,7 @@ class MarketDataPoller:
         max_age_seconds = self._max_age_seconds(kline_size)
         age_seconds = (datetime.now(tz=UTC) - latest).total_seconds()
 
-        if age_seconds > max_age_seconds:
+        if age_seconds < 0 or age_seconds > max_age_seconds:
             raise StaleMarketDataError(
                 kline_size=kline_size,
                 fetched_at=latest,
@@ -198,11 +198,17 @@ class MarketDataPoller:
         that wants to short-circuit on stale data without
         exception flow control).
 
+        A negative `age_seconds` (latest bar timestamped in the
+        future — clock skew, manual cache edit, corruption) is also
+        treated as stale: trading must not proceed on a cache whose
+        most recent bar is impossible.
+
         Returns:
             bool: `True` when the latest bar in the cache is older
                 than `max_age_seconds` for this kline_size; `True`
                 when the cache is empty (no fresh data available);
-                `False` otherwise.
+                `True` when the latest bar is in the future (invalid
+                cache state); `False` otherwise.
         '''
 
         _, latest = self._cache.snapshot(kline_size)
@@ -212,7 +218,7 @@ class MarketDataPoller:
 
         max_age_seconds = self._max_age_seconds(kline_size)
         age_seconds = (datetime.now(tz=UTC) - latest).total_seconds()
-        return age_seconds > max_age_seconds
+        return age_seconds < 0 or age_seconds > max_age_seconds
 
     def _max_age_seconds(self, kline_size: int) -> float:
 

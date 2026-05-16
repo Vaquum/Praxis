@@ -652,6 +652,37 @@ class MainCache:
                         subset=['datetime'], keep=keep,
                     ).sort('datetime')
 
+            now = datetime.now(tz=UTC)
+            cutoff = pl.lit(now).cast(pl.Datetime('us', 'UTC'))
+            future_rows = merged.filter(pl.col('datetime') > cutoff)
+
+            if future_rows.height > 0:
+                _log.warning(
+                    'main cache: dropped future-dated rows before persist '
+                    '(clock skew, corrupt fetch, or stale future bars '
+                    'carried over from a prior incident); without this '
+                    'filter the round-11 future-state self-heal would '
+                    "be defeated because next_high_water would still be "
+                    'in the future and the poller would silently report '
+                    'fresh on negative age',
+                    extra={
+                        'source': source,
+                        'dropped_count': future_rows.height,
+                        'max_future_ts': str(future_rows['datetime'].max()),
+                        'now': now.isoformat(),
+                    },
+                )
+                merged = merged.filter(pl.col('datetime') <= cutoff)
+
+            if merged.is_empty():
+                _log.warning(
+                    'main cache: every fetched bar was future-dated; '
+                    'skipping persist so the on-disk state is not '
+                    'overwritten with an empty frame',
+                    extra={'source': source},
+                )
+                return
+
             new_high_water = cast(datetime, merged['datetime'].max())
             self._atomic_write_parquet(merged)
             self._atomic_write_main_cache_state(new_high_water)

@@ -218,9 +218,10 @@ def test_refresh_from_binancial_first_boot_uses_default_window(
 
     parquet_path, state_path = cache_paths
     cache = MainCache(MagicMock(), parquet_path, state_path)
-    snapshot = _make_klines_pandas(_BASE_TS, count=4)
-
     fixed_now = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
+    snapshot = _make_klines_pandas(
+        fixed_now - timedelta(minutes=4), count=4,
+    )
 
     with patch(
         'praxis.market_data_cache.get_spot_klines',
@@ -902,6 +903,83 @@ def test_apply_new_bars_slow_path_runs_on_overlap(
     datetimes = cache.frame['datetime'].to_list()
     assert datetimes == sorted(datetimes)
     assert len(datetimes) == len(set(datetimes))
+
+
+def test_apply_new_bars_drops_future_dated_rows_before_persist(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Pin: when the merged frame contains future-dated rows (from
+    pre-existing _frame rows, or somehow from new_bars), they are
+    filtered out before computing `new_high_water` and persisting.
+    Otherwise the state file would keep getting a future
+    `last_covered_ts`, defeating the round-11 future-state self-heal
+    and making the poller's staleness check report fresh on
+    negative age.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    now = datetime.now(tz=UTC)
+    future_bars = _make_klines(now + timedelta(hours=2), count=3)
+    future_bars.write_parquet(parquet_path)
+    cache.load()
+    assert cache.frame.height == 3
+
+    past_snapshot = _make_klines_pandas(now - timedelta(minutes=5), count=2)
+
+    with (
+        patch(
+            'praxis.market_data_cache.get_spot_klines',
+            return_value=past_snapshot,
+        ),
+        caplog.at_level('WARNING', logger='praxis.market_data_cache'),
+    ):
+        cache.refresh_from_binancial()
+
+    assert cache.frame.height == 2
+    max_ts = cache.frame['datetime'].max()
+    assert max_ts < datetime.now(tz=UTC)
+
+    healed_state = json.loads(state_path.read_text())
+    healed_ts = datetime.fromisoformat(healed_state['last_covered_ts'])
+    assert healed_ts < datetime.now(tz=UTC)
+
+    assert any(
+        'dropped future-dated rows' in record.message
+        for record in caplog.records
+    )
+
+
+def test_apply_new_bars_skips_persist_when_every_row_future(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''When fetch returns only future-dated rows (extreme corruption
+    case), the filter empties the frame; persist is skipped so the
+    on-disk state is not overwritten with an empty frame.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    now = datetime.now(tz=UTC)
+    future_only = _make_klines_pandas(now + timedelta(hours=2), count=3)
+
+    with (
+        patch(
+            'praxis.market_data_cache.get_spot_klines',
+            return_value=future_only,
+        ),
+        caplog.at_level('WARNING', logger='praxis.market_data_cache'),
+    ):
+        cache.refresh_from_binancial()
+
+    assert not parquet_path.exists()
+    assert not state_path.exists()
+    assert any(
+        'every fetched bar was future-dated' in record.message
+        for record in caplog.records
+    )
 
 
 def test_apply_new_bars_rejects_unknown_source(
