@@ -1040,13 +1040,11 @@ def test_scheduler_limen_loop_falls_back_on_non_finite_schedule(
     parquet_path, state_path = cache_paths
     cache = MainCache(MagicMock(), parquet_path, state_path)
 
-    nan_then_stop = iter([float('nan')])
+    schedule_called = threading.Event()
 
     def _bad_schedule() -> float:
-        try:
-            return next(nan_then_stop)
-        except StopIteration:
-            return 3600.0
+        schedule_called.set()
+        return float('nan')
 
     scheduler = CacheScheduler(
         cache,
@@ -1056,10 +1054,51 @@ def test_scheduler_limen_loop_falls_back_on_non_finite_schedule(
 
     with caplog.at_level('WARNING', logger='praxis.market_data_cache'):
         scheduler.start()
+        assert schedule_called.wait(timeout=2.0), (
+            'limen loop never invoked schedule_fn within timeout'
+        )
         scheduler.stop(timeout_seconds=2.0)
 
     assert any(
         'non-finite seconds' in record.message
+        for record in caplog.records
+    )
+
+
+def test_scheduler_limen_loop_survives_raising_schedule_fn(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''A schedule_fn that raises (or returns a non-numeric value
+    that float() rejects) must not kill the limen daemon. The loop
+    logs and falls back to the safe 1-hour wait.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    schedule_called = threading.Event()
+
+    def _raising_schedule() -> float:
+        schedule_called.set()
+        msg = 'synthetic schedule_fn failure'
+        raise RuntimeError(msg)
+
+    scheduler = CacheScheduler(
+        cache,
+        binancial_interval_seconds=10.0,
+        limen_schedule_fn=_raising_schedule,
+    )
+
+    with caplog.at_level('ERROR', logger='praxis.market_data_cache'):
+        scheduler.start()
+        assert schedule_called.wait(timeout=2.0)
+        assert scheduler._limen_thread is not None
+        assert scheduler._limen_thread.is_alive()
+        scheduler.stop(timeout_seconds=2.0)
+
+    assert any(
+        'limen_schedule_fn raised' in record.message
         for record in caplog.records
     )
 

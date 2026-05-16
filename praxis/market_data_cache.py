@@ -909,7 +909,14 @@ class CacheScheduler:
         '''
 
         while not self._stop_event.is_set():
-            raw_wait = float(self._limen_schedule_fn())
+            try:
+                raw_wait = float(self._limen_schedule_fn())
+            except Exception:  # noqa: BLE001 - daemon must survive a broken schedule_fn
+                _log.exception(
+                    'limen_schedule_fn raised or returned a non-numeric '
+                    'value; falling back to 1-hour wait',
+                )
+                raw_wait = 3600.0
 
             if not math.isfinite(raw_wait):
                 _log.warning(
