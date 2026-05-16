@@ -658,7 +658,10 @@ class MainCache:
                             'casts': {col: str(dt) for col, dt in casts.items()},
                         },
                     )
-                    new_bars = new_bars.cast(casts)
+                    new_bars = new_bars.with_columns([
+                        pl.col(col).cast(dtype)
+                        for col, dtype in casts.items()
+                    ])
 
             if self._frame.is_empty():
                 merged = new_bars.unique(
