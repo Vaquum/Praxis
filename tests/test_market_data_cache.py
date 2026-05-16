@@ -682,6 +682,106 @@ def test_refresh_from_binancial_uses_frame_max_when_state_missing(
     assert state_path.exists()
 
 
+def test_refresh_from_binancial_self_heals_on_future_state_ts(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Pin: a future `last_covered_ts` on disk (clock skew, manual
+    edit) is treated as corrupt and the refresh proceeds with the
+    in-memory frame max as fallback. Pre-fix the method just logged
+    and returned, so every subsequent refresh kept skipping and the
+    cache stayed stale until manual intervention.
+    '''
+
+    parquet_path, state_path = cache_paths
+    older_bars = _make_klines(
+        datetime.now(tz=UTC) - timedelta(hours=4),
+        count=5,
+    )
+    older_bars.write_parquet(parquet_path)
+    future_ts = datetime.now(tz=UTC) + timedelta(days=1)
+    state_path.write_text(json.dumps({
+        'last_covered_ts': future_ts.isoformat(),
+    }))
+
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache.load()
+    snapshot_pd = _make_klines_pandas(
+        datetime.now(tz=UTC) - timedelta(minutes=2),
+        count=2,
+    )
+
+    with (
+        patch(
+            'praxis.market_data_cache.get_spot_klines',
+            return_value=snapshot_pd,
+        ) as mock_fetch,
+        caplog.at_level('WARNING', logger='praxis.market_data_cache'),
+    ):
+        cache.refresh_from_binancial()
+
+    mock_fetch.assert_called_once()
+    call_kwargs = mock_fetch.call_args.kwargs
+    expected_start_ts = older_bars['datetime'].max()
+    expected_start = expected_start_ts.strftime('%Y-%m-%d %H:%M:%S')
+    assert call_kwargs['start_date'] == expected_start
+    assert any(
+        'in the future' in record.message
+        for record in caplog.records
+    )
+    healed_state = json.loads(state_path.read_text())
+    healed_ts = datetime.fromisoformat(healed_state['last_covered_ts'])
+    assert healed_ts < datetime.now(tz=UTC)
+
+
+def test_refresh_from_binancial_clamps_when_frame_ts_also_in_future(
+    cache_paths: tuple[Path, Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Pin: even when both the state ts AND the frame max are in
+    the future, the refresh proceeds with `now - 1h` clamp rather
+    than fetching a future window or skipping.
+    '''
+
+    parquet_path, state_path = cache_paths
+    future_bars = _make_klines(
+        datetime.now(tz=UTC) + timedelta(hours=2),
+        count=3,
+    )
+    future_bars.write_parquet(parquet_path)
+    future_state = datetime.now(tz=UTC) + timedelta(days=1)
+    state_path.write_text(json.dumps({
+        'last_covered_ts': future_state.isoformat(),
+    }))
+
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache.load()
+    snapshot_pd = _make_klines_pandas(
+        datetime.now(tz=UTC) - timedelta(minutes=2),
+        count=2,
+    )
+
+    with (
+        patch(
+            'praxis.market_data_cache.get_spot_klines',
+            return_value=snapshot_pd,
+        ) as mock_fetch,
+        caplog.at_level('WARNING', logger='praxis.market_data_cache'),
+    ):
+        cache.refresh_from_binancial()
+
+    mock_fetch.assert_called_once()
+    call_kwargs = mock_fetch.call_args.kwargs
+    start_dt = datetime.strptime(
+        call_kwargs['start_date'], '%Y-%m-%d %H:%M:%S',
+    ).replace(tzinfo=UTC)
+    assert start_dt < datetime.now(tz=UTC)
+    assert any(
+        'clamping to bootstrap window' in record.message
+        for record in caplog.records
+    )
+
+
 def test_apply_new_bars_rejects_unknown_source(
     cache_paths: tuple[Path, Path],
 ) -> None:

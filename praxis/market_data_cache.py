@@ -327,7 +327,12 @@ class MainCache:
 
         Resolves the window start in this priority order:
 
-        1. `self.last_covered_ts` (state file present + parseable)
+        1. `self.last_covered_ts` (state file present + parseable
+           AND in the past — a future timestamp is treated as
+           corrupt state and skipped; this prevents a clock-skew or
+           manual-edit incident from permanently freezing refresh
+           because pre-fix the future-ts branch only logged and
+           returned)
         2. the max `datetime` in the in-memory `_frame` (parquet
            loaded but state file missing — e.g. operator deleted
            it, or an atomic write succeeded for the parquet but
@@ -339,6 +344,13 @@ class MainCache:
            the end of this refresh
         3. `now - _BINANCIAL_BOOTSTRAP_HOURS` (first-ever boot,
            no state, no in-memory bars)
+
+        A final safety clamp: if the resolved `last_covered_ts` is
+        STILL `>= now` (e.g. `_frame` itself contains future bars
+        because something else wrote them), the window start is
+        clamped to `now - _BINANCIAL_BOOTSTRAP_HOURS` so the fetch
+        always covers a finite past window and the cache can
+        self-heal on the next write.
 
         Asks `binancial.get_spot_klines` for the window from the
         resolved start to `now`. The returned pandas frame is
@@ -353,22 +365,39 @@ class MainCache:
         '''
 
         now = datetime.now(tz=UTC)
+        state_ts = self.last_covered_ts
+
+        if state_ts is not None and state_ts >= now:
+            _log.warning(
+                'main cache refresh_from_binancial: state last_covered_ts is '
+                'in the future, treating as corrupt and falling back (clock '
+                'skew or manual state edit); cache self-heals when this '
+                'refresh writes a fresh last_covered_ts',
+                extra={
+                    'state_last_covered_ts': state_ts.isoformat(),
+                    'now': now.isoformat(),
+                },
+            )
+            state_ts = None
+
         last_covered_ts = (
-            self.last_covered_ts
+            state_ts
             or self._latest_frame_ts()
             or (now - timedelta(hours=_BINANCIAL_BOOTSTRAP_HOURS))
         )
 
         if last_covered_ts >= now:
             _log.warning(
-                'main cache refresh_from_binancial: last_covered_ts is not in '
-                'the past, skipping (clock skew or corrupt state file?)',
+                'main cache refresh_from_binancial: resolved last_covered_ts '
+                'is still in the future after fallback (frame max also in '
+                'the future?); clamping to bootstrap window so the cache '
+                'self-heals',
                 extra={
-                    'last_covered_ts': last_covered_ts.isoformat(),
+                    'resolved_last_covered_ts': last_covered_ts.isoformat(),
                     'now': now.isoformat(),
                 },
             )
-            return
+            last_covered_ts = now - timedelta(hours=_BINANCIAL_BOOTSTRAP_HOURS)
 
         start_str = last_covered_ts.strftime(_DATETIME_FMT)
         end_str = now.strftime(_DATETIME_FMT)
