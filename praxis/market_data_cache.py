@@ -227,6 +227,31 @@ class MainCache:
             self._quarantine_corrupt_files()
             self._frame = pl.DataFrame()
 
+    def _latest_frame_ts(self) -> datetime | None:
+
+        '''Aware-UTC max `datetime` in `self._frame`, or `None` if empty.
+
+        Used as the second-priority fallback in
+        `refresh_from_binancial` so a missing-state-file scenario
+        (operator deleted it, partial atomic write, etc.) does not
+        skip from the last on-disk bar back to `now - 1h`.
+        '''
+
+        if self._frame.is_empty():
+            return None
+
+        raw = self._frame['datetime'].max()
+
+        if raw is None:
+            return None
+
+        latest = cast(datetime, raw)
+
+        if latest.tzinfo is None:
+            latest = latest.replace(tzinfo=UTC)
+
+        return latest
+
     def _quarantine_corrupt_files(self) -> None:
 
         '''Rename parquet + state to `<name>.corrupt-<UTC-iso>`.
@@ -300,24 +325,38 @@ class MainCache:
 
         '''Pull trailing-edge bars from binancial and append.
 
-        Reads the state file to get the previous high-water
-        timestamp (or defaults to `now - _BINANCIAL_BOOTSTRAP_HOURS`
-        on first boot) and asks `binancial.get_spot_klines` for the
-        window from there to `now`. The returned pandas frame is
+        Resolves the window start in this priority order:
+
+        1. `self.last_covered_ts` (state file present + parseable)
+        2. the max `datetime` in the in-memory `_frame` (parquet
+           loaded but state file missing — e.g. operator deleted
+           it, or an atomic write succeeded for the parquet but
+           failed for the state file); this prevents a multi-hour
+           gap between the newest on-disk bar and `now - 1h` that
+           a naive `now - _BINANCIAL_BOOTSTRAP_HOURS` fallback
+           would otherwise introduce. The state file is repaired
+           automatically by `_atomic_write_main_cache_state` at
+           the end of this refresh
+        3. `now - _BINANCIAL_BOOTSTRAP_HOURS` (first-ever boot,
+           no state, no in-memory bars)
+
+        Asks `binancial.get_spot_klines` for the window from the
+        resolved start to `now`. The returned pandas frame is
         stripped of `median` / `iqr` (binancial-only columns absent
         from Limen's 17-column shape), converted to polars, and
         merged into the on-disk cache under `_write_lock`. On
         overlap with previously-Limen-sourced bars, the binancial
-        bars win because they are fresher (last-write-wins via
-        `unique(keep='last')`).
+        bars win (`_apply_new_bars` source-aware dedup).
 
         Returns:
             None
         '''
 
         now = datetime.now(tz=UTC)
-        last_covered_ts = self.last_covered_ts or (
-            now - timedelta(hours=_BINANCIAL_BOOTSTRAP_HOURS)
+        last_covered_ts = (
+            self.last_covered_ts
+            or self._latest_frame_ts()
+            or (now - timedelta(hours=_BINANCIAL_BOOTSTRAP_HOURS))
         )
 
         if last_covered_ts >= now:

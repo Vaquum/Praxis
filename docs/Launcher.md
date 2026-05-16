@@ -39,7 +39,7 @@ At a high level, `Launcher.launch()` does this:
 5. start one Nexus thread per `InstanceConfig`
 6. start the `/healthz` listener
 7. block until `_stop_event` is set (signal, test harness, or external shutdown)
-8. stop `/healthz` first so Render sees unhealthy immediately, then stop Nexus threads, `CacheScheduler` (which stops both refresh daemons cleanly via a `threading.Event`), Trading, close the Spine connection, and stop the event loop
+8. shutdown sequence: setting `_stop_event` makes the `/healthz` handler return `503 {"status":"unhealthy","failures":["shutting_down",...]}` immediately (Render sees unhealthy as of the next probe), then the launcher joins each Nexus thread, stops `CacheScheduler` (which stops both refresh daemons cleanly via a `threading.Event`), stops Trading, closes the Spine connection, and only then calls `_stop_healthz` to tear down the listener itself before stopping the event loop
 
 Within each Nexus instance, the launcher wires:
 
@@ -107,7 +107,7 @@ The endpoint returns `200 {"status": "ok"}` only when all of the following hold:
 - `_stop_event` has not been set
 - every Nexus instance thread is alive
 
-On any failure the response is `503 {"status": "unhealthy", "failures": [...]}` listing which checks failed (`shutting_down`, `trading_not_started`, `loop_thread_dead`, or `nexus_threads_dead:<names>`). `_stop_healthz` runs first during shutdown so Render sees unhealthy immediately instead of waiting for `SHUTDOWN_TIMEOUT`.
+On any failure the response is `503 {"status": "unhealthy", "failures": [...]}` listing which checks failed (`shutting_down`, `trading_not_started`, `loop_thread_dead`, or `nexus_threads_dead:<names>`). During shutdown, setting `_stop_event` is what makes the handler return `503` immediately (the `shutting_down` failure) — the listener itself stays up serving `503` until `_stop_healthz` runs near the end of `_shutdown`, so Render sees `unhealthy` (not connection-refused) for the whole shutdown window.
 
 `/healthz` measures process liveness only. It is a different contract from `HealthSnapshot` (see [Health](Health.md)), which reports per-account trading health to the Manager.
 

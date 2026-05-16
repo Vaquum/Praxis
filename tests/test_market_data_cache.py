@@ -645,6 +645,43 @@ def test_limen_cannot_overwrite_binancial_bars_on_overlap(
     assert cache.frame['close'].to_list() == [99999.0, 99999.0, 99999.0]
 
 
+def test_refresh_from_binancial_uses_frame_max_when_state_missing(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: when the parquet was loaded into `_frame` but the state
+    file is missing (operator deleted it, partial atomic write,
+    etc.), `refresh_from_binancial` must use the in-memory frame's
+    max `datetime` as the window start — NOT `now - 1h`. The naive
+    fallback would create a multi-hour gap between the newest
+    on-disk bar and the new fetch window.
+    '''
+
+    parquet_path, state_path = cache_paths
+    older_bars = _make_klines(
+        _BASE_TS - timedelta(hours=8),
+        count=5,
+    )
+    older_bars.write_parquet(parquet_path)
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache.load()
+    assert not state_path.exists()
+    assert not cache.frame.is_empty()
+
+    snapshot_pd = _make_klines_pandas(_BASE_TS, count=3)
+
+    with patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=snapshot_pd,
+    ) as mock_fetch:
+        cache.refresh_from_binancial()
+
+    call_kwargs = mock_fetch.call_args.kwargs
+    expected_start_ts = older_bars['datetime'].max()
+    expected_start = expected_start_ts.strftime('%Y-%m-%d %H:%M:%S')
+    assert call_kwargs['start_date'] == expected_start
+    assert state_path.exists()
+
+
 def test_apply_new_bars_rejects_unknown_source(
     cache_paths: tuple[Path, Path],
 ) -> None:
