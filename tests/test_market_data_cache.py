@@ -604,6 +604,60 @@ def test_refresh_from_binancial_wins_on_overlap_with_limen_bars(
     assert cache.frame['close'].to_list() == [99999.0, 99999.0, 99999.0]
 
 
+def test_limen_cannot_overwrite_binancial_bars_on_overlap(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin the contract: binancial wins on overlap with Limen
+    regardless of refresh order. The reverse-order scenario
+    (binancial first, then Limen) breaks pre-fix because the
+    blanket `keep='last'` dedup would let a re-fetched Limen
+    snapshot overwrite freshly-written binancial bars at the
+    boundary (the realistic trigger is a corrupt state file →
+    full Limen re-fetch on the next 05:00 UTC tick while
+    binancial has already populated the trailing minutes).
+    Post-fix the source-aware dedup uses `keep='first'` for
+    Limen so existing binancial rows in `_frame` win.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+
+    binancial_pd = _make_klines_pandas(_BASE_TS, count=3)
+    binancial_pd['close'] = pd.Series([99999.0, 99999.0, 99999.0])
+
+    with patch(
+        'praxis.market_data_cache.get_spot_klines',
+        return_value=binancial_pd,
+    ):
+        cache.refresh_from_binancial()
+
+    assert cache.frame['close'].to_list() == [99999.0, 99999.0, 99999.0]
+
+    overlapping_limen = _make_klines(_BASE_TS, count=3)
+
+    with patch(
+        'praxis.market_data_cache.HistoricalData',
+    ) as mock_hd_cls:
+        mock_hd_cls.return_value.get_spot_klines.return_value = overlapping_limen
+        cache.refresh_from_limen()
+
+    assert cache.frame.height == 3
+    assert cache.frame['close'].to_list() == [99999.0, 99999.0, 99999.0]
+
+
+def test_apply_new_bars_rejects_unknown_source(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Typos in the source string are loud, not silent.'''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    bars = _make_klines(_BASE_TS, count=2)
+
+    with pytest.raises(ValueError, match="must be 'limen' or 'binancial'"):
+        cache._apply_new_bars(bars, source='binance')
+
+
 def test_get_market_data_aggregates_5m_from_1m(
     cache_paths: tuple[Path, Path],
 ) -> None:

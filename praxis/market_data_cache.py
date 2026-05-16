@@ -25,7 +25,7 @@ import tempfile
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import polars as pl
 from binancial.compute.get_spot_klines import get_spot_klines
@@ -510,12 +510,39 @@ class MainCache:
         the in-memory frame and the on-disk parquet are kept in
         lock-step by the atomic write at the bottom of this method.
 
+        Overlap precedence is source-aware so the documented
+        "binancial wins on overlap with Limen" contract holds
+        regardless of fetch order:
+
+        * `source == 'binancial'`: `keep='last'`. With the concat
+          order `[self._frame, new_bars]`, new binancial bars
+          overwrite any pre-existing Limen bars at the boundary.
+        * `source == 'limen'`: `keep='first'`. Existing rows in
+          `self._frame` (which include all binancial-sourced bars)
+          win over a re-fetched Limen snapshot. Without this branch
+          a corrupt-state-triggered full Limen re-fetch could
+          overwrite freshly-written binancial bars at the trailing
+          edge.
+
         Args:
             new_bars (pl.DataFrame): The freshly-fetched 17-column
                 1-min frame to merge in.
-            source (str): Where `new_bars` came from (`limen` or
-                `binancial`). Used only in the structured log line.
+            source (str): Where `new_bars` came from. Must be
+                exactly `'limen'` or `'binancial'`; any other value
+                raises `ValueError` so a typo cannot silently fall
+                through to one of the dedup paths.
         '''
+
+        if source not in ('limen', 'binancial'):
+            msg = (
+                f"_apply_new_bars source must be 'limen' or "
+                f"'binancial', got {source!r}"
+            )
+            raise ValueError(msg)
+
+        keep: Literal['first', 'last'] = (
+            'last' if source == 'binancial' else 'first'
+        )
 
         with self._write_lock:
             merged = (
@@ -523,7 +550,7 @@ class MainCache:
                 if not self._frame.is_empty() else new_bars
             )
             merged = merged.unique(
-                subset=['datetime'], keep='last',
+                subset=['datetime'], keep=keep,
             ).sort('datetime')
 
             new_high_water = cast(datetime, merged['datetime'].max())
