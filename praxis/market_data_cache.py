@@ -637,6 +637,29 @@ class MainCache:
         )
 
         with self._write_lock:
+            if not self._frame.is_empty():
+                frame_schema = self._frame.schema
+                casts = {
+                    col: dtype
+                    for col, dtype in frame_schema.items()
+                    if col in new_bars.schema
+                    and new_bars.schema[col] != dtype
+                }
+
+                if casts:
+                    _log.info(
+                        'main cache: normalizing new_bars column dtypes '
+                        'to match in-memory frame before merge (handles '
+                        'Limen HF parquet vs binancial pandas->polars '
+                        'schema drift on any column — datetime precision, '
+                        'UInt64 vs Int64 on integer counts, etc.)',
+                        extra={
+                            'source': source,
+                            'casts': {col: str(dt) for col, dt in casts.items()},
+                        },
+                    )
+                    new_bars = new_bars.cast(casts)
+
             if self._frame.is_empty():
                 merged = new_bars.unique(
                     subset=['datetime'], keep=keep,
@@ -653,7 +676,7 @@ class MainCache:
                     ).sort('datetime')
 
             now = datetime.now(tz=UTC)
-            cutoff = pl.lit(now).cast(pl.Datetime('us', 'UTC'))
+            cutoff = pl.lit(now).cast(merged.schema['datetime'])
             future_rows = merged.filter(pl.col('datetime') > cutoff)
 
             if future_rows.height > 0:

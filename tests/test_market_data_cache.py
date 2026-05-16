@@ -982,6 +982,53 @@ def test_apply_new_bars_skips_persist_when_every_row_future(
     )
 
 
+def test_apply_new_bars_normalizes_schema_across_sources(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: production-observed failure mode. Limen HF parquet and
+    binancial pandas->polars frames differ on multiple columns:
+
+      - `datetime`: Limen `Datetime('ms', 'UTC')` vs binancial
+        `Datetime('us', 'UTC')`
+      - `no_of_trades`: Limen `UInt64` vs binancial `Int64`
+        (pandas has no UInt type so pd->pl always gives Int64)
+      - any future schema drift on any column
+
+    Pre-fix `pl.concat([_frame, new_bars])` raised `SchemaError` on
+    the first mismatched column, freezing the cache at Limen's
+    high-water mark. Post-fix `_apply_new_bars` casts every column
+    in new_bars whose dtype differs from `self._frame`'s dtype
+    BEFORE the concat, so all current and future column-dtype
+    mismatches resolve uniformly at the merge chokepoint.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    base = _make_klines(_BASE_TS, count=5)
+    limen_like = base.with_columns(
+        pl.col('datetime').cast(pl.Datetime('ms', 'UTC')),
+        pl.col('no_of_trades').cast(pl.UInt64),
+    )
+    cache._frame = limen_like
+    assert cache.frame.schema['datetime'] == pl.Datetime('ms', 'UTC')
+    assert cache.frame.schema['no_of_trades'] == pl.UInt64
+
+    binancial_like = _make_klines(_BASE_TS + timedelta(minutes=5), count=3)
+    binancial_like = binancial_like.with_columns(
+        pl.col('no_of_trades').cast(pl.Int64),
+    )
+    assert binancial_like.schema['datetime'] == pl.Datetime('us', 'UTC')
+    assert binancial_like.schema['no_of_trades'] == pl.Int64
+
+    cache._apply_new_bars(binancial_like, source='binancial')
+
+    assert cache.frame.height == 8
+    assert cache.frame.schema['datetime'] == pl.Datetime('ms', 'UTC')
+    assert cache.frame.schema['no_of_trades'] == pl.UInt64
+    datetimes = cache.frame['datetime'].to_list()
+    assert datetimes == sorted(datetimes)
+
+
 def test_apply_new_bars_rejects_unknown_source(
     cache_paths: tuple[Path, Path],
 ) -> None:
