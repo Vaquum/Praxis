@@ -600,6 +600,21 @@ class MainCache:
           overwrite freshly-written binancial bars at the trailing
           edge.
 
+        Fast path: when `new_bars.min()` is strictly greater than
+        `self._frame.max()` (the common per-minute case — binancial
+        returns the trailing minute(s) which are always newer than
+        anything already cached), there is no overlap and both
+        inputs are already sorted, so a plain `pl.concat` produces
+        a correctly-sorted result without an O(N log N) full
+        dedupe+sort pass. The slow path (dedupe + sort) only runs
+        when there IS overlap (Limen boundary, corrupt-state full
+        re-fetch, or any other case where `new_bars.min()` falls
+        inside the cached window). Without this fast path, every
+        per-minute refresh would re-sort the entire cache under
+        `_write_lock` and the cost would scale with cache size —
+        not acceptable since there is no trim policy and the cache
+        grows ~1MB/day.
+
         Args:
             new_bars (pl.DataFrame): The freshly-fetched 17-column
                 1-min frame to merge in.
@@ -621,13 +636,20 @@ class MainCache:
         )
 
         with self._write_lock:
-            merged = (
-                pl.concat([self._frame, new_bars])
-                if not self._frame.is_empty() else new_bars
-            )
-            merged = merged.unique(
-                subset=['datetime'], keep=keep,
-            ).sort('datetime')
+            if self._frame.is_empty():
+                merged = new_bars.unique(
+                    subset=['datetime'], keep=keep,
+                ).sort('datetime')
+            else:
+                current_max = cast(datetime, self._frame['datetime'].max())
+                new_min = cast(datetime, new_bars['datetime'].min())
+
+                if new_min > current_max:
+                    merged = pl.concat([self._frame, new_bars])
+                else:
+                    merged = pl.concat([self._frame, new_bars]).unique(
+                        subset=['datetime'], keep=keep,
+                    ).sort('datetime')
 
             new_high_water = cast(datetime, merged['datetime'].max())
             self._atomic_write_parquet(merged)

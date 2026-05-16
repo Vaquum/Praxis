@@ -834,6 +834,76 @@ def test_snapshot_converts_non_utc_aware_to_utc(
     assert latest == datetime(2026, 5, 16, 0, 0, 0, tzinfo=UTC)
 
 
+def test_apply_new_bars_fast_path_skips_full_sort_when_no_overlap(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: when `new_bars.min() > _frame.max()` (the per-minute
+    happy path), `_apply_new_bars` does NOT call `merged.unique` /
+    `merged.sort`. Patched so the test fails loudly if the slow path
+    is taken — the fix is meant to keep per-refresh cost from
+    scaling with cache size.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache._frame = _make_klines(_BASE_TS, count=5)
+    new_bars = _make_klines(_BASE_TS + timedelta(minutes=5), count=3)
+
+    original_unique = pl.DataFrame.unique
+    original_sort = pl.DataFrame.sort
+    calls: dict[str, int] = {'unique': 0, 'sort': 0}
+
+    def _spy_unique(self: pl.DataFrame, *args: object, **kwargs: object) -> pl.DataFrame:
+        calls['unique'] += 1
+        return original_unique(self, *args, **kwargs)
+
+    def _spy_sort(self: pl.DataFrame, *args: object, **kwargs: object) -> pl.DataFrame:
+        calls['sort'] += 1
+        return original_sort(self, *args, **kwargs)
+
+    with (
+        patch.object(pl.DataFrame, 'unique', _spy_unique),
+        patch.object(pl.DataFrame, 'sort', _spy_sort),
+    ):
+        cache._apply_new_bars(new_bars, source='binancial')
+
+    assert calls['unique'] == 0
+    assert calls['sort'] == 0
+    assert cache.frame.height == 8
+    datetimes = cache.frame['datetime'].to_list()
+    assert datetimes == sorted(datetimes)
+
+
+def test_apply_new_bars_slow_path_runs_on_overlap(
+    cache_paths: tuple[Path, Path],
+) -> None:
+    '''Pin: when `new_bars.min() <= _frame.max()` (Limen boundary,
+    corrupt-state full re-fetch), the slow path runs `unique` +
+    `sort` so dedupe is correct.
+    '''
+
+    parquet_path, state_path = cache_paths
+    cache = MainCache(MagicMock(), parquet_path, state_path)
+    cache._frame = _make_klines(_BASE_TS, count=5)
+    overlapping = _make_klines(_BASE_TS + timedelta(minutes=3), count=4)
+
+    original_sort = pl.DataFrame.sort
+    sort_calls: dict[str, int] = {'n': 0}
+
+    def _spy_sort(self: pl.DataFrame, *args: object, **kwargs: object) -> pl.DataFrame:
+        sort_calls['n'] += 1
+        return original_sort(self, *args, **kwargs)
+
+    with patch.object(pl.DataFrame, 'sort', _spy_sort):
+        cache._apply_new_bars(overlapping, source='binancial')
+
+    assert sort_calls['n'] >= 1
+    assert cache.frame.height == 7
+    datetimes = cache.frame['datetime'].to_list()
+    assert datetimes == sorted(datetimes)
+    assert len(datetimes) == len(set(datetimes))
+
+
 def test_apply_new_bars_rejects_unknown_source(
     cache_paths: tuple[Path, Path],
 ) -> None:
