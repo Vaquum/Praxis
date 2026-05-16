@@ -9,7 +9,7 @@ This page explains how Praxis is started as a whole process and how it is wired 
 - creating the shared asyncio event loop thread used by Praxis
 - opening the Event Spine SQLite connection on that loop
 - starting the `Trading` runtime
-- starting the shared `MarketDataPoller`
+- building the shared `MainCache` (1-min kline buffer), warming it from disk + Limen + binancial, then starting the `CacheScheduler` daemons, and wrapping the cache in a thin `MarketDataPoller` staleness adapter
 - starting one Nexus manager thread per configured account
 - serving the `/healthz` HTTP endpoint so Render can probe process liveness
 - routing `TradeOutcome` objects back to the correct Nexus thread
@@ -24,7 +24,7 @@ The current process layout is:
 1. main thread for process lifetime and signal handling
 2. one asyncio loop thread for Praxis runtime work (hosts Trading, `/healthz`, and the Event Spine connection)
 3. one Nexus thread per configured account
-4. one or more daemon poller threads for shared market data buckets
+4. two daemon threads owned by `CacheScheduler`: a Limen thread that refreshes `MainCache` from the HF dataset once a day at 05:00 UTC, and a binancial thread that refreshes from `binancial.get_spot_klines` every minute
 
 That means venue REST calls, user-stream processing, reconciliation, execution events, and healthz replies all stay on the Praxis loop, while each Nexus instance runs synchronously in its own thread.
 
@@ -35,11 +35,11 @@ At a high level, `Launcher.launch()` does this:
 1. install signal handlers (no-op if not on the main thread, so tests can drive `launch()` from a worker)
 2. start the asyncio event loop thread
 3. start `Trading` (opens the Event Spine on the loop when the launcher was given `db_path` instead of a pre-built `EventSpine`)
-4. start `MarketDataPoller`
+4. build `MainCache` at `MAIN_CACHE_DIR`, call `cache.load()` (no-op when the parquet does not exist; quarantines and self-heals on read failure), then `cache.bootstrap_if_empty()` (synchronously pulls the HF snapshot on first-ever boot) and `cache.refresh_from_binancial()` (synchronously fills the trailing-day gap so the first sensor tick sees fresh data — no 1-minute warm-up window). Start `CacheScheduler`, then wrap the cache in a `MarketDataPoller` staleness adapter
 5. start one Nexus thread per `InstanceConfig`
 6. start the `/healthz` listener
 7. block until `_stop_event` is set (signal, test harness, or external shutdown)
-8. stop `/healthz` first so Render sees unhealthy immediately, then stop Nexus threads, poller, Trading, close the Spine connection, and stop the event loop
+8. shutdown sequence: setting `_stop_event` makes the `/healthz` handler return `503 {"status":"unhealthy","failures":["shutting_down",...]}` immediately (Render sees unhealthy as of the next probe), then the launcher joins each Nexus thread, stops `CacheScheduler` (which stops both refresh daemons cleanly via a `threading.Event`), stops Trading, closes the Spine connection, and only then calls `_stop_healthz` to tear down the listener itself before stopping the event loop
 
 Within each Nexus instance, the launcher wires:
 
@@ -70,7 +70,7 @@ The launcher creates one per-account outcome queue and one per-account Nexus thr
 | Var | Purpose |
 |---|---|
 | `EPOCH_ID` | Event-spine epoch identifier (positive integer) |
-| `TRADE_MODE` | Trading mode selector. `paper` routes the venue adapter and `MarketDataPoller` at `https://testnet.binance.vision` (REST), `wss://stream.testnet.binance.vision` (WebSocket stream — market data), and `wss://ws-api.testnet.binance.vision/ws-api/v3` (WebSocket API — signed requests + user-data-stream `subscribe.signature`); `live` routes all three at `https://api.binance.com`, `wss://stream.binance.com:9443`, and `wss://ws-api.binance.com:443/ws-api/v3`. Endpoints are the `MAINNET_*_URL` / `TESTNET_*_URL` constants in `praxis/infrastructure/binance_urls.py`. Set explicitly per environment — there is no default and no separate URL or testnet env var |
+| `TRADE_MODE` | Trading mode selector. `paper` routes the venue adapter and the binancial market-data fetches that feed `MainCache` at `https://testnet.binance.vision` (REST), `wss://stream.testnet.binance.vision` (WebSocket stream — market data), and `wss://ws-api.testnet.binance.vision/ws-api/v3` (WebSocket API — signed requests + user-data-stream `subscribe.signature`); `live` routes all three at `https://api.binance.com`, `wss://stream.binance.com:9443`, and `wss://ws-api.binance.com:443/ws-api/v3`. Endpoints are the `MAINNET_*_URL` / `TESTNET_*_URL` constants in `praxis/infrastructure/binance_urls.py`. Set explicitly per environment — there is no default and no separate URL or testnet env var |
 | `MANIFESTS_DIR` | Directory containing per-account manifest YAML files (`*.yaml` / `*.yml`); the launcher enumerates them and spawns one instance per file |
 | `STRATEGIES_BASE_PATH` | Base path for resolving strategy `.py` files referenced from manifests. Also prepended to `sys.path` at boot so user-defined SFD modules co-located with strategies become importable by Limen `Trainer.importlib.import_module(metadata['sfd_module'])`. SFDs that live elsewhere should be added to `PYTHONPATH` at deploy time |
 | `STATE_BASE` | Root for per-account state; `state_dir = STATE_BASE / <account_id>`; event-spine SQLite lives at `STATE_BASE / event_spine.sqlite` |
@@ -90,6 +90,7 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 |---|---|---|
 | `SHUTDOWN_TIMEOUT` | `30` | Seconds to wait for orders to reach terminal state before forcing shutdown |
 | `STRATEGY_STATE_BASE` | unset | Base path for strategy state blobs; each instance gets `STRATEGY_STATE_BASE / <account_id>` |
+| `MAIN_CACHE_DIR` | `/var/lib/praxis/maincache` | Directory holding `MainCache`'s on-disk artifacts: `btcusdt_1m.parquet` (the 1-min kline buffer, grows ~1MB/day with no trim policy) and `main_cache_state.json` (the `last_covered_ts` high-water mark). MUST be a writable host bind mount in production so the cache survives container recreates and operators can inspect `*.corrupt-<UTC-iso>` quarantine files for forensics. The launcher fails fast with a `RuntimeError` carrying an operator-actionable message if the directory cannot be created; do not silently fall back to an ephemeral location |
 | `PORT` | — | Container orchestrators that inject a port (`docker compose`, k8s, etc.) — bound by the `/healthz` listener |
 | `HEALTHZ_PORT` | `8080` | Fallback when `PORT` is not set |
 | `LOG_FORMAT` | `json` | `json` routes through `observability.configure_logging` (structlog + orjson); `text` uses stdlib `basicConfig` for local dev |
@@ -106,7 +107,7 @@ The endpoint returns `200 {"status": "ok"}` only when all of the following hold:
 - `_stop_event` has not been set
 - every Nexus instance thread is alive
 
-On any failure the response is `503 {"status": "unhealthy", "failures": [...]}` listing which checks failed (`shutting_down`, `trading_not_started`, `loop_thread_dead`, or `nexus_threads_dead:<names>`). `_stop_healthz` runs first during shutdown so Render sees unhealthy immediately instead of waiting for `SHUTDOWN_TIMEOUT`.
+On any failure the response is `503 {"status": "unhealthy", "failures": [...]}` listing which checks failed (`shutting_down`, `trading_not_started`, `loop_thread_dead`, or `nexus_threads_dead:<names>`). During shutdown, setting `_stop_event` is what makes the handler return `503` immediately (the `shutting_down` failure) — the listener itself stays up serving `503` until `_stop_healthz` runs near the end of `_shutdown`, so Render sees `unhealthy` (not connection-refused) for the whole shutdown window.
 
 `/healthz` measures process liveness only. It is a different contract from `HealthSnapshot` (see [Health](Health.md)), which reports per-account trading health to the Manager.
 

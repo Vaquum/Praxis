@@ -644,3 +644,29 @@ finally:
 ```
 
 Or extract a small `_run_with_poller(poller, fn)` context manager / pytest fixture so individual tests don't pay the boilerplate. Keep the 2 already-wrapped sites (which use the right pattern) as the template.
+
+---
+
+## TD-061: Synchronous Limen + binancial fetches block `Launcher.launch()` for minutes
+
+**Severity**: Medium (operator UX; no correctness impact)
+**Module**: `praxis/launcher.py:_start_poller` (introduced by Vaquum/Praxis#108)
+
+`_start_poller` calls `MainCache.bootstrap_if_empty()` (downloads ~100MB HF snapshot when the disk parquet is missing) and `MainCache.refresh_from_binancial()` (walks Binance trades for the trailing window) synchronously inline in `launch()`. On first-ever boot, that's a few minutes of blocking work between `_start_trading` and `_start_nexus_instances` with no progress signal — `/healthz` is not yet listening either, so an operator sees a hung process. The choice was deliberate (Vaquum/Praxis#108 deploy plan) to ensure sensors see fresh data on the first tick after `_start_nexus_instances`, not 1 minute later.
+
+**When to fix**: When boot latency starts mattering for ops (e.g. faster crash-recovery cycles, or once we have a watchdog that times out the initial fill). At that point, move the synchronous `refresh_from_binancial()` out of `_start_poller` and let `CacheScheduler`'s binancial thread fire it asynchronously; sensors get fresh data on the first scheduler tick (~60s post-boot).
+
+**Migration**: Drop `self._cache.refresh_from_binancial()` from `_start_poller`. Document the new "first 60s of uptime have ≤24h-stale data" contract in the launcher docstring.
+
+---
+
+## TD-062: `_aggregate_spot_klines` is a private Limen helper that Praxis depends on
+
+**Severity**: Low (coupling, no correctness impact)
+**Module**: `praxis/market_data_cache.py:30` (introduced by Vaquum/Praxis#108)
+
+`MainCache.get_market_data` calls Limen's `_aggregate_spot_klines` (imported as `_limen_aggregate_spot_klines`) to aggregate 1-min bars up to the requested kline_size. No `# noqa: PLC2701` suppression on the import: PLC2701 isn't enabled in the current ruff config (the `PL` selector in `pyproject.toml` does not activate it for this codebase's ruff version), so adding the noqa would itself trip RUF100 (unused noqa). The aliased import name keeps the cross-package private dependency visible at the call site. That function is canonical (weighted mean, sum-of-squares for std, sum for volume / liquidity / maker_volume, first / last for OHLC) and reusing it avoids drift between training-time aggregation and live aggregation — but importing a private name across packages is fragile: a Limen rename or signature change would break Praxis without a deprecation warning.
+
+**When to fix**: Either (a) ask the Limen team to expose `aggregate_spot_klines` as a public API (preferred — single source of truth), or (b) copy the function body + `_base_interval_seconds` + `_round_spot_kline_columns` helpers into Praxis (~120 LOC) and accept the drift risk.
+
+**Migration**: For (a), once Limen ships a public name, swap the import to the public symbol. For (b), copy the three functions verbatim, add a comment pointing at the upstream version + Limen pin in `pyproject.toml` so a reviewer knows to re-sync on the next Limen pin bump. If a future ruff config enables PLC2701, add the `# noqa: PLC2701` suppression at the same time as either path.
