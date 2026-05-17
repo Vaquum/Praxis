@@ -270,8 +270,22 @@ class EventSpine:
         '''
 
         if isinstance(event, FillReceived):
-            async with self._conn.execute('SAVEPOINT fill_atomic'):
-                pass
+            # Atomicity for the dedup-insert + event-insert pair via
+            # Python sqlite3's implicit BEGIN-on-DML: the first INSERT
+            # auto-begins a transaction, the second INSERT runs in the
+            # same transaction, and `commit()` / `rollback()` end it.
+            # Both inserts are durable together or neither is.
+            #
+            # Pre-fix this used SAVEPOINT/RELEASE/ROLLBACK TO. That
+            # path interacted poorly with Python sqlite3's default
+            # `isolation_level=""` semantics: non-DML statements
+            # (SAVEPOINT, RELEASE, ROLLBACK TO) trigger an implicit
+            # COMMIT before they run, collapsing the savepoint stack.
+            # By the time RELEASE ran in production the savepoint had
+            # been committed away and sqlite raised
+            # `OperationalError: no such savepoint: fill_atomic`.
+            # The implicit BEGIN-on-DML path used here sidesteps the
+            # SAVEPOINT API entirely.
             try:
                 async with self._conn.execute(
                     _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
@@ -281,13 +295,9 @@ class EventSpine:
                     seq = None
                 else:
                     seq = await self._append_event(event, epoch_id)
-                async with self._conn.execute('RELEASE fill_atomic'):
-                    pass
+                await self._conn.commit()
             except Exception:
-                async with self._conn.execute('ROLLBACK TO fill_atomic'):
-                    pass
-                async with self._conn.execute('RELEASE fill_atomic'):
-                    pass
+                await self._conn.rollback()
                 _log.exception(
                     'event spine fill-atomic rollback',
                     extra={
@@ -298,22 +308,6 @@ class EventSpine:
                     },
                 )
                 raise
-            # Commit outside the SAVEPOINT-protected `try`: by this point
-            # `RELEASE fill_atomic` has already removed the savepoint
-            # from the stack. If `commit()` raised inside the `try`,
-            # the `except` would attempt `ROLLBACK TO fill_atomic`
-            # against a non-existent savepoint and the second sqlite
-            # error would mask the first. Hoisting the commit lets
-            # its failure surface as a plain unhandled exception. The
-            # connection is left with the outer (uncommitted)
-            # transaction still open; the connection-lifecycle owner
-            # (the launcher's `_db_conn` field) recovers by tearing
-            # down the connection — `EventSpine` itself owns the
-            # transaction boundaries (per module docstring), but the
-            # connection is the caller's resource to manage and a
-            # commit-failure crash is the only way out of an
-            # unrecoverable disk-write error anyway.
-            await self._conn.commit()
             if seq is None:
                 _log.warning(
                     'event spine fill deduplicated',

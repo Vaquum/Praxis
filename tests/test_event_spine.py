@@ -331,6 +331,42 @@ async def test_fill_dedup_table_populated(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_fill_atomicity_many_consecutive_appends_no_savepoint_error(
+    spine: EventSpine,
+) -> None:
+    '''Pin: production-observed failure mode. Pre-fix the FillReceived
+    path used `SAVEPOINT fill_atomic` + `RELEASE fill_atomic`. Python
+    sqlite3's default `isolation_level=""` issues an implicit COMMIT
+    before any non-DML statement (including SAVEPOINT and RELEASE),
+    collapsing the savepoint stack. In production the `RELEASE` call
+    fired against an empty stack and sqlite raised
+    `OperationalError: no such savepoint: fill_atomic`. Post-fix the
+    FillReceived path uses the implicit BEGIN-on-DML + explicit
+    commit/rollback pattern (no SAVEPOINT), so the sequence is safe
+    regardless of isolation_level semantics.
+
+    This test exercises rapid consecutive appends — the same shape
+    that produced 23 errors in production over 22h of paper trading.
+    '''
+
+    for i in range(50):
+        fill = FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=f'ord-{i}', venue_order_id=f'vord-{i}',
+            venue_trade_id=f'vtrd-{i}', trade_id=f'trd-{i}',
+            command_id=f'cmd-{i}', symbol=_SYMBOL,
+            side=OrderSide.BUY, qty=Decimal('1.0'),
+            price=Decimal('50000'), fee=Decimal('0.001'),
+            fee_asset='USDT', is_maker=True,
+        )
+        seq = await spine.append(fill, epoch_id=_EPOCH)
+        assert isinstance(seq, int)
+
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 50
+
+
+@pytest.mark.asyncio
 async def test_fill_atomicity_rollback_on_event_insert_failure(
     spine: EventSpine,
 ) -> None:
