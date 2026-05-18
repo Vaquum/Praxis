@@ -235,6 +235,25 @@ class EventSpine:
         await self._conn.commit()
         _log.info('event spine schema ensured')
 
+    async def _safe_rollback(self, context: str) -> None:
+
+        '''
+        Best-effort rollback that logs but does not raise.
+
+        Used in `append()`'s exception handlers so a rollback failure
+        cannot mask the original DML / commit exception that the
+        caller actually needs to see.
+
+        Args:
+            context (str): Short tag for the log line so the operator
+                can tell which failure path triggered the rollback.
+        '''
+
+        try:
+            await self._conn.rollback()
+        except Exception:  # noqa: BLE001 - rollback failure is logged, not raised
+            _log.exception('event spine rollback failed during %s', context)
+
     async def append(self, event: Event, epoch_id: int) -> int | None:
 
         '''
@@ -242,9 +261,14 @@ class EventSpine:
 
         Deduplicate FillReceived events by (account_id, venue_trade_id)
         within the epoch. Duplicate fills are silently dropped per RFC.
-        FillReceived atomicity is guaranteed internally via SAVEPOINT:
-        either both the dedup insert and event insert succeed, or both
-        roll back.
+        FillReceived atomicity is guaranteed internally: both the
+        dedup insert and the event insert run in a single implicit
+        transaction (Python sqlite3 auto-begins on the first DML
+        statement), then `commit()` or `rollback()` ends it. Either
+        both inserts are durable together, or neither is. The
+        implementation comment below `if isinstance(event,
+        FillReceived):` carries the historical context for why
+        this is no longer SAVEPOINT-based.
 
         Calls `await self._conn.commit()` after every successful insert
         so each event is durable on the main DB file before this method
@@ -286,6 +310,15 @@ class EventSpine:
             # `OperationalError: no such savepoint: fill_atomic`.
             # The implicit BEGIN-on-DML path used here sidesteps the
             # SAVEPOINT API entirely.
+            # Two separate try blocks so a commit failure doesn't
+            # get caught by the DML-failure handler. Pre-fix a single
+            # try/except wrapped both; on commit failure the except's
+            # rollback would run AND a rollback failure inside that
+            # except would mask the original commit exception. Now:
+            #   - DML failure: rollback best-effort, re-raise the DML
+            #     exception
+            #   - commit failure: rollback best-effort, re-raise the
+            #     COMMIT exception (preserves the root cause)
             try:
                 async with self._conn.execute(
                     _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
@@ -295,11 +328,24 @@ class EventSpine:
                     seq = None
                 else:
                     seq = await self._append_event(event, epoch_id)
+            except Exception:
+                await self._safe_rollback('event spine fill-atomic DML failure')
+                _log.exception(
+                    'event spine fill-atomic rollback (DML)',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'account_id': event.account_id,
+                        'venue_trade_id': event.venue_trade_id,
+                        'venue_order_id': event.venue_order_id,
+                    },
+                )
+                raise
+            try:
                 await self._conn.commit()
             except Exception:
-                await self._conn.rollback()
+                await self._safe_rollback('event spine fill-atomic commit failure')
                 _log.exception(
-                    'event spine fill-atomic rollback',
+                    'event spine fill-atomic commit failed',
                     extra={
                         'epoch_id': epoch_id,
                         'account_id': event.account_id,
