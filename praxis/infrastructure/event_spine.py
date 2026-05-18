@@ -331,7 +331,7 @@ class EventSpine:
             except Exception:
                 await self._safe_rollback('event spine fill-atomic DML failure')
                 _log.exception(
-                    'event spine fill-atomic rollback (DML)',
+                    'event spine fill-atomic DML failed (rollback attempted)',
                     extra={
                         'epoch_id': epoch_id,
                         'account_id': event.account_id,
