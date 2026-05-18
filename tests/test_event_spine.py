@@ -4,12 +4,15 @@ Tests for praxis.infrastructure.event_spine.EventSpine.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, replace
 from datetime import datetime, UTC
 from decimal import Decimal
 from pathlib import Path
 
+import aiosqlite
 import pytest
+import pytest_asyncio
 
 from praxis.core.domain.enums import OrderSide, OrderType
 from praxis.core.domain.events import (
@@ -330,18 +333,73 @@ async def test_fill_dedup_table_populated(spine: EventSpine) -> None:
     assert rows[0] == (_EPOCH, _ACCT, _VTRD)
 
 
+@pytest_asyncio.fixture
+async def spine_file(tmp_path: Path) -> AsyncGenerator[EventSpine, None]:
+    '''File-backed EventSpine fixture for tests that must reproduce
+    production transaction semantics. The default `spine` fixture in
+    `tests/conftest.py` uses `:memory:`, which has subtly different
+    journal/transaction behavior than a file-backed DB. The original
+    production SAVEPOINT bug fired against a file-backed connection
+    and was NOT reproducible against `:memory:`.
+    '''
+
+    db_path = tmp_path / 'spine.sqlite'
+    async with aiosqlite.connect(str(db_path)) as conn:
+        es = EventSpine(conn)
+        await es.ensure_schema()
+        yield es
+
+
+@pytest.mark.asyncio
+async def test_fill_atomicity_many_consecutive_appends_no_savepoint_error(
+    spine_file: EventSpine,
+) -> None:
+    '''Pin: production-observed failure mode. Pre-fix the FillReceived
+    path used `SAVEPOINT fill_atomic` + `RELEASE fill_atomic`. Python
+    sqlite3's default `isolation_level=""` issues an implicit COMMIT
+    before any non-DML statement (including SAVEPOINT and RELEASE),
+    collapsing the savepoint stack. In production the `RELEASE` call
+    fired against an empty stack and sqlite raised
+    `OperationalError: no such savepoint: fill_atomic`. Post-fix the
+    FillReceived path uses the implicit BEGIN-on-DML + explicit
+    commit/rollback pattern (no SAVEPOINT), so the sequence is safe
+    regardless of isolation_level semantics.
+
+    This test exercises rapid consecutive appends — the same shape
+    that produced 23 errors in production over 22h of paper trading.
+    Uses the file-backed `spine_file` fixture (not the default
+    `:memory:` one) so the test reproduces the same transaction
+    semantics as production sqlite.
+    '''
+
+    for i in range(50):
+        fill = FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id=f'ord-{i}', venue_order_id=f'vord-{i}',
+            venue_trade_id=f'vtrd-{i}', trade_id=f'trd-{i}',
+            command_id=f'cmd-{i}', symbol=_SYMBOL,
+            side=OrderSide.BUY, qty=Decimal('1.0'),
+            price=Decimal('50000'), fee=Decimal('0.001'),
+            fee_asset='USDT', is_maker=True,
+        )
+        seq = await spine_file.append(fill, epoch_id=_EPOCH)
+        assert isinstance(seq, int)
+
+    events = await spine_file.read(epoch_id=_EPOCH)
+    assert len(events) == 50
+
+
 @pytest.mark.asyncio
 async def test_fill_atomicity_rollback_on_event_insert_failure(
     spine: EventSpine,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-
-    original_append = spine._append_event
 
     async def failing_append(event: Event, epoch_id: int) -> int:
         del event, epoch_id
         raise RuntimeError('simulated event INSERT failure')
 
-    spine._append_event = failing_append
+    monkeypatch.setattr(spine, '_append_event', failing_append)
 
     with pytest.raises(RuntimeError, match='simulated event INSERT failure'):
         await spine.append(_FILL, epoch_id=_EPOCH)
@@ -356,7 +414,7 @@ async def test_fill_atomicity_rollback_on_event_insert_failure(
     events = await spine.read(epoch_id=_EPOCH)
     assert len(events) == 0
 
-    spine._append_event = original_append
+    monkeypatch.undo()
     seq = await spine.append(_FILL, epoch_id=_EPOCH)
     assert isinstance(seq, int)
 
@@ -505,3 +563,50 @@ async def test_append_survives_writer_connection_loss(tmp_path: Path) -> None:
     with sqlite3.connect(str(db_path)) as reader_conn:
         count = reader_conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]
         assert count == 5
+
+
+@pytest.mark.asyncio
+async def test_fill_atomicity_commit_failure_preserves_original_exception(
+    spine: EventSpine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    '''Pin: round-1 review fix. Pre-fix the commit() was inside the
+    same try/except as the DML; a commit failure would trigger the
+    except, run rollback, and if rollback also failed the original
+    commit exception was masked by the rollback exception. Post-fix
+    commit lives in its own try/except so the commit exception
+    propagates AND rollback is best-effort (logged but not raised).
+    '''
+
+    async def failing_commit() -> None:
+        raise RuntimeError('simulated commit failure')
+
+    monkeypatch.setattr(spine._conn, 'commit', failing_commit)
+
+    with pytest.raises(RuntimeError, match='simulated commit failure'):
+        await spine.append(_FILL, epoch_id=_EPOCH)
+
+
+@pytest.mark.asyncio
+async def test_fill_atomicity_rollback_failure_does_not_mask_dml_exception(
+    spine: EventSpine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    '''Pin: if rollback raises while handling a DML failure, the
+    rollback exception must NOT mask the DML exception — the caller
+    needs to see the original failure. `_safe_rollback` logs the
+    rollback failure but does not re-raise.
+    '''
+
+    async def failing_append(event: Event, epoch_id: int) -> int:
+        del event, epoch_id
+        raise RuntimeError('simulated DML failure')
+
+    async def failing_rollback() -> None:
+        raise RuntimeError('simulated rollback failure')
+
+    monkeypatch.setattr(spine, '_append_event', failing_append)
+    monkeypatch.setattr(spine._conn, 'rollback', failing_rollback)
+
+    with pytest.raises(RuntimeError, match='simulated DML failure'):
+        await spine.append(_FILL, epoch_id=_EPOCH)

@@ -235,6 +235,25 @@ class EventSpine:
         await self._conn.commit()
         _log.info('event spine schema ensured')
 
+    async def _safe_rollback(self, context: str) -> None:
+
+        '''
+        Best-effort rollback that logs but does not raise.
+
+        Used in `append()`'s exception handlers so a rollback failure
+        cannot mask the original DML / commit exception that the
+        caller actually needs to see.
+
+        Args:
+            context (str): Short tag for the log line so the operator
+                can tell which failure path triggered the rollback.
+        '''
+
+        try:
+            await self._conn.rollback()
+        except Exception:  # noqa: BLE001 - rollback failure is logged, not raised
+            _log.exception('event spine rollback failed during %s', context)
+
     async def append(self, event: Event, epoch_id: int) -> int | None:
 
         '''
@@ -242,9 +261,14 @@ class EventSpine:
 
         Deduplicate FillReceived events by (account_id, venue_trade_id)
         within the epoch. Duplicate fills are silently dropped per RFC.
-        FillReceived atomicity is guaranteed internally via SAVEPOINT:
-        either both the dedup insert and event insert succeed, or both
-        roll back.
+        FillReceived atomicity is guaranteed internally: both the
+        dedup insert and the event insert run in a single implicit
+        transaction (Python sqlite3 auto-begins on the first DML
+        statement), then `commit()` or `rollback()` ends it. Either
+        both inserts are durable together, or neither is. The
+        implementation comment below `if isinstance(event,
+        FillReceived):` carries the historical context for why
+        this is no longer SAVEPOINT-based.
 
         Calls `await self._conn.commit()` after every successful insert
         so each event is durable on the main DB file before this method
@@ -270,8 +294,31 @@ class EventSpine:
         '''
 
         if isinstance(event, FillReceived):
-            async with self._conn.execute('SAVEPOINT fill_atomic'):
-                pass
+            # Atomicity for the dedup-insert + event-insert pair via
+            # Python sqlite3's implicit BEGIN-on-DML: the first INSERT
+            # auto-begins a transaction, the second INSERT runs in the
+            # same transaction, and `commit()` / `rollback()` end it.
+            # Both inserts are durable together or neither is.
+            #
+            # Pre-fix this used SAVEPOINT/RELEASE/ROLLBACK TO. That
+            # path interacted poorly with Python sqlite3's default
+            # `isolation_level=""` semantics: non-DML statements
+            # (SAVEPOINT, RELEASE, ROLLBACK TO) trigger an implicit
+            # COMMIT before they run, collapsing the savepoint stack.
+            # By the time RELEASE ran in production the savepoint had
+            # been committed away and sqlite raised
+            # `OperationalError: no such savepoint: fill_atomic`.
+            # The implicit BEGIN-on-DML path used here sidesteps the
+            # SAVEPOINT API entirely.
+            # Two separate try blocks so a commit failure doesn't
+            # get caught by the DML-failure handler. Pre-fix a single
+            # try/except wrapped both; on commit failure the except's
+            # rollback would run AND a rollback failure inside that
+            # except would mask the original commit exception. Now:
+            #   - DML failure: rollback best-effort, re-raise the DML
+            #     exception
+            #   - commit failure: rollback best-effort, re-raise the
+            #     COMMIT exception (preserves the root cause)
             try:
                 async with self._conn.execute(
                     _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
@@ -281,15 +328,10 @@ class EventSpine:
                     seq = None
                 else:
                     seq = await self._append_event(event, epoch_id)
-                async with self._conn.execute('RELEASE fill_atomic'):
-                    pass
             except Exception:
-                async with self._conn.execute('ROLLBACK TO fill_atomic'):
-                    pass
-                async with self._conn.execute('RELEASE fill_atomic'):
-                    pass
+                await self._safe_rollback('event spine fill-atomic DML failure')
                 _log.exception(
-                    'event spine fill-atomic rollback',
+                    'event spine fill-atomic DML failed (rollback attempted)',
                     extra={
                         'epoch_id': epoch_id,
                         'account_id': event.account_id,
@@ -298,22 +340,20 @@ class EventSpine:
                     },
                 )
                 raise
-            # Commit outside the SAVEPOINT-protected `try`: by this point
-            # `RELEASE fill_atomic` has already removed the savepoint
-            # from the stack. If `commit()` raised inside the `try`,
-            # the `except` would attempt `ROLLBACK TO fill_atomic`
-            # against a non-existent savepoint and the second sqlite
-            # error would mask the first. Hoisting the commit lets
-            # its failure surface as a plain unhandled exception. The
-            # connection is left with the outer (uncommitted)
-            # transaction still open; the connection-lifecycle owner
-            # (the launcher's `_db_conn` field) recovers by tearing
-            # down the connection — `EventSpine` itself owns the
-            # transaction boundaries (per module docstring), but the
-            # connection is the caller's resource to manage and a
-            # commit-failure crash is the only way out of an
-            # unrecoverable disk-write error anyway.
-            await self._conn.commit()
+            try:
+                await self._conn.commit()
+            except Exception:
+                await self._safe_rollback('event spine fill-atomic commit failure')
+                _log.exception(
+                    'event spine fill-atomic commit failed',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'account_id': event.account_id,
+                        'venue_trade_id': event.venue_trade_id,
+                        'venue_order_id': event.venue_order_id,
+                    },
+                )
+                raise
             if seq is None:
                 _log.warning(
                     'event spine fill deduplicated',
