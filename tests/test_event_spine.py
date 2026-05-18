@@ -392,15 +392,14 @@ async def test_fill_atomicity_many_consecutive_appends_no_savepoint_error(
 @pytest.mark.asyncio
 async def test_fill_atomicity_rollback_on_event_insert_failure(
     spine: EventSpine,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-
-    original_append = spine._append_event
 
     async def failing_append(event: Event, epoch_id: int) -> int:
         del event, epoch_id
         raise RuntimeError('simulated event INSERT failure')
 
-    spine._append_event = failing_append
+    monkeypatch.setattr(spine, '_append_event', failing_append)
 
     with pytest.raises(RuntimeError, match='simulated event INSERT failure'):
         await spine.append(_FILL, epoch_id=_EPOCH)
@@ -415,7 +414,7 @@ async def test_fill_atomicity_rollback_on_event_insert_failure(
     events = await spine.read(epoch_id=_EPOCH)
     assert len(events) == 0
 
-    spine._append_event = original_append
+    monkeypatch.undo()
     seq = await spine.append(_FILL, epoch_id=_EPOCH)
     assert isinstance(seq, int)
 
@@ -569,6 +568,7 @@ async def test_append_survives_writer_connection_loss(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_fill_atomicity_commit_failure_preserves_original_exception(
     spine: EventSpine,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     '''Pin: round-1 review fix. Pre-fix the commit() was inside the
     same try/except as the DML; a commit failure would trigger the
@@ -578,31 +578,25 @@ async def test_fill_atomicity_commit_failure_preserves_original_exception(
     propagates AND rollback is best-effort (logged but not raised).
     '''
 
-    original_commit = spine._conn.commit
-
     async def failing_commit() -> None:
         raise RuntimeError('simulated commit failure')
 
-    spine._conn.commit = failing_commit  # type: ignore[method-assign]
+    monkeypatch.setattr(spine._conn, 'commit', failing_commit)
 
     with pytest.raises(RuntimeError, match='simulated commit failure'):
         await spine.append(_FILL, epoch_id=_EPOCH)
-
-    spine._conn.commit = original_commit  # type: ignore[method-assign]
 
 
 @pytest.mark.asyncio
 async def test_fill_atomicity_rollback_failure_does_not_mask_dml_exception(
     spine: EventSpine,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     '''Pin: if rollback raises while handling a DML failure, the
     rollback exception must NOT mask the DML exception — the caller
     needs to see the original failure. `_safe_rollback` logs the
     rollback failure but does not re-raise.
     '''
-
-    original_append = spine._append_event
-    original_rollback = spine._conn.rollback
 
     async def failing_append(event: Event, epoch_id: int) -> int:
         del event, epoch_id
@@ -611,11 +605,8 @@ async def test_fill_atomicity_rollback_failure_does_not_mask_dml_exception(
     async def failing_rollback() -> None:
         raise RuntimeError('simulated rollback failure')
 
-    spine._append_event = failing_append
-    spine._conn.rollback = failing_rollback  # type: ignore[method-assign]
+    monkeypatch.setattr(spine, '_append_event', failing_append)
+    monkeypatch.setattr(spine._conn, 'rollback', failing_rollback)
 
     with pytest.raises(RuntimeError, match='simulated DML failure'):
         await spine.append(_FILL, epoch_id=_EPOCH)
-
-    spine._append_event = original_append
-    spine._conn.rollback = original_rollback  # type: ignore[method-assign]
