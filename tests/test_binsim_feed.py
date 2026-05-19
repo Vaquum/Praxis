@@ -365,3 +365,26 @@ async def test_stop_is_idempotent() -> None:
     await poller.stop()
 
     assert poller.is_running is False
+
+
+@pytest.mark.asyncio
+async def test_poll_once_accepts_non_application_json_content_type() -> None:
+    book = OrderBook()
+    poller = _make_poller(book)
+
+    # response.json() with the default content_type would raise
+    # aiohttp.ContentTypeError on text/plain; content_type=None
+    # bypasses that check and lets _parse_payload run.
+    resp = AsyncMock()
+    resp.status = 200
+    resp.json = AsyncMock(return_value=_PAYLOAD)
+    resp.request_info = MagicMock()
+    resp.history = ()
+    _attach_mock_session(poller, resp)
+
+    await poller.poll_once()
+
+    # poll succeeded → book populated
+    assert book.last_update_id == 12345
+    # confirm json was called with content_type=None
+    resp.json.assert_called_once_with(content_type=None)

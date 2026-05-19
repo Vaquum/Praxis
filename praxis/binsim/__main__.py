@@ -81,10 +81,14 @@ def _parse_env(env: dict[str, str]) -> _Config:
         raise RuntimeError(msg)
 
     host = env.get('BINSIM_HOST', _DEFAULT_HOST).strip() or _DEFAULT_HOST
-    port = _parse_int_env(env, 'BINSIM_PORT', _DEFAULT_PORT)
+    port = _parse_int_env(env, 'BINSIM_PORT', _DEFAULT_PORT, min_value=0, max_value=65535)
     depth_url = env.get('BINSIM_DEPTH_URL', _DEFAULT_DEPTH_URL).strip() or _DEFAULT_DEPTH_URL
-    staleness_threshold_ms = _parse_int_env(env, 'BINSIM_STALENESS_MS', _DEFAULT_STALENESS_MS)
-    poll_interval_ms = _parse_int_env(env, 'BINSIM_POLL_INTERVAL_MS', _DEFAULT_POLL_INTERVAL_MS)
+    staleness_threshold_ms = _parse_int_env(
+        env, 'BINSIM_STALENESS_MS', _DEFAULT_STALENESS_MS, min_value=1,
+    )
+    poll_interval_ms = _parse_int_env(
+        env, 'BINSIM_POLL_INTERVAL_MS', _DEFAULT_POLL_INTERVAL_MS, min_value=1,
+    )
 
     return _Config(
         host=host,
@@ -97,7 +101,14 @@ def _parse_env(env: dict[str, str]) -> _Config:
     )
 
 
-def _parse_int_env(env: dict[str, str], name: str, default: int) -> int:
+def _parse_int_env(
+    env: dict[str, str],
+    name: str,
+    default: int,
+    *,
+    min_value: int | None = None,
+    max_value: int | None = None,
+) -> int:
 
     raw = env.get(name, '').strip()
 
@@ -105,10 +116,20 @@ def _parse_int_env(env: dict[str, str], name: str, default: int) -> int:
         return default
 
     try:
-        return int(raw)
+        value = int(raw)
     except ValueError as exc:
         msg = f'{name} must be an integer, got {raw!r}'
         raise RuntimeError(msg) from exc
+
+    if min_value is not None and value < min_value:
+        msg = f'{name} must be >= {min_value}, got {value}'
+        raise RuntimeError(msg)
+
+    if max_value is not None and value > max_value:
+        msg = f'{name} must be <= {max_value}, got {value}'
+        raise RuntimeError(msg)
+
+    return value
 
 
 async def _run(config: _Config) -> None:

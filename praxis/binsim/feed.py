@@ -135,7 +135,13 @@ class DepthPoller:
                     message=f'depth poll non-200: {response.status}',
                 )
 
-            payload = await response.json()
+            # `content_type=None` skips aiohttp's Content-Type check so
+            # a valid JSON body returned with a non-`application/json`
+            # header parses normally. Shape validation happens in
+            # `_parse_payload`, which surfaces malformed bodies at
+            # ERROR (not WARNING) so a persistently broken upstream
+            # is louder than a flaky network.
+            payload = await response.json(content_type=None)
 
         ts_ms, last_update_id, bids, asks = self._parse_payload(payload)
         self._book.replace(bids, asks, last_update_id, ts_ms)
@@ -145,8 +151,12 @@ class DepthPoller:
         # future-dated `t` (clock skew on the source, payload tampering)
         # would silently make the book appear "newer than now" and the
         # gate's `age_ms > threshold` check would pass forever.
-        # `book.ts_ms` retains the upstream `t` for informational use
-        # in `GET /api/v3/depth`.
+        # `book.ts_ms` retains the upstream `t` as an informational
+        # property on `OrderBook` (for direct operator inspection /
+        # debugging / future metrics). Real Binance's `/api/v3/depth`
+        # response does not carry a timestamp, so the binsim's depth
+        # endpoint deliberately omits it too to keep the shape
+        # exactly Binance-compatible.
         self._last_success_ts_ms = int(time.time() * 1000)
 
     async def _poll_loop(self) -> None:

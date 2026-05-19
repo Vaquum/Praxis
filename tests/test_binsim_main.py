@@ -138,3 +138,40 @@ def test_register_subcommand_rejects_bad_decimal(
 
     with pytest.raises(SystemExit, match='--initial-usdt must be a valid decimal'):
         main(['register', '--account-id', 'acc-1', '--initial-usdt', 'not-a-number'])
+
+
+@pytest.mark.parametrize('var', ['BINSIM_STALENESS_MS', 'BINSIM_POLL_INTERVAL_MS'])
+def test_zero_strict_positive_int_env_raises(var: str) -> None:
+    env = {**_BASE_ENV, var: '0'}
+
+    with pytest.raises(RuntimeError, match=f'{var} must be >= 1'):
+        _parse_env(env)
+
+
+@pytest.mark.parametrize('var', ['BINSIM_STALENESS_MS', 'BINSIM_POLL_INTERVAL_MS'])
+def test_negative_strict_positive_int_env_raises(var: str) -> None:
+    env = {**_BASE_ENV, var: '-1'}
+
+    with pytest.raises(RuntimeError, match=f'{var} must be >= 1'):
+        _parse_env(env)
+
+
+def test_negative_port_env_raises() -> None:
+    env = {**_BASE_ENV, 'BINSIM_PORT': '-1'}
+
+    with pytest.raises(RuntimeError, match='BINSIM_PORT must be >= 0'):
+        _parse_env(env)
+
+
+def test_oversized_port_env_raises() -> None:
+    env = {**_BASE_ENV, 'BINSIM_PORT': '65536'}
+
+    with pytest.raises(RuntimeError, match='BINSIM_PORT must be <= 65535'):
+        _parse_env(env)
+
+
+def test_zero_port_env_accepted_for_ephemeral_binding() -> None:
+    env = {**_BASE_ENV, 'BINSIM_PORT': '0'}
+
+    config = _parse_env(env)
+    assert config.port == 0
