@@ -281,10 +281,14 @@ async def _submit_order(request: web.Request) -> web.Response:
     now_ms = int(time.time() * 1000)
     age_ms = now_ms - poller.last_success_ts_ms
 
-    if poller.last_success_ts_ms == 0 or age_ms > threshold_ms:
+    # `age_ms < 0` means `last_success_ts_ms` is in the future relative
+    # to `now_ms` — only possible from a wall-clock backward jump (NTP
+    # correction). Treat as stale so the gate fails closed instead of
+    # accepting orders against a "newer-than-now" book.
+    if poller.last_success_ts_ms == 0 or age_ms < 0 or age_ms > threshold_ms:
         raise _binance_error(
             status=_HTTP_SERVICE_UNAVAILABLE, code=_BINANCE_CODE_BOOK_STALE,
-            msg=f'book is stale (age {age_ms}ms exceeds threshold {threshold_ms}ms)',
+            msg=f'book is stale (age {age_ms}ms; threshold {threshold_ms}ms)',
         )
 
     symbol = request.query.get('symbol')

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from decimal import Decimal
 from typing import Any
 
@@ -30,8 +31,10 @@ class DepthPoller:
     Owns a single `aiohttp.ClientSession` and a background poll task.
     On each successful poll the response is parsed and the bound
     `OrderBook` is replaced wholesale; the wall-clock `t` from the
-    response is recorded as `last_success_ts_ms` so the HTTP layer's
-    staleness gate can query freshness without subscribing to events.
+    successful poll captures the local wall-clock as
+    `last_success_ts_ms` so the HTTP layer's staleness gate can query
+    freshness without subscribing to events and without trusting any
+    timestamp from the upstream payload.
 
     Failures (network, 5xx, malformed body, schema rejection) are
     logged and the loop continues at the same cadence — the staleness
@@ -136,7 +139,15 @@ class DepthPoller:
 
         ts_ms, last_update_id, bids, asks = self._parse_payload(payload)
         self._book.replace(bids, asks, last_update_id, ts_ms)
-        self._last_success_ts_ms = ts_ms
+        # Record local wall-clock at receipt, NOT the upstream `t`.
+        # The HTTP layer's staleness gate compares this against its
+        # own `time.time()`; if we trusted upstream `t` directly, a
+        # future-dated `t` (clock skew on the source, payload tampering)
+        # would silently make the book appear "newer than now" and the
+        # gate's `age_ms > threshold` check would pass forever.
+        # `book.ts_ms` retains the upstream `t` for informational use
+        # in `GET /api/v3/depth`.
+        self._last_success_ts_ms = int(time.time() * 1000)
 
     async def _poll_loop(self) -> None:
 

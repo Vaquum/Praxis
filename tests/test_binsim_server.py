@@ -953,3 +953,23 @@ async def test_server_start_failure_cleans_up_runner_state(tmp_path: Path) -> No
         assert server_b._runner is None
     finally:
         await server_a.stop()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_when_last_success_ts_is_in_future(tmp_path: Path) -> None:
+    import time as _t
+
+    future_ts = int(_t.time() * 1000) + 24 * 60 * 60 * 1000  # one day in the future
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(
+        tmp_path, book_ts_ms=future_ts,
+    )
+
+    try:
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=_POST_BASE_PARAMS)
+        assert resp.status == 503
+
+        payload = await resp.json()
+        assert payload['code'] == -1003
+        assert 'stale' in payload['msg']
+    finally:
+        await client.close()

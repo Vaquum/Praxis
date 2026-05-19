@@ -109,17 +109,25 @@ async def test_poll_once_raises_without_started_session() -> None:
 @pytest.mark.asyncio
 async def test_poll_once_populates_book_and_updates_ts() -> None:
 
+    import time as _t
+
     book = OrderBook()
     poller = _make_poller(book)
     _attach_mock_session(poller, _mock_response(200, _PAYLOAD))
 
+    before_ms = int(_t.time() * 1000)
     await poller.poll_once()
+    after_ms = int(_t.time() * 1000)
 
     assert book.last_update_id == 12345
     assert book.ts_ms == 1_700_000_000_000
     assert book.bids == [(Decimal('100.00'), Decimal('1.0')), (Decimal('99.50'), Decimal('2.0'))]
     assert book.asks == [(Decimal('101.00'), Decimal('1.0')), (Decimal('101.50'), Decimal('2.0'))]
-    assert poller.last_success_ts_ms == 1_700_000_000_000
+    # last_success_ts_ms is local wall-clock at receipt, NOT the
+    # upstream `t` (1.7e12 = 2023) — defense against future-dated `t`
+    # bypassing the staleness gate.
+    assert before_ms <= poller.last_success_ts_ms <= after_ms
+    assert poller.last_success_ts_ms != 1_700_000_000_000
 
 
 @pytest.mark.asyncio
@@ -246,13 +254,13 @@ async def test_poll_loop_does_not_crash_on_non_dict_payload() -> None:
 
     for _ in range(50):
         await asyncio.sleep(0.02)
-        if poller.last_success_ts_ms == 1_700_000_000_000:
+        if poller.last_success_ts_ms > 0:
             break
 
     poller._stop_event.set()
     await poller._task
 
-    assert poller.last_success_ts_ms == 1_700_000_000_000
+    assert poller.last_success_ts_ms > 0
 
 
 @pytest.mark.asyncio
@@ -300,13 +308,13 @@ async def test_poll_loop_recovers_after_transient_failure() -> None:
 
     for _ in range(50):
         await asyncio.sleep(0.02)
-        if poller.last_success_ts_ms == 1_700_000_000_000:
+        if poller.last_success_ts_ms > 0:
             break
 
     poller._stop_event.set()
     await poller._task
 
-    assert poller.last_success_ts_ms == 1_700_000_000_000
+    assert poller.last_success_ts_ms > 0
     assert book.last_update_id == 12345
 
 
