@@ -148,13 +148,14 @@ class BinanceUserStream:
         ws_api_url = self._adapter._ws_api_url
         # Production paths use `wss://` (mainnet / testnet). The only
         # path that may use plain `ws://` is the binsim local
-        # simulator, which is gated behind the `BINSIM_URL` env var:
-        # if BINSIM_URL is not set, ws:// remains rejected so a
-        # mis-configured production deployment cannot fall back to an
-        # insecure scheme by accident.
-        binsim_url = os.getenv('BINSIM_URL')
+        # simulator, which is gated behind a non-empty `BINSIM_URL` env
+        # var. Strip whitespace and check truthiness so a misconfigured
+        # `BINSIM_URL=' '` or `BINSIM_URL=''` does not silently open
+        # the ws:// allowance — matches the launcher's strip pattern
+        # in `_resolve_trade_mode`.
+        binsim_url = (os.getenv('BINSIM_URL') or '').strip()
         allowed_wss = ws_api_url.startswith('wss://')
-        allowed_ws = ws_api_url.startswith('ws://') and binsim_url is not None
+        allowed_ws = ws_api_url.startswith('ws://') and bool(binsim_url)
 
         if not (allowed_wss or allowed_ws):
             msg = f"Unsupported WS-API URL scheme: {ws_api_url!r}"

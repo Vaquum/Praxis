@@ -357,6 +357,15 @@ async def _submit_order(request: web.Request) -> web.Response:
             account_id, side, fills_with_fees,
             client_order_id=client_order_id,
         )
+    except KeyError as exc:
+        _log.warning(
+            'POST /api/v3/order: account resolved from api_key has no ledger entry',
+            account_id=account_id,
+        )
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
+            msg='account not registered',
+        ) from exc
     except DuplicateClientOrderIdError as exc:
         raise _binance_error(
             status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,

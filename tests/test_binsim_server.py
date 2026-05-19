@@ -802,3 +802,30 @@ async def test_post_order_response_cumulative_quote_matches_walk(tmp_path: Path)
         assert Decimal(payload['cummulativeQuoteQty']) == expected_quote
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_returns_400_when_ledger_account_missing(tmp_path: Path) -> None:
+    book = _seeded_book()
+    poller = DepthPoller(book, _URL, _TOKEN)
+    poller._last_success_ts_ms = int(__import__('time').time() * 1000)
+
+    ledger = Ledger(tmp_path)
+    api_key = await ledger.register_account(_ACCOUNT_ID, Decimal('10000'))
+    ledger._accounts.pop(_ACCOUNT_ID)
+
+    app = make_app(book, ledger, poller, _THRESHOLD_MS)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+
+    signed_headers = {'X-MBX-APIKEY': api_key}
+
+    try:
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=_POST_BASE_PARAMS)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -2010
+        assert 'not registered' in payload['msg']
+    finally:
+        await client.close()
