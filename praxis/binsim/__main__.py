@@ -1,19 +1,26 @@
-'''Binsim service entrypoint.
+'''Binsim service entrypoint with `register` admin subcommand.
 
-Reads its config from environment variables (no CLI flags) so the
-operator can drop a single block into `docker-compose.yml` without
-having to massage command lines. Required vs optional vars are
-documented in `_parse_env` below; bad values exit non-zero with a
-clear message.
+Default invocation runs the HTTP+WS server:
+
+    python -m praxis.binsim
+
+The `register` subcommand mints an api_key for a new account, prints
+it on stdout, and exits. The server MUST be stopped before running
+`register` — both processes write the same ledger snapshot file and
+have no inter-process lock:
+
+    python -m praxis.binsim register --account-id acc-1 --initial-usdt 10000
 '''
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 import signal
 import sys
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import aiohttp
@@ -45,7 +52,6 @@ class _Config:
     state_dir: Path
     staleness_threshold_ms: int
     poll_interval_ms: int
-    api_keys: dict[str, str]
 
 
 def _parse_env(env: dict[str, str]) -> _Config:
@@ -55,7 +61,6 @@ def _parse_env(env: dict[str, str]) -> _Config:
     Required:
         BINSIM_DEPTH_TOKEN      Bearer token for the hosted depth-20 endpoint.
         BINSIM_STATE_DIR        Directory for the ledger snapshot (created if missing).
-        BINSIM_API_KEYS         `apikey1=accountid1,apikey2=accountid2` mapping.
 
     Optional:
         BINSIM_HOST             Bind host (default 0.0.0.0).
@@ -77,14 +82,6 @@ def _parse_env(env: dict[str, str]) -> _Config:
         msg = 'BINSIM_STATE_DIR is required'
         raise RuntimeError(msg)
 
-    api_keys_raw = env.get('BINSIM_API_KEYS', '').strip()
-
-    if not api_keys_raw:
-        msg = 'BINSIM_API_KEYS is required (format: apikey1=accountid1,apikey2=accountid2)'
-        raise RuntimeError(msg)
-
-    api_keys = _parse_api_keys(api_keys_raw)
-
     host = env.get('BINSIM_HOST', _DEFAULT_HOST).strip() or _DEFAULT_HOST
     port = _parse_int_env(env, 'BINSIM_PORT', _DEFAULT_PORT)
     depth_url = env.get('BINSIM_DEPTH_URL', _DEFAULT_DEPTH_URL).strip() or _DEFAULT_DEPTH_URL
@@ -99,49 +96,7 @@ def _parse_env(env: dict[str, str]) -> _Config:
         state_dir=Path(state_dir_raw),
         staleness_threshold_ms=staleness_threshold_ms,
         poll_interval_ms=poll_interval_ms,
-        api_keys=api_keys,
     )
-
-
-def _parse_api_keys(raw: str) -> dict[str, str]:
-
-    '''Parse `apikey1=accountid1,apikey2=accountid2` into a dict.
-
-    Empty entries are skipped (trailing commas are ignored). Duplicate
-    api_keys raise — the same key can't map to two accounts.
-    '''
-
-    result: dict[str, str] = {}
-
-    for chunk in raw.split(','):
-        entry = chunk.strip()
-
-        if not entry:
-            continue
-
-        if '=' not in entry:
-            msg = f'BINSIM_API_KEYS entry {entry!r} is missing `=` separator'
-            raise RuntimeError(msg)
-
-        api_key, account_id = entry.split('=', 1)
-        api_key = api_key.strip()
-        account_id = account_id.strip()
-
-        if not api_key or not account_id:
-            msg = f'BINSIM_API_KEYS entry {entry!r} has empty api_key or account_id'
-            raise RuntimeError(msg)
-
-        if api_key in result:
-            msg = f'BINSIM_API_KEYS contains duplicate api_key {api_key!r}'
-            raise RuntimeError(msg)
-
-        result[api_key] = account_id
-
-    if not result:
-        msg = 'BINSIM_API_KEYS parsed to an empty mapping'
-        raise RuntimeError(msg)
-
-    return result
 
 
 def _parse_int_env(env: dict[str, str], name: str, default: int) -> int:
@@ -181,7 +136,6 @@ async def _run(config: _Config) -> None:
         ledger,
         poller,
         config.staleness_threshold_ms,
-        config.api_keys,
     )
 
     await poller.start()
@@ -207,7 +161,6 @@ async def _run(config: _Config) -> None:
             staleness_threshold_ms=config.staleness_threshold_ms,
             poll_interval_ms=config.poll_interval_ms,
             accounts=sorted(await ledger.accounts()),
-            api_keys=sorted(config.api_keys.keys()),
         )
 
         stop = asyncio.Event()
@@ -225,9 +178,59 @@ async def _run(config: _Config) -> None:
         log.info('binsim stopped')
 
 
-def main() -> None:
+async def _register(
+    state_dir: Path,
+    account_id: str,
+    initial_usdt: Decimal,
+    initial_btc: Decimal,
+) -> str:
+
+    ledger = Ledger(state_dir)
+    await ledger.load()
+
+    return await ledger.register_account(account_id, initial_usdt, initial_btc)
+
+
+def _parse_decimal_arg(name: str, raw: str) -> Decimal:
+
+    try:
+        return Decimal(raw)
+    except InvalidOperation as exc:
+        msg = f'--{name} must be a valid decimal, got {raw!r}'
+        raise SystemExit(msg) from exc
+
+
+def main(argv: list[str] | None = None) -> None:
 
     configure_logging()
+
+    parser = argparse.ArgumentParser(prog='praxis.binsim')
+    sub = parser.add_subparsers(dest='command')
+
+    register = sub.add_parser('register', help='Register an account and print its assigned api_key')
+    register.add_argument('--account-id', required=True)
+    register.add_argument('--initial-usdt', required=True)
+    register.add_argument('--initial-btc', default='0')
+
+    args = parser.parse_args(argv)
+
+    if args.command == 'register':
+        state_dir_raw = os.environ.get('BINSIM_STATE_DIR', '').strip()
+
+        if not state_dir_raw:
+            msg = 'BINSIM_STATE_DIR is required for `register`'
+            raise SystemExit(msg)
+
+        initial_usdt = _parse_decimal_arg('initial-usdt', args.initial_usdt)
+        initial_btc = _parse_decimal_arg('initial-btc', args.initial_btc)
+
+        api_key = asyncio.run(
+            _register(Path(state_dir_raw), args.account_id, initial_usdt, initial_btc),
+        )
+        sys.stdout.write(f'{api_key}\n')
+
+        return
+
     config = _parse_env(dict(os.environ))
     asyncio.run(_run(config))
 

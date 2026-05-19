@@ -53,7 +53,6 @@ from praxis.infrastructure.event_spine import EventSpine
 
 
 _ACCOUNT_ID = 'acc-1'
-_API_KEY = 'apikey-1'
 _API_SECRET = 'apisecret-1'  # noqa: S105 — test fixture, not a real credential
 _DEPTH_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
 _DEPTH_TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
@@ -77,35 +76,35 @@ def _now_aware() -> datetime:
 
 
 @pytest_asyncio.fixture
-async def binsim(tmp_path: Path) -> AsyncGenerator[BinsimServer, None]:
+async def binsim(tmp_path: Path) -> AsyncGenerator[tuple[BinsimServer, str], None]:
 
     book = OrderBook()
     book.replace(_BIDS, _ASKS, last_update_id=1, ts_ms=int(time.time() * 1000))
 
     ledger = Ledger(tmp_path / 'binsim_state')
-    await ledger.register_account(_ACCOUNT_ID, Decimal('100000'), Decimal('5.0'))
+    api_key = await ledger.register_account(_ACCOUNT_ID, Decimal('100000'), Decimal('5.0'))
 
     poller = DepthPoller(book, _DEPTH_URL, _DEPTH_TOKEN)
     poller._last_success_ts_ms = int(time.time() * 1000)
 
     server = BinsimServer(
         '127.0.0.1', 0, book, ledger, poller, _STALENESS_THRESHOLD_MS,
-        {_API_KEY: _ACCOUNT_ID},
     )
     await server.start()
 
-    yield server
+    yield server, api_key
 
     await server.stop()
 
 
 @pytest_asyncio.fixture
 async def adapter(
-    binsim: BinsimServer,
+    binsim: tuple[BinsimServer, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncGenerator[BinanceAdapter, None]:
 
-    site = binsim._site
+    server, api_key = binsim
+    site = server._site
 
     assert site is not None
     assert site._server is not None
@@ -122,7 +121,7 @@ async def adapter(
     monkeypatch.setenv('BINSIM_URL', base_url)
 
     a = BinanceAdapter(base_url, ws_url, ws_api_url)
-    a.register_account(_ACCOUNT_ID, _API_KEY, _API_SECRET)
+    a.register_account(_ACCOUNT_ID, api_key, _API_SECRET)
     await a.load_filters(['BTCUSDT'])
 
     yield a

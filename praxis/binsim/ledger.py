@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
 import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -31,6 +32,7 @@ _SNAPSHOT_FILENAME = 'binsim_ledger.json'
 _QUOTE_ASSET = 'USDT'
 _BASE_ASSET = 'BTC'
 _ZERO = Decimal(0)
+_API_KEY_BYTES = 32
 
 
 class InsufficientBalanceError(Exception):
@@ -73,6 +75,7 @@ class Account:
     '''In-memory per-account snapshot owned by `Ledger`.'''
 
     account_id: str
+    api_key: str
     usdt: Decimal
     btc: Decimal
     fills: list[LedgerFill]
@@ -105,6 +108,7 @@ class Ledger:
         self._state_dir = state_dir
         self._snapshot_path = state_dir / _SNAPSHOT_FILENAME
         self._accounts: dict[str, Account] = {}
+        self._api_key_index: dict[str, str] = {}
         self._next_trade_id = 1
         self._next_order_id = 1
         self._lock = asyncio.Lock()
@@ -132,19 +136,29 @@ class Ledger:
                 account_id: _account_from_dict(account_id, data)
                 for account_id, data in payload['accounts'].items()
             }
+            self._api_key_index = {
+                account.api_key: account.account_id
+                for account in self._accounts.values()
+            }
 
     async def register_account(
         self,
         account_id: str,
         initial_usdt: Decimal,
         initial_btc: Decimal = _ZERO,
-    ) -> None:
+    ) -> str:
 
-        '''Create an account with starting balances.
+        '''Create an account with starting balances and assign an api_key.
+
+        The api_key is generated server-side via `secrets.token_hex` so
+        the operator never picks (or types) one. Returned to the caller
+        so it can be copied into Praxis's `BINANCE_API_KEY_<acct>`
+        env var; binsim's signed endpoints use this api_key (sent in
+        the `X-MBX-APIKEY` header) to resolve the calling account.
 
         Raises:
-            ValueError: account already exists, or initial balance is
-                negative.
+            ValueError: account_id is empty, initial balance is
+                negative, or account already exists.
         '''
 
         if not account_id:
@@ -160,13 +174,46 @@ class Ledger:
             if account_id in self._accounts:
                 raise ValueError(f'account already registered: {account_id}')
 
+            api_key = self._mint_unique_api_key_locked()
+
             self._accounts[account_id] = Account(
                 account_id=account_id,
+                api_key=api_key,
                 usdt=initial_usdt,
                 btc=initial_btc,
                 fills=[],
             )
+            self._api_key_index[api_key] = account_id
+
             self._snapshot_locked()
+
+            return api_key
+
+    def _mint_unique_api_key_locked(self) -> str:
+
+        '''Generate a fresh 64-hex-char api_key not in `_api_key_index`.
+
+        Collision is astronomically unlikely with 256 bits of entropy
+        but the retry loop makes the post-condition trivially provable.
+        '''
+
+        while True:
+            candidate = secrets.token_hex(_API_KEY_BYTES)
+
+            if candidate not in self._api_key_index:
+                return candidate
+
+    def account_for_api_key(self, api_key: str) -> str | None:
+
+        '''Look up the `account_id` controlled by `api_key`, or `None`.
+
+        Synchronous because it's a single dict read against state that
+        only mutates under `register_account` (which holds the lock).
+        Signed-request handlers call this from inside a request — no
+        await overhead on the hot path.
+        '''
+
+        return self._api_key_index.get(api_key)
 
     async def apply_fill(
         self,
@@ -462,6 +509,7 @@ def _resolve_timestamp(timestamp: datetime | None) -> datetime:
 def _account_to_dict(account: Account) -> dict[str, object]:
 
     return {
+        'api_key': account.api_key,
         'usdt': str(account.usdt),
         'btc': str(account.btc),
         'fills': [_fill_to_dict(f) for f in account.fills],
@@ -476,6 +524,7 @@ def _account_from_dict(account_id: str, data: dict[str, Any]) -> Account:
 
     return Account(
         account_id=account_id,
+        api_key=str(data['api_key']),
         usdt=Decimal(str(data['usdt'])),
         btc=Decimal(str(data['btc'])),
         fills=[_fill_from_dict(f) for f in raw_fills],

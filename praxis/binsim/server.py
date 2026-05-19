@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Final
@@ -23,7 +22,6 @@ from praxis.infrastructure.observability import get_logger
 
 
 __all__ = [
-    'API_KEYS_KEY',
     'BOOK_KEY',
     'LEDGER_KEY',
     'POLLER_KEY',
@@ -41,9 +39,6 @@ LEDGER_KEY: web.AppKey[Ledger] = web.AppKey('binsim.ledger', Ledger)
 POLLER_KEY: web.AppKey[DepthPoller] = web.AppKey('binsim.poller', DepthPoller)
 STALENESS_THRESHOLD_MS_KEY: web.AppKey[int] = web.AppKey(
     'binsim.staleness_threshold_ms', int,
-)
-API_KEYS_KEY: web.AppKey[Mapping[str, str]] = web.AppKey(
-    'binsim.api_keys', Mapping[str, str],
 )
 
 
@@ -131,7 +126,6 @@ def make_app(
     ledger: Ledger,
     poller: DepthPoller,
     staleness_threshold_ms: int,
-    api_keys: Mapping[str, str],
 ) -> web.Application:
 
     '''Build the aiohttp application with all binsim routes wired.
@@ -142,9 +136,11 @@ def make_app(
     tests construct an app with whatever combination of real and stub
     components they want.
 
-    `api_keys` maps an `X-MBX-APIKEY` header value to the binsim
-    account_id it controls. Signed endpoints reject requests with an
-    unknown key.
+    Signed endpoints resolve the calling account by looking up the
+    `X-MBX-APIKEY` header value against `ledger.account_for_api_key`.
+    The api_keys are generated server-side at `register_account` time
+    and persisted in the ledger snapshot — operators copy the printed
+    key into Praxis's `BINANCE_API_KEY_<acct>` env var.
     '''
 
     if staleness_threshold_ms <= 0:
@@ -157,7 +153,6 @@ def make_app(
     app[LEDGER_KEY] = ledger
     app[POLLER_KEY] = poller
     app[STALENESS_THRESHOLD_MS_KEY] = staleness_threshold_ms
-    app[API_KEYS_KEY] = api_keys
     app[WS_SUBSCRIPTION_COUNTER_KEY] = _WsSubscriptionCounter()
 
     app.add_routes([
@@ -335,9 +330,10 @@ async def _submit_order(request: web.Request) -> web.Response:
     try:
         walk = book.consume_qty_for_market_order(side, qty)
     except RuntimeError as exc:
+        _log.warning('order book empty on POST /api/v3/order', error=str(exc))
         raise _binance_error(
             status=_HTTP_SERVICE_UNAVAILABLE, code=_BINANCE_CODE_BOOK_STALE,
-            msg=f'order book not initialised: {exc}',
+            msg='order book not initialised',
         ) from exc
 
     filled_qty = sum((q for _, q in walk), Decimal('0'))
@@ -367,9 +363,13 @@ async def _submit_order(request: web.Request) -> web.Response:
             msg=f'duplicate newClientOrderId: {client_order_id!r}',
         ) from exc
     except InsufficientBalanceError as exc:
+        _log.warning(
+            'insufficient balance on POST /api/v3/order',
+            account_id=account_id, error=str(exc),
+        )
         raise _binance_error(
             status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
-            msg=f'account has insufficient balance: {exc}',
+            msg='account has insufficient balance',
         ) from exc
 
     cumulative_quote = sum((price * level_qty for price, level_qty, _ in fills_with_fees), Decimal('0'))
@@ -461,8 +461,8 @@ def _require_signed_caller(request: web.Request) -> str:
 
     Per the issue's MMVP spec, the binsim does a presence check on
     `X-MBX-APIKEY` + the `signature` query param rather than a full
-    HMAC verify. The api_key is then resolved against the registered
-    mapping to obtain the account_id.
+    HMAC verify. The api_key is resolved against the ledger's index,
+    which is populated when `Ledger.register_account` mints the key.
 
     Raises:
         web.HTTPUnauthorized: header or signature missing, or key not
@@ -477,8 +477,7 @@ def _require_signed_caller(request: web.Request) -> str:
     if 'signature' not in request.query:
         raise web.HTTPUnauthorized(reason='missing signature query param')
 
-    api_keys = request.app[API_KEYS_KEY]
-    account_id = api_keys.get(api_key)
+    account_id = request.app[LEDGER_KEY].account_for_api_key(api_key)
 
     if account_id is None:
         raise web.HTTPUnauthorized(reason='unknown API key')
@@ -503,7 +502,7 @@ async def _ws_api(request: web.Request) -> web.WebSocketResponse:
     we mirror the keepalive cadence.
     '''
 
-    api_keys = request.app[API_KEYS_KEY]
+    ledger = request.app[LEDGER_KEY]
     counter = request.app[WS_SUBSCRIPTION_COUNTER_KEY]
 
     ws = web.WebSocketResponse(heartbeat=_WS_HEARTBEAT_SECONDS)
@@ -513,7 +512,7 @@ async def _ws_api(request: web.Request) -> web.WebSocketResponse:
         if msg.type != web.WSMsgType.TEXT:
             continue
 
-        await _handle_ws_api_frame(ws, msg.data, api_keys, counter)
+        await _handle_ws_api_frame(ws, msg.data, ledger, counter)
 
     return ws
 
@@ -521,7 +520,7 @@ async def _ws_api(request: web.Request) -> web.WebSocketResponse:
 async def _handle_ws_api_frame(
     ws: web.WebSocketResponse,
     data: str,
-    api_keys: Mapping[str, str],
+    ledger: Ledger,
     counter: _WsSubscriptionCounter,
 ) -> None:
 
@@ -564,7 +563,7 @@ async def _handle_ws_api_frame(
 
         return
 
-    if api_key not in api_keys:
+    if ledger.account_for_api_key(api_key) is None:
         await ws.send_str(json.dumps({
             'id': req_id,
             'status': _WS_UNAUTHORIZED_STATUS,
@@ -627,7 +626,6 @@ class BinsimServer:
         ledger: Ledger,
         poller: DepthPoller,
         staleness_threshold_ms: int,
-        api_keys: Mapping[str, str],
     ) -> None:
 
         if not host:
@@ -638,7 +636,7 @@ class BinsimServer:
 
         self._host = host
         self._port = port
-        self._app = make_app(book, ledger, poller, staleness_threshold_ms, api_keys)
+        self._app = make_app(book, ledger, poller, staleness_threshold_ms)
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
 

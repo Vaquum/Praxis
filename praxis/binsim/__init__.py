@@ -4,12 +4,12 @@ from praxis.binsim.book import OrderBook
 from praxis.binsim.feed import DepthPoller
 from praxis.binsim.ledger import (
     Account,
+    DuplicateClientOrderIdError,
     InsufficientBalanceError,
     Ledger,
     LedgerFill,
 )
 from praxis.binsim.server import (
-    API_KEYS_KEY,
     BOOK_KEY,
     LEDGER_KEY,
     POLLER_KEY,
@@ -20,7 +20,6 @@ from praxis.binsim.server import (
 
 
 __all__ = [
-    'API_KEYS_KEY',
     'BOOK_KEY',
     'LEDGER_KEY',
     'POLLER_KEY',
@@ -28,6 +27,7 @@ __all__ = [
     'Account',
     'BinsimServer',
     'DepthPoller',
+    'DuplicateClientOrderIdError',
     'InsufficientBalanceError',
     'Ledger',
     'LedgerFill',

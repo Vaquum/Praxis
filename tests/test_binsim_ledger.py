@@ -799,3 +799,57 @@ async def test_apply_order_after_restart_continues_monotonic_order_id(tmp_path: 
     )
 
     assert o2 == o1 + 1
+
+
+@pytest.mark.asyncio
+async def test_register_account_returns_64_hex_api_key(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    api_key = await ledger.register_account(_ACCT, Decimal('1'))
+
+    assert isinstance(api_key, str)
+    assert len(api_key) == 64
+    assert all(c in '0123456789abcdef' for c in api_key)
+
+
+@pytest.mark.asyncio
+async def test_register_account_yields_distinct_keys_for_distinct_accounts(
+    tmp_path: Path,
+) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    k1 = await ledger.register_account('a', Decimal('1'))
+    k2 = await ledger.register_account('b', Decimal('1'))
+    k3 = await ledger.register_account('c', Decimal('1'))
+
+    assert len({k1, k2, k3}) == 3
+
+
+@pytest.mark.asyncio
+async def test_account_for_api_key_resolves_registered_key(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    api_key = await ledger.register_account(_ACCT, Decimal('1'))
+
+    assert ledger.account_for_api_key(api_key) == _ACCT
+
+
+@pytest.mark.asyncio
+async def test_account_for_api_key_returns_none_for_unknown(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('1'))
+
+    assert ledger.account_for_api_key('not-a-real-key') is None
+
+
+@pytest.mark.asyncio
+async def test_api_key_index_survives_load(tmp_path: Path) -> None:
+
+    ledger1 = _new_ledger(tmp_path)
+    api_key = await ledger1.register_account(_ACCT, Decimal('10000'))
+
+    ledger2 = _new_ledger(tmp_path)
+    await ledger2.load()
+
+    assert ledger2.account_for_api_key(api_key) == _ACCT

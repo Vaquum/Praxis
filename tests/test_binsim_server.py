@@ -12,7 +12,6 @@ from praxis.binsim.book import OrderBook
 from praxis.binsim.feed import DepthPoller
 from praxis.binsim.ledger import Ledger
 from praxis.binsim.server import (
-    API_KEYS_KEY,
     BOOK_KEY,
     LEDGER_KEY,
     POLLER_KEY,
@@ -26,10 +25,7 @@ _URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
 _TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
 _THRESHOLD_MS = 5000
 
-_API_KEY = 'apikey-1'
 _ACCOUNT_ID = 'acc-1'
-_API_KEYS = {_API_KEY: _ACCOUNT_ID}
-_SIGNED_HEADERS = {'X-MBX-APIKEY': _API_KEY}
 _SIGNATURE_PARAMS = {'signature': 'deadbeef'}
 
 _BIDS = [
@@ -63,16 +59,20 @@ def _make_components(tmp_path: Path) -> tuple[OrderBook, Ledger, DepthPoller]:
     return book, ledger, poller
 
 
-async def _make_client(tmp_path: Path) -> tuple[TestClient, OrderBook, Ledger, DepthPoller]:
+async def _make_client(
+    tmp_path: Path,
+) -> tuple[TestClient, OrderBook, Ledger, DepthPoller, dict[str, str]]:
 
     book, ledger, poller = _make_components(tmp_path)
-    await ledger.register_account(_ACCOUNT_ID, Decimal('10000'), Decimal('0.5'))
+    api_key = await ledger.register_account(_ACCOUNT_ID, Decimal('10000'), Decimal('0.5'))
 
-    app = make_app(book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    app = make_app(book, ledger, poller, _THRESHOLD_MS)
     client = TestClient(TestServer(app))
     await client.start_server()
 
-    return client, book, ledger, poller
+    signed_headers = {'X-MBX-APIKEY': api_key}
+
+    return client, book, ledger, poller, signed_headers
 
 
 @pytest.mark.parametrize('threshold', [0, -1, -1000])
@@ -81,13 +81,13 @@ def test_make_app_rejects_non_positive_threshold(tmp_path: Path, threshold: int)
     book, ledger, poller = _make_components(tmp_path)
 
     with pytest.raises(ValueError, match='staleness_threshold_ms must be positive'):
-        make_app(book, ledger, poller, threshold, _API_KEYS)
+        make_app(book, ledger, poller, threshold)
 
 
 @pytest.mark.asyncio
 async def test_healthz_returns_status_ok(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/healthz')
@@ -100,7 +100,7 @@ async def test_healthz_returns_status_ok(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_time_returns_unix_ms(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/time')
@@ -116,7 +116,7 @@ async def test_time_returns_unix_ms(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_exchange_info_returns_btcusdt_filters(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/exchangeInfo')
@@ -140,7 +140,7 @@ async def test_exchange_info_returns_btcusdt_filters(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_depth_returns_book_snapshot(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/depth', params={'symbol': 'BTCUSDT'})
@@ -165,7 +165,7 @@ async def test_depth_returns_book_snapshot(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_depth_truncates_to_limit(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/depth', params={'symbol': 'BTCUSDT', 'limit': '2'})
@@ -181,7 +181,7 @@ async def test_depth_truncates_to_limit(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_depth_rejects_missing_symbol(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/depth')
@@ -193,7 +193,7 @@ async def test_depth_rejects_missing_symbol(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_depth_rejects_unsupported_symbol(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/depth', params={'symbol': 'ETHUSDT'})
@@ -206,7 +206,7 @@ async def test_depth_rejects_unsupported_symbol(tmp_path: Path) -> None:
 @pytest.mark.parametrize('bad_limit', ['0', '-1', '5001', 'abc'])
 async def test_depth_rejects_invalid_limit(tmp_path: Path, bad_limit: str) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/depth', params={'symbol': 'BTCUSDT', 'limit': bad_limit})
@@ -218,12 +218,12 @@ async def test_depth_rejects_invalid_limit(tmp_path: Path, bad_limit: str) -> No
 @pytest.mark.asyncio
 async def test_account_returns_balances_in_binance_shape(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
 
     try:
         resp = await client.get(
             '/api/v3/account',
-            headers=_SIGNED_HEADERS,
+            headers=signed_headers,
             params=_SIGNATURE_PARAMS,
         )
         assert resp.status == 200
@@ -241,7 +241,7 @@ async def test_account_returns_balances_in_binance_shape(tmp_path: Path) -> None
 @pytest.mark.asyncio
 async def test_account_reflects_post_fill_balances(tmp_path: Path) -> None:
 
-    client, _, ledger, _ = await _make_client(tmp_path)
+    client, _, ledger, _, signed_headers = await _make_client(tmp_path)
 
     try:
         from praxis.core.domain.enums import OrderSide
@@ -251,7 +251,7 @@ async def test_account_reflects_post_fill_balances(tmp_path: Path) -> None:
 
         resp = await client.get(
             '/api/v3/account',
-            headers=_SIGNED_HEADERS,
+            headers=signed_headers,
             params=_SIGNATURE_PARAMS,
         )
         payload = await resp.json()
@@ -265,7 +265,7 @@ async def test_account_reflects_post_fill_balances(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_account_rejects_missing_api_key(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/account', params=_SIGNATURE_PARAMS)
@@ -277,10 +277,10 @@ async def test_account_rejects_missing_api_key(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_account_rejects_missing_signature(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
 
     try:
-        resp = await client.get('/api/v3/account', headers=_SIGNED_HEADERS)
+        resp = await client.get('/api/v3/account', headers=signed_headers)
         assert resp.status == 401
     finally:
         await client.close()
@@ -289,7 +289,7 @@ async def test_account_rejects_missing_signature(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_account_rejects_unknown_api_key(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get(
@@ -305,12 +305,12 @@ async def test_account_rejects_unknown_api_key(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_order_get_stub_returns_404(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
 
     try:
         resp = await client.get(
             '/api/v3/order',
-            headers=_SIGNED_HEADERS,
+            headers=signed_headers,
             params={'symbol': 'BTCUSDT', 'signature': 'x'},
         )
         assert resp.status == 404
@@ -321,7 +321,7 @@ async def test_order_get_stub_returns_404(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_order_get_stub_still_enforces_signed_caller(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, _ = await _make_client(tmp_path)
 
     try:
         resp = await client.get('/api/v3/order', params={'symbol': 'BTCUSDT'})
@@ -333,12 +333,12 @@ async def test_order_get_stub_still_enforces_signed_caller(tmp_path: Path) -> No
 @pytest.mark.asyncio
 async def test_open_orders_stub_returns_empty_list(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
 
     try:
         resp = await client.get(
             '/api/v3/openOrders',
-            headers=_SIGNED_HEADERS,
+            headers=signed_headers,
             params={'symbol': 'BTCUSDT', 'signature': 'x'},
         )
         assert resp.status == 200
@@ -350,12 +350,12 @@ async def test_open_orders_stub_returns_empty_list(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_my_trades_stub_returns_empty_list(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
 
     try:
         resp = await client.get(
             '/api/v3/myTrades',
-            headers=_SIGNED_HEADERS,
+            headers=signed_headers,
             params={'symbol': 'BTCUSDT', 'signature': 'x'},
         )
         assert resp.status == 200
@@ -369,7 +369,7 @@ def test_constructor_rejects_empty_host(tmp_path: Path) -> None:
     book, ledger, poller = _make_components(tmp_path)
 
     with pytest.raises(ValueError, match='host cannot be empty'):
-        BinsimServer('', 8080, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+        BinsimServer('', 8080, book, ledger, poller, _THRESHOLD_MS)
 
 
 @pytest.mark.parametrize('port', [-1, 65536, 100_000])
@@ -378,13 +378,13 @@ def test_constructor_rejects_invalid_port(tmp_path: Path, port: int) -> None:
     book, ledger, poller = _make_components(tmp_path)
 
     with pytest.raises(ValueError, match=r'port must be in 0\.\.65535'):
-        BinsimServer('127.0.0.1', port, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+        BinsimServer('127.0.0.1', port, book, ledger, poller, _THRESHOLD_MS)
 
 
 def test_constructor_accepts_port_zero_for_ephemeral_binding(tmp_path: Path) -> None:
 
     book, ledger, poller = _make_components(tmp_path)
-    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS)
 
     assert server is not None
 
@@ -393,7 +393,7 @@ def test_constructor_accepts_port_zero_for_ephemeral_binding(tmp_path: Path) -> 
 async def test_server_start_stop_lifecycle(tmp_path: Path) -> None:
 
     book, ledger, poller = _make_components(tmp_path)
-    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS)
 
     assert server.is_running is False
 
@@ -411,7 +411,7 @@ async def test_server_start_stop_lifecycle(tmp_path: Path) -> None:
 async def test_server_start_twice_raises(tmp_path: Path) -> None:
 
     book, ledger, poller = _make_components(tmp_path)
-    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS)
     await server.start()
 
     try:
@@ -425,7 +425,7 @@ async def test_server_start_twice_raises(tmp_path: Path) -> None:
 async def test_server_stop_is_idempotent(tmp_path: Path) -> None:
 
     book, ledger, poller = _make_components(tmp_path)
-    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS)
     await server.start()
     await server.stop()
     await server.stop()
@@ -437,22 +437,21 @@ async def test_server_stop_is_idempotent(tmp_path: Path) -> None:
 async def test_server_app_is_accessible(tmp_path: Path) -> None:
 
     book, ledger, poller = _make_components(tmp_path)
-    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS)
 
     assert server.app is not None
     assert server.app[BOOK_KEY] is book
     assert server.app[LEDGER_KEY] is ledger
     assert server.app[POLLER_KEY] is poller
     assert server.app[STALENESS_THRESHOLD_MS_KEY] == _THRESHOLD_MS
-    assert server.app[API_KEYS_KEY] is _API_KEYS
 
 
 async def _make_client_with_fresh_book(
     tmp_path: Path,
     book_ts_ms: int | None = None,
-) -> tuple[TestClient, OrderBook, Ledger, DepthPoller]:
+) -> tuple[TestClient, OrderBook, Ledger, DepthPoller, dict[str, str]]:
 
-    client, book, ledger, poller = await _make_client(tmp_path)
+    client, book, ledger, poller, signed_headers = await _make_client(tmp_path)
 
     if book_ts_ms is None:
         import time as _t
@@ -460,7 +459,7 @@ async def _make_client_with_fresh_book(
 
     poller._last_success_ts_ms = book_ts_ms
 
-    return client, book, ledger, poller
+    return client, book, ledger, poller, signed_headers
 
 
 _POST_BASE_PARAMS = {
@@ -476,12 +475,12 @@ _POST_BASE_PARAMS = {
 @pytest.mark.asyncio
 async def test_post_order_buy_fills_walks_book_returns_fills(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         resp = await client.post(
             '/api/v3/order',
-            headers=_SIGNED_HEADERS,
+            headers=signed_headers,
             params=_POST_BASE_PARAMS,
         )
         assert resp.status == 200
@@ -508,11 +507,11 @@ async def test_post_order_buy_fills_walks_book_returns_fills(tmp_path: Path) -> 
 @pytest.mark.asyncio
 async def test_post_order_walks_multiple_levels(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'quantity': '4.5'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 200
 
         payload = await resp.json()
@@ -530,11 +529,11 @@ async def test_post_order_walks_multiple_levels(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_sell_walks_bids(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'side': 'SELL', 'quantity': '0.25'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 200
 
         payload = await resp.json()
@@ -547,12 +546,12 @@ async def test_post_order_sell_walks_bids(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_updates_ledger_balances(tmp_path: Path) -> None:
 
-    client, _, ledger, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, ledger, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         resp = await client.post(
             '/api/v3/order',
-            headers=_SIGNED_HEADERS,
+            headers=signed_headers,
             params=_POST_BASE_PARAMS,
         )
         assert resp.status == 200
@@ -570,10 +569,10 @@ async def test_post_order_updates_ledger_balances(tmp_path: Path) -> None:
 async def test_post_order_rejects_when_book_stale(tmp_path: Path) -> None:
 
     stale_ts = int(__import__('time').time() * 1000) - (_THRESHOLD_MS + 1000)
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path, book_ts_ms=stale_ts)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path, book_ts_ms=stale_ts)
 
     try:
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=_POST_BASE_PARAMS)
         assert resp.status == 503
 
         payload = await resp.json()
@@ -586,10 +585,10 @@ async def test_post_order_rejects_when_book_stale(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_when_book_never_polled(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client(tmp_path)
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
 
     try:
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=_POST_BASE_PARAMS)
         assert resp.status == 503
 
         payload = await resp.json()
@@ -601,7 +600,7 @@ async def test_post_order_rejects_when_book_never_polled(tmp_path: Path) -> None
 @pytest.mark.asyncio
 async def test_post_order_rejects_missing_api_key(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, _ = await _make_client_with_fresh_book(tmp_path)
 
     try:
         resp = await client.post('/api/v3/order', params=_POST_BASE_PARAMS)
@@ -613,11 +612,11 @@ async def test_post_order_rejects_missing_api_key(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_wrong_symbol(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'symbol': 'ETHUSDT'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
 
         payload = await resp.json()
@@ -629,11 +628,11 @@ async def test_post_order_rejects_wrong_symbol(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_wrong_type(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'type': 'LIMIT'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
 
         payload = await resp.json()
@@ -646,11 +645,11 @@ async def test_post_order_rejects_wrong_type(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_wrong_side(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'side': 'HOLD'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
 
         payload = await resp.json()
@@ -662,11 +661,11 @@ async def test_post_order_rejects_wrong_side(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_missing_quantity(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {k: v for k, v in _POST_BASE_PARAMS.items() if k != 'quantity'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
     finally:
         await client.close()
@@ -675,11 +674,11 @@ async def test_post_order_rejects_missing_quantity(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_zero_quantity(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'quantity': '0'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
     finally:
         await client.close()
@@ -688,11 +687,11 @@ async def test_post_order_rejects_zero_quantity(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_malformed_quantity(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'quantity': 'not-a-number'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
     finally:
         await client.close()
@@ -701,11 +700,11 @@ async def test_post_order_rejects_malformed_quantity(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_post_order_rejects_missing_client_order_id(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {k: v for k, v in _POST_BASE_PARAMS.items() if k != 'newClientOrderId'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
     finally:
         await client.close()
@@ -714,13 +713,13 @@ async def test_post_order_rejects_missing_client_order_id(tmp_path: Path) -> Non
 @pytest.mark.asyncio
 async def test_post_order_rejects_duplicate_client_order_id(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
-        resp1 = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        resp1 = await client.post('/api/v3/order', headers=signed_headers, params=_POST_BASE_PARAMS)
         assert resp1.status == 200
 
-        resp2 = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        resp2 = await client.post('/api/v3/order', headers=signed_headers, params=_POST_BASE_PARAMS)
         assert resp2.status == 400
 
         payload = await resp2.json()
@@ -733,11 +732,11 @@ async def test_post_order_rejects_duplicate_client_order_id(tmp_path: Path) -> N
 @pytest.mark.asyncio
 async def test_post_order_rejects_when_book_insufficient(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'quantity': '99'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         assert resp.status == 400
 
         payload = await resp.json()
@@ -752,15 +751,17 @@ async def test_post_order_rejects_when_balance_insufficient(tmp_path: Path) -> N
 
     book, _, poller = _make_components(tmp_path)
     ledger = Ledger(tmp_path)
-    await ledger.register_account(_ACCOUNT_ID, Decimal('5'))
+    api_key = await ledger.register_account(_ACCOUNT_ID, Decimal('5'))
     poller._last_success_ts_ms = int(__import__('time').time() * 1000)
 
-    app = make_app(book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    app = make_app(book, ledger, poller, _THRESHOLD_MS)
     client = TestClient(TestServer(app))
     await client.start_server()
 
+    signed_headers = {'X-MBX-APIKEY': api_key}
+
     try:
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=_POST_BASE_PARAMS)
         assert resp.status == 400
 
         payload = await resp.json()
@@ -773,11 +774,11 @@ async def test_post_order_rejects_when_balance_insufficient(tmp_path: Path) -> N
 @pytest.mark.asyncio
 async def test_post_order_response_fills_sum_matches_executed_qty(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'quantity': '2.5'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         payload = await resp.json()
 
         fills_qty_sum = sum(Decimal(f['qty']) for f in payload['fills'])
@@ -790,11 +791,11 @@ async def test_post_order_response_fills_sum_matches_executed_qty(tmp_path: Path
 @pytest.mark.asyncio
 async def test_post_order_response_cumulative_quote_matches_walk(tmp_path: Path) -> None:
 
-    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
 
     try:
         params = {**_POST_BASE_PARAMS, 'quantity': '2.5'}
-        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
         payload = await resp.json()
 
         expected_quote = Decimal('101.00') * Decimal('1.0') + Decimal('101.50') * Decimal('1.5')

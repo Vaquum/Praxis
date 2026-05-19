@@ -27,7 +27,6 @@ from praxis.infrastructure.binance_adapter import BinanceAdapter, NotFoundError
 
 
 _ACCOUNT_ID = 'acc-1'
-_API_KEY = 'apikey-1'
 _API_SECRET = 'apisecret-1'  # noqa: S105 — test fixture, not a real credential
 _DEPTH_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
 _DEPTH_TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
@@ -44,31 +43,34 @@ _ASKS = [
 
 
 @pytest_asyncio.fixture
-async def binsim_server(tmp_path: Path) -> AsyncGenerator[BinsimServer, None]:
+async def binsim_server(tmp_path: Path) -> AsyncGenerator[tuple[BinsimServer, str], None]:
 
     book = OrderBook()
     book.replace(_BIDS, _ASKS, last_update_id=1, ts_ms=int(time.time() * 1000))
 
     ledger = Ledger(tmp_path)
-    await ledger.register_account(_ACCOUNT_ID, Decimal('100000'), Decimal('5.0'))
+    api_key = await ledger.register_account(_ACCOUNT_ID, Decimal('100000'), Decimal('5.0'))
 
     poller = DepthPoller(book, _DEPTH_URL, _DEPTH_TOKEN)
     poller._last_success_ts_ms = int(time.time() * 1000)
 
     server = BinsimServer(
-        '127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, {_API_KEY: _ACCOUNT_ID},
+        '127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS,
     )
     await server.start()
 
-    yield server
+    yield server, api_key
 
     await server.stop()
 
 
 @pytest_asyncio.fixture
-async def adapter(binsim_server: BinsimServer) -> AsyncGenerator[BinanceAdapter, None]:
+async def adapter(
+    binsim_server: tuple[BinsimServer, str],
+) -> AsyncGenerator[BinanceAdapter, None]:
 
-    site = binsim_server._site
+    server, api_key = binsim_server
+    site = server._site
 
     assert site is not None
 
@@ -80,7 +82,7 @@ async def adapter(binsim_server: BinsimServer) -> AsyncGenerator[BinanceAdapter,
     base_url = f'http://127.0.0.1:{port}'
 
     a = BinanceAdapter(base_url, base_url, base_url)
-    a.register_account(_ACCOUNT_ID, _API_KEY, _API_SECRET)
+    a.register_account(_ACCOUNT_ID, api_key, _API_SECRET)
 
     yield a
 

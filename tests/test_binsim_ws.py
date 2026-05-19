@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import secrets
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -26,10 +27,8 @@ _URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
 _TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
 _THRESHOLD_MS = 5000
 
-_API_KEY = 'apikey-1'
-_API_SECRET = 'apisecret-1'  # noqa: S105 — test fixture, not a real credential
+_API_SECRET = secrets.token_hex(16)
 _ACCOUNT_ID = 'acc-1'
-_API_KEYS = {_API_KEY: _ACCOUNT_ID}
 
 _SUBSCRIBE_METHOD = 'userDataStream.subscribe.signature'
 
@@ -47,20 +46,20 @@ def _seeded_book() -> OrderBook:
 
 
 @pytest_asyncio.fixture
-async def client(tmp_path: Path) -> AsyncGenerator[TestClient, None]:
+async def client(tmp_path: Path) -> AsyncGenerator[tuple[TestClient, str], None]:
 
     book = _seeded_book()
     ledger = Ledger(tmp_path)
-    await ledger.register_account(_ACCOUNT_ID, Decimal('10000'))
+    api_key = await ledger.register_account(_ACCOUNT_ID, Decimal('10000'))
 
     poller = DepthPoller(book, _URL, _TOKEN)
     poller._last_success_ts_ms = int(time.time() * 1000)
 
-    app = make_app(book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    app = make_app(book, ledger, poller, _THRESHOLD_MS)
     c = TestClient(TestServer(app))
     await c.start_server()
 
-    yield c
+    yield c, api_key
 
     await c.close()
 
@@ -85,10 +84,10 @@ def _build_subscribe_request(api_key: str, api_secret: str) -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-async def test_ws_api_accepts_subscribe_and_returns_subscription_id(client: TestClient) -> None:
+async def test_ws_api_accepts_subscribe_and_returns_subscription_id(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/ws-api/v3') as ws:
-        request = _build_subscribe_request(_API_KEY, _API_SECRET)
+    async with client[0].ws_connect('/ws-api/v3') as ws:
+        request = _build_subscribe_request(client[1], _API_SECRET)
         await ws.send_str(json.dumps(request))
 
         msg = await ws.receive(timeout=5.0)
@@ -103,13 +102,13 @@ async def test_ws_api_accepts_subscribe_and_returns_subscription_id(client: Test
 
 
 @pytest.mark.asyncio
-async def test_ws_api_hands_out_monotonic_subscription_ids(client: TestClient) -> None:
+async def test_ws_api_hands_out_monotonic_subscription_ids(client: tuple[TestClient, str]) -> None:
 
     ids: list[int] = []
 
     for _ in range(3):
-        async with client.ws_connect('/ws-api/v3') as ws:
-            request = _build_subscribe_request(_API_KEY, _API_SECRET)
+        async with client[0].ws_connect('/ws-api/v3') as ws:
+            request = _build_subscribe_request(client[1], _API_SECRET)
             await ws.send_str(json.dumps(request))
             msg = await ws.receive(timeout=5.0)
             ack = json.loads(msg.data)
@@ -120,9 +119,9 @@ async def test_ws_api_hands_out_monotonic_subscription_ids(client: TestClient) -
 
 
 @pytest.mark.asyncio
-async def test_ws_api_rejects_missing_api_key(client: TestClient) -> None:
+async def test_ws_api_rejects_missing_api_key(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/ws-api/v3') as ws:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
         request = {
             'id': 'req-1',
             'method': _SUBSCRIBE_METHOD,
@@ -138,13 +137,13 @@ async def test_ws_api_rejects_missing_api_key(client: TestClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ws_api_rejects_missing_signature(client: TestClient) -> None:
+async def test_ws_api_rejects_missing_signature(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/ws-api/v3') as ws:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
         request = {
             'id': 'req-1',
             'method': _SUBSCRIBE_METHOD,
-            'params': {'apiKey': _API_KEY, 'recvWindow': 5000, 'timestamp': 0},
+            'params': {'apiKey': client[1], 'recvWindow': 5000, 'timestamp': 0},
         }
         await ws.send_str(json.dumps(request))
 
@@ -156,9 +155,9 @@ async def test_ws_api_rejects_missing_signature(client: TestClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ws_api_rejects_unknown_api_key(client: TestClient) -> None:
+async def test_ws_api_rejects_unknown_api_key(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/ws-api/v3') as ws:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
         request = _build_subscribe_request('apikey-not-registered', _API_SECRET)
         await ws.send_str(json.dumps(request))
 
@@ -170,13 +169,13 @@ async def test_ws_api_rejects_unknown_api_key(client: TestClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ws_api_rejects_unknown_method(client: TestClient) -> None:
+async def test_ws_api_rejects_unknown_method(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/ws-api/v3') as ws:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
         request = {
             'id': 'req-1',
             'method': 'someUnknownMethod',
-            'params': {'apiKey': _API_KEY, 'signature': 'x'},
+            'params': {'apiKey': client[1], 'signature': 'x'},
         }
         await ws.send_str(json.dumps(request))
 
@@ -188,12 +187,12 @@ async def test_ws_api_rejects_unknown_method(client: TestClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ws_api_ignores_non_text_and_malformed_frames(client: TestClient) -> None:
+async def test_ws_api_ignores_non_text_and_malformed_frames(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/ws-api/v3') as ws:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
         await ws.send_str('not-json')
 
-        request = _build_subscribe_request(_API_KEY, _API_SECRET)
+        request = _build_subscribe_request(client[1], _API_SECRET)
         await ws.send_str(json.dumps(request))
 
         msg = await ws.receive(timeout=5.0)
@@ -203,17 +202,17 @@ async def test_ws_api_ignores_non_text_and_malformed_frames(client: TestClient) 
 
 
 @pytest.mark.asyncio
-async def test_ws_stream_accepts_connection(client: TestClient) -> None:
+async def test_ws_stream_accepts_connection(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/stream') as ws:
+    async with client[0].ws_connect('/stream') as ws:
         await ws.close()
 
         assert ws.closed is True
 
 
 @pytest.mark.asyncio
-async def test_ws_stream_does_not_push_frames(client: TestClient) -> None:
+async def test_ws_stream_does_not_push_frames(client: tuple[TestClient, str]) -> None:
 
-    async with client.ws_connect('/stream') as ws:
+    async with client[0].ws_connect('/stream') as ws:
         with pytest.raises(TimeoutError):
             await ws.receive(timeout=0.5)

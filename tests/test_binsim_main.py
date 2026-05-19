@@ -12,7 +12,6 @@ from praxis.binsim.__main__ import _parse_env
 _BASE_ENV = {
     'BINSIM_DEPTH_TOKEN': 'token-1',
     'BINSIM_STATE_DIR': '/var/lib/binsim',
-    'BINSIM_API_KEYS': 'apikey-1=acc-1',
 }
 
 
@@ -22,7 +21,6 @@ def test_parses_minimum_required_env_with_defaults() -> None:
 
     assert config.depth_token == 'token-1'  # noqa: S105 — test fixture, not a real credential
     assert config.state_dir == Path('/var/lib/binsim')
-    assert config.api_keys == {'apikey-1': 'acc-1'}
     assert config.host == '0.0.0.0'  # noqa: S104 — bind-all is the documented default
     assert config.port == 8081
     assert config.depth_url == 'https://binance-spot-depth20-1000ms.onrender.com/top20'
@@ -50,34 +48,7 @@ def test_parses_full_env_overrides() -> None:
     assert config.poll_interval_ms == 500
 
 
-def test_parses_multiple_api_keys() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': 'k1=a1,k2=a2,k3=a3'}
-
-    config = _parse_env(env)
-
-    assert config.api_keys == {'k1': 'a1', 'k2': 'a2', 'k3': 'a3'}
-
-
-def test_strips_whitespace_in_api_keys() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': '  k1 = a1  ,  k2=a2  '}
-
-    config = _parse_env(env)
-
-    assert config.api_keys == {'k1': 'a1', 'k2': 'a2'}
-
-
-def test_skips_empty_api_key_entries() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': 'k1=a1,,k2=a2,'}
-
-    config = _parse_env(env)
-
-    assert config.api_keys == {'k1': 'a1', 'k2': 'a2'}
-
-
-@pytest.mark.parametrize('missing_var', ['BINSIM_DEPTH_TOKEN', 'BINSIM_STATE_DIR', 'BINSIM_API_KEYS'])
+@pytest.mark.parametrize('missing_var', ['BINSIM_DEPTH_TOKEN', 'BINSIM_STATE_DIR'])
 def test_missing_required_env_raises(missing_var: str) -> None:
 
     env = {k: v for k, v in _BASE_ENV.items() if k != missing_var}
@@ -92,46 +63,6 @@ def test_empty_required_env_treated_as_missing(empty_value: str) -> None:
     env = {**_BASE_ENV, 'BINSIM_DEPTH_TOKEN': empty_value}
 
     with pytest.raises(RuntimeError, match='BINSIM_DEPTH_TOKEN is required'):
-        _parse_env(env)
-
-
-def test_api_keys_without_equals_raises() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': 'apikey-1'}
-
-    with pytest.raises(RuntimeError, match='missing `=` separator'):
-        _parse_env(env)
-
-
-def test_api_keys_with_empty_account_id_raises() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': 'apikey-1='}
-
-    with pytest.raises(RuntimeError, match='empty api_key or account_id'):
-        _parse_env(env)
-
-
-def test_api_keys_with_empty_api_key_raises() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': '=acc-1'}
-
-    with pytest.raises(RuntimeError, match='empty api_key or account_id'):
-        _parse_env(env)
-
-
-def test_api_keys_with_duplicate_key_raises() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': 'k1=a1,k1=a2'}
-
-    with pytest.raises(RuntimeError, match='duplicate api_key'):
-        _parse_env(env)
-
-
-def test_api_keys_all_empty_entries_raises() -> None:
-
-    env = {**_BASE_ENV, 'BINSIM_API_KEYS': ',,,'}
-
-    with pytest.raises(RuntimeError, match='BINSIM_API_KEYS'):
         _parse_env(env)
 
 
@@ -166,3 +97,44 @@ def test_empty_optional_string_falls_back_to_default() -> None:
     config = _parse_env(env)
     assert config.host == '0.0.0.0'  # noqa: S104 — bind-all is the documented default
     assert config.depth_url == 'https://binance-spot-depth20-1000ms.onrender.com/top20'
+
+
+def test_register_subcommand_prints_api_key(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from praxis.binsim.__main__ import main
+
+    monkeypatch.setenv('BINSIM_STATE_DIR', str(tmp_path))
+    main(['register', '--account-id', 'acc-1', '--initial-usdt', '10000'])
+
+    captured = capsys.readouterr()
+    api_key = captured.out.strip()
+    assert len(api_key) == 64
+    assert all(c in '0123456789abcdef' for c in api_key)
+
+
+def test_register_subcommand_requires_state_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from praxis.binsim.__main__ import main
+
+    monkeypatch.delenv('BINSIM_STATE_DIR', raising=False)
+    _ = tmp_path
+
+    with pytest.raises(SystemExit, match='BINSIM_STATE_DIR is required'):
+        main(['register', '--account-id', 'acc-1', '--initial-usdt', '1'])
+
+
+def test_register_subcommand_rejects_bad_decimal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from praxis.binsim.__main__ import main
+
+    monkeypatch.setenv('BINSIM_STATE_DIR', str(tmp_path))
+
+    with pytest.raises(SystemExit, match='--initial-usdt must be a valid decimal'):
+        main(['register', '--account-id', 'acc-1', '--initial-usdt', 'not-a-number'])
