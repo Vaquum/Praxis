@@ -216,3 +216,71 @@ async def test_ws_stream_does_not_push_frames(client: tuple[TestClient, str]) ->
     async with client[0].ws_connect('/stream') as ws:
         with pytest.raises(TimeoutError):
             await ws.receive(timeout=0.5)
+
+
+@pytest.mark.asyncio
+async def test_ws_api_rejects_non_string_api_key(client: tuple[TestClient, str]) -> None:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
+        request = {
+            'id': 'req-1',
+            'method': _SUBSCRIBE_METHOD,
+            'params': {'apiKey': 12345, 'signature': 'deadbeef', 'recvWindow': 5000, 'timestamp': 0},
+        }
+        await ws.send_str(json.dumps(request))
+
+        msg = await ws.receive(timeout=5.0)
+        ack = json.loads(msg.data)
+
+        assert ack['status'] == 401
+        assert ack['error']['code'] == -1022
+
+
+@pytest.mark.asyncio
+async def test_ws_api_rejects_non_string_signature(client: tuple[TestClient, str]) -> None:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
+        request = {
+            'id': 'req-1',
+            'method': _SUBSCRIBE_METHOD,
+            'params': {'apiKey': client[1], 'signature': 12345, 'recvWindow': 5000, 'timestamp': 0},
+        }
+        await ws.send_str(json.dumps(request))
+
+        msg = await ws.receive(timeout=5.0)
+        ack = json.loads(msg.data)
+
+        assert ack['status'] == 401
+        assert ack['error']['code'] == -1022
+
+
+@pytest.mark.asyncio
+async def test_ws_api_rejects_whitespace_api_key(client: tuple[TestClient, str]) -> None:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
+        request = {
+            'id': 'req-1',
+            'method': _SUBSCRIBE_METHOD,
+            'params': {'apiKey': '   ', 'signature': 'deadbeef', 'recvWindow': 5000, 'timestamp': 0},
+        }
+        await ws.send_str(json.dumps(request))
+
+        msg = await ws.receive(timeout=5.0)
+        ack = json.loads(msg.data)
+
+        assert ack['status'] == 401
+        assert ack['error']['code'] == -1022
+
+
+@pytest.mark.asyncio
+async def test_ws_api_rejects_whitespace_signature(client: tuple[TestClient, str]) -> None:
+    async with client[0].ws_connect('/ws-api/v3') as ws:
+        request = {
+            'id': 'req-1',
+            'method': _SUBSCRIBE_METHOD,
+            'params': {'apiKey': client[1], 'signature': '   ', 'recvWindow': 5000, 'timestamp': 0},
+        }
+        await ws.send_str(json.dumps(request))
+
+        msg = await ws.receive(timeout=5.0)
+        ack = json.loads(msg.data)
+
+        assert ack['status'] == 401
+        assert ack['error']['code'] == -1022

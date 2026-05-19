@@ -215,7 +215,7 @@ class Ledger:
             if _hash_api_key(candidate) not in self._api_key_index:
                 return candidate
 
-    def account_for_api_key(self, api_key: str) -> str | None:
+    def account_for_api_key(self, api_key: object) -> str | None:
 
         '''Look up the `account_id` controlled by `api_key`, or `None`.
 
@@ -227,9 +227,23 @@ class Ledger:
         only mutates under `register_account` (which holds the lock).
         Signed-request handlers call this from inside a request — no
         await overhead on the hot path.
+
+        Returns `None` for any non-string or whitespace-only input
+        without raising — caller decides how to translate the miss
+        (typically a 401/-1022 frame). This guards against malformed
+        JSON payloads in upstream handlers (e.g. `{"apiKey": 123}`)
+        that would otherwise crash at `_hash_api_key().encode()`.
         '''
 
-        return self._api_key_index.get(_hash_api_key(api_key))
+        if not isinstance(api_key, str):
+            return None
+
+        stripped = api_key.strip()
+
+        if not stripped:
+            return None
+
+        return self._api_key_index.get(_hash_api_key(stripped))
 
     async def apply_fill(
         self,

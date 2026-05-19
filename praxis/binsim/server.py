@@ -577,8 +577,11 @@ async def _handle_ws_api_frame(
         return
 
     params = request_obj.get('params') or {}
-    api_key = params.get('apiKey') if isinstance(params, dict) else None
-    signature = params.get('signature') if isinstance(params, dict) else None
+    raw_api_key = params.get('apiKey') if isinstance(params, dict) else None
+    raw_signature = params.get('signature') if isinstance(params, dict) else None
+
+    api_key = raw_api_key.strip() if isinstance(raw_api_key, str) else ''
+    signature = raw_signature.strip() if isinstance(raw_signature, str) else ''
 
     if not api_key or not signature:
         await ws.send_str(json.dumps({
@@ -586,7 +589,7 @@ async def _handle_ws_api_frame(
             'status': _WS_UNAUTHORIZED_STATUS,
             'error': {
                 'code': _WS_BINANCE_CODE_BAD_SIG,
-                'msg': 'missing apiKey or signature',
+                'msg': 'missing or empty apiKey or signature',
             },
         }))
 
