@@ -110,7 +110,8 @@ class BinanceUserStream:
             AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If subscription ack times out
-            ValueError: If WS-API URL scheme is not wss
+            ValueError: If WS-API URL scheme is neither `wss://`
+                nor (when `BINSIM_URL` is set) `ws://`
             VenueError: If subscription is rejected by the venue
         '''
 
@@ -133,7 +134,8 @@ class BinanceUserStream:
             AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If subscription ack times out
-            ValueError: If WS-API URL scheme is not wss
+            ValueError: If WS-API URL scheme is neither `wss://`
+                nor (when `BINSIM_URL` is set) `ws://`
             VenueError: If subscription is rejected by the venue
         '''
 

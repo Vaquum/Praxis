@@ -143,9 +143,15 @@ class DepthPoller:
         while not self._stop_event.is_set():
             try:
                 await self.poll_once()
-            except (aiohttp.ClientError, TimeoutError, ValueError, KeyError) as exc:
+            except (aiohttp.ClientError, TimeoutError) as exc:
                 _log.warning(
-                    'depth poll failed',
+                    'depth poll failed (transient)',
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+            except (ValueError, KeyError) as exc:
+                _log.error(
+                    'depth poll failed (malformed upstream payload)',
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
