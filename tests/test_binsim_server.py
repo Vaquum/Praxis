@@ -899,3 +899,57 @@ async def test_account_rejects_whitespace_signature(tmp_path: Path) -> None:
         assert resp.status == 401
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_whitespace_client_order_id(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'newClientOrderId': '   '}
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+        assert 'newClientOrderId' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_rejects_whitespace_api_key_header(tmp_path: Path) -> None:
+    client, _, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get(
+            '/api/v3/account',
+            headers={'X-MBX-APIKEY': '   '},
+            params=_SIGNATURE_PARAMS,
+        )
+        assert resp.status == 401
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_server_start_failure_cleans_up_runner_state(tmp_path: Path) -> None:
+    book, ledger, poller = _make_components(tmp_path)
+    await ledger.register_account(_ACCOUNT_ID, Decimal('1'))
+
+    server_a = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS)
+    await server_a.start()
+
+    port = next(iter(server_a._site._server.sockets)).getsockname()[1]
+
+    try:
+        server_b = BinsimServer('127.0.0.1', port, book, ledger, poller, _THRESHOLD_MS)
+
+        with pytest.raises(OSError):
+            await server_b.start()
+
+        assert server_b.is_running is False
+        assert server_b._site is None
+        assert server_b._runner is None
+    finally:
+        await server_a.stop()

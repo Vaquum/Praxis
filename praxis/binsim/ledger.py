@@ -166,12 +166,14 @@ class Ledger:
         the `X-MBX-APIKEY` header) to resolve the calling account.
 
         Raises:
-            ValueError: account_id is empty, initial balance is
-                negative, or account already exists.
+            ValueError: account_id is empty or whitespace-only, initial
+                balance is negative, or account already exists.
         '''
 
+        account_id = (account_id or '').strip()
+
         if not account_id:
-            raise ValueError('account_id cannot be empty')
+            raise ValueError('account_id cannot be empty or whitespace-only')
 
         if initial_usdt < _ZERO:
             raise ValueError(f'initial_usdt must be non-negative, got {initial_usdt}')
@@ -335,8 +337,10 @@ class Ledger:
         if not fills:
             raise ValueError('fills cannot be empty')
 
+        client_order_id = (client_order_id or '').strip()
+
         if not client_order_id:
-            raise ValueError('client_order_id cannot be empty')
+            raise ValueError('client_order_id cannot be empty or whitespace-only')
 
         for price, qty, fee in fills:
             if price <= _ZERO:

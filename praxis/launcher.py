@@ -1906,8 +1906,12 @@ def _derive_binsim_urls(binsim_url: str) -> tuple[str, str, str]:
         msg = f'BINSIM_URL must use http or https scheme, got {parsed.scheme!r}'
         raise RuntimeError(msg)
 
-    if not parsed.netloc:
-        msg = f'BINSIM_URL must include a host:port, got {binsim_url!r}'
+    # `netloc` is truthy for hostless URLs like `http://:8081` (netloc
+    # is `:8081`), so we have to check `hostname` explicitly to reject
+    # those — otherwise the derived URLs would be syntactically valid
+    # but unroutable.
+    if not parsed.hostname:
+        msg = f'BINSIM_URL must include a hostname, got {binsim_url!r}'
         raise RuntimeError(msg)
 
     ws_scheme = 'wss' if parsed.scheme == 'https' else 'ws'

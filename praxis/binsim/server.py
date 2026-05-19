@@ -329,10 +329,12 @@ async def _submit_order(request: web.Request) -> web.Response:
             msg=f'unsupported order type for binsim MMVP: {type_raw!r} (only MARKET)',
         )
 
+    client_order_id = (client_order_id or '').strip()
+
     if not client_order_id:
         raise _binance_error(
             status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
-            msg='missing newClientOrderId',
+            msg='missing or empty newClientOrderId',
         )
 
     qty = _parse_decimal_param(qty_raw, 'quantity')
@@ -496,10 +498,10 @@ def _require_signed_caller(request: web.Request) -> str:
             registered.
     '''
 
-    api_key = request.headers.get('X-MBX-APIKEY')
+    api_key = (request.headers.get('X-MBX-APIKEY') or '').strip()
 
     if not api_key:
-        raise web.HTTPUnauthorized(reason='missing X-MBX-APIKEY header')
+        raise web.HTTPUnauthorized(reason='missing or empty X-MBX-APIKEY header')
 
     if not (request.query.get('signature') or '').strip():
         raise web.HTTPUnauthorized(reason='missing or empty signature query param')
@@ -682,10 +684,25 @@ class BinsimServer:
         if self.is_running:
             raise RuntimeError('BinsimServer already running')
 
-        self._runner = web.AppRunner(self._app)
-        await self._runner.setup()
-        self._site = web.TCPSite(self._runner, self._host, self._port)
-        await self._site.start()
+        # Set runner/site only AFTER the underlying calls have all
+        # succeeded — otherwise a `bind` failure on `TCPSite.start()`
+        # would leave `_site` populated, `is_running` lying as True,
+        # and `_runner` un-cleaned-up. On any partial failure we
+        # tear down what we built and re-raise so the caller can
+        # retry from a clean slate.
+        runner = web.AppRunner(self._app)
+        await runner.setup()
+
+        site = web.TCPSite(runner, self._host, self._port)
+
+        try:
+            await site.start()
+        except BaseException:
+            await runner.cleanup()
+            raise
+
+        self._runner = runner
+        self._site = site
 
     async def stop(self) -> None:
 

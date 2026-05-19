@@ -869,3 +869,52 @@ async def test_snapshot_persists_api_key_hash_not_plaintext(tmp_path: Path) -> N
     expected = hashlib.sha256(api_key.encode('utf-8')).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
     assert persisted['api_key_hash'] == expected
     assert api_key not in (tmp_path / 'binsim_ledger.json').read_text()
+
+
+@pytest.mark.asyncio
+async def test_register_account_rejects_whitespace_account_id(tmp_path: Path) -> None:
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(ValueError, match='account_id cannot be empty or whitespace-only'):
+        await ledger.register_account('   ', Decimal('1'))
+
+
+@pytest.mark.asyncio
+async def test_register_account_strips_account_id(tmp_path: Path) -> None:
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account('  acc-stripped  ', Decimal('10000'))
+
+    accounts = await ledger.accounts()
+    assert accounts == ['acc-stripped']
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_whitespace_client_order_id(tmp_path: Path) -> None:
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='client_order_id cannot be empty or whitespace-only'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='   ',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_strips_client_order_id_for_dedup(tmp_path: Path) -> None:
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    await ledger.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+        client_order_id='  cid-1  ',
+    )
+
+    with pytest.raises(DuplicateClientOrderIdError, match='cid-1'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='cid-1',
+        )

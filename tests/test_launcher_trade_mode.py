@@ -131,8 +131,15 @@ class TestResolveTradeModeBinsim:
             })
 
     def test_binsim_url_without_host_raises(self) -> None:
-        with pytest.raises(RuntimeError, match='BINSIM_URL must include a host'):
+        with pytest.raises(RuntimeError, match='BINSIM_URL must include a hostname'):
             _resolve_trade_mode({
                 'TRADE_MODE': 'paper',
                 'BINSIM_URL': 'http://',
+            })
+
+    def test_binsim_url_with_port_but_no_hostname_raises(self) -> None:
+        with pytest.raises(RuntimeError, match='BINSIM_URL must include a hostname'):
+            _resolve_trade_mode({
+                'TRADE_MODE': 'paper',
+                'BINSIM_URL': 'http://:8081',
             })
