@@ -1,0 +1,447 @@
+'''Tests for praxis.binsim.server.BinsimServer + make_app.'''
+
+from __future__ import annotations
+
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+from aiohttp.test_utils import TestClient, TestServer
+
+from praxis.binsim.book import OrderBook
+from praxis.binsim.feed import DepthPoller
+from praxis.binsim.ledger import Ledger
+from praxis.binsim.server import (
+    API_KEYS_KEY,
+    BOOK_KEY,
+    LEDGER_KEY,
+    POLLER_KEY,
+    STALENESS_THRESHOLD_MS_KEY,
+    BinsimServer,
+    make_app,
+)
+
+
+_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
+_TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
+_THRESHOLD_MS = 5000
+
+_API_KEY = 'apikey-1'
+_ACCOUNT_ID = 'acc-1'
+_API_KEYS = {_API_KEY: _ACCOUNT_ID}
+_SIGNED_HEADERS = {'X-MBX-APIKEY': _API_KEY}
+_SIGNATURE_PARAMS = {'signature': 'deadbeef'}
+
+_BIDS = [
+    (Decimal('100.00'), Decimal('1.0')),
+    (Decimal('99.50'), Decimal('2.0')),
+    (Decimal('99.00'), Decimal('3.0')),
+]
+_ASKS = [
+    (Decimal('101.00'), Decimal('1.0')),
+    (Decimal('101.50'), Decimal('2.0')),
+    (Decimal('102.00'), Decimal('3.0')),
+]
+_UID = 12345
+_TS = 1_700_000_000_000
+
+
+def _seeded_book() -> OrderBook:
+
+    book = OrderBook()
+    book.replace(_BIDS, _ASKS, _UID, _TS)
+
+    return book
+
+
+def _make_components(tmp_path: Path) -> tuple[OrderBook, Ledger, DepthPoller]:
+
+    book = _seeded_book()
+    ledger = Ledger(tmp_path)
+    poller = DepthPoller(book, _URL, _TOKEN)
+
+    return book, ledger, poller
+
+
+async def _make_client(tmp_path: Path) -> tuple[TestClient, OrderBook, Ledger, DepthPoller]:
+
+    book, ledger, poller = _make_components(tmp_path)
+    await ledger.register_account(_ACCOUNT_ID, Decimal('10000'), Decimal('0.5'))
+
+    app = make_app(book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+
+    return client, book, ledger, poller
+
+
+@pytest.mark.parametrize('threshold', [0, -1, -1000])
+def test_make_app_rejects_non_positive_threshold(tmp_path: Path, threshold: int) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+
+    with pytest.raises(ValueError, match='staleness_threshold_ms must be positive'):
+        make_app(book, ledger, poller, threshold, _API_KEYS)
+
+
+@pytest.mark.asyncio
+async def test_healthz_returns_status_ok(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/healthz')
+        assert resp.status == 200
+        assert await resp.json() == {'status': 'ok'}
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_time_returns_unix_ms(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/time')
+        assert resp.status == 200
+
+        payload = await resp.json()
+        assert isinstance(payload['serverTime'], int)
+        assert payload['serverTime'] > 1_700_000_000_000
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_exchange_info_returns_btcusdt_filters(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/exchangeInfo')
+        assert resp.status == 200
+
+        payload = await resp.json()
+        symbols = payload['symbols']
+        assert len(symbols) == 1
+        assert symbols[0]['symbol'] == 'BTCUSDT'
+
+        filters = {f['filterType']: f for f in symbols[0]['filters']}
+        assert filters['PRICE_FILTER']['tickSize'] == '0.01000000'
+        assert filters['LOT_SIZE']['stepSize'] == '0.00001000'
+        assert filters['LOT_SIZE']['minQty'] == '0.00001000'
+        assert filters['LOT_SIZE']['maxQty'] == '9000.00000000'
+        assert filters['NOTIONAL']['minNotional'] == '5.00000000'
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_depth_returns_book_snapshot(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth', params={'symbol': 'BTCUSDT'})
+        assert resp.status == 200
+
+        payload = await resp.json()
+        assert payload['lastUpdateId'] == _UID
+        assert payload['bids'] == [
+            ['100.00', '1.0'],
+            ['99.50', '2.0'],
+            ['99.00', '3.0'],
+        ]
+        assert payload['asks'] == [
+            ['101.00', '1.0'],
+            ['101.50', '2.0'],
+            ['102.00', '3.0'],
+        ]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_depth_truncates_to_limit(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth', params={'symbol': 'BTCUSDT', 'limit': '2'})
+        assert resp.status == 200
+
+        payload = await resp.json()
+        assert len(payload['bids']) == 2
+        assert len(payload['asks']) == 2
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_depth_rejects_missing_symbol(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth')
+        assert resp.status == 400
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_depth_rejects_unsupported_symbol(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth', params={'symbol': 'ETHUSDT'})
+        assert resp.status == 400
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('bad_limit', ['0', '-1', '5001', 'abc'])
+async def test_depth_rejects_invalid_limit(tmp_path: Path, bad_limit: str) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth', params={'symbol': 'BTCUSDT', 'limit': bad_limit})
+        assert resp.status == 400
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_returns_balances_in_binance_shape(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get(
+            '/api/v3/account',
+            headers=_SIGNED_HEADERS,
+            params=_SIGNATURE_PARAMS,
+        )
+        assert resp.status == 200
+
+        payload = await resp.json()
+        balances = {b['asset']: b for b in payload['balances']}
+        assert balances['USDT']['free'] == '10000'
+        assert balances['USDT']['locked'] == '0'
+        assert balances['BTC']['free'] == '0.5'
+        assert balances['BTC']['locked'] == '0'
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_reflects_post_fill_balances(tmp_path: Path) -> None:
+
+    client, _, ledger, _ = await _make_client(tmp_path)
+
+    try:
+        from praxis.core.domain.enums import OrderSide
+        await ledger.apply_fill(
+            _ACCOUNT_ID, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0.01'),
+        )
+
+        resp = await client.get(
+            '/api/v3/account',
+            headers=_SIGNED_HEADERS,
+            params=_SIGNATURE_PARAMS,
+        )
+        payload = await resp.json()
+        balances = {b['asset']: b for b in payload['balances']}
+        assert Decimal(balances['USDT']['free']) == Decimal('10000') - Decimal('10') - Decimal('0.01')
+        assert Decimal(balances['BTC']['free']) == Decimal('0.6')
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_rejects_missing_api_key(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/account', params=_SIGNATURE_PARAMS)
+        assert resp.status == 401
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_rejects_missing_signature(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/account', headers=_SIGNED_HEADERS)
+        assert resp.status == 401
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_rejects_unknown_api_key(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get(
+            '/api/v3/account',
+            headers={'X-MBX-APIKEY': 'apikey-not-registered'},
+            params=_SIGNATURE_PARAMS,
+        )
+        assert resp.status == 401
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_order_get_stub_returns_404(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get(
+            '/api/v3/order',
+            headers=_SIGNED_HEADERS,
+            params={'symbol': 'BTCUSDT', 'signature': 'x'},
+        )
+        assert resp.status == 404
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_order_get_stub_still_enforces_signed_caller(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/order', params={'symbol': 'BTCUSDT'})
+        assert resp.status == 401
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_open_orders_stub_returns_empty_list(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get(
+            '/api/v3/openOrders',
+            headers=_SIGNED_HEADERS,
+            params={'symbol': 'BTCUSDT', 'signature': 'x'},
+        )
+        assert resp.status == 200
+        assert await resp.json() == []
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_my_trades_stub_returns_empty_list(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get(
+            '/api/v3/myTrades',
+            headers=_SIGNED_HEADERS,
+            params={'symbol': 'BTCUSDT', 'signature': 'x'},
+        )
+        assert resp.status == 200
+        assert await resp.json() == []
+    finally:
+        await client.close()
+
+
+def test_constructor_rejects_empty_host(tmp_path: Path) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+
+    with pytest.raises(ValueError, match='host cannot be empty'):
+        BinsimServer('', 8080, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+
+
+@pytest.mark.parametrize('port', [-1, 65536, 100_000])
+def test_constructor_rejects_invalid_port(tmp_path: Path, port: int) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+
+    with pytest.raises(ValueError, match=r'port must be in 0\.\.65535'):
+        BinsimServer('127.0.0.1', port, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+
+
+def test_constructor_accepts_port_zero_for_ephemeral_binding(tmp_path: Path) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+
+    assert server is not None
+
+
+@pytest.mark.asyncio
+async def test_server_start_stop_lifecycle(tmp_path: Path) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+
+    assert server.is_running is False
+
+    await server.start()
+
+    try:
+        assert server.is_running is True
+    finally:
+        await server.stop()
+
+    assert server.is_running is False
+
+
+@pytest.mark.asyncio
+async def test_server_start_twice_raises(tmp_path: Path) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    await server.start()
+
+    try:
+        with pytest.raises(RuntimeError, match='already running'):
+            await server.start()
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_server_stop_is_idempotent(tmp_path: Path) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    await server.start()
+    await server.stop()
+    await server.stop()
+
+    assert server.is_running is False
+
+
+@pytest.mark.asyncio
+async def test_server_app_is_accessible(tmp_path: Path) -> None:
+
+    book, ledger, poller = _make_components(tmp_path)
+    server = BinsimServer('127.0.0.1', 0, book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+
+    assert server.app is not None
+    assert server.app[BOOK_KEY] is book
+    assert server.app[LEDGER_KEY] is ledger
+    assert server.app[POLLER_KEY] is poller
+    assert server.app[STALENESS_THRESHOLD_MS_KEY] == _THRESHOLD_MS
+    assert server.app[API_KEYS_KEY] is _API_KEYS
