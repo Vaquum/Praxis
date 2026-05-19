@@ -1,0 +1,476 @@
+'''Tests for praxis.binsim.ledger.Ledger.'''
+
+from __future__ import annotations
+
+import asyncio
+import json
+from datetime import UTC, datetime
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+
+from praxis.binsim.ledger import (
+    InsufficientBalanceError,
+    Ledger,
+    LedgerFill,
+)
+from praxis.core.domain.enums import OrderSide
+
+
+_ACCT = 'acc-1'
+_TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+
+def _new_ledger(tmp_path: Path) -> Ledger:
+
+    return Ledger(tmp_path)
+
+
+def test_constructor_rejects_non_path() -> None:
+
+    with pytest.raises(TypeError, match='state_dir must be a Path'):
+        Ledger('not-a-path')  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_register_account_seeds_balances(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'), Decimal('0.5'))
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('10000')
+    assert btc == Decimal('0.5')
+
+
+@pytest.mark.asyncio
+async def test_register_account_defaults_btc_to_zero(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('10000')
+    assert btc == Decimal('0')
+
+
+@pytest.mark.asyncio
+async def test_register_account_rejects_empty_id(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(ValueError, match='account_id cannot be empty'):
+        await ledger.register_account('', Decimal('1'))
+
+
+@pytest.mark.asyncio
+async def test_register_account_rejects_duplicate(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('1'))
+
+    with pytest.raises(ValueError, match='already registered'):
+        await ledger.register_account(_ACCT, Decimal('1'))
+
+
+@pytest.mark.asyncio
+async def test_register_account_rejects_negative_initial_usdt(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(ValueError, match='initial_usdt must be non-negative'):
+        await ledger.register_account(_ACCT, Decimal('-1'))
+
+
+@pytest.mark.asyncio
+async def test_register_account_rejects_negative_initial_btc(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(ValueError, match='initial_btc must be non-negative'):
+        await ledger.register_account(_ACCT, Decimal('1'), Decimal('-1'))
+
+
+@pytest.mark.asyncio
+async def test_balance_raises_for_unregistered_account(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(KeyError, match='not registered'):
+        await ledger.balance(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_buy_debits_usdt_credits_btc(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    fill = await ledger.apply_fill(
+        _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+        Decimal('0.01'), timestamp=_TS,
+    )
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('10000') - Decimal('10') - Decimal('0.01')
+    assert btc == Decimal('0.1')
+    assert fill.trade_id == '1'
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_sell_credits_usdt_debits_btc(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('0'), Decimal('1'))
+
+    fill = await ledger.apply_fill(
+        _ACCT, OrderSide.SELL, Decimal('0.5'), Decimal('100'),
+        Decimal('0.05'), timestamp=_TS,
+    )
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('50') - Decimal('0.05')
+    assert btc == Decimal('0.5')
+    assert fill.side is OrderSide.SELL
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_assigns_monotonic_trade_ids(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'), Decimal('1'))
+
+    f1 = await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.01'), Decimal('100'), Decimal('0'))
+    f2 = await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.01'), Decimal('100'), Decimal('0'))
+    f3 = await ledger.apply_fill(_ACCT, OrderSide.SELL, Decimal('0.01'), Decimal('100'), Decimal('0'))
+
+    assert (f1.trade_id, f2.trade_id, f3.trade_id) == ('1', '2', '3')
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_appends_to_fills_history(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+    await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+    await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.2'), Decimal('110'), Decimal('0'))
+
+    fills = await ledger.fills(_ACCT)
+    assert len(fills) == 2
+    assert fills[0].qty == Decimal('0.1')
+    assert fills[1].qty == Decimal('0.2')
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_records_fee_and_fee_asset(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    fill = await ledger.apply_fill(
+        _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+        Decimal('0.123'), timestamp=_TS,
+    )
+
+    assert fill.fee == Decimal('0.123')
+    assert fill.fee_asset == 'USDT'
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_rejects_non_usdt_fee_asset(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='fee_asset must be USDT'):
+        await ledger.apply_fill(
+            _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+            Decimal('0'), fee_asset='BTC',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_rejects_naive_timestamp(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='timestamp must be timezone-aware'):
+        await ledger.apply_fill(
+            _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+            Decimal('0'), timestamp=datetime(2026, 1, 1, 12, 0, 0),
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_default_timestamp_is_now(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    before = datetime.now(UTC)
+    fill = await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+    after = datetime.now(UTC)
+
+    assert before <= fill.timestamp <= after
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('bad_qty', [Decimal('0'), Decimal('-0.1')])
+async def test_apply_fill_rejects_non_positive_qty(tmp_path: Path, bad_qty: Decimal) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='qty must be positive'):
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, bad_qty, Decimal('100'), Decimal('0'))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('bad_price', [Decimal('0'), Decimal('-1')])
+async def test_apply_fill_rejects_non_positive_price(tmp_path: Path, bad_price: Decimal) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='price must be positive'):
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), bad_price, Decimal('0'))
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_rejects_negative_fee(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='fee must be non-negative'):
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('-0.01'))
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_allows_zero_fee(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+
+    usdt, _ = await ledger.balance(_ACCT)
+    assert usdt == Decimal('10000') - Decimal('10')
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_raises_when_unknown_account(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(KeyError, match='not registered'):
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_buy_raises_when_usdt_insufficient(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('5'))
+
+    with pytest.raises(InsufficientBalanceError, match='USDT would be'):
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_buy_includes_fee_in_balance_check(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10'))
+
+    with pytest.raises(InsufficientBalanceError, match='USDT would be'):
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0.01'))
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_sell_raises_when_btc_insufficient(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('0'), Decimal('0.05'))
+
+    with pytest.raises(InsufficientBalanceError, match='BTC would be'):
+        await ledger.apply_fill(_ACCT, OrderSide.SELL, Decimal('0.1'), Decimal('100'), Decimal('0'))
+
+
+@pytest.mark.asyncio
+async def test_insufficient_balance_does_not_mutate_state(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('5'))
+
+    with pytest.raises(InsufficientBalanceError):
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('5')
+    assert btc == Decimal('0')
+
+    fills = await ledger.fills(_ACCT)
+    assert fills == []
+
+
+@pytest.mark.asyncio
+async def test_snapshot_written_after_register_and_fill(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    snapshot = tmp_path / 'binsim_ledger.json'
+
+    await ledger.register_account(_ACCT, Decimal('10000'))
+    assert snapshot.exists()
+
+    await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+
+    payload = json.loads(snapshot.read_text())
+    assert payload['next_trade_id'] == 2
+    assert _ACCT in payload['accounts']
+    assert Decimal(payload['accounts'][_ACCT]['usdt']) == Decimal('9990')
+    assert Decimal(payload['accounts'][_ACCT]['btc']) == Decimal('0.1')
+    assert len(payload['accounts'][_ACCT]['fills']) == 1
+
+
+@pytest.mark.asyncio
+async def test_snapshot_atomic_temp_file_cleaned_on_success(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('1'))
+
+    leftover = [p for p in tmp_path.iterdir() if '.tmp' in p.name]
+    assert leftover == []
+
+
+@pytest.mark.asyncio
+async def test_load_restores_balances_and_fills(tmp_path: Path) -> None:
+
+    ledger1 = _new_ledger(tmp_path)
+    await ledger1.register_account(_ACCT, Decimal('10000'))
+    await ledger1.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0.01'), timestamp=_TS)
+    await ledger1.apply_fill(_ACCT, OrderSide.SELL, Decimal('0.05'), Decimal('110'), Decimal('0.005'), timestamp=_TS)
+
+    ledger2 = _new_ledger(tmp_path)
+    await ledger2.load()
+
+    usdt, btc = await ledger2.balance(_ACCT)
+    assert usdt == Decimal('10000') - Decimal('10') - Decimal('0.01') + Decimal('5.5') - Decimal('0.005')
+    assert btc == Decimal('0.05')
+
+    fills = await ledger2.fills(_ACCT)
+    assert len(fills) == 2
+    assert fills[0].trade_id == '1'
+    assert fills[1].trade_id == '2'
+
+    next_fill = await ledger2.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.01'), Decimal('100'), Decimal('0'))
+    assert next_fill.trade_id == '3'
+
+
+@pytest.mark.asyncio
+async def test_load_is_noop_when_snapshot_missing(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.load()
+
+    accounts = await ledger.accounts()
+    assert accounts == []
+
+
+@pytest.mark.asyncio
+async def test_load_raises_on_corrupt_snapshot(tmp_path: Path) -> None:
+
+    snapshot = tmp_path / 'binsim_ledger.json'
+    snapshot.write_text('{not valid json')
+
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(json.JSONDecodeError):
+        await ledger.load()
+
+
+@pytest.mark.asyncio
+async def test_fills_returns_copy_not_internal_list(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+    await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'))
+
+    fills = await ledger.fills(_ACCT)
+    fills.clear()
+
+    again = await ledger.fills(_ACCT)
+    assert len(again) == 1
+
+
+@pytest.mark.asyncio
+async def test_accounts_lists_all_registered(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account('a', Decimal('1'))
+    await ledger.register_account('b', Decimal('1'))
+    await ledger.register_account('c', Decimal('1'))
+
+    accounts = await ledger.accounts()
+    assert sorted(accounts) == ['a', 'b', 'c']
+
+
+@pytest.mark.asyncio
+async def test_concurrent_fills_serialised_no_lost_updates(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('100000'), Decimal('100'))
+
+    async def buy() -> None:
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.01'), Decimal('100'), Decimal('0'))
+
+    async def sell() -> None:
+        await ledger.apply_fill(_ACCT, OrderSide.SELL, Decimal('0.01'), Decimal('100'), Decimal('0'))
+
+    await asyncio.gather(*[buy() for _ in range(50)], *[sell() for _ in range(50)])
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('100000')
+    assert btc == Decimal('100')
+
+    fills = await ledger.fills(_ACCT)
+    assert len(fills) == 100
+    trade_ids = [int(f.trade_id) for f in fills]
+    assert sorted(trade_ids) == list(range(1, 101))
+
+
+@pytest.mark.asyncio
+async def test_ledger_fill_record_round_trips_through_snapshot(tmp_path: Path) -> None:
+
+    ledger1 = _new_ledger(tmp_path)
+    await ledger1.register_account(_ACCT, Decimal('10000'))
+    f1 = await ledger1.apply_fill(
+        _ACCT, OrderSide.BUY, Decimal('0.12345678'), Decimal('100.50'),
+        Decimal('0.01005'), timestamp=_TS,
+    )
+
+    ledger2 = _new_ledger(tmp_path)
+    await ledger2.load()
+    f2 = (await ledger2.fills(_ACCT))[0]
+
+    assert isinstance(f2, LedgerFill)
+    assert f2.trade_id == f1.trade_id
+    assert f2.side == f1.side
+    assert f2.qty == f1.qty
+    assert f2.price == f1.price
+    assert f2.fee == f1.fee
+    assert f2.fee_asset == f1.fee_asset
+    assert f2.timestamp == f1.timestamp
+
+
+@pytest.mark.asyncio
+async def test_state_dir_created_if_missing(tmp_path: Path) -> None:
+
+    state_dir = tmp_path / 'nested' / 'binsim_state'
+    ledger = Ledger(state_dir)
+    await ledger.register_account(_ACCT, Decimal('1'))
+
+    assert state_dir.exists()
+    assert (state_dir / 'binsim_ledger.json').exists()

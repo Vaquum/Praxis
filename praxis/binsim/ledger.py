@@ -1,0 +1,373 @@
+'''Per-account balance + fill ledger with atomic snapshot persistence.'''
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import tempfile
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
+from pathlib import Path
+from typing import Any, cast
+
+from praxis.core.domain.enums import OrderSide
+from praxis.infrastructure.observability import get_logger
+
+
+__all__ = ['Account', 'InsufficientBalanceError', 'Ledger', 'LedgerFill']
+
+
+_log = get_logger(__name__)
+
+_SNAPSHOT_FILENAME = 'binsim_ledger.json'
+_QUOTE_ASSET = 'USDT'
+_BASE_ASSET = 'BTC'
+_ZERO = Decimal(0)
+
+
+class InsufficientBalanceError(Exception):
+
+    '''Raised when an `apply_fill` would drive a balance below zero.'''
+
+
+@dataclass(frozen=True)
+class LedgerFill:
+
+    '''Single fill recorded against an account.
+
+    Mirrors the subset of Binance's `fills[]` payload the ledger
+    actually owns (trade id, side, qty, price, fee) plus the wall-clock
+    timestamp. Order-level identifiers (client_order_id, command_id,
+    venue_order_id) are the caller's responsibility — they live in
+    Praxis's event_spine, not in the binsim ledger.
+    '''
+
+    trade_id: str
+    side: OrderSide
+    qty: Decimal
+    price: Decimal
+    fee: Decimal
+    fee_asset: str
+    timestamp: datetime
+
+
+@dataclass
+class Account:
+
+    '''In-memory per-account snapshot owned by `Ledger`.'''
+
+    account_id: str
+    usdt: Decimal
+    btc: Decimal
+    fills: list[LedgerFill]
+
+
+class Ledger:
+
+    '''Per-account balance + fill history with atomic disk snapshot.
+
+    State is held in-memory and replicated to a single JSON file via
+    tempfile-plus-rename after every mutation. On `load()` the file is
+    read back to restore prior state, so the same Ledger survives a
+    process restart.
+
+    Concurrency: a single `asyncio.Lock` serialises every mutation.
+    The ledger is the binsim's authoritative balance state — the
+    single-writer model keeps balance math obviously correct under the
+    HTTP server's concurrent request handlers.
+
+    Fee model (MMVP): fees are debited from the quote asset (USDT).
+    `apply_fill` raises if `fee_asset` is anything other than `USDT`.
+    '''
+
+    def __init__(self, state_dir: Path) -> None:
+
+        if not isinstance(state_dir, Path):
+            raise TypeError(f'state_dir must be a Path, got {type(state_dir).__name__}')
+
+        self._state_dir = state_dir
+        self._snapshot_path = state_dir / _SNAPSHOT_FILENAME
+        self._accounts: dict[str, Account] = {}
+        self._next_trade_id = 1
+        self._lock = asyncio.Lock()
+
+    async def load(self) -> None:
+
+        '''Restore from `<state_dir>/binsim_ledger.json` if it exists.
+
+        Safe to call before `register_account`. A missing file is a
+        no-op (fresh install). A corrupt or unparseable file raises
+        so the operator notices before fills land on top of mangled
+        state.
+        '''
+
+        async with self._lock:
+            if not self._snapshot_path.exists():
+                return
+
+            raw = self._snapshot_path.read_text()
+            payload = json.loads(raw)
+
+            self._next_trade_id = int(payload['next_trade_id'])
+            self._accounts = {
+                account_id: _account_from_dict(account_id, data)
+                for account_id, data in payload['accounts'].items()
+            }
+
+    async def register_account(
+        self,
+        account_id: str,
+        initial_usdt: Decimal,
+        initial_btc: Decimal = _ZERO,
+    ) -> None:
+
+        '''Create an account with starting balances.
+
+        Raises:
+            ValueError: account already exists, or initial balance is
+                negative.
+        '''
+
+        if not account_id:
+            raise ValueError('account_id cannot be empty')
+
+        if initial_usdt < _ZERO:
+            raise ValueError(f'initial_usdt must be non-negative, got {initial_usdt}')
+
+        if initial_btc < _ZERO:
+            raise ValueError(f'initial_btc must be non-negative, got {initial_btc}')
+
+        async with self._lock:
+            if account_id in self._accounts:
+                raise ValueError(f'account already registered: {account_id}')
+
+            self._accounts[account_id] = Account(
+                account_id=account_id,
+                usdt=initial_usdt,
+                btc=initial_btc,
+                fills=[],
+            )
+            self._snapshot_locked()
+
+    async def apply_fill(
+        self,
+        account_id: str,
+        side: OrderSide,
+        qty: Decimal,
+        price: Decimal,
+        fee: Decimal,
+        fee_asset: str = _QUOTE_ASSET,
+        timestamp: datetime | None = None,
+    ) -> LedgerFill:
+
+        '''Settle one fill against an account: debit/credit, append, snapshot.
+
+        Returns the recorded `LedgerFill` with the ledger-assigned
+        `trade_id` so the HTTP layer can echo it back in the
+        Binance-shaped `POST /api/v3/order` response.
+
+        Raises:
+            KeyError: account not registered.
+            ValueError: qty/price/fee non-positive (fee may be zero),
+                fee_asset is not USDT, or timestamp is naive.
+            InsufficientBalanceError: settling the fill would drive a
+                balance below zero.
+        '''
+
+        if qty <= _ZERO:
+            raise ValueError(f'qty must be positive, got {qty}')
+
+        if price <= _ZERO:
+            raise ValueError(f'price must be positive, got {price}')
+
+        if fee < _ZERO:
+            raise ValueError(f'fee must be non-negative, got {fee}')
+
+        if fee_asset != _QUOTE_ASSET:
+            raise ValueError(
+                f'fee_asset must be {_QUOTE_ASSET} for MMVP, got {fee_asset!r}'
+            )
+
+        ts = _resolve_timestamp(timestamp)
+        notional = qty * price
+
+        async with self._lock:
+            if account_id not in self._accounts:
+                raise KeyError(f'account not registered: {account_id}')
+
+            account = self._accounts[account_id]
+            new_usdt, new_btc = _settle(account, side, qty, notional, fee)
+
+            fill = LedgerFill(
+                trade_id=str(self._next_trade_id),
+                side=side,
+                qty=qty,
+                price=price,
+                fee=fee,
+                fee_asset=fee_asset,
+                timestamp=ts,
+            )
+
+            account.usdt = new_usdt
+            account.btc = new_btc
+            account.fills.append(fill)
+            self._next_trade_id += 1
+
+            self._snapshot_locked()
+
+            return fill
+
+    async def balance(self, account_id: str) -> tuple[Decimal, Decimal]:
+
+        '''Return `(usdt, btc)` for `account_id`.
+
+        Raises:
+            KeyError: account not registered.
+        '''
+
+        async with self._lock:
+            if account_id not in self._accounts:
+                raise KeyError(f'account not registered: {account_id}')
+
+            account = self._accounts[account_id]
+
+            return account.usdt, account.btc
+
+    async def fills(self, account_id: str) -> list[LedgerFill]:
+
+        '''Return a copy of the fill history for `account_id`.
+
+        Raises:
+            KeyError: account not registered.
+        '''
+
+        async with self._lock:
+            if account_id not in self._accounts:
+                raise KeyError(f'account not registered: {account_id}')
+
+            return list(self._accounts[account_id].fills)
+
+    async def accounts(self) -> list[str]:
+
+        '''Return all registered account ids (snapshot at call time).'''
+
+        async with self._lock:
+            return list(self._accounts.keys())
+
+    def _snapshot_locked(self) -> None:
+
+        payload = {
+            'next_trade_id': self._next_trade_id,
+            'accounts': {
+                account_id: _account_to_dict(account)
+                for account_id, account in self._accounts.items()
+            },
+        }
+
+        self._state_dir.mkdir(parents=True, exist_ok=True)
+
+        fd, tmp_path = tempfile.mkstemp(
+            prefix=self._snapshot_path.name + '.', suffix='.tmp',
+            dir=self._snapshot_path.parent,
+        )
+        os.close(fd)
+        tmp = Path(tmp_path)
+
+        try:
+            tmp.write_text(json.dumps(payload))
+            tmp.replace(self._snapshot_path)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
+
+
+def _settle(
+    account: Account,
+    side: OrderSide,
+    qty: Decimal,
+    notional: Decimal,
+    fee: Decimal,
+) -> tuple[Decimal, Decimal]:
+
+    '''Compute post-fill (usdt, btc); raise if either would go negative.'''
+
+    if side is OrderSide.BUY:
+        new_usdt = account.usdt - notional - fee
+        new_btc = account.btc + qty
+    else:
+        new_usdt = account.usdt + notional - fee
+        new_btc = account.btc - qty
+
+    if new_usdt < _ZERO:
+        raise InsufficientBalanceError(
+            f'account {account.account_id} USDT would be {new_usdt} (current {account.usdt}, '
+            f'side {side.value}, notional {notional}, fee {fee})'
+        )
+
+    if new_btc < _ZERO:
+        raise InsufficientBalanceError(
+            f'account {account.account_id} BTC would be {new_btc} (current {account.btc}, '
+            f'side {side.value}, qty {qty})'
+        )
+
+    return new_usdt, new_btc
+
+
+def _resolve_timestamp(timestamp: datetime | None) -> datetime:
+
+    if timestamp is None:
+        return datetime.now(UTC)
+
+    if timestamp.tzinfo is None:
+        raise ValueError(f'timestamp must be timezone-aware, got naive: {timestamp}')
+
+    return timestamp.astimezone(UTC)
+
+
+def _account_to_dict(account: Account) -> dict[str, object]:
+
+    return {
+        'usdt': str(account.usdt),
+        'btc': str(account.btc),
+        'fills': [_fill_to_dict(f) for f in account.fills],
+    }
+
+
+def _account_from_dict(account_id: str, data: dict[str, Any]) -> Account:
+
+    raw_fills = cast(list[dict[str, str]], data['fills'])
+
+    return Account(
+        account_id=account_id,
+        usdt=Decimal(str(data['usdt'])),
+        btc=Decimal(str(data['btc'])),
+        fills=[_fill_from_dict(f) for f in raw_fills],
+    )
+
+
+def _fill_to_dict(fill: LedgerFill) -> dict[str, str]:
+
+    return {
+        'trade_id': fill.trade_id,
+        'side': fill.side.value,
+        'qty': str(fill.qty),
+        'price': str(fill.price),
+        'fee': str(fill.fee),
+        'fee_asset': fill.fee_asset,
+        'timestamp': fill.timestamp.isoformat(),
+    }
+
+
+def _fill_from_dict(data: dict[str, str]) -> LedgerFill:
+
+    return LedgerFill(
+        trade_id=data['trade_id'],
+        side=OrderSide(data['side']),
+        qty=Decimal(data['qty']),
+        price=Decimal(data['price']),
+        fee=Decimal(data['fee']),
+        fee_asset=data['fee_asset'],
+        timestamp=datetime.fromisoformat(data['timestamp']),
+    )
