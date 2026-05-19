@@ -293,16 +293,34 @@ async def _submit_order(request: web.Request) -> web.Response:
     qty_raw = request.query.get('quantity')
     client_order_id = request.query.get('newClientOrderId')
 
+    if symbol is None:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg='missing symbol',
+        )
+
     if symbol != _SYMBOL:
         raise _binance_error(
             status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_UNKNOWN_SYMBOL,
             msg=f'unsupported symbol: {symbol!r}',
         )
 
+    if side_raw is None:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg='missing side',
+        )
+
     if side_raw not in _VALID_SIDES:
         raise _binance_error(
             status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
             msg=f'invalid side: {side_raw!r}',
+        )
+
+    if type_raw is None:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg='missing type',
         )
 
     if type_raw not in _VALID_TYPES:
@@ -483,8 +501,8 @@ def _require_signed_caller(request: web.Request) -> str:
     if not api_key:
         raise web.HTTPUnauthorized(reason='missing X-MBX-APIKEY header')
 
-    if 'signature' not in request.query:
-        raise web.HTTPUnauthorized(reason='missing signature query param')
+    if not (request.query.get('signature') or '').strip():
+        raise web.HTTPUnauthorized(reason='missing or empty signature query param')
 
     account_id = request.app[LEDGER_KEY].account_for_api_key(api_key)
 

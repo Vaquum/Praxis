@@ -829,3 +829,73 @@ async def test_post_order_returns_400_when_ledger_account_missing(tmp_path: Path
         assert 'not registered' in payload['msg']
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_missing_symbol_with_bad_request_code(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {k: v for k, v in _POST_BASE_PARAMS.items() if k != 'symbol'}
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+        assert 'missing symbol' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_missing_side_with_bad_request_code(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {k: v for k, v in _POST_BASE_PARAMS.items() if k != 'side'}
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+        assert payload['msg'] == 'missing side'
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_missing_type_with_bad_request_code(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {k: v for k, v in _POST_BASE_PARAMS.items() if k != 'type'}
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+        assert payload['msg'] == 'missing type'
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_rejects_empty_signature(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/account', headers=signed_headers, params={'signature': ''})
+        assert resp.status == 401
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_account_rejects_whitespace_signature(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/account', headers=signed_headers, params={'signature': '   '})
+        assert resp.status == 401
+    finally:
+        await client.close()
