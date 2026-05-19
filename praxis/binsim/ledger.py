@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -16,7 +16,13 @@ from praxis.core.domain.enums import OrderSide
 from praxis.infrastructure.observability import get_logger
 
 
-__all__ = ['Account', 'InsufficientBalanceError', 'Ledger', 'LedgerFill']
+__all__ = [
+    'Account',
+    'DuplicateClientOrderIdError',
+    'InsufficientBalanceError',
+    'Ledger',
+    'LedgerFill',
+]
 
 
 _log = get_logger(__name__)
@@ -30,6 +36,14 @@ _ZERO = Decimal(0)
 class InsufficientBalanceError(Exception):
 
     '''Raised when an `apply_fill` would drive a balance below zero.'''
+
+
+class DuplicateClientOrderIdError(Exception):
+
+    '''Raised when `apply_order` is called with a `client_order_id`
+    already seen for the same account. Mirrors Binance's rejection of
+    duplicate `newClientOrderId` submissions so Praxis-side dedup
+    semantics survive the swap from testnet to binsim.'''
 
 
 @dataclass(frozen=True)
@@ -62,6 +76,7 @@ class Account:
     usdt: Decimal
     btc: Decimal
     fills: list[LedgerFill]
+    seen_client_order_ids: set[str] = field(default_factory=set)
 
 
 class Ledger:
@@ -91,6 +106,7 @@ class Ledger:
         self._snapshot_path = state_dir / _SNAPSHOT_FILENAME
         self._accounts: dict[str, Account] = {}
         self._next_trade_id = 1
+        self._next_order_id = 1
         self._lock = asyncio.Lock()
 
     async def load(self) -> None:
@@ -111,6 +127,7 @@ class Ledger:
             payload = json.loads(raw)
 
             self._next_trade_id = int(payload['next_trade_id'])
+            self._next_order_id = int(payload.get('next_order_id', 1))
             self._accounts = {
                 account_id: _account_from_dict(account_id, data)
                 for account_id, data in payload['accounts'].items()
@@ -219,6 +236,121 @@ class Ledger:
 
             return fill
 
+    async def apply_order(
+        self,
+        account_id: str,
+        side: OrderSide,
+        fills: list[tuple[Decimal, Decimal, Decimal]],
+        client_order_id: str,
+        timestamp: datetime | None = None,
+    ) -> tuple[int, list[LedgerFill]]:
+
+        '''Settle a multi-level market order atomically with dedup.
+
+        `fills` is a list of `(price, qty, fee)` per level produced by
+        walking the order book. All settlement happens under the
+        ledger lock: balances reflect the aggregate notional + fees,
+        each level becomes its own `LedgerFill` with a fresh monotonic
+        `trade_id`, the assigned `order_id` is returned for the
+        Binance-shaped POST response, and the `client_order_id` is
+        recorded so a duplicate submit raises rather than double-fills.
+
+        Returns:
+            `(order_id, recorded_fills)` — `order_id` is monotonically
+            assigned and unique per call; `recorded_fills` preserves
+            the input order with each entry carrying its assigned
+            `trade_id`.
+
+        Raises:
+            KeyError: account not registered.
+            ValueError: fills empty, client_order_id empty, qty/price/fee
+                non-positive (fee may be zero), or timestamp naive.
+            DuplicateClientOrderIdError: `client_order_id` already
+                recorded against this account.
+            InsufficientBalanceError: settling the aggregate would
+                drive a balance below zero.
+        '''
+
+        if not fills:
+            raise ValueError('fills cannot be empty')
+
+        if not client_order_id:
+            raise ValueError('client_order_id cannot be empty')
+
+        for price, qty, fee in fills:
+            if price <= _ZERO:
+                raise ValueError(f'price must be positive, got {price}')
+
+            if qty <= _ZERO:
+                raise ValueError(f'qty must be positive, got {qty}')
+
+            if fee < _ZERO:
+                raise ValueError(f'fee must be non-negative, got {fee}')
+
+        ts = _resolve_timestamp(timestamp)
+
+        async with self._lock:
+            if account_id not in self._accounts:
+                raise KeyError(f'account not registered: {account_id}')
+
+            account = self._accounts[account_id]
+
+            if client_order_id in account.seen_client_order_ids:
+                raise DuplicateClientOrderIdError(
+                    f'account {account_id}: client_order_id {client_order_id!r} already recorded'
+                )
+
+            new_usdt = account.usdt
+            new_btc = account.btc
+
+            for price, qty, fee in fills:
+                notional = qty * price
+
+                if side is OrderSide.BUY:
+                    new_usdt -= notional + fee
+                    new_btc += qty
+                else:
+                    new_usdt += notional - fee
+                    new_btc -= qty
+
+            if new_usdt < _ZERO:
+                raise InsufficientBalanceError(
+                    f'account {account_id} USDT would be {new_usdt} (current {account.usdt}, '
+                    f'side {side.value}, {len(fills)} fills)'
+                )
+
+            if new_btc < _ZERO:
+                raise InsufficientBalanceError(
+                    f'account {account_id} BTC would be {new_btc} (current {account.btc}, '
+                    f'side {side.value}, {len(fills)} fills)'
+                )
+
+            records: list[LedgerFill] = []
+            for price, qty, fee in fills:
+                record = LedgerFill(
+                    trade_id=str(self._next_trade_id),
+                    side=side,
+                    qty=qty,
+                    price=price,
+                    fee=fee,
+                    fee_asset=_QUOTE_ASSET,
+                    timestamp=ts,
+                )
+                records.append(record)
+                self._next_trade_id += 1
+
+            order_id = self._next_order_id
+            self._next_order_id += 1
+
+            account.usdt = new_usdt
+            account.btc = new_btc
+            account.fills.extend(records)
+            account.seen_client_order_ids.add(client_order_id)
+
+            self._snapshot_locked()
+
+            return order_id, records
+
     async def balance(self, account_id: str) -> tuple[Decimal, Decimal]:
 
         '''Return `(usdt, btc)` for `account_id`.
@@ -260,6 +392,7 @@ class Ledger:
 
         payload = {
             'next_trade_id': self._next_trade_id,
+            'next_order_id': self._next_order_id,
             'accounts': {
                 account_id: _account_to_dict(account)
                 for account_id, account in self._accounts.items()
@@ -332,18 +465,21 @@ def _account_to_dict(account: Account) -> dict[str, object]:
         'usdt': str(account.usdt),
         'btc': str(account.btc),
         'fills': [_fill_to_dict(f) for f in account.fills],
+        'seen_client_order_ids': sorted(account.seen_client_order_ids),
     }
 
 
 def _account_from_dict(account_id: str, data: dict[str, Any]) -> Account:
 
     raw_fills = cast(list[dict[str, str]], data['fills'])
+    raw_cids = cast(list[str], data.get('seen_client_order_ids', []))
 
     return Account(
         account_id=account_id,
         usdt=Decimal(str(data['usdt'])),
         btc=Decimal(str(data['btc'])),
         fills=[_fill_from_dict(f) for f in raw_fills],
+        seen_client_order_ids=set(raw_cids),
     )
 
 

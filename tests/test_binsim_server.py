@@ -445,3 +445,359 @@ async def test_server_app_is_accessible(tmp_path: Path) -> None:
     assert server.app[POLLER_KEY] is poller
     assert server.app[STALENESS_THRESHOLD_MS_KEY] == _THRESHOLD_MS
     assert server.app[API_KEYS_KEY] is _API_KEYS
+
+
+async def _make_client_with_fresh_book(
+    tmp_path: Path,
+    book_ts_ms: int | None = None,
+) -> tuple[TestClient, OrderBook, Ledger, DepthPoller]:
+
+    client, book, ledger, poller = await _make_client(tmp_path)
+
+    if book_ts_ms is None:
+        import time as _t
+        book_ts_ms = int(_t.time() * 1000)
+
+    poller._last_success_ts_ms = book_ts_ms
+
+    return client, book, ledger, poller
+
+
+_POST_BASE_PARAMS = {
+    'symbol': 'BTCUSDT',
+    'side': 'BUY',
+    'type': 'MARKET',
+    'quantity': '0.5',
+    'newClientOrderId': 'cid-1',
+    'signature': 'deadbeef',
+}
+
+
+@pytest.mark.asyncio
+async def test_post_order_buy_fills_walks_book_returns_fills(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        resp = await client.post(
+            '/api/v3/order',
+            headers=_SIGNED_HEADERS,
+            params=_POST_BASE_PARAMS,
+        )
+        assert resp.status == 200
+
+        payload = await resp.json()
+        assert payload['symbol'] == 'BTCUSDT'
+        assert payload['status'] == 'FILLED'
+        assert payload['side'] == 'BUY'
+        assert payload['type'] == 'MARKET'
+        assert payload['clientOrderId'] == 'cid-1'
+        assert isinstance(payload['orderId'], int)
+        assert payload['executedQty'] == '0.5'
+
+        fills = payload['fills']
+        assert len(fills) == 1
+        assert fills[0]['price'] == '101.00'
+        assert fills[0]['qty'] == '0.5'
+        assert fills[0]['commissionAsset'] == 'USDT'
+        assert Decimal(fills[0]['commission']) == Decimal('101.00') * Decimal('0.5') * Decimal('0.001')
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_walks_multiple_levels(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': '4.5'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 200
+
+        payload = await resp.json()
+        fills = payload['fills']
+        assert len(fills) == 3
+        assert [f['price'] for f in fills] == ['101.00', '101.50', '102.00']
+        assert sum(Decimal(f['qty']) for f in fills) == Decimal('4.5')
+        trade_ids = [f['tradeId'] for f in fills]
+        assert trade_ids == sorted(trade_ids)
+        assert all(isinstance(tid, int) for tid in trade_ids)
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_sell_walks_bids(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'side': 'SELL', 'quantity': '0.25'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 200
+
+        payload = await resp.json()
+        assert payload['side'] == 'SELL'
+        assert payload['fills'][0]['price'] == '100.00'
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_updates_ledger_balances(tmp_path: Path) -> None:
+
+    client, _, ledger, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        resp = await client.post(
+            '/api/v3/order',
+            headers=_SIGNED_HEADERS,
+            params=_POST_BASE_PARAMS,
+        )
+        assert resp.status == 200
+
+        usdt, btc = await ledger.balance(_ACCOUNT_ID)
+        expected_notional = Decimal('101.00') * Decimal('0.5')
+        expected_fee = expected_notional * Decimal('0.001')
+        assert usdt == Decimal('10000') - expected_notional - expected_fee
+        assert btc == Decimal('0.5') + Decimal('0.5')
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_when_book_stale(tmp_path: Path) -> None:
+
+    stale_ts = int(__import__('time').time() * 1000) - (_THRESHOLD_MS + 1000)
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path, book_ts_ms=stale_ts)
+
+    try:
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        assert resp.status == 503
+
+        payload = await resp.json()
+        assert payload['code'] == -1003
+        assert 'stale' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_when_book_never_polled(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        assert resp.status == 503
+
+        payload = await resp.json()
+        assert payload['code'] == -1003
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_missing_api_key(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        resp = await client.post('/api/v3/order', params=_POST_BASE_PARAMS)
+        assert resp.status == 401
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_wrong_symbol(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'symbol': 'ETHUSDT'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1121
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_wrong_type(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'type': 'LIMIT'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+        assert 'MARKET' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_wrong_side(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'side': 'HOLD'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_missing_quantity(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {k: v for k, v in _POST_BASE_PARAMS.items() if k != 'quantity'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_zero_quantity(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': '0'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_malformed_quantity(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': 'not-a-number'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_missing_client_order_id(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {k: v for k, v in _POST_BASE_PARAMS.items() if k != 'newClientOrderId'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_duplicate_client_order_id(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        resp1 = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        assert resp1.status == 200
+
+        resp2 = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        assert resp2.status == 400
+
+        payload = await resp2.json()
+        assert payload['code'] == -2010
+        assert 'duplicate' in payload['msg'].lower()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_when_book_insufficient(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': '99'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -2010
+        assert 'liquidity' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_when_balance_insufficient(tmp_path: Path) -> None:
+
+    book, _, poller = _make_components(tmp_path)
+    ledger = Ledger(tmp_path)
+    await ledger.register_account(_ACCOUNT_ID, Decimal('5'))
+    poller._last_success_ts_ms = int(__import__('time').time() * 1000)
+
+    app = make_app(book, ledger, poller, _THRESHOLD_MS, _API_KEYS)
+    client = TestClient(TestServer(app))
+    await client.start_server()
+
+    try:
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=_POST_BASE_PARAMS)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -2010
+        assert 'insufficient balance' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_response_fills_sum_matches_executed_qty(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': '2.5'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        payload = await resp.json()
+
+        fills_qty_sum = sum(Decimal(f['qty']) for f in payload['fills'])
+        assert fills_qty_sum == Decimal(payload['executedQty'])
+        assert fills_qty_sum == Decimal('2.5')
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_response_cumulative_quote_matches_walk(tmp_path: Path) -> None:
+
+    client, _, _, _ = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': '2.5'}
+        resp = await client.post('/api/v3/order', headers=_SIGNED_HEADERS, params=params)
+        payload = await resp.json()
+
+        expected_quote = Decimal('101.00') * Decimal('1.0') + Decimal('101.50') * Decimal('1.5')
+        assert Decimal(payload['cummulativeQuoteQty']) == expected_quote
+    finally:
+        await client.close()

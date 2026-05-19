@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Mapping
+from decimal import Decimal, InvalidOperation
 from typing import Final
 
 from aiohttp import web
 
 from praxis.binsim.book import OrderBook
 from praxis.binsim.feed import DepthPoller
-from praxis.binsim.ledger import Ledger
+from praxis.binsim.ledger import (
+    DuplicateClientOrderIdError,
+    InsufficientBalanceError,
+    Ledger,
+)
+from praxis.core.domain.enums import OrderSide
 from praxis.infrastructure.observability import get_logger
 
 
@@ -40,6 +47,19 @@ API_KEYS_KEY: web.AppKey[Mapping[str, str]] = web.AppKey(
 _MAX_PORT = 65535
 _DEFAULT_DEPTH_LIMIT = 100
 _MAX_DEPTH_LIMIT = 5000
+
+_TAKER_FEE_RATE: Final[Decimal] = Decimal('0.001')
+
+_HTTP_BAD_REQUEST = 400
+_HTTP_SERVICE_UNAVAILABLE = 503
+
+_BINANCE_CODE_BOOK_STALE = -1003
+_BINANCE_CODE_BAD_REQUEST = -1100
+_BINANCE_CODE_UNKNOWN_SYMBOL = -1121
+_BINANCE_CODE_ORDER_REJECTED = -2010
+
+_VALID_SIDES = ('BUY', 'SELL')
+_VALID_TYPES = ('MARKET',)
 
 _SYMBOL: Final[str] = 'BTCUSDT'
 _BASE_ASSET: Final[str] = 'BTC'
@@ -110,6 +130,7 @@ def make_app(
         web.get('/api/v3/order', _order_stub),
         web.get('/api/v3/openOrders', _open_orders_stub),
         web.get('/api/v3/myTrades', _my_trades_stub),
+        web.post('/api/v3/order', _submit_order),
     ])
 
     return app
@@ -196,6 +217,181 @@ async def _my_trades_stub(request: web.Request) -> web.Response:
     _require_signed_caller(request)
 
     return web.json_response([])
+
+
+async def _submit_order(request: web.Request) -> web.Response:
+
+    '''Handle `POST /api/v3/order` — the binsim's hot path.
+
+    Flow: HMAC presence → staleness gate → param validation →
+    book walk → ledger settle → Binance-shaped FULL response.
+
+    Errors are returned as Binance-shaped `{code, msg}` bodies with
+    HTTP status the adapter's `_raise_on_error` recognises:
+    503 → `TransientError` (book stale), 400 → `OrderRejectedError`
+    (rejected for any other reason).
+    '''
+
+    account_id = _require_signed_caller(request)
+    poller = request.app[POLLER_KEY]
+    threshold_ms = request.app[STALENESS_THRESHOLD_MS_KEY]
+    book = request.app[BOOK_KEY]
+    ledger = request.app[LEDGER_KEY]
+
+    now_ms = int(time.time() * 1000)
+    age_ms = now_ms - poller.last_success_ts_ms
+
+    if poller.last_success_ts_ms == 0 or age_ms > threshold_ms:
+        raise _binance_error(
+            status=_HTTP_SERVICE_UNAVAILABLE, code=_BINANCE_CODE_BOOK_STALE,
+            msg=f'book is stale (age {age_ms}ms exceeds threshold {threshold_ms}ms)',
+        )
+
+    symbol = request.query.get('symbol')
+    side_raw = request.query.get('side')
+    type_raw = request.query.get('type')
+    qty_raw = request.query.get('quantity')
+    client_order_id = request.query.get('newClientOrderId')
+
+    if symbol != _SYMBOL:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_UNKNOWN_SYMBOL,
+            msg=f'unsupported symbol: {symbol!r}',
+        )
+
+    if side_raw not in _VALID_SIDES:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'invalid side: {side_raw!r}',
+        )
+
+    if type_raw not in _VALID_TYPES:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'unsupported order type for binsim MMVP: {type_raw!r} (only MARKET)',
+        )
+
+    if not client_order_id:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg='missing newClientOrderId',
+        )
+
+    qty = _parse_decimal_param(qty_raw, 'quantity')
+
+    if qty <= 0:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'quantity must be positive, got {qty_raw!r}',
+        )
+
+    side = OrderSide(side_raw)
+
+    try:
+        walk = book.consume_qty_for_market_order(side, qty)
+    except RuntimeError as exc:
+        raise _binance_error(
+            status=_HTTP_SERVICE_UNAVAILABLE, code=_BINANCE_CODE_BOOK_STALE,
+            msg=f'order book not initialised: {exc}',
+        ) from exc
+
+    filled_qty = sum((q for _, q in walk), Decimal('0'))
+
+    if filled_qty < qty:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
+            msg=(
+                f'insufficient book liquidity: requested {qty}, visible {filled_qty} '
+                f'across {len(walk)} levels'
+            ),
+        )
+
+    fills_with_fees = [
+        (price, level_qty, level_qty * price * _TAKER_FEE_RATE)
+        for price, level_qty in walk
+    ]
+
+    try:
+        order_id, records = await ledger.apply_order(
+            account_id, side, fills_with_fees,
+            client_order_id=client_order_id,
+        )
+    except DuplicateClientOrderIdError as exc:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
+            msg=f'duplicate newClientOrderId: {client_order_id!r}',
+        ) from exc
+    except InsufficientBalanceError as exc:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
+            msg=f'account has insufficient balance: {exc}',
+        ) from exc
+
+    cumulative_quote = sum((price * level_qty for price, level_qty, _ in fills_with_fees), Decimal('0'))
+
+    return web.json_response({
+        'symbol': _SYMBOL,
+        'orderId': order_id,
+        'orderListId': -1,
+        'clientOrderId': client_order_id,
+        'transactTime': now_ms,
+        'price': '0.00000000',
+        'origQty': str(qty),
+        'executedQty': str(filled_qty),
+        'cummulativeQuoteQty': str(cumulative_quote),
+        'status': 'FILLED',
+        'timeInForce': 'GTC',
+        'type': 'MARKET',
+        'side': side.value,
+        'fills': [
+            {
+                'tradeId': int(record.trade_id),
+                'price': str(record.price),
+                'qty': str(record.qty),
+                'commission': str(record.fee),
+                'commissionAsset': record.fee_asset,
+            }
+            for record in records
+        ],
+    })
+
+
+def _parse_decimal_param(raw: str | None, name: str) -> Decimal:
+
+    if raw is None:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'missing {name}',
+        )
+
+    try:
+        return Decimal(raw)
+    except InvalidOperation as exc:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'{name} is not a valid decimal: {raw!r}',
+        ) from exc
+
+
+def _binance_error(status: int, code: int, msg: str) -> web.HTTPException:
+
+    '''Build a Binance-shaped `{code, msg}` HTTP error.
+
+    Praxis's `BinanceAdapter._raise_on_error` reads `body['code']` +
+    `body['msg']` from 4xx responses and raises `OrderRejectedError`
+    with the venue_code preserved. 5xx responses are mapped to
+    `TransientError` regardless of body.
+    '''
+
+    body = json.dumps({'code': code, 'msg': msg})
+
+    if status == _HTTP_BAD_REQUEST:
+        return web.HTTPBadRequest(text=body, content_type='application/json')
+
+    if status == _HTTP_SERVICE_UNAVAILABLE:
+        return web.HTTPServiceUnavailable(text=body, content_type='application/json')
+
+    raise ValueError(f'unsupported binance-error status: {status}')
 
 
 def _parse_depth_limit(raw: str | None) -> int:

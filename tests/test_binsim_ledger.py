@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from praxis.binsim.ledger import (
+    DuplicateClientOrderIdError,
     InsufficientBalanceError,
     Ledger,
     LedgerFill,
@@ -474,3 +475,327 @@ async def test_state_dir_created_if_missing(tmp_path: Path) -> None:
 
     assert state_dir.exists()
     assert (state_dir / 'binsim_ledger.json').exists()
+
+
+@pytest.mark.asyncio
+async def test_apply_order_single_level_buy(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    order_id, fills = await ledger.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0.01'))],
+        client_order_id='cid-1', timestamp=_TS,
+    )
+
+    assert order_id == 1
+    assert len(fills) == 1
+    assert fills[0].trade_id == '1'
+    assert fills[0].qty == Decimal('0.1')
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('10000') - Decimal('10') - Decimal('0.01')
+    assert btc == Decimal('0.1')
+
+
+@pytest.mark.asyncio
+async def test_apply_order_walks_multiple_levels(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    order_id, fills = await ledger.apply_order(
+        _ACCT, OrderSide.BUY,
+        [
+            (Decimal('100'), Decimal('1.0'), Decimal('0.1')),
+            (Decimal('101'), Decimal('0.5'), Decimal('0.0505')),
+        ],
+        client_order_id='cid-1',
+    )
+
+    assert order_id == 1
+    assert [f.trade_id for f in fills] == ['1', '2']
+
+    usdt, btc = await ledger.balance(_ACCT)
+    expected_notional = Decimal('100') + Decimal('50.5')
+    expected_fees = Decimal('0.1') + Decimal('0.0505')
+    assert usdt == Decimal('10000') - expected_notional - expected_fees
+    assert btc == Decimal('1.5')
+
+
+@pytest.mark.asyncio
+async def test_apply_order_sell_credits_usdt_debits_btc(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('0'), Decimal('1'))
+
+    order_id, fills = await ledger.apply_order(
+        _ACCT, OrderSide.SELL,
+        [(Decimal('100'), Decimal('0.5'), Decimal('0.05'))],
+        client_order_id='cid-1',
+    )
+
+    assert order_id == 1
+    assert fills[0].side is OrderSide.SELL
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('50') - Decimal('0.05')
+    assert btc == Decimal('0.5')
+
+
+@pytest.mark.asyncio
+async def test_apply_order_assigns_monotonic_order_and_trade_ids(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'), Decimal('1'))
+
+    o1, fs1 = await ledger.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+        client_order_id='cid-1',
+    )
+
+    o2, fs2 = await ledger.apply_order(
+        _ACCT, OrderSide.BUY,
+        [
+            (Decimal('100'), Decimal('0.1'), Decimal('0')),
+            (Decimal('101'), Decimal('0.1'), Decimal('0')),
+        ],
+        client_order_id='cid-2',
+    )
+
+    assert (o1, o2) == (1, 2)
+    assert [f.trade_id for f in fs1] == ['1']
+    assert [f.trade_id for f in fs2] == ['2', '3']
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_duplicate_client_order_id(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    await ledger.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+        client_order_id='cid-1',
+    )
+
+    with pytest.raises(DuplicateClientOrderIdError, match='cid-1'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_duplicate_does_not_mutate_state(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    await ledger.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0.01'))],
+        client_order_id='cid-1',
+    )
+
+    before_usdt, before_btc = await ledger.balance(_ACCT)
+    before_fills = await ledger.fills(_ACCT)
+
+    with pytest.raises(DuplicateClientOrderIdError):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0.01'))],
+            client_order_id='cid-1',
+        )
+
+    after_usdt, after_btc = await ledger.balance(_ACCT)
+    after_fills = await ledger.fills(_ACCT)
+
+    assert (after_usdt, after_btc) == (before_usdt, before_btc)
+    assert len(after_fills) == len(before_fills)
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_empty_fills(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='fills cannot be empty'):
+        await ledger.apply_order(_ACCT, OrderSide.BUY, [], client_order_id='cid-1')
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_empty_client_order_id(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='client_order_id cannot be empty'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_unknown_account(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+
+    with pytest.raises(KeyError, match='not registered'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_buy_raises_when_insufficient_usdt(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('5'))
+
+    with pytest.raises(InsufficientBalanceError, match='USDT would be'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_sell_raises_when_insufficient_btc(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('0'), Decimal('0.05'))
+
+    with pytest.raises(InsufficientBalanceError, match='BTC would be'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.SELL,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_aggregates_balance_check_across_levels(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('15'))
+
+    with pytest.raises(InsufficientBalanceError, match='USDT would be'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [
+                (Decimal('100'), Decimal('0.1'), Decimal('0')),
+                (Decimal('101'), Decimal('0.1'), Decimal('0')),
+            ],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_includes_per_level_fees_in_balance(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10.10'))
+
+    with pytest.raises(InsufficientBalanceError, match='USDT would be'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0.20'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_non_positive_price(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='price must be positive'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('0'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_non_positive_qty(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='qty must be positive'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0'), Decimal('0'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_negative_fee(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='fee must be non-negative'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('-0.01'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_persists_client_order_ids_through_restart(tmp_path: Path) -> None:
+
+    ledger1 = _new_ledger(tmp_path)
+    await ledger1.register_account(_ACCT, Decimal('10000'))
+    await ledger1.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+        client_order_id='cid-1',
+    )
+
+    ledger2 = _new_ledger(tmp_path)
+    await ledger2.load()
+
+    with pytest.raises(DuplicateClientOrderIdError, match='cid-1'):
+        await ledger2.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_order_after_restart_continues_monotonic_order_id(tmp_path: Path) -> None:
+
+    ledger1 = _new_ledger(tmp_path)
+    await ledger1.register_account(_ACCT, Decimal('10000'))
+    o1, _ = await ledger1.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+        client_order_id='cid-1',
+    )
+
+    ledger2 = _new_ledger(tmp_path)
+    await ledger2.load()
+    o2, _ = await ledger2.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
+        client_order_id='cid-2',
+    )
+
+    assert o2 == o1 + 1
