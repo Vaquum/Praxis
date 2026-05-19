@@ -224,10 +224,13 @@ def main(argv: list[str] | None = None) -> None:
         initial_usdt = _parse_decimal_arg('initial-usdt', args.initial_usdt)
         initial_btc = _parse_decimal_arg('initial-btc', args.initial_btc)
 
-        api_key = asyncio.run(
+        minted = asyncio.run(
             _register(Path(state_dir_raw), args.account_id, initial_usdt, initial_btc),
         )
-        sys.stdout.write(f'{api_key}\n')
+        # Intended: print the minted api_key on stdout so the operator
+        # can capture it. The ledger only persists a SHA-256 hash, so
+        # this is the operator's one chance to grab it.
+        sys.stdout.write(minted + '\n')
 
         return
 

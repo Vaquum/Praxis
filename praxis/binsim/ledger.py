@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import secrets
@@ -72,10 +73,18 @@ class LedgerFill:
 @dataclass
 class Account:
 
-    '''In-memory per-account snapshot owned by `Ledger`.'''
+    '''In-memory per-account snapshot owned by `Ledger`.
+
+    Stores the **SHA-256 hash** of the api_key, never the raw key.
+    The plaintext key is returned exactly once from
+    `Ledger.register_account()` — operators capture it then and the
+    binsim cannot recover it later. Subsequent `account_for_api_key`
+    lookups hash the incoming `X-MBX-APIKEY` and compare to the
+    stored hash.
+    '''
 
     account_id: str
-    api_key: str
+    api_key_hash: str
     usdt: Decimal
     btc: Decimal
     fills: list[LedgerFill]
@@ -137,7 +146,7 @@ class Ledger:
                 for account_id, data in payload['accounts'].items()
             }
             self._api_key_index = {
-                account.api_key: account.account_id
+                account.api_key_hash: account.account_id
                 for account in self._accounts.values()
             }
 
@@ -175,15 +184,16 @@ class Ledger:
                 raise ValueError(f'account already registered: {account_id}')
 
             api_key = self._mint_unique_api_key_locked()
+            api_key_hash = _hash_api_key(api_key)
 
             self._accounts[account_id] = Account(
                 account_id=account_id,
-                api_key=api_key,
+                api_key_hash=api_key_hash,
                 usdt=initial_usdt,
                 btc=initial_btc,
                 fills=[],
             )
-            self._api_key_index[api_key] = account_id
+            self._api_key_index[api_key_hash] = account_id
 
             self._snapshot_locked()
 
@@ -191,7 +201,7 @@ class Ledger:
 
     def _mint_unique_api_key_locked(self) -> str:
 
-        '''Generate a fresh 64-hex-char api_key not in `_api_key_index`.
+        '''Generate a fresh 64-hex-char api_key whose hash is not in the index.
 
         Collision is astronomically unlikely with 256 bits of entropy
         but the retry loop makes the post-condition trivially provable.
@@ -200,12 +210,16 @@ class Ledger:
         while True:
             candidate = secrets.token_hex(_API_KEY_BYTES)
 
-            if candidate not in self._api_key_index:
+            if _hash_api_key(candidate) not in self._api_key_index:
                 return candidate
 
     def account_for_api_key(self, api_key: str) -> str | None:
 
         '''Look up the `account_id` controlled by `api_key`, or `None`.
+
+        Hashes the incoming key and compares against the stored
+        `api_key_hash` — the plaintext is never persisted, so this
+        is the only way to resolve a lookup.
 
         Synchronous because it's a single dict read against state that
         only mutates under `register_account` (which holds the lock).
@@ -213,7 +227,7 @@ class Ledger:
         await overhead on the hot path.
         '''
 
-        return self._api_key_index.get(api_key)
+        return self._api_key_index.get(_hash_api_key(api_key))
 
     async def apply_fill(
         self,
@@ -509,7 +523,7 @@ def _resolve_timestamp(timestamp: datetime | None) -> datetime:
 def _account_to_dict(account: Account) -> dict[str, object]:
 
     return {
-        'api_key': account.api_key,
+        'api_key_hash': account.api_key_hash,
         'usdt': str(account.usdt),
         'btc': str(account.btc),
         'fills': [_fill_to_dict(f) for f in account.fills],
@@ -524,12 +538,20 @@ def _account_from_dict(account_id: str, data: dict[str, Any]) -> Account:
 
     return Account(
         account_id=account_id,
-        api_key=str(data['api_key']),
+        api_key_hash=str(data['api_key_hash']),
         usdt=Decimal(str(data['usdt'])),
         btc=Decimal(str(data['btc'])),
         fills=[_fill_from_dict(f) for f in raw_fills],
         seen_client_order_ids=set(raw_cids),
     )
+
+
+def _hash_api_key(api_key: str) -> str:
+
+    '''SHA-256 of the api_key, hex-encoded. The ledger never persists
+    the plaintext — it only stores + indexes by this hash.'''
+
+    return hashlib.sha256(api_key.encode('utf-8')).hexdigest()
 
 
 def _fill_to_dict(fill: LedgerFill) -> dict[str, str]:

@@ -27,7 +27,7 @@ _URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
 _TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
 _THRESHOLD_MS = 5000
 
-_API_SECRET = secrets.token_hex(16)
+_SIGNING_KEY = secrets.token_hex(16)
 _ACCOUNT_ID = 'acc-1'
 
 _SUBSCRIBE_METHOD = 'userDataStream.subscribe.signature'
@@ -64,7 +64,7 @@ async def client(tmp_path: Path) -> AsyncGenerator[tuple[TestClient, str], None]
     await c.close()
 
 
-def _build_subscribe_request(api_key: str, api_secret: str) -> dict[str, Any]:
+def _build_subscribe_request(api_key: str, signing_key: str) -> dict[str, Any]:
 
     timestamp = int(time.time() * 1000)
     params: dict[str, Any] = {
@@ -73,7 +73,7 @@ def _build_subscribe_request(api_key: str, api_secret: str) -> dict[str, Any]:
         'timestamp': timestamp,
     }
     qs = '&'.join(f'{k}={params[k]}' for k in sorted(params))
-    signature = hmac.new(api_secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(signing_key.encode(), qs.encode(), hashlib.sha256).hexdigest()
     params['signature'] = signature
 
     return {
@@ -87,7 +87,7 @@ def _build_subscribe_request(api_key: str, api_secret: str) -> dict[str, Any]:
 async def test_ws_api_accepts_subscribe_and_returns_subscription_id(client: tuple[TestClient, str]) -> None:
 
     async with client[0].ws_connect('/ws-api/v3') as ws:
-        request = _build_subscribe_request(client[1], _API_SECRET)
+        request = _build_subscribe_request(client[1], _SIGNING_KEY)
         await ws.send_str(json.dumps(request))
 
         msg = await ws.receive(timeout=5.0)
@@ -108,7 +108,7 @@ async def test_ws_api_hands_out_monotonic_subscription_ids(client: tuple[TestCli
 
     for _ in range(3):
         async with client[0].ws_connect('/ws-api/v3') as ws:
-            request = _build_subscribe_request(client[1], _API_SECRET)
+            request = _build_subscribe_request(client[1], _SIGNING_KEY)
             await ws.send_str(json.dumps(request))
             msg = await ws.receive(timeout=5.0)
             ack = json.loads(msg.data)
@@ -158,7 +158,7 @@ async def test_ws_api_rejects_missing_signature(client: tuple[TestClient, str]) 
 async def test_ws_api_rejects_unknown_api_key(client: tuple[TestClient, str]) -> None:
 
     async with client[0].ws_connect('/ws-api/v3') as ws:
-        request = _build_subscribe_request('apikey-not-registered', _API_SECRET)
+        request = _build_subscribe_request('apikey-not-registered', _SIGNING_KEY)
         await ws.send_str(json.dumps(request))
 
         msg = await ws.receive(timeout=5.0)
@@ -192,7 +192,7 @@ async def test_ws_api_ignores_non_text_and_malformed_frames(client: tuple[TestCl
     async with client[0].ws_connect('/ws-api/v3') as ws:
         await ws.send_str('not-json')
 
-        request = _build_subscribe_request(client[1], _API_SECRET)
+        request = _build_subscribe_request(client[1], _SIGNING_KEY)
         await ws.send_str(json.dumps(request))
 
         msg = await ws.receive(timeout=5.0)

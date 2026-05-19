@@ -853,3 +853,18 @@ async def test_api_key_index_survives_load(tmp_path: Path) -> None:
     await ledger2.load()
 
     assert ledger2.account_for_api_key(api_key) == _ACCT
+
+
+@pytest.mark.asyncio
+async def test_snapshot_persists_api_key_hash_not_plaintext(tmp_path: Path) -> None:
+    import hashlib
+
+    ledger = _new_ledger(tmp_path)
+    api_key = await ledger.register_account(_ACCT, Decimal('10000'))
+
+    snapshot = json.loads((tmp_path / 'binsim_ledger.json').read_text())
+    persisted = snapshot['accounts'][_ACCT]
+
+    assert 'api_key' not in persisted
+    assert persisted['api_key_hash'] == hashlib.sha256(api_key.encode('utf-8')).hexdigest()
+    assert api_key not in (tmp_path / 'binsim_ledger.json').read_text()
