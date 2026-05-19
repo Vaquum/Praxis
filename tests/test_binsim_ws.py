@@ -73,7 +73,7 @@ def _build_subscribe_request(api_key: str, signing_key: str) -> dict[str, Any]:
         'timestamp': timestamp,
     }
     qs = '&'.join(f'{k}={params[k]}' for k in sorted(params))
-    signature = hmac.new(signing_key.encode(), qs.encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(signing_key.encode(), qs.encode(), hashlib.sha256).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
     params['signature'] = signature
 
     return {

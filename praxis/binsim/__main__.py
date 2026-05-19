@@ -23,8 +23,6 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-import aiohttp
-
 from praxis.binsim.book import OrderBook
 from praxis.binsim.feed import DepthPoller
 from praxis.binsim.ledger import Ledger
@@ -138,19 +136,20 @@ async def _run(config: _Config) -> None:
         config.staleness_threshold_ms,
     )
 
-    await poller.start()
+    # Register signal handlers BEFORE any long-lived component starts.
+    # If SIGTERM/SIGINT arrives during startup, the handler is already
+    # in place and the finally block runs the intended cleanup.
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop.set)
 
     try:
-
-        try:
-            await poller.poll_once()
-        except (aiohttp.ClientError, TimeoutError, RuntimeError, ValueError, OSError) as exc:
-            log.warning(
-                'binsim initial depth poll failed; staleness gate will trip until poller recovers',
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
-
+        # The poller's background loop primes the book on its first
+        # iteration — no separate `poll_once` call is needed here, so
+        # there is no race between a manual prime and the loop.
+        await poller.start()
         await server.start()
 
         log.info(
@@ -162,12 +161,6 @@ async def _run(config: _Config) -> None:
             poll_interval_ms=config.poll_interval_ms,
             accounts=sorted(await ledger.accounts()),
         )
-
-        stop = asyncio.Event()
-        loop = asyncio.get_running_loop()
-
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, stop.set)
 
         await stop.wait()
 

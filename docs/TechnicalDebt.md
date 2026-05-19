@@ -673,23 +673,10 @@ Or extract a small `_run_with_poller(poller, fn)` context manager / pytest fixtu
 
 ---
 
-## TD-063: `binsim.DepthPoller` startup race between manual `poll_once` and the poll loop
-
-**Severity**: Low (consequences mild, but smelly)
-**Module**: `praxis/binsim/__main__.py:188` (introduced by Vaquum/Praxis#112)
-
-`_run` in the binsim CLI calls `poller.start()` (which spawns `_poll_loop` as a background task) and then immediately calls `poller.poll_once()` to prime the book before `server.start()`. The background loop and the manual prime can race: both run `poll_once()` concurrently, both call `book.replace(...)`, both write `_last_success_ts_ms`. `OrderBook.replace` enforces a monotonic `last_update_id` so the second call to land may raise `ValueError: last_update_id moved backwards` (the loop's exception handler catches it and logs a warning), but the practical consequence is just noise on the first second of uptime.
-
-**When to fix**: When binsim is hosted at scale or when the boot logs are scraped for alerting and the warning generates noise tickets.
-
-**Migration**: Either (a) move the manual prime BEFORE `poller.start()` so the session is constructed but the loop hasn't yet spawned, or (b) move the prime inside `DepthPoller.start()` so the loop's first iteration is guaranteed to be the first poll. Option (b) is the cleaner long-term shape — single ownership of the "first successful poll" responsibility.
-
----
-
 ## TD-064: `binsim` `POST /api/v3/order` does not enforce its own `exchangeInfo` LOT_SIZE / PRICE_FILTER / NOTIONAL filters
 
 **Severity**: Medium (only one caller today, but shape inconsistency)
-**Module**: `praxis/binsim/server.py:343` (introduced by Vaquum/Praxis#112)
+**Module**: `praxis/binsim/server.py:_submit_order` (introduced by Vaquum/Praxis#112)
 
 `GET /api/v3/exchangeInfo` declares filters (`PRICE_FILTER.tickSize=0.01`, `LOT_SIZE.stepSize=1e-5`, `LOT_SIZE.minQty=1e-5`, `LOT_SIZE.maxQty=9000`, `NOTIONAL.minNotional=5`) but `POST /api/v3/order` accepts any positive `quantity` and walks the book directly. Real Binance rejects sub-minQty orders with code `-1013` ("Filter failure: LOT_SIZE"); binsim silently fills. Today the only caller is Praxis's `BinanceAdapter`, which runs `_validate_order` BEFORE the POST (`binance_adapter.py` `~1100`), so the gap is unreachable through normal use. Any other client that talks to binsim directly would observe the inconsistency.
 
@@ -702,20 +689,20 @@ Or extract a small `_run_with_poller(poller, fn)` context manager / pytest fixtu
 ## TD-065: `binsim` taker fee rate is hardcoded process-wide, not per-account
 
 **Severity**: Low (spec gap; correctness is identical if all accounts use the same rate)
-**Module**: `praxis/binsim/server.py:51` (introduced by Vaquum/Praxis#112)
+**Module**: `praxis/binsim/server.py:_TAKER_FEE_RATE` (introduced by Vaquum/Praxis#112)
 
 `_TAKER_FEE_RATE: Final[Decimal] = Decimal('0.001')` is a module-level constant. Every order across every binsim account pays the same 10bps. The original issue #112 spec said fees are "configurable per account, fee asset = quote (USDT) by default"; the MMVP collapsed that into a single constant because all current paper accounts on a given binsim deployment share the same fee tier anyway. The Ledger's `apply_order` already accepts pre-computed per-fill fees, so the change is HTTP-handler-local.
 
 **When to fix**: When binsim is shared across paper accounts that have different real-world fee tiers (e.g. VIP-9 strategist account + retail demo account on the same binsim).
 
-**Migration**: Add `fee_rate` to the api-key registry (next to the account_id mapping in `make_app` — probably promote `api_keys: Mapping[str, str]` to `accounts: Mapping[str, AccountConfig]` carrying `account_id` + `fee_rate`). In `_submit_order`, look up the caller's rate via the same `api_keys.get(api_key)` path that resolves the account_id.
+**Migration**: Promote `Ledger.Account` to carry a `fee_rate` field, set by `register_account` (new arg with a 10bps default). `_submit_order` resolves the account from `X-MBX-APIKEY` via `Ledger.account_for_api_key`, looks up the account's `fee_rate`, and uses it for the per-level commission instead of the module constant.
 
 ---
 
 ## TD-066: `binsim` `Ledger.Account.seen_client_order_ids` grows without bound
 
 **Severity**: Low (asymptotic; current deployments are short-lived)
-**Module**: `praxis/binsim/ledger.py:60` (introduced by Vaquum/Praxis#112)
+**Module**: `praxis/binsim/ledger.py:Account` (introduced by Vaquum/Praxis#112)
 
 `seen_client_order_ids: set[str]` is the dedup index for `apply_order`. It is persisted in the snapshot as `sorted(account.seen_client_order_ids)`. Every successful order adds one element; the set is never pruned. Every successful order also triggers a snapshot rewrite of the entire account (balances + fills + seen_client_order_ids), so the snapshot write is O(N+M) where N = lifetime fills and M = lifetime seen_cids. For a paper account doing 100 orders / day that's ~36,500 set elements per year — well within the realm of working comfortably but growing.
 
@@ -724,16 +711,3 @@ Binsim restarts reset state only if the operator wipes `BINSIM_STATE_DIR`; the d
 **When to fix**: When the snapshot write latency becomes observable in operator dashboards (probably ~10⁵ orders), or when binsim is promoted to a longer-lived per-strategist environment.
 
 **Migration**: Either (a) cap the set at the last N client_order_ids (FIFO eviction), or (b) introduce a TTL keyed on the recorded fill's timestamp. Option (a) is simpler; pick N large enough to outlast any reasonable Praxis-side retry window (~10⁴ is safe). For (b), Binance itself dedupes client_order_ids only within a recent window (the exact value isn't public; we'd pick something like 24h based on Praxis's own command lifecycle).
-
----
-
-## TD-067: `binsim` CLI signal handlers installed AFTER `server.start()`
-
-**Severity**: Low (window is sub-millisecond; container managers grant SIGTERM grace anyway)
-**Module**: `praxis/binsim/__main__.py:215` (introduced by Vaquum/Praxis#112)
-
-`_run` registers `SIGINT`/`SIGTERM` handlers via `loop.add_signal_handler(sig, stop.set)` only AFTER `await server.start()` returns. A signal arriving between the moment the loop becomes the foreground task (which can be very early — `poller.start()` already spawns the loop) and the `add_signal_handler` call hits the default Python signal handler (which terminates without cleanup). In practice the window is tiny (~ms) and Docker / Kubernetes both wait 10s by default before escalating to SIGKILL, so the window will almost always fall within the grace period.
-
-**When to fix**: When binsim is deployed under an orchestrator with a tighter SIGTERM-to-SIGKILL window (e.g. nomad with `kill_timeout = 1s`), or when shutdown cleanliness becomes audit-relevant.
-
-**Migration**: Move the `add_signal_handler` calls BEFORE `poller.start()` and `server.start()`. Initialize `stop = asyncio.Event()` first, register the handlers, THEN start the components. The setup → start → wait → stop ordering becomes: register signals → start poller → start server → wait → stop.

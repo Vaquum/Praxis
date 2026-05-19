@@ -549,9 +549,16 @@ def _account_from_dict(account_id: str, data: dict[str, Any]) -> Account:
 def _hash_api_key(api_key: str) -> str:
 
     '''SHA-256 of the api_key, hex-encoded. The ledger never persists
-    the plaintext — it only stores + indexes by this hash.'''
+    the plaintext — it only stores + indexes by this hash.
 
-    return hashlib.sha256(api_key.encode('utf-8')).hexdigest()
+    SHA-256 (not bcrypt/argon2) is correct here: api_keys are
+    256-bit random tokens minted via `secrets.token_hex(32)`, not
+    user-chosen passwords. Brute-forcing a 256-bit random key is
+    infeasible regardless of the hash speed, so the
+    "slow-hash-for-password-storage" rule does not apply.
+    '''
+
+    return hashlib.sha256(api_key.encode('utf-8')).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
 
 
 def _fill_to_dict(fill: LedgerFill) -> dict[str, str]:

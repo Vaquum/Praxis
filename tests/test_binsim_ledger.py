@@ -866,5 +866,6 @@ async def test_snapshot_persists_api_key_hash_not_plaintext(tmp_path: Path) -> N
     persisted = snapshot['accounts'][_ACCT]
 
     assert 'api_key' not in persisted
-    assert persisted['api_key_hash'] == hashlib.sha256(api_key.encode('utf-8')).hexdigest()
+    expected = hashlib.sha256(api_key.encode('utf-8')).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
+    assert persisted['api_key_hash'] == expected
     assert api_key not in (tmp_path / 'binsim_ledger.json').read_text()
