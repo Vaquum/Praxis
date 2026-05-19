@@ -181,6 +181,81 @@ async def test_poll_once_raises_on_malformed_payload_missing_d() -> None:
 
 
 @pytest.mark.asyncio
+async def test_poll_once_raises_value_error_on_non_dict_payload() -> None:
+
+    poller = _make_poller()
+    _attach_mock_session(poller, _mock_response(200, [1, 2, 3]))
+
+    with pytest.raises(ValueError, match='depth payload must be a JSON object'):
+        await poller.poll_once()
+
+
+@pytest.mark.asyncio
+async def test_poll_once_raises_value_error_when_d_is_not_dict() -> None:
+
+    poller = _make_poller()
+    bad_payload = {'t': 1_700_000_000_000, 'd': 'not-a-dict'}
+    _attach_mock_session(poller, _mock_response(200, bad_payload))
+
+    with pytest.raises(ValueError, match="'d' must be a JSON object"):
+        await poller.poll_once()
+
+
+@pytest.mark.asyncio
+async def test_poll_once_raises_arithmetic_error_on_malformed_decimal() -> None:
+
+    from decimal import InvalidOperation
+
+    poller = _make_poller()
+    bad_payload = {
+        't': 1_700_000_000_000,
+        'd': {
+            'lastUpdateId': 1,
+            'bids': [['not-a-decimal', '1.0']],
+            'asks': [['101.00', '1.0']],
+        },
+    }
+    _attach_mock_session(poller, _mock_response(200, bad_payload))
+
+    with pytest.raises((ArithmeticError, InvalidOperation)):
+        await poller.poll_once()
+
+
+@pytest.mark.asyncio
+async def test_poll_loop_does_not_crash_on_non_dict_payload() -> None:
+
+    book = OrderBook()
+    poller = _make_poller(book)
+
+    bad_resp = _mock_response(200, ['not', 'a', 'dict'])
+    ok_resp = _mock_response(200, _PAYLOAD)
+
+    session = MagicMock()
+    bad_ctx = MagicMock()
+    bad_ctx.__aenter__ = AsyncMock(return_value=bad_resp)
+    bad_ctx.__aexit__ = AsyncMock(return_value=False)
+    ok_ctx = MagicMock()
+    ok_ctx.__aenter__ = AsyncMock(return_value=ok_resp)
+    ok_ctx.__aexit__ = AsyncMock(return_value=False)
+    session.get = MagicMock(side_effect=[bad_ctx, ok_ctx, ok_ctx, ok_ctx])
+    session.close = AsyncMock()
+    session.closed = False
+    poller._session = session
+
+    poller._task = asyncio.create_task(poller._poll_loop())
+
+    for _ in range(50):
+        await asyncio.sleep(0.02)
+        if poller.last_success_ts_ms == 1_700_000_000_000:
+            break
+
+    poller._stop_event.set()
+    await poller._task
+
+    assert poller.last_success_ts_ms == 1_700_000_000_000
+
+
+@pytest.mark.asyncio
 async def test_poll_once_propagates_orderbook_validation_error() -> None:
 
     crossed_payload = {

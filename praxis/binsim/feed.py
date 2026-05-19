@@ -149,7 +149,16 @@ class DepthPoller:
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
-            except (ValueError, KeyError) as exc:
+            except (ValueError, KeyError, TypeError, ArithmeticError) as exc:
+                # Covers every shape failure `_parse_payload` can
+                # surface: non-dict body (TypeError), missing field
+                # (KeyError), unparseable int (ValueError),
+                # malformed Decimal (ArithmeticError →
+                # decimal.InvalidOperation), and `OrderBook.replace`
+                # validation rejections (ValueError). The task must
+                # NOT crash on any of these — staleness gate would
+                # eventually trip but the operator would lose the
+                # log signal explaining why.
                 _log.error(
                     'depth poll failed (malformed upstream payload)',
                     error=str(exc),
@@ -163,7 +172,7 @@ class DepthPoller:
 
     @staticmethod
     def _parse_payload(
-        payload: dict[str, Any],
+        payload: Any,
     ) -> tuple[int, int, list[tuple[Decimal, Decimal]], list[tuple[Decimal, Decimal]]]:
 
         '''Extract (ts_ms, last_update_id, bids, asks) from the source body.
@@ -172,10 +181,23 @@ class DepthPoller:
         Prices and quantities arrive as strings (Binance convention)
         and are coerced to `Decimal` at this boundary so downstream
         math is exact.
+
+        Raises:
+            ValueError: payload (or its `d` sub-object) is not a dict.
+            KeyError: a required field is missing.
+            ArithmeticError: a price/qty string is not a valid Decimal.
+            TypeError: bids/asks entries cannot unpack to (price, qty).
         '''
 
-        ts_ms = int(payload['t'])
+        if not isinstance(payload, dict):
+            raise ValueError(f'depth payload must be a JSON object, got {type(payload).__name__}')
+
         data = payload['d']
+
+        if not isinstance(data, dict):
+            raise ValueError(f"depth payload 'd' must be a JSON object, got {type(data).__name__}")
+
+        ts_ms = int(payload['t'])
         last_update_id = int(data['lastUpdateId'])
         bids = [(Decimal(p), Decimal(q)) for p, q in data['bids']]
         asks = [(Decimal(p), Decimal(q)) for p, q in data['asks']]
