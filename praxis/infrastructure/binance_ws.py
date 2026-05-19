@@ -12,6 +12,7 @@ import contextlib
 import hashlib
 import hmac
 import logging
+import os
 import random
 import time
 import uuid
@@ -143,7 +144,17 @@ class BinanceUserStream:
         self._subscription_id = None
 
         ws_api_url = self._adapter._ws_api_url
-        if not ws_api_url.startswith('wss://'):
+        # Production paths use `wss://` (mainnet / testnet). The only
+        # path that may use plain `ws://` is the binsim local
+        # simulator, which is gated behind the `BINSIM_URL` env var:
+        # if BINSIM_URL is not set, ws:// remains rejected so a
+        # mis-configured production deployment cannot fall back to an
+        # insecure scheme by accident.
+        binsim_url = os.getenv('BINSIM_URL')
+        allowed_wss = ws_api_url.startswith('wss://')
+        allowed_ws = ws_api_url.startswith('ws://') and binsim_url is not None
+
+        if not (allowed_wss or allowed_ws):
             msg = f"Unsupported WS-API URL scheme: {ws_api_url!r}"
             raise ValueError(msg)
 
