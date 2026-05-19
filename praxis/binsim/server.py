@@ -57,6 +57,7 @@ _BINANCE_CODE_BOOK_STALE = -1003
 _BINANCE_CODE_BAD_REQUEST = -1100
 _BINANCE_CODE_UNKNOWN_SYMBOL = -1121
 _BINANCE_CODE_ORDER_REJECTED = -2010
+_BINANCE_CODE_NO_SUCH_ORDER = -2013
 
 _VALID_SIDES = ('BUY', 'SELL')
 _VALID_TYPES = ('MARKET',)
@@ -202,7 +203,11 @@ async def _order_stub(request: web.Request) -> web.Response:
 
     _require_signed_caller(request)
 
-    raise web.HTTPNotFound(reason='order lookup not supported by binsim')
+    body = json.dumps({
+        'code': _BINANCE_CODE_NO_SUCH_ORDER,
+        'msg': 'Order does not exist (binsim does not retain non-terminal orders).',
+    })
+    raise web.HTTPNotFound(text=body, content_type='application/json')
 
 
 async def _open_orders_stub(request: web.Request) -> web.Response:
