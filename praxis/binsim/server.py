@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Final
 
@@ -27,6 +28,7 @@ __all__ = [
     'LEDGER_KEY',
     'POLLER_KEY',
     'STALENESS_THRESHOLD_MS_KEY',
+    'WS_SUBSCRIPTION_COUNTER_KEY',
     'BinsimServer',
     'make_app',
 ]
@@ -42,6 +44,33 @@ STALENESS_THRESHOLD_MS_KEY: web.AppKey[int] = web.AppKey(
 )
 API_KEYS_KEY: web.AppKey[Mapping[str, str]] = web.AppKey(
     'binsim.api_keys', Mapping[str, str],
+)
+
+
+@dataclass
+class _WsSubscriptionCounter:
+
+    '''Monotonic per-process counter for WS-API subscription IDs.
+
+    Praxis's `BinanceWS._clean_setup_connection` rejects an ack whose
+    `subscriptionId` is not a real `int`, so we hand out distinct
+    integers per `userDataStream.subscribe.signature` call. IDs reset
+    on restart — Binance itself makes no cross-reconnect promise, and
+    the client treats every subscribe as a fresh handshake.
+    '''
+
+    next_id: int = 1
+
+    def take(self) -> int:
+
+        value = self.next_id
+        self.next_id += 1
+
+        return value
+
+
+WS_SUBSCRIPTION_COUNTER_KEY: web.AppKey[_WsSubscriptionCounter] = web.AppKey(
+    'binsim.ws_subscription_counter', _WsSubscriptionCounter,
 )
 
 _MAX_PORT = 65535
@@ -61,6 +90,14 @@ _BINANCE_CODE_NO_SUCH_ORDER = -2013
 
 _VALID_SIDES = ('BUY', 'SELL')
 _VALID_TYPES = ('MARKET',)
+
+_WS_HEARTBEAT_SECONDS = 180.0
+_WS_OK_STATUS = 200
+_WS_UNAUTHORIZED_STATUS = 401
+_WS_BAD_REQUEST_STATUS = 400
+_WS_BINANCE_CODE_BAD_SIG = -1022
+_WS_BINANCE_CODE_BAD_API_KEY = -2014
+_WS_METHOD_SUBSCRIBE = 'userDataStream.subscribe.signature'
 
 _SYMBOL: Final[str] = 'BTCUSDT'
 _BASE_ASSET: Final[str] = 'BTC'
@@ -121,6 +158,7 @@ def make_app(
     app[POLLER_KEY] = poller
     app[STALENESS_THRESHOLD_MS_KEY] = staleness_threshold_ms
     app[API_KEYS_KEY] = api_keys
+    app[WS_SUBSCRIPTION_COUNTER_KEY] = _WsSubscriptionCounter()
 
     app.add_routes([
         web.get('/healthz', _healthz),
@@ -132,6 +170,8 @@ def make_app(
         web.get('/api/v3/openOrders', _open_orders_stub),
         web.get('/api/v3/myTrades', _my_trades_stub),
         web.post('/api/v3/order', _submit_order),
+        web.get('/ws-api/v3', _ws_api),
+        web.get('/stream', _ws_stream),
     ])
 
     return app
@@ -444,6 +484,128 @@ def _require_signed_caller(request: web.Request) -> str:
         raise web.HTTPUnauthorized(reason='unknown API key')
 
     return account_id
+
+
+async def _ws_api(request: web.Request) -> web.WebSocketResponse:
+
+    '''Handle the WS-API user-data stream.
+
+    Praxis's `BinanceWS._clean_setup_connection` opens this connection
+    at launcher start, sends one `userDataStream.subscribe.signature`
+    frame, and refuses to start if the ack is missing or malformed.
+    The binsim MMVP path satisfies that handshake and then sits idle —
+    fills come back inline from `POST /api/v3/order`, so there is
+    nothing to push.
+
+    Heartbeat: aiohttp sends a PING every `_WS_HEARTBEAT_SECONDS` and
+    closes the connection if no PONG arrives within the same window.
+    Binance idles the connection after a few minutes of silence, so
+    we mirror the keepalive cadence.
+    '''
+
+    api_keys = request.app[API_KEYS_KEY]
+    counter = request.app[WS_SUBSCRIPTION_COUNTER_KEY]
+
+    ws = web.WebSocketResponse(heartbeat=_WS_HEARTBEAT_SECONDS)
+    await ws.prepare(request)
+
+    async for msg in ws:
+        if msg.type != web.WSMsgType.TEXT:
+            continue
+
+        await _handle_ws_api_frame(ws, msg.data, api_keys, counter)
+
+    return ws
+
+
+async def _handle_ws_api_frame(
+    ws: web.WebSocketResponse,
+    data: str,
+    api_keys: Mapping[str, str],
+    counter: _WsSubscriptionCounter,
+) -> None:
+
+    try:
+        request_obj = json.loads(data)
+    except json.JSONDecodeError:
+        return
+
+    if not isinstance(request_obj, dict):
+        return
+
+    req_id = request_obj.get('id', '')
+    method = request_obj.get('method')
+
+    if method != _WS_METHOD_SUBSCRIBE:
+        await ws.send_str(json.dumps({
+            'id': req_id,
+            'status': _WS_BAD_REQUEST_STATUS,
+            'error': {
+                'code': _BINANCE_CODE_BAD_REQUEST,
+                'msg': f'unsupported method: {method!r}',
+            },
+        }))
+
+        return
+
+    params = request_obj.get('params') or {}
+    api_key = params.get('apiKey') if isinstance(params, dict) else None
+    signature = params.get('signature') if isinstance(params, dict) else None
+
+    if not api_key or not signature:
+        await ws.send_str(json.dumps({
+            'id': req_id,
+            'status': _WS_UNAUTHORIZED_STATUS,
+            'error': {
+                'code': _WS_BINANCE_CODE_BAD_SIG,
+                'msg': 'missing apiKey or signature',
+            },
+        }))
+
+        return
+
+    if api_key not in api_keys:
+        await ws.send_str(json.dumps({
+            'id': req_id,
+            'status': _WS_UNAUTHORIZED_STATUS,
+            'error': {
+                'code': _WS_BINANCE_CODE_BAD_API_KEY,
+                'msg': 'unknown apiKey',
+            },
+        }))
+
+        return
+
+    sub_id = counter.take()
+
+    await ws.send_str(json.dumps({
+        'id': req_id,
+        'status': _WS_OK_STATUS,
+        'result': {'subscriptionId': sub_id},
+    }))
+
+
+async def _ws_stream(request: web.Request) -> web.WebSocketResponse:
+
+    '''Accept the market-data stream connection and idle.
+
+    Binance's `wss://stream.binance.com:9443/stream` ships diff
+    snapshots, depth updates, klines etc. The binsim does not need
+    any of that — its `OrderBook` is poll-driven from a separate
+    hosted source. We accept the connect so client code does not
+    explode trying to open it, drain any incoming frames (the client
+    may send subscribe/unsubscribe lifecycle messages it expects
+    silently ignored), and close when the client closes.
+    '''
+
+    ws = web.WebSocketResponse(heartbeat=_WS_HEARTBEAT_SECONDS)
+    await ws.prepare(request)
+
+    async for msg in ws:
+        if msg.type in (web.WSMsgType.CLOSE, web.WSMsgType.ERROR):
+            break
+
+    return ws
 
 
 class BinsimServer:
