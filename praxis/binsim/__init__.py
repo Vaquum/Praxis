@@ -14,6 +14,7 @@ from praxis.binsim.server import (
     LEDGER_KEY,
     POLLER_KEY,
     STALENESS_THRESHOLD_MS_KEY,
+    WS_SUBSCRIPTION_COUNTER_KEY,
     BinsimServer,
     make_app,
 )
@@ -24,6 +25,7 @@ __all__ = [
     'LEDGER_KEY',
     'POLLER_KEY',
     'STALENESS_THRESHOLD_MS_KEY',
+    'WS_SUBSCRIPTION_COUNTER_KEY',
     'Account',
     'BinsimServer',
     'DepthPoller',
