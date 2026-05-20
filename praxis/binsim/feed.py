@@ -30,11 +30,18 @@ class DepthPoller:
 
     Owns a single `aiohttp.ClientSession` and a background poll task.
     On each successful poll the response is parsed and the bound
-    `OrderBook` is replaced wholesale; the wall-clock `t` from the
-    successful poll captures the local wall-clock as
-    `last_success_ts_ms` so the HTTP layer's staleness gate can query
-    freshness without subscribing to events and without trusting any
-    timestamp from the upstream payload.
+    `OrderBook` is replaced wholesale. Two timestamps come out of this:
+
+      - `book.ts_ms` is set to the upstream `t` field — informational,
+        useful for direct inspection / debugging / future metrics on
+        the snapshot's source-side wall-clock.
+      - `last_success_ts_ms` is set to local wall-clock
+        (`int(time.time() * 1000)`) at receipt, NOT the upstream `t`.
+        This is what the HTTP layer's staleness gate compares against;
+        decoupling it from upstream-trusted data means a future-dated
+        payload `t` (clock skew on the source, payload tampering) cannot
+        silently make the book appear "newer than now" and bypass the
+        gate.
 
     Failures (network, 5xx, malformed body, schema rejection) are
     logged and the loop continues at the same cadence — the staleness
