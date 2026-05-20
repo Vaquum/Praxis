@@ -747,7 +747,7 @@
 
 ## v0.62.0 on 20th of May, 2026
 
-- Fix `BinanceAdapter._request_with_retries` to exempt `NotFoundError` from `HealthTracker` failure counting when binsim is the configured venue (gated on a non-empty `BINSIM_URL` env var; mirrors the strip-pattern check used by `_resolve_trade_mode` and `binance_ws.connect`). On real venues a 404 on routes like `GET /api/v3/order` still records as a health failure as before. Closes #114
+- Fix `BinanceAdapter._request_with_retry` to exempt `NotFoundError` from `HealthTracker` failure counting when binsim is the configured venue (gated on a non-empty `BINSIM_URL` env var; mirrors the strip-pattern check used by `_resolve_trade_mode` and `BinanceUserStream._clean_setup_connection`). On real venues a `NotFoundError` (Binance code `-2013`) on routes like `GET /api/v3/order` still records as a health failure as before. Closes #114
 - Add module-level `_binsim_enabled` helper in [`binance_adapter.py`](praxis/infrastructure/binance_adapter.py)
-- Add `NotFoundError` branch in `_request_with_retries` placed before the broader `except VenueError`, so binsim's documented stub 404s no longer drive `consecutive_failures` / `failure_rate` past `HealthEvaluator` halt thresholds on restart-time order reconciliation
-- Add four tests in `TestHealthSignals` covering: (a) 404 records failure without `BINSIM_URL`, (b) 404 skipped with `BINSIM_URL` set, (c) whitespace-only `BINSIM_URL` falls back to the safe default of recording, (d) non-`NotFoundError` `VenueError` subclasses still record even with `BINSIM_URL` set
+- Add `NotFoundError` branch in `_request_with_retry` placed before the broader `except VenueError`, so binsim's documented stub `-2013` responses no longer drive `consecutive_failures` / `failure_rate` past `HealthEvaluator` halt thresholds on restart-time order reconciliation
+- Add four tests in `TestHealthSignals` covering: (a) `NotFoundError` records failure without `BINSIM_URL`, (b) `NotFoundError` skipped with `BINSIM_URL` set, (c) whitespace-only `BINSIM_URL` falls back to the safe default of recording, (d) non-`NotFoundError` `VenueError` subclasses still record even with `BINSIM_URL` set

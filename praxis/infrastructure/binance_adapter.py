@@ -497,17 +497,20 @@ class BinanceAdapter:
             except NotFoundError:
                 # When binsim is the venue, `NotFoundError` on routes
                 # like `GET /api/v3/order` is a documented stub response
-                # (the simulator does not retain terminal-order state;
-                # see `docs/Binsim.md`). Counting these legitimate stub
-                # 404s as health failures deadlocks `HealthLoop` after
-                # any restart that re-reconciles prior orders: every
-                # lookup 404s → `consecutive_failures` and `failure_rate`
-                # cross the halt thresholds → `state.mode` flips to
-                # HALTED → INTAKE blocks ENTERs → no fresh signed
-                # successes ever dilute the window → permanent halt.
-                # On real venues (testnet / mainnet) a 404 is still a
-                # genuine signal (deleted/missing order state) and is
-                # recorded as a failure as before.
+                # (the simulator does not retain non-terminal order
+                # state — every `GET /api/v3/order` returns Binance
+                # code `-2013`; see `docs/Binsim.md`). Counting these
+                # legitimate stub responses as health failures
+                # deadlocks `HealthLoop` after any restart that
+                # re-reconciles prior orders: every lookup raises
+                # `NotFoundError` → `consecutive_failures` and
+                # `failure_rate` cross the halt thresholds →
+                # `state.mode` flips to HALTED → INTAKE blocks ENTERs
+                # → no fresh signed successes ever dilute the window
+                # → permanent halt. On real venues (testnet / mainnet)
+                # a `NotFoundError` is still a genuine signal
+                # (deleted/missing order state) and is recorded as a
+                # failure as before.
                 if not _binsim_enabled():
                     self._record_health(account_id, start, succeeded=False)
                 raise
