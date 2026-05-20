@@ -2858,6 +2858,119 @@ class TestHealthSignals:
         assert snap_b.failure_rate == 0.0
 
     @pytest.mark.asyncio
+    async def test_not_found_error_records_failure_without_binsim_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+
+        '''Without `BINSIM_URL`, a 404 is a real venue signal and counts.
+
+        Default production behavior — testnet/mainnet 404 on `GET
+        /api/v3/order` means the order genuinely is not in the venue's
+        retained state, which is information the HealthLoop should see.
+        '''
+
+        monkeypatch.delenv('BINSIM_URL', raising=False)
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+
+        with pytest.raises(NotFoundError):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 1
+        assert snapshot.failure_rate == 1.0
+
+    @pytest.mark.asyncio
+    async def test_not_found_error_skipped_with_binsim_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+
+        '''With `BINSIM_URL` set, a 404 is the documented stub response.
+
+        Binsim's `GET /api/v3/order` always returns 404 (no terminal-
+        order state retained). Counting those as health failures
+        deadlocks `HealthLoop` after restart-time reconciliation —
+        consecutive_failures + failure_rate trip the halt thresholds,
+        `state.mode` flips HALTED, INTAKE blocks every ENTER, no fresh
+        signed successes can dilute the failure window. The fix: gate
+        the failure-recording on `BINSIM_URL` being unset.
+        '''
+
+        monkeypatch.setenv('BINSIM_URL', 'http://binsim:8081')
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+
+        with pytest.raises(NotFoundError):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 0
+        assert snapshot.failure_rate == 0.0
+
+    @pytest.mark.asyncio
+    async def test_not_found_error_still_records_with_blank_binsim_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+
+        '''Whitespace-only `BINSIM_URL` must not silently enable the skip.
+
+        Mirrors the strip-pattern gate in `launcher._resolve_trade_mode`
+        and `binance_ws.connect` — a misconfigured `BINSIM_URL='   '`
+        falls back to the safer default (count failures).
+        '''
+
+        monkeypatch.setenv('BINSIM_URL', '   ')
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+
+        with pytest.raises(NotFoundError):
+            await adapter._signed_request('GET', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 1
+        assert snapshot.failure_rate == 1.0
+
+    @pytest.mark.asyncio
+    async def test_non_not_found_venue_error_still_records_with_binsim_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+
+        '''The skip is scoped to `NotFoundError`; other VenueErrors count.
+
+        `OrderRejectedError` and any other `VenueError` subclass on
+        binsim still represent real venue signal (e.g. binsim rejected
+        an order for invalid parameters) and must continue to drive
+        the HealthLoop.
+        '''
+
+        monkeypatch.setenv('BINSIM_URL', 'http://binsim:8081')
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': -1100,
+            'msg': 'Illegal characters in parameter',
+        }))
+
+        with pytest.raises(OrderRejectedError):
+            await adapter._signed_request('POST', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 1
+        assert snapshot.failure_rate == 1.0
+
+    @pytest.mark.asyncio
     async def test_sync_clock_drift_populates_drift_ms(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
