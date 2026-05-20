@@ -12,6 +12,7 @@ import contextlib
 import hashlib
 import hmac
 import logging
+import os
 import random
 import time
 import uuid
@@ -109,7 +110,8 @@ class BinanceUserStream:
             AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If subscription ack times out
-            ValueError: If WS-API URL scheme is not wss
+            ValueError: If WS-API URL scheme is neither `wss://`
+                nor (when `BINSIM_URL` is set) `ws://`
             VenueError: If subscription is rejected by the venue
         '''
 
@@ -132,7 +134,8 @@ class BinanceUserStream:
             AuthenticationError: If credentials are not registered for the account
             aiohttp.ClientError: If WebSocket connection fails
             TimeoutError: If subscription ack times out
-            ValueError: If WS-API URL scheme is not wss
+            ValueError: If WS-API URL scheme is neither `wss://`
+                nor (when `BINSIM_URL` is set) `ws://`
             VenueError: If subscription is rejected by the venue
         '''
 
@@ -143,7 +146,18 @@ class BinanceUserStream:
         self._subscription_id = None
 
         ws_api_url = self._adapter._ws_api_url
-        if not ws_api_url.startswith('wss://'):
+        # Production paths use `wss://` (mainnet / testnet). The only
+        # path that may use plain `ws://` is the binsim local
+        # simulator, which is gated behind a non-empty `BINSIM_URL` env
+        # var. Strip whitespace and check truthiness so a misconfigured
+        # `BINSIM_URL=' '` or `BINSIM_URL=''` does not silently open
+        # the ws:// allowance — matches the launcher's strip pattern
+        # in `_resolve_trade_mode`.
+        binsim_url = (os.getenv('BINSIM_URL') or '').strip()
+        allowed_wss = ws_api_url.startswith('wss://')
+        allowed_ws = ws_api_url.startswith('ws://') and bool(binsim_url)
+
+        if not (allowed_wss or allowed_ws):
             msg = f"Unsupported WS-API URL scheme: {ws_api_url!r}"
             raise ValueError(msg)
 

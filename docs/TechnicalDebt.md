@@ -670,3 +670,44 @@ Or extract a small `_run_with_poller(poller, fn)` context manager / pytest fixtu
 **When to fix**: Either (a) ask the Limen team to expose `aggregate_spot_klines` as a public API (preferred — single source of truth), or (b) copy the function body + `_base_interval_seconds` + `_round_spot_kline_columns` helpers into Praxis (~120 LOC) and accept the drift risk.
 
 **Migration**: For (a), once Limen ships a public name, swap the import to the public symbol. For (b), copy the three functions verbatim, add a comment pointing at the upstream version + Limen pin in `pyproject.toml` so a reviewer knows to re-sync on the next Limen pin bump. If a future ruff config enables PLC2701, add the `# noqa: PLC2701` suppression at the same time as either path.
+
+---
+
+## TD-064: `binsim` `POST /api/v3/order` does not enforce its own `exchangeInfo` LOT_SIZE / PRICE_FILTER / NOTIONAL filters
+
+**Severity**: Medium (only one caller today, but shape inconsistency)
+**Module**: `praxis/binsim/server.py:_submit_order` (introduced by Vaquum/Praxis#112)
+
+`GET /api/v3/exchangeInfo` declares filters (`PRICE_FILTER.tickSize=0.01`, `LOT_SIZE.stepSize=1e-5`, `LOT_SIZE.minQty=1e-5`, `LOT_SIZE.maxQty=9000`, `NOTIONAL.minNotional=5`) but `POST /api/v3/order` accepts any positive `quantity` and walks the book directly. Real Binance rejects sub-minQty orders with code `-1013` ("Filter failure: LOT_SIZE"); binsim silently fills. Today the only caller is Praxis's `BinanceAdapter`, which runs `_validate_order` BEFORE the POST (`binance_adapter.py` `~1100`), so the gap is unreachable through normal use. Any other client that talks to binsim directly would observe the inconsistency.
+
+**When to fix**: When binsim grows a second client (e.g. a paper-trade smoke runner that doesn't share `BinanceAdapter`'s validation), or before promoting binsim from "paper trading" to "shared dev sandbox".
+
+**Migration**: In `_submit_order`, after parsing `qty`, snap it against `_FILTERS_PAYLOAD['filters']` (same dict the GET serves) and reject with `400` + Binance code `-1013` if `qty < minQty`, `qty > maxQty`, `(qty / stepSize) != round(qty / stepSize)`, or `qty * walk_price[0] < minNotional`. Mirror Binance's exact error message format so adapter-side error mapping needs no changes.
+
+---
+
+## TD-065: `binsim` taker fee rate is hardcoded process-wide, not per-account
+
+**Severity**: Low (spec gap; correctness is identical if all accounts use the same rate)
+**Module**: `praxis/binsim/server.py:_TAKER_FEE_RATE` (introduced by Vaquum/Praxis#112)
+
+`_TAKER_FEE_RATE: Final[Decimal] = Decimal('0.001')` is a module-level constant. Every order across every binsim account pays the same 10bps. The original issue #112 spec said fees are "configurable per account, fee asset = quote (USDT) by default"; the MMVP collapsed that into a single constant because all current paper accounts on a given binsim deployment share the same fee tier anyway. The Ledger's `apply_order` already accepts pre-computed per-fill fees, so the change is HTTP-handler-local.
+
+**When to fix**: When binsim is shared across paper accounts that have different real-world fee tiers (e.g. VIP-9 strategist account + retail demo account on the same binsim).
+
+**Migration**: Promote `Ledger.Account` to carry a `fee_rate` field, set by `register_account` (new arg with a 10bps default). `_submit_order` resolves the account from `X-MBX-APIKEY` via `Ledger.account_for_api_key`, looks up the account's `fee_rate`, and uses it for the per-level commission instead of the module constant.
+
+---
+
+## TD-066: `binsim` `Ledger.Account.seen_client_order_ids` grows without bound
+
+**Severity**: Low (asymptotic; current deployments are short-lived)
+**Module**: `praxis/binsim/ledger.py:Account` (introduced by Vaquum/Praxis#112)
+
+`seen_client_order_ids: set[str]` is the dedup index for `apply_order`. It is persisted in the snapshot as `sorted(account.seen_client_order_ids)`. Every successful order adds one element; the set is never pruned. Every successful order also triggers a snapshot rewrite of the entire account (balances + fills + seen_client_order_ids), so the snapshot write is O(N+M) where N = lifetime fills and M = lifetime seen_cids. For a paper account doing 100 orders / day that's ~36,500 set elements per year — well within the realm of working comfortably but growing.
+
+Binsim restarts reset state only if the operator wipes `BINSIM_STATE_DIR`; the default behavior is to persist across restarts, so the set really does accumulate across the lifetime of a binsim deployment. The Praxis launcher's EPOCH_ID concept (which RESETS Praxis-side state when bumped) does not propagate to binsim — binsim has no notion of epochs.
+
+**When to fix**: When the snapshot write latency becomes observable in operator dashboards (probably ~10⁵ orders), or when binsim is promoted to a longer-lived per-strategist environment.
+
+**Migration**: Either (a) cap the set at the last N client_order_ids (FIFO eviction), or (b) introduce a TTL keyed on the recorded fill's timestamp. Option (a) is simpler; pick N large enough to outlast any reasonable Praxis-side retry window (~10⁴ is safe). For (b), Binance itself dedupes client_order_ids only within a recent window (the exact value isn't public; we'd pick something like 24h based on Praxis's own command lifecycle).

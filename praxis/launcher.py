@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import aiosqlite
 import polars as pl
@@ -1856,17 +1857,69 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
     in-code constants in `binance_urls`. There is no operator path
     that can submit orders to mainnet while the rest of the system
     thinks it is on testnet (MAJOR-001).
+
+    `BINSIM_URL` is an optional paper-mode override pointing at an
+    in-process binsim instance (`http://host:port`). When set under
+    `TRADE_MODE=paper`, all three venue URLs are derived from it
+    (REST stays http(s)://, WS endpoints become ws(s)://). Mixing
+    `BINSIM_URL` with `TRADE_MODE=live` is a hard error: it would
+    silently divert mainnet flow at the URL layer.
     '''
 
     raw = env['TRADE_MODE'].strip().lower()
+    binsim_url = env.get('BINSIM_URL', '').strip()
+
     if raw == _TRADE_MODE_PAPER:
+        if binsim_url:
+            rest, ws, ws_api = _derive_binsim_urls(binsim_url)
+            return rest, ws, ws_api, True
+
         return TESTNET_REST_URL, TESTNET_WS_URL, TESTNET_WS_API_URL, True
+
     if raw == _TRADE_MODE_LIVE:
+        if binsim_url:
+            msg = 'BINSIM_URL must not be set when TRADE_MODE=live'
+            raise RuntimeError(msg)
+
         return MAINNET_REST_URL, MAINNET_WS_URL, MAINNET_WS_API_URL, False
+
     msg = (
         f'TRADE_MODE must be one of {list(_TRADE_MODES)!r}; got {env["TRADE_MODE"]!r}'
     )
     raise RuntimeError(msg)
+
+
+def _derive_binsim_urls(binsim_url: str) -> tuple[str, str, str]:
+    '''Split a single `BINSIM_URL` into the REST/WS/WS-API triple.
+
+    `BINSIM_URL` is `http://host:port` (or `https://...` for a TLS-
+    terminated deployment). The REST URL is used as the base, and
+    both WS URLs are derived by replacing the scheme:
+    `http://` → `ws://`, `https://` → `wss://`. The WS-API path is
+    hard-coded to `/ws-api/v3` to match Binance's path-scoped WS-API
+    endpoint (which the binsim server replicates).
+    '''
+
+    parsed = urlparse(binsim_url)
+
+    if parsed.scheme not in ('http', 'https'):
+        msg = f'BINSIM_URL must use http or https scheme, got {parsed.scheme!r}'
+        raise RuntimeError(msg)
+
+    # `netloc` is truthy for hostless URLs like `http://:8081` (netloc
+    # is `:8081`), so we have to check `hostname` explicitly to reject
+    # those — otherwise the derived URLs would be syntactically valid
+    # but unroutable.
+    if not parsed.hostname:
+        msg = f'BINSIM_URL must include a hostname, got {binsim_url!r}'
+        raise RuntimeError(msg)
+
+    ws_scheme = 'wss' if parsed.scheme == 'https' else 'ws'
+    rest_url = f'{parsed.scheme}://{parsed.netloc}'
+    ws_url = f'{ws_scheme}://{parsed.netloc}'
+    ws_api_url = f'{ws_scheme}://{parsed.netloc}/ws-api/v3'
+
+    return rest_url, ws_url, ws_api_url
 
 
 _ACCOUNT_ID_SAFE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')

@@ -214,6 +214,46 @@ class TestSetupConnection:
             await stream.initiate_connection()
 
     @pytest.mark.asyncio
+    async def test_ws_scheme_rejected_without_binsim_url_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv('BINSIM_URL', raising=False)
+        adapter = _make_adapter(ws_api_url='ws://binsim:8081/ws-api/v3')
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        with pytest.raises(ValueError, match='Unsupported WS-API URL scheme'):
+            await stream.initiate_connection()
+
+    @pytest.mark.asyncio
+    async def test_ws_scheme_accepted_when_binsim_url_env_is_set(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv('BINSIM_URL', 'http://binsim:8081')
+        adapter = _make_adapter(ws_api_url='ws://binsim:8081/ws-api/v3')
+        ws = AsyncMock()
+        adapter._ensure_session = AsyncMock(return_value=_make_session_with_ack(ws))
+
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+        await stream.initiate_connection()
+
+        assert stream.websocket is ws
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('blank_value', ['', '   ', '\t', '\n'])
+    async def test_ws_scheme_rejected_when_binsim_url_env_is_blank(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        blank_value: str,
+    ) -> None:
+        monkeypatch.setenv('BINSIM_URL', blank_value)
+        adapter = _make_adapter(ws_api_url='ws://binsim:8081/ws-api/v3')
+        stream = BinanceUserStream(adapter=adapter, account_id=_ACCOUNT_ID)
+
+        with pytest.raises(ValueError, match='Unsupported WS-API URL scheme'):
+            await stream.initiate_connection()
+
+    @pytest.mark.asyncio
     async def test_missing_credentials_raises_authentication_error(self) -> None:
         adapter = MagicMock()
         adapter._ws_api_url = _WS_API_URL

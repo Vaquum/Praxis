@@ -62,3 +62,84 @@ class TestResolveTradeMode:
     def test_empty_value_rejected(self) -> None:
         with pytest.raises(RuntimeError, match='TRADE_MODE must be one of'):
             _resolve_trade_mode({'TRADE_MODE': ''})
+
+
+class TestResolveTradeModeBinsim:
+
+    def test_paper_with_binsim_url_returns_derived_urls_and_testnet_flag(self) -> None:
+        rest, ws, ws_api, testnet = _resolve_trade_mode({
+            'TRADE_MODE': 'paper',
+            'BINSIM_URL': 'http://binsim:8081',
+        })
+
+        assert rest == 'http://binsim:8081'
+        assert ws == 'ws://binsim:8081'
+        assert ws_api == 'ws://binsim:8081/ws-api/v3'
+        assert testnet is True
+
+    def test_paper_with_https_binsim_url_uses_wss(self) -> None:
+        rest, ws, ws_api, testnet = _resolve_trade_mode({
+            'TRADE_MODE': 'paper',
+            'BINSIM_URL': 'https://binsim.internal:8443',
+        })
+
+        assert rest == 'https://binsim.internal:8443'
+        assert ws == 'wss://binsim.internal:8443'
+        assert ws_api == 'wss://binsim.internal:8443/ws-api/v3'
+        assert testnet is True
+
+    def test_paper_with_empty_binsim_url_falls_back_to_testnet(self) -> None:
+        rest, ws, ws_api, _testnet = _resolve_trade_mode({
+            'TRADE_MODE': 'paper',
+            'BINSIM_URL': '',
+        })
+
+        assert rest == TESTNET_REST_URL
+        assert ws == TESTNET_WS_URL
+        assert ws_api == TESTNET_WS_API_URL
+
+    def test_paper_with_whitespace_only_binsim_url_falls_back_to_testnet(self) -> None:
+        rest, _, _, _ = _resolve_trade_mode({
+            'TRADE_MODE': 'paper',
+            'BINSIM_URL': '   ',
+        })
+
+        assert rest == TESTNET_REST_URL
+
+    def test_paper_with_binsim_url_strips_trailing_path(self) -> None:
+        rest, ws, ws_api, _ = _resolve_trade_mode({
+            'TRADE_MODE': 'paper',
+            'BINSIM_URL': 'http://binsim:8081/api/v3',
+        })
+
+        assert rest == 'http://binsim:8081'
+        assert ws == 'ws://binsim:8081'
+        assert ws_api == 'ws://binsim:8081/ws-api/v3'
+
+    def test_live_with_binsim_url_set_raises(self) -> None:
+        with pytest.raises(RuntimeError, match='BINSIM_URL must not be set when TRADE_MODE=live'):
+            _resolve_trade_mode({
+                'TRADE_MODE': 'live',
+                'BINSIM_URL': 'http://binsim:8081',
+            })
+
+    def test_binsim_url_with_bad_scheme_raises(self) -> None:
+        with pytest.raises(RuntimeError, match='BINSIM_URL must use http or https scheme'):
+            _resolve_trade_mode({
+                'TRADE_MODE': 'paper',
+                'BINSIM_URL': 'ws://binsim:8081',
+            })
+
+    def test_binsim_url_without_host_raises(self) -> None:
+        with pytest.raises(RuntimeError, match='BINSIM_URL must include a hostname'):
+            _resolve_trade_mode({
+                'TRADE_MODE': 'paper',
+                'BINSIM_URL': 'http://',
+            })
+
+    def test_binsim_url_with_port_but_no_hostname_raises(self) -> None:
+        with pytest.raises(RuntimeError, match='BINSIM_URL must include a hostname'):
+            _resolve_trade_mode({
+                'TRADE_MODE': 'paper',
+                'BINSIM_URL': 'http://:8081',
+            })
