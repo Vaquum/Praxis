@@ -117,6 +117,16 @@ _FILTERS_PAYLOAD: Final[dict[str, object]] = {
 
 _EXCHANGE_INFO_PAYLOAD: Final[dict[str, object]] = {
     'timezone': 'UTC',
+    # Minimal `rateLimits` stub matching the Binance shape so
+    # `BinanceAdapter._parse_rate_limits()` does not log "missing
+    # rateLimits array" warnings on every `load_filters()` call.
+    # Binsim does not enforce these limits — they're operator-side
+    # documentation only.
+    'rateLimits': [
+        {'rateLimitType': 'REQUEST_WEIGHT', 'interval': 'MINUTE', 'intervalNum': 1, 'limit': 6000},
+        {'rateLimitType': 'ORDERS', 'interval': 'SECOND', 'intervalNum': 10, 'limit': 100},
+        {'rateLimitType': 'ORDERS', 'interval': 'DAY', 'intervalNum': 1, 'limit': 200000},
+    ],
     'symbols': [_FILTERS_PAYLOAD],
 }
 
@@ -188,7 +198,17 @@ async def _time(request: web.Request) -> web.Response:
 
 async def _exchange_info(request: web.Request) -> web.Response:
 
-    del request
+    # If the caller passes `symbol`, validate it. Without this check,
+    # `exchangeInfo?symbol=ETHUSDT` would silently return BTCUSDT
+    # filters, which the adapter would then cache under the wrong
+    # symbol key and confuse every downstream rejection.
+    symbol = request.query.get('symbol')
+
+    if symbol is not None and symbol != _SYMBOL:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_UNKNOWN_SYMBOL,
+            msg=f'unsupported symbol: {symbol!r}',
+        )
 
     return web.json_response(_EXCHANGE_INFO_PAYLOAD)
 
@@ -198,10 +218,16 @@ async def _depth(request: web.Request) -> web.Response:
     symbol = request.query.get('symbol')
 
     if symbol is None:
-        raise web.HTTPBadRequest(reason='missing symbol query param')
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg='missing symbol',
+        )
 
     if symbol != _SYMBOL:
-        raise web.HTTPBadRequest(reason=f'unsupported symbol: {symbol!r}')
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_UNKNOWN_SYMBOL,
+            msg=f'unsupported symbol: {symbol!r}',
+        )
 
     limit = _parse_depth_limit(request.query.get('limit'))
     book = request.app[BOOK_KEY]
@@ -493,10 +519,16 @@ def _parse_depth_limit(raw: str | None) -> int:
     try:
         limit = int(raw)
     except ValueError as exc:
-        raise web.HTTPBadRequest(reason=f'limit must be an integer, got {raw!r}') from exc
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'limit must be an integer, got {raw!r}',
+        ) from exc
 
     if limit <= 0 or limit > _MAX_DEPTH_LIMIT:
-        raise web.HTTPBadRequest(reason=f'limit must be in 1..{_MAX_DEPTH_LIMIT}, got {limit}')
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'limit must be in 1..{_MAX_DEPTH_LIMIT}, got {limit}',
+        )
 
     return limit
 
@@ -722,7 +754,8 @@ class BinsimServer:
             # asyncio.CancelledError) before re-raising. Ruff's
             # BLE001 exempts the re-raise pattern, so no noqa is
             # needed — the launcher's broad-except sites carry
-            # noqas only because they consume the exception.
+            # explicit BLE001 suppressions only because they
+            # consume the exception (no re-raise) instead.
             await runner.cleanup()
             raise
 

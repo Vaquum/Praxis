@@ -1004,3 +1004,91 @@ async def test_post_order_rejects_infinity_quantity(tmp_path: Path) -> None:
         assert payload['code'] == -1100
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_exchange_info_rejects_unsupported_symbol(tmp_path: Path) -> None:
+    client, _, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/exchangeInfo', params={'symbol': 'ETHUSDT'})
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1121
+        assert 'ETHUSDT' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_exchange_info_accepts_explicit_btcusdt(tmp_path: Path) -> None:
+    client, _, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/exchangeInfo', params={'symbol': 'BTCUSDT'})
+        assert resp.status == 200
+
+        payload = await resp.json()
+        assert payload['symbols'][0]['symbol'] == 'BTCUSDT'
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_exchange_info_includes_rate_limits_stub(tmp_path: Path) -> None:
+    client, _, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/exchangeInfo')
+        payload = await resp.json()
+
+        assert 'rateLimits' in payload
+        types = {r['rateLimitType'] for r in payload['rateLimits']}
+        assert 'REQUEST_WEIGHT' in types
+        assert 'ORDERS' in types
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_depth_missing_symbol_returns_binance_shaped_error(tmp_path: Path) -> None:
+    client, _, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth')
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+        assert 'symbol' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_depth_unsupported_symbol_returns_binance_shaped_error(tmp_path: Path) -> None:
+    client, _, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth', params={'symbol': 'ETHUSDT'})
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1121
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_depth_invalid_limit_returns_binance_shaped_error(tmp_path: Path) -> None:
+    client, _, _, _, _ = await _make_client(tmp_path)
+
+    try:
+        resp = await client.get('/api/v3/depth', params={'symbol': 'BTCUSDT', 'limit': 'abc'})
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+    finally:
+        await client.close()

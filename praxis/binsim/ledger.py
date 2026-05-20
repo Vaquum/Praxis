@@ -175,6 +175,12 @@ class Ledger:
         if not account_id:
             raise ValueError('account_id cannot be empty or whitespace-only')
 
+        if not initial_usdt.is_finite() or not initial_btc.is_finite():
+            raise ValueError(
+                f'initial balances must be finite, got initial_usdt={initial_usdt} '
+                f'initial_btc={initial_btc}'
+            )
+
         if initial_usdt < _ZERO:
             raise ValueError(f'initial_usdt must be non-negative, got {initial_usdt}')
 

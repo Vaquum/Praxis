@@ -951,3 +951,14 @@ async def test_apply_order_rejects_non_finite_in_level(tmp_path: Path, field_ind
             [(level[0], level[1], level[2])],
             client_order_id='cid-1',
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('field', ['initial_usdt', 'initial_btc'])
+async def test_register_account_rejects_non_finite_initial_balance(tmp_path: Path, field: str) -> None:
+    ledger = _new_ledger(tmp_path)
+    args = {'initial_usdt': Decimal('10000'), 'initial_btc': Decimal('0')}
+    args[field] = Decimal('NaN')
+
+    with pytest.raises(ValueError, match='initial balances must be finite'):
+        await ledger.register_account(_ACCT, args['initial_usdt'], args['initial_btc'])
