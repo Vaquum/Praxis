@@ -443,12 +443,25 @@ def _parse_decimal_param(raw: str | None, name: str) -> Decimal:
         )
 
     try:
-        return Decimal(raw)
+        value = Decimal(raw)
     except InvalidOperation as exc:
         raise _binance_error(
             status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
             msg=f'{name} is not a valid decimal: {raw!r}',
         ) from exc
+
+    # `Decimal('NaN')` / `Decimal('Infinity')` parse without raising
+    # `InvalidOperation` and silently pass downstream `<= 0` checks
+    # (NaN comparisons always return False). Reject here so the gate
+    # message points at the env var rather than failing arithmetic
+    # five layers down.
+    if not value.is_finite():
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+            msg=f'{name} must be a finite decimal, got {raw!r}',
+        )
+
+    return value
 
 
 def _binance_error(status: int, code: int, msg: str) -> web.HTTPException:

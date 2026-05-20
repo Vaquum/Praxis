@@ -204,7 +204,9 @@ class DepthPoller:
         math is exact.
 
         Raises:
-            ValueError: payload (or its `d` sub-object) is not a dict.
+            ValueError: payload (or its `d` sub-object) is not a dict,
+                or a price/qty parses to a non-finite Decimal (NaN /
+                Infinity slip through the bare `Decimal(...)` parse).
             KeyError: a required field is missing.
             ArithmeticError: a price/qty string is not a valid Decimal.
             TypeError: bids/asks entries cannot unpack to (price, qty).
@@ -220,7 +222,26 @@ class DepthPoller:
 
         ts_ms = int(payload['t'])
         last_update_id = int(data['lastUpdateId'])
-        bids = [(Decimal(p), Decimal(q)) for p, q in data['bids']]
-        asks = [(Decimal(p), Decimal(q)) for p, q in data['asks']]
+        bids = [(_finite_decimal(p, 'bid price'), _finite_decimal(q, 'bid qty')) for p, q in data['bids']]
+        asks = [(_finite_decimal(p, 'ask price'), _finite_decimal(q, 'ask qty')) for p, q in data['asks']]
 
         return ts_ms, last_update_id, bids, asks
+
+
+def _finite_decimal(raw: object, what: str) -> Decimal:
+
+    '''Parse `raw` to a finite `Decimal`. NaN / Infinity raise ValueError.
+
+    Bare `Decimal('NaN')` and `Decimal('Infinity')` are valid Decimal
+    values that do NOT raise `InvalidOperation`, but every downstream
+    comparison (`<= 0`, `> threshold`) silently returns False for NaN
+    and unpredictably for Infinity. Reject at the parse boundary so
+    these never leak into `OrderBook.replace` or further math.
+    '''
+
+    value = Decimal(raw if isinstance(raw, (str, int)) else str(raw))
+
+    if not value.is_finite():
+        raise ValueError(f'{what} must be a finite decimal, got {raw!r}')
+
+    return value

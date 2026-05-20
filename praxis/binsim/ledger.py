@@ -270,6 +270,11 @@ class Ledger:
                 balance below zero.
         '''
 
+        if not qty.is_finite() or not price.is_finite() or not fee.is_finite():
+            raise ValueError(
+                f'qty/price/fee must all be finite, got qty={qty} price={price} fee={fee}'
+            )
+
         if qty <= _ZERO:
             raise ValueError(f'qty must be positive, got {qty}')
 
@@ -357,6 +362,11 @@ class Ledger:
             raise ValueError('client_order_id cannot be empty or whitespace-only')
 
         for price, qty, fee in fills:
+            if not price.is_finite() or not qty.is_finite() or not fee.is_finite():
+                raise ValueError(
+                    f'fill must have finite (price, qty, fee), got ({price}, {qty}, {fee})'
+                )
+
             if price <= _ZERO:
                 raise ValueError(f'price must be positive, got {price}')
 

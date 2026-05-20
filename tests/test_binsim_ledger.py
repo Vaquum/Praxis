@@ -918,3 +918,36 @@ async def test_apply_order_strips_client_order_id_for_dedup(tmp_path: Path) -> N
             [(Decimal('100'), Decimal('0.1'), Decimal('0'))],
             client_order_id='cid-1',
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('field', ['qty', 'price', 'fee'])
+async def test_apply_fill_rejects_non_finite(tmp_path: Path, field: str) -> None:
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    args = {'qty': Decimal('0.1'), 'price': Decimal('100'), 'fee': Decimal('0')}
+    args[field] = Decimal('NaN')
+
+    with pytest.raises(ValueError, match='must all be finite'):
+        await ledger.apply_fill(
+            _ACCT, OrderSide.BUY,
+            args['qty'], args['price'], args['fee'],
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('field_index', [0, 1, 2])
+async def test_apply_order_rejects_non_finite_in_level(tmp_path: Path, field_index: int) -> None:
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    level = [Decimal('100'), Decimal('0.1'), Decimal('0')]
+    level[field_index] = Decimal('Infinity')
+
+    with pytest.raises(ValueError, match='must have finite'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(level[0], level[1], level[2])],
+            client_order_id='cid-1',
+        )

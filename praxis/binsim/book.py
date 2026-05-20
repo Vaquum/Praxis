@@ -79,10 +79,14 @@ class OrderBook:
             raise ValueError('asks cannot be empty')
 
         for price, qty in bids:
+            if not price.is_finite() or not qty.is_finite():
+                raise ValueError(f'bid level must be finite: ({price}, {qty})')
             if price <= 0 or qty <= 0:
                 raise ValueError(f'bid level has non-positive value: ({price}, {qty})')
 
         for price, qty in asks:
+            if not price.is_finite() or not qty.is_finite():
+                raise ValueError(f'ask level must be finite: ({price}, {qty})')
             if price <= 0 or qty <= 0:
                 raise ValueError(f'ask level has non-positive value: ({price}, {qty})')
 

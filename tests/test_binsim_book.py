@@ -313,3 +313,34 @@ def test_vwap_matches_walked_levels() -> None:
     ) / Decimal('2.5')
 
     assert vwap == expected
+
+
+@pytest.mark.parametrize(
+    'bad_level',
+    [
+        (Decimal('NaN'), Decimal('1.0')),
+        (Decimal('Infinity'), Decimal('1.0')),
+        (Decimal('100'), Decimal('NaN')),
+        (Decimal('100'), Decimal('Infinity')),
+    ],
+)
+def test_replace_rejects_non_finite_bid_levels(bad_level: tuple[Decimal, Decimal]) -> None:
+    book = OrderBook()
+
+    with pytest.raises(ValueError, match='bid level must be finite'):
+        book.replace([bad_level], _ASKS, _UID, _TS)
+
+
+@pytest.mark.parametrize(
+    'bad_level',
+    [
+        (Decimal('NaN'), Decimal('1.0')),
+        (Decimal('Infinity'), Decimal('1.0')),
+        (Decimal('100'), Decimal('NaN')),
+    ],
+)
+def test_replace_rejects_non_finite_ask_levels(bad_level: tuple[Decimal, Decimal]) -> None:
+    book = OrderBook()
+
+    with pytest.raises(ValueError, match='ask level must be finite'):
+        book.replace(_BIDS, [bad_level], _UID, _TS)

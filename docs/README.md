@@ -16,7 +16,7 @@ The current repository is a partial implementation of RFC-4001. Where the RFC an
 2. Read the architecture and intended scope in [RFC-4001](https://github.com/Vaquum/Praxis/issues/1)
 3. Run [Setup And Verification](Setup-And-Verification.md)
 4. Read [Trading](Trading.md) and [Trade Lifecycle](Trade-Lifecycle.md)
-5. Review [Binance Spot Testnet](Binance-Spot-Testnet.md)
+5. Review [Binance Spot Testnet](Binance-Spot-Testnet.md) and [Binsim](Binsim.md) (the in-process paper-trading replacement)
 6. Review the current known implementation gaps in [TechnicalDebt.md](TechnicalDebt.md)
 
 ### If You Want To Understand The Current Runtime

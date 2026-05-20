@@ -388,3 +388,20 @@ async def test_poll_once_accepts_non_application_json_content_type() -> None:
     assert book.last_update_id == 12345
     # confirm json was called with content_type=None
     resp.json.assert_called_once_with(content_type=None)
+
+
+@pytest.mark.asyncio
+async def test_poll_once_raises_on_non_finite_decimal_in_book() -> None:
+    poller = _make_poller()
+    bad = {
+        't': 1_700_000_000_000,
+        'd': {
+            'lastUpdateId': 1,
+            'bids': [['NaN', '1.0']],
+            'asks': [['101.00', '1.0']],
+        },
+    }
+    _attach_mock_session(poller, _mock_response(200, bad))
+
+    with pytest.raises(ValueError, match='must be a finite decimal'):
+        await poller.poll_once()

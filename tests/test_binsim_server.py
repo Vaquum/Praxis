@@ -973,3 +973,34 @@ async def test_post_order_rejects_when_last_success_ts_is_in_future(tmp_path: Pa
         assert 'stale' in payload['msg']
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_nan_quantity(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': 'NaN'}
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+        assert 'finite' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_infinity_quantity(tmp_path: Path) -> None:
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {**_POST_BASE_PARAMS, 'quantity': 'Infinity'}
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert payload['code'] == -1100
+    finally:
+        await client.close()
