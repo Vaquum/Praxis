@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import logging
 import math
+import os
 import random
 import threading
 import time
@@ -89,6 +90,19 @@ _ORDER_COUNT_INTERVAL_NUM = 10
 _WEIGHT_WINDOW_SECONDS = 60.0
 
 _log = logging.getLogger(__name__)
+
+
+def _binsim_enabled() -> bool:
+
+    '''Return True when the binsim simulator is the configured venue.
+
+    Gated on a non-empty `BINSIM_URL` env var. Mirrors the strip pattern
+    used by `praxis/launcher.py:_resolve_trade_mode` and
+    `praxis/infrastructure/binance_ws.py` so a misconfigured
+    `BINSIM_URL=' '` or `BINSIM_URL=''` does not silently flip behavior.
+    '''
+
+    return bool((os.getenv('BINSIM_URL') or '').strip())
 
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
@@ -480,6 +494,26 @@ class BinanceAdapter:
                     method, path, attempt + 1, max_attempts, delay,
                 )
                 await asyncio.sleep(delay)
+            except NotFoundError:
+                # When binsim is the venue, `NotFoundError` on routes
+                # like `GET /api/v3/order` is a documented stub response
+                # (the simulator does not retain non-terminal order
+                # state — every `GET /api/v3/order` returns Binance
+                # code `-2013`; see `docs/Binsim.md`). Counting these
+                # legitimate stub responses as health failures
+                # deadlocks `HealthLoop` after any restart that
+                # re-reconciles prior orders: every lookup raises
+                # `NotFoundError` → `consecutive_failures` and
+                # `failure_rate` cross the halt thresholds →
+                # `state.mode` flips to HALTED → INTAKE blocks ENTERs
+                # → no fresh signed successes ever dilute the window
+                # → permanent halt. On real venues (testnet / mainnet)
+                # a `NotFoundError` is still a genuine signal
+                # (deleted/missing order state) and is recorded as a
+                # failure as before.
+                if not _binsim_enabled():
+                    self._record_health(account_id, start, succeeded=False)
+                raise
             except VenueError:
                 self._record_health(account_id, start, succeeded=False)
                 raise
