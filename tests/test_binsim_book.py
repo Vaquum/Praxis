@@ -344,3 +344,11 @@ def test_replace_rejects_non_finite_ask_levels(bad_level: tuple[Decimal, Decimal
 
     with pytest.raises(ValueError, match='ask level must be finite'):
         book.replace(_BIDS, [bad_level], _UID, _TS)
+
+
+@pytest.mark.parametrize('bad_qty', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_consume_raises_on_non_finite_qty(bad_qty: Decimal) -> None:
+    book = _seeded()
+
+    with pytest.raises(ValueError, match='qty must be finite'):
+        book.consume_qty_for_market_order(OrderSide.BUY, bad_qty)

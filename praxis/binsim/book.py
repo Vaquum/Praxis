@@ -141,6 +141,9 @@ class OrderBook:
                 (no snapshot loaded yet).
         '''
 
+        if not qty.is_finite():
+            raise ValueError(f'qty must be finite, got {qty}')
+
         if qty <= 0:
             raise ValueError(f'qty must be positive, got {qty}')
 
