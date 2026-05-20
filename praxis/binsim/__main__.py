@@ -257,6 +257,6 @@ if __name__ == '__main__':
 
     try:
         main()
-    except Exception:
+    except Exception:  # noqa: BLE001 - top-level entrypoint, log and exit non-zero
         log.exception('binsim failed')
         sys.exit(1)

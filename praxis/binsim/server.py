@@ -717,7 +717,7 @@ class BinsimServer:
 
         try:
             await site.start()
-        except BaseException:
+        except BaseException:  # noqa: BLE001 - clean up runner on any partial-start failure (incl. asyncio.CancelledError) before re-raising
             await runner.cleanup()
             raise
 
