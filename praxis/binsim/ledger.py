@@ -500,7 +500,7 @@ class Ledger:
         try:
             tmp.write_text(json.dumps(payload))
             tmp.replace(self._snapshot_path)
-        except Exception:  # noqa: BLE001 - clean up the temp file on any write/rename failure before re-raising
+        except Exception:
             tmp.unlink(missing_ok=True)
             raise
 

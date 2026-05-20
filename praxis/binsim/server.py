@@ -717,7 +717,12 @@ class BinsimServer:
 
         try:
             await site.start()
-        except BaseException:  # noqa: BLE001 - clean up runner on any partial-start failure (incl. asyncio.CancelledError) before re-raising
+        except BaseException:
+            # Clean up runner on any partial-start failure (incl.
+            # asyncio.CancelledError) before re-raising. Ruff's
+            # BLE001 exempts the re-raise pattern, so no noqa is
+            # needed — the launcher's broad-except sites carry
+            # noqas only because they consume the exception.
             await runner.cleanup()
             raise
 
