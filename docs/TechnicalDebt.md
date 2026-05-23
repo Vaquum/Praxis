@@ -711,3 +711,26 @@ Binsim restarts reset state only if the operator wipes `BINSIM_STATE_DIR`; the d
 **When to fix**: When the snapshot write latency becomes observable in operator dashboards (probably ~10⁵ orders), or when binsim is promoted to a longer-lived per-strategist environment.
 
 **Migration**: Either (a) cap the set at the last N client_order_ids (FIFO eviction), or (b) introduce a TTL keyed on the recorded fill's timestamp. Option (a) is simpler; pick N large enough to outlast any reasonable Praxis-side retry window (~10⁴ is safe). For (b), Binance itself dedupes client_order_ids only within a recent window (the exact value isn't public; we'd pick something like 24h based on Praxis's own command lifecycle).
+
+---
+
+## TD-067: No Praxis-side integration test for YAML-backed SFD bundle launch path
+
+**Severity**: Low (regression would surface at deploy, not at unit-test time)
+**Module**: `praxis/launcher.py` + `tests/test_launcher_sfd_path.py` (gap surfaced by Copilot on Vaquum/Praxis#117)
+
+Praxis ships `tests/test_launcher_sfd_path.py` (91 lines) that pins the sys.path management at `praxis/launcher.py:874` (`_ensure_strategies_path_importable`) — but that helper is only relevant for the **legacy Python-module SFD path** where `Limen.Trainer.__init__` calls `importlib.import_module(metadata['sfd_module'])` to reload the SFD class from a user file on disk.
+
+The YAML-based SFD path enabled by the `vaquum_limen v3.0.6 → v3.9.0` bump in Praxis v0.64.0 (and the matching Nexus v0.49.0 → v0.50.0 bump from Vaquum/Nexus#70) bypasses that helper entirely: bundles declare `metadata.json["sfd_module"] = "yaml:<name>"` and Limen's [`limen/yaml/`](https://github.com/Vaquum/Limen/tree/v3.9.0/limen/yaml) pipeline resolves files (`<name>.json`, `manifest.yml`, `round_data.jsonl`, `results.csv`) from `experiment_dir` directly — no `sys.path` mutation, no `importlib.import_module` call. So the existing Praxis launcher SFD test cannot regress on YAML loading; there is no symmetric Praxis-side regression guard.
+
+The architectural reality is that the meaningful YAML-bundle regression coverage already lives upstream in two places: Limen's [`tests/test_yaml.py`](https://github.com/Vaquum/Limen/blob/v3.9.0/tests/test_yaml.py) (975 lines pinning the YAML loader internals — parser, compiler, resolver, validator, rules) and Nexus's [`tests/test_limen_trainer_contract.py`](https://github.com/Vaquum/Nexus/blob/6d6af6056567e1571ad2353ec660b89283474e50/tests/test_limen_trainer_contract.py) (10 cases pinning the `Trainer.__init__(experiment_dir, data=None)` + `Trainer.train(permutation_ids)` public surface). A future Limen/Nexus pin bump that regresses YAML loading would still be caught by those upstream test suites before merge into Praxis — but the failure mode the Copilot bot raised is real: a Praxis-side test would catch it specifically through the Praxis launcher boot path, where the deployment actually fails.
+
+The blocker for landing the test now is fixture cost. A minimal valid Limen v3.9.0 YAML SFD bundle requires `metadata.json` (with `sfd_module: "yaml:<name>"`, `limen_version`), `<name>.json` (data source + uel_run config), `manifest.yml` (complete enough to compile into a `Manifest` with `manifest()` + `params()` — at minimum: `data_source`, `split_config`, `features`, `target`, `scaler`, `architecture`), and `round_data.jsonl` (at least one round with populated `round_params`). The downstream artifact this pin bump unblocks (`btc_logreg_15m_up_early__r0024`) ships with `limen_version: "3.9.2"` — an unreleased Limen dev version — so building a Praxis-side fixture against a frozen-in-time schema risks coupling the test to a moving target.
+
+**When to fix**: When the experiment_runner bundle format stabilizes (i.e. the next experiment_runner release ships against a tagged Limen version, not a dev build), OR when the next YAML-bundle deploy lands (so the fixture can be a copy of a real production bundle with parameter values redacted). Whichever comes first.
+
+**Migration**: Add `tests/test_launcher_yaml_sfd_path.py` symmetric to `test_launcher_sfd_path.py`. The test should:
+1. Stage a minimal YAML SFD bundle in `tmp_path` (`metadata.json`, `<name>.json`, `manifest.yml`, `round_data.jsonl`) — extract the fixture from a known-good production bundle and prune to the minimum the Trainer accepts.
+2. Boot the launcher path through `Launcher._build_nexus_runtime` (or its successor) with a manifest YAML pointing at the staged experiment_dir.
+3. Assert (a) the launcher does NOT raise the v3.0.6-era `ValueError: sfd_module 'yaml:...' is not a dotted sequence of valid Python identifiers` (the canonical regression marker), and (b) the resulting `Trainer` instance has a non-None `_manifest`, confirming YAML dispatch reached the loader.
+The test should NOT exercise `train()` — that's covered upstream — only the `Trainer.__init__` → `_load_sfd_module` → YAML-dispatch path that's Praxis's interest.
