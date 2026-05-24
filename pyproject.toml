@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vaquum-praxis"
-version = "0.64.0"
+version = "0.65.0"
 description = "Execution system for Vaquum — Trading sub-system + Account sub-system."
 readme = "README.md"
 authors = [
@@ -12,7 +12,7 @@ authors = [
 ]
 license = { text = "MIT" }
 requires-python = ">=3.12"
-dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "pandas>=2.0", "binancial @ git+https://github.com/Vaquum/Binancial@0118288f1c79939daf8872c828b262f648110dd0", "vaquum_limen @ git+https://github.com/Vaquum/Limen@v3.9.0", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus@6d6af6056567e1571ad2353ec660b89283474e50"]
+dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "pandas>=2.0", "binancial @ git+https://github.com/Vaquum/Binancial@0118288f1c79939daf8872c828b262f648110dd0", "vaquum_limen @ git+https://github.com/Vaquum/Limen@v4.0.1", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus@952f6fc66cbc5a5fa64beaf9df6a0e293e4dcb7e"]
 
 [project.optional-dependencies]
 dev = [
