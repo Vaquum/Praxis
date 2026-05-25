@@ -96,6 +96,8 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 | `LOG_FORMAT` | `json` | `json` routes through `observability.configure_logging` (structlog + orjson); `text` uses stdlib `basicConfig` for local dev |
 | `LOG_LEVEL` | `INFO` | Root logger level |
 
+> **Upgrade note (v0.66.0):** `state_dir` and the `STRATEGY_STATE_BASE` tree are now epoch-scoped (`… / <account_id> / <epoch_id>`). On first boot of v0.66.0, state written by ≤v0.65.0 under the old account-level paths (`STATE_BASE / <account_id>`, `STRATEGY_STATE_BASE / <account_id>`) is no longer recovered — even when `EPOCH_ID` is unchanged — so the account starts from a fresh `InstanceState` (`capital_pool` re-read from the manifest, positions rebuilt from the venue by boot reconciliation). This one-time reset is intended; the old directories are left untouched (see TD-068). To preserve continuity across the upgrade, copy the old `snapshots/` + `wal/` into `STATE_BASE / <account_id> / <EPOCH_ID>/` before starting v0.66.0.
+
 ## Healthz
 
 `/healthz` is an in-process `aiohttp` route bound on the launcher's asyncio loop. Render polls it to decide whether to restart the container.

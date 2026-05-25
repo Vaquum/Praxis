@@ -776,6 +776,10 @@
 
 ## v0.66.0 on 25th of May, 2026
 
+### NOTE
+
+- Epoch-scoping `state_dir` / `strategy_state_path` (see Fix below) changes the on-disk layout: on first boot of v0.66.0, state written by ≤v0.65.0 under the old account-level paths (`STATE_BASE / <account_id>`, `STRATEGY_STATE_BASE / <account_id>`) is not recovered — even with an unchanged `EPOCH_ID`. The account starts from a fresh `InstanceState` (`capital_pool` re-read from the manifest, positions rebuilt from the venue at boot). This one-time reset is intended; old directories are left in place (TD-068). To preserve continuity, copy the old `snapshots/` + `wal/` into `STATE_BASE / <account_id> / <EPOCH_ID>/` before upgrading — see [`docs/Launcher.md`](docs/Launcher.md)
+
 ### Fix
 
 - Fold `EPOCH_ID` into the per-account InstanceState path in [`praxis/launcher.py`](praxis/launcher.py) `main()` — `state_dir` and `strategy_state_path` are now `STATE_BASE / <account_id> / <epoch_id>` and `STRATEGY_STATE_BASE / <account_id> / <epoch_id>` rather than `… / <account_id>`. Previously the snapshot/WAL dir was account-scoped only, so an `EPOCH_ID` bump reset the event spine (epoch-scoped by column) but **not** the InstanceState: `StateStore.recover()` found the prior epoch's snapshot + WAL and restored the persisted `capital_pool` instead of taking the fresh `InstanceState.fresh(manifest.capital_pool)` path. A manifest `capital_pool` change across an epoch was therefore silently ignored — orders were sized off the new manifest pool but budget-checked against the stale recovered pool (`compute_strategy_budget` reads `state.capital_pool`), so every ENTER was denied at the CAPITAL stage (`CAPITAL_RESERVATION_DENIED`) and the deployment produced signals but zero trades. Folding the epoch into the path makes an epoch bump yield a fresh InstanceState (`recover()` → `None` → fresh from manifest), matching the event spine's existing epoch isolation; crash recovery within an epoch is unchanged (same epoch → same dir → same snapshot/WAL). Closes #120
