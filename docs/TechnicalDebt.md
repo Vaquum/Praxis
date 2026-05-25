@@ -740,7 +740,7 @@ The test should NOT exercise `train()` — that's covered upstream — only the 
 ## TD-068: Old per-account / superseded-epoch state dirs are never reaped
 
 **Severity**: Low (disk accumulation only; no correctness impact)
-**Module**: `praxis/launcher.py:2050` (surfaced by Greybeard pre-PR review on the Vaquum/Praxis#120 fix)
+**Module**: `praxis/launcher.py:2052` (surfaced by Greybeard pre-PR review on the Vaquum/Praxis#120 fix)
 
 After v0.66.0 folded `EPOCH_ID` into the InstanceState path (`STATE_BASE / <account_id> / <epoch_id>`), every superseded epoch's tree (`snapshots`, `wal`, and — when `STRATEGY_STATE_BASE` is unset — `strategy_state`) plus the legacy account-level dir left by pre-v0.66.0 deploys (`STATE_BASE / <account_id>/…`) stays on disk untouched. When `STRATEGY_STATE_BASE` is set, strategy state lives under its own epoch tree (`STRATEGY_STATE_BASE / <account_id> / <epoch_id>`) and accumulates there independently. Each epoch bump creates a new `…/<epoch_id>/` tree and never reaps the prior one, so a long-lived host with frequent epoch bumps accumulates dead state indefinitely. No correctness impact — `recover()` only reads the current epoch's path, so stale dirs are inert.
 
