@@ -778,7 +778,7 @@
 
 ### NOTE
 
-- Epoch-scoping `state_dir` / `strategy_state_path` (see Fix below) changes the on-disk layout: on first boot of v0.66.0, state written by ≤v0.65.0 under the old account-level paths (`STATE_BASE / <account_id>`, `STRATEGY_STATE_BASE / <account_id>`) is not recovered — even with an unchanged `EPOCH_ID`. The account starts from a fresh `InstanceState` (`capital_pool` re-read from the manifest, positions rebuilt from the venue at boot). This one-time reset is intended; old directories are left in place (TD-068). To preserve continuity, copy the old `snapshots/` + `wal/` into `STATE_BASE / <account_id> / <EPOCH_ID>/` before upgrading — see [`docs/Launcher.md`](docs/Launcher.md)
+- Epoch-scoping `state_dir` / `strategy_state_path` (see Fix below) changes the on-disk layout: on first boot of v0.66.0, state written by ≤v0.65.0 under the old account-level paths (`STATE_BASE / <account_id>`, `STRATEGY_STATE_BASE / <account_id>`) is not recovered — even with an unchanged `EPOCH_ID`. The account starts from a fresh `InstanceState` (`capital_pool` re-read from the manifest, positions rebuilt from the venue at boot). This one-time reset is intended; old directories are left in place (TD-068). To preserve continuity, copy the old account-level tree (`STATE_BASE / <account_id>/{snapshots,wal,strategy_state}`, plus `STRATEGY_STATE_BASE / <account_id>/` if set) into the matching `<EPOCH_ID>/` subdirectories before upgrading — see [`docs/Launcher.md`](docs/Launcher.md)
 
 ### Fix
 
