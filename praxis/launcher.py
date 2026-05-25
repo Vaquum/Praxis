@@ -1928,8 +1928,9 @@ _ACCOUNT_ID_SAFE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
 def _require_safe_account_id(account_id: str, manifest_path: Path) -> None:
     '''Reject account_ids that would escape the state directory as path segments.
 
-    `account_id` from the manifest is used to form `STATE_BASE / <account_id>`
-    and `STRATEGY_STATE_BASE / <account_id>`. A manifest containing path
+    `account_id` from the manifest is used to form
+    `STATE_BASE / <account_id> / <epoch_id>` and
+    `STRATEGY_STATE_BASE / <account_id> / <epoch_id>`. A manifest containing path
     separators, `..`, or a leading `.` could escape the intended directory.
     Restrict to `[A-Za-z0-9][A-Za-z0-9._-]*` to match typical account-id
     conventions and stay a single safe filesystem component.
@@ -2000,6 +2001,7 @@ def main() -> None:
 
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
+    epoch_id = int(env['EPOCH_ID'])
     strategies_base_path = Path(env['STRATEGIES_BASE_PATH'])
     strategy_state_base_raw = env.get('STRATEGY_STATE_BASE')
     strategy_state_base = Path(strategy_state_base_raw) if strategy_state_base_raw else None
@@ -2047,9 +2049,11 @@ def main() -> None:
 
         account_credentials[account_id] = (api_key, api_secret)
 
-        state_dir = state_base / account_id
+        state_dir = state_base / account_id / str(epoch_id)
         strategy_state_path = (
-            strategy_state_base / account_id if strategy_state_base is not None else None
+            strategy_state_base / account_id / str(epoch_id)
+            if strategy_state_base is not None
+            else None
         )
 
         instances.append(
@@ -2063,7 +2067,7 @@ def main() -> None:
         )
 
     trading_config = TradingConfig(
-        epoch_id=int(env['EPOCH_ID']),
+        epoch_id=epoch_id,
         venue_rest_url=venue_rest_url,
         venue_ws_url=venue_ws_url,
         venue_ws_api_url=venue_ws_api_url,
