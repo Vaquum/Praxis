@@ -61,3 +61,35 @@ def test_state_dir_is_epoch_scoped(
 
     assert instances[0].state_dir == state_base / 'acct-epoch' / '7'
     assert instances[0].strategy_state_path == strategy_state_base / 'acct-epoch' / '7'
+
+
+def test_strategy_state_path_none_when_base_unset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    '''With `STRATEGY_STATE_BASE` unset, `strategy_state_path` is `None` while `state_dir` stays epoch-scoped.'''
+
+    manifests_dir = tmp_path / 'manifests'
+    manifests_dir.mkdir()
+    _write_manifest(manifests_dir / 'a.yaml', account_id='acct-epoch')
+
+    state_base = tmp_path / 'state'
+
+    captured = MagicMock()
+    monkeypatch.setattr('praxis.launcher.Launcher', captured)
+    monkeypatch.setattr('os.environ', {
+        'EPOCH_ID': '3',
+        'TRADE_MODE': 'paper',
+        'MANIFESTS_DIR': str(manifests_dir),
+        'STRATEGIES_BASE_PATH': str(manifests_dir),
+        'STATE_BASE': str(state_base),
+        'BINANCE_API_KEY_ACCT_EPOCH': 'k',
+        'BINANCE_API_SECRET_ACCT_EPOCH': 's',
+    })
+
+    main()
+
+    instances = captured.call_args.kwargs['instances']
+
+    assert instances[0].state_dir == state_base / 'acct-epoch' / '3'
+    assert instances[0].strategy_state_path is None

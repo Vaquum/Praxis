@@ -734,3 +734,16 @@ The blocker for landing the test now is fixture cost. A minimal valid Limen v3.9
 2. Boot the launcher path through `Launcher._build_nexus_runtime` (or its successor) with a manifest YAML pointing at the staged experiment_dir.
 3. Assert (a) the launcher does NOT raise the v3.0.6-era `ValueError: sfd_module 'yaml:...' is not a dotted sequence of valid Python identifiers` (the canonical regression marker), and (b) the resulting `Trainer` instance has a non-None `_manifest`, confirming YAML dispatch reached the loader.
 The test should NOT exercise `train()` — that's covered upstream — only the `Trainer.__init__` → `_load_sfd_module` → YAML-dispatch path that's Praxis's interest.
+
+---
+
+## TD-068: Old per-account / superseded-epoch state dirs are never reaped
+
+**Severity**: Low (disk accumulation only; no correctness impact)
+**Module**: `praxis/launcher.py:2050` (surfaced by Greybeard pre-PR review on the Vaquum/Praxis#120 fix)
+
+After v0.66.0 folded `EPOCH_ID` into the InstanceState path (`STATE_BASE / <account_id> / <epoch_id>`), every superseded epoch's tree (`snapshots`, `wal`, `strategy_state`) plus the legacy account-level dir left by pre-v0.66.0 deploys (`STATE_BASE / <account_id>/…`) stays on disk untouched. Each epoch bump creates a new `…/<epoch_id>/` tree and never reaps the prior one, so a long-lived host with frequent epoch bumps accumulates dead state indefinitely. No correctness impact — `recover()` only reads the current epoch's path, so stale dirs are inert.
+
+**When to fix**: When deployment cadence makes the accumulation material on a long-lived host, or as part of any state-retention/cleanup policy work.
+
+**Migration**: Add a boot-time or scheduled sweep that removes `STATE_BASE / <account_id> / <e>` for epochs `e < current` (retain the prior 1–2 for forensic rollback) and the legacy account-level `STATE_BASE / <account_id>/{snapshots,wal,strategy_state}`. Gate the sweep on an explicit retention count so a misconfigured `EPOCH_ID` cannot wipe the active tree.
