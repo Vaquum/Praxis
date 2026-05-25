@@ -73,7 +73,7 @@ The launcher creates one per-account outcome queue and one per-account Nexus thr
 | `TRADE_MODE` | Trading mode selector. `paper` routes the venue adapter and the binancial market-data fetches that feed `MainCache` at `https://testnet.binance.vision` (REST), `wss://stream.testnet.binance.vision` (WebSocket stream — market data), and `wss://ws-api.testnet.binance.vision/ws-api/v3` (WebSocket API — signed requests + user-data-stream `subscribe.signature`); `live` routes all three at `https://api.binance.com`, `wss://stream.binance.com:9443`, and `wss://ws-api.binance.com:443/ws-api/v3`. Endpoints are the `MAINNET_*_URL` / `TESTNET_*_URL` constants in `praxis/infrastructure/binance_urls.py`. Set explicitly per environment — there is no default and no separate URL or testnet env var |
 | `MANIFESTS_DIR` | Directory containing per-account manifest YAML files (`*.yaml` / `*.yml`); the launcher enumerates them and spawns one instance per file |
 | `STRATEGIES_BASE_PATH` | Base path for resolving strategy `.py` files referenced from manifests. Also prepended to `sys.path` at boot so user-defined SFD modules co-located with strategies become importable by Limen `Trainer.importlib.import_module(metadata['sfd_module'])`. SFDs that live elsewhere should be added to `PYTHONPATH` at deploy time |
-| `STATE_BASE` | Root for per-account state; `state_dir = STATE_BASE / <account_id>`; event-spine SQLite lives at `STATE_BASE / event_spine.sqlite` |
+| `STATE_BASE` | Root for per-account state; `state_dir = STATE_BASE / <account_id> / <epoch_id>`; event-spine SQLite lives at `STATE_BASE / event_spine.sqlite` (shared file, epoch-scoped by an `epoch_id` column rather than by path) |
 
 ### Per-account credentials
 
@@ -89,7 +89,7 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 | Var | Default | Purpose |
 |---|---|---|
 | `SHUTDOWN_TIMEOUT` | `30` | Seconds to wait for orders to reach terminal state before forcing shutdown |
-| `STRATEGY_STATE_BASE` | unset | Base path for strategy state blobs; each instance gets `STRATEGY_STATE_BASE / <account_id>` |
+| `STRATEGY_STATE_BASE` | unset | Base path for strategy state blobs; each instance gets `STRATEGY_STATE_BASE / <account_id> / <epoch_id>`. When unset, strategy state falls back under `state_dir` (`STATE_BASE / <account_id> / <epoch_id> / strategy_state`) |
 | `MAIN_CACHE_DIR` | `/var/lib/praxis/maincache` | Directory holding `MainCache`'s on-disk artifacts: `btcusdt_1m.parquet` (the 1-min kline buffer, grows ~1MB/day with no trim policy) and `main_cache_state.json` (the `last_covered_ts` high-water mark). MUST be a writable host bind mount in production so the cache survives container recreates and operators can inspect `*.corrupt-<UTC-iso>` quarantine files for forensics. The launcher fails fast with a `RuntimeError` carrying an operator-actionable message if the directory cannot be created; do not silently fall back to an ephemeral location |
 | `PORT` | — | Container orchestrators that inject a port (`docker compose`, k8s, etc.) — bound by the `/healthz` listener |
 | `HEALTHZ_PORT` | `8080` | Fallback when `PORT` is not set |
