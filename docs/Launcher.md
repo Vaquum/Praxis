@@ -105,9 +105,8 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 > ```bash
 > NEXUS_SENSOR_CACHE_DIR=/var/lib/praxis/sensor-cache \
 > NEXUS_WIRE_MAX_WORKERS=8 \
-> MANIFESTS_DIR=/opt/praxis/manifests \
->   python -m nexus.startup.warm_cache --manifests-dir "$MANIFESTS_DIR"
-> # then start the launcher with the same NEXUS_SENSOR_CACHE_DIR (and any per-account vars)
+>   python -m nexus.startup.warm_cache --manifests-dir /opt/praxis/manifests
+> # then start the launcher with the same NEXUS_SENSOR_CACHE_DIR and MANIFESTS_DIR=/opt/praxis/manifests
 > ```
 >
 > An unconfigured deployment (warmer absent, both env vars unset) wires inline and is unchanged.
