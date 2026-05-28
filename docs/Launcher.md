@@ -95,6 +95,21 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 | `HEALTHZ_PORT` | `8080` | Fallback when `PORT` is not set |
 | `LOG_FORMAT` | `json` | `json` routes through `observability.configure_logging` (structlog + orjson); `text` uses stdlib `basicConfig` for local dev |
 | `LOG_LEVEL` | `INFO` | Root logger level |
+| `NEXUS_SENSOR_CACHE_DIR` | unset | Directory holding the Nexus reconstruct-once sensor disk cache (`<bundle_id>/<permutation_id>.pkl`, auto-invalidated when `limen_version` / data window change). Read by both the pre-launch warmer (writes) and the launcher (reads on HIT, otherwise reconstructs the miss inline). Unset = the launcher reconstructs every sensor on every boot (acceptable for small manifests; the ~5000-permutation `btc_logreg` bundle takes ~8 h serially without it). MUST be a writable host bind mount if used across container recreates |
+| `NEXUS_WIRE_MAX_WORKERS` | `1` | **Pre-launch warmer scope only** as of v0.68.0 (Nexus v0.52.1+). Governs the worker count of `python -m nexus.startup.warm_cache`. Default `1` = serial. Has no effect on the launcher itself — see the v0.68.0 upgrade note below |
+| `NEXUS_PREDICT_MAX_WORKERS` | `16` | Worker count of the launcher's `PredictLoop` spawn `ProcessPoolExecutor` (Nexus v0.53.0+). The Limen `MLManifest.prepare_data` (~4.4 s/predict, ~99.9% Python/Polars on a ~224k-row frame) is GIL-bound, so threads do not scale; processes are required to clear the per-cadence SLA on large manifests. A non-positive or unparseable value falls back to the default so a misconfiguration cannot disable bounding |
+| `NEXUS_PREDICT_POLARS_MAX_THREADS` | `1` | Polars thread count per predict worker process (Nexus v0.53.0+). Applied via `os.environ.setdefault('POLARS_MAX_THREADS', ...)` in the launcher process before pool creation, so spawned worker interpreters inherit it. Default `1` so `N` workers use `N` cores rather than `N × M` (BLAS-style oversubscription) |
+
+> **Upgrade note (v0.68.0):** Nexus v0.52.1 (transited by the v0.68.0 bump) is a **BREAKING** change for any deployment that set `NEXUS_WIRE_MAX_WORKERS > 1` in v0.67.0. As of v0.52.1, `_wire_sensors` no longer runs a `ProcessPoolExecutor` in the launcher; `NEXUS_WIRE_MAX_WORKERS` now governs the standalone pre-launch warmer instead of in-launcher wiring. The root cause was a Polars rayon worker-stack segfault — creating a worker pool in the launcher (which owns the global rayon pool for the market-data cache) degraded that pool, and a later large Polars merge segfaulted the process every ~37 min on the 5000-permutation deploy. The warmer reconstructs every sensor in a process that never imports Polars, writes the disk cache, and exits before the launcher starts; the launcher then wires inline against the warm cache. A deployment previously parallelising sensor wiring must add the warmer step before launching:
+>
+> ```bash
+> NEXUS_SENSOR_CACHE_DIR=/var/lib/praxis/sensor-cache \
+> NEXUS_WIRE_MAX_WORKERS=8 \
+>   python -m nexus.startup.warm_cache --manifests-dir /opt/praxis/manifests
+> # then start the launcher with the same NEXUS_SENSOR_CACHE_DIR and MANIFESTS_DIR=/opt/praxis/manifests
+> ```
+>
+> An unconfigured deployment (warmer absent, both env vars unset) wires inline and is unchanged.
 
 > **Upgrade note (v0.66.0):** `state_dir` and the `STRATEGY_STATE_BASE` tree are now epoch-scoped (`… / <account_id> / <epoch_id>`). On first boot of v0.66.0, state written by ≤v0.65.0 under the old account-level paths (`STATE_BASE / <account_id>`, `STRATEGY_STATE_BASE / <account_id>`) is no longer recovered — even when `EPOCH_ID` is unchanged — so the account starts from a fresh `InstanceState` (`capital_pool` re-read from the manifest, positions rebuilt from the venue by boot reconciliation). This one-time reset is intended; the old directories are left untouched (see TD-068). To preserve continuity across the upgrade, copy the old account-level tree — `STATE_BASE / <account_id>/{snapshots,wal,strategy_state}`, plus `STRATEGY_STATE_BASE / <account_id>/` if that var was set — into the matching `… / <EPOCH_ID>/` subdirectories before starting v0.66.0.
 
