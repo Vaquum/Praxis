@@ -1861,9 +1861,19 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
     `BINSIM_URL` is an optional paper-mode override pointing at an
     in-process binsim instance (`http://host:port`). When set under
     `TRADE_MODE=paper`, all three venue URLs are derived from it
-    (REST stays http(s)://, WS endpoints become ws(s)://). Mixing
-    `BINSIM_URL` with `TRADE_MODE=live` is a hard error: it would
-    silently divert mainnet flow at the URL layer.
+    (REST stays http(s)://, WS endpoints become ws(s)://) and the
+    market-data poller is routed to Binance Spot mainnet
+    (`testnet=False`). Binsim is a fully internal venue with its own
+    mainnet-quality depth feed (binsim PR #112 spec, "Order book — live
+    source"); pairing it with sparse testnet aggTrades for sensor
+    feature reconstruction is the asymmetry the binsim project was built
+    to remove. MAJOR-001's order-routing invariant (orders submitted to
+    mainnet only when the system as a whole is in live mode) is
+    preserved — binsim orders never reach a real venue, so the
+    market-data → mainnet routing does not create the asymmetric
+    configuration MAJOR-001 protects against. Mixing `BINSIM_URL` with
+    `TRADE_MODE=live` is a hard error: it would silently divert mainnet
+    flow at the URL layer.
     '''
 
     raw = env['TRADE_MODE'].strip().lower()
@@ -1872,7 +1882,7 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
     if raw == _TRADE_MODE_PAPER:
         if binsim_url:
             rest, ws, ws_api = _derive_binsim_urls(binsim_url)
-            return rest, ws, ws_api, True
+            return rest, ws, ws_api, False
 
         return TESTNET_REST_URL, TESTNET_WS_URL, TESTNET_WS_API_URL, True
 
