@@ -26,7 +26,7 @@ The order book is replaced wholesale every 1s from the hosted depth-20 service a
 
 ## Swap From Testnet To Binsim
 
-Praxis's launcher resolves venue URLs from `TRADE_MODE` + an optional `BINSIM_URL` override. When `BINSIM_URL` is set under `TRADE_MODE=paper`, all three URLs (REST, WS-stream, WS-API) derive from it:
+Praxis's launcher resolves venue URLs from `TRADE_MODE` + an optional `BINSIM_URL` override. When `BINSIM_URL` is set under `TRADE_MODE=paper`, all three URLs (REST, WS-stream, WS-API) derive from it **and** the market-data poller is routed to Binance Spot mainnet (so sensors see the same data distribution binsim is matching against):
 
 | Praxis env | Without binsim | With binsim |
 |---|---|---|
@@ -35,8 +35,11 @@ Praxis's launcher resolves venue URLs from `TRADE_MODE` + an optional `BINSIM_UR
 | REST URL (derived) | `https://testnet.binance.vision` | `http://binsim:8081` |
 | WS URL (derived) | `wss://stream.testnet.binance.vision` | `ws://binsim:8081` |
 | WS-API URL (derived) | `wss://ws-api.testnet.binance.vision/ws-api/v3` | `ws://binsim:8081/ws-api/v3` |
+| Market-data feed (`binancial` per-minute) | `testnet.binance.vision` | `api.binance.com` (**mainnet**) |
 
 `https://` in `BINSIM_URL` produces `wss://` WS URLs; `http://` produces `ws://`. `BINSIM_URL` is a hard error under `TRADE_MODE=live` so the override cannot accidentally divert mainnet traffic.
+
+The mainnet market-data routing under binsim is deliberate: binsim is a fully internal venue with its own mainnet-quality depth feed (the spec — Praxis#112 "Order book — live source" — polls mainnet-mirror depth at 1s cadence). Feeding sensors with sparse testnet aggTrades while binsim fills against mainnet depth would defeat the sim's purpose. The MAJOR-001 safety property (no paper-orders against mainnet data) only applies when paper orders reach a real venue; binsim orders never do.
 
 To make `ws://` URLs reachable, Praxis's WS-API connector gates the relaxation behind the `BINSIM_URL` env var being set — production deployments without `BINSIM_URL` retain the original fail-closed `wss://`-only behavior.
 
