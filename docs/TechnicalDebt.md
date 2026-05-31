@@ -747,3 +747,19 @@ After v0.66.0 folded `EPOCH_ID` into the InstanceState path (`STATE_BASE / <acco
 **When to fix**: When deployment cadence makes the accumulation material on a long-lived host, or as part of any state-retention/cleanup policy work.
 
 **Migration**: Add a boot-time or scheduled sweep that removes, for epochs `e < current` (retain the prior 1–2 for forensic rollback): `STATE_BASE / <account_id> / <e>`, `STRATEGY_STATE_BASE / <account_id> / <e>` when `STRATEGY_STATE_BASE` is set, and the legacy account-level `STATE_BASE / <account_id>/{snapshots,wal,strategy_state}` left by pre-v0.66.0 deploys. Gate the sweep on an explicit retention count so a misconfigured `EPOCH_ID` cannot wipe the active tree.
+
+## TD-069: `MtmLoop` `mark_price_provider` aborts the entire tick on any non-BTCUSDT symbol
+
+**Origin**: Greybeard pre-PR review of `chore/bump-nexus-0.54.0-and-wire-schedulers` (v0.69.0 scheduler wiring)
+**Severity**: Low today (only BTCUSDT deployments shipped; the codebase carries `_DEFAULT_SYMBOL = 'BTCUSDT'` assumptions in many sites). Becomes a correctness blocker the day a manifest adds a second symbol.
+**Module**: [`praxis/launcher.py`](praxis/launcher.py) `_build_nexus_runtime`'s `mark_price_provider` closure
+
+The MTM `mark_price_provider` wraps the existing [`_last_close_from_poller`](praxis/launcher.py) which only knows about `BTCUSDT`. To preserve the strict-no-partial-writes contract on `MtmLoop`, the provider returns `None` for any other symbol; `MtmLoop` interprets `None` as "mark unavailable for this symbol" and aborts the entire tick without writing any unrealized P&L for any position (per [`mtm_loop.py:189-203`](https://github.com/Vaquum/Nexus/blob/bd61a0a60eefe8c55ef43719c72081193f66e097/nexus/core/mtm_loop.py) "stale marks are preferred over half-marked snapshots"). The day a manifest adds a non-BTCUSDT sensor that opens a position, every MTM tick will silently abort for the BTC positions too, leaving the open book unmarked indefinitely — risk gates running blind to the open book, exactly the failure mode Nexus #76 + Praxis v0.69.0 just closed.
+
+The only operator signal will be a per-tick WARN log (`MtmLoop: mark price unavailable; tick aborted`) emitted from inside Nexus; nothing in Praxis surfaces it as a metric or health-loop alert.
+
+**When to fix**: Before any deployment that adds a manifest entry for a symbol other than BTCUSDT. Catches forward-looking — the day this matters, the system silently degrades.
+
+**Migration**: Extend [`MainCache`](praxis/market_data_cache.py) and [`_last_close_from_poller`](praxis/launcher.py) (and downstream the Limen bundle layer + `_DEFAULT_SYMBOL` usage in [`praxis/launcher.py`](praxis/launcher.py)) to be per-symbol-keyed rather than BTCUSDT-only. Concretely: replace `_last_close_from_poller(self._poller, kline_sizes)` with a per-symbol lookup `self._poller.get_last_close(symbol, kline_size)` and either (a) wire a `symbol_to_kline_size` map from the manifest so the MTM provider can resolve symbol → kline → last close, or (b) standardise on a single kline size for MTM (e.g. 60s) and key purely by symbol. The MTM provider then returns the per-symbol last close instead of `None`, and `MtmLoop` ticks proceed for any subset of symbols that have a fresh cache entry. The "abort on `None`" semantics is still correct for any symbol whose cache is empty / stale — it's the silent BTCUSDT-only fallback that's the issue.
+
+A defensive intermediate: add a per-account or boot-time assertion that every symbol referenced by the manifest's wired sensors is in `kline_sizes` AND has a working last-close lookup; refuse to boot otherwise. Catches the misconfiguration loudly rather than letting it surface as a slow degradation in MTM.
