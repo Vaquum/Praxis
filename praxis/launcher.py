@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import queue
 import re
@@ -157,10 +158,11 @@ def _positive_float_env(name: str, default: float) -> float:
         )
         raise RuntimeError(msg) from exc
 
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         msg = (
-            f'env var {name}={raw!r} must be a positive number; '
-            f'got {value!r} (expected > 0)'
+            f'env var {name}={raw!r} must be a positive, finite number; '
+            f'got {value!r} (expected > 0 and finite — `inf` makes '
+            'threading.Timer wait forever, `nan` is undefined)'
         )
         raise RuntimeError(msg)
 

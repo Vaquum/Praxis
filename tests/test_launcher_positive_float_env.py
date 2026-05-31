@@ -57,5 +57,29 @@ def test_zero_env_raises(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_negative_env_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('NEXUS_TEST_INTERVAL_SECONDS', '-5')
 
-    with pytest.raises(RuntimeError, match=r'must be a positive number'):
+    with pytest.raises(RuntimeError, match=r'must be a positive, finite number'):
+        _positive_float_env('NEXUS_TEST_INTERVAL_SECONDS', 30.0)
+
+
+def test_inf_env_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    '''Pin: `float("inf") <= 0` is False; without an explicit
+    finiteness guard, the value propagates to `threading.Timer` and
+    silently disables the scheduler (timer never fires).
+    '''
+
+    monkeypatch.setenv('NEXUS_TEST_INTERVAL_SECONDS', 'inf')
+
+    with pytest.raises(RuntimeError, match=r'must be a positive, finite number'):
+        _positive_float_env('NEXUS_TEST_INTERVAL_SECONDS', 30.0)
+
+
+def test_nan_env_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    '''Pin: `float("nan") <= 0` is False; without an explicit
+    finiteness guard, the NaN propagates to `threading.Timer` with
+    undefined behaviour.
+    '''
+
+    monkeypatch.setenv('NEXUS_TEST_INTERVAL_SECONDS', 'nan')
+
+    with pytest.raises(RuntimeError, match=r'must be a positive, finite number'):
         _positive_float_env('NEXUS_TEST_INTERVAL_SECONDS', 30.0)
