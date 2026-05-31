@@ -34,6 +34,7 @@ from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
 from nexus.core.health_loop import HealthLoop
+from nexus.core.mtm_loop import MtmLoop
 from nexus.core.outcome_loop import OutcomeLoop
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import (
@@ -63,6 +64,7 @@ from nexus.infrastructure.praxis_connector.order_context import OrderContext
 from nexus.infrastructure.praxis_connector.outcome_processor import OutcomeProcessor
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
+from nexus.infrastructure.snapshot_scheduler import SnapshotScheduler
 from nexus.infrastructure.praxis_connector.trade_outcome import (
     TradeOutcome as NexusTradeOutcome,
 )
@@ -126,6 +128,43 @@ _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
 _DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
+_DEFAULT_SNAPSHOT_INTERVAL_SECONDS = 300.0
+_DEFAULT_MTM_INTERVAL_SECONDS = 30.0
+
+
+def _positive_float_env(name: str, default: float) -> float:
+    '''Parse a positive-numeric env var with operator-visible error on typo.
+
+    Bare `float(os.environ.get(name, default))` crashes with an opaque
+    `ValueError: could not convert string to float: ...` that surfaces
+    as a per-account thread death (caught by `_run_nexus_instance`'s
+    BLE001) with no operator-actionable signal. This helper validates
+    the value and raises `RuntimeError` with the env var name + value +
+    expected shape, which propagates through the same catch and is
+    visible in the launcher's structured log.
+    '''
+
+    raw = os.environ.get(name)
+    if raw is None or raw == '':
+        return default
+
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        msg = (
+            f'env var {name}={raw!r} is not a valid number; '
+            f'expected positive float (e.g. {default!r})'
+        )
+        raise RuntimeError(msg) from exc
+
+    if value <= 0:
+        msg = (
+            f'env var {name}={raw!r} must be a positive number; '
+            f'got {value!r} (expected > 0)'
+        )
+        raise RuntimeError(msg)
+
+    return value
 _ZERO = Decimal('0')
 _HUNDRED = Decimal('100')
 
@@ -1071,6 +1110,8 @@ class _NexusRuntime:
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
     health_loop: HealthLoop
+    snapshot_scheduler: SnapshotScheduler
+    mtm_loop: MtmLoop
     outcome_processor: OutcomeProcessor
     process_outcome: Callable[[NexusTradeOutcome], None]
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -1477,6 +1518,8 @@ class Launcher:
             self._stop_event.wait()
 
             runtime.health_loop.stop()
+            runtime.mtm_loop.stop()
+            runtime.snapshot_scheduler.stop()
 
             shutdown = ShutdownSequencer(
                 runner=runtime.runner,
@@ -1820,6 +1863,38 @@ class Launcher:
         )
         health_loop.start()
 
+        snapshot_interval = _positive_float_env(
+            'NEXUS_SNAPSHOT_INTERVAL_SECONDS',
+            _DEFAULT_SNAPSHOT_INTERVAL_SECONDS,
+        )
+        snapshot_scheduler = SnapshotScheduler(
+            state_store=state_store,
+            state=state,
+            interval_seconds=snapshot_interval,
+            positions_lock=positions_lock,
+            capital_lock_cm=capital_controller.lock_cm,
+        )
+        snapshot_scheduler.start()
+
+        mtm_interval = _positive_float_env(
+            'NEXUS_MTM_INTERVAL_SECONDS',
+            _DEFAULT_MTM_INTERVAL_SECONDS,
+        )
+
+        def mark_price_provider(symbol: str) -> Decimal | None:
+            if symbol != _DEFAULT_SYMBOL:
+                return None
+
+            return _last_close_from_poller(self._poller, kline_sizes)
+
+        mtm_loop = MtmLoop(
+            state=state,
+            mark_price_provider=mark_price_provider,
+            interval_seconds=mtm_interval,
+            positions_lock=positions_lock,
+        )
+        mtm_loop.start()
+
         return _NexusRuntime(
             state_store=state_store,
             sequencer=sequencer,
@@ -1835,6 +1910,8 @@ class Launcher:
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
             health_loop=health_loop,
+            snapshot_scheduler=snapshot_scheduler,
+            mtm_loop=mtm_loop,
             outcome_processor=outcome_processor,
             process_outcome=process_outcome,
             positions_lock=positions_lock,
