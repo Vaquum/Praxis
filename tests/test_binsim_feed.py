@@ -405,3 +405,207 @@ async def test_poll_once_raises_on_non_finite_decimal_in_book() -> None:
 
     with pytest.raises(ValueError, match='must be a finite decimal'):
         await poller.poll_once()
+
+
+@pytest.mark.parametrize('floor', [Decimal('0'), Decimal('-0.1'), Decimal('-1')])
+def test_constructor_rejects_non_positive_min_top20_depth(floor: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='min_top20_depth_btc must be a positive'):
+        DepthPoller(OrderBook(), _URL, _TOKEN, min_top20_depth_btc=floor)
+
+
+@pytest.mark.parametrize('raw', ['NaN', 'Infinity', '-Infinity'])
+def test_constructor_rejects_non_finite_min_top20_depth(raw: str) -> None:
+
+    with pytest.raises(ValueError, match='min_top20_depth_btc must be a positive'):
+        DepthPoller(OrderBook(), _URL, _TOKEN, min_top20_depth_btc=Decimal(raw))
+
+
+@pytest.mark.parametrize('limit', [0, -1])
+def test_constructor_rejects_non_positive_stuck_polls(limit: int) -> None:
+
+    with pytest.raises(ValueError, match='max_stuck_update_id_polls must be >= 1'):
+        DepthPoller(OrderBook(), _URL, _TOKEN, max_stuck_update_id_polls=limit)
+
+
+def _thin_payload(ask_qty: str, bid_qty: str, last_update_id: int = 1) -> dict[str, Any]:
+
+    return {
+        't': 1_700_000_000_000,
+        'd': {
+            'lastUpdateId': last_update_id,
+            'bids': [['100.00', bid_qty]],
+            'asks': [['101.00', ask_qty]],
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_poll_once_rejects_when_ask_depth_below_floor() -> None:
+
+    book = OrderBook()
+    poller = DepthPoller(
+        book, _URL, _TOKEN, poll_interval_ms=50,
+        min_top20_depth_btc=Decimal('0.5'),
+    )
+    _attach_mock_session(poller, _mock_response(200, _thin_payload('0.01', '1.0')))
+
+    await poller.poll_once()
+
+    # Pin: rejected snapshots must not touch the book or
+    # `last_success_ts_ms` — the staleness gate is the operator's
+    # cue, and surfacing rejection via the gate keeps the failure
+    # mode aligned with all other depth-source pathologies.
+    assert poller.last_success_ts_ms == 0
+    assert book.last_update_id == 0
+    assert book.asks == []
+    assert book.bids == []
+
+
+@pytest.mark.asyncio
+async def test_poll_once_rejects_when_bid_depth_below_floor() -> None:
+
+    book = OrderBook()
+    poller = DepthPoller(
+        book, _URL, _TOKEN, poll_interval_ms=50,
+        min_top20_depth_btc=Decimal('0.5'),
+    )
+    _attach_mock_session(poller, _mock_response(200, _thin_payload('1.0', '0.01')))
+
+    await poller.poll_once()
+
+    assert poller.last_success_ts_ms == 0
+    assert book.last_update_id == 0
+
+
+@pytest.mark.asyncio
+async def test_poll_once_accepts_when_depth_meets_floor() -> None:
+
+    book = OrderBook()
+    poller = DepthPoller(
+        book, _URL, _TOKEN, poll_interval_ms=50,
+        min_top20_depth_btc=Decimal('0.5'),
+    )
+    _attach_mock_session(poller, _mock_response(200, _thin_payload('0.5', '0.5')))
+
+    await poller.poll_once()
+
+    assert poller.last_success_ts_ms > 0
+    assert book.last_update_id == 1
+
+
+@pytest.mark.asyncio
+async def test_poll_once_rejects_after_stuck_update_id_threshold() -> None:
+
+    book = OrderBook()
+    poller = DepthPoller(
+        book, _URL, _TOKEN, poll_interval_ms=50,
+        max_stuck_update_id_polls=3,
+    )
+
+    same = {
+        't': 1_700_000_000_000,
+        'd': {
+            'lastUpdateId': 42,
+            'bids': [['100.00', '1.0'], ['99.50', '2.0']],
+            'asks': [['101.00', '1.0'], ['101.50', '2.0']],
+        },
+    }
+    session = MagicMock()
+    contexts = []
+
+    for _ in range(5):
+        resp = _mock_response(200, same)
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=resp)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        contexts.append(ctx)
+
+    session.get = MagicMock(side_effect=contexts)
+    session.close = AsyncMock()
+    session.closed = False
+    poller._session = session
+
+    # Polls 1-3: id is "new each time" relative to the previous one
+    # (count resets to 0 then increments). Threshold = 3 means we
+    # reject starting on poll 4 (count reaches 3).
+    await poller.poll_once()
+    first_ts = poller.last_success_ts_ms
+    assert first_ts > 0
+
+    await poller.poll_once()
+    await poller.poll_once()
+    third_ts = poller.last_success_ts_ms
+    assert third_ts >= first_ts
+
+    await poller.poll_once()
+    # Fourth poll trips threshold and is rejected — ts stays at the
+    # last accepted poll's wall-clock.
+    assert poller.last_success_ts_ms == third_ts
+
+
+@pytest.mark.asyncio
+async def test_poll_once_resets_stuck_counter_on_new_update_id() -> None:
+
+    book = OrderBook()
+    poller = DepthPoller(
+        book, _URL, _TOKEN, poll_interval_ms=50,
+        max_stuck_update_id_polls=3,
+    )
+
+    def make_payload(last_update_id: int) -> dict[str, Any]:
+
+        return {
+            't': 1_700_000_000_000,
+            'd': {
+                'lastUpdateId': last_update_id,
+                'bids': [['100.00', '1.0'], ['99.50', '2.0']],
+                'asks': [['101.00', '1.0'], ['101.50', '2.0']],
+            },
+        }
+
+    payloads = [make_payload(1), make_payload(1), make_payload(2), make_payload(2)]
+    session = MagicMock()
+    contexts = []
+
+    for p in payloads:
+        resp = _mock_response(200, p)
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=resp)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        contexts.append(ctx)
+
+    session.get = MagicMock(side_effect=contexts)
+    session.close = AsyncMock()
+    session.closed = False
+    poller._session = session
+
+    for _ in range(4):
+        await poller.poll_once()
+
+    # All four polls accepted: the new lastUpdateId on poll 3 resets
+    # the counter, so neither pair on its own crosses the threshold.
+    assert poller.last_success_ts_ms > 0
+    assert book.last_update_id == 2
+
+
+@pytest.mark.asyncio
+async def test_poll_once_emits_success_diagnostic_log(
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+
+    poller = _make_poller()
+    _attach_mock_session(poller, _mock_response(200, _PAYLOAD))
+
+    await poller.poll_once()
+
+    captured = capfd.readouterr()
+    combined = captured.out + captured.err
+    assert 'depth poll succeeded' in combined
+    # Pin: the diagnostic must include the magnitude and best-of-book
+    # values an operator needs to spot a degraded upstream snapshot.
+    assert 'ask_top_n_qty' in combined
+    assert 'bid_top_n_qty' in combined
+    assert 'best_ask_price' in combined
+    assert 'best_bid_price' in combined
+    assert 'last_update_id=12345' in combined

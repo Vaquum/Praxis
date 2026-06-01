@@ -21,6 +21,9 @@ _log = get_logger(__name__)
 
 _DEFAULT_POLL_INTERVAL_MS = 1000
 _DEFAULT_REQUEST_TIMEOUT_S = 5.0
+_DEFAULT_MIN_TOP20_DEPTH_BTC = Decimal('0.05')
+_DEFAULT_MAX_STUCK_UPDATE_ID_POLLS = 5
+_TOP_N_LEVELS = 20
 _HTTP_OK = 200
 
 
@@ -47,6 +50,24 @@ class DepthPoller:
     logged and the loop continues at the same cadence — the staleness
     gate naturally surfaces persistent failure by observing
     `last_success_ts_ms` falling behind wall-clock.
+
+    Beyond shape validation, two policy rejections also leave the book
+    untouched and `last_success_ts_ms` unadvanced:
+
+      - magnitude floor: a snapshot whose top-N depth on either side
+        sums to less than `min_top20_depth_btc` is treated as
+        pathological (truncated, cold-start, wrong-symbol, mirror-bug)
+        and rejected. Real Binance BTCUSDT top-20 sits at multiple
+        BTC per side; a sub-`0.05` BTC snapshot has historically
+        meant a degraded upstream rather than a real market state.
+      - stuck `lastUpdateId`: real Binance advances `lastUpdateId` on
+        every diff, so an upstream that serves the identical id
+        across `max_stuck_update_id_polls` consecutive polls has
+        frozen even if shape- and magnitude-valid.
+
+    Both rejection paths log at ERROR with the offending values, so a
+    persistent upstream problem is louder than a flaky network and
+    diagnosable from the binsim's own log surface.
     '''
 
     def __init__(
@@ -56,6 +77,8 @@ class DepthPoller:
         token: str,
         poll_interval_ms: int = _DEFAULT_POLL_INTERVAL_MS,
         request_timeout_s: float = _DEFAULT_REQUEST_TIMEOUT_S,
+        min_top20_depth_btc: Decimal = _DEFAULT_MIN_TOP20_DEPTH_BTC,
+        max_stuck_update_id_polls: int = _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS,
     ) -> None:
 
         if poll_interval_ms <= 0:
@@ -70,16 +93,30 @@ class DepthPoller:
         if not token:
             raise ValueError('token cannot be empty')
 
+        if not min_top20_depth_btc.is_finite() or min_top20_depth_btc <= 0:
+            raise ValueError(
+                f'min_top20_depth_btc must be a positive, finite Decimal, got {min_top20_depth_btc}'
+            )
+
+        if max_stuck_update_id_polls < 1:
+            raise ValueError(
+                f'max_stuck_update_id_polls must be >= 1, got {max_stuck_update_id_polls}'
+            )
+
         self._book = book
         self._url = url
         self._token = token
         self._poll_interval_s = poll_interval_ms / 1000.0
         self._request_timeout = aiohttp.ClientTimeout(total=request_timeout_s)
+        self._min_top20_depth_btc = min_top20_depth_btc
+        self._max_stuck_update_id_polls = max_stuck_update_id_polls
 
         self._session: aiohttp.ClientSession | None = None
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
         self._last_success_ts_ms = 0
+        self._previous_last_update_id = 0
+        self._stuck_update_id_count = 0
 
     @property
     def last_success_ts_ms(self) -> int:
@@ -151,6 +188,59 @@ class DepthPoller:
             payload = await response.json(content_type=None)
 
         ts_ms, last_update_id, bids, asks = self._parse_payload(payload)
+
+        # Magnitude floor: an upstream snapshot whose top-N depth on
+        # either side sums to less than `min_top20_depth_btc` is
+        # treated as pathological (truncated, cold-start, wrong-symbol,
+        # mirror-bug) and rejected without mutating the book or
+        # `_last_success_ts_ms`. The HTTP staleness gate (in
+        # `server._submit_order`) will fire after its threshold and
+        # surface the upstream problem as `-1003` rejections, instead
+        # of binsim walking a thin garbage book and producing a burst
+        # of `insufficient book liquidity` rejections that look like
+        # market signal to the health evaluator.
+        ask_depth = sum((qty for _, qty in asks[:_TOP_N_LEVELS]), Decimal('0'))
+        bid_depth = sum((qty for _, qty in bids[:_TOP_N_LEVELS]), Decimal('0'))
+
+        if ask_depth < self._min_top20_depth_btc or bid_depth < self._min_top20_depth_btc:
+            _log.error(
+                'depth poll rejected — top-N magnitude below floor',
+                ask_top_n_qty=str(ask_depth),
+                bid_top_n_qty=str(bid_depth),
+                floor=str(self._min_top20_depth_btc),
+                top_n=_TOP_N_LEVELS,
+                last_update_id=last_update_id,
+                ts_ms=ts_ms,
+            )
+
+            return
+
+        # Stuck-`last_update_id` detector: a real Binance depth-20
+        # stream advances `lastUpdateId` on every diff. If the upstream
+        # mirror serves the identical `lastUpdateId` across
+        # `max_stuck_update_id_polls` consecutive polls, its book is
+        # frozen even if shape- and magnitude-valid. Reject the
+        # replace so the staleness gate fires the next time the gate
+        # window elapses. The counter is updated unconditionally so a
+        # poll arriving with a fresh id resets the suspicion.
+        if last_update_id == self._previous_last_update_id:
+            self._stuck_update_id_count += 1
+        else:
+            self._stuck_update_id_count = 0
+
+        self._previous_last_update_id = last_update_id
+
+        if self._stuck_update_id_count >= self._max_stuck_update_id_polls:
+            _log.error(
+                'depth poll rejected — last_update_id stuck across consecutive polls',
+                last_update_id=last_update_id,
+                stuck_count=self._stuck_update_id_count,
+                threshold=self._max_stuck_update_id_polls,
+                ts_ms=ts_ms,
+            )
+
+            return
+
         self._book.replace(bids, asks, last_update_id, ts_ms)
         # Record local wall-clock at receipt, NOT the upstream `t`.
         # The HTTP layer's staleness gate compares this against its
@@ -165,6 +255,23 @@ class DepthPoller:
         # endpoint deliberately omits it too to keep the shape
         # exactly Binance-compatible.
         self._last_success_ts_ms = int(time.time() * 1000)
+
+        # Per-poll success diagnostic: emit a single structured INFO
+        # line every successful poll so operators can audit what
+        # binsim served across time. Without this, a future
+        # depth-source pathology produces only the resulting order
+        # rejections in Praxis — the upstream cause is invisible.
+        _log.info(
+            'depth poll succeeded',
+            ask_top_n_qty=str(ask_depth),
+            bid_top_n_qty=str(bid_depth),
+            best_ask_price=str(asks[0][0]),
+            best_ask_qty=str(asks[0][1]),
+            best_bid_price=str(bids[0][0]),
+            best_bid_qty=str(bids[0][1]),
+            last_update_id=last_update_id,
+            ts_ms=ts_ms,
+        )
 
     async def _poll_loop(self) -> None:
 
