@@ -763,3 +763,31 @@ The only operator signal will be a per-tick WARN log (`MtmLoop: mark price unava
 **Migration**: Extend [`MainCache`](praxis/market_data_cache.py) and [`_last_close_from_poller`](praxis/launcher.py) (and downstream the Limen bundle layer + `_DEFAULT_SYMBOL` usage in [`praxis/launcher.py`](praxis/launcher.py)) to be per-symbol-keyed rather than BTCUSDT-only. Concretely: replace `_last_close_from_poller(self._poller, kline_sizes)` with a per-symbol lookup `self._poller.get_last_close(symbol, kline_size)` and either (a) wire a `symbol_to_kline_size` map from the manifest so the MTM provider can resolve symbol → kline → last close, or (b) standardise on a single kline size for MTM (e.g. 60s) and key purely by symbol. The MTM provider then returns the per-symbol last close instead of `None`, and `MtmLoop` ticks proceed for any subset of symbols that have a fresh cache entry. The "abort on `None`" semantics is still correct for any symbol whose cache is empty / stale — it's the silent BTCUSDT-only fallback that's the issue.
 
 A defensive intermediate: add a per-account or boot-time assertion that every symbol referenced by the manifest's wired sensors is in `kline_sizes` AND has a working last-close lookup; refuse to boot otherwise. Catches the misconfiguration loudly rather than letting it surface as a slow degradation in MTM.
+
+## TD-070: `DepthPoller` success diagnostic logs at INFO on every poll
+
+**Origin**: Greybeard pre-PR review of `feat/binsim-depth-replica-guards` (v0.70.0 binsim depth-replica guards)
+**Severity**: Low — operationally noisy but not a correctness issue
+**Module**: [`praxis/binsim/feed.py`](praxis/binsim/feed.py) — the `_log.info('depth poll succeeded', ...)` block after `book.replace` in `poll_once`
+
+The per-poll INFO diagnostic added in v0.70.0 fires on every successful upstream poll, so the binsim container log gains roughly `86,400 lines/day` at the default `BINSIM_POLL_INTERVAL_MS=1000` cadence. The volume is what the post-mortem-visibility goal required — operators need a continuous timeseries of what binsim was serving to reconstruct future incidents — but error/anomaly-only logging would carry the bulk of the diagnostic signal at ~1% of the line volume, and the persistent volume bumps the container's `json-file` log driver through its `max-size=50m`, `max-file=5` rotation window faster than the underlying app events do.
+
+**When to fix**: When the binsim log volume starts displacing useful Praxis logs in the rotated tail (i.e. when a post-mortem opens and the relevant Praxis events have already aged out because binsim depth lines pushed them past the 5×50MB window), OR when a metrics path lands and the per-poll snapshot can be emitted as a metric instead of a log line.
+
+**Migration**: Either (a) downgrade the per-poll log to DEBUG and add a once-per-N-polls INFO heartbeat (where N is env-tunable, e.g. `BINSIM_DEPTH_LOG_INTERVAL_POLLS=60` for one INFO line per minute at the 1Hz default) — preserves operator visibility at 1.6% of the current volume, or (b) emit the per-poll snapshot as a structured metric (Prometheus / statsd / OTLP) and drop the diagnostic log entirely, letting the metrics path carry the timeseries. (b) is the cleaner long-term solution but requires a metrics dependency the binsim does not currently have.
+
+## TD-071: `DepthPoller` magnitude floor uses one symmetric threshold for ask AND bid
+
+**Origin**: Greybeard pre-PR review of `feat/binsim-depth-replica-guards` (v0.70.0 binsim depth-replica guards)
+**Severity**: Low today (current upstream + buy-only deployment have asymmetric tolerance for bid-side thinness), elevated the day either condition changes
+**Module**: [`praxis/binsim/feed.py`](praxis/binsim/feed.py) — the `if ask_depth < self._min_top20_depth_btc or bid_depth < self._min_top20_depth_btc:` check in `poll_once`
+
+The magnitude floor applies `min_top20_depth_btc` to both `ask_depth` and `bid_depth` with `or`. The live upstream mirror shows a persistent ask/bid asymmetry — observed at `5.64 BTC ask top-20` vs `0.41 BTC bid top-20` during the v0.70.0 work — and the current deployment is buy-only (sells only on exit), so ask-side thinness is the operational risk and bid-side thinness is mostly cosmetic. With one symmetric threshold any future tightening of `BINSIM_MIN_TOP20_DEPTH_BTC` past the current bid-side depth (e.g. raising the floor to 0.5 BTC) would force every poll to reject on the bid side even when the ask side — the side actually walked by every buy entry order — is healthy.
+
+**When to fix**: When the operational depth floor needs to be raised past the upstream's typical bid-side depth (i.e. when a future incident reveals ask-side thinness in the `0.05 – 0.5 BTC` range that the current floor misses, AND raising the floor would symmetrically reject every normal bid snapshot), OR when the deployment adds a sell-side strategy that materially depends on bid liquidity.
+
+**Migration**: Split the single threshold into two:
+- `min_top20_ask_depth_btc` + `min_top20_bid_depth_btc` poller fields, with env vars `BINSIM_MIN_TOP20_ASK_DEPTH_BTC` and `BINSIM_MIN_TOP20_BID_DEPTH_BTC`.
+- Both default to `min_top20_depth_btc` (for backward compatibility — the existing single env var stays the "set both" knob, the new ones override per side).
+- The startup log surfaces all three values so an operator can see whether they configured asymmetric thresholds.
+- The rejection log already includes per-side `ask_top_n_qty` / `bid_top_n_qty` so operators can already see which side tripped; the migration only adds per-side configurability, not per-side diagnostics.

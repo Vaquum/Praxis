@@ -87,6 +87,8 @@ To revert: unset `BINSIM_URL`. Praxis falls back to testnet immediately on next 
 | `BINSIM_DEPTH_URL` | no | hosted URL | Override only for alt-source experiments |
 | `BINSIM_STALENESS_MS` | no | `5000` | Order-rejection threshold |
 | `BINSIM_POLL_INTERVAL_MS` | no | `1000` | Poll cadence to the depth source |
+| `BINSIM_MIN_TOP20_DEPTH_BTC` | no | `0.05` | Reject snapshots whose top-20 depth on either side sums below this floor; book + `last_success_ts_ms` stay untouched so the 5 s HTTP staleness gate surfaces the upstream as `-1003`. Must be a positive, finite Decimal |
+| `BINSIM_MAX_STUCK_UPDATE_ID_POLLS` | no | `5` | Reject after this many consecutive polls returning the same `lastUpdateId`. Meaningful minimum is `2` (baseline + one repeat); the parser rejects `1` to prevent silently bricking the feed |
 
 ## Sample `docker-compose` Wiring
 

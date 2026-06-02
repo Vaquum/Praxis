@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,8 @@ def test_parses_minimum_required_env_with_defaults() -> None:
     assert config.depth_url == 'https://binance-spot-depth20-1000ms.onrender.com/top20'
     assert config.staleness_threshold_ms == 5000
     assert config.poll_interval_ms == 1000
+    assert config.min_top20_depth_btc == Decimal('0.05')
+    assert config.max_stuck_update_id_polls == 5
 
 
 def test_parses_full_env_overrides() -> None:
@@ -37,6 +40,8 @@ def test_parses_full_env_overrides() -> None:
         'BINSIM_DEPTH_URL': 'https://example.com/top20',
         'BINSIM_STALENESS_MS': '7500',
         'BINSIM_POLL_INTERVAL_MS': '500',
+        'BINSIM_MIN_TOP20_DEPTH_BTC': '0.25',
+        'BINSIM_MAX_STUCK_UPDATE_ID_POLLS': '10',
     }
 
     config = _parse_env(env)
@@ -46,6 +51,8 @@ def test_parses_full_env_overrides() -> None:
     assert config.depth_url == 'https://example.com/top20'
     assert config.staleness_threshold_ms == 7500
     assert config.poll_interval_ms == 500
+    assert config.min_top20_depth_btc == Decimal('0.25')
+    assert config.max_stuck_update_id_polls == 10
 
 
 @pytest.mark.parametrize('missing_var', ['BINSIM_DEPTH_TOKEN', 'BINSIM_STATE_DIR'])
@@ -97,6 +104,42 @@ def test_empty_optional_string_falls_back_to_default() -> None:
     config = _parse_env(env)
     assert config.host == '0.0.0.0'  # noqa: S104 — bind-all is the documented default
     assert config.depth_url == 'https://binance-spot-depth20-1000ms.onrender.com/top20'
+
+
+@pytest.mark.parametrize(
+    'raw',
+    ['not-a-decimal', 'NaN', 'Infinity', '-Infinity', '0', '-0.1', '-1'],
+)
+def test_invalid_min_top20_depth_btc_raises(raw: str) -> None:
+
+    env = {**_BASE_ENV, 'BINSIM_MIN_TOP20_DEPTH_BTC': raw}
+
+    with pytest.raises(RuntimeError, match='BINSIM_MIN_TOP20_DEPTH_BTC'):
+        _parse_env(env)
+
+
+def test_blank_min_top20_depth_btc_falls_back_to_default() -> None:
+
+    env = {**_BASE_ENV, 'BINSIM_MIN_TOP20_DEPTH_BTC': '   '}
+
+    config = _parse_env(env)
+
+    assert config.min_top20_depth_btc == Decimal('0.05')
+
+
+@pytest.mark.parametrize('raw', ['0', '-1', '1', 'not-int', '1.5'])
+def test_invalid_max_stuck_update_id_polls_raises(raw: str) -> None:
+    '''Pin: `1` is invalid too because the meaningful minimum is 2.
+
+    The env parser delegates to `_parse_int_env(..., min_value=2)`,
+    so `1` is rejected at parse time with the same RuntimeError
+    that catches `0` / `-1` / non-int / float.
+    '''
+
+    env = {**_BASE_ENV, 'BINSIM_MAX_STUCK_UPDATE_ID_POLLS': raw}
+
+    with pytest.raises(RuntimeError, match='BINSIM_MAX_STUCK_UPDATE_ID_POLLS'):
+        _parse_env(env)
 
 
 def test_register_subcommand_prints_api_key(

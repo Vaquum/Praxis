@@ -38,6 +38,8 @@ _DEFAULT_PORT = 8081
 _DEFAULT_DEPTH_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
 _DEFAULT_STALENESS_MS = 5000
 _DEFAULT_POLL_INTERVAL_MS = 1000
+_DEFAULT_MIN_TOP20_DEPTH_BTC = Decimal('0.05')
+_DEFAULT_MAX_STUCK_UPDATE_ID_POLLS = 5
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,8 @@ class _Config:
     state_dir: Path
     staleness_threshold_ms: int
     poll_interval_ms: int
+    min_top20_depth_btc: Decimal
+    max_stuck_update_id_polls: int
 
 
 def _parse_env(env: dict[str, str]) -> _Config:
@@ -61,11 +65,13 @@ def _parse_env(env: dict[str, str]) -> _Config:
         BINSIM_STATE_DIR        Directory for the ledger snapshot (created if missing).
 
     Optional:
-        BINSIM_HOST             Bind host (default 0.0.0.0).
-        BINSIM_PORT             Bind port (default 8081).
-        BINSIM_DEPTH_URL        Hosted depth source (default vaquum-hosted URL).
-        BINSIM_STALENESS_MS     Order-rejection threshold in ms (default 5000).
-        BINSIM_POLL_INTERVAL_MS Poll cadence in ms (default 1000).
+        BINSIM_HOST                       Bind host (default 0.0.0.0).
+        BINSIM_PORT                       Bind port (default 8081).
+        BINSIM_DEPTH_URL                  Hosted depth source (default vaquum-hosted URL).
+        BINSIM_STALENESS_MS               Order-rejection threshold in ms (default 5000).
+        BINSIM_POLL_INTERVAL_MS           Poll cadence in ms (default 1000).
+        BINSIM_MIN_TOP20_DEPTH_BTC        Reject snapshots whose top-20 depth on either side sums below this floor (default 0.05).
+        BINSIM_MAX_STUCK_UPDATE_ID_POLLS  Reject after this many consecutive polls returning the same lastUpdateId (default 5).
     '''
 
     depth_token = env.get('BINSIM_DEPTH_TOKEN', '').strip()
@@ -89,6 +95,12 @@ def _parse_env(env: dict[str, str]) -> _Config:
     poll_interval_ms = _parse_int_env(
         env, 'BINSIM_POLL_INTERVAL_MS', _DEFAULT_POLL_INTERVAL_MS, min_value=1,
     )
+    min_top20_depth_btc = _parse_positive_decimal_env(
+        env, 'BINSIM_MIN_TOP20_DEPTH_BTC', _DEFAULT_MIN_TOP20_DEPTH_BTC,
+    )
+    max_stuck_update_id_polls = _parse_int_env(
+        env, 'BINSIM_MAX_STUCK_UPDATE_ID_POLLS', _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS, min_value=2,
+    )
 
     return _Config(
         host=host,
@@ -98,6 +110,8 @@ def _parse_env(env: dict[str, str]) -> _Config:
         state_dir=Path(state_dir_raw),
         staleness_threshold_ms=staleness_threshold_ms,
         poll_interval_ms=poll_interval_ms,
+        min_top20_depth_btc=min_top20_depth_btc,
+        max_stuck_update_id_polls=max_stuck_update_id_polls,
     )
 
 
@@ -132,6 +146,30 @@ def _parse_int_env(
     return value
 
 
+def _parse_positive_decimal_env(
+    env: dict[str, str],
+    name: str,
+    default: Decimal,
+) -> Decimal:
+
+    raw = env.get(name, '').strip()
+
+    if not raw:
+        return default
+
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as exc:
+        msg = f'{name} must be a valid decimal, got {raw!r}'
+        raise RuntimeError(msg) from exc
+
+    if not value.is_finite() or value <= 0:
+        msg = f'{name} must be a positive, finite decimal, got {raw!r}'
+        raise RuntimeError(msg)
+
+    return value
+
+
 async def _run(config: _Config) -> None:
 
     log = get_logger(__name__)
@@ -146,6 +184,8 @@ async def _run(config: _Config) -> None:
         config.depth_url,
         config.depth_token,
         poll_interval_ms=config.poll_interval_ms,
+        min_top20_depth_btc=config.min_top20_depth_btc,
+        max_stuck_update_id_polls=config.max_stuck_update_id_polls,
     )
 
     server = BinsimServer(
@@ -180,6 +220,8 @@ async def _run(config: _Config) -> None:
             depth_url=config.depth_url,
             staleness_threshold_ms=config.staleness_threshold_ms,
             poll_interval_ms=config.poll_interval_ms,
+            min_top20_depth_btc=str(config.min_top20_depth_btc),
+            max_stuck_update_id_polls=config.max_stuck_update_id_polls,
             accounts=sorted(await ledger.accounts()),
         )
 
