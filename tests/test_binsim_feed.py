@@ -514,7 +514,7 @@ async def test_poll_once_rejects_after_stuck_update_id_threshold() -> None:
     session = MagicMock()
     contexts = []
 
-    for _ in range(5):
+    for _ in range(4):
         resp = _mock_response(200, same)
         ctx = MagicMock()
         ctx.__aenter__ = AsyncMock(return_value=resp)
@@ -526,22 +526,26 @@ async def test_poll_once_rejects_after_stuck_update_id_threshold() -> None:
     session.closed = False
     poller._session = session
 
-    # Polls 1-3: id is "new each time" relative to the previous one
-    # (count resets to 0 then increments). Threshold = 3 means we
-    # reject starting on poll 4 (count reaches 3).
+    # Threshold = 3 means "reject on the 3rd consecutive identical
+    # poll". Poll 1 establishes the baseline (count=1), poll 2 makes
+    # count=2, poll 3 makes count=3 → reject. The 4th poll is also
+    # rejected and confirms the counter does not advance past the
+    # rejection (still rejecting on the same threshold).
     await poller.poll_once()
     first_ts = poller.last_success_ts_ms
     assert first_ts > 0
 
     await poller.poll_once()
-    await poller.poll_once()
-    third_ts = poller.last_success_ts_ms
-    assert third_ts >= first_ts
+    second_ts = poller.last_success_ts_ms
+    assert second_ts >= first_ts
 
     await poller.poll_once()
-    # Fourth poll trips threshold and is rejected — ts stays at the
-    # last accepted poll's wall-clock.
-    assert poller.last_success_ts_ms == third_ts
+    # Third identical poll trips threshold — ts stays at the last
+    # accepted poll's wall-clock.
+    assert poller.last_success_ts_ms == second_ts
+
+    await poller.poll_once()
+    assert poller.last_success_ts_ms == second_ts
 
 
 @pytest.mark.asyncio
@@ -602,10 +606,14 @@ async def test_poll_once_emits_success_diagnostic_log(
     captured = capfd.readouterr()
     combined = captured.out + captured.err
     assert 'depth poll succeeded' in combined
-    # Pin: the diagnostic must include the magnitude and best-of-book
-    # values an operator needs to spot a degraded upstream snapshot.
+    # Pin: the diagnostic must include the magnitude, best-of-book,
+    # AND level counts an operator needs to spot a degraded or
+    # truncated upstream snapshot. A 3-level payload summing to a
+    # value above the floor would otherwise pass the gate silently.
     assert 'ask_top_n_qty' in combined
     assert 'bid_top_n_qty' in combined
+    assert 'ask_levels_in_payload=2' in combined
+    assert 'bid_levels_in_payload=2' in combined
     assert 'best_ask_price' in combined
     assert 'best_bid_price' in combined
     assert 'last_update_id=12345' in combined

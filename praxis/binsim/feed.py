@@ -23,7 +23,13 @@ _DEFAULT_POLL_INTERVAL_MS = 1000
 _DEFAULT_REQUEST_TIMEOUT_S = 5.0
 _DEFAULT_MIN_TOP20_DEPTH_BTC = Decimal('0.05')
 _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS = 5
-_TOP_N_LEVELS = 20
+# The hosted depth source serves exactly 20 levels per side
+# (`binance-spot-depth20-1000ms.onrender.com`), and the magnitude
+# floor name + env var both bake "TOP20" in to lock the operator's
+# mental model to that width. If the gate width ever needs to
+# change, the env var name, default constant, and class docstring
+# all move together.
+_TOP_20_LEVELS = 20
 _HTTP_OK = 200
 
 
@@ -55,15 +61,20 @@ class DepthPoller:
     untouched and `last_success_ts_ms` unadvanced:
 
       - magnitude floor: a snapshot whose top-N depth on either side
-        sums to less than `min_top20_depth_btc` is treated as
-        pathological (truncated, cold-start, wrong-symbol, mirror-bug)
-        and rejected. Real Binance BTCUSDT top-20 sits at multiple
-        BTC per side; a sub-`0.05` BTC snapshot has historically
-        meant a degraded upstream rather than a real market state.
+        sums to less than `min_top20_depth_btc` (env-tunable; see
+        `BINSIM_MIN_TOP20_DEPTH_BTC` and the configured value in the
+        `binsim ready` startup log) is treated as pathological
+        (truncated, cold-start, wrong-symbol, mirror-bug) and
+        rejected. Real Binance BTCUSDT top-20 sits at multiple BTC
+        per side; the historical bad-snapshot range observed on
+        prod is two orders of magnitude below that, so a deployment
+        floor anywhere in between catches the mirror's degraded
+        states without rejecting real market conditions.
       - stuck `lastUpdateId`: real Binance advances `lastUpdateId` on
         every diff, so an upstream that serves the identical id
-        across `max_stuck_update_id_polls` consecutive polls has
-        frozen even if shape- and magnitude-valid.
+        across `max_stuck_update_id_polls` consecutive polls
+        (counting the first observation as poll 1) has frozen even
+        if shape- and magnitude-valid.
 
     Both rejection paths log at ERROR with the offending values, so a
     persistent upstream problem is louder than a flaky network and
@@ -199,16 +210,18 @@ class DepthPoller:
         # of binsim walking a thin garbage book and producing a burst
         # of `insufficient book liquidity` rejections that look like
         # market signal to the health evaluator.
-        ask_depth = sum((qty for _, qty in asks[:_TOP_N_LEVELS]), Decimal('0'))
-        bid_depth = sum((qty for _, qty in bids[:_TOP_N_LEVELS]), Decimal('0'))
+        ask_depth = sum((qty for _, qty in asks[:_TOP_20_LEVELS]), Decimal('0'))
+        bid_depth = sum((qty for _, qty in bids[:_TOP_20_LEVELS]), Decimal('0'))
 
         if ask_depth < self._min_top20_depth_btc or bid_depth < self._min_top20_depth_btc:
             _log.error(
                 'depth poll rejected — top-N magnitude below floor',
                 ask_top_n_qty=str(ask_depth),
                 bid_top_n_qty=str(bid_depth),
+                ask_levels_in_payload=len(asks),
+                bid_levels_in_payload=len(bids),
                 floor=str(self._min_top20_depth_btc),
-                top_n=_TOP_N_LEVELS,
+                top_n=_TOP_20_LEVELS,
                 last_update_id=last_update_id,
                 ts_ms=ts_ms,
             )
@@ -218,15 +231,19 @@ class DepthPoller:
         # Stuck-`last_update_id` detector: a real Binance depth-20
         # stream advances `lastUpdateId` on every diff. If the upstream
         # mirror serves the identical `lastUpdateId` across
-        # `max_stuck_update_id_polls` consecutive polls, its book is
-        # frozen even if shape- and magnitude-valid. Reject the
-        # replace so the staleness gate fires the next time the gate
-        # window elapses. The counter is updated unconditionally so a
-        # poll arriving with a fresh id resets the suspicion.
+        # `max_stuck_update_id_polls` consecutive polls (counting the
+        # first observation as the first poll), its book is frozen
+        # even if shape- and magnitude-valid. Reject the replace so
+        # the staleness gate fires the next time the gate window
+        # elapses. The else branch resets the counter to `1` — not
+        # `0` — so a fresh id counts as observation 1 of itself and
+        # `max_stuck_update_id_polls=N` means "reject on the Nth
+        # consecutive identical poll", matching the operator's
+        # natural reading of the env-var name.
         if last_update_id == self._previous_last_update_id:
             self._stuck_update_id_count += 1
         else:
-            self._stuck_update_id_count = 0
+            self._stuck_update_id_count = 1
 
         self._previous_last_update_id = last_update_id
 
@@ -265,6 +282,8 @@ class DepthPoller:
             'depth poll succeeded',
             ask_top_n_qty=str(ask_depth),
             bid_top_n_qty=str(bid_depth),
+            ask_levels_in_payload=len(asks),
+            bid_levels_in_payload=len(bids),
             best_ask_price=str(asks[0][0]),
             best_ask_qty=str(asks[0][1]),
             best_bid_price=str(bids[0][0]),
