@@ -99,7 +99,7 @@ def _parse_env(env: dict[str, str]) -> _Config:
         env, 'BINSIM_MIN_TOP20_DEPTH_BTC', _DEFAULT_MIN_TOP20_DEPTH_BTC,
     )
     max_stuck_update_id_polls = _parse_int_env(
-        env, 'BINSIM_MAX_STUCK_UPDATE_ID_POLLS', _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS, min_value=1,
+        env, 'BINSIM_MAX_STUCK_UPDATE_ID_POLLS', _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS, min_value=2,
     )
 
     return _Config(

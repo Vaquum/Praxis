@@ -421,10 +421,19 @@ def test_constructor_rejects_non_finite_min_top20_depth(raw: str) -> None:
         DepthPoller(OrderBook(), _URL, _TOKEN, min_top20_depth_btc=Decimal(raw))
 
 
-@pytest.mark.parametrize('limit', [0, -1])
-def test_constructor_rejects_non_positive_stuck_polls(limit: int) -> None:
+@pytest.mark.parametrize('limit', [0, -1, 1])
+def test_constructor_rejects_meaningless_stuck_polls(limit: int) -> None:
+    '''Pin: the meaningful minimum is 2 (baseline + one repeat).
 
-    with pytest.raises(ValueError, match='max_stuck_update_id_polls must be >= 1'):
+    `limit=1` would brick the feed: the first poll sets the
+    counter to 1 (else branch, since `_previous_last_update_id`
+    starts at 0), the threshold check `1 >= 1` immediately
+    rejects, the book never primes, and the rejection log
+    misleadingly claims the id is "stuck across consecutive polls"
+    — even though only one poll has been observed.
+    '''
+
+    with pytest.raises(ValueError, match='max_stuck_update_id_polls must be >= 2'):
         DepthPoller(OrderBook(), _URL, _TOKEN, max_stuck_update_id_polls=limit)
 
 

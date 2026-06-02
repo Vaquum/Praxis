@@ -127,8 +127,14 @@ def test_blank_min_top20_depth_btc_falls_back_to_default() -> None:
     assert config.min_top20_depth_btc == Decimal('0.05')
 
 
-@pytest.mark.parametrize('raw', ['0', '-1', 'not-int', '1.5'])
+@pytest.mark.parametrize('raw', ['0', '-1', '1', 'not-int', '1.5'])
 def test_invalid_max_stuck_update_id_polls_raises(raw: str) -> None:
+    '''Pin: `1` is invalid too because the meaningful minimum is 2.
+
+    The env parser delegates to `_parse_int_env(..., min_value=2)`,
+    so `1` is rejected at parse time with the same RuntimeError
+    that catches `0` / `-1` / non-int / float.
+    '''
 
     env = {**_BASE_ENV, 'BINSIM_MAX_STUCK_UPDATE_ID_POLLS': raw}
 

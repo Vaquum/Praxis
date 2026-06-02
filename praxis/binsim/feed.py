@@ -23,6 +23,11 @@ _DEFAULT_POLL_INTERVAL_MS = 1000
 _DEFAULT_REQUEST_TIMEOUT_S = 5.0
 _DEFAULT_MIN_TOP20_DEPTH_BTC = Decimal('0.05')
 _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS = 5
+# Minimum meaningful threshold: a counter that goes 0→1 on the
+# first observation needs `>= 2` to allow at least one accept
+# before the gate can trip, otherwise the very first poll
+# rejects and the book never primes.
+_MIN_STUCK_UPDATE_ID_POLLS = 2
 # The hosted depth source serves exactly 20 levels per side
 # (`binance-spot-depth20-1000ms.onrender.com`), and the magnitude
 # floor name + env var both bake "TOP20" in to lock the operator's
@@ -109,9 +114,10 @@ class DepthPoller:
                 f'min_top20_depth_btc must be a positive, finite Decimal, got {min_top20_depth_btc}'
             )
 
-        if max_stuck_update_id_polls < 1:
+        if max_stuck_update_id_polls < _MIN_STUCK_UPDATE_ID_POLLS:
             raise ValueError(
-                f'max_stuck_update_id_polls must be >= 1, got {max_stuck_update_id_polls}'
+                f'max_stuck_update_id_polls must be >= {_MIN_STUCK_UPDATE_ID_POLLS} '
+                f'(baseline + one repeat), got {max_stuck_update_id_polls}'
             )
 
         self._book = book
