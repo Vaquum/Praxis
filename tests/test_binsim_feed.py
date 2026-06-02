@@ -537,9 +537,11 @@ async def test_poll_once_rejects_after_stuck_update_id_threshold() -> None:
 
     # Threshold = 3 means "reject on the 3rd consecutive identical
     # poll". Poll 1 establishes the baseline (count=1), poll 2 makes
-    # count=2, poll 3 makes count=3 → reject. The 4th poll is also
-    # rejected and confirms the counter does not advance past the
-    # rejection (still rejecting on the same threshold).
+    # count=2, poll 3 makes count=3 → reject. The 4th poll continues
+    # rejecting — the counter increments unconditionally on a
+    # matching id (count=4 after poll 4), so the threshold stays
+    # tripped until a fresh `lastUpdateId` arrives and resets the
+    # counter to 1 via the else branch.
     await poller.poll_once()
     first_ts = poller.last_success_ts_ms
     assert first_ts > 0
@@ -554,7 +556,10 @@ async def test_poll_once_rejects_after_stuck_update_id_threshold() -> None:
     assert poller.last_success_ts_ms == second_ts
 
     await poller.poll_once()
+    # Fourth identical poll still rejected; counter has advanced
+    # to 4 (>= 3 still trips) but `last_success_ts_ms` is unchanged.
     assert poller.last_success_ts_ms == second_ts
+    assert poller._stuck_update_id_count == 4
 
 
 @pytest.mark.asyncio
@@ -604,25 +609,52 @@ async def test_poll_once_resets_stuck_counter_on_new_update_id() -> None:
 
 @pytest.mark.asyncio
 async def test_poll_once_emits_success_diagnostic_log(
-    capfd: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    '''Assert against the structured `_log.info(...)` call kwargs
+    rather than the rendered output.
+
+    Production binsim runs `configure_logging()` which switches
+    structlog to a JSON renderer, so any test that scrapes
+    `capfd` for `key=value` substrings is asserting against the
+    test default renderer's text format, not what the operator
+    actually sees in prod. Patch the module-level `_log` object
+    and assert kwargs on the recorded `.info` call instead.
+    '''
+
+    info_calls: list[tuple[str, dict[str, object]]] = []
+
+    class _LogCapture:
+        def info(self, event: str, **kwargs: object) -> None:
+            info_calls.append((event, kwargs))
+
+        def warning(self, *args: object, **kwargs: object) -> None: ...
+
+        def error(self, *args: object, **kwargs: object) -> None: ...
+
+    from praxis.binsim import feed as feed_module
+    monkeypatch.setattr(feed_module, '_log', _LogCapture())
 
     poller = _make_poller()
     _attach_mock_session(poller, _mock_response(200, _PAYLOAD))
 
     await poller.poll_once()
 
-    captured = capfd.readouterr()
-    combined = captured.out + captured.err
-    assert 'depth poll succeeded' in combined
-    # Pin: the diagnostic must include the magnitude, best-of-book,
+    success_calls = [c for c in info_calls if c[0] == 'depth poll succeeded']
+    assert len(success_calls) == 1
+    _, kwargs = success_calls[0]
+
+    # Pin: the diagnostic must carry the magnitude, best-of-book,
     # AND level counts an operator needs to spot a degraded or
-    # truncated upstream snapshot. A 3-level payload summing to a
-    # value above the floor would otherwise pass the gate silently.
-    assert 'ask_top_n_qty' in combined
-    assert 'bid_top_n_qty' in combined
-    assert 'ask_levels_in_payload=2' in combined
-    assert 'bid_levels_in_payload=2' in combined
-    assert 'best_ask_price' in combined
-    assert 'best_bid_price' in combined
-    assert 'last_update_id=12345' in combined
+    # truncated upstream snapshot. A 3-level payload summing above
+    # the floor would otherwise pass the gate silently.
+    assert kwargs['ask_top_n_qty'] == '3.0'
+    assert kwargs['bid_top_n_qty'] == '3.0'
+    assert kwargs['ask_levels_in_payload'] == 2
+    assert kwargs['bid_levels_in_payload'] == 2
+    assert kwargs['best_ask_price'] == '101.00'
+    assert kwargs['best_ask_qty'] == '1.0'
+    assert kwargs['best_bid_price'] == '100.00'
+    assert kwargs['best_bid_qty'] == '1.0'
+    assert kwargs['last_update_id'] == 12345
+    assert kwargs['ts_ms'] == 1_700_000_000_000
