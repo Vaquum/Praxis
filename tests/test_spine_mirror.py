@@ -8,10 +8,35 @@ import importlib.util
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
+
+class _StubDatabaseError(Exception):
+    pass
+
+
+class _StubOperationalError(Exception):
+    pass
+
+
+_stub_clickhouse_connect = ModuleType('clickhouse_connect')
+_stub_clickhouse_connect_driver = ModuleType('clickhouse_connect.driver')
+_stub_clickhouse_connect_exceptions = ModuleType('clickhouse_connect.driver.exceptions')
+
+_stub_clickhouse_connect_exceptions.DatabaseError = _StubDatabaseError
+_stub_clickhouse_connect_exceptions.OperationalError = _StubOperationalError
+_stub_clickhouse_connect_driver.exceptions = _stub_clickhouse_connect_exceptions
+_stub_clickhouse_connect_driver.Client = MagicMock
+_stub_clickhouse_connect.driver = _stub_clickhouse_connect_driver
+
+sys.modules.setdefault('clickhouse_connect', _stub_clickhouse_connect)
+sys.modules.setdefault('clickhouse_connect.driver', _stub_clickhouse_connect_driver)
+sys.modules.setdefault(
+    'clickhouse_connect.driver.exceptions', _stub_clickhouse_connect_exceptions,
+)
 
 
 _MIRROR_PATH = (
