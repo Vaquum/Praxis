@@ -15,4 +15,4 @@ datasources:
       secure: false
       tlsSkipVerify: true
     secureJsonData:
-      password: $CLICKHOUSE_PASSWORD
+      password: ${CLICKHOUSE_PASSWORD}

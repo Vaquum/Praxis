@@ -152,7 +152,7 @@
           "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
           "queryType": "sql",
           "editorType": "sql",
-          "rawSql": "SELECT event_seq, ts, epoch_id, event_type, action_type, strategy_id, side, symbol, qty, price, fee, status, reason, command_id, trade_id, account_id, payload FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type IN ($event_type) AND ('$strategy_id_filter' = '' OR positionCaseInsensitive(strategy_id, '$strategy_id_filter') > 0) AND $__timeFilter(ts) ORDER BY event_seq DESC LIMIT $limit",
+          "rawSql": "SELECT event_seq, ts, epoch_id, event_type, strategy_id, side, symbol, qty, price, fee, status, reason, command_id, trade_id, account_id, payload FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type IN ($event_type) AND ('$strategy_id_filter' = '' OR positionCaseInsensitive(strategy_id, '$strategy_id_filter') > 0) AND $__timeFilter(ts) ORDER BY event_seq DESC LIMIT $limit",
           "format": 1
         }
       ],
@@ -175,7 +175,6 @@
           {"matcher": {"id": "byName", "options": "ts"}, "properties": [{"id": "custom.width", "value": 200}, {"id": "unit", "value": "dateTimeAsIsoNoDateIfToday"}]},
           {"matcher": {"id": "byName", "options": "epoch_id"}, "properties": [{"id": "custom.width", "value": 70}]},
           {"matcher": {"id": "byName", "options": "event_type"}, "properties": [{"id": "custom.width", "value": 170}]},
-          {"matcher": {"id": "byName", "options": "action_type"}, "properties": [{"id": "custom.width", "value": 100}]},
           {"matcher": {"id": "byName", "options": "strategy_id"}, "properties": [{"id": "custom.width", "value": 110}]},
           {"matcher": {"id": "byName", "options": "side"}, "properties": [{"id": "custom.width", "value": 70}]},
           {"matcher": {"id": "byName", "options": "symbol"}, "properties": [{"id": "custom.width", "value": 100}]},

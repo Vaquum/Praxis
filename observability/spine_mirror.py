@@ -25,8 +25,8 @@ _RECOVERABLE_ERRORS: Final = (
     OperationalError,
 )
 
-_SCHEMA_SQL = '''
-CREATE TABLE IF NOT EXISTS praxis.events (
+_SCHEMA_SQL_TEMPLATE = '''
+CREATE TABLE IF NOT EXISTS {database}.events (
     event_seq UInt64,
     epoch_id UInt32,
     ts DateTime64(6, 'UTC'),
@@ -40,10 +40,9 @@ CREATE TABLE IF NOT EXISTS praxis.events (
     account_id LowCardinality(String) MATERIALIZED JSONExtractString(payload, 'account_id'),
     status LowCardinality(String) MATERIALIZED JSONExtractString(payload, 'status'),
     reason String MATERIALIZED JSONExtractString(payload, 'reason'),
-    action_type LowCardinality(String) MATERIALIZED JSONExtractString(payload, 'action_type'),
-    qty Decimal(38, 18) MATERIALIZED toDecimal128OrZero(JSONExtractString(payload, 'qty'), 18),
-    price Decimal(38, 18) MATERIALIZED toDecimal128OrZero(JSONExtractString(payload, 'price'), 18),
-    fee Decimal(38, 18) MATERIALIZED toDecimal128OrZero(JSONExtractString(payload, 'fee'), 18)
+    qty Nullable(Decimal(38, 18)) MATERIALIZED toDecimal128OrNull(JSONExtractString(payload, 'qty'), 18),
+    price Nullable(Decimal(38, 18)) MATERIALIZED toDecimal128OrNull(JSONExtractString(payload, 'price'), 18),
+    fee Nullable(Decimal(38, 18)) MATERIALIZED toDecimal128OrNull(JSONExtractString(payload, 'fee'), 18)
 )
 ENGINE = ReplacingMergeTree(event_seq)
 PARTITION BY epoch_id
@@ -65,7 +64,7 @@ def _parse_ts(raw: str) -> datetime:
 def _ensure_schema(ch: clickhouse_connect.driver.Client, database: str) -> None:
 
     ch.command(f'CREATE DATABASE IF NOT EXISTS {database}')
-    ch.command(_SCHEMA_SQL)
+    ch.command(_SCHEMA_SQL_TEMPLATE.format(database=database))
 
 
 def _current_cursor(ch: clickhouse_connect.driver.Client, database: str) -> int:
@@ -80,18 +79,13 @@ def _current_cursor(ch: clickhouse_connect.driver.Client, database: str) -> int:
 
 def _fetch_batch(spine_path: str, cursor: int, batch_size: int) -> list[tuple]:
 
-    conn = sqlite3.connect(f'file:{spine_path}?mode=ro', uri=True)
-    try:
+    with sqlite3.connect(f'file:{spine_path}?mode=ro', uri=True) as conn:
         conn.execute('PRAGMA query_only=ON')
-        rows = conn.execute(
+        return conn.execute(
             'SELECT event_seq, epoch_id, timestamp, event_type, payload '
             'FROM events WHERE event_seq > ? ORDER BY event_seq LIMIT ?',
             (cursor, batch_size),
         ).fetchall()
-    finally:
-        conn.close()
-
-    return rows
 
 
 def _to_rows(raw_rows: list[tuple]) -> list[list]:
@@ -116,10 +110,7 @@ def _to_rows(raw_rows: list[tuple]) -> list[list]:
     return out
 
 
-def _backoff_seconds(consecutive_failures: int, base_interval_s: float) -> float:
-
-    if consecutive_failures <= 0:
-        return base_interval_s
+def _backoff_seconds(consecutive_failures: int) -> float:
 
     return min(_BACKOFF_BASE_S * (2 ** (consecutive_failures - 1)), _BACKOFF_MAX_S)
 
@@ -146,19 +137,25 @@ def main() -> None:
         spine_path, ch_host, ch_port, ch_database, sync_interval_s, batch_size,
     )
 
-    ch = clickhouse_connect.get_client(
-        host=ch_host,
-        port=ch_port,
-        database=ch_database,
-        username=ch_user,
-        password=ch_password,
-    )
-    _ensure_schema(ch, ch_database)
-
+    ch: clickhouse_connect.driver.Client | None = None
+    schema_ready = False
     consecutive_failures = 0
 
     while True:
         try:
+            if ch is None:
+                ch = clickhouse_connect.get_client(
+                    host=ch_host,
+                    port=ch_port,
+                    database=ch_database,
+                    username=ch_user,
+                    password=ch_password,
+                )
+
+            if not schema_ready:
+                _ensure_schema(ch, ch_database)
+                schema_ready = True
+
             cursor = _current_cursor(ch, ch_database)
             raw_rows = _fetch_batch(spine_path, cursor, batch_size)
 
@@ -177,7 +174,7 @@ def main() -> None:
 
         except _RECOVERABLE_ERRORS:
             consecutive_failures += 1
-            sleep_s = _backoff_seconds(consecutive_failures, sync_interval_s)
+            sleep_s = _backoff_seconds(consecutive_failures)
             _log.exception(
                 'sync error (consecutive_failures=%d); sleeping %.1fs before retry',
                 consecutive_failures, sleep_s,

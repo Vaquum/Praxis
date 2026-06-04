@@ -792,17 +792,9 @@ The magnitude floor applies `min_top20_depth_btc` to both `ask_depth` and `bid_d
 - The startup log surfaces all three values so an operator can see whether they configured asymmetric thresholds.
 - The rejection log already includes per-side `ask_top_n_qty` / `bid_top_n_qty` so operators can already see which side tripped; the migration only adds per-side configurability, not per-side diagnostics.
 
-## TD-072: `spine_mirror` materialized Decimal columns coerce missing/malformed values to zero
+## TD-072: REMOVED — addressed in PR [#131](https://github.com/Vaquum/Praxis/pull/131) round-1 review
 
-**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
-**Severity**: Medium — silently distorts every aggregate / filter that touches `qty`, `price`, or `fee` whenever a row has the field missing or in an unexpected format
-**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) `_SCHEMA_SQL` — the three `MATERIALIZED toDecimal128OrZero(JSONExtractString(payload, '<key>'), 18)` definitions for `qty`, `price`, `fee`
-
-The current schema uses `toDecimal128OrZero` for the three numeric materialized columns. Most events in the spine do not carry `qty` / `price` / `fee` (e.g. `command_registered`, `signal_produced`, `risk_decision`); `JSONExtractString` returns an empty string, `toDecimal128OrZero` coerces empty to `0`. Aggregates like `SELECT sum(qty) FROM events WHERE event_type='order_fill'` are mostly safe (the filter excludes the zero-bearing rows), but unfiltered aggregates and any future report that sums across event types blends real zeros with absent-or-malformed zeros indistinguishably. A truly malformed `qty` value (scientific notation outside Decimal range, hex digits, a list) also coerces to `0` rather than surfacing as a parse error.
-
-**When to fix**: When the first dashboard or alert that reads `qty` / `price` / `fee` without an `event_type` filter is built, OR when an operator hits a debugging session that ends in "wait, are those real zeros or schema zeros?". Until then the all-events overview dashboard does not touch these columns, so the impact is latent.
-
-**Migration**: Switch to `Nullable(Decimal(38, 18))` columns and `toDecimal128OrNull(JSONExtractString(payload, '<key>'), 18)`. Queries that today rely on `OrZero` semantics get an explicit `coalesce(qty, 0)` call site — the documentation that "zero means we don't know" lands at the query, not the column. Requires a ClickHouse `ALTER TABLE praxis.events MODIFY COLUMN ...` migration that has to be timed against in-flight inserts.
+Originally deferred during the v0.71.0 pre-PR Greybeard pass: the three `MATERIALIZED toDecimal128OrZero` columns silently coerced missing/malformed values to `0`. Copilot review of PR #131 overruled the deferral and the schema was switched to `Nullable(Decimal(38, 18))` + `toDecimal128OrNull` before merge (cash-flow panel updated to `coalesce(col, 0)` so the Nullable change doesn't propagate NULL through downstream arithmetic). No latent debt remains; this section is retained as a historical marker so future readers do not re-issue the same TD number.
 
 ## TD-073: `spine_mirror` reuses a single `clickhouse_connect` client across the entire process lifetime without explicit reconnection
 

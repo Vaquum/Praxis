@@ -25,7 +25,6 @@
         "refresh": 2,
         "multi": true,
         "includeAll": true,
-        "allValue": "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20",
         "current": {"selected": true, "text": "10", "value": "10"},
         "sort": 4
       }
@@ -139,7 +138,7 @@
           "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
           "queryType": "sql",
           "editorType": "sql",
-          "rawSql": "SELECT (countIf(event_type = 'CommandAccepted' AND action_type = 'enter') - countIf(event_type = 'TradeClosed')) AS open_pos FROM praxis.events WHERE epoch_id IN ($epoch)",
+          "rawSql": "SELECT (uniqExactIf(trade_id, event_type = 'CommandAccepted' AND trade_id != '') - uniqExactIf(trade_id, event_type = 'TradeClosed' AND trade_id != '')) AS open_pos FROM praxis.events WHERE epoch_id IN ($epoch)",
           "format": 1
         }
       ],
@@ -266,7 +265,7 @@
           "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
           "queryType": "sql",
           "editorType": "sql",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, sum(if(side='SELL', toFloat64(qty * price - fee), -toFloat64(qty * price + fee))) AS cash_flow FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'FillReceived' AND $__timeFilter(ts) GROUP BY time ORDER BY time",
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, sum(if(side='SELL', toFloat64(coalesce(qty, 0) * coalesce(price, 0) - coalesce(fee, 0)), -toFloat64(coalesce(qty, 0) * coalesce(price, 0) + coalesce(fee, 0)))) AS cash_flow FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'FillReceived' AND $__timeFilter(ts) GROUP BY time ORDER BY time",
           "format": 0
         }
       ],
