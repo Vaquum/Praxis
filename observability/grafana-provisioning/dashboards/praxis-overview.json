@@ -1,0 +1,298 @@
+{
+  "uid": "praxis-overview",
+  "title": "Praxis Overview",
+  "tags": ["praxis"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-3h", "to": "now"},
+  "fiscalYearStartMonth": 0,
+  "annotations": {"list": []},
+  "templating": {
+    "list": [
+      {
+        "name": "epoch",
+        "label": "Epoch",
+        "type": "query",
+        "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+        "query": {
+          "rawSql": "SELECT DISTINCT epoch_id FROM praxis.events ORDER BY epoch_id DESC",
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "sort": 4
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total events",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT count() AS value FROM praxis.events WHERE epoch_id IN ($epoch) AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "OrderSubmitted",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT count() FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'OrderSubmitted' AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "FillReceived",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT count() FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'FillReceived' AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "TradeClosed",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT count() FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'TradeClosed' AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "OrderSubmitFailed",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT count() FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'OrderSubmitFailed' AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Open positions (filled - closed)",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT (uniqExactIf(trade_id, event_type = 'CommandAccepted' AND trade_id != '') - uniqExactIf(trade_id, event_type = 'TradeClosed' AND trade_id != '')) AS open_pos FROM praxis.events WHERE epoch_id IN ($epoch)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Event throughput per minute",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, event_type, count() AS value FROM praxis.events WHERE epoch_id IN ($epoch) AND $__timeFilter(ts) AND event_type IN ('OrderSubmitted','FillReceived','TradeClosed','OrderSubmitFailed','OrderSubmitIntent') GROUP BY time, event_type ORDER BY time",
+          "format": 0
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}
+        }
+      },
+      "options": {
+        "legend": {"showLegend": true, "displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 20,
+      "type": "barchart",
+      "title": "OrderSubmitFailed — reason breakdown (all epochs)",
+      "description": "Reasons are queried across ALL epochs so the panel never goes blank; this is the historical incident archive. Selected epoch may have zero, which is the goal.",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT substring(reason, 1, 70) AS reason_head, count() AS count FROM praxis.events WHERE event_type = 'OrderSubmitFailed' GROUP BY reason_head ORDER BY count DESC LIMIT 20",
+          "format": 1
+        }
+      ],
+      "options": {"orientation": "horizontal", "xField": "count"}
+    },
+    {
+      "id": 21,
+      "type": "piechart",
+      "title": "TradeOutcomeProduced — status mix",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT status, count() AS value FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'TradeOutcomeProduced' AND $__timeFilter(ts) GROUP BY status ORDER BY value DESC",
+          "format": 1
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"]},
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"]
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "TradeOutcome status mix over time (per-minute %)",
+      "description": "Shows how FILLED vs PARTIAL vs REJECTED ratio evolves. A 100% PARTIAL share — like epoch 10 — means binsim's fill notional is consistently overshooting the strategy's intended budget.",
+      "gridPos": {"x": 0, "y": 30, "w": 24, "h": 8},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, status, count() / sum(count()) OVER (PARTITION BY toStartOfMinute(ts)) AS share FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'TradeOutcomeProduced' AND $__timeFilter(ts) GROUP BY time, status ORDER BY time",
+          "format": 0
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {"drawStyle": "line", "stacking": {"mode": "percent"}, "fillOpacity": 70}
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "table",
+      "title": "Top 30 strategies by trades closed",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 10},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT ca.strategy_id AS strategy_id, count() AS trades_closed FROM praxis.events AS tc INNER JOIN praxis.events AS ca ON tc.command_id = ca.command_id AND tc.epoch_id = ca.epoch_id WHERE tc.event_type = 'TradeClosed' AND ca.event_type = 'CommandAccepted' AND tc.epoch_id IN ($epoch) GROUP BY strategy_id ORDER BY trades_closed DESC LIMIT 30",
+          "format": 1
+        }
+      ],
+      "options": {"showHeader": true}
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Cash flow (sum of fill notional, BUY=−, SELL=+)",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 10},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, sum(if(side='SELL', toFloat64(coalesce(qty, 0) * coalesce(price, 0) - coalesce(fee, 0)), -toFloat64(coalesce(qty, 0) * coalesce(price, 0) + coalesce(fee, 0)))) AS cash_flow FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type = 'FillReceived' AND $__timeFilter(ts) GROUP BY time ORDER BY time",
+          "format": 0
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {"drawStyle": "bars", "fillOpacity": 80}
+        }
+      }
+    },
+    {
+      "id": 40,
+      "type": "barchart",
+      "title": "Events per epoch (all-time)",
+      "gridPos": {"x": 0, "y": 38, "w": 24, "h": 6},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT toString(epoch_id) AS epoch, count() AS events FROM praxis.events GROUP BY epoch_id ORDER BY epoch_id",
+          "format": 1
+        }
+      ],
+      "options": {"orientation": "vertical", "xField": "epoch"}
+    }
+  ]
+}

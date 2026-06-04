@@ -791,3 +791,47 @@ The magnitude floor applies `min_top20_depth_btc` to both `ask_depth` and `bid_d
 - Both default to `min_top20_depth_btc` (for backward compatibility — the existing single env var stays the "set both" knob, the new ones override per side).
 - The startup log surfaces all three values so an operator can see whether they configured asymmetric thresholds.
 - The rejection log already includes per-side `ask_top_n_qty` / `bid_top_n_qty` so operators can already see which side tripped; the migration only adds per-side configurability, not per-side diagnostics.
+
+## TD-072: REMOVED — addressed in PR [#131](https://github.com/Vaquum/Praxis/pull/131) round-1 review
+
+Originally deferred during the v0.71.0 pre-PR Greybeard pass: the three `MATERIALIZED toDecimal128OrZero` columns silently coerced missing/malformed values to `0`. Copilot review of PR #131 overruled the deferral and the schema was switched to `Nullable(Decimal(38, 18))` + `toDecimal128OrNull` before merge (cash-flow panel updated to `coalesce(col, 0)` so the Nullable change doesn't propagate NULL through downstream arithmetic). No latent debt remains; this section is retained as a historical marker so future readers do not re-issue the same TD number.
+
+## TD-073: `spine_mirror` reuses a single `clickhouse_connect` client across the entire process lifetime without explicit reconnection
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Low (`clickhouse_connect` documents internal connection-pool reconnection on transport failures; observed in prod-equivalent staging that a ClickHouse restart does not stall the mirror), elevated if a future driver version drops the auto-reconnect guarantee
+**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) `main()` — `ch = clickhouse_connect.get_client(...)` called once at startup, then reused for every tick's `query` + `insert` for the process lifetime
+
+The `clickhouse-connect` client is created exactly once in `main()` and never re-created. The library claims internal reconnection on broken-pipe / connection-reset, but the claim is not verified end-to-end against a `docker restart praxis-clickhouse`. Until the verification exists, a future driver bump or a corner-case transport failure could leave the mirror running with a permanently-dead client; the only signal would be every tick logging the same connection error and the backoff continuing forever.
+
+**When to fix**: When either (a) a real ClickHouse restart on prod-equivalent reveals the mirror gets stuck, or (b) the `clickhouse-connect` dep is bumped to a version that does not document auto-reconnect.
+
+**Migration**: Wrap the client in a tiny `_ClientHolder` that rebuilds on consecutive `OperationalError` count crossing a threshold (e.g. 3), with a structured log entry on each rebuild. Alternative: add an explicit healthcheck on the spine-mirror container that pings ClickHouse independently and lets `restart: unless-stopped` restart the whole process on persistent failure — heavier but uses Compose's existing supervision.
+
+## TD-074: `praxis-spine-mirror` waits only for ClickHouse `service_started`, not `service_healthy`
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Low — currently survives the cold-start race via the mirror's `_RECOVERABLE_ERRORS` retry loop with exponential backoff; if `clickhouse_connect.get_client` or `_ensure_schema` raises during cold-start, the call site goes through `_backoff_seconds(consecutive_failures)` (doubling from 1s, clamped at 300s) and retries on the next iteration
+**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) — `praxis-spine-mirror.depends_on.praxis-clickhouse.condition: service_started` (and the same value on `praxis-grafana`)
+
+Compose's `service_started` condition fires when the container is up, not when ClickHouse's HTTP listener is accepting queries. The mirror's first-tick `_ensure_schema` race against ClickHouse boot is currently handled by the mirror's recoverable-error retry loop (TD-073 sibling), and Grafana's datasource provisioning happens lazily on first dashboard request so the same race is invisible. The mode is "works via retry"; a healthcheck-gated path would be "works by waiting".
+
+**When to fix**: When either (a) the stack is composed with strict-mode supervisors that flag the cold-start error logs as a regression, or (b) a future ClickHouse upgrade meaningfully slows boot past the mirror's backoff envelope.
+
+**Migration**: Add a `healthcheck` block to `praxis-clickhouse` (`test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]`, `interval: 5s`, `timeout: 3s`, `retries: 10`) and flip both consumers' `condition` to `service_healthy`. The mirror's retry loop stays as defense-in-depth.
+
+## TD-075: `praxis-spine-mirror` bind-mounts a hardcoded `/opt/praxis/state` host path
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Low — operationally limiting, not a runtime defect; any host that puts Praxis state somewhere other than `/opt/praxis/state` (dev laptop, integration test rig, future multi-tenant deployment) needs an edit to the committed compose file
+**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) `praxis-spine-mirror.volumes` — `- /opt/praxis/state:/spine:ro`
+
+The bind-mount source is a hardcoded host path. The deployment convention happens to be `/opt/praxis/state` and the rest of the Praxis launcher / state-store code shares that assumption, but the observability stack is the only Praxis surface that wires it in via a Compose file. A future move to `/var/lib/praxis` / per-tenant subdirs / a CI rig at `/tmp/praxis-test-state` requires editing the committed file rather than overriding an env var.
+
+**When to fix**: When the first non-default Praxis host needs to run the observability stack, OR when the launcher's `PRAXIS_STATE_DIR` env var (TD-001 lineage) lands and the operator wants the observability mount to follow the same knob.
+
+**Migration**: Replace the volume entry with `- ${PRAXIS_STATE_DIR:-/opt/praxis/state}:/spine:ro` and document the `PRAXIS_STATE_DIR` knob in [`observability/.env.example`](observability/.env.example). The default keeps existing deployments working without action.
+
+## TD-076: REMOVED — addressed in PR [#131](https://github.com/Vaquum/Praxis/pull/131) round-6 review
+
+Originally deferred during the v0.71.0 pre-PR Greybeard pass: `observability/spine_mirror.py` had no automated test coverage. Copilot review of PR #131 overruled the deferral and the test suite was added before merge: [`tests/test_spine_mirror.py`](../tests/test_spine_mirror.py) (36 cases) covers `_parse_ts` across 6 timestamp shapes, `_backoff_seconds` monotonicity + clamp, `_to_rows` bytes/str/invalid-utf8 round-trip + integer coercion, `_current_cursor` empty-table/NULL/populated paths with mocked client, `_IDENTIFIER_RE` positive (6 safe names) + negative (10 unsafe names including hyphen/space/semicolon/SQL-injection shapes), and `_ensure_schema` issues the correct `CREATE DATABASE` + `CREATE TABLE` statements against the supplied database name. No latent debt remains; this section is retained as a historical marker so future readers do not re-issue the same TD number.

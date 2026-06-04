@@ -1,0 +1,194 @@
+{
+  "uid": "praxis-events",
+  "title": "Praxis Events",
+  "tags": ["praxis"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "fiscalYearStartMonth": 0,
+  "annotations": {"list": []},
+  "templating": {
+    "list": [
+      {
+        "name": "epoch",
+        "label": "Epoch",
+        "type": "query",
+        "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+        "query": {
+          "rawSql": "SELECT DISTINCT epoch_id FROM praxis.events ORDER BY epoch_id DESC",
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "sort": 4
+      },
+      {
+        "name": "event_type",
+        "label": "Event type",
+        "type": "query",
+        "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+        "query": {
+          "rawSql": "SELECT DISTINCT event_type FROM praxis.events ORDER BY event_type",
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql"
+        },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {"selected": true, "text": "All", "value": "$__all"}
+      },
+      {
+        "name": "strategy_id_filter",
+        "label": "strategy_id contains",
+        "type": "textbox",
+        "current": {"text": "", "value": ""}
+      },
+      {
+        "name": "limit",
+        "label": "Row limit",
+        "type": "custom",
+        "query": "500,1000,2000,5000,10000",
+        "options": [
+          {"text": "500", "value": "500"},
+          {"text": "1000", "value": "1000", "selected": true},
+          {"text": "2000", "value": "2000"},
+          {"text": "5000", "value": "5000"},
+          {"text": "10000", "value": "10000"}
+        ],
+        "current": {"text": "1000", "value": "1000"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Rows matching filter",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 3},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT count() FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type IN ($event_type) AND (${strategy_id_filter:sqlstring} = '' OR positionCaseInsensitive(strategy_id, ${strategy_id_filter:sqlstring}) > 0) AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Distinct strategies",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 3},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT uniqExact(strategy_id) FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type IN ($event_type) AND strategy_id != '' AND (${strategy_id_filter:sqlstring} = '' OR positionCaseInsensitive(strategy_id, ${strategy_id_filter:sqlstring}) > 0) AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Distinct commands",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 3},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT uniqExact(command_id) FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type IN ($event_type) AND command_id != '' AND (${strategy_id_filter:sqlstring} = '' OR positionCaseInsensitive(strategy_id, ${strategy_id_filter:sqlstring}) > 0) AND $__timeFilter(ts)",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "value"}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Latest event_seq",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 3},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT max(event_seq) FROM praxis.events",
+          "format": 1
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "graphMode": "none", "colorMode": "none"}
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Spine events (newest first)",
+      "description": "Raw event spine view. All materialized JSON fields are exposed as columns; the full payload is the last column (click cell → inspect for the JSON). Filter via Epoch / Event type / strategy_id contains at the top, narrow further via the per-column filters in the table header.",
+      "gridPos": {"x": 0, "y": 3, "w": 24, "h": 27},
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "grafana-clickhouse-datasource", "uid": "praxis-clickhouse"},
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT event_seq, ts, epoch_id, event_type, strategy_id, side, symbol, qty, price, fee, status, reason, command_id, trade_id, account_id, payload FROM praxis.events WHERE epoch_id IN ($epoch) AND event_type IN ($event_type) AND (${strategy_id_filter:sqlstring} = '' OR positionCaseInsensitive(strategy_id, ${strategy_id_filter:sqlstring}) > 0) AND $__timeFilter(ts) ORDER BY event_seq DESC LIMIT $limit",
+          "format": 1
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {"show": false},
+        "frameIndex": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "filterable": true,
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "event_seq"}, "properties": [{"id": "custom.width", "value": 90}]},
+          {"matcher": {"id": "byName", "options": "ts"}, "properties": [{"id": "custom.width", "value": 200}, {"id": "unit", "value": "dateTimeAsIsoNoDateIfToday"}]},
+          {"matcher": {"id": "byName", "options": "epoch_id"}, "properties": [{"id": "custom.width", "value": 70}]},
+          {"matcher": {"id": "byName", "options": "event_type"}, "properties": [{"id": "custom.width", "value": 170}]},
+          {"matcher": {"id": "byName", "options": "strategy_id"}, "properties": [{"id": "custom.width", "value": 110}]},
+          {"matcher": {"id": "byName", "options": "side"}, "properties": [{"id": "custom.width", "value": 70}]},
+          {"matcher": {"id": "byName", "options": "symbol"}, "properties": [{"id": "custom.width", "value": 100}]},
+          {"matcher": {"id": "byName", "options": "qty"}, "properties": [{"id": "custom.width", "value": 110}, {"id": "decimals", "value": 8}]},
+          {"matcher": {"id": "byName", "options": "price"}, "properties": [{"id": "custom.width", "value": 120}, {"id": "decimals", "value": 2}]},
+          {"matcher": {"id": "byName", "options": "fee"}, "properties": [{"id": "custom.width", "value": 90}, {"id": "decimals", "value": 4}]},
+          {"matcher": {"id": "byName", "options": "status"}, "properties": [{"id": "custom.width", "value": 90}]},
+          {"matcher": {"id": "byName", "options": "reason"}, "properties": [{"id": "custom.width", "value": 280}, {"id": "custom.cellOptions", "value": {"type": "auto", "wrapText": true}}]},
+          {"matcher": {"id": "byName", "options": "command_id"}, "properties": [{"id": "custom.width", "value": 130}]},
+          {"matcher": {"id": "byName", "options": "trade_id"}, "properties": [{"id": "custom.width", "value": 130}]},
+          {"matcher": {"id": "byName", "options": "account_id"}, "properties": [{"id": "custom.width", "value": 130}]},
+          {"matcher": {"id": "byName", "options": "payload"}, "properties": [{"id": "custom.width", "value": 600}, {"id": "custom.cellOptions", "value": {"type": "json-view"}}]}
+        ]
+      }
+    }
+  ]
+}
