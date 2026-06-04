@@ -238,7 +238,12 @@ def main() -> None:
     on the first iteration; both are gated by flags so a cold-start
     race against ClickHouse boot flows through the
     `_RECOVERABLE_ERRORS` retry envelope with exponential backoff
-    rather than crashing the process. The cursor (`max(event_seq)`)
+    rather than crashing the process. The client is constructed
+    WITHOUT a default `database=` so the first-ever connection
+    against a server that hasn't seen the target database yet
+    succeeds; every SQL statement uses fully-qualified
+    `<database>.events` so the default-database selection is not
+    load-bearing. The cursor (`max(event_seq)`)
     is primed once from ClickHouse on the first iteration and then
     kept in-process — each successful insert advances the local
     cursor to `last_seq` instead of re-querying the table. The
@@ -289,7 +294,6 @@ def main() -> None:
                 ch = clickhouse_connect.get_client(
                     host=ch_host,
                     port=ch_port,
-                    database=ch_database,
                     username=ch_user,
                     password=ch_password,
                 )

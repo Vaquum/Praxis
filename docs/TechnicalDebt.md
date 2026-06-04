@@ -832,14 +832,6 @@ The bind-mount source is a hardcoded host path. The deployment convention happen
 
 **Migration**: Replace the volume entry with `- ${PRAXIS_STATE_DIR:-/opt/praxis/state}:/spine:ro` and document the `PRAXIS_STATE_DIR` knob in [`observability/.env.example`](observability/.env.example). The default keeps existing deployments working without action.
 
-## TD-076: `observability/spine_mirror.py` has no automated test coverage
+## TD-076: REMOVED — addressed in PR [#131](https://github.com/Vaquum/Praxis/pull/131) round-6 review
 
-**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
-**Severity**: Low — operational mirror, idempotent on restart (next tick reads `max(event_seq)` and resumes), failure mode is "ClickHouse falls behind by N seconds" not "Praxis trading misbehaves"; still, the timestamp parser, the cursor logic, and the recoverable-error backoff are untested behavior on a service that runs against prod data
-**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) — every function
-
-The mirror has three pieces of non-trivial logic that have only been verified by inspection: `_parse_ts` (three timestamp shapes: `+00:00`, `Z`, naive), `_current_cursor` (NULL / empty-table handling), and the `_backoff_seconds` envelope (clamping, monotonicity, reset-on-success). A future change to any of these has no test to catch a regression; the failure would be "mirror silently falls behind" or "mirror crashes on a payload shape the schema accepts but the parser does not".
-
-**When to fix**: When either (a) a real mirror outage post-mortem traces back to one of these three functions, or (b) the observability stack picks up a second consumer (e.g. a metrics analyzer) that depends on `spine_mirror.py`'s contract.
-
-**Migration**: Add `tests/test_spine_mirror.py` with: parser cases for the three timestamp shapes + a malformed-string raises, `_to_rows` round-trips bytes / str payloads, `_backoff_seconds` clamps at `_BACKOFF_MAX_S` and resets on `consecutive_failures=0`, `_current_cursor` returns `0` on empty table (requires a mock `ch.query` returning `result_rows=[]` and `result_rows=[(None,)]`). The schema SQL itself stays integration-tested via the actual ClickHouse container.
+Originally deferred during the v0.71.0 pre-PR Greybeard pass: `observability/spine_mirror.py` had no automated test coverage. Copilot review of PR #131 overruled the deferral and the test suite was added before merge: [`tests/test_spine_mirror.py`](../tests/test_spine_mirror.py) (36 cases) covers `_parse_ts` across 6 timestamp shapes, `_backoff_seconds` monotonicity + clamp, `_to_rows` bytes/str/invalid-utf8 round-trip + integer coercion, `_current_cursor` empty-table/NULL/populated paths with mocked client, `_IDENTIFIER_RE` positive (6 safe names) + negative (10 unsafe names including hyphen/space/semicolon/SQL-injection shapes), and `_ensure_schema` issues the correct `CREATE DATABASE` + `CREATE TABLE` statements against the supplied database name. No latent debt remains; this section is retained as a historical marker so future readers do not re-issue the same TD number.
