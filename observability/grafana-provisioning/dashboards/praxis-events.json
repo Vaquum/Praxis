@@ -25,7 +25,7 @@
         "refresh": 2,
         "multi": true,
         "includeAll": true,
-        "current": {"selected": true, "text": "10", "value": "10"},
+        "current": {"selected": true, "text": "All", "value": "$__all"},
         "sort": 4
       },
       {

@@ -1,8 +1,18 @@
 FROM python:3.12-slim
 
-RUN pip install --no-cache-dir clickhouse-connect==0.8.10
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN pip install clickhouse-connect==0.8.10
 
 WORKDIR /app
 COPY spine_mirror.py /app/spine_mirror.py
+
+RUN useradd --create-home --uid 1000 spinemirror \
+    && chown -R spinemirror:spinemirror /app
+
+USER spinemirror
 
 CMD ["python", "/app/spine_mirror.py"]

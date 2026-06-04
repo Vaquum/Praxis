@@ -238,7 +238,11 @@ def main() -> None:
     on the first iteration; both are gated by flags so a cold-start
     race against ClickHouse boot flows through the
     `_RECOVERABLE_ERRORS` retry envelope with exponential backoff
-    rather than crashing the process.
+    rather than crashing the process. The cursor (`max(event_seq)`)
+    is primed once from ClickHouse on the first iteration and then
+    kept in-process — each successful insert advances the local
+    cursor to `last_seq` instead of re-querying the table. The
+    cursor is only re-primed from ClickHouse on restart.
 
     Raises:
         KeyError: A required env var is missing.
@@ -276,6 +280,7 @@ def main() -> None:
 
     ch: clickhouse_connect.driver.Client | None = None
     schema_ready = False
+    cached_cursor: int | None = None
     consecutive_failures = 0
 
     while True:
@@ -293,8 +298,11 @@ def main() -> None:
                 _ensure_schema(ch, ch_database)
                 schema_ready = True
 
-            cursor = _current_cursor(ch, ch_database)
-            raw_rows = _fetch_batch(spine_path, cursor, batch_size)
+            if cached_cursor is None:
+                cached_cursor = _current_cursor(ch, ch_database)
+                _log.info('cursor primed from ClickHouse: event_seq=%d', cached_cursor)
+
+            raw_rows = _fetch_batch(spine_path, cached_cursor, batch_size)
 
             if raw_rows:
                 rows = _to_rows(raw_rows)
@@ -304,7 +312,11 @@ def main() -> None:
                     column_names=['event_seq', 'epoch_id', 'ts', 'event_type', 'payload'],
                 )
                 last_seq = rows[-1][0]
-                _log.info('synced %d rows; cursor %d -> %d', len(rows), cursor, last_seq)
+                _log.info(
+                    'synced %d rows; cursor %d -> %d',
+                    len(rows), cached_cursor, last_seq,
+                )
+                cached_cursor = last_seq
 
             consecutive_failures = 0
             sleep_s = sync_interval_s
