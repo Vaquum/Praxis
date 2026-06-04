@@ -791,3 +791,63 @@ The magnitude floor applies `min_top20_depth_btc` to both `ask_depth` and `bid_d
 - Both default to `min_top20_depth_btc` (for backward compatibility — the existing single env var stays the "set both" knob, the new ones override per side).
 - The startup log surfaces all three values so an operator can see whether they configured asymmetric thresholds.
 - The rejection log already includes per-side `ask_top_n_qty` / `bid_top_n_qty` so operators can already see which side tripped; the migration only adds per-side configurability, not per-side diagnostics.
+
+## TD-072: `spine_mirror` materialized Decimal columns coerce missing/malformed values to zero
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Medium — silently distorts every aggregate / filter that touches `qty`, `price`, or `fee` whenever a row has the field missing or in an unexpected format
+**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) `_SCHEMA_SQL` — the three `MATERIALIZED toDecimal128OrZero(JSONExtractString(payload, '<key>'), 18)` definitions for `qty`, `price`, `fee`
+
+The current schema uses `toDecimal128OrZero` for the three numeric materialized columns. Most events in the spine do not carry `qty` / `price` / `fee` (e.g. `command_registered`, `signal_produced`, `risk_decision`); `JSONExtractString` returns an empty string, `toDecimal128OrZero` coerces empty to `0`. Aggregates like `SELECT sum(qty) FROM events WHERE event_type='order_fill'` are mostly safe (the filter excludes the zero-bearing rows), but unfiltered aggregates and any future report that sums across event types blends real zeros with absent-or-malformed zeros indistinguishably. A truly malformed `qty` value (scientific notation outside Decimal range, hex digits, a list) also coerces to `0` rather than surfacing as a parse error.
+
+**When to fix**: When the first dashboard or alert that reads `qty` / `price` / `fee` without an `event_type` filter is built, OR when an operator hits a debugging session that ends in "wait, are those real zeros or schema zeros?". Until then the all-events overview dashboard does not touch these columns, so the impact is latent.
+
+**Migration**: Switch to `Nullable(Decimal(38, 18))` columns and `toDecimal128OrNull(JSONExtractString(payload, '<key>'), 18)`. Queries that today rely on `OrZero` semantics get an explicit `coalesce(qty, 0)` call site — the documentation that "zero means we don't know" lands at the query, not the column. Requires a ClickHouse `ALTER TABLE praxis.events MODIFY COLUMN ...` migration that has to be timed against in-flight inserts.
+
+## TD-073: `spine_mirror` reuses a single `clickhouse_connect` client across the entire process lifetime without explicit reconnection
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Low (`clickhouse_connect` documents internal connection-pool reconnection on transport failures; observed in prod-equivalent staging that a ClickHouse restart does not stall the mirror), elevated if a future driver version drops the auto-reconnect guarantee
+**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) `main()` — `ch = clickhouse_connect.get_client(...)` called once at startup, then reused for every tick's `query` + `insert` for the process lifetime
+
+The `clickhouse-connect` client is created exactly once in `main()` and never re-created. The library claims internal reconnection on broken-pipe / connection-reset, but the claim is not verified end-to-end against a `docker restart praxis-clickhouse`. Until the verification exists, a future driver bump or a corner-case transport failure could leave the mirror running with a permanently-dead client; the only signal would be every tick logging the same connection error and the backoff continuing forever.
+
+**When to fix**: When either (a) a real ClickHouse restart on prod-equivalent reveals the mirror gets stuck, or (b) the `clickhouse-connect` dep is bumped to a version that does not document auto-reconnect.
+
+**Migration**: Wrap the client in a tiny `_ClientHolder` that rebuilds on consecutive `OperationalError` count crossing a threshold (e.g. 3), with a structured log entry on each rebuild. Alternative: add an explicit healthcheck on the spine-mirror container that pings ClickHouse independently and lets `restart: unless-stopped` restart the whole process on persistent failure — heavier but uses Compose's existing supervision.
+
+## TD-074: `praxis-spine-mirror` waits only for ClickHouse `service_started`, not `service_healthy`
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Low — currently survives the cold-start race via the mirror's own bare-except retry loop; the `_ensure_schema` call retries every `_backoff_seconds(consecutive_failures, sync_interval_s)` until ClickHouse is ready
+**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) — `praxis-spine-mirror.depends_on.praxis-clickhouse.condition: service_started` (and the same value on `praxis-grafana`)
+
+Compose's `service_started` condition fires when the container is up, not when ClickHouse's HTTP listener is accepting queries. The mirror's first-tick `_ensure_schema` race against ClickHouse boot is currently handled by the mirror's recoverable-error retry loop (TD-073 sibling), and Grafana's datasource provisioning happens lazily on first dashboard request so the same race is invisible. The mode is "works via retry"; a healthcheck-gated path would be "works by waiting".
+
+**When to fix**: When either (a) the stack is composed with strict-mode supervisors that flag the cold-start error logs as a regression, or (b) a future ClickHouse upgrade meaningfully slows boot past the mirror's backoff envelope.
+
+**Migration**: Add a `healthcheck` block to `praxis-clickhouse` (`test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]`, `interval: 5s`, `timeout: 3s`, `retries: 10`) and flip both consumers' `condition` to `service_healthy`. The mirror's retry loop stays as defense-in-depth.
+
+## TD-075: `praxis-spine-mirror` bind-mounts a hardcoded `/opt/praxis/state` host path
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Low — operationally limiting, not a runtime defect; any host that puts Praxis state somewhere other than `/opt/praxis/state` (dev laptop, integration test rig, future multi-tenant deployment) needs an edit to the committed compose file
+**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) `praxis-spine-mirror.volumes` — `- /opt/praxis/state:/spine:ro`
+
+The bind-mount source is a hardcoded host path. The deployment convention happens to be `/opt/praxis/state` and the rest of the Praxis launcher / state-store code shares that assumption, but the observability stack is the only Praxis surface that wires it in via a Compose file. A future move to `/var/lib/praxis` / per-tenant subdirs / a CI rig at `/tmp/praxis-test-state` requires editing the committed file rather than overriding an env var.
+
+**When to fix**: When the first non-default Praxis host needs to run the observability stack, OR when the launcher's `PRAXIS_STATE_DIR` env var (TD-001 lineage) lands and the operator wants the observability mount to follow the same knob.
+
+**Migration**: Replace the volume entry with `- ${PRAXIS_STATE_DIR:-/opt/praxis/state}:/spine:ro` and document the `PRAXIS_STATE_DIR` knob in [`observability/.env.example`](observability/.env.example). The default keeps existing deployments working without action.
+
+## TD-076: `observability/spine_mirror.py` has no automated test coverage
+
+**Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
+**Severity**: Low — operational mirror, idempotent on restart (next tick reads `max(event_seq)` and resumes), failure mode is "ClickHouse falls behind by N seconds" not "Praxis trading misbehaves"; still, the timestamp parser, the cursor logic, and the recoverable-error backoff are untested behavior on a service that runs against prod data
+**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) — every function
+
+The mirror has three pieces of non-trivial logic that have only been verified by inspection: `_parse_ts` (three timestamp shapes: `+00:00`, `Z`, naive), `_current_cursor` (NULL / empty-table handling), and the `_backoff_seconds` envelope (clamping, monotonicity, reset-on-success). A future change to any of these has no test to catch a regression; the failure would be "mirror silently falls behind" or "mirror crashes on a payload shape the schema accepts but the parser does not".
+
+**When to fix**: When either (a) a real mirror outage post-mortem traces back to one of these three functions, or (b) the observability stack picks up a second consumer (e.g. a metrics analyzer) that depends on `spine_mirror.py`'s contract.
+
+**Migration**: Add `tests/test_spine_mirror.py` with: parser cases for the three timestamp shapes + a malformed-string raises, `_to_rows` round-trips bytes / str payloads, `_backoff_seconds` clamps at `_BACKOFF_MAX_S` and resets on `consecutive_failures=0`, `_current_cursor` returns `0` on empty table (requires a mock `ch.query` returning `result_rows=[]` and `result_rows=[(None,)]`). The schema SQL itself stays integration-tested via the actual ClickHouse container.

@@ -24,7 +24,10 @@ services:
       - observability
 
   praxis-spine-mirror:
-    image: python:3.12-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.spine-mirror
+    image: praxis-spine-mirror:0.71.0
     container_name: praxis-spine-mirror
     restart: unless-stopped
     depends_on:
@@ -42,11 +45,6 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - /opt/praxis/state:/spine:ro
-      - ./spine_mirror.py:/app/spine_mirror.py:ro
-    command:
-      - sh
-      - -c
-      - "pip install --no-cache-dir clickhouse-connect==0.8.10 && python /app/spine_mirror.py"
     networks:
       - observability
 
