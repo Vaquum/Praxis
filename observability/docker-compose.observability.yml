@@ -1,0 +1,85 @@
+name: praxis-observability
+
+services:
+
+  praxis-clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: praxis-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: praxis
+      CLICKHOUSE_USER: praxis
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set in observability/.env}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    ports:
+      - "127.0.0.1:8124:8123"
+      - "127.0.0.1:9001:9000"
+    networks:
+      - observability
+
+  praxis-spine-mirror:
+    image: python:3.12-slim
+    container_name: praxis-spine-mirror
+    restart: unless-stopped
+    depends_on:
+      praxis-clickhouse:
+        condition: service_started
+    environment:
+      SPINE_PATH: /spine/event_spine.sqlite
+      CLICKHOUSE_HOST: praxis-clickhouse
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_DATABASE: praxis
+      CLICKHOUSE_USER: praxis
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set in observability/.env}
+      SYNC_INTERVAL_SECONDS: "5"
+      BATCH_SIZE: "10000"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - /opt/praxis/state:/spine:ro
+      - ./spine_mirror.py:/app/spine_mirror.py:ro
+    command:
+      - sh
+      - -c
+      - "pip install --no-cache-dir clickhouse-connect==0.8.10 && python /app/spine_mirror.py"
+    networks:
+      - observability
+
+  praxis-grafana:
+    image: grafana/grafana:11.2.0
+    container_name: praxis-grafana
+    restart: unless-stopped
+    depends_on:
+      praxis-clickhouse:
+        condition: service_started
+    environment:
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in observability/.env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_BASIC_ENABLED: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "false"
+      GF_LOG_LEVEL: warn
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set in observability/.env}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - observability
+
+volumes:
+  clickhouse_data:
+  grafana_data:
+
+networks:
+  observability:
+    driver: bridge
