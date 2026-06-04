@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -12,6 +13,9 @@ from typing import Final
 
 import clickhouse_connect
 from clickhouse_connect.driver.exceptions import DatabaseError, OperationalError
+
+
+_IDENTIFIER_RE: Final = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
 _log: Final = logging.getLogger(__name__)
@@ -131,6 +135,13 @@ def main() -> None:
     ch_password = os.environ['CLICKHOUSE_PASSWORD']
     sync_interval_s = float(os.environ.get('SYNC_INTERVAL_SECONDS', '5'))
     batch_size = int(os.environ.get('BATCH_SIZE', '10000'))
+
+    if not _IDENTIFIER_RE.fullmatch(ch_database):
+        msg = (
+            f'CLICKHOUSE_DATABASE={ch_database!r} is not a safe identifier; '
+            f'must match {_IDENTIFIER_RE.pattern}'
+        )
+        raise ValueError(msg)
 
     _log.info(
         'spine-mirror starting: spine=%s clickhouse=%s:%d/%s interval=%.1fs batch=%d',

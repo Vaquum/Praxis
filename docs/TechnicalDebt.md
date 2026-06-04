@@ -811,7 +811,7 @@ The `clickhouse-connect` client is created exactly once in `main()` and never re
 ## TD-074: `praxis-spine-mirror` waits only for ClickHouse `service_started`, not `service_healthy`
 
 **Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
-**Severity**: Low — currently survives the cold-start race via the mirror's own bare-except retry loop; the `_ensure_schema` call retries every `_backoff_seconds(consecutive_failures, sync_interval_s)` until ClickHouse is ready
+**Severity**: Low — currently survives the cold-start race via the mirror's `_RECOVERABLE_ERRORS` retry loop with exponential backoff; if `clickhouse_connect.get_client` or `_ensure_schema` raises during cold-start, the call site goes through `_backoff_seconds(consecutive_failures)` (doubling from 1s, clamped at 300s) and retries on the next iteration
 **Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) — `praxis-spine-mirror.depends_on.praxis-clickhouse.condition: service_started` (and the same value on `praxis-grafana`)
 
 Compose's `service_started` condition fires when the container is up, not when ClickHouse's HTTP listener is accepting queries. The mirror's first-tick `_ensure_schema` race against ClickHouse boot is currently handled by the mirror's recoverable-error retry loop (TD-073 sibling), and Grafana's datasource provisioning happens lazily on first dashboard request so the same race is invisible. The mode is "works via retry"; a healthcheck-gated path would be "works by waiting".
