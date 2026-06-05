@@ -331,6 +331,69 @@ class TestQuantizationStubInteraction:
         call_kwargs = stub_adapter.quantize_for_command.call_args.kwargs
         assert call_kwargs.get('reference_price') == Decimal('80000')
 
+    def test_threads_action_order_type_through_to_adapter(self) -> None:
+
+        stub_adapter = MagicMock()
+        stub_adapter.quantize_for_command.return_value = CommandQuantization(
+            snapped_qty=Decimal('0.00024'), rejection_reason=None,
+        )
+
+        action = Action(
+            action_type=ActionType.ENTER,
+            direction=OrderSide.BUY,
+            size=Decimal('0.00024552'),
+            reference_price=Decimal('80000'),
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            order_type=OrderType.LIMIT,
+            deadline=30,
+        )
+
+        _build_enter_context(
+            action=action,
+            strategy_id='strat-a',
+            nexus_config=_nexus_config(),
+            state=InstanceState.fresh(Decimal('10000')),
+            strategy_budget=Decimal('1000'),
+            fallback_price_provider=lambda: None,
+            fee_rate=Decimal('0.001'),
+            enter_symbol='BTCUSDT',
+            venue_adapter=stub_adapter,
+        )
+
+        call_args = stub_adapter.quantize_for_command.call_args.args
+        from praxis.core.domain.enums import OrderType as PraxisOrderType
+        assert call_args[2] == PraxisOrderType.LIMIT
+
+    def test_defaults_order_type_to_market_when_exit_action_order_type_is_none(self) -> None:
+
+        stub_adapter = MagicMock()
+        stub_adapter.quantize_for_command.return_value = CommandQuantization(
+            snapped_qty=Decimal('0.00024'), rejection_reason=None,
+        )
+
+        action = Action(
+            action_type=ActionType.EXIT,
+            direction=OrderSide.SELL,
+            size=Decimal('0.00024552'),
+            trade_id='trade-1',
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            deadline=30,
+        )
+
+        _build_exit_context(
+            action=action,
+            strategy_id='strat-a',
+            nexus_config=_nexus_config(),
+            state=_state_with_position(),
+            strategy_budget=Decimal('1000'),
+            fee_rate=Decimal('0.001'),
+            venue_adapter=stub_adapter,
+        )
+
+        call_args = stub_adapter.quantize_for_command.call_args.args
+        from praxis.core.domain.enums import OrderType as PraxisOrderType
+        assert call_args[2] == PraxisOrderType.MARKET
+
 
 @pytest.mark.parametrize(
     'raw_size,expected_snapped',

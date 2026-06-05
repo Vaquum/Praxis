@@ -642,10 +642,15 @@ def _build_enter_context(
     order_size = action.size
 
     if venue_adapter is not None:
+        quantize_order_type = (
+            translate_order_type(action.order_type)
+            if action.order_type is not None
+            else OrderType.MARKET
+        )
         quantization = venue_adapter.quantize_for_command(
             enter_symbol,
             action.size,
-            OrderType.MARKET,
+            quantize_order_type,
             reference_price=reference_price,
         )
 
@@ -723,10 +728,15 @@ def _build_exit_context(
     order_size = action.size
 
     if venue_adapter is not None:
+        quantize_order_type = (
+            translate_order_type(action.order_type)
+            if action.order_type is not None
+            else OrderType.MARKET
+        )
         quantization = venue_adapter.quantize_for_command(
             position.symbol,
             action.size,
-            OrderType.MARKET,
+            quantize_order_type,
             reference_price=position.entry_price,
         )
 
