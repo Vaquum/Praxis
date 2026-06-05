@@ -3100,14 +3100,14 @@ class TestQuantizeForCommand:
         assert 'INTAKE_BELOW_MIN_QTY' in result.rejection_reason
         assert '0.0005' in result.rejection_reason
 
-    def test_rejects_when_snap_collapses_to_zero(self) -> None:
+    def test_rejects_when_snap_collapses_below_min_qty(self) -> None:
 
         adapter = _make_adapter()
         adapter._filters['XYZUSDT'] = SymbolFilters(
             symbol='XYZUSDT',
             tick_size=Decimal('0.01'),
             lot_step=Decimal('5'),
-            lot_min=Decimal('5'),
+            lot_min=Decimal('1'),
             lot_max=Decimal('1000'),
             min_notional=Decimal('0'),
         )
@@ -3120,6 +3120,8 @@ class TestQuantizeForCommand:
         assert result.snapped_qty is None
         assert result.rejection_reason is not None
         assert 'INTAKE_BELOW_MIN_QTY' in result.rejection_reason
+        assert 'snapped=0' in result.rejection_reason
+        assert 'lot_step=5' in result.rejection_reason
 
     def test_rejects_when_snapped_notional_below_min_notional(self) -> None:
 

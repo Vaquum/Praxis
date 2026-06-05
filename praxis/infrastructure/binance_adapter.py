@@ -1170,6 +1170,10 @@ class BinanceAdapter:
 
         snapped = (qty // filters.lot_step) * filters.lot_step
 
+        # Post-snap minQty re-check is defensive only on real Binance
+        # Spot filters (minQty >= stepSize always holds), but a custom
+        # SymbolFilters with lot_step > lot_min would let a qty pass
+        # the pre-snap guard above and still floor below lot_min here.
         if snapped < filters.lot_min:
             return CommandQuantization(
                 snapped_qty=None,
