@@ -31,7 +31,6 @@ from binance.client import Client
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
-from praxis.core.domain.enums import OrderType
 from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
@@ -89,6 +88,7 @@ from praxis.command_translator import (
     translate_order_type,
     translate_stp_mode,
 )
+from praxis.core.domain.enums import OrderType
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import OutcomeAcked
 from praxis.core.domain.trade_outcome import TradeOutcome
