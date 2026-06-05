@@ -573,7 +573,7 @@ def _build_validation_context(
             'MODIFY validation context not implemented (TD); skipping action',
             extra={
                 'strategy_id': strategy_id,
-                'command_id': action.command_id,
+                'command_id': action.command_id or f'cmd-{uuid.uuid4().hex}',
             },
         )
         return None
@@ -622,6 +622,7 @@ def _build_enter_context(
     enter_symbol: str,
     venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     reference_price = action.reference_price
 
     if reference_price is None:
@@ -632,7 +633,7 @@ def _build_enter_context(
             'no reference price available for ENTER; skipping action',
             extra={
                 'strategy_id': strategy_id,
-                'command_id': action.command_id,
+                'command_id': command_id,
             },
         )
         return None
@@ -642,7 +643,7 @@ def _build_enter_context(
             'ENTER action has no size; skipping',
             extra={
                 'strategy_id': strategy_id,
-                'command_id': action.command_id,
+                'command_id': command_id,
             },
         )
         return None
@@ -667,7 +668,7 @@ def _build_enter_context(
                 'ENTER action rejected by venue filters at intake; skipping',
                 extra={
                     'strategy_id': strategy_id,
-                    'command_id': action.command_id,
+                    'command_id': command_id,
                     'symbol': enter_symbol,
                     'reference_price': str(reference_price),
                     'requested_size': str(action.size),
@@ -681,7 +682,6 @@ def _build_enter_context(
 
     order_notional = order_size * reference_price
     estimated_fees = order_notional * fee_rate
-    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     order_side = action.direction or OrderSide.BUY
 
     return ValidationRequestContext(
