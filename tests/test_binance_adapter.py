@@ -3046,7 +3046,7 @@ class TestQuantizeForCommand:
             'UNKNOWN', raw, OrderType.MARKET, reference_price=Decimal('80000'),
         )
 
-        assert result.snapped_qty is raw
+        assert result.snapped_qty == raw
         assert result.rejection_reason is None
 
     def test_snaps_high_precision_input_to_lot_step(self) -> None:
