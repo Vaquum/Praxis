@@ -15,6 +15,7 @@ from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
     CancelResult,
+    CommandQuantization,
     ImmediateFill,
     NotFoundError,
     OrderBookLevel,
@@ -297,7 +298,12 @@ class TestVenueAdapterProtocol:
 
             def unregister_account(self, *_args: Any, **_kwargs: Any) -> None: ...
 
-            def quantize_for_command(self, *_args: Any, **_kwargs: Any) -> None: ...
+            def quantize_for_command(
+                self, *_args: Any, **_kwargs: Any,
+            ) -> CommandQuantization:
+                return CommandQuantization(
+                    snapped_qty=Decimal('1'), rejection_reason=None,
+                )
 
             async def submit_order(self, *_args: Any, **_kwargs: Any) -> None: ...
 
