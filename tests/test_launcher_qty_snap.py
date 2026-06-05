@@ -14,7 +14,6 @@ snapped notional falls below the venue floor, and pre-fix parity
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 
@@ -47,7 +46,6 @@ def _nexus_config() -> NexusInstanceConfig:
     )
 
 
-_TS = datetime(2026, 6, 5, 0, 0, 0, tzinfo=UTC)
 _BTCUSDT_FILTERS = SymbolFilters(
     symbol='BTCUSDT',
     tick_size=Decimal('0.01'),
