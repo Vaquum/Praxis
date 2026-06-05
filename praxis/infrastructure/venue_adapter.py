@@ -22,6 +22,7 @@ __all__ = [
     'AuthenticationError',
     'BalanceEntry',
     'CancelResult',
+    'CommandQuantization',
     'DuplicateClientOrderIdError',
     'ExecutionReport',
     'ImmediateFill',
@@ -197,6 +198,33 @@ class SymbolFilters:
     lot_min: Decimal
     lot_max: Decimal
     min_notional: Decimal
+
+
+@dataclass(frozen=True)
+class CommandQuantization:
+    '''
+    Result of quantizing a strategy-supplied qty for command creation.
+
+    Returned by `VenueAdapter.quantize_for_command`. Exactly one of
+    `snapped_qty` and `rejection_reason` is non-`None`:
+
+    - On success: `snapped_qty` is the venue-LOT_SIZE-aligned qty
+      (floor-snapped to `lot_step`) and `rejection_reason` is `None`.
+    - On rejection: `snapped_qty` is `None` and `rejection_reason`
+      carries a structured `INTAKE_*` reason string suitable for
+      logging + emission as a Nexus action rejection.
+
+    Args:
+        snapped_qty (Decimal | None): Quantized qty if the input
+            survives all symbol filters, else `None`.
+        rejection_reason (str | None): Structured rejection reason if
+            the qty falls below `LOT_SIZE.minQty`, the snapped qty
+            collapses to `0`, or the snapped notional falls below
+            `NOTIONAL.minNotional`; else `None`.
+    '''
+
+    snapped_qty: Decimal | None
+    rejection_reason: str | None
 
 
 @dataclass(frozen=True)
@@ -471,6 +499,74 @@ class VenueAdapter(Protocol):
 
         Raises:
             KeyError: If account_id is not registered by the implementation.
+        '''
+
+        ...
+
+    def quantize_for_command(
+        self,
+        symbol: str,
+        qty: Decimal,
+        order_type: OrderType,
+        *,
+        reference_price: Decimal | None = None,
+    ) -> CommandQuantization:
+        '''
+        Snap a strategy-supplied qty to the venue's LOT_SIZE grid and
+        validate it against the venue's symbol filters BEFORE the
+        command is constructed and capital is reserved.
+
+        The launcher calls this during `_build_enter_context` /
+        `_build_exit_context` so that `TradeCommand.qty` is already a
+        multiple of `stepSize` by the time it reaches the validator
+        and the capital ledger — eliminating the `PARTIAL`
+        classification that the venue's downstream stepSize snap
+        used to produce on every entry where the strategy's
+        un-quantized size carried sub-step precision.
+
+        Implementations MUST:
+
+        - Floor-snap `qty` to the symbol's `LOT_SIZE.stepSize`. Use
+          `(qty // step) * step` (floor-divide × step), NOT
+          `Decimal.quantize`, so a non-pure-`10^-n` step (e.g. `5`,
+          or `0.00001000` with eight fractional digits) snaps to a
+          true integer multiple rather than to the step's
+          decimal-exponent.
+        - Reject with `INTAKE_BELOW_MIN_QTY` when the input `qty`
+          (or the snapped qty) falls below `LOT_SIZE.minQty`, OR
+          when the snap collapses to `0`.
+        - Reject with `INTAKE_BELOW_MIN_NOTIONAL` when
+          `reference_price` is supplied AND `snapped_qty * reference_price`
+          falls below `NOTIONAL.minNotional`. When `reference_price`
+          is `None` (e.g. caller doesn't have one) the implementation
+          skips the notional gate and lets the venue's
+          `applyMinToMarket` filter handle it downstream.
+        - Return `CommandQuantization(snapped_qty=qty, rejection_reason=None)`
+          unchanged when the symbol's filters are not cached (e.g.
+          an unknown symbol or a fresh `exchangeInfo` round-trip
+          hasn't landed yet) — defer to the existing
+          `submit_order`-time gate. Implementations MAY log at
+          DEBUG that the cache is cold; they MUST NOT raise.
+
+        Args:
+            symbol (str): Trading pair symbol.
+            qty (Decimal): Strategy-supplied order quantity (positive
+                Decimal; the launcher already enforces `> 0` at
+                action construction).
+            order_type (OrderType): Order type. Currently only used
+                so future per-type filter exemptions (e.g. STOP_LOSS
+                allowing zero-notional placeholder fills) can be
+                expressed without changing the protocol.
+            reference_price (Decimal | None): Price used to evaluate
+                `NOTIONAL.minNotional`. Caller passes the strategy's
+                reference price for ENTER or the position's
+                `entry_price` for EXIT; passing `None` skips the
+                notional check.
+
+        Returns:
+            CommandQuantization: Either `snapped_qty` (qty accepted +
+            snapped) or `rejection_reason` (qty rejected; reason is a
+            structured `INTAKE_*` string).
         '''
 
         ...

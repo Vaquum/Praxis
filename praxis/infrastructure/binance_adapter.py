@@ -40,6 +40,7 @@ from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
     CancelResult,
+    CommandQuantization,
     DuplicateClientOrderIdError,
     ExecutionReport,
     ImmediateFill,
@@ -1093,6 +1094,90 @@ class BinanceAdapter:
         if filters is None:
             return qty
         return (qty // filters.lot_step) * filters.lot_step
+
+
+    def quantize_for_command(
+        self,
+        symbol: str,
+        qty: Decimal,
+        order_type: OrderType,  # noqa: ARG002
+        *,
+        reference_price: Decimal | None = None,
+    ) -> CommandQuantization:
+
+        '''Snap `qty` to LOT_SIZE and gate against minQty / minNotional.
+
+        See `VenueAdapter.quantize_for_command` for the protocol
+        contract. This implementation defers to the existing cache
+        in `self._filters`: if the symbol's filters are not loaded
+        yet, returns the input qty unchanged with no rejection (the
+        venue's submit-time filters remain the backstop). On a cache
+        hit, validates `LOT_SIZE.minQty`, floor-snaps to
+        `LOT_SIZE.stepSize` via `(qty // step) * step`, re-validates
+        `minQty` after the snap (a sub-step input can snap to `0`),
+        and — when `reference_price` is supplied — validates
+        `NOTIONAL.minNotional` against the *snapped* qty (the
+        un-snapped product would have over-stated headroom).
+
+        `order_type` is accepted for protocol parity but unused
+        today; Binance's `NOTIONAL.applyMinToMarket=true` filter
+        applies the minNotional gate uniformly to MARKET and LIMIT
+        on the listed Spot symbols, so the launcher passing
+        `reference_price` for both is correct.
+
+        Args:
+            symbol (str): Trading pair symbol.
+            qty (Decimal): Strategy-supplied order quantity.
+            order_type (OrderType): Order type; reserved for future
+                per-type filter exemptions, currently unused.
+            reference_price (Decimal | None): Reference price for the
+                notional gate; `None` skips the gate.
+
+        Returns:
+            CommandQuantization: Snap result or structured rejection.
+        '''
+
+        filters = self._filters.get(symbol)
+
+        if filters is None:
+            return CommandQuantization(snapped_qty=qty, rejection_reason=None)
+
+        if qty < filters.lot_min:
+            return CommandQuantization(
+                snapped_qty=None,
+                rejection_reason=(
+                    f'INTAKE_BELOW_MIN_QTY qty={qty} '
+                    f'symbol={symbol} lot_min={filters.lot_min}'
+                ),
+            )
+
+        snapped = (qty // filters.lot_step) * filters.lot_step
+
+        if snapped <= 0 or snapped < filters.lot_min:
+            return CommandQuantization(
+                snapped_qty=None,
+                rejection_reason=(
+                    f'INTAKE_BELOW_MIN_QTY qty={qty} snapped={snapped} '
+                    f'symbol={symbol} lot_min={filters.lot_min} '
+                    f'lot_step={filters.lot_step}'
+                ),
+            )
+
+        if reference_price is not None:
+            snapped_notional = snapped * reference_price
+            if snapped_notional < filters.min_notional:
+                return CommandQuantization(
+                    snapped_qty=None,
+                    rejection_reason=(
+                        f'INTAKE_BELOW_MIN_NOTIONAL '
+                        f'notional={snapped_notional} qty={snapped} '
+                        f'reference_price={reference_price} '
+                        f'symbol={symbol} '
+                        f'min_notional={filters.min_notional}'
+                    ),
+                )
+
+        return CommandQuantization(snapped_qty=snapped, rejection_reason=None)
 
 
     async def submit_order(

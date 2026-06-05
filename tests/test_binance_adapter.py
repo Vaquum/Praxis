@@ -20,6 +20,7 @@ from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
     CancelResult,
+    CommandQuantization,
     ExecutionReport,
     LocalOrderRejectedError,
     NotFoundError,
@@ -3032,3 +3033,165 @@ class TestHealthSignals:
         await adapter.sync_clock_drift()
 
         assert adapter.clock_drift_ms == 0.0
+
+
+class TestQuantizeForCommand:
+
+    def test_returns_unchanged_when_filters_not_cached(self) -> None:
+
+        adapter = _make_adapter()
+        raw = Decimal('0.0002455253013823074467823909254')
+
+        result = adapter.quantize_for_command(
+            'UNKNOWN', raw, OrderType.MARKET, reference_price=Decimal('80000'),
+        )
+
+        assert result.snapped_qty is raw
+        assert result.rejection_reason is None
+
+    def test_snaps_high_precision_input_to_lot_step(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+        raw = Decimal('20') / Decimal('81458')
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', raw, OrderType.MARKET, reference_price=Decimal('81458'),
+        )
+
+        assert result.rejection_reason is None
+        assert result.snapped_qty is not None
+        assert result.snapped_qty == Decimal('0.00024')
+        assert result.snapped_qty % Decimal('0.00001') == 0
+        assert result.snapped_qty * Decimal('81458') >= Decimal('5.0')
+
+    def test_preserves_already_aligned_qty(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', Decimal('1.50000'), OrderType.MARKET,
+            reference_price=Decimal('80000'),
+        )
+
+        assert result.rejection_reason is None
+        assert result.snapped_qty == Decimal('1.50000')
+
+    def test_rejects_below_min_qty_pre_snap(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', Decimal('0.0005'), OrderType.MARKET,
+            reference_price=Decimal('80000'),
+        )
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason is not None
+        assert 'INTAKE_BELOW_MIN_QTY' in result.rejection_reason
+        assert '0.0005' in result.rejection_reason
+
+    def test_rejects_when_snap_collapses_to_zero(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['XYZUSDT'] = SymbolFilters(
+            symbol='XYZUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('5'),
+            lot_min=Decimal('5'),
+            lot_max=Decimal('1000'),
+            min_notional=Decimal('0'),
+        )
+
+        result = adapter.quantize_for_command(
+            'XYZUSDT', Decimal('4'), OrderType.MARKET,
+            reference_price=Decimal('100'),
+        )
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason is not None
+        assert 'INTAKE_BELOW_MIN_QTY' in result.rejection_reason
+
+    def test_rejects_when_snapped_notional_below_min_notional(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+        raw = Decimal('0.00002')
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', raw, OrderType.MARKET, reference_price=Decimal('80000'),
+        )
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason is not None
+        assert 'INTAKE_BELOW_MIN_NOTIONAL' in result.rejection_reason
+
+    def test_skips_min_notional_when_reference_price_is_none(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', Decimal('0.00001'), OrderType.MARKET, reference_price=None,
+        )
+
+        assert result.rejection_reason is None
+        assert result.snapped_qty == Decimal('0.00001')
+
+    def test_returns_a_command_quantization_dataclass(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', Decimal('1.0'), OrderType.MARKET,
+            reference_price=Decimal('80000'),
+        )
+
+        assert isinstance(result, CommandQuantization)
+
+    def test_snap_idempotent_with_submit_time_snap(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000.0'),
+            min_notional=Decimal('5.0'),
+        )
+        raw = Decimal('20') / Decimal('81458')
+
+        intake = adapter.quantize_for_command(
+            'BTCUSDT', raw, OrderType.MARKET, reference_price=Decimal('81458'),
+        )
+
+        assert intake.snapped_qty is not None
+
+        submit_snap = adapter._snap_qty_to_lot_step('BTCUSDT', intake.snapped_qty)
+
+        assert submit_snap == intake.snapped_qty

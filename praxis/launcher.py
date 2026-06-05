@@ -31,6 +31,7 @@ from binance.client import Client
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
+from praxis.core.domain.enums import OrderType
 from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
@@ -498,6 +499,7 @@ def _build_validation_context(
     fallback_price_provider: Callable[[], Decimal | None],
     fee_rate: Decimal = _DEFAULT_FEE_RATE,
     enter_symbol: str = _DEFAULT_SYMBOL,
+    venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
     '''Build a `ValidationRequestContext` from a strategy `Action`.
 
@@ -586,6 +588,7 @@ def _build_validation_context(
             fallback_price_provider=fallback_price_provider,
             fee_rate=fee_rate,
             enter_symbol=enter_symbol,
+            venue_adapter=venue_adapter,
         )
 
     return _build_exit_context(
@@ -595,6 +598,7 @@ def _build_validation_context(
         state=state,
         strategy_budget=strategy_budget,
         fee_rate=fee_rate,
+        venue_adapter=venue_adapter,
     )
 
 
@@ -608,6 +612,7 @@ def _build_enter_context(
     fallback_price_provider: Callable[[], Decimal | None],
     fee_rate: Decimal,
     enter_symbol: str,
+    venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
     reference_price = action.reference_price
 
@@ -634,7 +639,34 @@ def _build_enter_context(
         )
         return None
 
-    order_notional = action.size * reference_price
+    order_size = action.size
+
+    if venue_adapter is not None:
+        quantization = venue_adapter.quantize_for_command(
+            enter_symbol,
+            action.size,
+            OrderType.MARKET,
+            reference_price=reference_price,
+        )
+
+        if quantization.rejection_reason is not None:
+            _log.warning(
+                'ENTER action rejected by venue filters at intake; skipping',
+                extra={
+                    'strategy_id': strategy_id,
+                    'command_id': action.command_id,
+                    'symbol': enter_symbol,
+                    'reference_price': str(reference_price),
+                    'requested_size': str(action.size),
+                    'reason': quantization.rejection_reason,
+                },
+            )
+            return None
+
+        assert quantization.snapped_qty is not None
+        order_size = quantization.snapped_qty
+
+    order_notional = order_size * reference_price
     estimated_fees = order_notional * fee_rate
     command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     order_side = action.direction or OrderSide.BUY
@@ -644,7 +676,7 @@ def _build_enter_context(
         action=ValidationAction.ENTER,
         symbol=enter_symbol,
         order_side=order_side,
-        order_size=action.size,
+        order_size=order_size,
         command_id=command_id,
         trade_id=None,
         order_notional=order_notional,
@@ -663,6 +695,7 @@ def _build_exit_context(
     state: InstanceState,
     strategy_budget: Decimal,
     fee_rate: Decimal,
+    venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
     trade_id = action.trade_id
     if trade_id is None or trade_id not in state.positions:
@@ -687,7 +720,34 @@ def _build_exit_context(
         )
         return None
 
-    order_notional = position.entry_price * action.size
+    order_size = action.size
+
+    if venue_adapter is not None:
+        quantization = venue_adapter.quantize_for_command(
+            position.symbol,
+            action.size,
+            OrderType.MARKET,
+            reference_price=position.entry_price,
+        )
+
+        if quantization.rejection_reason is not None:
+            _log.warning(
+                'EXIT action rejected by venue filters at intake; skipping',
+                extra={
+                    'strategy_id': strategy_id,
+                    'trade_id': trade_id,
+                    'symbol': position.symbol,
+                    'entry_price': str(position.entry_price),
+                    'requested_size': str(action.size),
+                    'reason': quantization.rejection_reason,
+                },
+            )
+            return None
+
+        assert quantization.snapped_qty is not None
+        order_size = quantization.snapped_qty
+
+    order_notional = position.entry_price * order_size
     estimated_fees = order_notional * fee_rate
     command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     order_side = action.direction or OrderSide.SELL
@@ -697,7 +757,7 @@ def _build_exit_context(
         action=ValidationAction.EXIT,
         symbol=position.symbol,
         order_side=order_side,
-        order_size=action.size,
+        order_size=order_size,
         command_id=command_id,
         trade_id=trade_id,
         order_notional=order_notional,
@@ -1666,6 +1726,7 @@ class Launcher:
                 state=state,
                 capital_pct=capital_pct,
                 fallback_price_provider=fallback_price_provider,
+                venue_adapter=self._venue_adapter,
             )
 
         command_strategy_ids: dict[str, str] = {}
