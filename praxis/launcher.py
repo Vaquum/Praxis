@@ -1736,7 +1736,11 @@ class Launcher:
                 state=state,
                 capital_pct=capital_pct,
                 fallback_price_provider=fallback_price_provider,
-                venue_adapter=self._venue_adapter,
+                venue_adapter=(
+                    self._trading.venue_adapter
+                    if self._trading is not None
+                    else None
+                ),
             )
 
         command_strategy_ids: dict[str, str] = {}
