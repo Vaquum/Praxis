@@ -88,6 +88,7 @@ from praxis.command_translator import (
     translate_order_type,
     translate_stp_mode,
 )
+from praxis.core.domain.enums import OrderType
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import OutcomeAcked
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -498,20 +499,29 @@ def _build_validation_context(
     fallback_price_provider: Callable[[], Decimal | None],
     fee_rate: Decimal = _DEFAULT_FEE_RATE,
     enter_symbol: str = _DEFAULT_SYMBOL,
+    venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
     '''Build a `ValidationRequestContext` from a strategy `Action`.
 
     Maps each `ActionType` to its `ValidationAction` counterpart and
     derives the validator's request-shape fields:
 
-    - `ENTER`: `order_notional = action.size * reference_price`, where
+    - `ENTER`: when `venue_adapter` is supplied, `action.size` is
+      routed through `venue_adapter.quantize_for_command(...)` to
+      floor-snap to the symbol's `LOT_SIZE.stepSize` and gate against
+      `minQty` / `minNotional`; on rejection the helper logs and
+      returns `None` so the caller drops the action. `order_notional`
+      is then `snapped_qty * reference_price` (or `action.size *
+      reference_price` when `venue_adapter` is `None`, e.g. tests).
       `reference_price` falls back to `fallback_price_provider()` when
       `action.reference_price` is unset. Returns `None` (and logs) when
       no price is available — the action cannot be validated without
       one. Uses `enter_symbol` (MMVP default `BTCUSDT`) and generates a
       command id when the action does not carry one.
-    - `EXIT`: derives `order_notional` from
-      `state.positions[action.trade_id].entry_price * action.size`.
+    - `EXIT`: same quantization pipeline runs against
+      `state.positions[action.trade_id].entry_price` as the reference
+      price; `order_notional` is `snapped_qty * entry_price` (or
+      `action.size * entry_price` when `venue_adapter` is `None`).
       Returns `None` (and logs) when the referenced trade is missing
       from instance state — the helper skips the action and the caller
       drops it.
@@ -563,7 +573,7 @@ def _build_validation_context(
             'MODIFY validation context not implemented (TD); skipping action',
             extra={
                 'strategy_id': strategy_id,
-                'command_id': action.command_id,
+                'command_id': action.command_id or f'cmd-{uuid.uuid4().hex}',
             },
         )
         return None
@@ -586,6 +596,7 @@ def _build_validation_context(
             fallback_price_provider=fallback_price_provider,
             fee_rate=fee_rate,
             enter_symbol=enter_symbol,
+            venue_adapter=venue_adapter,
         )
 
     return _build_exit_context(
@@ -595,6 +606,7 @@ def _build_validation_context(
         state=state,
         strategy_budget=strategy_budget,
         fee_rate=fee_rate,
+        venue_adapter=venue_adapter,
     )
 
 
@@ -608,7 +620,9 @@ def _build_enter_context(
     fallback_price_provider: Callable[[], Decimal | None],
     fee_rate: Decimal,
     enter_symbol: str,
+    venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     reference_price = action.reference_price
 
     if reference_price is None:
@@ -619,7 +633,7 @@ def _build_enter_context(
             'no reference price available for ENTER; skipping action',
             extra={
                 'strategy_id': strategy_id,
-                'command_id': action.command_id,
+                'command_id': command_id,
             },
         )
         return None
@@ -629,14 +643,45 @@ def _build_enter_context(
             'ENTER action has no size; skipping',
             extra={
                 'strategy_id': strategy_id,
-                'command_id': action.command_id,
+                'command_id': command_id,
             },
         )
         return None
 
-    order_notional = action.size * reference_price
+    order_size = action.size
+
+    if venue_adapter is not None:
+        quantize_order_type = (
+            translate_order_type(action.order_type)
+            if action.order_type is not None
+            else OrderType.MARKET
+        )
+        quantization = venue_adapter.quantize_for_command(
+            enter_symbol,
+            action.size,
+            quantize_order_type,
+            reference_price=reference_price,
+        )
+
+        if quantization.rejection_reason is not None:
+            _log.warning(
+                'ENTER action rejected by venue filters at intake; skipping',
+                extra={
+                    'strategy_id': strategy_id,
+                    'command_id': command_id,
+                    'symbol': enter_symbol,
+                    'reference_price': str(reference_price),
+                    'requested_size': str(action.size),
+                    'reason': quantization.rejection_reason,
+                },
+            )
+            return None
+
+        assert quantization.snapped_qty is not None
+        order_size = quantization.snapped_qty
+
+    order_notional = order_size * reference_price
     estimated_fees = order_notional * fee_rate
-    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     order_side = action.direction or OrderSide.BUY
 
     return ValidationRequestContext(
@@ -644,7 +689,7 @@ def _build_enter_context(
         action=ValidationAction.ENTER,
         symbol=enter_symbol,
         order_side=order_side,
-        order_size=action.size,
+        order_size=order_size,
         command_id=command_id,
         trade_id=None,
         order_notional=order_notional,
@@ -663,6 +708,7 @@ def _build_exit_context(
     state: InstanceState,
     strategy_budget: Decimal,
     fee_rate: Decimal,
+    venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
     trade_id = action.trade_id
     if trade_id is None or trade_id not in state.positions:
@@ -687,7 +733,39 @@ def _build_exit_context(
         )
         return None
 
-    order_notional = position.entry_price * action.size
+    order_size = action.size
+
+    if venue_adapter is not None:
+        quantize_order_type = (
+            translate_order_type(action.order_type)
+            if action.order_type is not None
+            else OrderType.MARKET
+        )
+        quantization = venue_adapter.quantize_for_command(
+            position.symbol,
+            action.size,
+            quantize_order_type,
+            reference_price=position.entry_price,
+        )
+
+        if quantization.rejection_reason is not None:
+            _log.warning(
+                'EXIT action rejected by venue filters at intake; skipping',
+                extra={
+                    'strategy_id': strategy_id,
+                    'trade_id': trade_id,
+                    'symbol': position.symbol,
+                    'entry_price': str(position.entry_price),
+                    'requested_size': str(action.size),
+                    'reason': quantization.rejection_reason,
+                },
+            )
+            return None
+
+        assert quantization.snapped_qty is not None
+        order_size = quantization.snapped_qty
+
+    order_notional = position.entry_price * order_size
     estimated_fees = order_notional * fee_rate
     command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     order_side = action.direction or OrderSide.SELL
@@ -697,7 +775,7 @@ def _build_exit_context(
         action=ValidationAction.EXIT,
         symbol=position.symbol,
         order_side=order_side,
-        order_size=action.size,
+        order_size=order_size,
         command_id=command_id,
         trade_id=trade_id,
         order_notional=order_notional,
@@ -1666,6 +1744,11 @@ class Launcher:
                 state=state,
                 capital_pct=capital_pct,
                 fallback_price_provider=fallback_price_provider,
+                venue_adapter=(
+                    self._trading.venue_adapter
+                    if self._trading is not None
+                    else None
+                ),
             )
 
         command_strategy_ids: dict[str, str] = {}
