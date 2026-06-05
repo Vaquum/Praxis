@@ -506,14 +506,22 @@ def _build_validation_context(
     Maps each `ActionType` to its `ValidationAction` counterpart and
     derives the validator's request-shape fields:
 
-    - `ENTER`: `order_notional = action.size * reference_price`, where
+    - `ENTER`: when `venue_adapter` is supplied, `action.size` is
+      routed through `venue_adapter.quantize_for_command(...)` to
+      floor-snap to the symbol's `LOT_SIZE.stepSize` and gate against
+      `minQty` / `minNotional`; on rejection the helper logs and
+      returns `None` so the caller drops the action. `order_notional`
+      is then `snapped_qty * reference_price` (or `action.size *
+      reference_price` when `venue_adapter` is `None`, e.g. tests).
       `reference_price` falls back to `fallback_price_provider()` when
       `action.reference_price` is unset. Returns `None` (and logs) when
       no price is available — the action cannot be validated without
       one. Uses `enter_symbol` (MMVP default `BTCUSDT`) and generates a
       command id when the action does not carry one.
-    - `EXIT`: derives `order_notional` from
-      `state.positions[action.trade_id].entry_price * action.size`.
+    - `EXIT`: same quantization pipeline runs against
+      `state.positions[action.trade_id].entry_price` as the reference
+      price; `order_notional` is `snapped_qty * entry_price` (or
+      `action.size * entry_price` when `venue_adapter` is `None`).
       Returns `None` (and logs) when the referenced trade is missing
       from instance state — the helper skips the action and the caller
       drops it.
