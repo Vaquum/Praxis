@@ -1096,7 +1096,7 @@ class BinanceAdapter:
         return (qty // filters.lot_step) * filters.lot_step
 
 
-    def quantize_for_command(
+    def quantize_for_command(  # noqa: PLR0911
         self,
         symbol: str,
         qty: Decimal,
@@ -1137,6 +1137,23 @@ class BinanceAdapter:
             CommandQuantization: Snap result or structured rejection.
         '''
 
+        if not qty.is_finite():
+            return CommandQuantization(
+                snapped_qty=None,
+                rejection_reason=(
+                    f'INTAKE_NON_FINITE_QTY qty={qty} symbol={symbol}'
+                ),
+            )
+
+        if reference_price is not None and not reference_price.is_finite():
+            return CommandQuantization(
+                snapped_qty=None,
+                rejection_reason=(
+                    f'INTAKE_NON_FINITE_REFERENCE_PRICE '
+                    f'reference_price={reference_price} symbol={symbol}'
+                ),
+            )
+
         filters = self._filters.get(symbol)
 
         if filters is None:
@@ -1153,7 +1170,7 @@ class BinanceAdapter:
 
         snapped = (qty // filters.lot_step) * filters.lot_step
 
-        if snapped <= 0 or snapped < filters.lot_min:
+        if snapped < filters.lot_min:
             return CommandQuantization(
                 snapped_qty=None,
                 rejection_reason=(

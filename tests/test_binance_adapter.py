@@ -3195,3 +3195,87 @@ class TestQuantizeForCommand:
         submit_snap = adapter._snap_qty_to_lot_step('BTCUSDT', intake.snapped_qty)
 
         assert submit_snap == intake.snapped_qty
+
+    def test_rejects_nan_qty(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', Decimal('NaN'), OrderType.MARKET,
+            reference_price=Decimal('80000'),
+        )
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason is not None
+        assert 'INTAKE_NON_FINITE_QTY' in result.rejection_reason
+
+    def test_rejects_infinity_qty(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', Decimal('Infinity'), OrderType.MARKET,
+            reference_price=Decimal('80000'),
+        )
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason is not None
+        assert 'INTAKE_NON_FINITE_QTY' in result.rejection_reason
+
+    def test_rejects_nan_reference_price(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+
+        result = adapter.quantize_for_command(
+            'BTCUSDT', Decimal('1.0'), OrderType.MARKET,
+            reference_price=Decimal('NaN'),
+        )
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason is not None
+        assert 'INTAKE_NON_FINITE_REFERENCE_PRICE' in result.rejection_reason
+
+    def test_finite_check_runs_before_filter_cache_lookup(self) -> None:
+
+        adapter = _make_adapter()
+
+        result = adapter.quantize_for_command(
+            'UNKNOWN', Decimal('NaN'), OrderType.MARKET, reference_price=None,
+        )
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason is not None
+        assert 'INTAKE_NON_FINITE_QTY' in result.rejection_reason
+
+
+class TestCommandQuantizationInvariant:
+
+    def test_accepts_snapped_qty_only(self) -> None:
+
+        result = CommandQuantization(snapped_qty=Decimal('0.00024'), rejection_reason=None)
+
+        assert result.snapped_qty == Decimal('0.00024')
+        assert result.rejection_reason is None
+
+    def test_accepts_rejection_reason_only(self) -> None:
+
+        result = CommandQuantization(snapped_qty=None, rejection_reason='INTAKE_FOO bar=1')
+
+        assert result.snapped_qty is None
+        assert result.rejection_reason == 'INTAKE_FOO bar=1'
+
+    def test_rejects_both_none(self) -> None:
+
+        with pytest.raises(ValueError, match='exactly one'):
+            CommandQuantization(snapped_qty=None, rejection_reason=None)
+
+    def test_rejects_both_non_none(self) -> None:
+
+        with pytest.raises(ValueError, match='exactly one'):
+            CommandQuantization(
+                snapped_qty=Decimal('0.001'),
+                rejection_reason='INTAKE_FOO',
+            )

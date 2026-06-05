@@ -214,17 +214,33 @@ class CommandQuantization:
       carries a structured `INTAKE_*` reason string suitable for
       logging + emission as a Nexus action rejection.
 
+    The invariant is enforced in `__post_init__` so a malformed
+    construction surfaces as a `ValueError` at the call site rather
+    than as a silent contract violation downstream.
+
     Args:
         snapped_qty (Decimal | None): Quantized qty if the input
             survives all symbol filters, else `None`.
         rejection_reason (str | None): Structured rejection reason if
             the qty falls below `LOT_SIZE.minQty`, the snapped qty
-            collapses to `0`, or the snapped notional falls below
-            `NOTIONAL.minNotional`; else `None`.
+            collapses below `lot_min`, the snapped notional falls
+            below `NOTIONAL.minNotional`, or the input is
+            non-finite; else `None`.
     '''
 
     snapped_qty: Decimal | None
     rejection_reason: str | None
+
+    def __post_init__(self) -> None:
+
+        if (self.snapped_qty is None) == (self.rejection_reason is None):
+            msg = (
+                'CommandQuantization must have exactly one of '
+                'snapped_qty and rejection_reason non-None; '
+                f'got snapped_qty={self.snapped_qty!r}, '
+                f'rejection_reason={self.rejection_reason!r}'
+            )
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True)
