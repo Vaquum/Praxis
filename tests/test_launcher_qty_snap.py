@@ -173,24 +173,43 @@ class TestBuildEnterContextQtySnap:
         assert ctx is not None
         assert ctx.order_notional == Decimal('0.00024') * Decimal('80000')
 
-    def test_below_min_qty_returns_none_with_intake_rejection_logged(self) -> None:
+    def test_below_min_qty_returns_none_with_intake_rejection_logged(
+        self, caplog: pytest.LogCaptureFixture,
+    ) -> None:
 
         adapter = _make_real_adapter()
         action = _enter_action(Decimal('0.000001'))
 
-        ctx = _build_enter_context(
-            action=action,
-            strategy_id='strat-a',
-            nexus_config=_nexus_config(),
-            state=InstanceState.fresh(Decimal('10000')),
-            strategy_budget=Decimal('1000'),
-            fallback_price_provider=lambda: None,
-            fee_rate=Decimal('0.001'),
-            enter_symbol='BTCUSDT',
-            venue_adapter=adapter,
-        )
+        with caplog.at_level('WARNING', logger='praxis.launcher'):
+            ctx = _build_enter_context(
+                action=action,
+                strategy_id='strat-a',
+                nexus_config=_nexus_config(),
+                state=InstanceState.fresh(Decimal('10000')),
+                strategy_budget=Decimal('1000'),
+                fallback_price_provider=lambda: None,
+                fee_rate=Decimal('0.001'),
+                enter_symbol='BTCUSDT',
+                venue_adapter=adapter,
+            )
 
         assert ctx is None
+
+        rejection_records = [
+            r for r in caplog.records
+            if r.levelname == 'WARNING'
+            and 'ENTER action rejected by venue filters at intake' in r.message
+        ]
+        assert len(rejection_records) == 1
+        record = rejection_records[0]
+        assert getattr(record, 'strategy_id', None) == 'strat-a'
+        assert getattr(record, 'symbol', None) == 'BTCUSDT'
+        assert getattr(record, 'requested_size', None) == '0.000001'
+        reason = getattr(record, 'reason', '')
+        assert 'INTAKE_BELOW_MIN_QTY' in reason
+        command_id = getattr(record, 'command_id', None)
+        assert command_id is not None
+        assert command_id.startswith('cmd-') or command_id == action.command_id
 
     def test_below_min_notional_returns_none(self) -> None:
 
