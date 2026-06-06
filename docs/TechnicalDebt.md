@@ -871,3 +871,20 @@ A quote-native order that lands via WS fills only (REST-lost rescue scenario, or
 **When to fix**: Before a LIMIT or post-only quote-native order shape ships. Also fix if an incident traces a stranded `PARTIALLY_FILLED` order to a REST-lost rescue scenario.
 
 **Migration**: Add an `OrderQuoteNativeFilled` emission to [`_emit_ws_outcome`](../praxis/core/execution_manager.py) for the `FillReceived` arm when the underlying venue event reports terminal status AND the cached `cmd.is_quote_native`. Symmetric: extend the boot reconciler in [`praxis/trading.py`](../praxis/trading.py) to recognize venue-reported `FILLED` on quote-native and synthesize `OrderQuoteNativeFilled` against the spine before replay reconstructs state. Both changes are local additions, not behavior changes for the currently-shipped MARKET BUY shape.
+
+## TD-080: `_ensure_entry_position` quote-native placeholder relies on `_grow_position`'s VWAP zeroing
+
+**Origin**: Greybeard pre-PR review during v0.73.0 pr-prep
+**Severity**: Low under current scope (BTCUSDT-only, the placeholder is overwritten on the first fill, which happens within the same tick for MARKET orders). Elevated if `_grow_position` is ever refactored to add price stickiness, or if quote-native shapes ever produce a Position that persists across multiple ticks before first fill.
+**Module**: [`praxis/launcher.py`](../praxis/launcher.py) — `_ensure_entry_position` falls back to `Decimal('1')` as `entry_price` when `action.quote_qty is not None` and no reference_price is available.
+
+The fallback is correct *only* because [`OutcomeProcessor._grow_position`](https://github.com/Vaquum/Nexus/blob/main/nexus/infrastructure/praxis_connector/outcome_processor.py) computes `new_entry_price = (old_size * position.entry_price + fill_size * fill_price) / new_size`, and `old_size == 0` zeroes the `old_size * position.entry_price` term — so the arbitrary `Decimal('1')` is discarded on the first fill. The sentinel is load-bearing on that math: if a future Nexus refactor adds a price-sticky term (e.g. `max(position.entry_price, ...)` or a weighted-average that doesn't zero at `old_size == 0`), the `Decimal('1')` sentinel suddenly becomes a real entry price reported back to operators / risk / PnL — silently $1 / BTC instead of the actual fill price.
+
+**When to fix**: Before any Nexus `_grow_position` refactor that changes the `old_size == 0` semantics, OR if an incident traces a wrong `entry_price` on a freshly-opened quote-native position. The pre-fix-trigger watch is a Nexus PR that touches `_grow_position`.
+
+**Migration**: One of three:
+1. Defer the placeholder Position creation until the first fill arrives (lazy create in `OutcomeProcessor`). This is a Nexus-side change.
+2. Compute a real `entry_price` upfront from the order book (Praxis fetches `query_order_book(symbol)` and uses the best ask). Adds one venue call per quote-native ENTER.
+3. Make the placeholder `entry_price` field `Decimal | None` end-to-end (Position.entry_price becomes optional when `size == _ZERO`), and have downstream readers handle `None`. Wider blast radius.
+
+Option 1 is cleanest if Nexus accepts the lazy-create change; option 2 is the safest local fix if not.

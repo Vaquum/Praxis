@@ -490,3 +490,64 @@ class TestVenueFilters:
             _cmd(order_type=OrderType.MARKET, qty=Decimal('0.010')),
             filters=_FILTERS,
         )
+
+
+def _quote_native_cmd(
+    *,
+    side: OrderSide = OrderSide.BUY,
+    order_type: OrderType = OrderType.MARKET,
+    quote_qty: Decimal = Decimal('100'),
+) -> TradeCommand:
+    return TradeCommand(
+        command_id='cmd-002',
+        trade_id='trade-002',
+        account_id='acct-001',
+        symbol='BTCUSDT',
+        side=side,
+        qty=None,
+        quote_qty=quote_qty,
+        order_type=order_type,
+        execution_mode=ExecutionMode.SINGLE_SHOT,
+        execution_params=SingleShotParams(),
+        timeout=60,
+        reference_price=None,
+        maker_preference=MakerPreference.NO_PREFERENCE,
+        stp_mode=STPMode.NONE,
+        created_at=_NOW,
+    )
+
+
+class TestQuoteNativeShape:
+
+    def test_quote_native_accepts_market_buy(self) -> None:
+        validate_trade_command(_quote_native_cmd(), filters=_FILTERS)
+
+    def test_quote_native_rejects_non_buy(self) -> None:
+        with pytest.raises(ValueError, match='quote_qty is only supported for BUY'):
+            validate_trade_command(
+                _quote_native_cmd(side=OrderSide.SELL),
+                filters=_FILTERS,
+            )
+
+    def test_quote_native_rejects_non_market(self) -> None:
+        with pytest.raises(ValueError, match='quote_qty is only supported for MARKET'):
+            validate_trade_command(
+                _quote_native_cmd(order_type=OrderType.LIMIT_IOC),
+                filters=_FILTERS,
+            )
+
+    def test_quote_native_skips_lot_size_checks(self) -> None:
+        validate_trade_command(_quote_native_cmd(), filters=_FILTERS)
+
+    def test_quote_native_min_notional_violation(self) -> None:
+        with pytest.raises(ValueError, match='quote_qty.*is below.*min_notional'):
+            validate_trade_command(
+                _quote_native_cmd(quote_qty=Decimal('5')),
+                filters=_FILTERS,
+            )
+
+    def test_quote_native_min_notional_accepts_at_threshold(self) -> None:
+        validate_trade_command(
+            _quote_native_cmd(quote_qty=Decimal('10')),
+            filters=_FILTERS,
+        )

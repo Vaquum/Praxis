@@ -544,6 +544,104 @@ async def test_post_order_sell_walks_bids(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_post_order_quote_qty_walks_book_and_fills(tmp_path: Path) -> None:
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {
+            'symbol': 'BTCUSDT',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'quoteOrderQty': '101.00',
+            'newClientOrderId': 'cid-quote-1',
+            'signature': 'deadbeef',
+        }
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 200
+
+        payload = await resp.json()
+        assert payload['status'] == 'FILLED'
+        assert payload['side'] == 'BUY'
+        assert payload['type'] == 'MARKET'
+        assert payload['clientOrderId'] == 'cid-quote-1'
+        assert payload['executedQty'] == '1.0'
+        assert Decimal(payload['cummulativeQuoteQty']) == Decimal('101.00')
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_quote_qty_and_quantity_together(tmp_path: Path) -> None:
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {
+            'symbol': 'BTCUSDT',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'quantity': '0.5',
+            'quoteOrderQty': '100',
+            'newClientOrderId': 'cid-quote-2',
+            'signature': 'deadbeef',
+        }
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert 'quantity or quoteOrderQty, not both' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_quote_qty_on_sell(tmp_path: Path) -> None:
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {
+            'symbol': 'BTCUSDT',
+            'side': 'SELL',
+            'type': 'MARKET',
+            'quoteOrderQty': '100',
+            'newClientOrderId': 'cid-quote-3',
+            'signature': 'deadbeef',
+        }
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert 'MARKET BUY' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_non_positive_quote_qty(tmp_path: Path) -> None:
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        params = {
+            'symbol': 'BTCUSDT',
+            'side': 'BUY',
+            'type': 'MARKET',
+            'quoteOrderQty': '0',
+            'newClientOrderId': 'cid-quote-4',
+            'signature': 'deadbeef',
+        }
+        resp = await client.post('/api/v3/order', headers=signed_headers, params=params)
+        assert resp.status == 400
+
+        payload = await resp.json()
+        assert 'quoteOrderQty must be positive' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_post_order_updates_ledger_balances(tmp_path: Path) -> None:
 
     client, _, ledger, _, signed_headers = await _make_client_with_fresh_book(tmp_path)

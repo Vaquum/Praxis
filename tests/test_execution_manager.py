@@ -386,6 +386,46 @@ class TestProcessCommand:
         assert types == ['CommandAccepted', 'OrderSubmitIntent', 'OrderSubmitFailed', 'TradeOutcomeProduced']
 
     @pytest.mark.asyncio
+    async def test_quote_native_filled_status_with_zero_fills_defers(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''Rescue-path zero-fill regression.
+
+        When the venue (or the rescue path) returns
+        `status=FILLED` with `immediate_fills=()` on a quote-native
+        command, the terminal flip must defer to WS reconcile rather
+        than emit a zero-fill `FILLED` outcome that suppresses the
+        real fills. Pinning the gate at `filled_qty > _ZERO`.
+        '''
+
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-quote-rescue',
+            status=OrderStatus.FILLED,
+            immediate_fills=(),
+        )
+        quote_native_kwargs = {
+            **_CMD_KWARGS,
+            'qty': None,
+            'quote_qty': Decimal('100'),
+            'order_type': OrderType.MARKET,
+            'execution_params': SingleShotParams(),
+        }
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**quote_native_kwargs)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderQuoteNativeFilled' not in types
+
+        outcome_events = [e for _, e in events if type(e).__name__ == 'TradeOutcomeProduced']
+        assert len(outcome_events) == 1
+        assert outcome_events[0].status != TradeStatus.FILLED
+
+    @pytest.mark.asyncio
     async def test_multiple_fills(
         self,
         mgr: ExecutionManager,

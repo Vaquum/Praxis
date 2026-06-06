@@ -18,6 +18,7 @@ from praxis.core.domain.events import (
     OrderAcked,
     OrderCanceled,
     OrderExpired,
+    OrderQuoteNativeFilled,
     OrderRejected,
     OrderSubmitFailed,
     OrderSubmitIntent,
@@ -295,6 +296,78 @@ def test_order_expired_closes() -> None:
     state.apply(_expired())
     assert _ORDER not in state.orders
     assert state.closed_orders[_ORDER].status == OrderStatus.EXPIRED
+
+
+def _quote_native_submit_intent(
+    client_order_id: str = _ORDER,
+    quote_qty: Decimal = Decimal('100'),
+) -> OrderSubmitIntent:
+
+    return OrderSubmitIntent(
+        account_id=_ACCT,
+        timestamp=_TS,
+        command_id=_CMD,
+        trade_id=_TRADE,
+        client_order_id=client_order_id,
+        symbol=_SYMBOL,
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=None,
+        quote_qty=quote_qty,
+    )
+
+
+def _quote_native_filled(
+    client_order_id: str = _ORDER,
+) -> OrderQuoteNativeFilled:
+
+    return OrderQuoteNativeFilled(
+        account_id=_ACCT,
+        timestamp=_TS2,
+        client_order_id=client_order_id,
+    )
+
+
+def test_quote_native_submit_intent_creates_order_with_none_qty() -> None:
+
+    state = _state()
+    state.apply(_quote_native_submit_intent())
+    order = state.orders[_ORDER]
+    assert order.qty is None
+    assert order.quote_qty == Decimal('100')
+    assert order.is_quote_native is True
+
+
+def test_quote_native_fill_stays_partially_filled() -> None:
+
+    state = _state()
+    state.apply(_quote_native_submit_intent())
+    state.apply(_fill_event(qty=Decimal('0.001'), price=Decimal('50000')))
+    order = state.orders[_ORDER]
+    assert order.status == OrderStatus.PARTIALLY_FILLED
+    assert _ORDER in state.orders
+
+
+def test_quote_native_filled_event_closes_order() -> None:
+
+    state = _state()
+    state.apply(_quote_native_submit_intent())
+    state.apply(_fill_event(qty=Decimal('0.001'), price=Decimal('50000')))
+    state.apply(_quote_native_filled())
+    assert _ORDER not in state.orders
+    closed = state.closed_orders[_ORDER]
+    assert closed.status == OrderStatus.FILLED
+
+
+def test_quote_native_filled_replay_is_idempotent() -> None:
+
+    state = _state()
+    state.apply(_quote_native_submit_intent())
+    state.apply(_fill_event(qty=Decimal('0.001'), price=Decimal('50000')))
+    state.apply(_quote_native_filled())
+    state.apply(_quote_native_filled())
+    closed = state.closed_orders[_ORDER]
+    assert closed.status == OrderStatus.FILLED
 
 
 def test_rejected_sets_venue_order_id() -> None:

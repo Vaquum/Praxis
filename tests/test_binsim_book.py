@@ -352,3 +352,65 @@ def test_consume_raises_on_non_finite_qty(bad_qty: Decimal) -> None:
 
     with pytest.raises(ValueError, match='qty must be finite'):
         book.consume_qty_for_market_order(OrderSide.BUY, bad_qty)
+
+
+def test_consume_quote_for_market_buy_full_level() -> None:
+    book = _seeded()
+
+    walk = book.consume_quote_for_market_buy(Decimal('101.00'))
+
+    assert walk == [(Decimal('101.00'), Decimal('1.0'))]
+
+
+def test_consume_quote_for_market_buy_partial_takes_last_level() -> None:
+    book = _seeded()
+
+    walk = book.consume_quote_for_market_buy(Decimal('152.25'))
+
+    assert walk[0] == (Decimal('101.00'), Decimal('1.0'))
+    assert walk[1][0] == Decimal('101.50')
+    remaining_quote = Decimal('152.25') - Decimal('101.00')
+    assert walk[1][1] == remaining_quote / Decimal('101.50')
+
+
+def test_consume_quote_for_market_buy_sums_to_quote_qty() -> None:
+    book = _seeded()
+    quote_qty = Decimal('250.00')
+
+    walk = book.consume_quote_for_market_buy(quote_qty)
+
+    consumed_quote = sum((p * q for p, q in walk), Decimal('0'))
+    assert abs(consumed_quote - quote_qty) < Decimal('1E-20')
+
+
+def test_consume_quote_for_market_buy_partial_when_book_exhausted() -> None:
+    book = _seeded()
+
+    walk = book.consume_quote_for_market_buy(Decimal('100000'))
+
+    consumed_quote = sum((p * q for p, q in walk), Decimal('0'))
+    assert consumed_quote == Decimal('101.00') + Decimal('203.00') + Decimal('306.00')
+    assert consumed_quote < Decimal('100000')
+
+
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_consume_quote_for_market_buy_rejects_non_positive(bad: Decimal) -> None:
+    book = _seeded()
+
+    with pytest.raises(ValueError, match='quote_qty must be positive'):
+        book.consume_quote_for_market_buy(bad)
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_consume_quote_for_market_buy_rejects_non_finite(bad: Decimal) -> None:
+    book = _seeded()
+
+    with pytest.raises(ValueError, match='quote_qty must be finite'):
+        book.consume_quote_for_market_buy(bad)
+
+
+def test_consume_quote_for_market_buy_raises_on_empty_asks() -> None:
+    book = OrderBook()
+
+    with pytest.raises(RuntimeError, match='order book is empty'):
+        book.consume_quote_for_market_buy(Decimal('100'))

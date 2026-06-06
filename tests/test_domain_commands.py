@@ -200,6 +200,104 @@ def test_trade_command_none_reference_price_valid() -> None:
     assert cmd.reference_price is None
 
 
+def test_trade_command_quote_native_succeeds() -> None:
+
+    cmd = TradeCommand(
+        command_id='cmd-001',
+        trade_id='trade-001',
+        account_id='acc-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=None,
+        quote_qty=Decimal('100'),
+        order_type=OrderType.MARKET,
+        execution_mode=ExecutionMode.SINGLE_SHOT,
+        execution_params=SingleShotParams(),
+        timeout=60,
+        reference_price=None,
+        maker_preference=MakerPreference.NO_PREFERENCE,
+        stp_mode=STPMode.NONE,
+        created_at=_TS,
+    )
+
+    assert cmd.qty is None
+    assert cmd.quote_qty == Decimal('100')
+    assert cmd.is_quote_native is True
+
+
+def test_trade_command_qty_native_is_quote_native_false() -> None:
+
+    cmd = _command()
+    assert cmd.is_quote_native is False
+
+
+def test_trade_command_rejects_both_qty_and_quote_qty() -> None:
+
+    with pytest.raises(ValueError, match='exactly one of qty or quote_qty'):
+        TradeCommand(
+            command_id='cmd-001',
+            trade_id='trade-001',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1.0'),
+            quote_qty=Decimal('100'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(),
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
+
+
+def test_trade_command_rejects_neither_qty_nor_quote_qty() -> None:
+
+    with pytest.raises(ValueError, match='exactly one of qty or quote_qty'):
+        TradeCommand(
+            command_id='cmd-001',
+            trade_id='trade-001',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=None,
+            quote_qty=None,
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(),
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
+
+
+@pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+def test_trade_command_rejects_non_positive_quote_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be positive'):
+        TradeCommand(
+            command_id='cmd-001',
+            trade_id='trade-001',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=None,
+            quote_qty=bad,
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(),
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
+
+
 def test_trade_command_rejects_naive_created_at() -> None:
 
     with pytest.raises(ValueError, match='timezone-aware'):
