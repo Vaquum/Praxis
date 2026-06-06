@@ -34,7 +34,7 @@ class _ExecutionInboundGateway(Protocol):
         account_id: str,
         symbol: str,
         side: OrderSide,
-        qty: Decimal,
+        qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
         execution_params: SingleShotParams,
@@ -44,6 +44,7 @@ class _ExecutionInboundGateway(Protocol):
         stp_mode: STPMode,
         created_at: datetime,
         strategy_id: str | None = None,
+        quote_qty: Decimal | None = None,
     ) -> str: ...
 
     def submit_abort(self, abort: TradeAbort) -> None: ...
@@ -158,7 +159,7 @@ class TradingInbound:
         account_id: str,
         symbol: str,
         side: OrderSide,
-        qty: Decimal,
+        qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
         execution_params: SingleShotParams,
@@ -168,6 +169,7 @@ class TradingInbound:
         stp_mode: STPMode,
         created_at: datetime,
         strategy_id: str | None = None,
+        quote_qty: Decimal | None = None,
     ) -> str:
         '''
         Route inbound command submission to the execution layer.
@@ -177,7 +179,11 @@ class TradingInbound:
             account_id (str): Target account identifier.
             symbol (str): Trading pair symbol.
             side (OrderSide): Order direction.
-            qty (Decimal): Total quantity to execute.
+            qty (Decimal | None): Base-asset quantity. Mutually exclusive
+                with `quote_qty`.
+            quote_qty (Decimal | None): Quote-asset spend (e.g. USDT)
+                for quote-native MARKET BUY. Mutually exclusive with
+                `qty`.
             order_type (OrderType): Order type.
             execution_mode (ExecutionMode): Execution strategy.
             execution_params (SingleShotParams): Mode-specific parameters.
@@ -202,6 +208,7 @@ class TradingInbound:
             symbol=symbol,
             side=side,
             qty=qty,
+            quote_qty=quote_qty,
             order_type=order_type,
             execution_mode=execution_mode,
             execution_params=execution_params,

@@ -593,13 +593,14 @@ class VenueAdapter(Protocol):
         symbol: str,
         side: OrderSide,
         order_type: OrderType,
-        qty: Decimal,
+        qty: Decimal | None,
         *,
         price: Decimal | None = None,
         stop_price: Decimal | None = None,
         stop_limit_price: Decimal | None = None,
         client_order_id: str | None = None,
         time_in_force: str | None = None,
+        quote_qty: Decimal | None = None,
     ) -> SubmitResult:
         '''
         Submit an order to the venue.
@@ -609,12 +610,17 @@ class VenueAdapter(Protocol):
             symbol (str): Trading pair symbol
             side (OrderSide): Order direction
             order_type (OrderType): Order type
-            qty (Decimal): Order quantity
+            qty (Decimal | None): Base-asset order quantity. Mutually
+                exclusive with `quote_qty`.
             price (Decimal | None): Limit price, required for limit orders
             stop_price (Decimal | None): Stop trigger price
             stop_limit_price (Decimal | None): Stop-limit price for OCO orders
             client_order_id (str | None): Deterministic client order identifier
             time_in_force (str | None): Time-in-force policy
+            quote_qty (Decimal | None): Quote-asset spend (e.g. USDT)
+                for quote-native MARKET BUY. The venue determines the
+                executed base quantity from live liquidity. Mutually
+                exclusive with `qty`.
 
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills

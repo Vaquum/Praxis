@@ -8,7 +8,7 @@ enqueueing.
 
 from __future__ import annotations
 
-from praxis.core.domain.enums import ExecutionMode, MakerPreference, OrderType
+from praxis.core.domain.enums import ExecutionMode, MakerPreference, OrderSide, OrderType
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
@@ -126,6 +126,8 @@ def validate_trade_command(
 
     _validate_mode_order_type(cmd)
 
+    _validate_quote_native_shape(cmd)
+
     if cmd.execution_mode == ExecutionMode.SINGLE_SHOT:
         _validate_single_shot_params(cmd)
 
@@ -133,6 +135,35 @@ def validate_trade_command(
 
     if filters is not None:
         _validate_venue_filters(cmd, filters)
+
+
+def _validate_quote_native_shape(cmd: TradeCommand) -> None:
+    '''
+    Restrict quote-native commands to MARKET BUY.
+
+    Binance only accepts `quoteOrderQty` on MARKET BUY orders, so any
+    other shape would be rejected by the venue with an HTTP 400 that
+    surfaces as a `ValueError` from the adapter — outside the venue
+    error path the execution layer expects. Failing fast here keeps
+    the rejection inside the standard validator pipeline.
+    '''
+
+    if not cmd.is_quote_native:
+        return
+
+    if cmd.side != OrderSide.BUY:
+        msg = (
+            f'quote_qty is only supported for BUY orders, '
+            f'got side={cmd.side.value}'
+        )
+        raise ValueError(msg)
+
+    if cmd.order_type != OrderType.MARKET:
+        msg = (
+            f'quote_qty is only supported for MARKET orders, '
+            f'got order_type={cmd.order_type.value}'
+        )
+        raise ValueError(msg)
 
 
 def _validate_mode_order_type(cmd: TradeCommand) -> None:
@@ -239,6 +270,15 @@ def _validate_venue_filters(
     Raises:
         ValueError: If qty or price violates venue filters.
     '''
+
+    if cmd.is_quote_native:
+        if cmd.quote_qty < filters.min_notional:
+            msg = (
+                f"quote_qty {cmd.quote_qty} is below "
+                f"min_notional {filters.min_notional}"
+            )
+            raise ValueError(msg)
+        return
 
     if cmd.qty % filters.lot_step != 0:
         msg = f"qty {cmd.qty} is not a multiple of lot step {filters.lot_step}"

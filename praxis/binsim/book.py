@@ -164,3 +164,55 @@ class OrderBook:
             remaining -= take
 
         return fills
+
+    def consume_quote_for_market_buy(
+        self,
+        quote_qty: Decimal,
+    ) -> list[tuple[Decimal, Decimal]]:
+
+        '''Walk the asks until quote-asset spend is exhausted.
+
+        Mirrors Binance's MARKET BUY with `quoteOrderQty`: the venue
+        walks the ask ladder consuming each level up to the remaining
+        quote budget, partial-taking the last level to land exactly on
+        `quote_qty` spend.
+
+        Args:
+            quote_qty: quote-asset budget (positive Decimal).
+
+        Returns:
+            (price, fill_qty) tuples in walk order. The summed
+            `price * fill_qty` may be less than `quote_qty` if the
+            visible book is exhausted.
+
+        Raises:
+            ValueError: `quote_qty` is non-positive.
+            RuntimeError: the ask side of the book is empty.
+        '''
+
+        if not quote_qty.is_finite():
+            raise ValueError(f'quote_qty must be finite, got {quote_qty}')
+
+        if quote_qty <= 0:
+            raise ValueError(f'quote_qty must be positive, got {quote_qty}')
+
+        if not self._asks:
+            raise RuntimeError('order book is empty; call replace() first')
+
+        fills: list[tuple[Decimal, Decimal]] = []
+        remaining_quote = quote_qty
+
+        for price, level_qty in self._asks:
+            if remaining_quote <= 0:
+                break
+
+            level_quote_cap = price * level_qty
+            if level_quote_cap <= remaining_quote:
+                fills.append((price, level_qty))
+                remaining_quote -= level_quote_cap
+            else:
+                take_base = remaining_quote / price
+                fills.append((price, take_base))
+                remaining_quote = Decimal('0')
+
+        return fills

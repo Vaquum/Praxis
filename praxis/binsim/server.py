@@ -321,6 +321,7 @@ async def _submit_order(request: web.Request) -> web.Response:
     side_raw = request.query.get('side')
     type_raw = request.query.get('type')
     qty_raw = request.query.get('quantity')
+    quote_qty_raw = request.query.get('quoteOrderQty')
     client_order_id = request.query.get('newClientOrderId')
 
     if symbol is None:
@@ -367,35 +368,84 @@ async def _submit_order(request: web.Request) -> web.Response:
             msg='missing or empty newClientOrderId',
         )
 
-    qty = _parse_decimal_param(qty_raw, 'quantity')
-
-    if qty <= 0:
-        raise _binance_error(
-            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
-            msg=f'quantity must be positive, got {qty_raw!r}',
-        )
-
     side = OrderSide(side_raw)
 
-    try:
-        walk = book.consume_qty_for_market_order(side, qty)
-    except RuntimeError as exc:
-        _log.warning('order book empty on POST /api/v3/order', error=str(exc))
-        raise _binance_error(
-            status=_HTTP_SERVICE_UNAVAILABLE, code=_BINANCE_CODE_BOOK_STALE,
-            msg='order book not initialised',
-        ) from exc
+    if quote_qty_raw is not None:
+        if qty_raw is not None:
+            raise _binance_error(
+                status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+                msg='specify quantity or quoteOrderQty, not both',
+            )
+
+        if side != OrderSide.BUY:
+            raise _binance_error(
+                status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+                msg='quoteOrderQty is only valid for MARKET BUY',
+            )
+
+        quote_qty = _parse_decimal_param(quote_qty_raw, 'quoteOrderQty')
+
+        if quote_qty <= 0:
+            raise _binance_error(
+                status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+                msg=f'quoteOrderQty must be positive, got {quote_qty_raw!r}',
+            )
+
+        try:
+            walk = book.consume_quote_for_market_buy(quote_qty)
+        except RuntimeError as exc:
+            _log.warning(
+                'order book empty on POST /api/v3/order (quoteOrderQty)',
+                error=str(exc),
+            )
+            raise _binance_error(
+                status=_HTTP_SERVICE_UNAVAILABLE, code=_BINANCE_CODE_BOOK_STALE,
+                msg='order book not initialised',
+            ) from exc
+
+        consumed_quote = sum((p * q for p, q in walk), Decimal('0'))
+
+        if consumed_quote < quote_qty:
+            raise _binance_error(
+                status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
+                msg=(
+                    f'insufficient book liquidity for quoteOrderQty: '
+                    f'requested {quote_qty}, visible {consumed_quote} '
+                    f'across {len(walk)} levels'
+                ),
+            )
+
+        qty = sum((q for _, q in walk), Decimal('0'))
+    else:
+        qty = _parse_decimal_param(qty_raw, 'quantity')
+
+        if qty <= 0:
+            raise _binance_error(
+                status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
+                msg=f'quantity must be positive, got {qty_raw!r}',
+            )
+
+        try:
+            walk = book.consume_qty_for_market_order(side, qty)
+        except RuntimeError as exc:
+            _log.warning('order book empty on POST /api/v3/order', error=str(exc))
+            raise _binance_error(
+                status=_HTTP_SERVICE_UNAVAILABLE, code=_BINANCE_CODE_BOOK_STALE,
+                msg='order book not initialised',
+            ) from exc
+
+        consumed_base = sum((q for _, q in walk), Decimal('0'))
+
+        if consumed_base < qty:
+            raise _binance_error(
+                status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
+                msg=(
+                    f'insufficient book liquidity: requested {qty}, visible {consumed_base} '
+                    f'across {len(walk)} levels'
+                ),
+            )
 
     filled_qty = sum((q for _, q in walk), Decimal('0'))
-
-    if filled_qty < qty:
-        raise _binance_error(
-            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
-            msg=(
-                f'insufficient book liquidity: requested {qty}, visible {filled_qty} '
-                f'across {len(walk)} levels'
-            ),
-        )
 
     fills_with_fees = [
         (price, level_qty, level_qty * price * _TAKER_FEE_RATE)

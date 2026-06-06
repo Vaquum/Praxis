@@ -802,7 +802,7 @@ class Trading:
         account_id: str,
         symbol: str,
         side: OrderSide,
-        qty: Decimal,
+        qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
         execution_params: SingleShotParams,
@@ -812,6 +812,7 @@ class Trading:
         stp_mode: STPMode,
         created_at: datetime,
         strategy_id: str | None = None,
+        quote_qty: Decimal | None = None,
     ) -> str:
         '''Submit trade command through inbound facade.'''
 
@@ -825,6 +826,7 @@ class Trading:
             symbol=symbol,
             side=side,
             qty=qty,
+            quote_qty=quote_qty,
             order_type=order_type,
             execution_mode=execution_mode,
             execution_params=execution_params,

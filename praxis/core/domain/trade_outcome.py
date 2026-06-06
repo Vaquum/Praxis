@@ -39,7 +39,10 @@ class TradeOutcome:
         trade_id (str): Manager passthrough correlation identifier.
         account_id (str): Account identifier.
         status (TradeStatus): Current execution state.
-        target_qty (Decimal): Original requested quantity, must be positive.
+        target_qty (Decimal | None): Original requested base-asset
+            quantity, must be positive when set. `None` for quote-native
+            MARKET BUY orders where the venue determines the executed
+            base quantity from the strategy's quote-asset budget.
         filled_qty (Decimal): Cumulative filled quantity, must be non-negative.
         avg_fill_price (Decimal | None): VWAP of all fills, must be positive if set. None when no fills.
         slices_completed (int): Completed slices or steps, must be non-negative.
@@ -63,7 +66,7 @@ class TradeOutcome:
     trade_id: str
     account_id: str
     status: TradeStatus
-    target_qty: Decimal
+    target_qty: Decimal | None
     filled_qty: Decimal
     avg_fill_price: Decimal | None
     slices_completed: int
@@ -85,7 +88,7 @@ class TradeOutcome:
             msg = 'TradeOutcome.created_at must be timezone-aware'
             raise ValueError(msg)
 
-        if self.target_qty <= _ZERO:
+        if self.target_qty is not None and self.target_qty <= _ZERO:
             msg = 'TradeOutcome.target_qty must be positive'
             raise ValueError(msg)
 
@@ -93,7 +96,7 @@ class TradeOutcome:
             msg = 'TradeOutcome.filled_qty must be non-negative'
             raise ValueError(msg)
 
-        if self.filled_qty > self.target_qty:
+        if self.target_qty is not None and self.filled_qty > self.target_qty:
             msg = 'TradeOutcome.filled_qty cannot exceed target_qty'
             raise ValueError(msg)
 
@@ -141,8 +144,15 @@ class TradeOutcome:
         return self.status in _TERMINAL
 
     @property
-    def fill_ratio(self) -> Decimal:
+    def fill_ratio(self) -> Decimal | None:
 
-        '''Return the ratio of filled quantity to target quantity.'''
+        '''Return the ratio of filled quantity to target quantity.
+
+        Returns `None` for quote-native orders where `target_qty` is
+        unknown ahead of fill.
+        '''
+
+        if self.target_qty is None or self.target_qty == _ZERO:
+            return None
 
         return self.filled_qty / self.target_qty

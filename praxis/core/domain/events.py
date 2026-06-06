@@ -101,7 +101,10 @@ class OrderSubmitIntent(_EventBase):
         symbol (str): Trading pair symbol.
         side (OrderSide): Order direction.
         order_type (OrderType): Order type.
-        qty (Decimal): Order quantity, must be positive.
+        qty (Decimal | None): Base-asset quantity. Mutually exclusive
+            with `quote_qty` — exactly one must be set.
+        quote_qty (Decimal | None): Quote-asset spend (e.g. USDT) for
+            quote-native MARKET BUY. Mutually exclusive with `qty`.
         price (Decimal | None): Limit price, must be positive when set.
         stop_price (Decimal | None): Stop trigger price, must be positive when set.
         stop_limit_price (Decimal | None): Stop-limit price for OCO orders, must be positive when set.
@@ -113,10 +116,11 @@ class OrderSubmitIntent(_EventBase):
     symbol: str
     side: OrderSide
     order_type: OrderType
-    qty: Decimal
+    qty: Decimal | None = None
     price: Decimal | None = None
     stop_price: Decimal | None = None
     stop_limit_price: Decimal | None = None
+    quote_qty: Decimal | None = None
 
     def __post_init__(self) -> None:
 
@@ -128,8 +132,16 @@ class OrderSubmitIntent(_EventBase):
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'symbol', self.symbol)
 
-        if self.qty <= _ZERO:
+        if (self.qty is None) == (self.quote_qty is None):
+            msg = 'OrderSubmitIntent requires exactly one of qty or quote_qty'
+            raise ValueError(msg)
+
+        if self.qty is not None and self.qty <= _ZERO:
             msg = 'OrderSubmitIntent.qty must be positive'
+            raise ValueError(msg)
+
+        if self.quote_qty is not None and self.quote_qty <= _ZERO:
+            msg = 'OrderSubmitIntent.quote_qty must be positive'
             raise ValueError(msg)
 
         if self.price is not None and self.price <= _ZERO:
@@ -168,6 +180,35 @@ class OrderSubmitted(_EventBase):
         name = type(self).__name__
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'venue_order_id', self.venue_order_id)
+
+
+@dataclass(frozen=True)
+class OrderQuoteNativeFilled(_EventBase):
+
+    '''
+    Mark a quote-native order as terminally FILLED.
+
+    Qty-native orders self-terminate when `Order.filled_qty` reaches
+    `Order.qty`, which is implicit in the `FillReceived` projection.
+    Quote-native MARKET BUYs have no base target, so the venue's
+    per-response `status == FILLED` flag is the only terminal signal
+    — this event persists that transition so spine replay reconstructs
+    the order as closed instead of stranded `PARTIALLY_FILLED`.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        client_order_id (str): Deterministic client order identifier.
+    '''
+
+    client_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
 
 
 @dataclass(frozen=True)
@@ -468,6 +509,7 @@ type Event = (
     | OrderSubmitIntent
     | OrderSubmitted
     | OrderSubmitFailed
+    | OrderQuoteNativeFilled
     | OrderAcked
     | FillReceived
     | OrderRejected

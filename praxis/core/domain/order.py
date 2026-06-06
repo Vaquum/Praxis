@@ -41,7 +41,10 @@ class Order:
         symbol (str): Trading pair symbol.
         side (OrderSide): Order direction.
         order_type (OrderType): Order type.
-        qty (Decimal): Requested quantity, must be positive.
+        qty (Decimal | None): Requested base-asset quantity. Mutually
+            exclusive with `quote_qty`; exactly one must be set.
+        quote_qty (Decimal | None): Quote-asset spend for quote-native
+            MARKET BUY. Mutually exclusive with `qty`.
         filled_qty (Decimal): Cumulative filled quantity, must be non-negative.
         cumulative_notional (Decimal): Running total of fill_qty * fill_price for VWAP.
         price (Decimal | None): Limit price, must be positive if set. None for market orders.
@@ -58,7 +61,7 @@ class Order:
     symbol: str
     side: OrderSide
     order_type: OrderType
-    qty: Decimal
+    qty: Decimal | None
     filled_qty: Decimal
     cumulative_notional: Decimal
     price: Decimal | None
@@ -66,6 +69,13 @@ class Order:
     status: OrderStatus
     created_at: datetime
     updated_at: datetime
+    quote_qty: Decimal | None = None
+
+    @property
+    def is_quote_native(self) -> bool:
+        '''Return True when the order was sized in quote units.'''
+
+        return self.quote_qty is not None
 
     def __post_init__(self) -> None:
 
@@ -80,8 +90,16 @@ class Order:
                 msg = f'Order.{field} must be timezone-aware'
                 raise ValueError(msg)
 
-        if self.qty <= _ZERO:
+        if (self.qty is None) == (self.quote_qty is None):
+            msg = 'Order requires exactly one of qty or quote_qty'
+            raise ValueError(msg)
+
+        if self.qty is not None and self.qty <= _ZERO:
             msg = 'Order.qty must be positive'
+            raise ValueError(msg)
+
+        if self.quote_qty is not None and self.quote_qty <= _ZERO:
+            msg = 'Order.quote_qty must be positive'
             raise ValueError(msg)
 
         if self.filled_qty < _ZERO:
@@ -98,7 +116,7 @@ class Order:
                 msg = f'Order.{field} must be positive'
                 raise ValueError(msg)
 
-        if self.filled_qty > self.qty:
+        if self.qty is not None and self.filled_qty > self.qty:
             msg = 'Order.filled_qty cannot exceed qty'
             raise ValueError(msg)
 
@@ -109,7 +127,9 @@ class Order:
     def __setattr__(self, name: str, value: object) -> None:
         '''Validate mutable field invariants on assignment.'''
 
-        if name == 'qty' and (not isinstance(value, Decimal) or value <= _ZERO):
+        if name == 'qty' and value is not None and (
+            not isinstance(value, Decimal) or value <= _ZERO
+        ):
             msg = 'Order.qty must be positive'
             raise ValueError(msg)
 
@@ -131,8 +151,15 @@ class Order:
         return self.status in _TERMINAL_STATUSES
 
     @property
-    def remaining_qty(self) -> Decimal:
+    def remaining_qty(self) -> Decimal | None:
 
-        '''Return the unfilled quantity.'''
+        '''Return the unfilled base-asset quantity.
+
+        Returns `None` for quote-native orders where the base target is
+        not known ahead of fill.
+        '''
+
+        if self.qty is None:
+            return None
 
         return self.qty - self.filled_qty
