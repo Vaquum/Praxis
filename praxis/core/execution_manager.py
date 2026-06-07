@@ -950,6 +950,7 @@ class ExecutionManager:
 
         estimate = None
         if not cmd.is_quote_native:
+            assert cmd.qty is not None
             try:
                 book = await self._venue_adapter.query_order_book(
                     cmd.symbol,
@@ -1139,6 +1140,7 @@ class ExecutionManager:
             else:
                 status = TradeStatus.PENDING
         else:
+            assert cmd.qty is not None
             if filled_qty > cmd.qty:
                 _log.warning(
                     'overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
@@ -1553,18 +1555,20 @@ class ExecutionManager:
 
         emitted_filled_qty = order.filled_qty
         emitted_cumulative_notional = order.cumulative_notional
-        if not cmd.is_quote_native and emitted_filled_qty > cmd.qty:
-            _log.warning(
-                'WS-driven filled_qty exceeds command target_qty; '
-                'clamping to target. Likely cause: duplicate / out-of-order '
-                'venue fills or venue rounding past the order qty',
-                extra={
-                    'command_id': command_id,
-                    'order_filled_qty': str(order.filled_qty),
-                    'target_qty': str(cmd.qty),
-                },
-            )
-            emitted_filled_qty = cmd.qty
+        if not cmd.is_quote_native:
+            assert cmd.qty is not None
+            if emitted_filled_qty > cmd.qty:
+                _log.warning(
+                    'WS-driven filled_qty exceeds command target_qty; '
+                    'clamping to target. Likely cause: duplicate / out-of-order '
+                    'venue fills or venue rounding past the order qty',
+                    extra={
+                        'command_id': command_id,
+                        'order_filled_qty': str(order.filled_qty),
+                        'target_qty': str(cmd.qty),
+                    },
+                )
+                emitted_filled_qty = cmd.qty
 
         if isinstance(event, FillReceived):
             status = (

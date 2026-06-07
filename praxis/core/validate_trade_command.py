@@ -272,6 +272,7 @@ def _validate_venue_filters(
     '''
 
     if cmd.is_quote_native:
+        assert cmd.quote_qty is not None
         if cmd.quote_qty < filters.min_notional:
             msg = (
                 f"quote_qty {cmd.quote_qty} is below "
@@ -279,6 +280,8 @@ def _validate_venue_filters(
             )
             raise ValueError(msg)
         return
+
+    assert cmd.qty is not None
 
     if cmd.qty % filters.lot_step != 0:
         msg = f"qty {cmd.qty} is not a multiple of lot step {filters.lot_step}"

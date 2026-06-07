@@ -540,7 +540,7 @@ class TestQuoteNativeShape:
         validate_trade_command(_quote_native_cmd(), filters=_FILTERS)
 
     def test_quote_native_min_notional_violation(self) -> None:
-        with pytest.raises(ValueError, match='quote_qty.*is below.*min_notional'):
+        with pytest.raises(ValueError, match=r'quote_qty.*is below.*min_notional'):
             validate_trade_command(
                 _quote_native_cmd(quote_qty=Decimal('5')),
                 filters=_FILTERS,
