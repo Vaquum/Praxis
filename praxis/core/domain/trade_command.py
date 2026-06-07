@@ -87,12 +87,16 @@ class TradeCommand:
             msg = 'TradeCommand requires exactly one of qty or quote_qty'
             raise ValueError(msg)
 
-        if self.qty is not None and self.qty <= _ZERO:
-            msg = 'TradeCommand.qty must be positive'
+        if self.qty is not None and (
+            not self.qty.is_finite() or self.qty <= _ZERO
+        ):
+            msg = 'TradeCommand.qty must be a finite positive Decimal'
             raise ValueError(msg)
 
-        if self.quote_qty is not None and self.quote_qty <= _ZERO:
-            msg = 'TradeCommand.quote_qty must be positive'
+        if self.quote_qty is not None and (
+            not self.quote_qty.is_finite() or self.quote_qty <= _ZERO
+        ):
+            msg = 'TradeCommand.quote_qty must be a finite positive Decimal'
             raise ValueError(msg)
 
         if self.timeout <= 0:

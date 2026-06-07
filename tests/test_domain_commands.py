@@ -180,6 +180,13 @@ def test_trade_command_rejects_non_positive_qty(bad: Decimal) -> None:
         _command(qty=bad)
 
 
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_trade_command_rejects_non_finite_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='finite positive Decimal'):
+        _command(qty=bad)
+
+
 @pytest.mark.parametrize('bad', [0, -1])
 def test_trade_command_rejects_non_positive_timeout(bad: int) -> None:
 
@@ -278,7 +285,30 @@ def test_trade_command_rejects_neither_qty_nor_quote_qty() -> None:
 @pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
 def test_trade_command_rejects_non_positive_quote_qty(bad: Decimal) -> None:
 
-    with pytest.raises(ValueError, match='quote_qty must be positive'):
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        TradeCommand(
+            command_id='cmd-001',
+            trade_id='trade-001',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=None,
+            quote_qty=bad,
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(),
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_trade_command_rejects_non_finite_quote_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
         TradeCommand(
             command_id='cmd-001',
             trade_id='trade-001',

@@ -194,7 +194,8 @@ class OrderBook:
             of `quote_qty` even when the budget was fully satisfied.
 
         Raises:
-            ValueError: `quote_qty` is non-positive.
+            ValueError: `quote_qty` is non-finite (NaN / Infinity)
+                or non-positive.
             RuntimeError: the ask side of the book is empty.
         '''
 

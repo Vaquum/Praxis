@@ -88,8 +88,10 @@ class TradeOutcome:
             msg = 'TradeOutcome.created_at must be timezone-aware'
             raise ValueError(msg)
 
-        if self.target_qty is not None and self.target_qty <= _ZERO:
-            msg = 'TradeOutcome.target_qty must be positive'
+        if self.target_qty is not None and (
+            not self.target_qty.is_finite() or self.target_qty <= _ZERO
+        ):
+            msg = 'TradeOutcome.target_qty must be a finite positive Decimal'
             raise ValueError(msg)
 
         if self.filled_qty < _ZERO:

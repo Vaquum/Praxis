@@ -94,12 +94,16 @@ class Order:
             msg = 'Order requires exactly one of qty or quote_qty'
             raise ValueError(msg)
 
-        if self.qty is not None and self.qty <= _ZERO:
-            msg = 'Order.qty must be positive'
+        if self.qty is not None and (
+            not self.qty.is_finite() or self.qty <= _ZERO
+        ):
+            msg = 'Order.qty must be a finite positive Decimal'
             raise ValueError(msg)
 
-        if self.quote_qty is not None and self.quote_qty <= _ZERO:
-            msg = 'Order.quote_qty must be positive'
+        if self.quote_qty is not None and (
+            not self.quote_qty.is_finite() or self.quote_qty <= _ZERO
+        ):
+            msg = 'Order.quote_qty must be a finite positive Decimal'
             raise ValueError(msg)
 
         if self.filled_qty < _ZERO:
@@ -142,9 +146,11 @@ class Order:
 
         if name == 'qty':
             if value is not None and (
-                not isinstance(value, Decimal) or value <= _ZERO
+                not isinstance(value, Decimal)
+                or not value.is_finite()
+                or value <= _ZERO
             ):
-                msg = 'Order.qty must be positive'
+                msg = 'Order.qty must be a finite positive Decimal'
                 raise ValueError(msg)
 
             if value is not None and getattr(self, 'quote_qty', None) is not None:
@@ -156,9 +162,11 @@ class Order:
 
         if name == 'quote_qty':
             if value is not None and (
-                not isinstance(value, Decimal) or value <= _ZERO
+                not isinstance(value, Decimal)
+                or not value.is_finite()
+                or value <= _ZERO
             ):
-                msg = 'Order.quote_qty must be positive'
+                msg = 'Order.quote_qty must be a finite positive Decimal'
                 raise ValueError(msg)
 
             if value is not None and getattr(self, 'qty', None) is not None:
