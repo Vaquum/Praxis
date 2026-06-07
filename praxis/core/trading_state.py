@@ -359,6 +359,9 @@ class TradingState:
         `PARTIALLY_FILLED`.
         '''
 
+        if event.client_order_id in self.closed_orders:
+            return
+
         order = self._get_order(
             'OrderQuoteNativeFilled', event.client_order_id,
         )

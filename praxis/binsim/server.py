@@ -392,7 +392,7 @@ async def _submit_order(request: web.Request) -> web.Response:
             )
 
         try:
-            walk = book.consume_quote_for_market_buy(quote_qty)
+            walk, remaining_quote = book.consume_quote_for_market_buy(quote_qty)
         except RuntimeError as exc:
             _log.warning(
                 'order book empty on POST /api/v3/order (quoteOrderQty)',
@@ -403,14 +403,12 @@ async def _submit_order(request: web.Request) -> web.Response:
                 msg='order book not initialised',
             ) from exc
 
-        consumed_quote = sum((p * q for p, q in walk), Decimal('0'))
-
-        if consumed_quote < quote_qty:
+        if remaining_quote > 0:
             raise _binance_error(
                 status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_ORDER_REJECTED,
                 msg=(
                     f'insufficient book liquidity for quoteOrderQty: '
-                    f'requested {quote_qty}, visible {consumed_quote} '
+                    f'requested {quote_qty}, unfilled {remaining_quote} '
                     f'across {len(walk)} levels'
                 ),
             )

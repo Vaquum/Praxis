@@ -168,7 +168,7 @@ class OrderBook:
     def consume_quote_for_market_buy(
         self,
         quote_qty: Decimal,
-    ) -> list[tuple[Decimal, Decimal]]:
+    ) -> tuple[list[tuple[Decimal, Decimal]], Decimal]:
 
         '''Walk the asks until quote-asset spend is exhausted.
 
@@ -181,9 +181,17 @@ class OrderBook:
             quote_qty: quote-asset budget (positive Decimal).
 
         Returns:
-            (price, fill_qty) tuples in walk order. The summed
-            `price * fill_qty` may be less than `quote_qty` if the
-            visible book is exhausted.
+            A `(fills, remaining_quote)` tuple. `fills` is a list of
+            `(price, fill_qty)` tuples in walk order. `remaining_quote`
+            is the unconsumed budget after the walk: zero when the
+            book covered the full budget, strictly positive when the
+            visible book was exhausted. Callers MUST decide
+            sufficiency on `remaining_quote`, NOT on
+            `sum(price * fill_qty)` — the partial-take's
+            `fill_qty = remaining_quote / price` makes
+            `price * fill_qty` lossy under the 28-digit Decimal
+            context, so the re-derived sum can fall one ULP short
+            of `quote_qty` even when the budget was fully satisfied.
 
         Raises:
             ValueError: `quote_qty` is non-positive.
@@ -215,4 +223,4 @@ class OrderBook:
                 fills.append((price, take_base))
                 remaining_quote = Decimal('0')
 
-        return fills
+        return fills, remaining_quote

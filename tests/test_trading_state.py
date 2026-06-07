@@ -370,6 +370,28 @@ def test_quote_native_filled_replay_is_idempotent() -> None:
     assert closed.status == OrderStatus.FILLED
 
 
+def test_quote_native_filled_replay_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Second apply of `OrderQuoteNativeFilled` after the order is
+    already in `closed_orders` is a silent no-op. The handler short-
+    circuits on `client_order_id in self.closed_orders` rather than
+    falling through to `_get_order` which would log
+    `unknown order in OrderQuoteNativeFilled` for a benign duplicate
+    replay.
+    '''
+
+    state = _state()
+    state.apply(_quote_native_submit_intent())
+    state.apply(_fill_event(qty=Decimal('0.001'), price=Decimal('50000')))
+    state.apply(_quote_native_filled())
+
+    with caplog.at_level(logging.WARNING):
+        state.apply(_quote_native_filled())
+
+    assert 'unknown order' not in caplog.text
+
+
 def test_rejected_sets_venue_order_id() -> None:
 
     state = _state()

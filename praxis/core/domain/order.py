@@ -133,6 +133,12 @@ class Order:
             msg = 'Order.qty must be positive'
             raise ValueError(msg)
 
+        if name == 'quote_qty' and value is not None and (
+            not isinstance(value, Decimal) or value <= _ZERO
+        ):
+            msg = 'Order.quote_qty must be positive'
+            raise ValueError(msg)
+
         if name == 'filled_qty' and (not isinstance(value, Decimal) or value < _ZERO):
             msg = 'Order.filled_qty must be non-negative'
             raise ValueError(msg)

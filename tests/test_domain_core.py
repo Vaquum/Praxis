@@ -219,6 +219,41 @@ def test_order_financial_values_are_decimal() -> None:
     assert isinstance(order.price, Decimal)
 
 
+def test_order_setattr_rejects_non_positive_quote_qty() -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='quote_qty must be positive'):
+        order.quote_qty = Decimal('0')
+
+
+def test_order_setattr_rejects_negative_quote_qty() -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='quote_qty must be positive'):
+        order.quote_qty = Decimal('-1')
+
+
+def test_order_setattr_rejects_non_decimal_quote_qty() -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='quote_qty must be positive'):
+        order.quote_qty = 100  # type: ignore[assignment]
+
+
+def test_order_setattr_accepts_none_quote_qty() -> None:
+
+    order = _order()
+    order.quote_qty = None
+    assert order.quote_qty is None
+
+
+def test_order_setattr_accepts_positive_quote_qty() -> None:
+
+    order = _order()
+    order.quote_qty = Decimal('100')
+    assert order.quote_qty == Decimal('100')
+
+
 def test_position_creation() -> None:
 
     pos = _position()
