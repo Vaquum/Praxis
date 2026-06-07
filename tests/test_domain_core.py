@@ -76,6 +76,33 @@ def _order(
     )
 
 
+def _quote_native_order(
+    quote_qty: Decimal = Decimal('100'),
+    filled_qty: Decimal = Decimal('0'),
+    cumulative_notional: Decimal = Decimal('0'),
+    status: OrderStatus = OrderStatus.SUBMITTING,
+) -> Order:
+
+    return Order(
+        client_order_id='new_order-cmd2-0',
+        venue_order_id=None,
+        account_id='acc-1',
+        command_id='cmd-2',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=None,
+        quote_qty=quote_qty,
+        filled_qty=filled_qty,
+        cumulative_notional=cumulative_notional,
+        price=None,
+        stop_price=None,
+        status=status,
+        created_at=_TS,
+        updated_at=_TS,
+    )
+
+
 def _position(qty: Decimal = Decimal('1.0'), avg_entry_price: Decimal = Decimal('50000.00')) -> Position:
 
     return Position(
@@ -221,37 +248,70 @@ def test_order_financial_values_are_decimal() -> None:
 
 def test_order_setattr_rejects_non_positive_quote_qty() -> None:
 
-    order = _order()
+    order = _quote_native_order()
     with pytest.raises(ValueError, match='quote_qty must be positive'):
         order.quote_qty = Decimal('0')
 
 
 def test_order_setattr_rejects_negative_quote_qty() -> None:
 
-    order = _order()
+    order = _quote_native_order()
     with pytest.raises(ValueError, match='quote_qty must be positive'):
         order.quote_qty = Decimal('-1')
 
 
 def test_order_setattr_rejects_non_decimal_quote_qty() -> None:
 
-    order = _order()
+    order = _quote_native_order()
     with pytest.raises(ValueError, match='quote_qty must be positive'):
         order.quote_qty = 100  # type: ignore[assignment]
 
 
-def test_order_setattr_accepts_none_quote_qty() -> None:
+def test_order_setattr_accepts_replacing_positive_quote_qty() -> None:
 
-    order = _order()
+    order = _quote_native_order(quote_qty=Decimal('100'))
+    order.quote_qty = Decimal('250')
+    assert order.quote_qty == Decimal('250')
+    assert order.qty is None
+
+
+def test_order_setattr_accepts_clearing_quote_qty_to_none() -> None:
+
+    order = _quote_native_order()
     order.quote_qty = None
     assert order.quote_qty is None
 
 
-def test_order_setattr_accepts_positive_quote_qty() -> None:
+def test_order_setattr_rejects_quote_qty_when_qty_is_set() -> None:
 
     order = _order()
+    with pytest.raises(ValueError, match='quote_qty cannot be set while qty is set'):
+        order.quote_qty = Decimal('100')
+
+
+def test_order_setattr_rejects_qty_when_quote_qty_is_set() -> None:
+
+    order = _quote_native_order()
+    with pytest.raises(ValueError, match='qty cannot be set while quote_qty is set'):
+        order.qty = Decimal('1.0')
+
+
+def test_order_setattr_swap_qty_to_quote_qty_via_none() -> None:
+
+    order = _order()
+    order.qty = None
     order.quote_qty = Decimal('100')
+    assert order.qty is None
     assert order.quote_qty == Decimal('100')
+
+
+def test_order_setattr_swap_quote_qty_to_qty_via_none() -> None:
+
+    order = _quote_native_order()
+    order.quote_qty = None
+    order.qty = Decimal('1.0')
+    assert order.quote_qty is None
+    assert order.qty == Decimal('1.0')
 
 
 def test_position_creation() -> None:

@@ -125,19 +125,43 @@ class Order:
             raise ValueError(msg)
 
     def __setattr__(self, name: str, value: object) -> None:
-        '''Validate mutable field invariants on assignment.'''
+        '''Validate mutable field invariants on assignment.
 
-        if name == 'qty' and value is not None and (
-            not isinstance(value, Decimal) or value <= _ZERO
-        ):
-            msg = 'Order.qty must be positive'
-            raise ValueError(msg)
+        Enforces the same XOR invariant as `__post_init__`: at any
+        point in the order's lifecycle, exactly one of `qty` or
+        `quote_qty` is set. Assigning a non-`None` value to one field
+        while the other already holds a value is refused. Assigning
+        `None` to a field is allowed (it frees the slot for the other
+        field to be set on a subsequent assignment).
+        '''
 
-        if name == 'quote_qty' and value is not None and (
-            not isinstance(value, Decimal) or value <= _ZERO
-        ):
-            msg = 'Order.quote_qty must be positive'
-            raise ValueError(msg)
+        if name == 'qty':
+            if value is not None and (
+                not isinstance(value, Decimal) or value <= _ZERO
+            ):
+                msg = 'Order.qty must be positive'
+                raise ValueError(msg)
+
+            if value is not None and getattr(self, 'quote_qty', None) is not None:
+                msg = (
+                    'Order.qty cannot be set while quote_qty is set; '
+                    'clear quote_qty first'
+                )
+                raise ValueError(msg)
+
+        if name == 'quote_qty':
+            if value is not None and (
+                not isinstance(value, Decimal) or value <= _ZERO
+            ):
+                msg = 'Order.quote_qty must be positive'
+                raise ValueError(msg)
+
+            if value is not None and getattr(self, 'qty', None) is not None:
+                msg = (
+                    'Order.quote_qty cannot be set while qty is set; '
+                    'clear qty first'
+                )
+                raise ValueError(msg)
 
         if name == 'filled_qty' and (not isinstance(value, Decimal) or value < _ZERO):
             msg = 'Order.filled_qty must be non-negative'
