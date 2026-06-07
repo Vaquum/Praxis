@@ -465,6 +465,37 @@ def test_order_rejects_non_finite_quote_qty(bad: Decimal) -> None:
         )
 
 
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_rejects_non_decimal_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='qty must be a finite positive Decimal'):
+        _order(qty=bad)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_rejects_non_decimal_quote_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        Order(
+            client_order_id='new_order-cmd2-0',
+            venue_order_id=None,
+            account_id='acc-1',
+            command_id='cmd-2',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=None,
+            quote_qty=bad,  # type: ignore[arg-type]
+            filled_qty=Decimal('0'),
+            cumulative_notional=Decimal('0'),
+            price=None,
+            stop_price=None,
+            status=OrderStatus.SUBMITTING,
+            created_at=_TS,
+            updated_at=_TS,
+        )
+
+
 def test_order_rejects_negative_filled_qty() -> None:
 
     with pytest.raises(ValueError, match='non-negative'):
@@ -662,6 +693,20 @@ def test_order_submit_intent_rejects_non_finite_quote_qty(bad: Decimal) -> None:
         _intent(qty=None, quote_qty=bad)
 
 
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_submit_intent_rejects_non_decimal_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='qty must be a finite positive Decimal'):
+        _intent(qty=bad)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_submit_intent_rejects_non_decimal_quote_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        _intent(qty=None, quote_qty=bad)  # type: ignore[arg-type]
+
+
 def _outcome(target_qty: Decimal | None = Decimal('1')) -> TradeOutcome:
 
     return TradeOutcome(
@@ -684,3 +729,10 @@ def test_trade_outcome_rejects_non_finite_target_qty(bad: Decimal) -> None:
 
     with pytest.raises(ValueError, match='target_qty must be a finite positive Decimal'):
         _outcome(target_qty=bad)
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_trade_outcome_rejects_non_decimal_target_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='target_qty must be a finite positive Decimal'):
+        _outcome(target_qty=bad)  # type: ignore[arg-type]

@@ -89,7 +89,9 @@ class TradeOutcome:
             raise ValueError(msg)
 
         if self.target_qty is not None and (
-            not self.target_qty.is_finite() or self.target_qty <= _ZERO
+            not isinstance(self.target_qty, Decimal)
+            or not self.target_qty.is_finite()
+            or self.target_qty <= _ZERO
         ):
             msg = 'TradeOutcome.target_qty must be a finite positive Decimal'
             raise ValueError(msg)

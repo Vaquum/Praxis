@@ -88,13 +88,17 @@ class TradeCommand:
             raise ValueError(msg)
 
         if self.qty is not None and (
-            not self.qty.is_finite() or self.qty <= _ZERO
+            not isinstance(self.qty, Decimal)
+            or not self.qty.is_finite()
+            or self.qty <= _ZERO
         ):
             msg = 'TradeCommand.qty must be a finite positive Decimal'
             raise ValueError(msg)
 
         if self.quote_qty is not None and (
-            not self.quote_qty.is_finite() or self.quote_qty <= _ZERO
+            not isinstance(self.quote_qty, Decimal)
+            or not self.quote_qty.is_finite()
+            or self.quote_qty <= _ZERO
         ):
             msg = 'TradeCommand.quote_qty must be a finite positive Decimal'
             raise ValueError(msg)

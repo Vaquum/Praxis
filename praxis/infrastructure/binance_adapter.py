@@ -1269,6 +1269,14 @@ class BinanceAdapter:
                 msg = 'stop fields are not supported with quote_qty'
                 raise ValueError(msg)
 
+            if price is not None:
+                msg = 'price is not supported with quote_qty (MARKET BUY has no limit price)'
+                raise ValueError(msg)
+
+            if time_in_force is not None:
+                msg = 'time_in_force is not supported with quote_qty (MARKET orders are implicitly IOC)'
+                raise ValueError(msg)
+
             params = self._build_quote_native_market_params(
                 symbol, side, quote_qty,
                 client_order_id=client_order_id,

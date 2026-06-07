@@ -1135,6 +1135,40 @@ class TestBuildQuoteNativeMarketParams:
                 ),
             )
 
+    def test_submit_order_quote_qty_rejects_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported with quote_qty'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    price=Decimal('50000'),
+                    quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_quote_qty_rejects_time_in_force(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='time_in_force is not supported with quote_qty'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    time_in_force='GTC',
+                    quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
+
 
 class TestMapOrderStatus:
 

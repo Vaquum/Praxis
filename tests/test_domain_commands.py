@@ -187,6 +187,19 @@ def test_trade_command_rejects_non_finite_qty(bad: Decimal) -> None:
         _command(qty=bad)
 
 
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_trade_command_rejects_non_decimal_qty(bad: object) -> None:
+    '''Non-Decimal qty raises `ValueError`, not `AttributeError`.
+
+    Pre-fix, `__post_init__` called `qty.is_finite()` without an
+    `isinstance(qty, Decimal)` guard, so an `int` / `float` / `str`
+    raised `AttributeError` instead of the documented `ValueError`.
+    '''
+
+    with pytest.raises(ValueError, match='finite positive Decimal'):
+        _command(qty=bad)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize('bad', [0, -1])
 def test_trade_command_rejects_non_positive_timeout(bad: int) -> None:
 
@@ -433,6 +446,29 @@ def test_trade_command_single_shot_requires_single_shot_params() -> None:
             order_type=OrderType.LIMIT,
             execution_mode=ExecutionMode.SINGLE_SHOT,
             execution_params='not_a_params_object',  # type: ignore[arg-type]
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_trade_command_rejects_non_decimal_quote_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        TradeCommand(
+            command_id='cmd-001',
+            trade_id='trade-001',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=None,
+            quote_qty=bad,  # type: ignore[arg-type]
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(),
             timeout=60,
             reference_price=None,
             maker_preference=MakerPreference.NO_PREFERENCE,
