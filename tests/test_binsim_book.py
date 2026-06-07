@@ -449,3 +449,37 @@ def test_consume_quote_for_market_buy_raises_on_empty_asks() -> None:
 
     with pytest.raises(RuntimeError, match='order book is empty'):
         book.consume_quote_for_market_buy(Decimal('100'))
+
+
+def test_consume_quote_for_market_buy_partial_take_never_overspends() -> None:
+    '''Decimal HALF_EVEN division can round up, making the rounded
+    quotient slightly larger than the exact value and breaking the
+    `quoteOrderQty` spend-cap invariant. The fix uses a `ROUND_DOWN`
+    local context so the partial-take's `take_base` is always at most
+    the exact quotient — guaranteeing `price * take_base <=
+    remaining_quote` and therefore `consumed_quote <= quote_qty`.
+
+    Pair `(847.4945188530934, 603.7264276408597)` is one of the
+    cases empirically found to overspend under the default
+    HALF_EVEN rounding. Asks are arranged so the second level
+    triggers the partial take with this `(remaining_quote, price)`.
+    '''
+
+    book = OrderBook()
+    bids = [
+        (Decimal('600'), Decimal('1')),
+    ]
+    asks = [
+        (Decimal('601'), Decimal('1')),
+        (Decimal('603.7264276408597'), Decimal('10')),
+    ]
+    book.replace(bids, asks, _UID, _TS)
+    remaining_at_partial_take = Decimal('847.4945188530934')
+    quote_qty = Decimal('601') + remaining_at_partial_take
+
+    walk, remaining = book.consume_quote_for_market_buy(quote_qty)
+
+    partial_price, partial_qty = walk[-1]
+    assert partial_price == Decimal('603.7264276408597')
+    assert partial_price * partial_qty <= remaining_at_partial_take
+    assert remaining == Decimal('0')

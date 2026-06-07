@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal, localcontext
 
 from praxis.core.domain.enums import OrderSide
 
@@ -193,6 +193,18 @@ class OrderBook:
             context, so the re-derived sum can fall one ULP short
             of `quote_qty` even when the budget was fully satisfied.
 
+            The partial-take division uses `ROUND_DOWN` (a local
+            decimal context override) so the rounded quotient
+            never exceeds the exact quotient. This guarantees the
+            spend-cap invariant `price * fill_qty <= remaining_quote`
+            at every level, which Binance's `quoteOrderQty`
+            contract requires. Without the override, the default
+            `ROUND_HALF_EVEN` rounding could occasionally produce
+            a quotient one ULP above the exact value; the
+            subsequent `price * take_base` would then exceed the
+            budget by a sub-ULP and the venue would silently
+            over-spend the strategy's reservation.
+
         Raises:
             ValueError: `quote_qty` is non-finite (NaN / Infinity)
                 or non-positive.
@@ -220,7 +232,9 @@ class OrderBook:
                 fills.append((price, level_qty))
                 remaining_quote -= level_quote_cap
             else:
-                take_base = remaining_quote / price
+                with localcontext() as ctx:
+                    ctx.rounding = ROUND_DOWN
+                    take_base = remaining_quote / price
                 fills.append((price, take_base))
                 remaining_quote = Decimal('0')
 
