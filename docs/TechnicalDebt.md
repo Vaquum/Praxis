@@ -847,3 +847,44 @@ On cold start, `BinanceAdapter._filters` is empty until the first `get_exchange_
 **When to fix**: When either (a) the launcher boot sequence is reworked to require `get_exchange_info` succeeding before `start_dispatch` (so the cold-start window stops existing), OR (b) an incident traces back to a reservation-vs-actual mismatch on the first few orders after a fresh boot.
 
 **Migration**: Two options. (i) In `quantize_for_command`, treat `filters is None` as `INTAKE_FILTERS_NOT_CACHED` rejection — the launcher then drops the action and waits for the next cycle once `exchangeInfo` lands. Conservative; eats a few seconds of initial throughput on every cold start. (ii) In `Launcher.start`, gate `start_dispatch()` on a `await venue_adapter.get_exchange_info()` round-trip before opening the strategy event loop. Adds 100-200ms to cold-start; eliminates the window entirely. Option (ii) is cleaner and matches what `BinanceAdapter` already does for the WS keepalive boot sequence.
+
+## TD-078: `estimate_slippage` is observation-only — no execution guard rejects bad-fill MARKET orders
+
+**Origin**: Architectural review during v0.72.0 monkeypatch + codex round-3 design discussion (200 bps buffer hack)
+**Severity**: Low under current scope (BTCUSDT-only, $5–50 per order; BTC top-of-book on Binance routinely has $100k+ within a cent of mid so walking the book costs essentially top-of-book price). Elevated if order sizing scales by 1–2 orders of magnitude, OR during a flash-crash / liquidity-pull where top-20 depth briefly thins.
+**Module**: [`praxis/core/execution_manager.py`](../praxis/core/execution_manager.py) — `_process_command` calls [`estimate_slippage`](../praxis/core/estimate_slippage.py) at line 949 but only logs the result; no rejection path. The estimator computes `simulated_vwap` and `slippage_estimate_bps` (VWAP vs mid) and returns; the command proceeds to `venue_adapter.submit_order` regardless.
+
+The slippage estimator is wired into the pre-submit path for observability — every MARKET order log line carries `slippage_estimate_bps=...` — but there is no threshold-and-reject layer on top of it. A MARKET BUY against a pathologically thin book (flash-crash moment, exchange outage half-recovered, liquidity-provider pulled) would execute at whatever effective price the book offers, with `slippage_estimate_bps` merely logged. The capital ledger remains correct under the post-v0.73.0 `quoteOrderQty` reservation (the spend is exactly the reserved USDT, no ledger divergence is possible) but the strategy/operator receives whatever BTC qty that USDT bought; under thin-book conditions the actual BTC received could be materially below the strategy's expected sizing.
+
+**When to fix**: When either (a) an incident traces back to a thin-book bad fill where the strategy's expected BTC sizing diverged materially from the actual BTC received, OR (b) order sizing scales up significantly (e.g. ≥ $1k per order).
+
+**Migration**: Pre-submit guard in [`ExecutionManager._process_command`](../praxis/core/execution_manager.py) between the existing `estimate_slippage` call (line 949) and `submit_order`. Policy shape: `max_market_slippage_bps: int` config (default ~50, per-symbol override on [`TradingConfig`](../praxis/trading_config.py)). On violation, build a synthetic REJECTED `TradeOutcome` with `reason='EXECUTION_GUARD_SLIPPAGE_EXCEEDED'` and structured extras (`estimate.slippage_estimate_bps`, `policy.max_market_slippage_bps`, `book.top_of_book`, `cmd.symbol`) and short-circuit the venue submission. No auto-convert to LIMIT in v1 — that's a separate execution-mode feature with its own design surface. Only applies to MARKET orders; LIMIT orders self-cap via the price field.
+
+## TD-079: Quote-native terminal signal only on REST submit-response path — WS-driven fills do not flip to FILLED
+
+**Origin**: Pre-PR audit of v0.73.0 quote-native MARKET BUY
+**Severity**: Low under current scope. Quote-native uses only Binance MARKET BUY today, and Binance returns immediate fills + `status=FILLED` synchronously in the REST submit response. So the WS path is never the terminal signal for the order shapes we actually ship. Elevated when (a) a LIMIT or post-only quote-native path is added, or (b) the REST response is lost mid-flight and the rescue path returns `status=FILLED` with no fills (round-1 fix already gates the terminal flip on `filled_qty > _ZERO`, so this case correctly defers to WS today — but WS doesn't pick it up).
+**Module**: [`praxis/core/execution_manager.py`](../praxis/core/execution_manager.py) — only the immediate-fill submit-response path appends [`OrderQuoteNativeFilled`](../praxis/core/domain/events.py) (line 1080). The WS-driven [`_emit_ws_outcome`](../praxis/core/execution_manager.py) has no arm that appends `OrderQuoteNativeFilled`, and [`praxis/trading.py`](../praxis/trading.py) reconciliation does not look at venue `FILLED` status for quote-native orders.
+
+A quote-native order that lands via WS fills only (REST-lost rescue scenario, or any future LIMIT quote-native path) would project to `Order.status = PARTIALLY_FILLED` in `TradingState._update_order_on_fill` and stay there indefinitely — `Order.qty is None` so the `filled_qty >= qty` self-termination path is skipped by construction. Spine replay would reconstruct the same stranded state. The trade outcome itself still emits correctly (the WS outcome path reads `order.status == FILLED` from the venue event, not from the projection), so capital release works; the gap is the projection — the order stays in `runtime.orders[client_order_id]` forever, which inflates the open-orders pull and confuses any boot-time reconciler that walks `runtime.orders`.
+
+**When to fix**: Before a LIMIT or post-only quote-native order shape ships. Also fix if an incident traces a stranded `PARTIALLY_FILLED` order to a REST-lost rescue scenario.
+
+**Migration**: Add an `OrderQuoteNativeFilled` emission to [`_emit_ws_outcome`](../praxis/core/execution_manager.py) for the `FillReceived` arm when the underlying venue event reports terminal status AND the cached `cmd.is_quote_native`. Symmetric: extend the boot reconciler in [`praxis/trading.py`](../praxis/trading.py) to recognize venue-reported `FILLED` on quote-native and synthesize `OrderQuoteNativeFilled` against the spine before replay reconstructs state. Both changes are local additions, not behavior changes for the currently-shipped MARKET BUY shape.
+
+## TD-080: `_ensure_entry_position` quote-native placeholder relies on `_grow_position`'s VWAP zeroing
+
+**Origin**: Greybeard pre-PR review during v0.73.0 pr-prep
+**Severity**: Low under current scope (BTCUSDT-only, the placeholder is overwritten on the first fill, which happens within the same tick for MARKET orders). Elevated if `_grow_position` is ever refactored to add price stickiness, or if quote-native shapes ever produce a Position that persists across multiple ticks before first fill.
+**Module**: [`praxis/launcher.py`](../praxis/launcher.py) — `_ensure_entry_position` falls back to `Decimal('1')` as `entry_price` when `action.quote_qty is not None` and no reference_price is available.
+
+The fallback is correct *only* because [`OutcomeProcessor._grow_position`](https://github.com/Vaquum/Nexus/blob/main/nexus/infrastructure/praxis_connector/outcome_processor.py) computes `new_entry_price = (old_size * position.entry_price + fill_size * fill_price) / new_size`, and `old_size == 0` zeroes the `old_size * position.entry_price` term — so the arbitrary `Decimal('1')` is discarded on the first fill. The sentinel is load-bearing on that math: if a future Nexus refactor adds a price-sticky term (e.g. `max(position.entry_price, ...)` or a weighted-average that doesn't zero at `old_size == 0`), the `Decimal('1')` sentinel suddenly becomes a real entry price reported back to operators / risk / PnL — silently $1 / BTC instead of the actual fill price.
+
+**When to fix**: Before any Nexus `_grow_position` refactor that changes the `old_size == 0` semantics, OR if an incident traces a wrong `entry_price` on a freshly-opened quote-native position. The pre-fix-trigger watch is a Nexus PR that touches `_grow_position`.
+
+**Migration**: One of three:
+1. Defer the placeholder Position creation until the first fill arrives (lazy create in `OutcomeProcessor`). This is a Nexus-side change.
+2. Compute a real `entry_price` upfront from the order book (Praxis fetches `query_order_book(symbol)` and uses the best ask). Adds one venue call per quote-native ENTER.
+3. Make the placeholder `entry_price` field `Decimal | None` end-to-end (Position.entry_price becomes optional when `size == _ZERO`), and have downstream readers handle `None`. Wider blast radius.
+
+Option 1 is cleanest if Nexus accepts the lazy-create change; option 2 is the safest local fix if not.

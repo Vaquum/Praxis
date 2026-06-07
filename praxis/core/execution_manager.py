@@ -33,6 +33,7 @@ from praxis.core.domain.events import (
     FillReceived,
     OrderCanceled,
     OrderExpired,
+    OrderQuoteNativeFilled,
     OrderRejected,
     OrderSubmitFailed,
     OrderSubmitIntent,
@@ -377,6 +378,7 @@ class ExecutionManager:
                         symbol=event.symbol,
                         side=event.side,
                         qty=event.qty,
+                        quote_qty=event.quote_qty,
                         order_type=event.order_type,
                         execution_mode=ExecutionMode.SINGLE_SHOT,
                         execution_params=SingleShotParams(
@@ -705,7 +707,7 @@ class ExecutionManager:
         account_id: str,
         symbol: str,
         side: OrderSide,
-        qty: Decimal,
+        qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
         execution_params: SingleShotParams,
@@ -715,6 +717,7 @@ class ExecutionManager:
         stp_mode: STPMode,
         created_at: datetime,
         strategy_id: str | None = None,
+        quote_qty: Decimal | None = None,
     ) -> str:
         '''
         Accept a command, assign command_id, persist, and enqueue.
@@ -724,7 +727,11 @@ class ExecutionManager:
             account_id (str): Target account identifier.
             symbol (str): Trading pair symbol.
             side (OrderSide): Order direction.
-            qty (Decimal): Total quantity to execute.
+            qty (Decimal | None): Base-asset quantity. Mutually exclusive
+                with `quote_qty`.
+            quote_qty (Decimal | None): Quote-asset spend (e.g. USDT)
+                for quote-native MARKET BUY. Mutually exclusive with
+                `qty`.
             order_type (OrderType): Order type.
             execution_mode (ExecutionMode): Execution strategy.
             execution_params (SingleShotParams): Mode-specific parameters.
@@ -757,6 +764,7 @@ class ExecutionManager:
             symbol=symbol,
             side=side,
             qty=qty,
+            quote_qty=quote_qty,
             order_type=order_type,
             execution_mode=execution_mode,
             execution_params=execution_params,
@@ -941,34 +949,36 @@ class ExecutionManager:
             )
 
         estimate = None
-        try:
-            book = await self._venue_adapter.query_order_book(
-                cmd.symbol,
-                limit=_SLIPPAGE_BOOK_LIMIT,
-            )
-            estimate = estimate_slippage(book, cmd.qty, cmd.side, symbol=cmd.symbol)
-            if estimate is None:
+        if not cmd.is_quote_native:
+            assert cmd.qty is not None
+            try:
+                book = await self._venue_adapter.query_order_book(
+                    cmd.symbol,
+                    limit=_SLIPPAGE_BOOK_LIMIT,
+                )
+                estimate = estimate_slippage(book, cmd.qty, cmd.side, symbol=cmd.symbol)
+                if estimate is None:
+                    _log.warning(
+                        'slippage estimate unavailable: command_id=%s trade_id=%s',
+                        cmd.command_id,
+                        cmd.trade_id,
+                    )
+                else:
+                    _log.info(
+                        'slippage estimate computed: command_id=%s trade_id=%s slippage_estimate_bps=%s mid_price=%s simulated_vwap=%s',
+                        cmd.command_id,
+                        cmd.trade_id,
+                        estimate.slippage_estimate_bps,
+                        estimate.mid_price,
+                        estimate.simulated_vwap,
+                    )
+            except VenueError as exc:
                 _log.warning(
-                    'slippage estimate unavailable: command_id=%s trade_id=%s',
+                    'slippage estimate skipped: command_id=%s trade_id=%s reason=%s',
                     cmd.command_id,
                     cmd.trade_id,
+                    exc.args[0] if exc.args else str(exc),
                 )
-            else:
-                _log.info(
-                    'slippage estimate computed: command_id=%s trade_id=%s slippage_estimate_bps=%s mid_price=%s simulated_vwap=%s',
-                    cmd.command_id,
-                    cmd.trade_id,
-                    estimate.slippage_estimate_bps,
-                    estimate.mid_price,
-                    estimate.simulated_vwap,
-                )
-        except VenueError as exc:
-            _log.warning(
-                'slippage estimate skipped: command_id=%s trade_id=%s reason=%s',
-                cmd.command_id,
-                cmd.trade_id,
-                exc.args[0] if exc.args else str(exc),
-            )
 
         client_order_id = generate_client_order_id(
             cmd.execution_mode,
@@ -987,6 +997,7 @@ class ExecutionManager:
             side=cmd.side,
             order_type=cmd.order_type,
             qty=cmd.qty,
+            quote_qty=cmd.quote_qty,
             price=cmd.execution_params.price,
             stop_price=cmd.execution_params.stop_price,
             stop_limit_price=cmd.execution_params.stop_limit_price,
@@ -1006,6 +1017,7 @@ class ExecutionManager:
                 stop_price=cmd.execution_params.stop_price,
                 stop_limit_price=cmd.execution_params.stop_limit_price,
                 client_order_id=client_order_id,
+                quote_qty=cmd.quote_qty,
             )
             post_venue_ts = datetime.now(UTC)
         except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
@@ -1021,6 +1033,10 @@ class ExecutionManager:
         except VenueError as exc:
             return await self._record_submit_failed(
                 runtime, cmd, client_order_id, str(exc.args[0]),
+            )
+        except ValueError as exc:
+            return await self._record_submit_failed(
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
             )
 
         submitted = OrderSubmitted(
@@ -1062,6 +1078,19 @@ class ExecutionManager:
 
         filled_qty = sum((f.qty for f in result.immediate_fills), _ZERO)
 
+        if (
+            cmd.is_quote_native
+            and result.status == OrderStatus.FILLED
+            and filled_qty > _ZERO
+        ):
+            quote_filled = OrderQuoteNativeFilled(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=client_order_id,
+            )
+            await self._event_spine.append(quote_filled, self._epoch_id)
+            runtime.trading_state.apply(quote_filled)
+
         if filled_qty > _ZERO:
             total_notional: Decimal = sum(
                 (f.qty * f.price for f in result.immediate_fills),
@@ -1102,22 +1131,32 @@ class ExecutionManager:
                 avg_fill_price,
             )
 
-        if filled_qty > cmd.qty:
-            _log.warning(
-                'overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
-                cmd.command_id,
-                filled_qty,
-                cmd.qty,
-            )
-            if filled_qty > _ZERO:
-                total_notional = total_notional * cmd.qty / filled_qty
-            filled_qty = cmd.qty
-        if filled_qty >= cmd.qty:
-            status = TradeStatus.FILLED
-        elif filled_qty > _ZERO:
-            status = TradeStatus.PARTIAL
+        if cmd.is_quote_native:
+
+            if result.status == OrderStatus.FILLED and filled_qty > _ZERO:
+                status = TradeStatus.FILLED
+            elif filled_qty > _ZERO:
+                status = TradeStatus.PARTIAL
+            else:
+                status = TradeStatus.PENDING
         else:
-            status = TradeStatus.PENDING
+            assert cmd.qty is not None
+            if filled_qty > cmd.qty:
+                _log.warning(
+                    'overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
+                    cmd.command_id,
+                    filled_qty,
+                    cmd.qty,
+                )
+                if filled_qty > _ZERO:
+                    total_notional = total_notional * cmd.qty / filled_qty
+                filled_qty = cmd.qty
+            if filled_qty >= cmd.qty:
+                status = TradeStatus.FILLED
+            elif filled_qty > _ZERO:
+                status = TradeStatus.PARTIAL
+            else:
+                status = TradeStatus.PENDING
 
         reason: str | None = None
         if status in (
@@ -1516,18 +1555,20 @@ class ExecutionManager:
 
         emitted_filled_qty = order.filled_qty
         emitted_cumulative_notional = order.cumulative_notional
-        if emitted_filled_qty > cmd.qty:
-            _log.warning(
-                'WS-driven filled_qty exceeds command target_qty; '
-                'clamping to target. Likely cause: duplicate / out-of-order '
-                'venue fills or venue rounding past the order qty',
-                extra={
-                    'command_id': command_id,
-                    'order_filled_qty': str(order.filled_qty),
-                    'target_qty': str(cmd.qty),
-                },
-            )
-            emitted_filled_qty = cmd.qty
+        if not cmd.is_quote_native:
+            assert cmd.qty is not None
+            if emitted_filled_qty > cmd.qty:
+                _log.warning(
+                    'WS-driven filled_qty exceeds command target_qty; '
+                    'clamping to target. Likely cause: duplicate / out-of-order '
+                    'venue fills or venue rounding past the order qty',
+                    extra={
+                        'command_id': command_id,
+                        'order_filled_qty': str(order.filled_qty),
+                        'target_qty': str(cmd.qty),
+                    },
+                )
+                emitted_filled_qty = cmd.qty
 
         if isinstance(event, FillReceived):
             status = (

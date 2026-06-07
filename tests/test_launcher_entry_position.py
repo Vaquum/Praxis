@@ -132,6 +132,42 @@ def test_ensure_entry_position_skips_when_no_price() -> None:
     assert 'cmd-4' not in state.positions
 
 
+def test_ensure_entry_position_quote_native_uses_sentinel_without_price() -> None:
+    '''Quote-native ENTER does not require a reference price to size
+    the order (the spend cap lives in `quote_qty`). The placeholder
+    `Position` falls back to a `Decimal('1')` `entry_price` sentinel
+    when neither `action.reference_price` nor the fallback provider
+    supplies one. The sentinel is overwritten on the first fill via
+    `_grow_position`'s VWAP when `old_size == 0` — TD-080 records
+    the dependency on that Nexus invariant.
+    '''
+
+    state = _state()
+    action = Action(
+        action_type=ActionType.ENTER,
+        direction=OrderSide.BUY,
+        quote_qty=Decimal('100'),
+        reference_price=None,
+        execution_mode=ExecutionMode.SINGLE_SHOT,
+        order_type=OrderType.MARKET,
+        deadline=30,
+    )
+
+    _ensure_entry_position(
+        state=state,
+        action=action,
+        strategy_id='strat-a',
+        trade_id='cmd-qn-1',
+        fallback_price_provider=lambda: None,
+    )
+
+    assert 'cmd-qn-1' in state.positions
+    pos = state.positions['cmd-qn-1']
+    assert pos.size == Decimal('0')
+    assert pos.entry_price == Decimal('1')
+    assert pos.side == OrderSide.BUY
+
+
 def test_outcome_processor_grows_pre_populated_position() -> None:
     '''End-to-end: pre-populate via _ensure_entry_position, then a FILLED outcome
     grows the Position via VWAP. Confirms the launcher fix unblocks the round-trip.'''

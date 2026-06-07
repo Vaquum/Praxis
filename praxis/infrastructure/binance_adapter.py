@@ -1207,13 +1207,14 @@ class BinanceAdapter:
         symbol: str,
         side: OrderSide,
         order_type: OrderType,
-        qty: Decimal,
+        qty: Decimal | None,
         *,
         price: Decimal | None = None,
         stop_price: Decimal | None = None,
         stop_limit_price: Decimal | None = None,
         client_order_id: str | None = None,
         time_in_force: str | None = None,
+        quote_qty: Decimal | None = None,
     ) -> SubmitResult:
 
         '''
@@ -1224,16 +1225,70 @@ class BinanceAdapter:
             symbol (str): Trading pair symbol
             side (OrderSide): Order direction
             order_type (OrderType): Order type
-            qty (Decimal): Order quantity
+            qty (Decimal | None): Base-asset quantity. Mutually
+                exclusive with `quote_qty`.
             price (Decimal | None): Limit price, required for limit orders
             stop_price (Decimal | None): Stop trigger price
             stop_limit_price (Decimal | None): Stop-limit price for OCO orders
             client_order_id (str | None): Deterministic client order identifier
             time_in_force (str | None): Time-in-force policy
+            quote_qty (Decimal | None): Quote-asset spend for quote-native
+                MARKET BUY. Sends Binance's `quoteOrderQty` parameter.
+                Mutually exclusive with `qty`; only valid for MARKET BUY.
 
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
         '''
+
+        if quote_qty is not None:
+
+            if (
+                not isinstance(quote_qty, Decimal)
+                or not quote_qty.is_finite()
+                or quote_qty <= 0
+            ):
+                msg = (
+                    f'quote_qty must be a finite positive Decimal, '
+                    f'got {quote_qty!r}'
+                )
+                raise ValueError(msg)
+
+            if qty is not None:
+                msg = 'submit_order requires exactly one of qty or quote_qty'
+                raise ValueError(msg)
+
+            if order_type != OrderType.MARKET:
+                msg = 'quote_qty is only supported for MARKET orders'
+                raise ValueError(msg)
+
+            if side != OrderSide.BUY:
+                msg = 'quote_qty is only supported for BUY (Binance limits quoteOrderQty to MARKET BUY)'
+                raise ValueError(msg)
+
+            if stop_limit_price is not None or stop_price is not None:
+                msg = 'stop fields are not supported with quote_qty'
+                raise ValueError(msg)
+
+            if price is not None:
+                msg = 'price is not supported with quote_qty (MARKET BUY has no limit price)'
+                raise ValueError(msg)
+
+            if time_in_force is not None:
+                msg = 'time_in_force is not supported with quote_qty (MARKET orders are implicitly IOC)'
+                raise ValueError(msg)
+
+            params = self._build_quote_native_market_params(
+                symbol, side, quote_qty,
+                client_order_id=client_order_id,
+            )
+            data = await self._post_order(
+                '/api/v3/order', params, account_id, client_order_id,
+            )
+            return self._parse_submit_response(data)
+
+        if qty is None:
+            msg = 'submit_order requires qty or quote_qty'
+            raise ValueError(msg)
 
         qty = self._snap_qty_to_lot_step(symbol, qty)
 
@@ -1269,6 +1324,35 @@ class BinanceAdapter:
             '/api/v3/order', params, account_id, client_order_id,
         )
         return self._parse_submit_response(data)
+
+    def _build_quote_native_market_params(
+        self,
+        symbol: str,
+        side: OrderSide,
+        quote_qty: Decimal,
+        *,
+        client_order_id: str | None,
+    ) -> dict[str, str]:
+        '''Build Binance MARKET BUY params using `quoteOrderQty`.
+
+        Binance computes the executed base quantity from live liquidity
+        and the spend cap, so no client-side LOT_SIZE snap is required;
+        the venue applies `MIN_NOTIONAL` against `quoteOrderQty`
+        directly.
+        '''
+
+        params: dict[str, str] = {
+            'symbol': symbol,
+            'side': side.value,
+            'type': 'MARKET',
+            'quoteOrderQty': format(quote_qty, 'f'),
+            'newOrderRespType': 'FULL',
+        }
+
+        if client_order_id is not None:
+            params['newClientOrderId'] = client_order_id
+
+        return params
 
     async def _post_order(
         self,

@@ -4,6 +4,7 @@ Tests for praxis.infrastructure.binance_adapter.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import datetime, UTC
@@ -978,6 +979,195 @@ class TestBuildOrderParams:
         )
         assert params['quantity'] == '0.0000001'
         assert params['price'] == '10000'
+
+
+class TestBuildQuoteNativeMarketParams:
+
+    def test_basic_quote_native_buy(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_quote_native_market_params(
+            'BTCUSDT', OrderSide.BUY, Decimal('100'),
+            client_order_id='quote_native-cmd1-0',
+        )
+
+        assert params['symbol'] == 'BTCUSDT'
+        assert params['side'] == 'BUY'
+        assert params['type'] == 'MARKET'
+        assert params['quoteOrderQty'] == '100'
+        assert params['newOrderRespType'] == 'FULL'
+        assert params['newClientOrderId'] == 'quote_native-cmd1-0'
+        assert 'quantity' not in params
+
+    def test_quote_qty_decimal_scientific_notation_avoided(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_quote_native_market_params(
+            'BTCUSDT', OrderSide.BUY, Decimal('1E+5'),
+            client_order_id='quote_native-cmd2-0',
+        )
+
+        assert params['quoteOrderQty'] == '100000'
+
+    def test_quote_qty_decimal_fractional_preserved(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_quote_native_market_params(
+            'BTCUSDT', OrderSide.BUY, Decimal('99.95'),
+            client_order_id='quote_native-cmd3-0',
+        )
+
+        assert params['quoteOrderQty'] == '99.95'
+
+    def test_submit_order_quote_qty_rejects_non_market(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty is only supported for MARKET'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.LIMIT,
+                    None,
+                    quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_quote_qty_rejects_sell(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty is only supported for BUY'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.SELL,
+                    OrderType.MARKET,
+                    None,
+                    quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_rejects_both_qty_and_quote_qty(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='exactly one of qty or quote_qty'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    Decimal('0.001'),
+                    quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_rejects_neither_qty_nor_quote_qty(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='submit_order requires qty or quote_qty'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    client_order_id='x',
+                ),
+            )
+
+    @pytest.mark.parametrize(
+        'bad',
+        [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')],
+    )
+    def test_submit_order_rejects_non_finite_quote_qty(self, bad: Decimal) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    quote_qty=bad,
+                    client_order_id='x',
+                ),
+            )
+
+    @pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+    def test_submit_order_rejects_non_positive_quote_qty(self, bad: Decimal) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    quote_qty=bad,
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_rejects_non_decimal_quote_qty(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    quote_qty=100,  # type: ignore[arg-type]
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_quote_qty_rejects_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported with quote_qty'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    price=Decimal('50000'),
+                    quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_quote_qty_rejects_time_in_force(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='time_in_force is not supported with quote_qty'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    time_in_force='GTC',
+                    quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
 
 
 class TestMapOrderStatus:

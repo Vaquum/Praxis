@@ -18,6 +18,9 @@ from praxis.core.domain import (
     OrderType,
     Position,
 )
+from praxis.core.domain.enums import TradeStatus
+from praxis.core.domain.events import OrderSubmitIntent
+from praxis.core.domain.trade_outcome import TradeOutcome
 
 _TS = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -70,6 +73,33 @@ def _order(
         cumulative_notional=cumulative_notional,
         price=price,
         stop_price=stop_price,
+        status=status,
+        created_at=_TS,
+        updated_at=_TS,
+    )
+
+
+def _quote_native_order(
+    quote_qty: Decimal = Decimal('100'),
+    filled_qty: Decimal = Decimal('0'),
+    cumulative_notional: Decimal = Decimal('0'),
+    status: OrderStatus = OrderStatus.SUBMITTING,
+) -> Order:
+
+    return Order(
+        client_order_id='new_order-cmd2-0',
+        venue_order_id=None,
+        account_id='acc-1',
+        command_id='cmd-2',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=None,
+        quote_qty=quote_qty,
+        filled_qty=filled_qty,
+        cumulative_notional=cumulative_notional,
+        price=None,
+        stop_price=None,
         status=status,
         created_at=_TS,
         updated_at=_TS,
@@ -219,6 +249,74 @@ def test_order_financial_values_are_decimal() -> None:
     assert isinstance(order.price, Decimal)
 
 
+def test_order_setattr_rejects_non_positive_quote_qty() -> None:
+
+    order = _quote_native_order()
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        order.quote_qty = Decimal('0')
+
+
+def test_order_setattr_rejects_negative_quote_qty() -> None:
+
+    order = _quote_native_order()
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        order.quote_qty = Decimal('-1')
+
+
+def test_order_setattr_rejects_non_decimal_quote_qty() -> None:
+
+    order = _quote_native_order()
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        order.quote_qty = 100  # type: ignore[assignment]
+
+
+def test_order_setattr_accepts_replacing_positive_quote_qty() -> None:
+
+    order = _quote_native_order(quote_qty=Decimal('100'))
+    order.quote_qty = Decimal('250')
+    assert order.quote_qty == Decimal('250')
+    assert order.qty is None
+
+
+def test_order_setattr_accepts_clearing_quote_qty_to_none() -> None:
+
+    order = _quote_native_order()
+    order.quote_qty = None
+    assert order.quote_qty is None
+
+
+def test_order_setattr_rejects_quote_qty_when_qty_is_set() -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='quote_qty cannot be set while qty is set'):
+        order.quote_qty = Decimal('100')
+
+
+def test_order_setattr_rejects_qty_when_quote_qty_is_set() -> None:
+
+    order = _quote_native_order()
+    with pytest.raises(ValueError, match='qty cannot be set while quote_qty is set'):
+        order.qty = Decimal('1.0')
+
+
+def test_order_setattr_swap_qty_to_quote_qty_via_none() -> None:
+
+    order = _order()
+    order.qty = None
+    order.quote_qty = Decimal('100')
+    assert order.qty is None
+    assert order.quote_qty == Decimal('100')
+
+
+def test_order_setattr_swap_quote_qty_to_qty_via_none() -> None:
+
+    order = _quote_native_order()
+    order.quote_qty = None
+    order.qty = Decimal('1.0')
+    assert order.quote_qty is None
+    assert order.qty == Decimal('1.0')
+
+
 def test_position_creation() -> None:
 
     pos = _position()
@@ -334,6 +432,68 @@ def test_order_rejects_non_positive_qty(bad: Decimal) -> None:
 
     with pytest.raises(ValueError, match='positive'):
         _order(qty=bad)
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_order_rejects_non_finite_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='finite positive Decimal'):
+        _order(qty=bad)
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_order_rejects_non_finite_quote_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        Order(
+            client_order_id='new_order-cmd2-0',
+            venue_order_id=None,
+            account_id='acc-1',
+            command_id='cmd-2',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=None,
+            quote_qty=bad,
+            filled_qty=Decimal('0'),
+            cumulative_notional=Decimal('0'),
+            price=None,
+            stop_price=None,
+            status=OrderStatus.SUBMITTING,
+            created_at=_TS,
+            updated_at=_TS,
+        )
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_rejects_non_decimal_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='qty must be a finite positive Decimal'):
+        _order(qty=bad)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_rejects_non_decimal_quote_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        Order(
+            client_order_id='new_order-cmd2-0',
+            venue_order_id=None,
+            account_id='acc-1',
+            command_id='cmd-2',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=None,
+            quote_qty=bad,  # type: ignore[arg-type]
+            filled_qty=Decimal('0'),
+            cumulative_notional=Decimal('0'),
+            price=None,
+            stop_price=None,
+            status=OrderStatus.SUBMITTING,
+            created_at=_TS,
+            updated_at=_TS,
+        )
 
 
 def test_order_rejects_negative_filled_qty() -> None:
@@ -463,6 +623,22 @@ def test_order_rejects_qty_mutation_to_non_positive(bad: Decimal) -> None:
         order.qty = bad
 
 
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_order_rejects_qty_mutation_to_non_finite(bad: Decimal) -> None:
+
+    order = _order()
+    with pytest.raises(ValueError, match='finite positive Decimal'):
+        order.qty = bad
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_order_rejects_quote_qty_mutation_to_non_finite(bad: Decimal) -> None:
+
+    order = _quote_native_order()
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        order.quote_qty = bad
+
+
 def test_order_rejects_filled_qty_mutation_to_negative() -> None:
 
     order = _order()
@@ -482,3 +658,81 @@ def test_position_rejects_avg_entry_price_mutation_to_negative() -> None:
     pos = _position()
     with pytest.raises(ValueError, match='non-negative'):
         pos.avg_entry_price = Decimal('-1')
+
+
+def _intent(
+    qty: Decimal | None = Decimal('1'),
+    quote_qty: Decimal | None = None,
+) -> OrderSubmitIntent:
+
+    return OrderSubmitIntent(
+        account_id='acc-1',
+        timestamp=_TS,
+        command_id='cmd-1',
+        trade_id='trade-1',
+        client_order_id='cid-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=qty,
+        quote_qty=quote_qty,
+    )
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_order_submit_intent_rejects_non_finite_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='qty must be a finite positive Decimal'):
+        _intent(qty=bad)
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_order_submit_intent_rejects_non_finite_quote_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        _intent(qty=None, quote_qty=bad)
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_submit_intent_rejects_non_decimal_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='qty must be a finite positive Decimal'):
+        _intent(qty=bad)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_order_submit_intent_rejects_non_decimal_quote_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+        _intent(qty=None, quote_qty=bad)  # type: ignore[arg-type]
+
+
+def _outcome(target_qty: Decimal | None = Decimal('1')) -> TradeOutcome:
+
+    return TradeOutcome(
+        command_id='cmd-1',
+        trade_id='trade-1',
+        account_id='acc-1',
+        status=TradeStatus.PENDING,
+        target_qty=target_qty,
+        filled_qty=Decimal('0'),
+        avg_fill_price=None,
+        slices_completed=0,
+        slices_total=1,
+        reason=None,
+        created_at=_TS,
+    )
+
+
+@pytest.mark.parametrize('bad', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')])
+def test_trade_outcome_rejects_non_finite_target_qty(bad: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='target_qty must be a finite positive Decimal'):
+        _outcome(target_qty=bad)
+
+
+@pytest.mark.parametrize('bad', [1, 1.0, '1'])
+def test_trade_outcome_rejects_non_decimal_target_qty(bad: object) -> None:
+
+    with pytest.raises(ValueError, match='target_qty must be a finite positive Decimal'):
+        _outcome(target_qty=bad)  # type: ignore[arg-type]

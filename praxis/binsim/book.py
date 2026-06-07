@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal, localcontext
 
 from praxis.core.domain.enums import OrderSide
 
@@ -164,3 +164,78 @@ class OrderBook:
             remaining -= take
 
         return fills
+
+    def consume_quote_for_market_buy(
+        self,
+        quote_qty: Decimal,
+    ) -> tuple[list[tuple[Decimal, Decimal]], Decimal]:
+
+        '''Walk the asks until quote-asset spend is exhausted.
+
+        Mirrors Binance's MARKET BUY with `quoteOrderQty`: the venue
+        walks the ask ladder consuming each level up to the remaining
+        quote budget, partial-taking the last level to land exactly on
+        `quote_qty` spend.
+
+        Args:
+            quote_qty: quote-asset budget (positive Decimal).
+
+        Returns:
+            A `(fills, remaining_quote)` tuple. `fills` is a list of
+            `(price, fill_qty)` tuples in walk order. `remaining_quote`
+            is the unconsumed budget after the walk: zero when the
+            book covered the full budget, strictly positive when the
+            visible book was exhausted. Callers MUST decide
+            sufficiency on `remaining_quote`, NOT on
+            `sum(price * fill_qty)` — the partial-take's
+            `fill_qty = remaining_quote / price` makes
+            `price * fill_qty` lossy under the 28-digit Decimal
+            context, so the re-derived sum can fall one ULP short
+            of `quote_qty` even when the budget was fully satisfied.
+
+            The partial-take division uses `ROUND_DOWN` (a local
+            decimal context override) so the rounded quotient
+            never exceeds the exact quotient. This guarantees the
+            spend-cap invariant `price * fill_qty <= remaining_quote`
+            at every level, which Binance's `quoteOrderQty`
+            contract requires. Without the override, the default
+            `ROUND_HALF_EVEN` rounding could occasionally produce
+            a quotient one ULP above the exact value; the
+            subsequent `price * take_base` would then exceed the
+            budget by a sub-ULP and the venue would silently
+            over-spend the strategy's reservation.
+
+        Raises:
+            ValueError: `quote_qty` is non-finite (NaN / Infinity)
+                or non-positive.
+            RuntimeError: the ask side of the book is empty.
+        '''
+
+        if not quote_qty.is_finite():
+            raise ValueError(f'quote_qty must be finite, got {quote_qty}')
+
+        if quote_qty <= 0:
+            raise ValueError(f'quote_qty must be positive, got {quote_qty}')
+
+        if not self._asks:
+            raise RuntimeError('order book is empty; call replace() first')
+
+        fills: list[tuple[Decimal, Decimal]] = []
+        remaining_quote = quote_qty
+
+        for price, level_qty in self._asks:
+            if remaining_quote <= 0:
+                break
+
+            level_quote_cap = price * level_qty
+            if level_quote_cap <= remaining_quote:
+                fills.append((price, level_qty))
+                remaining_quote -= level_quote_cap
+            else:
+                with localcontext() as ctx:
+                    ctx.rounding = ROUND_DOWN
+                    take_base = remaining_quote / price
+                fills.append((price, take_base))
+                remaining_quote = Decimal('0')
+
+        return fills, remaining_quote

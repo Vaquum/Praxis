@@ -96,7 +96,7 @@ class _FakeExecutionManager:
         account_id: str,
         symbol: str,
         side: OrderSide,
-        qty: Decimal,
+        qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
         execution_params: SingleShotParams,
@@ -106,6 +106,7 @@ class _FakeExecutionManager:
         stp_mode: STPMode,
         created_at: datetime,
         strategy_id: str | None = None,  # noqa: ARG002
+        quote_qty: Decimal | None = None,  # noqa: ARG002
     ) -> str:
         if self.submit_command_error is not None:
             raise self.submit_command_error

@@ -60,6 +60,24 @@ def _enter_action(
     )
 
 
+def _quote_native_enter_action(
+    *,
+    quote_qty: Decimal = Decimal('100'),
+    reference_price: Decimal | None = None,
+    command_id: str | None = 'cmd_qn',
+) -> Action:
+    return Action(
+        action_type=ActionType.ENTER,
+        direction=OrderSide.BUY,
+        quote_qty=quote_qty,
+        execution_mode=ExecutionMode.SINGLE_SHOT,
+        order_type=OrderType.MARKET,
+        deadline=60,
+        reference_price=reference_price,
+        command_id=command_id,
+    )
+
+
 def _exit_action(
     *,
     trade_id: str,
@@ -161,6 +179,53 @@ class TestEnterContext:
 
         assert ctx is not None
         assert ctx.strategy_budget == Decimal('2000')
+
+    def test_enter_quote_native_builds_context_with_quote_qty_as_notional(self) -> None:
+        ctx = _build_validation_context(
+            _quote_native_enter_action(quote_qty=Decimal('250')),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.action == ValidationAction.ENTER
+        assert ctx.order_size is None
+        assert ctx.order_notional == Decimal('250')
+        assert ctx.order_side == OrderSide.BUY
+
+    def test_enter_quote_native_does_not_require_reference_price(self) -> None:
+        ctx = _build_validation_context(
+            _quote_native_enter_action(
+                quote_qty=Decimal('100'), reference_price=None,
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.order_notional == Decimal('100')
+
+    def test_enter_quote_native_estimated_fees_uses_quote_qty(self) -> None:
+        ctx = _build_validation_context(
+            _quote_native_enter_action(quote_qty=Decimal('1000')),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.estimated_fees == Decimal('1.000')
 
     def test_enter_generates_command_id_when_action_lacks_one(self) -> None:
         ctx = _build_validation_context(

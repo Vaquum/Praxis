@@ -248,7 +248,11 @@ class OutcomeTranslator:
 
         delta_price = delta_notional / delta_size
         actual_fees = delta_notional * self._fee_rate
-        remaining_size = outcome.target_qty - outcome.filled_qty
+        remaining_size = (
+            outcome.target_qty - outcome.filled_qty
+            if outcome.target_qty is not None
+            else None
+        )
 
         return NexusTradeOutcome(
             outcome_id=_new_outcome_id(),
@@ -305,7 +309,11 @@ class OutcomeTranslator:
             outcome_type = TradeOutcomeType.CANCELED
             cancel_reason = outcome.reason if outcome.reason else None
 
-        remaining_size = outcome.target_qty - outcome.filled_qty
+        remaining_size = (
+            outcome.target_qty - outcome.filled_qty
+            if outcome.target_qty is not None
+            else None
+        )
 
         return NexusTradeOutcome(
             outcome_id=_new_outcome_id(),

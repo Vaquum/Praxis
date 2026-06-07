@@ -21,6 +21,7 @@ from praxis.core.domain.events import (
     OrderAcked,
     OrderCanceled,
     OrderExpired,
+    OrderQuoteNativeFilled,
     OrderRejected,
     OrderSubmitFailed,
     OrderSubmitIntent,
@@ -99,6 +100,8 @@ class TradingState:
             self._on_order_acked(event)
         elif isinstance(event, FillReceived):
             self._on_fill_received(event)
+        elif isinstance(event, OrderQuoteNativeFilled):
+            self._on_order_quote_native_filled(event)
         elif isinstance(event, OrderRejected):
             self._on_order_rejected(event)
         elif isinstance(event, OrderCanceled):
@@ -164,6 +167,7 @@ class TradingState:
             side=event.side,
             order_type=event.order_type,
             qty=event.qty,
+            quote_qty=event.quote_qty,
             filled_qty=_ZERO,
             cumulative_notional=_ZERO,
             price=event.price,
@@ -229,7 +233,9 @@ class TradingState:
         order.cumulative_notional += event.qty * event.price
         order.updated_at = event.timestamp
 
-        if order.filled_qty >= order.qty:
+        if order.qty is None:
+            order.status = OrderStatus.PARTIALLY_FILLED
+        elif order.filled_qty >= order.qty:
             order.status = OrderStatus.FILLED
             self._close_order(event.client_order_id)
         else:
@@ -335,6 +341,36 @@ class TradingState:
                 event.trade_id,
                 self.account_id,
             )
+
+    def _on_order_quote_native_filled(
+        self,
+        event: OrderQuoteNativeFilled,
+    ) -> None:
+
+        '''Promote a quote-native order to FILLED.
+
+        Qty-native orders self-terminate in `_update_order_on_fill`
+        when cumulative `filled_qty` reaches the requested base `qty`.
+        Quote-native orders have no base target, so the venue's
+        per-response `status == FILLED` flag is the terminal signal
+        — `ExecutionManager` appends this event after the last
+        immediate fill so spine replay reconstructs the terminal
+        state instead of leaving the order stranded
+        `PARTIALLY_FILLED`.
+        '''
+
+        if event.client_order_id in self.closed_orders:
+            return
+
+        order = self._get_order(
+            'OrderQuoteNativeFilled', event.client_order_id,
+        )
+        if order is None:
+            return
+
+        order.status = OrderStatus.FILLED
+        order.updated_at = event.timestamp
+        self._close_order(event.client_order_id)
 
     def _close_order(self, client_order_id: str) -> None:
 

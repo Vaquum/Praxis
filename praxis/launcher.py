@@ -623,6 +623,27 @@ def _build_enter_context(
     venue_adapter: VenueAdapter | None = None,
 ) -> ValidationRequestContext | None:
     command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
+    order_side = action.direction or OrderSide.BUY
+
+    if action.quote_qty is not None:
+        order_notional = action.quote_qty
+        estimated_fees = order_notional * fee_rate
+
+        return ValidationRequestContext(
+            strategy_id=strategy_id,
+            action=ValidationAction.ENTER,
+            symbol=enter_symbol,
+            order_side=order_side,
+            order_size=None,
+            command_id=command_id,
+            trade_id=None,
+            order_notional=order_notional,
+            estimated_fees=estimated_fees,
+            strategy_budget=strategy_budget,
+            state=state,
+            config=nexus_config,
+        )
+
     reference_price = action.reference_price
 
     if reference_price is None:
@@ -682,7 +703,6 @@ def _build_enter_context(
 
     order_notional = order_size * reference_price
     estimated_fees = order_notional * fee_rate
-    order_side = action.direction or OrderSide.BUY
 
     return ValidationRequestContext(
         strategy_id=strategy_id,
@@ -807,12 +827,19 @@ def _ensure_entry_position(
     (`_grow_position` math collapses to `new_entry_price = fill_price`
     when `old_size == 0`).
 
+    For qty-native ENTER, the action would already have been rejected
+    by `_build_enter_context`'s no-price guard, so a `None` reference
+    price here means a deeper bug — logged and skipped.
+
+    For quote-native ENTER, no reference price is required to size or
+    validate the action (`quote_qty` is the spend cap), so the
+    placeholder uses `Decimal('1')` as an arbitrary positive sentinel
+    when neither `action.reference_price` nor the fallback is
+    available. The sentinel is discarded on first fill because
+    `_grow_position`'s `(old_size * old_entry_price + ...) / new_size`
+    term zeroes out when `old_size == 0`.
+
     Idempotent via `dict.setdefault` — repeated calls are no-ops.
-    Skips silently when no reference price is available; the action
-    would already have been rejected by `_build_enter_context`'s
-    no-price guard, so reaching this branch with `ref_price is None`
-    means a deeper bug — logging the skip rather than raising keeps
-    the submitter loop alive.
     '''
 
     ref_price = action.reference_price
@@ -820,11 +847,15 @@ def _ensure_entry_position(
         ref_price = fallback_price_provider()
 
     if ref_price is None:
-        _log.warning(
-            'cannot pre-populate entry Position: no reference price',
-            extra={'strategy_id': strategy_id, 'trade_id': trade_id},
-        )
-        return
+
+        if action.quote_qty is None:
+            _log.warning(
+                'cannot pre-populate entry Position: no reference price',
+                extra={'strategy_id': strategy_id, 'trade_id': trade_id},
+            )
+            return
+
+        ref_price = Decimal('1')
 
     placeholder = Position(
         trade_id=trade_id,
@@ -883,9 +914,18 @@ def _build_order_context(
     if validation_context is None:
         return None
 
-    if validation_context.order_side is None or validation_context.order_size is None:
+    if validation_context.order_side is None:
         _log.warning(
-            'cannot build OrderContext: validation context missing side/size',
+            'cannot build OrderContext: validation context missing side',
+            extra={'strategy_id': strategy_id, 'command_id': command_id},
+        )
+        return None
+
+    is_entry = action.action_type == ActionType.ENTER
+
+    if validation_context.order_size is None and not is_entry:
+        _log.warning(
+            'cannot build OrderContext: EXIT validation context missing size',
             extra={'strategy_id': strategy_id, 'command_id': command_id},
         )
         return None
@@ -901,7 +941,7 @@ def _build_order_context(
             order_size=validation_context.order_size,
             order_notional=validation_context.order_notional,
             estimated_fees=validation_context.estimated_fees,
-            is_entry=action.action_type == ActionType.ENTER,
+            is_entry=is_entry,
         )
     except ValueError:
         _log.exception(
