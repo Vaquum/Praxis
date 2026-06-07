@@ -127,12 +127,17 @@ class Order:
     def __setattr__(self, name: str, value: object) -> None:
         '''Validate mutable field invariants on assignment.
 
-        Enforces the same XOR invariant as `__post_init__`: at any
-        point in the order's lifecycle, exactly one of `qty` or
-        `quote_qty` is set. Assigning a non-`None` value to one field
-        while the other already holds a value is refused. Assigning
-        `None` to a field is allowed (it frees the slot for the other
-        field to be set on a subsequent assignment).
+        Enforces XOR for non-`None` assignments to `qty` and
+        `quote_qty`: assigning a non-`None` value to one while the
+        other already holds a value is refused with a "cannot be set
+        while ... is set" error. Assigning `None` to either field is
+        always allowed — that frees the slot so the other field can
+        be set on a subsequent assignment. The implication is that
+        both fields can transiently be `None` between the two
+        statements of a swap (`order.qty = None`; `order.quote_qty = X`);
+        `__post_init__` rejects this state at construction, but
+        mid-lifecycle mutation paths accept it as the gap between two
+        valid states.
         '''
 
         if name == 'qty':
