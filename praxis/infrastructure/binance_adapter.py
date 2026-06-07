@@ -1242,6 +1242,17 @@ class BinanceAdapter:
 
         if quote_qty is not None:
 
+            if (
+                not isinstance(quote_qty, Decimal)
+                or not quote_qty.is_finite()
+                or quote_qty <= 0
+            ):
+                msg = (
+                    f'quote_qty must be a finite positive Decimal, '
+                    f'got {quote_qty!r}'
+                )
+                raise ValueError(msg)
+
             if qty is not None:
                 msg = 'submit_order requires exactly one of qty or quote_qty'
                 raise ValueError(msg)

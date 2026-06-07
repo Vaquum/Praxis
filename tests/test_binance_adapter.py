@@ -1082,6 +1082,59 @@ class TestBuildQuoteNativeMarketParams:
                 ),
             )
 
+    @pytest.mark.parametrize(
+        'bad',
+        [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')],
+    )
+    def test_submit_order_rejects_non_finite_quote_qty(self, bad: Decimal) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    quote_qty=bad,
+                    client_order_id='x',
+                ),
+            )
+
+    @pytest.mark.parametrize('bad', [Decimal('0'), Decimal('-1')])
+    def test_submit_order_rejects_non_positive_quote_qty(self, bad: Decimal) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    quote_qty=bad,
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_rejects_non_decimal_quote_qty(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='quote_qty must be a finite positive Decimal'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    None,
+                    quote_qty=100,  # type: ignore[arg-type]
+                    client_order_id='x',
+                ),
+            )
+
 
 class TestMapOrderStatus:
 
