@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -24,7 +25,7 @@ _TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 _BOUNDED_GROWTH_MARGIN_BYTES = 256
 _APPLY_ORDER_GROWTH_FLOOR_BYTES = 1000
 _INSTRUMENTED_WRITE_DELAY_SECONDS = 0.05
-_CANCELLATION_RACE_PROBE_SECONDS = 0.01
+_WRITE_START_TIMEOUT_SECONDS = 2.0
 
 
 def _new_ledger(tmp_path: Path) -> Ledger:
@@ -504,14 +505,16 @@ async def test_snapshot_write_completes_when_caller_cancelled(tmp_path: Path) ->
     ledger = _new_ledger(tmp_path)
     await ledger.register_account(_ACCT, Decimal('10000'))
 
-    write_finished_marker = [False]
+    write_started = threading.Event()
+    write_finished = threading.Event()
     original = ledger._write_snapshot_atomic
 
     def instrumented(payload: dict[str, object]) -> None:
 
+        write_started.set()
         time.sleep(_INSTRUMENTED_WRITE_DELAY_SECONDS)
         original(payload)
-        write_finished_marker[0] = True
+        write_finished.set()
 
     ledger._write_snapshot_atomic = instrumented
 
@@ -521,14 +524,15 @@ async def test_snapshot_write_completes_when_caller_cancelled(tmp_path: Path) ->
         ),
     )
 
-    await asyncio.sleep(_CANCELLATION_RACE_PROBE_SECONDS)
+    await asyncio.to_thread(write_started.wait, _WRITE_START_TIMEOUT_SECONDS)
+    assert write_started.is_set()
 
     fill_task.cancel()
 
     with pytest.raises(asyncio.CancelledError):
         await fill_task
 
-    assert write_finished_marker[0]
+    assert write_finished.is_set()
 
 
 @pytest.mark.asyncio
