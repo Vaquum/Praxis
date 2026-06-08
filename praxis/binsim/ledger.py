@@ -501,7 +501,11 @@ class Ledger:
         try:
             await asyncio.shield(write)
         except asyncio.CancelledError:
-            asyncio.current_task().uncancel()
+            task = asyncio.current_task()
+
+            if task is not None:
+                task.uncancel()
+
             try:
                 await write
             except Exception:  # noqa: BLE001 - we are propagating CancelledError; the write's own failure is logged and swallowed so the cancellation isn't masked
