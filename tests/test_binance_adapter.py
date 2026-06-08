@@ -22,6 +22,7 @@ from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     CancelResult,
     CommandQuantization,
+    DuplicateClientOrderIdError,
     ExecutionReport,
     LocalOrderRejectedError,
     NotFoundError,
@@ -3140,30 +3141,41 @@ class TestHealthSignals:
         assert snapshot.failure_rate == 1.0
 
     @pytest.mark.asyncio
-    async def test_order_rejected_error_does_not_record_health_failure(
+    async def test_order_rejected_error_records_as_success_and_resets_consecutive_failures(
         self,
     ) -> None:
 
-        '''Business-rule rejections must not count toward venue health.
+        '''Business-rule rejections record as success and reset prior failures.
 
         Symmetric with the `NotFoundError` exemption above. Binance
         returns `-2010` (`Account has insufficient balance for
         requested action.`) when a BUY's `quoteOrderQty` exceeds the
-        account's free quote balance. The venue is healthy and applied
-        its rules correctly — the order specifically cannot proceed
-        right now. Counting these as `_record_health(succeeded=False)`
-        HALTed prod after two ENTERs in a row hit insufficient
-        balance: `consecutive_failures` and `failure_rate` tripped the
-        halt thresholds, `state.mode` flipped HALTED, every ENTER got
-        rejected with `INTAKE_MODE_BLOCKS_ENTER`, and no fresh signed
-        successes could dilute the failure window even as later SELLs
-        would have refilled USDT. Applies universally (real Binance
-        and binsim both return `-2010` on insufficient balance) so
-        unlike the `NotFoundError` skip this is not gated on
-        `BINSIM_URL`.
+        account's free quote balance. The venue responded successfully
+        and applied its rules correctly — the order specifically cannot
+        proceed right now. Counting these as
+        `_record_health(succeeded=False)` HALTed prod after two ENTERs
+        in a row hit insufficient balance: `consecutive_failures`
+        crossed the halt threshold, `state.mode` flipped HALTED, every
+        subsequent ENTER got rejected with `INTAKE_MODE_BLOCKS_ENTER`,
+        and no fresh signed successes could dilute the failure window
+        even as later SELLs would have refilled USDT. Recording
+        `succeeded=True` is strictly stronger than skipping: it
+        contributes a real latency sample (the venue did respond) and
+        actively resets `_consecutive_failures` so a prior transient
+        failure cannot persist across a chain of business-rule
+        rejections. Applies universally (real Binance and binsim both
+        return `-2010` on insufficient balance) so unlike the
+        `NotFoundError` skip this is not gated on `BINSIM_URL`.
         '''
 
         adapter = _make_adapter()
+
+        adapter._health_trackers[_ACCOUNT_ID].record_request(
+            latency_ms=5.0, succeeded=False,
+        )
+        seeded = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert seeded.consecutive_failures == 1
+
         _patch_session(adapter, _mock_response(400, {
             'code': -2010,
             'msg': 'Account has insufficient balance for requested action.',
@@ -3174,10 +3186,10 @@ class TestHealthSignals:
 
         snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
         assert snapshot.consecutive_failures == 0
-        assert snapshot.failure_rate == 0.0
+        assert snapshot.failure_rate == 0.5
 
     @pytest.mark.asyncio
-    async def test_min_notional_rejection_does_not_record_health_failure(
+    async def test_min_notional_rejection_records_as_success_and_resets_consecutive_failures(
         self,
     ) -> None:
 
@@ -3185,12 +3197,19 @@ class TestHealthSignals:
 
         Binance `-1013` `Filter failure: MIN_NOTIONAL` (and the
         symmetric LOT_SIZE / PRICE_FILTER variants) signals the venue
-        is healthy and refused this specific order's parameters. A
-        strategy-level circuit breaker is the right place to react to
-        repeated parameter rejections; the venue HealthLoop must not.
+        responded successfully and refused this specific order's
+        parameters. A strategy-level circuit breaker is the right
+        place to react to repeated parameter rejections; the venue
+        HealthLoop must reset.
         '''
 
         adapter = _make_adapter()
+
+        adapter._health_trackers[_ACCOUNT_ID].record_request(
+            latency_ms=5.0, succeeded=False,
+        )
+        assert adapter.get_health_snapshot(_ACCOUNT_ID).consecutive_failures == 1
+
         _patch_session(adapter, _mock_response(400, {
             'code': -1013,
             'msg': 'Filter failure: MIN_NOTIONAL',
@@ -3201,7 +3220,7 @@ class TestHealthSignals:
 
         snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
         assert snapshot.consecutive_failures == 0
-        assert snapshot.failure_rate == 0.0
+        assert snapshot.failure_rate == 0.5
 
     @pytest.mark.asyncio
     async def test_authentication_error_still_records_health_failure(
@@ -3229,6 +3248,49 @@ class TestHealthSignals:
         snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
         assert snapshot.consecutive_failures == 1
         assert snapshot.failure_rate == 1.0
+
+    @pytest.mark.asyncio
+    async def test_submit_order_with_client_order_id_records_success_on_2010(
+        self,
+    ) -> None:
+
+        '''End-to-end through the `submit_order` wrap layer.
+
+        The prod path passes a `client_order_id` to `submit_order`,
+        which wraps any `-2010` `OrderRejectedError` from the venue
+        into a `DuplicateClientOrderIdError` (binance_adapter.py
+        line 1440-1447) — `-2010` is overloaded in Binance for both
+        INSUFFICIENT_BALANCE and DUPLICATE_CLIENT_ORDER_ID, so this
+        wrap fires on every insufficient-balance rejection the
+        strategy ever causes. The health exemption is supposed to
+        record success at the `_request_with_retry` site (below the
+        wrap); this test pins that — caller sees
+        `DuplicateClientOrderIdError`, health tracker sees a
+        positive sample and resets `_consecutive_failures`.
+        '''
+
+        adapter = _make_adapter()
+
+        adapter._health_trackers[_ACCOUNT_ID].record_request(
+            latency_ms=5.0, succeeded=False,
+        )
+        assert adapter.get_health_snapshot(_ACCOUNT_ID).consecutive_failures == 1
+
+        _patch_session(adapter, _mock_response(400, {
+            'code': -2010,
+            'msg': 'Account has insufficient balance for requested action.',
+        }))
+
+        with pytest.raises(DuplicateClientOrderIdError):
+            await adapter.submit_order(
+                _ACCOUNT_ID, 'BTCUSDT', OrderSide.BUY, OrderType.MARKET,
+                Decimal('1.0'),
+                client_order_id='cid-end-to-end',
+            )
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 0
+        assert snapshot.failure_rate == 0.5
 
     @pytest.mark.asyncio
     async def test_sync_clock_drift_populates_drift_ms(self) -> None:
