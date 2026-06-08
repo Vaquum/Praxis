@@ -515,17 +515,20 @@ class BinanceAdapter:
                 if not _binsim_enabled():
                     self._record_health(account_id, start, succeeded=False)
                 raise
-            except (OrderRejectedError, DuplicateClientOrderIdError):
+            except OrderRejectedError:
                 # Business-rule rejections (insufficient balance, MIN_NOTIONAL,
-                # LOT_SIZE, dedup-confirmed duplicate clientOrderId) signal
-                # the venue is healthy and applied its rules correctly. The
-                # order specifically cannot proceed; the venue is fine.
-                # Counting these as health failures HALTed the system on
-                # transient conditions that naturally resolve as positions
-                # cycle (e.g. a SELL refilling USDT lets the next BUY
-                # through). Same class of bug as the NotFoundError exemption
-                # above; OrderRejectedError covers LocalOrderRejectedError
-                # by inheritance.
+                # LOT_SIZE, etc.) signal the venue is healthy and applied
+                # its rules correctly — the order specifically cannot
+                # proceed. Counting these as health failures HALTed the
+                # system on transient conditions that naturally resolve as
+                # positions cycle (e.g. a SELL refilling USDT lets the next
+                # BUY through). Same class of bug as the NotFoundError
+                # exemption above. `submit_order` may later re-wrap an
+                # `OrderRejectedError` with `_DUPLICATE_CLIENT_ORDER_ID_CODE`
+                # as `DuplicateClientOrderIdError`, but that wrap happens
+                # downstream of this site; the exemption here is enough
+                # to keep the underlying rejection out of the health
+                # tracker.
                 raise
             except VenueError:
                 self._record_health(account_id, start, succeeded=False)
