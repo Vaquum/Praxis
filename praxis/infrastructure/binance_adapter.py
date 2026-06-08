@@ -515,6 +515,28 @@ class BinanceAdapter:
                 if not _binsim_enabled():
                     self._record_health(account_id, start, succeeded=False)
                 raise
+            except OrderRejectedError:
+                # Business-rule rejections (insufficient balance, MIN_NOTIONAL,
+                # LOT_SIZE, etc.) mean the venue responded successfully and
+                # applied its rules correctly — the order specifically cannot
+                # proceed. Record the round-trip as a positive health signal
+                # (`succeeded=True`): the latency sample is real and
+                # `_consecutive_failures` resets so a prior transient
+                # failure doesn't persist into the next genuine venue issue.
+                # Same class of bug as the original prod incident — two
+                # consecutive `-2010` rejections tripped the consecutive-
+                # failure threshold, flipped `state.mode` to HALTED, and no
+                # signed success could ever dilute the window (every
+                # subsequent ENTER got rejected at intake with
+                # `INTAKE_MODE_BLOCKS_ENTER`). `submit_order` may later
+                # re-wrap an `OrderRejectedError` with
+                # `_DUPLICATE_CLIENT_ORDER_ID_CODE` as
+                # `DuplicateClientOrderIdError`, but that wrap happens
+                # downstream of this site; the record-as-success here
+                # applies regardless of how the caller classifies the
+                # raise.
+                self._record_health(account_id, start, succeeded=True)
+                raise
             except VenueError:
                 self._record_health(account_id, start, succeeded=False)
                 raise
