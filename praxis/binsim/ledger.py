@@ -504,7 +504,8 @@ class Ledger:
             task = asyncio.current_task()
 
             if task is not None:
-                task.uncancel()
+                while task.cancelling():
+                    task.uncancel()
 
             try:
                 await write

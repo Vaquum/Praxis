@@ -492,7 +492,7 @@ async def test_apply_order_still_grows_snapshot_via_seen_client_order_ids(tmp_pa
         await ledger.apply_order(
             _ACCT, OrderSide.BUY,
             [(Decimal('100'), Decimal('0.001'), Decimal('0'))],
-            client_order_id=f'cid-{i:03d}',
+            client_order_id=f"cid-{i:03d}",
         )
 
     after = snapshot.stat().st_size
