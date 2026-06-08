@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -21,6 +22,9 @@ from praxis.core.domain.enums import OrderSide
 _ACCT = 'acc-1'
 _TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 _BOUNDED_GROWTH_MARGIN_BYTES = 256
+_APPLY_ORDER_GROWTH_FLOOR_BYTES = 1000
+_INSTRUMENTED_WRITE_DELAY_SECONDS = 0.05
+_CANCELLATION_RACE_PROBE_SECONDS = 0.01
 
 
 def _new_ledger(tmp_path: Path) -> Ledger:
@@ -457,7 +461,7 @@ async def test_fills_do_not_survive_snapshot_round_trip(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_snapshot_size_stays_bounded_under_fill_growth(tmp_path: Path) -> None:
+async def test_snapshot_size_stays_bounded_under_fill_growth_only(tmp_path: Path) -> None:
 
     ledger = _new_ledger(tmp_path)
     snapshot = tmp_path / 'binsim_ledger.json'
@@ -472,6 +476,59 @@ async def test_snapshot_size_stays_bounded_under_fill_growth(tmp_path: Path) -> 
 
     after = snapshot.stat().st_size
     assert after < baseline + _BOUNDED_GROWTH_MARGIN_BYTES
+
+
+@pytest.mark.asyncio
+async def test_apply_order_still_grows_snapshot_via_seen_client_order_ids(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    snapshot = tmp_path / 'binsim_ledger.json'
+
+    await ledger.register_account(_ACCT, Decimal('100000000'))
+    baseline = snapshot.stat().st_size
+
+    for i in range(100):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.001'), Decimal('0'))],
+            client_order_id=f'cid-{i:03d}',
+        )
+
+    after = snapshot.stat().st_size
+    assert after > baseline + _APPLY_ORDER_GROWTH_FLOOR_BYTES
+
+
+@pytest.mark.asyncio
+async def test_snapshot_write_completes_when_caller_cancelled(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    write_finished_marker = [False]
+    original = ledger._write_snapshot_atomic
+
+    def instrumented(payload: dict[str, object]) -> None:
+
+        time.sleep(_INSTRUMENTED_WRITE_DELAY_SECONDS)
+        original(payload)
+        write_finished_marker[0] = True
+
+    ledger._write_snapshot_atomic = instrumented
+
+    fill_task = asyncio.create_task(
+        ledger.apply_fill(
+            _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'),
+        ),
+    )
+
+    await asyncio.sleep(_CANCELLATION_RACE_PROBE_SECONDS)
+
+    fill_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await fill_task
+
+    assert write_finished_marker[0]
 
 
 @pytest.mark.asyncio

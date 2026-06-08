@@ -494,7 +494,15 @@ class Ledger:
             },
         }
 
-        await asyncio.to_thread(self._write_snapshot_atomic, payload)
+        write = asyncio.ensure_future(
+            asyncio.to_thread(self._write_snapshot_atomic, payload),
+        )
+
+        try:
+            await asyncio.shield(write)
+        finally:
+            if not write.done():
+                await write
 
     def _write_snapshot_atomic(self, payload: dict[str, Any]) -> None:
 
