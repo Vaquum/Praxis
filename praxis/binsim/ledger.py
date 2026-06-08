@@ -203,7 +203,7 @@ class Ledger:
             )
             self._api_key_index[api_key_hash] = account_id
 
-            self._snapshot_locked()
+            await self._snapshot_locked()
 
             return api_key
 
@@ -320,7 +320,7 @@ class Ledger:
             account.fills.append(fill)
             self._next_trade_id += 1
 
-            self._snapshot_locked()
+            await self._snapshot_locked()
 
             return fill
 
@@ -442,7 +442,7 @@ class Ledger:
             account.fills.extend(records)
             account.seen_client_order_ids.add(client_order_id)
 
-            self._snapshot_locked()
+            await self._snapshot_locked()
 
             return order_id, records
 
@@ -483,7 +483,7 @@ class Ledger:
         async with self._lock:
             return list(self._accounts.keys())
 
-    def _snapshot_locked(self) -> None:
+    async def _snapshot_locked(self) -> None:
 
         payload = {
             'next_trade_id': self._next_trade_id,
@@ -493,6 +493,10 @@ class Ledger:
                 for account_id, account in self._accounts.items()
             },
         }
+
+        await asyncio.to_thread(self._write_snapshot_atomic, payload)
+
+    def _write_snapshot_atomic(self, payload: dict[str, Any]) -> None:
 
         self._state_dir.mkdir(parents=True, exist_ok=True)
 
@@ -560,14 +564,12 @@ def _account_to_dict(account: Account) -> dict[str, object]:
         'api_key_hash': account.api_key_hash,
         'usdt': str(account.usdt),
         'btc': str(account.btc),
-        'fills': [_fill_to_dict(f) for f in account.fills],
         'seen_client_order_ids': sorted(account.seen_client_order_ids),
     }
 
 
 def _account_from_dict(account_id: str, data: dict[str, Any]) -> Account:
 
-    raw_fills = cast(list[dict[str, str]], data['fills'])
     raw_cids = cast(list[str], data.get('seen_client_order_ids', []))
 
     return Account(
@@ -575,7 +577,7 @@ def _account_from_dict(account_id: str, data: dict[str, Any]) -> Account:
         api_key_hash=str(data['api_key_hash']),
         usdt=Decimal(str(data['usdt'])),
         btc=Decimal(str(data['btc'])),
-        fills=[_fill_from_dict(f) for f in raw_fills],
+        fills=[],
         seen_client_order_ids=set(raw_cids),
     )
 
@@ -593,29 +595,3 @@ def _hash_api_key(api_key: str) -> str:
     '''
 
     return hashlib.sha256(api_key.encode('utf-8')).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
-
-
-def _fill_to_dict(fill: LedgerFill) -> dict[str, str]:
-
-    return {
-        'trade_id': fill.trade_id,
-        'side': fill.side.value,
-        'qty': str(fill.qty),
-        'price': str(fill.price),
-        'fee': str(fill.fee),
-        'fee_asset': fill.fee_asset,
-        'timestamp': fill.timestamp.isoformat(),
-    }
-
-
-def _fill_from_dict(data: dict[str, str]) -> LedgerFill:
-
-    return LedgerFill(
-        trade_id=data['trade_id'],
-        side=OrderSide(data['side']),
-        qty=Decimal(data['qty']),
-        price=Decimal(data['price']),
-        fee=Decimal(data['fee']),
-        fee_asset=data['fee_asset'],
-        timestamp=datetime.fromisoformat(data['timestamp']),
-    )
