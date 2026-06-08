@@ -46,6 +46,10 @@ _VENUE_ORDER_ID = '12345'
 _VENUE_TRADE_ID = '99'
 _BINANCE_REJECTION_CODE = -1013
 _BINANCE_REJECTION_MSG = 'Filter failure: MIN_NOTIONAL'
+_BINANCE_INSUFFICIENT_BALANCE_CODE = -2010
+_BINANCE_INSUFFICIENT_BALANCE_MSG = 'Account has insufficient balance for requested action.'
+_BINANCE_API_KEY_INVALID_CODE = -2014
+_BINANCE_API_KEY_INVALID_MSG = 'API-key format invalid.'
 _SHA256_HEX_LENGTH = 64
 _FALLBACK_VENUE_CODE = -1
 _BINANCE_ORDER_NOT_EXIST_CODE = -2013
@@ -3153,7 +3157,7 @@ class TestHealthSignals:
         account's free quote balance. The venue responded successfully
         and applied its rules correctly — the order specifically cannot
         proceed right now. Counting these as
-        `_record_health(succeeded=False)` HALTed prod after two ENTERs
+        `_record_health(succeeded=False)` halted prod after two ENTERs
         in a row hit insufficient balance: `consecutive_failures`
         crossed the halt threshold, `state.mode` flipped HALTED, every
         subsequent ENTER got rejected with `INTAKE_MODE_BLOCKS_ENTER`,
@@ -3177,8 +3181,8 @@ class TestHealthSignals:
         assert seeded.consecutive_failures == 1
 
         _patch_session(adapter, _mock_response(400, {
-            'code': -2010,
-            'msg': 'Account has insufficient balance for requested action.',
+            'code': _BINANCE_INSUFFICIENT_BALANCE_CODE,
+            'msg': _BINANCE_INSUFFICIENT_BALANCE_MSG,
         }))
 
         with pytest.raises(OrderRejectedError):
@@ -3211,8 +3215,8 @@ class TestHealthSignals:
         assert adapter.get_health_snapshot(_ACCOUNT_ID).consecutive_failures == 1
 
         _patch_session(adapter, _mock_response(400, {
-            'code': -1013,
-            'msg': 'Filter failure: MIN_NOTIONAL',
+            'code': _BINANCE_REJECTION_CODE,
+            'msg': _BINANCE_REJECTION_MSG,
         }))
 
         with pytest.raises(OrderRejectedError):
@@ -3238,8 +3242,8 @@ class TestHealthSignals:
 
         adapter = _make_adapter()
         _patch_session(adapter, _mock_response(401, {
-            'code': -2014,
-            'msg': 'API-key format invalid.',
+            'code': _BINANCE_API_KEY_INVALID_CODE,
+            'msg': _BINANCE_API_KEY_INVALID_MSG,
         }))
 
         with pytest.raises(AuthenticationError):
@@ -3277,8 +3281,8 @@ class TestHealthSignals:
         assert adapter.get_health_snapshot(_ACCOUNT_ID).consecutive_failures == 1
 
         _patch_session(adapter, _mock_response(400, {
-            'code': -2010,
-            'msg': 'Account has insufficient balance for requested action.',
+            'code': _BINANCE_INSUFFICIENT_BALANCE_CODE,
+            'msg': _BINANCE_INSUFFICIENT_BALANCE_MSG,
         }))
 
         with pytest.raises(DuplicateClientOrderIdError):
