@@ -888,3 +888,19 @@ The fallback is correct *only* because [`OutcomeProcessor._grow_position`](https
 3. Make the placeholder `entry_price` field `Decimal | None` end-to-end (Position.entry_price becomes optional when `size == _ZERO`), and have downstream readers handle `None`. Wider blast radius.
 
 Option 1 is cleanest if Nexus accepts the lazy-create change; option 2 is the safest local fix if not.
+
+## TD-081: binsim `Account.fills` and `Account.seen_client_order_ids` grow unboundedly in process memory
+
+**Origin**: Greybeard pre-PR review of `fix/binsim-ledger-snapshot-blocking-io` (v0.75.0 — issue #135 snapshot-cost fix)
+**Severity**: Low under current scope. The v0.75.0 fix closed the cited prod pathology (per-order snapshot write blocking the event loop and growing on disk). The in-memory containers have the same shape but their cost is RSS-only — no event-loop blocking, no disk growth, no `-1003` cascade. Elevated once the per-process resident set hits a deploy-relevant threshold; at the observed prod fill rate (~700 fills/hr per account, ~1 KB per `LedgerFill` instance after dataclass overhead) the binsim accrues ~17 MB per account per day in `fills` alone, plus ~50 B per coid in `seen_client_order_ids`. A multi-account binsim left running for weeks will eventually OOM the container.
+**Module**: [`praxis/binsim/ledger.py`](../praxis/binsim/ledger.py) — `apply_fill` line 320 (`account.fills.append`), `apply_order` line 442 (`account.fills.extend` + `account.seen_client_order_ids.add`).
+
+`fills` is only used by `Ledger.fills(account_id)` which has no production reader; `binsim.server._my_trades_stub` returns `[]` and there is no other consumer beyond tests. The list could be evicted entirely without changing observable behaviour, or replaced with a counter (`fills_count`) if tests want to assert the append happened. `seen_client_order_ids` is load-bearing for dedup but only the recent horizon matters in practice — real Binance's server-side dedup window is finite; a rolling LRU bounded at `N` most recent ids matches that semantics while bounding the set.
+
+**When to fix**: When either (a) binsim OOMs in a long-running deploy, OR (b) any new in-process consumer of `Ledger.fills(account_id)` lands and the cost of holding fills becomes load-bearing. The v0.75.0 snapshot fix is sufficient for the disk/event-loop concern that #135 raised; this entry tracks the adjacent in-memory concern so the next bound pass doesn't have to rediscover it.
+
+**Migration**: Two options.
+1. **Drop `fills` entirely**. The list has no production reader. Replace `Account.fills: list[LedgerFill]` with `Account.fills_count: int`, update `Ledger.fills(account_id)` to return `[]` or drop the API, update tests accordingly. Single-commit refactor; no recovery semantics change because nothing reads the list.
+2. **Bound both with a rolling window**. Keep `fills` as a `collections.deque(maxlen=N)` and replace `seen_client_order_ids: set[str]` with a `collections.OrderedDict[str, None]` bounded to `N` (LRU-evict on insert past the limit). `N` chosen to comfortably exceed the longest expected client retry window — Binance's documented server-side dedup is ~24h, so something like 100 k entries is generous. Tests adjust to assert deque length and eviction.
+
+Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in production. Option 2 preserves the API and trades a tunable memory ceiling for a bounded miss rate.
