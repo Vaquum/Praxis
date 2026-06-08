@@ -3140,27 +3140,90 @@ class TestHealthSignals:
         assert snapshot.failure_rate == 1.0
 
     @pytest.mark.asyncio
-    async def test_non_not_found_venue_error_still_records_with_binsim_url(
+    async def test_order_rejected_error_does_not_record_health_failure(
         self,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
 
-        '''The skip is scoped to `NotFoundError`; other VenueErrors count.
+        '''Business-rule rejections must not count toward venue health.
 
-        `OrderRejectedError` and any other `VenueError` subclass on
-        binsim still represent real venue signal (e.g. binsim rejected
-        an order for invalid parameters) and must continue to drive
-        the HealthLoop.
+        Symmetric with the `NotFoundError` exemption above. Binance
+        returns `-2010` (`Account has insufficient balance for
+        requested action.`) when a BUY's `quoteOrderQty` exceeds the
+        account's free quote balance. The venue is healthy and applied
+        its rules correctly — the order specifically cannot proceed
+        right now. Counting these as `_record_health(succeeded=False)`
+        HALTed prod after two ENTERs in a row hit insufficient
+        balance: `consecutive_failures` and `failure_rate` tripped the
+        halt thresholds, `state.mode` flipped HALTED, every ENTER got
+        rejected with `INTAKE_MODE_BLOCKS_ENTER`, and no fresh signed
+        successes could dilute the failure window even as later SELLs
+        would have refilled USDT. Applies universally (real Binance
+        and binsim both return `-2010` on insufficient balance) so
+        unlike the `NotFoundError` skip this is not gated on
+        `BINSIM_URL`.
         '''
 
-        monkeypatch.setenv('BINSIM_URL', 'http://binsim:8081')
         adapter = _make_adapter()
         _patch_session(adapter, _mock_response(400, {
-            'code': -1100,
-            'msg': 'Illegal characters in parameter',
+            'code': -2010,
+            'msg': 'Account has insufficient balance for requested action.',
         }))
 
         with pytest.raises(OrderRejectedError):
+            await adapter._signed_request('POST', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 0
+        assert snapshot.failure_rate == 0.0
+
+    @pytest.mark.asyncio
+    async def test_min_notional_rejection_does_not_record_health_failure(
+        self,
+    ) -> None:
+
+        '''MIN_NOTIONAL / LOT_SIZE rejections are venue-rule, not venue-health.
+
+        Binance `-1013` `Filter failure: MIN_NOTIONAL` (and the
+        symmetric LOT_SIZE / PRICE_FILTER variants) signals the venue
+        is healthy and refused this specific order's parameters. A
+        strategy-level circuit breaker is the right place to react to
+        repeated parameter rejections; the venue HealthLoop must not.
+        '''
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': -1013,
+            'msg': 'Filter failure: MIN_NOTIONAL',
+        }))
+
+        with pytest.raises(OrderRejectedError):
+            await adapter._signed_request('POST', '/api/v3/order', {}, _ACCOUNT_ID)
+
+        snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
+        assert snapshot.consecutive_failures == 0
+        assert snapshot.failure_rate == 0.0
+
+    @pytest.mark.asyncio
+    async def test_authentication_error_still_records_health_failure(
+        self,
+    ) -> None:
+
+        '''The OrderRejectedError exemption is scoped — auth still counts.
+
+        `AuthenticationError` (HTTP 401) indicates the API key is
+        invalid, the signature is wrong, or the clock drift exceeded
+        `recvWindow`. All three are real venue-availability signals
+        the HealthLoop must see — the venue is refusing to talk to
+        this account at all.
+        '''
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(401, {
+            'code': -2014,
+            'msg': 'API-key format invalid.',
+        }))
+
+        with pytest.raises(AuthenticationError):
             await adapter._signed_request('POST', '/api/v3/order', {}, _ACCOUNT_ID)
 
         snapshot = adapter.get_health_snapshot(_ACCOUNT_ID)
