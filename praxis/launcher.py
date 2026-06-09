@@ -780,6 +780,7 @@ def _build_exit_context(
                 extra={
                     'strategy_id': strategy_id,
                     'trade_id': trade_id,
+                    'command_id': command_id,
                     'symbol': position.symbol,
                     'entry_price': str(position.entry_price),
                     'requested_size': str(action.size),
