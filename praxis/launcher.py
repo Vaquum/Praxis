@@ -789,10 +789,22 @@ def _build_exit_context(
             )
 
             if intended_full_close and outcome_processor is not None:
+                # `dust_close_id` is keyed on `trade_id` (not `command_id`)
+                # so the dedup is deterministic even when `action.command_id`
+                # is `None` and the launcher generates a fresh per-call
+                # UUID via `f'cmd-{uuid.uuid4().hex}'`. A position can only
+                # become dust once per epoch — `trade_id` is the natural
+                # key for that invariant. The first successful call removes
+                # the trade from `state.positions`; subsequent calls hit
+                # the `trade_id not in state.positions` guard at the top
+                # of this function and return `None` before reaching this
+                # branch. The Nexus-side `_processed_dust_close_ids` set
+                # backstops any cross-call dedup if the position lingers
+                # (e.g. concurrent EXIT actions racing past the guard).
                 outcome_processor.close_as_dust(
                     trade_id=trade_id,
                     reason=quantization.rejection_reason,
-                    dust_close_id=f'dust-{command_id}',
+                    dust_close_id=f'dust-{trade_id}',
                 )
 
             return None

@@ -500,7 +500,7 @@ class TestExitContextDustCloseRouting:
         assert ctx is None
         assert len(processor.calls) == 1
         assert processor.calls[0]['trade_id'] == position.trade_id
-        assert processor.calls[0]['dust_close_id'] == 'dust-cmd_dust'
+        assert processor.calls[0]['dust_close_id'] == f'dust-{position.trade_id}'
         assert 'INTAKE_BELOW_MIN_QTY' in processor.calls[0]['reason']
 
     def test_partial_close_rejection_does_not_route_to_close_as_dust(self) -> None:
@@ -550,6 +550,57 @@ class TestExitContextDustCloseRouting:
         )
 
         assert ctx is None
+
+    def test_dust_close_id_deterministic_when_action_command_id_absent(self) -> None:
+        '''When `action.command_id is None`, `_build_exit_context` generates
+        a fresh `f'cmd-{uuid.uuid4().hex}'` per call. `dust_close_id` must
+        not depend on that fresh UUID — otherwise Nexus-side dedup is
+        defeated for any caller that doesn't supply a stable `command_id`.
+
+        Regression for Vaquum/Praxis#143 review: keyed on `trade_id` so
+        repeated full-close attempts on the same position produce the
+        same `dust_close_id` and dedup catches the second call.
+        '''
+
+        position = self._open_position(size=Decimal('0.00000842'))
+        state = _instance_state(positions={position.trade_id: position})
+        processor = _RecordingOutcomeProcessor()
+
+        _build_validation_context(
+            _exit_action(
+                trade_id=position.trade_id,
+                size=Decimal('0.00000842'),
+                command_id=None,
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+            venue_adapter=_FakeVenueAdapterRejecting(),
+            outcome_processor=processor,
+        )
+
+        _build_validation_context(
+            _exit_action(
+                trade_id=position.trade_id,
+                size=Decimal('0.00000842'),
+                command_id=None,
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+            venue_adapter=_FakeVenueAdapterRejecting(),
+            outcome_processor=processor,
+        )
+
+        assert len(processor.calls) == 2
+        assert processor.calls[0]['dust_close_id'] == processor.calls[1]['dust_close_id']
+        assert processor.calls[0]['dust_close_id'] == f'dust-{position.trade_id}'
 
 
 class TestOrderContextCarriesIntendedFullClose:
