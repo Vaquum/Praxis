@@ -497,21 +497,27 @@ class Ledger:
         write = asyncio.ensure_future(
             asyncio.to_thread(self._write_snapshot_atomic, payload),
         )
+        cancelled = False
 
-        try:
-            await asyncio.shield(write)
-        except asyncio.CancelledError:
-            task = asyncio.current_task()
-
-            if task is not None:
-                while task.cancelling():
-                    task.uncancel()
-
+        while not write.done():
             try:
-                await write
-            except Exception:  # noqa: BLE001 - we are propagating CancelledError; the write's own failure is logged and swallowed so the cancellation isn't masked
-                _log.exception('binsim ledger snapshot write failed during cancellation cleanup')
-            raise
+                await asyncio.shield(write)
+            except asyncio.CancelledError:
+                cancelled = True
+                task = asyncio.current_task()
+
+                if task is not None:
+                    while task.cancelling():
+                        task.uncancel()
+
+        if not write.cancelled() and write.exception() is not None:
+            _log.error(
+                'binsim ledger snapshot write failed during cancellation cleanup',
+                exc_info=write.exception(),
+            )
+
+        if cancelled:
+            raise asyncio.CancelledError
 
     def _write_snapshot_atomic(self, payload: dict[str, Any]) -> None:
 
