@@ -500,6 +500,7 @@ def _build_validation_context(
     fee_rate: Decimal = _DEFAULT_FEE_RATE,
     enter_symbol: str = _DEFAULT_SYMBOL,
     venue_adapter: VenueAdapter | None = None,
+    outcome_processor: OutcomeProcessor | None = None,
 ) -> ValidationRequestContext | None:
     '''Build a `ValidationRequestContext` from a strategy `Action`.
 
@@ -607,6 +608,7 @@ def _build_validation_context(
         strategy_budget=strategy_budget,
         fee_rate=fee_rate,
         venue_adapter=venue_adapter,
+        outcome_processor=outcome_processor,
     )
 
 
@@ -729,6 +731,7 @@ def _build_exit_context(
     strategy_budget: Decimal,
     fee_rate: Decimal,
     venue_adapter: VenueAdapter | None = None,
+    outcome_processor: OutcomeProcessor | None = None,
 ) -> ValidationRequestContext | None:
     trade_id = action.trade_id
     if trade_id is None or trade_id not in state.positions:
@@ -754,6 +757,9 @@ def _build_exit_context(
         return None
 
     order_size = action.size
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
+    remaining = position.size - position.pending_exit
+    intended_full_close = action.size == remaining
 
     if venue_adapter is not None:
         quantize_order_type = (
@@ -778,8 +784,17 @@ def _build_exit_context(
                     'entry_price': str(position.entry_price),
                     'requested_size': str(action.size),
                     'reason': quantization.rejection_reason,
+                    'intended_full_close': intended_full_close,
                 },
             )
+
+            if intended_full_close and outcome_processor is not None:
+                outcome_processor.close_as_dust(
+                    trade_id=trade_id,
+                    reason=quantization.rejection_reason,
+                    dust_close_id=f'dust-{command_id}',
+                )
+
             return None
 
         assert quantization.snapped_qty is not None
@@ -787,7 +802,6 @@ def _build_exit_context(
 
     order_notional = position.entry_price * order_size
     estimated_fees = order_notional * fee_rate
-    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     order_side = action.direction or OrderSide.SELL
 
     return ValidationRequestContext(
@@ -803,6 +817,7 @@ def _build_exit_context(
         strategy_budget=strategy_budget,
         state=state,
         config=nexus_config,
+        intended_full_close=intended_full_close,
     )
 
 
@@ -942,6 +957,7 @@ def _build_order_context(
             order_notional=validation_context.order_notional,
             estimated_fees=validation_context.estimated_fees,
             is_entry=is_entry,
+            intended_full_close=validation_context.intended_full_close,
         )
     except ValueError:
         _log.exception(
@@ -1789,6 +1805,7 @@ class Launcher:
                     if self._trading is not None
                     else None
                 ),
+                outcome_processor=outcome_processor,
             )
 
         command_strategy_ids: dict[str, str] = {}

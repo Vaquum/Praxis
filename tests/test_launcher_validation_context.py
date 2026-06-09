@@ -12,9 +12,11 @@ from nexus.core.domain.order_types import ExecutionMode, OrderType
 from nexus.core.domain.position import Position
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import ValidationAction
+from nexus.core.validator.pipeline_models import ValidationRequestContext
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.strategy.action import Action, ActionType
 
+from praxis.infrastructure.venue_adapter import CommandQuantization
 from praxis.launcher import _build_validation_context
 
 
@@ -324,3 +326,318 @@ class TestModifyAndAbort:
         )
 
         assert ctx is None
+
+
+class TestExitContextIntendedFullCloseFlag:
+    '''Verify `_build_exit_context` computes and propagates
+    `intended_full_close` to `ValidationRequestContext` (Vaquum/Praxis#142).
+    '''
+
+    def _open_position(
+        self,
+        *,
+        trade_id: str = 'trade_1',
+        size: Decimal = Decimal('0.5'),
+        pending_exit: Decimal = Decimal('0'),
+    ) -> Position:
+        return Position(
+            trade_id=trade_id,
+            strategy_id='strat_a',
+            symbol='ETHUSDT',
+            side=OrderSide.BUY,
+            size=size,
+            entry_price=Decimal('100'),
+            pending_exit=pending_exit,
+        )
+
+    def test_intended_full_close_true_when_action_size_equals_remaining(self) -> None:
+        position = self._open_position(size=Decimal('0.5'), pending_exit=Decimal('0'))
+        state = _instance_state(positions={position.trade_id: position})
+
+        ctx = _build_validation_context(
+            _exit_action(trade_id=position.trade_id, size=Decimal('0.5')),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.intended_full_close is True
+
+    def test_intended_full_close_true_with_pending_exit_offset(self) -> None:
+        position = self._open_position(
+            size=Decimal('0.5'),
+            pending_exit=Decimal('0.2'),
+        )
+        state = _instance_state(positions={position.trade_id: position})
+
+        ctx = _build_validation_context(
+            _exit_action(trade_id=position.trade_id, size=Decimal('0.3')),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.intended_full_close is True
+
+    def test_intended_full_close_false_when_partial_exit(self) -> None:
+        position = self._open_position(size=Decimal('0.5'), pending_exit=Decimal('0'))
+        state = _instance_state(positions={position.trade_id: position})
+
+        ctx = _build_validation_context(
+            _exit_action(trade_id=position.trade_id, size=Decimal('0.25')),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.intended_full_close is False
+
+
+class _FakeVenueAdapterRejecting:
+    '''Minimal VenueAdapter stub that always rejects via `quantize_for_command`.
+
+    Used to drive the launcher's intake-rejection branch in tests
+    without standing up a full Binance adapter.
+    '''
+
+    def __init__(self, reason: str = 'INTAKE_BELOW_MIN_QTY qty=0.0001 lot_min=0.001') -> None:
+        self.reason = reason
+
+    def quantize_for_command(
+        self,
+        _symbol: str,
+        _qty: Decimal,
+        _order_type: OrderType,
+        *,
+        reference_price: Decimal,  # noqa: ARG002
+    ) -> CommandQuantization:
+
+        return CommandQuantization(snapped_qty=None, rejection_reason=self.reason)
+
+
+class _RecordingOutcomeProcessor:
+    '''OutcomeProcessor stub that records `close_as_dust` calls.
+
+    Used to assert the launcher routes intake-rejected full-close
+    EXITs to `close_as_dust(...)` with the correct arguments.
+    '''
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str]] = []
+
+    def close_as_dust(
+        self,
+        *,
+        trade_id: str,
+        reason: str,
+        dust_close_id: str,
+    ) -> bool:
+        self.calls.append(
+            {
+                'trade_id': trade_id,
+                'reason': reason,
+                'dust_close_id': dust_close_id,
+            },
+        )
+        return True
+
+
+class TestExitContextDustCloseRouting:
+    '''Verify the launcher's intake-rejection branch routes a full-close
+    EXIT to `OutcomeProcessor.close_as_dust(...)` (Vaquum/Praxis#142, B2).
+    '''
+
+    def _open_position(
+        self,
+        *,
+        trade_id: str = 'trade_1',
+        size: Decimal = Decimal('0.00000842'),
+        pending_exit: Decimal = Decimal('0'),
+    ) -> Position:
+        return Position(
+            trade_id=trade_id,
+            strategy_id='strat_a',
+            symbol='ETHUSDT',
+            side=OrderSide.BUY,
+            size=size,
+            entry_price=Decimal('100'),
+            pending_exit=pending_exit,
+        )
+
+    def test_full_close_rejection_routes_to_close_as_dust(self) -> None:
+        position = self._open_position(size=Decimal('0.00000842'))
+        state = _instance_state(positions={position.trade_id: position})
+        processor = _RecordingOutcomeProcessor()
+
+        ctx = _build_validation_context(
+            _exit_action(
+                trade_id=position.trade_id,
+                size=Decimal('0.00000842'),
+                command_id='cmd_dust',
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+            venue_adapter=_FakeVenueAdapterRejecting(),
+            outcome_processor=processor,
+        )
+
+        assert ctx is None
+        assert len(processor.calls) == 1
+        assert processor.calls[0]['trade_id'] == position.trade_id
+        assert processor.calls[0]['dust_close_id'] == 'dust-cmd_dust'
+        assert 'INTAKE_BELOW_MIN_QTY' in processor.calls[0]['reason']
+
+    def test_partial_close_rejection_does_not_route_to_close_as_dust(self) -> None:
+        position = self._open_position(
+            size=Decimal('0.5'),
+            pending_exit=Decimal('0'),
+        )
+        state = _instance_state(positions={position.trade_id: position})
+        processor = _RecordingOutcomeProcessor()
+
+        ctx = _build_validation_context(
+            _exit_action(
+                trade_id=position.trade_id,
+                size=Decimal('0.25'),
+                command_id='cmd_partial',
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+            venue_adapter=_FakeVenueAdapterRejecting(),
+            outcome_processor=processor,
+        )
+
+        assert ctx is None
+        assert processor.calls == []
+
+    def test_full_close_rejection_without_outcome_processor_returns_none(self) -> None:
+        position = self._open_position(size=Decimal('0.00000842'))
+        state = _instance_state(positions={position.trade_id: position})
+
+        ctx = _build_validation_context(
+            _exit_action(
+                trade_id=position.trade_id,
+                size=Decimal('0.00000842'),
+                command_id='cmd_no_proc',
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+            venue_adapter=_FakeVenueAdapterRejecting(),
+        )
+
+        assert ctx is None
+
+
+class TestOrderContextCarriesIntendedFullClose:
+    '''Regression for the field-only-on-OrderContext bug codex flagged
+    (Vaquum/Praxis#142): `_build_order_context` re-runs `build_context`
+    and constructs `OrderContext` from the rebuilt
+    `ValidationRequestContext`, so the flag must live on both classes.
+    '''
+
+    def _open_position(
+        self,
+        *,
+        trade_id: str = 'trade_1',
+        size: Decimal = Decimal('0.5'),
+    ) -> Position:
+        return Position(
+            trade_id=trade_id,
+            strategy_id='strat_a',
+            symbol='ETHUSDT',
+            side=OrderSide.BUY,
+            size=size,
+            entry_price=Decimal('100'),
+        )
+
+    def test_build_order_context_propagates_full_close_flag_from_validation_context(
+        self,
+    ) -> None:
+        from praxis.launcher import _build_order_context
+
+        position = self._open_position(size=Decimal('0.5'))
+        state = _instance_state(positions={position.trade_id: position})
+
+        def build_context_for_test(action: Action, strategy_id: str) -> ValidationRequestContext | None:
+            return _build_validation_context(
+                action,
+                strategy_id,
+                nexus_config=_nexus_config(),
+                capital_controller=_capital_controller(),
+                state=state,
+                capital_pct=Decimal('100'),
+                fallback_price_provider=_no_fallback,
+            )
+
+        full_close_action = _exit_action(
+            trade_id=position.trade_id,
+            size=Decimal('0.5'),
+            command_id='cmd_oc_full',
+        )
+
+        order_context = _build_order_context(
+            action=full_close_action,
+            strategy_id='strat_a',
+            command_id='cmd_oc_full',
+            build_context=build_context_for_test,
+        )
+
+        assert order_context is not None
+        assert order_context.intended_full_close is True
+
+    def test_build_order_context_propagates_false_on_partial_exit(self) -> None:
+        from praxis.launcher import _build_order_context
+
+        position = self._open_position(size=Decimal('0.5'))
+        state = _instance_state(positions={position.trade_id: position})
+
+        def build_context_for_test(action: Action, strategy_id: str) -> ValidationRequestContext | None:
+            return _build_validation_context(
+                action,
+                strategy_id,
+                nexus_config=_nexus_config(),
+                capital_controller=_capital_controller(),
+                state=state,
+                capital_pct=Decimal('100'),
+                fallback_price_provider=_no_fallback,
+            )
+
+        partial_action = _exit_action(
+            trade_id=position.trade_id,
+            size=Decimal('0.25'),
+            command_id='cmd_oc_partial',
+        )
+
+        order_context = _build_order_context(
+            action=partial_action,
+            strategy_id='strat_a',
+            command_id='cmd_oc_partial',
+            build_context=build_context_for_test,
+        )
+
+        assert order_context is not None
+        assert order_context.intended_full_close is False
