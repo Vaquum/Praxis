@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -14,13 +16,16 @@ from praxis.binsim.ledger import (
     DuplicateClientOrderIdError,
     InsufficientBalanceError,
     Ledger,
-    LedgerFill,
 )
 from praxis.core.domain.enums import OrderSide
 
 
 _ACCT = 'acc-1'
 _TS = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+_BOUNDED_GROWTH_MARGIN_BYTES = 256
+_APPLY_ORDER_GROWTH_FLOOR_BYTES = 1000
+_INSTRUMENTED_WRITE_DELAY_SECONDS = 0.05
+_WRITE_START_TIMEOUT_SECONDS = 2.0
 
 
 def _new_ledger(tmp_path: Path) -> Ledger:
@@ -333,7 +338,7 @@ async def test_snapshot_written_after_register_and_fill(tmp_path: Path) -> None:
     assert _ACCT in payload['accounts']
     assert Decimal(payload['accounts'][_ACCT]['usdt']) == Decimal('9990')
     assert Decimal(payload['accounts'][_ACCT]['btc']) == Decimal('0.1')
-    assert len(payload['accounts'][_ACCT]['fills']) == 1
+    assert 'fills' not in payload['accounts'][_ACCT]
 
 
 @pytest.mark.asyncio
@@ -347,7 +352,7 @@ async def test_snapshot_atomic_temp_file_cleaned_on_success(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
-async def test_load_restores_balances_and_fills(tmp_path: Path) -> None:
+async def test_load_restores_balances_and_counters(tmp_path: Path) -> None:
 
     ledger1 = _new_ledger(tmp_path)
     await ledger1.register_account(_ACCT, Decimal('10000'))
@@ -362,9 +367,7 @@ async def test_load_restores_balances_and_fills(tmp_path: Path) -> None:
     assert btc == Decimal('0.05')
 
     fills = await ledger2.fills(_ACCT)
-    assert len(fills) == 2
-    assert fills[0].trade_id == '1'
-    assert fills[1].trade_id == '2'
+    assert fills == []
 
     next_fill = await ledger2.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.01'), Decimal('100'), Decimal('0'))
     assert next_fill.trade_id == '3'
@@ -443,27 +446,129 @@ async def test_concurrent_fills_serialised_no_lost_updates(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
-async def test_ledger_fill_record_round_trips_through_snapshot(tmp_path: Path) -> None:
+async def test_fills_do_not_survive_snapshot_round_trip(tmp_path: Path) -> None:
 
     ledger1 = _new_ledger(tmp_path)
     await ledger1.register_account(_ACCT, Decimal('10000'))
-    f1 = await ledger1.apply_fill(
+    await ledger1.apply_fill(
         _ACCT, OrderSide.BUY, Decimal('0.12345678'), Decimal('100.50'),
         Decimal('0.01005'), timestamp=_TS,
     )
 
     ledger2 = _new_ledger(tmp_path)
     await ledger2.load()
-    f2 = (await ledger2.fills(_ACCT))[0]
 
-    assert isinstance(f2, LedgerFill)
-    assert f2.trade_id == f1.trade_id
-    assert f2.side == f1.side
-    assert f2.qty == f1.qty
-    assert f2.price == f1.price
-    assert f2.fee == f1.fee
-    assert f2.fee_asset == f1.fee_asset
-    assert f2.timestamp == f1.timestamp
+    assert await ledger2.fills(_ACCT) == []
+
+
+@pytest.mark.asyncio
+async def test_snapshot_size_stays_bounded_under_fill_growth_only(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    snapshot = tmp_path / 'binsim_ledger.json'
+
+    await ledger.register_account(_ACCT, Decimal('100000000'))
+    baseline = snapshot.stat().st_size
+
+    for _ in range(100):
+        await ledger.apply_fill(
+            _ACCT, OrderSide.BUY, Decimal('0.001'), Decimal('100'), Decimal('0'),
+        )
+
+    after = snapshot.stat().st_size
+    assert after < baseline + _BOUNDED_GROWTH_MARGIN_BYTES
+
+
+@pytest.mark.asyncio
+async def test_apply_order_still_grows_snapshot_via_seen_client_order_ids(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    snapshot = tmp_path / 'binsim_ledger.json'
+
+    await ledger.register_account(_ACCT, Decimal('100000000'))
+    baseline = snapshot.stat().st_size
+
+    for i in range(100):
+        await ledger.apply_order(
+            _ACCT, OrderSide.BUY,
+            [(Decimal('100'), Decimal('0.001'), Decimal('0'))],
+            client_order_id=f"cid-{i:03d}",
+        )
+
+    after = snapshot.stat().st_size
+    assert after > baseline + _APPLY_ORDER_GROWTH_FLOOR_BYTES
+
+
+@pytest.mark.asyncio
+async def test_snapshot_write_completes_when_caller_cancelled(tmp_path: Path) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    write_started = threading.Event()
+    write_finished = threading.Event()
+    original = ledger._write_snapshot_atomic
+
+    def instrumented(payload: dict[str, object]) -> None:
+
+        write_started.set()
+        time.sleep(_INSTRUMENTED_WRITE_DELAY_SECONDS)
+        original(payload)
+        write_finished.set()
+
+    ledger._write_snapshot_atomic = instrumented
+
+    fill_task = asyncio.create_task(
+        ledger.apply_fill(
+            _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0'),
+        ),
+    )
+
+    await asyncio.to_thread(write_started.wait, _WRITE_START_TIMEOUT_SECONDS)
+    assert write_started.is_set()
+
+    fill_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await fill_task
+
+    assert write_finished.is_set()
+
+
+@pytest.mark.asyncio
+async def test_legacy_snapshot_with_fills_field_loads_balances(tmp_path: Path) -> None:
+
+    snapshot = tmp_path / 'binsim_ledger.json'
+    legacy = {
+        'next_trade_id': 5,
+        'next_order_id': 3,
+        'accounts': {
+            _ACCT: {
+                'api_key_hash': 'a' * 64,
+                'usdt': '9999',
+                'btc': '0.5',
+                'fills': [{
+                    'trade_id': '1',
+                    'side': 'BUY',
+                    'qty': '0.5',
+                    'price': '100',
+                    'fee': '0',
+                    'fee_asset': 'USDT',
+                    'timestamp': '2024-01-01T00:00:00+00:00',
+                }],
+                'seen_client_order_ids': ['legacy-coid'],
+            },
+        },
+    }
+    snapshot.write_text(json.dumps(legacy))
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.load()
+
+    usdt, btc = await ledger.balance(_ACCT)
+    assert usdt == Decimal('9999')
+    assert btc == Decimal('0.5')
+    assert await ledger.fills(_ACCT) == []
 
 
 @pytest.mark.asyncio
