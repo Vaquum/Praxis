@@ -510,11 +510,14 @@ class Ledger:
                     while task.cancelling():
                         task.uncancel()
 
-        if not write.cancelled() and write.exception() is not None:
-            _log.error(
-                'binsim ledger snapshot write failed during cancellation cleanup',
-                exc_info=write.exception(),
-            )
+        if not write.cancelled():
+            write_exc = write.exception()
+
+            if write_exc is not None:
+                _log.error(
+                    'binsim ledger snapshot write failed during cancellation cleanup',
+                    exc_info=write_exc,
+                )
 
         if cancelled:
             raise asyncio.CancelledError
