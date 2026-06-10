@@ -1006,3 +1006,23 @@
 ### Fix
 
 - Closes [Vaquum/Praxis#142](https://github.com/Vaquum/Praxis/issues/142). Companion Nexus-side fix at [Vaquum/Nexus#82](https://github.com/Vaquum/Nexus/issues/82) (shipped as Nexus v0.57.0, merged at commit `7ce0260`). The two PRs are paired: Praxis alone cannot reach `close_as_dust` because Nexus must define it first; the matching Nexus changes (`intended_full_close` on both context classes, `account_dust` ledger on `InstanceState` with WAL/snapshot codec roundtrip, the `close_as_dust` method itself) shipped earlier today
+
+## v0.77.0 on 10th of June, 2026
+
+### NOTE
+
+- During the v0.76.0 paper-trade validation (2026-06-10), positions were not closing: 175 of 190 SELL EXITs in one epoch left `state.positions` entries at full pre-fill size with `pending_exit` still set, and the new `close_as_dust` path then read that stale state and moved full positions (~0.0325 BTC each) into `account_dust` — 8.75 BTC of phantom dust in one epoch. Root cause: Nexus position/capital accounting is applied by the `OutcomeLoop`'s single worker, which serializes it with strategy callbacks and action submission; under load, translated FILLED outcomes lag behind strategy ticks, so strategies and the dust path act on stale `state.positions`. This release applies accounting synchronously at the Praxis outcome boundary and gates the dust-close on no-EXIT-in-flight, closing both halves
+
+### Update
+
+- Bump [`vaquum-nexus`](pyproject.toml) git-pin to Nexus v0.58.0, which makes `OutcomeProcessor._handle_ack` context-aware: EXIT ACKs are a no-op success instead of the structural `order_ack failed: order not found` failure (EXIT commands never reserve capital, so no `TrackedOrder` exists for them)
+- Update [`vaquum_limen`](pyproject.toml) git-pin from the `v4.0.1` tag to the commit it resolved to (`06815fab`) — the tag no longer exists on the Limen remote and its absence breaks dependency install in CI. Installed content is identical; only the reference form changes
+- Update [`praxis/launcher.py:_build_exit_context`](praxis/launcher.py)'s dust-close branch with a `position.pending_exit == _ZERO` gate: when a prior EXIT order is in flight, the rejection no longer dusts the position — the in-flight fill will reduce `position.size` when it lands and the strategy's next tick re-evaluates against the true residue. Dusting with an EXIT in flight moved the not-yet-sold quantity into `account_dust`
+- Update [`praxis/launcher.py:_route_translated`](praxis/launcher.py) to apply Nexus accounting synchronously before enqueuing each translated outcome for the async `OutcomeLoop`, via the new `Launcher._apply_sync_accounting`. `OutcomeProcessor`'s outcome-id dedup makes the later async delivery a no-op for accounting, leaving the queue as a strategy-callback path only
+
+### Add
+
+- Add [`_AccountOutcomeWiring`](praxis/launcher.py) frozen dataclass: per-account references (`outcome_processor`, `command_contexts`, `command_registry_lock`, `state_store`, `state`) registered by `_build_nexus_runtime` and consumed by `_route_translated` for the synchronous accounting path
+- Add [`Launcher._apply_sync_accounting`](praxis/launcher.py) static method: looks up the outcome's `OrderContext` under the registry lock (skips when not yet registered — the async path covers those once the submitter completes registration), calls `OutcomeProcessor.process`, persists via `state_store.append_mutation` when position or capital mutated, and contains all failures so accounting errors never block strategy-callback delivery
+- Add [`tests/test_launcher_sync_accounting.py`](tests/test_launcher_sync_accounting.py) (6 cases): process + persist happy path; skip on missing `OrderContext`; failure result does not persist; success without mutation does not persist; processor exception contained; `append_mutation` exception contained
+- Add `test_full_close_rejection_with_pending_exit_does_not_route_to_close_as_dust` to [`tests/test_launcher_validation_context.py`](tests/test_launcher_validation_context.py): a sub-lot full-close rejection with `pending_exit > 0` must NOT call `close_as_dust`

@@ -530,6 +530,33 @@ class TestExitContextDustCloseRouting:
         assert ctx is None
         assert processor.calls == []
 
+    def test_full_close_rejection_with_pending_exit_does_not_route_to_close_as_dust(self) -> None:
+        position = self._open_position(
+            size=Decimal('0.03254842'),
+            pending_exit=Decimal('0.03254000'),
+        )
+        state = _instance_state(positions={position.trade_id: position})
+        processor = _RecordingOutcomeProcessor()
+
+        ctx = _build_validation_context(
+            _exit_action(
+                trade_id=position.trade_id,
+                size=Decimal('0.00000842'),
+                command_id='cmd_inflight',
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=state,
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+            venue_adapter=_FakeVenueAdapterRejecting(),
+            outcome_processor=processor,
+        )
+
+        assert ctx is None
+        assert processor.calls == []
+
     def test_full_close_rejection_without_outcome_processor_returns_none(self) -> None:
         position = self._open_position(size=Decimal('0.00000842'))
         state = _instance_state(positions={position.trade_id: position})

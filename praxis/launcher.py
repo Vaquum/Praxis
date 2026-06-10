@@ -802,7 +802,18 @@ def _build_exit_context(
                 },
             )
 
-            if intended_full_close and outcome_processor is not None:
+            if (
+                intended_full_close
+                and outcome_processor is not None
+                and position.pending_exit == _ZERO
+            ):
+                # The `pending_exit == _ZERO` gate defers the dust-close
+                # while a prior EXIT order is still in flight: the in-flight
+                # fill will reduce `position.size` when it lands, and the
+                # strategy's next tick re-evaluates against the true
+                # residue. Dusting here with an in-flight EXIT would move
+                # the not-yet-sold quantity into `account_dust`.
+                #
                 # `dust_close_id` is keyed on `trade_id` (not `command_id`)
                 # so the dedup is deterministic even when `action.command_id`
                 # is `None` and the launcher generates a fresh per-call
@@ -1279,6 +1290,36 @@ class _NexusRuntime:
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
+@dataclass(frozen=True)
+class _AccountOutcomeWiring:
+    '''Per-account references for synchronous outcome accounting.
+
+    Registered by `Launcher._build_nexus_runtime` once the account's
+    `OutcomeProcessor` exists, and consumed by `_route_translated` (wired
+    in `Launcher._start_trading`) to apply Nexus position/capital mutation
+    synchronously at the Praxis outcome boundary. Without this, accounting
+    is deferred behind the `OutcomeLoop` queue, which serializes it with
+    strategy callbacks and action submission on a single worker — under
+    load, FILLED outcomes lag behind strategy ticks and strategies act on
+    stale `state.positions`.
+
+    Args:
+        outcome_processor: The account's Nexus outcome processor.
+        command_contexts: Registry of in-flight `OrderContext`s by
+            command_id, shared with the submitter and `process_outcome`.
+        command_registry_lock: Lock guarding `command_contexts`.
+        state_store: Persistence facade for the post-mutation
+            `append_mutation` call.
+        state: The account's live `InstanceState`.
+    '''
+
+    outcome_processor: OutcomeProcessor
+    command_contexts: dict[str, OrderContext]
+    command_registry_lock: threading.Lock
+    state_store: StateStore
+    state: InstanceState
+
+
 class Launcher:
     '''Orchestrates Praxis + Nexus + Limen in one process.
 
@@ -1327,6 +1368,7 @@ class Launcher:
         self._healthz_runner: web.AppRunner | None = None
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator()
+        self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -1363,6 +1405,70 @@ class Launcher:
             name='asyncio-loop',
         )
         self._loop_thread.start()
+
+    @staticmethod
+    def _apply_sync_accounting(
+        wiring: _AccountOutcomeWiring,
+        nexus_outcome: NexusTradeOutcome,
+    ) -> None:
+        '''Apply Nexus position/capital mutation at the Praxis outcome boundary.
+
+        Runs synchronously on the Trading outcome callback before the
+        outcome is enqueued for the async `OutcomeLoop`, so accounting
+        never lags behind strategy ticks. The `OutcomeLoop`'s single
+        worker serializes accounting with strategy callbacks and action
+        submission; under load, FILLED outcomes queued there were not
+        dequeued before the strategy's next tick read stale
+        `state.positions` and dusted full positions via `close_as_dust`.
+        `OutcomeProcessor`'s outcome-id dedup makes the later async
+        delivery a no-op for accounting, leaving it as a
+        strategy-callback path only.
+
+        Outcomes whose `OrderContext` is not yet registered are skipped;
+        the async path processes them once the submitter completes
+        registration. Failures are logged and never propagate — the
+        strategy-callback delivery must not be blocked by accounting
+        errors.
+
+        Args:
+            wiring: Per-account outcome accounting references.
+            nexus_outcome: Translated Nexus outcome to process.
+        '''
+
+        with wiring.command_registry_lock:
+            order_context = wiring.command_contexts.get(nexus_outcome.command_id)
+
+        if order_context is None:
+            return
+
+        try:
+            result = wiring.outcome_processor.process(nexus_outcome, order_context)
+        except Exception:  # noqa: BLE001 - accounting must not break outcome delivery
+            _log.exception(
+                'sync outcome process raised at route boundary',
+                extra={'command_id': nexus_outcome.command_id},
+            )
+            return
+
+        if not result.success:
+            _log.warning(
+                'sync OutcomeProcessor reported failure at route boundary',
+                extra={
+                    'command_id': nexus_outcome.command_id,
+                    'outcome_id': nexus_outcome.outcome_id,
+                    'reason': result.error_reason,
+                },
+            )
+            return
+
+        if result.position_updated or result.capital_updated:
+            try:
+                wiring.state_store.append_mutation(wiring.state)
+            except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
+                _log.exception(
+                    'sync append_mutation failed at route boundary',
+                    extra={'command_id': nexus_outcome.command_id},
+                )
 
     def _start_trading(self) -> None:
         if self._loop is None:
@@ -1402,7 +1508,12 @@ class Launcher:
                 )
                 return
 
+            wiring = self._account_outcome_wiring.get(praxis_outcome.account_id)
+
             for nexus_outcome in translator.translate(praxis_outcome):
+                if wiring is not None:
+                    self._apply_sync_accounting(wiring, nexus_outcome)
+
                 q.put_nowait(nexus_outcome)
 
         existing_on_trade_outcome = self._trading_config.on_trade_outcome
@@ -1926,6 +2037,14 @@ class Launcher:
             instance_state=state,
             state_store=state_store,
             positions_lock=positions_lock,
+        )
+
+        self._account_outcome_wiring[inst.account_id] = _AccountOutcomeWiring(
+            outcome_processor=outcome_processor,
+            command_contexts=command_contexts,
+            command_registry_lock=command_registry_lock,
+            state_store=state_store,
+            state=state,
         )
 
         def process_outcome(outcome: NexusTradeOutcome) -> None:
