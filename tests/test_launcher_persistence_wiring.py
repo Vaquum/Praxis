@@ -76,17 +76,24 @@ def _is_result_attr(node: ast.AST, attr: str) -> bool:
 def _append_mutation_guard_mentions_capital_updated() -> bool:
     '''Walk `process_outcome`'s body, find the `if` whose body contains
     `state_store.append_mutation`, and verify its condition matches
-    `result.success and (result.position_updated or result.capital_updated)`
-    EXACTLY: a 2-operand `And` whose operands are `result.success` and a
-    2-operand `Or` containing `result.position_updated` and
-    `result.capital_updated` (any order).
+    `result.success and (result.position_updated or result.capital_updated
+    or sync_persist_pending)` EXACTLY: a 2-operand `And` whose operands
+    are `result.success` and a 3-operand `Or` containing
+    `result.position_updated`, `result.capital_updated`, and the bare
+    `sync_persist_pending` name (any order). The third operand covers
+    the synchronous route-boundary seam: `_apply_sync_accounting`
+    mutates in-memory state without persisting, and the dedup-hit
+    redelivery here reports no mutation flags, so the pending check is
+    what keeps those mutations durable and the OutcomeAcked withheld
+    until they are.
 
     Pins MAJOR-M's fix and rejects: (a) shapes that drop `result.success`;
     (b) shapes that drop `result.position_updated`; (c) shapes that hide
     `capital_updated` behind a different object; (d) shapes that bolt on
     extra `and` terms that would silently weaken or strengthen the gate
     (e.g. `result.success and X and (...)` would have passed the prior
-    looser predicate even if X was an unrelated guard).
+    looser predicate even if X was an unrelated guard); (e) shapes that
+    drop the `sync_persist_pending` seam coverage.
     '''
 
     src = inspect.getsource(praxis.launcher)
@@ -130,7 +137,7 @@ def _append_mutation_guard_mentions_capital_updated() -> bool:
             if len(success_ops) != 1 or len(or_ops) != 1:
                 continue
             or_operands = or_ops[0].values
-            if len(or_operands) != 2:
+            if len(or_operands) != 3:
                 continue
             has_position = any(
                 _is_result_attr(o, 'position_updated') for o in or_operands
@@ -138,7 +145,11 @@ def _append_mutation_guard_mentions_capital_updated() -> bool:
             has_capital = any(
                 _is_result_attr(o, 'capital_updated') for o in or_operands
             )
-            if has_position and has_capital:
+            has_sync_pending = any(
+                isinstance(o, ast.Name) and o.id == 'sync_persist_pending'
+                for o in or_operands
+            )
+            if has_position and has_capital and has_sync_pending:
                 return True
     return False
 

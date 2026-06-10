@@ -1307,17 +1307,27 @@ class _AccountOutcomeWiring:
         outcome_processor: The account's Nexus outcome processor.
         command_contexts: Registry of in-flight `OrderContext`s by
             command_id, shared with the submitter and `process_outcome`.
-        command_registry_lock: Lock guarding `command_contexts`.
-        state_store: Persistence facade for the post-mutation
-            `append_mutation` call.
-        state: The account's live `InstanceState`.
+        command_registry_lock: Lock guarding `command_contexts` and
+            `unpersisted_commands`.
+        unpersisted_commands: Command ids whose in-memory mutation has
+            not yet been durably persisted. The synchronous path runs on
+            the Trading event loop, so it never calls `append_mutation`
+            (a WAL write + fsync would block the loop that also serves
+            the trading websocket and `/healthz`); it records the
+            command id here instead. The async `process_outcome` —
+            running on the `OutcomeLoop` worker thread — checks
+            membership on the dedup-hit redelivery, performs the
+            `append_mutation` there, and withholds `OutcomeAcked` until
+            it succeeds, preserving the withhold-ack-on-persist-failure
+            contract that boot replay depends on. Any successful
+            `append_mutation` serializes the whole `InstanceState`, so
+            success clears the entire set.
     '''
 
     outcome_processor: OutcomeProcessor
     command_contexts: dict[str, OrderContext]
     command_registry_lock: threading.Lock
-    state_store: StateStore
-    state: InstanceState
+    unpersisted_commands: set[str] = field(default_factory=set)
 
 
 class Launcher:
@@ -1414,15 +1424,25 @@ class Launcher:
         '''Apply Nexus position/capital mutation at the Praxis outcome boundary.
 
         Runs synchronously on the Trading outcome callback before the
-        outcome is enqueued for the async `OutcomeLoop`, so accounting
-        never lags behind strategy ticks. The `OutcomeLoop`'s single
-        worker serializes accounting with strategy callbacks and action
-        submission; under load, FILLED outcomes queued there were not
-        dequeued before the strategy's next tick read stale
-        `state.positions` and dusted full positions via `close_as_dust`.
-        `OutcomeProcessor`'s outcome-id dedup makes the later async
-        delivery a no-op for accounting, leaving it as a
-        strategy-callback path only.
+        outcome is enqueued for the async `OutcomeLoop`, so the
+        in-memory `state.positions` mutation never lags behind strategy
+        ticks. The `OutcomeLoop`'s single worker serializes accounting
+        with strategy callbacks and action submission; under load,
+        FILLED outcomes queued there were not dequeued before the
+        strategy's next tick read stale `state.positions` and dusted
+        full positions via `close_as_dust`.
+
+        Only the in-memory mutation happens here — this callback runs
+        on the Trading event loop, which also serves the trading
+        websocket and `/healthz`, so the WAL `append_mutation` (a
+        write + fsync under the store's lock, shared with the
+        `SnapshotScheduler`) must not run on it. Mutated command ids
+        are recorded in `wiring.unpersisted_commands`; the async
+        `process_outcome` — on the `OutcomeLoop` worker thread —
+        performs the persist on the dedup-hit redelivery and withholds
+        `OutcomeAcked` until it succeeds. The stale-positions race is
+        closed by the synchronous state mutation, not by synchronous
+        persistence.
 
         Outcomes whose `OrderContext` is not yet registered are skipped;
         the async path processes them once the submitter completes
@@ -1462,13 +1482,8 @@ class Launcher:
             return
 
         if result.position_updated or result.capital_updated:
-            try:
-                wiring.state_store.append_mutation(wiring.state)
-            except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
-                _log.exception(
-                    'sync append_mutation failed at route boundary',
-                    extra={'command_id': nexus_outcome.command_id},
-                )
+            with wiring.command_registry_lock:
+                wiring.unpersisted_commands.add(nexus_outcome.command_id)
 
     def _start_trading(self) -> None:
         if self._loop is None:
@@ -2039,13 +2054,12 @@ class Launcher:
             positions_lock=positions_lock,
         )
 
-        self._account_outcome_wiring[inst.account_id] = _AccountOutcomeWiring(
+        wiring = _AccountOutcomeWiring(
             outcome_processor=outcome_processor,
             command_contexts=command_contexts,
             command_registry_lock=command_registry_lock,
-            state_store=state_store,
-            state=state,
         )
+        self._account_outcome_wiring[inst.account_id] = wiring
 
         def process_outcome(outcome: NexusTradeOutcome) -> None:
             with command_registry_lock:
@@ -2099,8 +2113,22 @@ class Launcher:
                         if pos is not None and pos.size == _ZERO:
                             del state.positions[order_context.trade_id]
 
+            with command_registry_lock:
+                sync_persist_pending = outcome.command_id in wiring.unpersisted_commands
+
             mutation_persisted = True
-            if result.success and (result.position_updated or result.capital_updated):
+            if result.success and (
+                result.position_updated
+                or result.capital_updated
+                or sync_persist_pending
+            ):
+                # `sync_persist_pending` covers the dedup seam between the
+                # synchronous route-boundary path and this consumer: when
+                # `_apply_sync_accounting` mutated state but its
+                # `append_mutation` failed, the dedup-hit redelivery here
+                # reports no mutation flags — without the pending check the
+                # ack below would fire for a mutation that was never
+                # durably persisted, and boot replay would skip it.
                 try:
                     state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
@@ -2112,6 +2140,9 @@ class Launcher:
                         'rolls back to the last clean checkpoint',
                         extra={'command_id': outcome.command_id},
                     )
+                else:
+                    with command_registry_lock:
+                        wiring.unpersisted_commands.clear()
 
             if result.success and mutation_persisted:
                 self._append_outcome_acked(inst.account_id, outcome.outcome_id)
