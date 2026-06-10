@@ -904,3 +904,7 @@ Option 1 is cleanest if Nexus accepts the lazy-create change; option 2 is the sa
 2. **Bound both with rolling windows**. Keep `fills` as a `collections.deque(maxlen=N)` and treat `seen_client_order_ids` as above. Preserves the `Ledger.fills` API at the cost of a tunable memory ceiling and a bounded miss rate.
 
 Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in production. Option 2 preserves the API and trades a tunable memory ceiling for a bounded miss rate. Either option also closes the residual on-loop-sort cost in `_account_to_dict` once the underlying container is an ordered/bounded structure.
+
+## TD-082: `Launcher.build_context` closure late-binds `outcome_processor` (RESOLVED in v0.76.0)
+
+**Resolved** in v0.76.0 during PR review (Vaquum/Praxis#143, round 4). The launcher now pre-binds `outcome_processor: OutcomeProcessor | None = None` above the `build_context` closure definition; the later `outcome_processor = OutcomeProcessor(...)` reassigns the same name and the closure resolves it at call time. The `UnboundLocalError` hazard no longer exists on any startup-order refactor. Entry retained as historical record.

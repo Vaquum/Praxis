@@ -500,6 +500,7 @@ def _build_validation_context(
     fee_rate: Decimal = _DEFAULT_FEE_RATE,
     enter_symbol: str = _DEFAULT_SYMBOL,
     venue_adapter: VenueAdapter | None = None,
+    outcome_processor: OutcomeProcessor | None = None,
 ) -> ValidationRequestContext | None:
     '''Build a `ValidationRequestContext` from a strategy `Action`.
 
@@ -550,6 +551,19 @@ def _build_validation_context(
         fee_rate: Effective taker fee rate for fee estimation.
         enter_symbol: Symbol used for `ENTER` actions when the action
             itself does not carry one.
+        venue_adapter: Optional venue adapter; when supplied, `ENTER`
+            and `EXIT` paths route the action's qty through
+            `quantize_for_command(...)` for `LOT_SIZE` / `minNotional`
+            gating.
+        outcome_processor: Optional `OutcomeProcessor` reference. When
+            supplied, the `EXIT` rejection branch routes a full-close
+            EXIT (one whose `action.size == position.size -
+            position.pending_exit`) that the venue's quantizer rejects
+            as sub-lot through `OutcomeProcessor.close_as_dust(...)`
+            before returning `None`. Without it, the rejection branch
+            keeps the legacy behavior — log + drop the action — and
+            the position lingers in `state.positions`. Tests not
+            exercising the dust-close path may pass `None`.
 
     Returns:
         `ValidationRequestContext` for `ENTER`/`EXIT`, or `None` when
@@ -607,6 +621,7 @@ def _build_validation_context(
         strategy_budget=strategy_budget,
         fee_rate=fee_rate,
         venue_adapter=venue_adapter,
+        outcome_processor=outcome_processor,
     )
 
 
@@ -729,6 +744,7 @@ def _build_exit_context(
     strategy_budget: Decimal,
     fee_rate: Decimal,
     venue_adapter: VenueAdapter | None = None,
+    outcome_processor: OutcomeProcessor | None = None,
 ) -> ValidationRequestContext | None:
     trade_id = action.trade_id
     if trade_id is None or trade_id not in state.positions:
@@ -754,6 +770,9 @@ def _build_exit_context(
         return None
 
     order_size = action.size
+    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
+    remaining = position.size - position.pending_exit
+    intended_full_close = action.size == remaining
 
     if venue_adapter is not None:
         quantize_order_type = (
@@ -774,12 +793,34 @@ def _build_exit_context(
                 extra={
                     'strategy_id': strategy_id,
                     'trade_id': trade_id,
+                    'command_id': command_id,
                     'symbol': position.symbol,
                     'entry_price': str(position.entry_price),
                     'requested_size': str(action.size),
                     'reason': quantization.rejection_reason,
+                    'intended_full_close': intended_full_close,
                 },
             )
+
+            if intended_full_close and outcome_processor is not None:
+                # `dust_close_id` is keyed on `trade_id` (not `command_id`)
+                # so the dedup is deterministic even when `action.command_id`
+                # is `None` and the launcher generates a fresh per-call
+                # UUID via `f'cmd-{uuid.uuid4().hex}'`. A position can only
+                # become dust once per epoch — `trade_id` is the natural
+                # key for that invariant. The first successful call removes
+                # the trade from `state.positions`; subsequent calls hit
+                # the `trade_id not in state.positions` guard at the top
+                # of this function and return `None` before reaching this
+                # branch. The Nexus-side `_processed_dust_close_ids` set
+                # backstops any cross-call dedup if the position lingers
+                # (e.g. concurrent EXIT actions racing past the guard).
+                outcome_processor.close_as_dust(
+                    trade_id=trade_id,
+                    reason=quantization.rejection_reason,
+                    dust_close_id=f'dust-{trade_id}',
+                )
+
             return None
 
         assert quantization.snapped_qty is not None
@@ -787,7 +828,6 @@ def _build_exit_context(
 
     order_notional = position.entry_price * order_size
     estimated_fees = order_notional * fee_rate
-    command_id = action.command_id or f'cmd-{uuid.uuid4().hex}'
     order_side = action.direction or OrderSide.SELL
 
     return ValidationRequestContext(
@@ -803,6 +843,7 @@ def _build_exit_context(
         strategy_budget=strategy_budget,
         state=state,
         config=nexus_config,
+        intended_full_close=intended_full_close,
     )
 
 
@@ -942,6 +983,7 @@ def _build_order_context(
             order_notional=validation_context.order_notional,
             estimated_fees=validation_context.estimated_fees,
             is_entry=is_entry,
+            intended_full_close=validation_context.intended_full_close,
         )
     except ValueError:
         _log.exception(
@@ -1743,6 +1785,15 @@ class Launcher:
         }
         kline_sizes = _register_wired_kline_sizes(sequencer.wired_sensors)
 
+        # Pre-bind `outcome_processor` so the `build_context` closure below
+        # captures the name safely. The real `OutcomeProcessor(...)` is
+        # constructed further down in this scope and reassigns this binding
+        # in place; the closure resolves names at call time, so it picks up
+        # the live instance once construction has run. Without this
+        # pre-bind, a future refactor that invokes `build_context` before
+        # the construction line would raise `UnboundLocalError`.
+        outcome_processor: OutcomeProcessor | None = None
+
         def market_data_provider(kline_size: int) -> Any:
             if self._poller is None:
                 return pl.DataFrame()
@@ -1789,6 +1840,7 @@ class Launcher:
                     if self._trading is not None
                     else None
                 ),
+                outcome_processor=outcome_processor,
             )
 
         command_strategy_ids: dict[str, str] = {}
