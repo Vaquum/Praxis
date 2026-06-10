@@ -551,6 +551,19 @@ def _build_validation_context(
         fee_rate: Effective taker fee rate for fee estimation.
         enter_symbol: Symbol used for `ENTER` actions when the action
             itself does not carry one.
+        venue_adapter: Optional venue adapter; when supplied, `ENTER`
+            and `EXIT` paths route the action's qty through
+            `quantize_for_command(...)` for `LOT_SIZE` / `minNotional`
+            gating.
+        outcome_processor: Optional `OutcomeProcessor` reference. When
+            supplied, the `EXIT` rejection branch routes a full-close
+            EXIT (one whose `action.size == position.size -
+            position.pending_exit`) that the venue's quantizer rejects
+            as sub-lot through `OutcomeProcessor.close_as_dust(...)`
+            before returning `None`. Without it, the rejection branch
+            keeps the legacy behavior — log + drop the action — and
+            the position lingers in `state.positions`. Tests not
+            exercising the dust-close path may pass `None`.
 
     Returns:
         `ValidationRequestContext` for `ENTER`/`EXIT`, or `None` when
@@ -1771,6 +1784,15 @@ class Launcher:
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
         kline_sizes = _register_wired_kline_sizes(sequencer.wired_sensors)
+
+        # Pre-bind `outcome_processor` so the `build_context` closure below
+        # captures the name safely. The real `OutcomeProcessor(...)` is
+        # constructed further down in this scope and reassigns this binding
+        # in place; the closure resolves names at call time, so it picks up
+        # the live instance once construction has run. Without this
+        # pre-bind, a future refactor that invokes `build_context` before
+        # the construction line would raise `UnboundLocalError`.
+        outcome_processor: OutcomeProcessor | None = None
 
         def market_data_provider(kline_size: int) -> Any:
             if self._poller is None:

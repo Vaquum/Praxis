@@ -905,18 +905,6 @@ Option 1 is cleanest if Nexus accepts the lazy-create change; option 2 is the sa
 
 Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in production. Option 2 preserves the API and trades a tunable memory ceiling for a bounded miss rate. Either option also closes the residual on-loop-sort cost in `_account_to_dict` once the underlying container is an ordered/bounded structure.
 
-## TD-082: `Launcher.build_context` closure late-binds `outcome_processor`
+## TD-082: `Launcher.build_context` closure late-binds `outcome_processor` (RESOLVED in v0.76.0)
 
-**Origin**: Pre-PR Greybeard review of [Vaquum/Praxis#142](https://github.com/Vaquum/Praxis/issues/142) (v0.76.0 — launcher dust-close routing).
-
-**Severity**: Low. Survivable today; failure mode is `UnboundLocalError` if any future code path invokes `build_context(...)` before `outcome_processor = OutcomeProcessor(...)` is reached in the same enclosing scope. The current launcher startup order guarantees the closure only fires after the constructor runs (strategy event pumps start later), so production is safe.
-
-**Module**: [`praxis/launcher.py`](../praxis/launcher.py) — the `build_context(action, strategy_id)` closure inside `Launcher.build_processing_loop` (or equivalent — wherever the strategy event loop is wired) references `outcome_processor` from its enclosing scope, but the binding for `outcome_processor` is created ~70 lines later via `outcome_processor = OutcomeProcessor(...)`. Python's closure semantics resolve free variables at call time, so the runtime sequencing is what saves us; the source-level structure does not enforce the invariant.
-
-**When to fix**: Whenever the launcher's startup ordering is refactored, or when any new path is introduced that might call `build_context(...)` outside the strategy event pump (e.g. an early validation hook, a test harness reaching in via reflection). At that point the late-bind becomes a real bug rather than a latent one.
-
-**Migration**: Two options.
-1. **Construct `outcome_processor` earlier**, before the closure is defined. Moves the `OutcomeProcessor(...)` line above the closure block. The closure then captures the already-bound name. Minimal change; preserves all current call sites.
-2. **Pass `outcome_processor` as an explicit closure parameter** — wrap the closure in a factory that takes `outcome_processor` and returns the closure. The closure body no longer references the enclosing-scope name. More explicit; survives any future scope rearrangement.
-
-Option 1 is the minimum-change path. Option 2 is the more defensive shape if the launcher is expected to grow further.
+**Resolved** in v0.76.0 during PR review (Vaquum/Praxis#143, round 4). The launcher now pre-binds `outcome_processor: OutcomeProcessor | None = None` above the `build_context` closure definition; the later `outcome_processor = OutcomeProcessor(...)` reassigns the same name and the closure resolves it at call time. The `UnboundLocalError` hazard no longer exists on any startup-order refactor. Entry retained as historical record.
