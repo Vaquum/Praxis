@@ -1319,9 +1319,11 @@ class _AccountOutcomeWiring:
             membership on the dedup-hit redelivery, performs the
             `append_mutation` there, and withholds `OutcomeAcked` until
             it succeeds, preserving the withhold-ack-on-persist-failure
-            contract that boot replay depends on. Any successful
+            contract that boot replay depends on. A successful
             `append_mutation` serializes the whole `InstanceState`, so
-            success clears the entire set.
+            success discards every id captured in the pre-append
+            snapshot — never a bulk clear, which would race ids added
+            concurrently by the trading thread after the serialize.
     '''
 
     outcome_processor: OutcomeProcessor
@@ -2131,7 +2133,16 @@ class Launcher:
                 # ack below would fire for a mutation that was never
                 # durably persisted, and boot replay would skip it.
                 try:
-                    state_store.append_mutation(state)
+                    # `positions_lock` makes the serialize mutually
+                    # exclusive with `_apply_sync_accounting`'s in-memory
+                    # mutations on the trading thread — `state.positions`
+                    # and `state.account_dust` are dict-iterated during
+                    # encoding, and a concurrent insert would raise or
+                    # produce a torn snapshot. Capital fields are guarded
+                    # by the controller's own lock and decode-validated;
+                    # serialize-wide locking belongs in the Nexus codec.
+                    with positions_lock:
+                        state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
                     mutation_persisted = False
                     _log.exception(
