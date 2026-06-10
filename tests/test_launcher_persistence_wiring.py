@@ -171,3 +171,48 @@ def test_launcher_append_mutation_gate_includes_capital_updated() -> None:
         'must include capital_updated so capital-only mutations '
         '(ACK / non-fill REJECT / non-fill CANCEL) are durable'
     )
+
+
+def _process_outcome_clears_pending_set_in_bulk() -> bool:
+    '''True iff `process_outcome` calls `.clear()` on
+    `unpersisted_commands` — the racy bulk-discard shape that drops
+    pending ids added concurrently by the trading thread after the
+    persist serialized.'''
+
+    src = inspect.getsource(praxis.launcher)
+    tree = ast.parse(src)
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        if node.name != 'process_outcome':
+            continue
+        for inner in ast.walk(node):
+            if not isinstance(inner, ast.Call):
+                continue
+            func = inner.func
+            if not isinstance(func, ast.Attribute):
+                continue
+            if func.attr != 'clear':
+                continue
+            if not isinstance(func.value, ast.Attribute):
+                continue
+            if func.value.attr == 'unpersisted_commands':
+                return True
+    return False
+
+
+def test_launcher_pending_persist_discard_is_snapshot_scoped() -> None:
+    '''The post-persist discard of `unpersisted_commands` must be
+    scoped to the ids captured before the append began (via
+    `difference_update` on a snapshot), never a bulk `clear()`: ids
+    added concurrently by the trading thread may have mutated state
+    after the serialize, and a bulk clear would drop them unpersisted —
+    their later dedup-hit redelivery would then ack without a durable
+    persist, losing the mutation on a crash before the next append.
+    '''
+
+    assert not _process_outcome_clears_pending_set_in_bulk(), (
+        'process_outcome must not bulk-clear unpersisted_commands; '
+        'discard only the snapshot captured before append_mutation began'
+    )

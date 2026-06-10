@@ -2115,6 +2115,7 @@ class Launcher:
 
             with command_registry_lock:
                 sync_persist_pending = outcome.command_id in wiring.unpersisted_commands
+                pending_persist_snapshot = set(wiring.unpersisted_commands)
 
             mutation_persisted = True
             if result.success and (
@@ -2141,8 +2142,20 @@ class Launcher:
                         extra={'command_id': outcome.command_id},
                     )
                 else:
+                    # Discard only the ids captured before the append
+                    # began: their in-memory mutations preceded the
+                    # capture (same-thread ordering in
+                    # `_apply_sync_accounting`), so the serialize that
+                    # just succeeded includes them. Ids added
+                    # concurrently by the trading thread may have
+                    # mutated state after the serialize and must stay
+                    # pending — a bulk `clear()` here would drop them
+                    # unpersisted and break the withhold-ack contract
+                    # for those commands.
                     with command_registry_lock:
-                        wiring.unpersisted_commands.clear()
+                        wiring.unpersisted_commands.difference_update(
+                            pending_persist_snapshot,
+                        )
 
             if result.success and mutation_persisted:
                 self._append_outcome_acked(inst.account_id, outcome.outcome_id)
