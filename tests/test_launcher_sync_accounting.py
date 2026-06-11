@@ -79,6 +79,8 @@ def _wiring(
         outcome_processor=processor,
         command_contexts=contexts,
         command_registry_lock=threading.Lock(),
+        account_id='acct-test',
+        command_strategy_ids={},
     )
 
 

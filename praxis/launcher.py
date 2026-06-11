@@ -1350,8 +1350,8 @@ class _AccountOutcomeWiring:
     outcome_processor: OutcomeProcessor
     command_contexts: dict[str, OrderContext]
     command_registry_lock: threading.Lock
-    account_id: str = ''
-    command_strategy_ids: dict[str, str] = field(default_factory=dict)
+    account_id: str
+    command_strategy_ids: dict[str, str]
     unpersisted_commands: dict[str, int] = field(default_factory=dict)
     pending_generation: int = 0
 
