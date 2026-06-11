@@ -802,7 +802,18 @@ def _build_exit_context(
                 },
             )
 
-            if intended_full_close and outcome_processor is not None:
+            if (
+                intended_full_close
+                and outcome_processor is not None
+                and position.pending_exit == _ZERO
+            ):
+                # The `pending_exit == _ZERO` gate defers the dust-close
+                # while a prior EXIT order is still in flight: the in-flight
+                # fill will reduce `position.size` when it lands, and the
+                # strategy's next tick re-evaluates against the true
+                # residue. Dusting here with an in-flight EXIT would move
+                # the not-yet-sold quantity into `account_dust`.
+                #
                 # `dust_close_id` is keyed on `trade_id` (not `command_id`)
                 # so the dedup is deterministic even when `action.command_id`
                 # is `None` and the launcher generates a fresh per-call
@@ -1279,6 +1290,63 @@ class _NexusRuntime:
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
+@dataclass
+class _AccountOutcomeWiring:
+    '''Per-account references for synchronous outcome accounting.
+
+    Registered by `Launcher._build_nexus_runtime` once the account's
+    `OutcomeProcessor` exists, and consumed by `_route_translated` (wired
+    in `Launcher._start_trading`) to apply Nexus position/capital mutation
+    synchronously at the Praxis outcome boundary. Without this, accounting
+    is deferred behind the `OutcomeLoop` queue, which serializes it with
+    strategy callbacks and action submission on a single worker — under
+    load, FILLED outcomes lag behind strategy ticks and strategies act on
+    stale `state.positions`.
+
+    A regular (non-frozen) dataclass, matching `_NexusRuntime`: the
+    grouped members (`command_contexts`, `unpersisted_commands`, the
+    lock) are themselves mutable and mutated through this container,
+    which carries them by reference.
+
+    Args:
+        outcome_processor: The account's Nexus outcome processor.
+        command_contexts: Registry of in-flight `OrderContext`s by
+            command_id, shared with the submitter and `process_outcome`.
+        command_registry_lock: Lock guarding `command_contexts` and
+            `unpersisted_commands`.
+        unpersisted_commands: Command ids whose in-memory mutation has
+            not yet been durably persisted, each mapped to the
+            generation stamped at its most recent marking. The
+            synchronous path runs on the Trading event loop, so it
+            never calls `append_mutation` (a WAL write + fsync would
+            block the loop that also serves the trading websocket and
+            `/healthz`); it stamps the command id here instead, bumping
+            `pending_generation` on every marking. The async
+            `process_outcome` — running on the `OutcomeLoop` worker
+            thread — checks membership on the dedup-hit redelivery,
+            performs the `append_mutation` there, and withholds
+            `OutcomeAcked` until it succeeds, preserving the
+            withhold-ack-on-persist-failure contract that boot replay
+            depends on. After a successful `append_mutation`, an id is
+            discarded only when its generation still equals the one
+            captured in the pre-append snapshot: a command re-marked
+            after the snapshot (its new mutation blocked on
+            `positions_lock` until the serialize finished, so it is NOT
+            in the persisted bytes) carries a newer generation and
+            survives the discard. A plain id set could not make that
+            distinction — the re-mark would be an idempotent no-op and
+            the discard would drop the unpersisted mutation.
+        pending_generation: Monotonic counter feeding the generation
+            stamps. Guarded by `command_registry_lock`.
+    '''
+
+    outcome_processor: OutcomeProcessor
+    command_contexts: dict[str, OrderContext]
+    command_registry_lock: threading.Lock
+    unpersisted_commands: dict[str, int] = field(default_factory=dict)
+    pending_generation: int = 0
+
+
 class Launcher:
     '''Orchestrates Praxis + Nexus + Limen in one process.
 
@@ -1327,6 +1395,8 @@ class Launcher:
         self._healthz_runner: web.AppRunner | None = None
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator()
+        self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
+        self._account_outcome_wiring_lock = threading.Lock()
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -1363,6 +1433,78 @@ class Launcher:
             name='asyncio-loop',
         )
         self._loop_thread.start()
+
+    @staticmethod
+    def _apply_sync_accounting(
+        wiring: _AccountOutcomeWiring,
+        nexus_outcome: NexusTradeOutcome,
+    ) -> None:
+        '''Apply Nexus position/capital mutation at the Praxis outcome boundary.
+
+        Runs synchronously on the Trading outcome callback before the
+        outcome is enqueued for the async `OutcomeLoop`, so the
+        in-memory `state.positions` mutation never lags behind strategy
+        ticks. The `OutcomeLoop`'s single worker serializes accounting
+        with strategy callbacks and action submission; under load,
+        FILLED outcomes queued there were not dequeued before the
+        strategy's next tick read stale `state.positions` and dusted
+        full positions via `close_as_dust`.
+
+        Only the in-memory mutation happens here — this callback runs
+        on the Trading event loop, which also serves the trading
+        websocket and `/healthz`, so the WAL `append_mutation` (a
+        write + fsync under the store's lock, shared with the
+        `SnapshotScheduler`) must not run on it. Mutated command ids
+        are recorded in `wiring.unpersisted_commands`; the async
+        `process_outcome` — on the `OutcomeLoop` worker thread —
+        performs the persist on the dedup-hit redelivery and withholds
+        `OutcomeAcked` until it succeeds. The stale-positions race is
+        closed by the synchronous state mutation, not by synchronous
+        persistence.
+
+        Outcomes whose `OrderContext` is not yet registered are skipped;
+        the async path processes them once the submitter completes
+        registration. Failures are logged and never propagate — the
+        strategy-callback delivery must not be blocked by accounting
+        errors.
+
+        Args:
+            wiring: Per-account outcome accounting references.
+            nexus_outcome: Translated Nexus outcome to process.
+        '''
+
+        with wiring.command_registry_lock:
+            order_context = wiring.command_contexts.get(nexus_outcome.command_id)
+
+        if order_context is None:
+            return
+
+        try:
+            result = wiring.outcome_processor.process(nexus_outcome, order_context)
+        except Exception:  # noqa: BLE001 - accounting must not break outcome delivery
+            _log.exception(
+                'sync outcome process raised at route boundary',
+                extra={'command_id': nexus_outcome.command_id},
+            )
+            return
+
+        if not result.success:
+            _log.warning(
+                'sync OutcomeProcessor reported failure at route boundary',
+                extra={
+                    'command_id': nexus_outcome.command_id,
+                    'outcome_id': nexus_outcome.outcome_id,
+                    'reason': result.error_reason,
+                },
+            )
+            return
+
+        if result.position_updated or result.capital_updated:
+            with wiring.command_registry_lock:
+                wiring.pending_generation += 1
+                wiring.unpersisted_commands[nexus_outcome.command_id] = (
+                    wiring.pending_generation
+                )
 
     def _start_trading(self) -> None:
         if self._loop is None:
@@ -1402,7 +1544,13 @@ class Launcher:
                 )
                 return
 
+            with self._account_outcome_wiring_lock:
+                wiring = self._account_outcome_wiring.get(praxis_outcome.account_id)
+
             for nexus_outcome in translator.translate(praxis_outcome):
+                if wiring is not None:
+                    self._apply_sync_accounting(wiring, nexus_outcome)
+
                 q.put_nowait(nexus_outcome)
 
         existing_on_trade_outcome = self._trading_config.on_trade_outcome
@@ -1928,6 +2076,14 @@ class Launcher:
             positions_lock=positions_lock,
         )
 
+        wiring = _AccountOutcomeWiring(
+            outcome_processor=outcome_processor,
+            command_contexts=command_contexts,
+            command_registry_lock=command_registry_lock,
+        )
+        with self._account_outcome_wiring_lock:
+            self._account_outcome_wiring[inst.account_id] = wiring
+
         def process_outcome(outcome: NexusTradeOutcome) -> None:
             with command_registry_lock:
                 order_context = command_contexts.get(outcome.command_id)
@@ -1980,10 +2136,46 @@ class Launcher:
                         if pos is not None and pos.size == _ZERO:
                             del state.positions[order_context.trade_id]
 
+            with command_registry_lock:
+                sync_persist_pending = outcome.command_id in wiring.unpersisted_commands
+
             mutation_persisted = True
-            if result.success and (result.position_updated or result.capital_updated):
+            if result.success and (
+                result.position_updated
+                or result.capital_updated
+                or sync_persist_pending
+            ):
+                # `sync_persist_pending` covers the dedup seam between the
+                # synchronous route-boundary path and this consumer:
+                # `_apply_sync_accounting` mutates in-memory state but
+                # never persists (the WAL fsync must stay off the Trading
+                # event loop), so the dedup-hit redelivery here reports no
+                # mutation flags — without the pending check the persist
+                # below would be skipped and the ack would fire for a
+                # mutation that was never durably persisted, which boot
+                # replay would then skip.
+                #
+                # The snapshot is captured before the append begins: any
+                # id present at capture had its in-memory mutation applied
+                # before the capture (same-thread ordering in
+                # `_apply_sync_accounting`), so the serialize below
+                # includes it. Generations are captured with the ids so
+                # the post-persist discard can tell a re-marked command
+                # apart from a stale entry.
+                with command_registry_lock:
+                    pending_persist_snapshot = dict(wiring.unpersisted_commands)
+
                 try:
-                    state_store.append_mutation(state)
+                    # `positions_lock` makes the serialize mutually
+                    # exclusive with `_apply_sync_accounting`'s in-memory
+                    # mutations on the trading thread — `state.positions`
+                    # and `state.account_dust` are dict-iterated during
+                    # encoding, and a concurrent insert would raise or
+                    # produce a torn snapshot. Capital fields are guarded
+                    # by the controller's own lock and decode-validated;
+                    # serialize-wide locking belongs in the Nexus codec.
+                    with positions_lock:
+                        state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
                     mutation_persisted = False
                     _log.exception(
@@ -1993,6 +2185,20 @@ class Launcher:
                         'rolls back to the last clean checkpoint',
                         extra={'command_id': outcome.command_id},
                     )
+                else:
+                    # Discard an id only when its generation still equals
+                    # the snapshotted one. A command re-marked after the
+                    # snapshot carries a newer generation: its fresh
+                    # mutation blocked on `positions_lock` until the
+                    # serialize finished, so it is NOT in the persisted
+                    # bytes and must stay pending. Equality (not mere
+                    # membership) is what protects the same-command
+                    # remutation window — a plain id discard would treat
+                    # the idempotent re-mark as already persisted.
+                    with command_registry_lock:
+                        for cmd_id, generation in pending_persist_snapshot.items():
+                            if wiring.unpersisted_commands.get(cmd_id) == generation:
+                                del wiring.unpersisted_commands[cmd_id]
 
             if result.success and mutation_persisted:
                 self._append_outcome_acked(inst.account_id, outcome.outcome_id)
