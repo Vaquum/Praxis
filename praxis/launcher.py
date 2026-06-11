@@ -2126,12 +2126,14 @@ class Launcher:
                 or sync_persist_pending
             ):
                 # `sync_persist_pending` covers the dedup seam between the
-                # synchronous route-boundary path and this consumer: when
-                # `_apply_sync_accounting` mutated state but its
-                # `append_mutation` failed, the dedup-hit redelivery here
-                # reports no mutation flags — without the pending check the
-                # ack below would fire for a mutation that was never
-                # durably persisted, and boot replay would skip it.
+                # synchronous route-boundary path and this consumer:
+                # `_apply_sync_accounting` mutates in-memory state but
+                # never persists (the WAL fsync must stay off the Trading
+                # event loop), so the dedup-hit redelivery here reports no
+                # mutation flags — without the pending check the persist
+                # below would be skipped and the ack would fire for a
+                # mutation that was never durably persisted, which boot
+                # replay would then skip.
                 try:
                     # `positions_lock` makes the serialize mutually
                     # exclusive with `_apply_sync_accounting`'s in-memory
