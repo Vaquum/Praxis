@@ -2120,7 +2120,6 @@ class Launcher:
 
             with command_registry_lock:
                 sync_persist_pending = outcome.command_id in wiring.unpersisted_commands
-                pending_persist_snapshot = set(wiring.unpersisted_commands)
 
             mutation_persisted = True
             if result.success and (
@@ -2137,6 +2136,15 @@ class Launcher:
                 # below would be skipped and the ack would fire for a
                 # mutation that was never durably persisted, which boot
                 # replay would then skip.
+                #
+                # The snapshot is captured before the append begins: any
+                # id present at capture had its in-memory mutation applied
+                # before the capture (same-thread ordering in
+                # `_apply_sync_accounting`), so the serialize below
+                # includes it and the post-persist discard is safe.
+                with command_registry_lock:
+                    pending_persist_snapshot = set(wiring.unpersisted_commands)
+
                 try:
                     # `positions_lock` makes the serialize mutually
                     # exclusive with `_apply_sync_accounting`'s in-memory
