@@ -1290,7 +1290,7 @@ class _NexusRuntime:
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
-@dataclass(frozen=True)
+@dataclass
 class _AccountOutcomeWiring:
     '''Per-account references for synchronous outcome accounting.
 
@@ -1302,6 +1302,11 @@ class _AccountOutcomeWiring:
     strategy callbacks and action submission on a single worker — under
     load, FILLED outcomes lag behind strategy ticks and strategies act on
     stale `state.positions`.
+
+    A regular (non-frozen) dataclass, matching `_NexusRuntime`: the
+    grouped members (`command_contexts`, `unpersisted_commands`, the
+    lock) are themselves mutable and mutated through this container,
+    which carries them by reference.
 
     Args:
         outcome_processor: The account's Nexus outcome processor.
