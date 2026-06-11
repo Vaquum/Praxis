@@ -1026,3 +1026,18 @@
 - Add [`Launcher._apply_sync_accounting`](praxis/launcher.py) static method: looks up the outcome's `OrderContext` under the registry lock (skips when not yet registered — the async path covers those once the submitter completes registration), calls `OutcomeProcessor.process`, records mutated command ids in `unpersisted_commands` for the async consumer's persist, and contains all failures so accounting errors never block strategy-callback delivery
 - Add [`tests/test_launcher_sync_accounting.py`](tests/test_launcher_sync_accounting.py) (6 cases): position mutation marks the command unpersisted; capital mutation marks the command unpersisted; skip on missing `OrderContext`; failure result does not mark; success without mutation does not mark; processor exception contained
 - Add `test_full_close_rejection_with_pending_exit_does_not_route_to_close_as_dust` to [`tests/test_launcher_validation_context.py`](tests/test_launcher_validation_context.py): a sub-lot full-close rejection with `pending_exit > 0` must NOT call `close_as_dust`
+
+## v0.78.0 on 11th of June, 2026
+
+### NOTE
+
+- Companion to Nexus v0.59.0's unresolved-outcome retry: the registration-gap race (translated outcomes reaching the accounting paths ~1ms before the submitter's post-`send_command` registration loop made `command_strategy_ids` / `command_contexts` visible) surfaced in epoch 24 as two venue-filled EXITs whose accounting never ran. The Nexus side now retries; this release makes the Praxis-side skip observable
+
+### Update
+
+- Bump [`vaquum-nexus`](pyproject.toml) git-pin to Nexus v0.59.0 (`OutcomeLoop` retries unresolved-strategy outcomes on a backoff schedule instead of dropping them)
+- Update [`Launcher._apply_sync_accounting`](praxis/launcher.py): the missing-`OrderContext` skip is no longer silent — it logs a warning with `account_id`, `command_id`, `outcome_id`, `outcome_type`, and `has_strategy_mapping` (whether the strategy registry already contains the command, checked in the same lock hold as the context lookup), distinguishing the pre-registration race from a genuinely unknown command
+
+### Add
+
+- Add `account_id` and `command_strategy_ids` to [`_AccountOutcomeWiring`](praxis/launcher.py) — telemetry-only references for the skip warning, registered alongside the existing wiring fields
