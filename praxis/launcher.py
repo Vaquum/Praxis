@@ -1338,11 +1338,20 @@ class _AccountOutcomeWiring:
             the discard would drop the unpersisted mutation.
         pending_generation: Monotonic counter feeding the generation
             stamps. Guarded by `command_registry_lock`.
+        account_id: The owning account, for skip telemetry.
+        command_strategy_ids: Registry of command_id to strategy_id,
+            shared with the submitter and the `OutcomeLoop`'s
+            `resolve_strategy_id`. Read here only for skip telemetry —
+            whether a missing `OrderContext` coincides with a missing
+            strategy mapping distinguishes the pre-registration race
+            from a genuinely unknown command.
     '''
 
     outcome_processor: OutcomeProcessor
     command_contexts: dict[str, OrderContext]
     command_registry_lock: threading.Lock
+    account_id: str = ''
+    command_strategy_ids: dict[str, str] = field(default_factory=dict)
     unpersisted_commands: dict[str, int] = field(default_factory=dict)
     pending_generation: int = 0
 
@@ -1462,8 +1471,9 @@ class Launcher:
         closed by the synchronous state mutation, not by synchronous
         persistence.
 
-        Outcomes whose `OrderContext` is not yet registered are skipped;
-        the async path processes them once the submitter completes
+        Outcomes whose `OrderContext` is not yet registered are skipped
+        with a warning (the pre-registration race telemetry); the async
+        path's unresolved-retry covers them once the submitter completes
         registration. Failures are logged and never propagate — the
         strategy-callback delivery must not be blocked by accounting
         errors.
@@ -1475,8 +1485,23 @@ class Launcher:
 
         with wiring.command_registry_lock:
             order_context = wiring.command_contexts.get(nexus_outcome.command_id)
+            has_strategy_mapping = (
+                nexus_outcome.command_id in wiring.command_strategy_ids
+            )
 
         if order_context is None:
+            _log.warning(
+                'sync accounting skipped: no OrderContext for command — '
+                'outcome raced the submitter registration; the async '
+                'path must resolve it once registration lands',
+                extra={
+                    'account_id': wiring.account_id,
+                    'command_id': nexus_outcome.command_id,
+                    'outcome_id': nexus_outcome.outcome_id,
+                    'outcome_type': nexus_outcome.outcome_type.value,
+                    'has_strategy_mapping': has_strategy_mapping,
+                },
+            )
             return
 
         try:
@@ -2080,6 +2105,8 @@ class Launcher:
             outcome_processor=outcome_processor,
             command_contexts=command_contexts,
             command_registry_lock=command_registry_lock,
+            account_id=inst.account_id,
+            command_strategy_ids=command_strategy_ids,
         )
         with self._account_outcome_wiring_lock:
             self._account_outcome_wiring[inst.account_id] = wiring
