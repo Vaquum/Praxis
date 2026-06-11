@@ -99,7 +99,7 @@ class TestApplySyncAccounting:
         Launcher._apply_sync_accounting(wiring, outcome)
 
         assert processor.calls == [(outcome, ctx)]
-        assert wiring.unpersisted_commands == {'cmd_001'}
+        assert wiring.unpersisted_commands == {'cmd_001': 1}
 
     def test_capital_mutation_marks_command_unpersisted(self) -> None:
         processor = _RecordingProcessor(
@@ -114,7 +114,24 @@ class TestApplySyncAccounting:
 
         Launcher._apply_sync_accounting(wiring, _outcome())
 
-        assert wiring.unpersisted_commands == {'cmd_001'}
+        assert wiring.unpersisted_commands == {'cmd_001': 1}
+
+    def test_remark_bumps_generation(self) -> None:
+        processor = _RecordingProcessor(
+            ProcessResult(
+                success=True,
+                outcome_type=TradeOutcomeType.ACK,
+                position_updated=True,
+            ),
+        )
+        ctx = _order_context()
+        wiring = _wiring(processor, {'cmd_001': ctx})
+
+        Launcher._apply_sync_accounting(wiring, _outcome())
+        Launcher._apply_sync_accounting(wiring, _outcome())
+
+        assert wiring.unpersisted_commands == {'cmd_001': 2}
+        assert wiring.pending_generation == 2
 
     def test_skips_when_order_context_missing(self) -> None:
         processor = _RecordingProcessor(
@@ -125,7 +142,7 @@ class TestApplySyncAccounting:
         Launcher._apply_sync_accounting(wiring, _outcome())
 
         assert processor.calls == []
-        assert wiring.unpersisted_commands == set()
+        assert wiring.unpersisted_commands == {}
 
     def test_failure_result_does_not_mark_unpersisted(self) -> None:
         processor = _RecordingProcessor(
@@ -141,7 +158,7 @@ class TestApplySyncAccounting:
         Launcher._apply_sync_accounting(wiring, _outcome())
 
         assert len(processor.calls) == 1
-        assert wiring.unpersisted_commands == set()
+        assert wiring.unpersisted_commands == {}
 
     def test_success_without_mutation_does_not_mark_unpersisted(self) -> None:
         processor = _RecordingProcessor(
@@ -153,7 +170,7 @@ class TestApplySyncAccounting:
         Launcher._apply_sync_accounting(wiring, _outcome())
 
         assert len(processor.calls) == 1
-        assert wiring.unpersisted_commands == set()
+        assert wiring.unpersisted_commands == {}
 
     def test_process_exception_is_contained(self) -> None:
         processor = _RaisingProcessor()
@@ -163,4 +180,4 @@ class TestApplySyncAccounting:
         Launcher._apply_sync_accounting(wiring, _outcome())
 
         assert processor.calls == 1
-        assert wiring.unpersisted_commands == set()
+        assert wiring.unpersisted_commands == {}

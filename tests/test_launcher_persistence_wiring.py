@@ -204,12 +204,14 @@ def _process_outcome_clears_pending_set_in_bulk() -> bool:
 
 def test_launcher_pending_persist_discard_is_snapshot_scoped() -> None:
     '''The post-persist discard of `unpersisted_commands` must be
-    scoped to the ids captured before the append began (via
-    `difference_update` on a snapshot), never a bulk `clear()`: ids
-    added concurrently by the trading thread may have mutated state
-    after the serialize, and a bulk clear would drop them unpersisted —
-    their later dedup-hit redelivery would then ack without a durable
-    persist, losing the mutation on a crash before the next append.
+    scoped to the generation-stamped snapshot captured before the
+    append began (delete only when the entry's generation still equals
+    the snapshotted one), never a bulk `clear()`: commands marked or
+    re-marked concurrently by the trading thread may have mutated
+    state after the serialize, and a bulk clear would drop them
+    unpersisted — their later dedup-hit redelivery would then ack
+    without a durable persist, losing the mutation on a crash before
+    the next append.
     '''
 
     assert not _process_outcome_clears_pending_set_in_bulk(), (

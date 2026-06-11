@@ -1315,26 +1315,36 @@ class _AccountOutcomeWiring:
         command_registry_lock: Lock guarding `command_contexts` and
             `unpersisted_commands`.
         unpersisted_commands: Command ids whose in-memory mutation has
-            not yet been durably persisted. The synchronous path runs on
-            the Trading event loop, so it never calls `append_mutation`
-            (a WAL write + fsync would block the loop that also serves
-            the trading websocket and `/healthz`); it records the
-            command id here instead. The async `process_outcome` —
-            running on the `OutcomeLoop` worker thread — checks
-            membership on the dedup-hit redelivery, performs the
-            `append_mutation` there, and withholds `OutcomeAcked` until
-            it succeeds, preserving the withhold-ack-on-persist-failure
-            contract that boot replay depends on. A successful
-            `append_mutation` serializes the whole `InstanceState`, so
-            success discards every id captured in the pre-append
-            snapshot — never a bulk clear, which would race ids added
-            concurrently by the trading thread after the serialize.
+            not yet been durably persisted, each mapped to the
+            generation stamped at its most recent marking. The
+            synchronous path runs on the Trading event loop, so it
+            never calls `append_mutation` (a WAL write + fsync would
+            block the loop that also serves the trading websocket and
+            `/healthz`); it stamps the command id here instead, bumping
+            `pending_generation` on every marking. The async
+            `process_outcome` — running on the `OutcomeLoop` worker
+            thread — checks membership on the dedup-hit redelivery,
+            performs the `append_mutation` there, and withholds
+            `OutcomeAcked` until it succeeds, preserving the
+            withhold-ack-on-persist-failure contract that boot replay
+            depends on. After a successful `append_mutation`, an id is
+            discarded only when its generation still equals the one
+            captured in the pre-append snapshot: a command re-marked
+            after the snapshot (its new mutation blocked on
+            `positions_lock` until the serialize finished, so it is NOT
+            in the persisted bytes) carries a newer generation and
+            survives the discard. A plain id set could not make that
+            distinction — the re-mark would be an idempotent no-op and
+            the discard would drop the unpersisted mutation.
+        pending_generation: Monotonic counter feeding the generation
+            stamps. Guarded by `command_registry_lock`.
     '''
 
     outcome_processor: OutcomeProcessor
     command_contexts: dict[str, OrderContext]
     command_registry_lock: threading.Lock
-    unpersisted_commands: set[str] = field(default_factory=set)
+    unpersisted_commands: dict[str, int] = field(default_factory=dict)
+    pending_generation: int = 0
 
 
 class Launcher:
@@ -1491,7 +1501,10 @@ class Launcher:
 
         if result.position_updated or result.capital_updated:
             with wiring.command_registry_lock:
-                wiring.unpersisted_commands.add(nexus_outcome.command_id)
+                wiring.pending_generation += 1
+                wiring.unpersisted_commands[nexus_outcome.command_id] = (
+                    wiring.pending_generation
+                )
 
     def _start_trading(self) -> None:
         if self._loop is None:
@@ -2146,9 +2159,11 @@ class Launcher:
                 # id present at capture had its in-memory mutation applied
                 # before the capture (same-thread ordering in
                 # `_apply_sync_accounting`), so the serialize below
-                # includes it and the post-persist discard is safe.
+                # includes it. Generations are captured with the ids so
+                # the post-persist discard can tell a re-marked command
+                # apart from a stale entry.
                 with command_registry_lock:
-                    pending_persist_snapshot = set(wiring.unpersisted_commands)
+                    pending_persist_snapshot = dict(wiring.unpersisted_commands)
 
                 try:
                     # `positions_lock` makes the serialize mutually
@@ -2171,20 +2186,19 @@ class Launcher:
                         extra={'command_id': outcome.command_id},
                     )
                 else:
-                    # Discard only the ids captured before the append
-                    # began: their in-memory mutations preceded the
-                    # capture (same-thread ordering in
-                    # `_apply_sync_accounting`), so the serialize that
-                    # just succeeded includes them. Ids added
-                    # concurrently by the trading thread may have
-                    # mutated state after the serialize and must stay
-                    # pending — a bulk `clear()` here would drop them
-                    # unpersisted and break the withhold-ack contract
-                    # for those commands.
+                    # Discard an id only when its generation still equals
+                    # the snapshotted one. A command re-marked after the
+                    # snapshot carries a newer generation: its fresh
+                    # mutation blocked on `positions_lock` until the
+                    # serialize finished, so it is NOT in the persisted
+                    # bytes and must stay pending. Equality (not mere
+                    # membership) is what protects the same-command
+                    # remutation window — a plain id discard would treat
+                    # the idempotent re-mark as already persisted.
                     with command_registry_lock:
-                        wiring.unpersisted_commands.difference_update(
-                            pending_persist_snapshot,
-                        )
+                        for cmd_id, generation in pending_persist_snapshot.items():
+                            if wiring.unpersisted_commands.get(cmd_id) == generation:
+                                del wiring.unpersisted_commands[cmd_id]
 
             if result.success and mutation_persisted:
                 self._append_outcome_acked(inst.account_id, outcome.outcome_id)
