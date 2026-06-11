@@ -1381,6 +1381,7 @@ class Launcher:
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator()
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
+        self._account_outcome_wiring_lock = threading.Lock()
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -1525,7 +1526,8 @@ class Launcher:
                 )
                 return
 
-            wiring = self._account_outcome_wiring.get(praxis_outcome.account_id)
+            with self._account_outcome_wiring_lock:
+                wiring = self._account_outcome_wiring.get(praxis_outcome.account_id)
 
             for nexus_outcome in translator.translate(praxis_outcome):
                 if wiring is not None:
@@ -2061,7 +2063,8 @@ class Launcher:
             command_contexts=command_contexts,
             command_registry_lock=command_registry_lock,
         )
-        self._account_outcome_wiring[inst.account_id] = wiring
+        with self._account_outcome_wiring_lock:
+            self._account_outcome_wiring[inst.account_id] = wiring
 
         def process_outcome(outcome: NexusTradeOutcome) -> None:
             with command_registry_lock:
