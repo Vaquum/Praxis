@@ -1312,8 +1312,8 @@ class _AccountOutcomeWiring:
         outcome_processor: The account's Nexus outcome processor.
         command_contexts: Registry of in-flight `OrderContext`s by
             command_id, shared with the submitter and `process_outcome`.
-        command_registry_lock: Lock guarding `command_contexts` and
-            `unpersisted_commands`.
+        command_registry_lock: Lock guarding `command_contexts`,
+            `command_strategy_ids`, and `unpersisted_commands`.
         unpersisted_commands: Command ids whose in-memory mutation has
             not yet been durably persisted, each mapped to the
             generation stamped at its most recent marking. The
@@ -1341,10 +1341,12 @@ class _AccountOutcomeWiring:
         account_id: The owning account, for skip telemetry.
         command_strategy_ids: Registry of command_id to strategy_id,
             shared with the submitter and the `OutcomeLoop`'s
-            `resolve_strategy_id`. Read here only for skip telemetry —
-            whether a missing `OrderContext` coincides with a missing
-            strategy mapping distinguishes the pre-registration race
-            from a genuinely unknown command.
+            `resolve_strategy_id`, and guarded by
+            `command_registry_lock` like the other registries. Read
+            here only for skip telemetry — whether a missing
+            `OrderContext` coincides with a missing strategy mapping
+            distinguishes the pre-registration race from a genuinely
+            unknown command.
     '''
 
     outcome_processor: OutcomeProcessor
@@ -1491,9 +1493,10 @@ class Launcher:
 
         if order_context is None:
             _log.warning(
-                'sync accounting skipped: no OrderContext for command — '
-                'outcome raced the submitter registration; the async '
-                'path must resolve it once registration lands',
+                'sync accounting skipped: no OrderContext for command '
+                'at outcome time; deferred to the async path '
+                '(pre-registration race when has_strategy_mapping is '
+                'also false and registration lands shortly after)',
                 extra={
                     'account_id': wiring.account_id,
                     'command_id': nexus_outcome.command_id,

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+
+import pytest
 
 from nexus.core.domain.enums import OrderSide
 from nexus.infrastructure.praxis_connector.order_context import OrderContext
@@ -135,16 +138,30 @@ class TestApplySyncAccounting:
         assert wiring.unpersisted_commands == {'cmd_001': 2}
         assert wiring.pending_generation == 2
 
-    def test_skips_when_order_context_missing(self) -> None:
+    def test_skips_when_order_context_missing(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         processor = _RecordingProcessor(
             ProcessResult(success=True, outcome_type=TradeOutcomeType.ACK),
         )
         wiring = _wiring(processor, {})
 
-        Launcher._apply_sync_accounting(wiring, _outcome())
+        with caplog.at_level(logging.WARNING, logger='praxis.launcher'):
+            Launcher._apply_sync_accounting(wiring, _outcome())
 
         assert processor.calls == []
         assert wiring.unpersisted_commands == {}
+
+        record = next(
+            r for r in caplog.records
+            if 'sync accounting skipped' in r.message
+        )
+        assert record.account_id == 'acct-test'
+        assert record.command_id == 'cmd_001'
+        assert record.outcome_id == 'out_001'
+        assert record.outcome_type == 'ACK'
+        assert record.has_strategy_mapping is False
 
     def test_failure_result_does_not_mark_unpersisted(self) -> None:
         processor = _RecordingProcessor(
