@@ -1022,7 +1022,7 @@
 
 ### Add
 
-- Add [`_AccountOutcomeWiring`](praxis/launcher.py) frozen dataclass: per-account references (`outcome_processor`, `command_contexts`, `command_registry_lock`, `unpersisted_commands`) registered by `_build_nexus_runtime` and consumed by `_route_translated` for the synchronous accounting path
+- Add [`_AccountOutcomeWiring`](praxis/launcher.py) dataclass (non-frozen, matching `_NexusRuntime` — it carries mutable members by reference): per-account references (`outcome_processor`, `command_contexts`, `command_registry_lock`, `unpersisted_commands`) registered by `_build_nexus_runtime` and consumed by `_route_translated` for the synchronous accounting path
 - Add [`Launcher._apply_sync_accounting`](praxis/launcher.py) static method: looks up the outcome's `OrderContext` under the registry lock (skips when not yet registered — the async path covers those once the submitter completes registration), calls `OutcomeProcessor.process`, records mutated command ids in `unpersisted_commands` for the async consumer's persist, and contains all failures so accounting errors never block strategy-callback delivery
 - Add [`tests/test_launcher_sync_accounting.py`](tests/test_launcher_sync_accounting.py) (6 cases): position mutation marks the command unpersisted; capital mutation marks the command unpersisted; skip on missing `OrderContext`; failure result does not mark; success without mutation does not mark; processor exception contained
 - Add `test_full_close_rejection_with_pending_exit_does_not_route_to_close_as_dust` to [`tests/test_launcher_validation_context.py`](tests/test_launcher_validation_context.py): a sub-lot full-close rejection with `pending_exit > 0` must NOT call `close_as_dust`
