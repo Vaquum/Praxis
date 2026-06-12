@@ -718,6 +718,7 @@ class ExecutionManager:
         created_at: datetime,
         strategy_id: str | None = None,
         quote_qty: Decimal | None = None,
+        command_id: str | None = None,
     ) -> str:
         '''
         Accept a command, assign command_id, persist, and enqueue.
@@ -741,13 +742,22 @@ class ExecutionManager:
             stp_mode (STPMode): Self-trade prevention mode.
             created_at (datetime): Command creation time.
             strategy_id (str | None): Nexus strategy identifier for position attribution.
+            command_id (str | None): Caller-supplied command identifier,
+                treated as an opaque non-empty string. When supplied it
+                becomes the command's identity verbatim, letting the
+                caller register the command in its own state before the
+                handoff; a duplicate of any accepted command is rejected
+                rather than regenerated. When omitted a UUID is minted
+                exactly as before.
 
         Returns:
-            str: Assigned command_id (UUID).
+            str: Assigned command_id (the caller-supplied identifier
+                when given, otherwise a minted UUID).
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
-            ValueError: If command fails inbound validation.
+            ValueError: If command fails inbound validation, including
+                an empty or duplicate caller-supplied `command_id`.
         '''
 
         runtime = self._accounts.get(account_id)
@@ -755,7 +765,16 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
-        command_id = str(uuid.uuid4())
+        if command_id is not None:
+            if not command_id:
+                msg = 'caller-supplied command_id must be a non-empty string'
+                raise ValueError(msg)
+
+            if command_id in self._accepted_commands:
+                msg = f"duplicate command_id '{command_id}' already accepted"
+                raise ValueError(msg)
+        else:
+            command_id = str(uuid.uuid4())
 
         cmd = TradeCommand(
             command_id=command_id,

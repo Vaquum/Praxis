@@ -150,6 +150,39 @@ class TestSubmitCommand:
             await mgr.submit_command(**_CMD_KWARGS)
 
     @pytest.mark.asyncio
+    async def test_caller_supplied_command_id_used_verbatim(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        command_id = await mgr.submit_command(
+            **_CMD_KWARGS,
+            command_id='cmd-nexus-deterministic-001',
+        )
+        assert command_id == 'cmd-nexus-deterministic-001'
+        assert mgr._accepted_commands['cmd-nexus-deterministic-001'] == _ACCT
+        assert 'cmd-nexus-deterministic-001' in mgr._commands
+
+    @pytest.mark.asyncio
+    async def test_empty_caller_supplied_command_id_raises(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        with pytest.raises(ValueError, match='non-empty'):
+            await mgr.submit_command(**_CMD_KWARGS, command_id='')
+
+    @pytest.mark.asyncio
+    async def test_duplicate_caller_supplied_command_id_raises(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-dup-001')
+        with pytest.raises(ValueError, match='duplicate'):
+            await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-dup-001')
+
+    @pytest.mark.asyncio
     async def test_appends_command_accepted_to_spine(
         self,
         mgr: ExecutionManager,
