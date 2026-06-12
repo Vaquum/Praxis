@@ -228,6 +228,38 @@ class TestSubmitCommand:
         assert command_id == 'cmd-retry-001'
 
     @pytest.mark.asyncio
+    async def test_cancelled_append_frees_reserved_command_id(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        original_append = mgr._event_spine.append
+        gate = asyncio.Event()
+
+        async def _stall(_event: object, _epoch_id: int) -> None:
+            await gate.wait()
+
+        mgr._event_spine.append = _stall
+        task = asyncio.create_task(
+            mgr.submit_command(**_CMD_KWARGS, command_id='cmd-cancel-001'),
+        )
+        await asyncio.sleep(0)
+        assert 'cmd-cancel-001' in mgr._accepted_commands
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert 'cmd-cancel-001' not in mgr._accepted_commands
+
+        mgr._event_spine.append = original_append
+        command_id = await mgr.submit_command(
+            **_CMD_KWARGS,
+            command_id='cmd-cancel-001',
+        )
+        assert command_id == 'cmd-cancel-001'
+
+    @pytest.mark.asyncio
     async def test_appends_command_accepted_to_spine(
         self,
         mgr: ExecutionManager,

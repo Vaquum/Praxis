@@ -814,8 +814,9 @@ class ExecutionManager:
 
         try:
             await self._event_spine.append(event, self._epoch_id)
-        except Exception:
+        except BaseException:
             self._accepted_commands.pop(command_id, None)
+            self._aborted_commands.pop(command_id, None)
             raise
 
         runtime.command_queue.put_nowait(cmd)
