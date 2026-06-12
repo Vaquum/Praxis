@@ -1027,9 +1027,24 @@
 - Add [`tests/test_launcher_sync_accounting.py`](tests/test_launcher_sync_accounting.py) (6 cases): position mutation marks the command unpersisted; capital mutation marks the command unpersisted; skip on missing `OrderContext`; failure result does not mark; success without mutation does not mark; processor exception contained
 - Add `test_full_close_rejection_with_pending_exit_does_not_route_to_close_as_dust` to [`tests/test_launcher_validation_context.py`](tests/test_launcher_validation_context.py): a sub-lot full-close rejection with `pending_exit > 0` must NOT call `close_as_dust`
 
+## v0.78.0 on 11th of June, 2026
+
+### NOTE
+
+- Companion to Nexus v0.59.0's unresolved-outcome retry: the registration-gap race (translated outcomes reaching the accounting paths ~1ms before the submitter's post-`send_command` registration loop made `command_strategy_ids` / `command_contexts` visible) surfaced in epoch 24 as two venue-filled EXITs whose accounting never ran. The Nexus side now retries; this release makes the Praxis-side skip observable
+
+### Update
+
+- Bump [`vaquum-nexus`](pyproject.toml) git-pin to Nexus v0.59.0 (`OutcomeLoop` retries unresolved-strategy outcomes on a backoff schedule instead of dropping them)
+- Update [`Launcher._apply_sync_accounting`](praxis/launcher.py): the missing-`OrderContext` skip is no longer silent — it logs a warning with `account_id`, `command_id`, `outcome_id`, `outcome_type`, and `has_strategy_mapping` (whether the strategy registry already contains the command, checked in the same lock hold as the context lookup), distinguishing the pre-registration race from a genuinely unknown command
+
+### Add
+
+- Add `account_id` and `command_strategy_ids` to [`_AccountOutcomeWiring`](praxis/launcher.py) — telemetry-only references for the skip warning, registered alongside the existing wiring fields
+
 ## v0.79.0 on 12th of June, 2026
 
 ### Add
 
-- Add optional `command_id: str | None = None` to [`ExecutionManager.submit_command`](praxis/core/execution_manager.py): a caller-supplied identifier is used verbatim (treated as an opaque non-empty string; a duplicate of any accepted command fails inbound validation rather than being regenerated), and a UUID is minted exactly as before when omitted. This lets the caller know the command's identity before the handoff and register it in its own state pre-submit — the enabling half of the cross-repo fix for the registration-gap race ([#146](https://github.com/Vaquum/Praxis/issues/146); companion Nexus changes track [Vaquum/Nexus#86](https://github.com/Vaquum/Nexus/issues/86) and [Vaquum/Nexus#87](https://github.com/Vaquum/Nexus/issues/87))
-- Add 3 tests to [`tests/test_execution_manager.py::TestSubmitCommand`](tests/test_execution_manager.py): caller-supplied id used verbatim and registered; empty id rejected; duplicate id rejected
+- Add optional `command_id: str | None = None` to [`ExecutionManager.submit_command`](praxis/core/execution_manager.py): a caller-supplied identifier is used verbatim (treated as an opaque non-empty string; an identifier already in use by any accepted or in-memory command fails inbound validation rather than being regenerated, and the identity is reserved before the spine append's await so concurrent same-id submissions cannot interleave), and a UUID is minted exactly as before when omitted. This lets the caller know the command's identity before the handoff and register it in its own state pre-submit — the enabling half of the cross-repo fix for the registration-gap race ([#146](https://github.com/Vaquum/Praxis/issues/146); companion Nexus changes track [Vaquum/Nexus#86](https://github.com/Vaquum/Nexus/issues/86) and [Vaquum/Nexus#87](https://github.com/Vaquum/Nexus/issues/87))
+- Add 5 tests to [`tests/test_execution_manager.py::TestSubmitCommand`](tests/test_execution_manager.py): caller-supplied id used verbatim and registered; empty id rejected; in-use id rejected; concurrent same-id submissions — exactly one wins and exactly one `CommandAccepted` reaches the spine; a failed spine append frees the reservation for reuse
