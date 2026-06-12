@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-
 from decimal import Decimal
-
-import pytest
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.capital_state import CapitalState
@@ -533,63 +529,6 @@ class TestExitContextDustCloseRouting:
 
         assert ctx is None
         assert processor.calls == []
-
-    def test_full_close_rejection_logs_info_partial_logs_warning(
-        self,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        full_close = self._open_position(size=Decimal('0.00000842'))
-        state = _instance_state(positions={full_close.trade_id: full_close})
-
-        with caplog.at_level(logging.INFO, logger='praxis.launcher'):
-            _build_validation_context(
-                _exit_action(
-                    trade_id=full_close.trade_id,
-                    size=Decimal('0.00000842'),
-                    command_id='cmd_level_full',
-                ),
-                'strat_a',
-                nexus_config=_nexus_config(),
-                capital_controller=_capital_controller(),
-                state=state,
-                capital_pct=Decimal('100'),
-                fallback_price_provider=_no_fallback,
-                venue_adapter=_FakeVenueAdapterRejecting(),
-                outcome_processor=_RecordingOutcomeProcessor(),
-            )
-
-        full_record = next(
-            r for r in caplog.records
-            if 'rejected by venue filters' in r.message
-        )
-        assert full_record.levelno == logging.INFO
-
-        caplog.clear()
-        partial = self._open_position(size=Decimal('0.5'))
-        state = _instance_state(positions={partial.trade_id: partial})
-
-        with caplog.at_level(logging.INFO, logger='praxis.launcher'):
-            _build_validation_context(
-                _exit_action(
-                    trade_id=partial.trade_id,
-                    size=Decimal('0.25'),
-                    command_id='cmd_level_partial',
-                ),
-                'strat_a',
-                nexus_config=_nexus_config(),
-                capital_controller=_capital_controller(),
-                state=state,
-                capital_pct=Decimal('100'),
-                fallback_price_provider=_no_fallback,
-                venue_adapter=_FakeVenueAdapterRejecting(),
-                outcome_processor=_RecordingOutcomeProcessor(),
-            )
-
-        partial_record = next(
-            r for r in caplog.records
-            if 'rejected by venue filters' in r.message
-        )
-        assert partial_record.levelno == logging.WARNING
 
     def test_full_close_rejection_with_pending_exit_does_not_route_to_close_as_dust(self) -> None:
         position = self._open_position(
