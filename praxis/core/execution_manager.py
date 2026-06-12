@@ -746,9 +746,13 @@ class ExecutionManager:
                 treated as an opaque non-empty string. When supplied it
                 becomes the command's identity verbatim, letting the
                 caller register the command in its own state before the
-                handoff; a duplicate of any accepted command is rejected
-                rather than regenerated. When omitted a UUID is minted
-                exactly as before.
+                handoff; an identifier already in use by any accepted or
+                in-memory command is rejected rather than regenerated.
+                The identity is reserved in the accepted registry before
+                the spine append's await (and rolled back if the append
+                fails), so two concurrent submissions of the same id
+                cannot interleave at the yield — exactly one wins. When
+                omitted a UUID is minted exactly as before.
 
         Returns:
             str: Assigned command_id (the caller-supplied identifier
@@ -757,7 +761,7 @@ class ExecutionManager:
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
             ValueError: If command fails inbound validation, including
-                an empty or duplicate caller-supplied `command_id`.
+                an empty or already-in-use caller-supplied `command_id`.
         '''
 
         runtime = self._accounts.get(account_id)
@@ -770,8 +774,11 @@ class ExecutionManager:
                 msg = 'caller-supplied command_id must be a non-empty string'
                 raise ValueError(msg)
 
-            if command_id in self._accepted_commands:
-                msg = f"duplicate command_id '{command_id}' already accepted"
+            if (
+                command_id in self._accepted_commands
+                or command_id in self._commands
+            ):
+                msg = f"command_id '{command_id}' is already in use"
                 raise ValueError(msg)
         else:
             command_id = str(uuid.uuid4())
@@ -803,10 +810,15 @@ class ExecutionManager:
             trade_id=trade_id,
             strategy_id=strategy_id,
         )
-        await self._event_spine.append(event, self._epoch_id)
+        self._accepted_commands[command_id] = account_id
+
+        try:
+            await self._event_spine.append(event, self._epoch_id)
+        except Exception:
+            self._accepted_commands.pop(command_id, None)
+            raise
 
         runtime.command_queue.put_nowait(cmd)
-        self._accepted_commands[command_id] = account_id
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
 

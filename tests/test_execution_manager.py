@@ -179,8 +179,53 @@ class TestSubmitCommand:
     ) -> None:
         mgr.register_account(_ACCT)
         await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-dup-001')
-        with pytest.raises(ValueError, match='duplicate'):
+        with pytest.raises(ValueError, match='already in use'):
             await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-dup-001')
+
+    @pytest.mark.asyncio
+    async def test_concurrent_same_command_id_exactly_one_wins(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        results = await asyncio.gather(
+            mgr.submit_command(**_CMD_KWARGS, command_id='cmd-race-001'),
+            mgr.submit_command(**_CMD_KWARGS, command_id='cmd-race-001'),
+            return_exceptions=True,
+        )
+        winners = [r for r in results if isinstance(r, str)]
+        losers = [r for r in results if isinstance(r, ValueError)]
+        assert len(winners) == 1
+        assert len(losers) == 1
+        events = await spine.read(_EPOCH, after_seq=0)
+        accepted = [e for _seq, e in events if isinstance(e, CommandAccepted)]
+        assert len(accepted) == 1
+
+    @pytest.mark.asyncio
+    async def test_failed_spine_append_frees_reserved_command_id(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        original_append = mgr._event_spine.append
+
+        async def _boom(_event: object, _epoch_id: int) -> None:
+            msg = 'synthetic spine failure'
+            raise OSError(msg)
+
+        mgr._event_spine.append = _boom
+        with pytest.raises(OSError, match='synthetic'):
+            await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-retry-001')
+
+        assert 'cmd-retry-001' not in mgr._accepted_commands
+
+        mgr._event_spine.append = original_append
+        command_id = await mgr.submit_command(
+            **_CMD_KWARGS,
+            command_id='cmd-retry-001',
+        )
+        assert command_id == 'cmd-retry-001'
 
     @pytest.mark.asyncio
     async def test_appends_command_accepted_to_spine(
