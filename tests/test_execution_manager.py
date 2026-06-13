@@ -53,6 +53,11 @@ from praxis.infrastructure.venue_adapter import (
 
 _TS = datetime(2099, 1, 1, tzinfo=UTC)
 _PAST_TS = datetime(2020, 1, 1, tzinfo=UTC)
+_LONG_ID_VERBATIM = 'cmd-0123456789abcdef0123456789abcdef'
+_LONG_ID_DUP = 'cmd-dup00000000000000000000000000000'
+_LONG_ID_RACE = 'cmd-race0000000000000000000000000000'
+_LONG_ID_A = 'cmd-a000000000000000000000000000000a'
+_LONG_ID_B = 'cmd-b000000000000000000000000000000b'
 _ACCT = 'acc-1'
 _ACCT2 = 'acc-2'
 _TRADE = 'trade-1'
@@ -157,11 +162,11 @@ class TestSubmitCommand:
         mgr.register_account(_ACCT)
         command_id = await mgr.submit_command(
             **_CMD_KWARGS,
-            command_id='cmd-nexus-deterministic-001',
+            command_id=_LONG_ID_VERBATIM,
         )
-        assert command_id == 'cmd-nexus-deterministic-001'
-        assert mgr._accepted_commands['cmd-nexus-deterministic-001'] == _ACCT
-        assert 'cmd-nexus-deterministic-001' in mgr._commands
+        assert command_id == _LONG_ID_VERBATIM
+        assert mgr._accepted_commands[_LONG_ID_VERBATIM] == _ACCT
+        assert _LONG_ID_VERBATIM in mgr._commands
 
     @pytest.mark.asyncio
     async def test_empty_caller_supplied_command_id_raises(
@@ -173,14 +178,28 @@ class TestSubmitCommand:
             await mgr.submit_command(**_CMD_KWARGS, command_id='')
 
     @pytest.mark.asyncio
+    async def test_short_caller_supplied_command_id_rejected_before_accept(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        with pytest.raises(ValueError, match='at least 16 characters'):
+            await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-short-1')
+
+        assert 'cmd-short-1' not in mgr._accepted_commands
+        events = await spine.read(_EPOCH, after_seq=0)
+        assert events == []
+
+    @pytest.mark.asyncio
     async def test_duplicate_caller_supplied_command_id_raises(
         self,
         mgr: ExecutionManager,
     ) -> None:
         mgr.register_account(_ACCT)
-        await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-dup-001')
+        await mgr.submit_command(**_CMD_KWARGS, command_id=_LONG_ID_DUP)
         with pytest.raises(ValueError, match='already in use'):
-            await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-dup-001')
+            await mgr.submit_command(**_CMD_KWARGS, command_id=_LONG_ID_DUP)
 
     @pytest.mark.asyncio
     async def test_concurrent_same_command_id_exactly_one_wins(
@@ -190,8 +209,8 @@ class TestSubmitCommand:
     ) -> None:
         mgr.register_account(_ACCT)
         results = await asyncio.gather(
-            mgr.submit_command(**_CMD_KWARGS, command_id='cmd-race-001'),
-            mgr.submit_command(**_CMD_KWARGS, command_id='cmd-race-001'),
+            mgr.submit_command(**_CMD_KWARGS, command_id=_LONG_ID_RACE),
+            mgr.submit_command(**_CMD_KWARGS, command_id=_LONG_ID_RACE),
             return_exceptions=True,
         )
         winners = [r for r in results if isinstance(r, str)]
@@ -215,17 +234,21 @@ class TestSubmitCommand:
             raise OSError(msg)
 
         mgr._event_spine.append = _boom
-        with pytest.raises(OSError, match='synthetic'):
-            await mgr.submit_command(**_CMD_KWARGS, command_id='cmd-retry-001')
+        try:
+            with pytest.raises(OSError, match='synthetic'):
+                await mgr.submit_command(
+                    **_CMD_KWARGS,
+                    command_id=_LONG_ID_A,
+                )
+            assert _LONG_ID_A not in mgr._accepted_commands
+        finally:
+            mgr._event_spine.append = original_append
 
-        assert 'cmd-retry-001' not in mgr._accepted_commands
-
-        mgr._event_spine.append = original_append
         command_id = await mgr.submit_command(
             **_CMD_KWARGS,
-            command_id='cmd-retry-001',
+            command_id=_LONG_ID_A,
         )
-        assert command_id == 'cmd-retry-001'
+        assert command_id == _LONG_ID_A
 
     @pytest.mark.asyncio
     async def test_cancelled_append_frees_reserved_command_id(
@@ -240,24 +263,26 @@ class TestSubmitCommand:
             await gate.wait()
 
         mgr._event_spine.append = _stall
-        task = asyncio.create_task(
-            mgr.submit_command(**_CMD_KWARGS, command_id='cmd-cancel-001'),
-        )
-        await asyncio.sleep(0)
-        assert 'cmd-cancel-001' in mgr._accepted_commands
+        try:
+            task = asyncio.create_task(
+                mgr.submit_command(**_CMD_KWARGS, command_id=_LONG_ID_B),
+            )
+            await asyncio.sleep(0)
+            assert _LONG_ID_B in mgr._accepted_commands
 
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await task
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
 
-        assert 'cmd-cancel-001' not in mgr._accepted_commands
+            assert _LONG_ID_B not in mgr._accepted_commands
+        finally:
+            mgr._event_spine.append = original_append
 
-        mgr._event_spine.append = original_append
         command_id = await mgr.submit_command(
             **_CMD_KWARGS,
-            command_id='cmd-cancel-001',
+            command_id=_LONG_ID_B,
         )
-        assert command_id == 'cmd-cancel-001'
+        assert command_id == _LONG_ID_B
 
     @pytest.mark.asyncio
     async def test_appends_command_accepted_to_spine(

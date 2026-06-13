@@ -100,6 +100,6 @@ class TestValidation:
 
     def test_short_command_id_raises(self) -> None:
         with pytest.raises(
-            ValueError, match='command_id must contain at least 16 hex characters'
+            ValueError, match='command_id must have at least 16 characters'
         ):
             generate_client_order_id(ExecutionMode.TWAP, 'abc', 0)

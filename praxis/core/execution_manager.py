@@ -48,7 +48,10 @@ from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import estimate_slippage
-from praxis.core.generate_client_order_id import generate_client_order_id
+from praxis.core.generate_client_order_id import (
+    generate_client_order_id,
+    validate_command_id_for_client_order_id,
+)
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
@@ -742,14 +745,18 @@ class ExecutionManager:
             stp_mode (STPMode): Self-trade prevention mode.
             created_at (datetime): Command creation time.
             strategy_id (str | None): Nexus strategy identifier for position attribution.
-            command_id (str | None): Caller-supplied command identifier,
-                treated as an opaque non-empty string. When supplied it
-                becomes the command's identity verbatim, letting the
-                caller register the command in its own state before the
-                handoff; an identifier already in use by any accepted or
-                in-memory command is rejected rather than regenerated.
-                The identity is reserved in the accepted registry before
-                the spine append's await (and rolled back if the append
+            command_id (str | None): Caller-supplied command identifier.
+                When supplied it becomes the command's identity verbatim,
+                letting the caller register the command in its own state
+                before the handoff. It must be non-empty and have at
+                least 16 characters after stripping hyphens (the
+                `generate_client_order_id` derivation floor — validated
+                here so a too-short id is rejected before any state is
+                persisted rather than failing at submission). An
+                identifier already in use by any accepted or in-memory
+                command is rejected rather than regenerated. The
+                identity is reserved in the accepted registry before the
+                spine append's await (and rolled back if the append
                 fails), so two concurrent submissions of the same id
                 cannot interleave at the yield — exactly one wins. When
                 omitted a UUID is minted exactly as before.
@@ -761,7 +768,8 @@ class ExecutionManager:
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
             ValueError: If command fails inbound validation, including
-                an empty or already-in-use caller-supplied `command_id`.
+                an empty, too-short, or already-in-use caller-supplied
+                `command_id`.
         '''
 
         runtime = self._accounts.get(account_id)
@@ -773,6 +781,8 @@ class ExecutionManager:
             if not command_id:
                 msg = 'caller-supplied command_id must be a non-empty string'
                 raise ValueError(msg)
+
+            validate_command_id_for_client_order_id(command_id)
 
             if (
                 command_id in self._accepted_commands
