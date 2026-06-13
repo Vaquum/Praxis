@@ -63,6 +63,7 @@ def _stub_nexus_runtime() -> _NexusRuntime:
         health_loop=MagicMock(),
         snapshot_scheduler=MagicMock(),
         mtm_loop=MagicMock(),
+        unknown_submission_monitor=MagicMock(),
         outcome_processor=MagicMock(),
         process_outcome=MagicMock(),
     )
