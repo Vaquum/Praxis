@@ -66,10 +66,13 @@ from nexus.infrastructure.praxis_connector.outcome_processor import OutcomeProce
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
 from nexus.infrastructure.snapshot_scheduler import SnapshotScheduler
+from nexus.infrastructure.praxis_connector.trade_command import (
+    TradeCommand as NexusTradeCommand,
+)
 from nexus.infrastructure.praxis_connector.trade_outcome import (
     TradeOutcome as NexusTradeOutcome,
 )
-from nexus.infrastructure.state_store import StateStore
+from nexus.infrastructure.state_store import StateSnapshotLocks, StateStore
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
@@ -132,6 +135,9 @@ _DEFAULT_SYMBOL = 'BTCUSDT'
 _DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
 _DEFAULT_SNAPSHOT_INTERVAL_SECONDS = 300.0
 _DEFAULT_MTM_INTERVAL_SECONDS = 30.0
+_DEFAULT_UNKNOWN_SUBMISSION_WARN_SECONDS = 60.0
+_DEFAULT_UNKNOWN_SUBMISSION_SCAN_SECONDS = 15.0
+_UNKNOWN_SUBMISSION_LOG_ID_LIMIT = 10
 
 
 def _positive_float_env(name: str, default: float) -> float:
@@ -1005,6 +1011,454 @@ def _build_order_context(
         return None
 
 
+@dataclass(frozen=True)
+class _UnknownSubmission:
+    '''Telemetry record for a command whose handoff outcome is unknown.
+
+    Created by `_PreRegisteredSubmission.mark_unknown` when a
+    `send_command` timeout leaves a pre-registered command in limbo: it
+    may still execute, so the registration is retained and a late
+    outcome resolves against it, but the launcher's periodic scan warns
+    about ones that linger. Cleared when any outcome for the command is
+    successfully processed (an ACK proves it reached the venue
+    lifecycle), and defensively on terminal cleanup in `process_outcome`
+    (including the no-`OrderContext` branch).
+
+    Args:
+        command_id: The deterministic command identity.
+        strategy_id: Owning strategy.
+        created_at: Wall-clock UTC instant the command became unknown.
+        action_type: ENTER / EXIT / etc., for the operator log.
+        symbol: Trading symbol.
+        side: Order side.
+        order_notional: Requested notional (quote units).
+        error: The timeout/cause string.
+    '''
+
+    command_id: str
+    strategy_id: str
+    created_at: datetime
+    action_type: str
+    symbol: str
+    side: str
+    order_notional: Decimal | None
+    error: str
+
+
+@dataclass
+class _PreRegisteredSubmission:
+    '''Lifecycle handle for a command registered before outbound handoff.
+
+    Returned by the launcher's `pre_register` to `submit_actions`, which
+    drives it as the `send_command` handoff resolves. Registering the
+    strategy mapping, `OrderContext`, capital order, and position effect
+    BEFORE handoff lets a fast venue's ACK/FILL resolve against state
+    that already exists, closing the registration-gap race at its root.
+
+    The handle records exactly what it inserted so `rollback` is precise
+    and idempotent. `mark_unknown` retains everything (the command may
+    still execute; a late outcome must resolve against it) and records
+    the command in `unknown_submissions` for the launcher's reconciler.
+
+    Args:
+        command_id: The deterministic command identity.
+        strategy_id: Owning strategy.
+        command_strategy_ids: Registry the strategy mapping was inserted
+            into.
+        command_contexts: Registry the `OrderContext` was inserted into
+            (only when `context_registered`).
+        unknown_submissions: Registry that retains the command when the
+            handoff outcome is unknown.
+        capital_controller: For releasing the capital order on rollback.
+        lock: `command_registry_lock` guarding the registries.
+        reservation_consumed: Whether `send_order` consumed the
+            reservation into a capital order (so rollback releases the
+            order, not the reservation).
+        context_registered: Whether an `OrderContext` was inserted.
+        action_type: `ENTER` or `EXIT`, recorded into the unknown record.
+        symbol: Command symbol, recorded into the unknown record.
+        side: `BUY` or `SELL`, recorded into the unknown record.
+        order_notional: Requested notional, recorded into the unknown
+            record.
+        now: Wall-clock UTC provider stamping the unknown record.
+        rollback_position: Optional callable undoing the position effect
+            (ENTER placeholder removal or EXIT `pending_exit` decrement).
+    '''
+
+    command_id: str
+    strategy_id: str
+    command_strategy_ids: dict[str, str]
+    command_contexts: dict[str, OrderContext]
+    unknown_submissions: dict[str, _UnknownSubmission]
+    capital_controller: CapitalController
+    lock: threading.Lock
+    reservation_consumed: bool
+    context_registered: bool
+    action_type: str
+    symbol: str
+    side: str
+    order_notional: Decimal | None
+    now: Callable[[], datetime]
+    rollback_position: Callable[[], None] | None = None
+
+    def mark_submitted(self, _command_id: str) -> None:
+        '''Confirm acceptance; registration already stands, nothing to do.'''
+
+    def mark_unknown(self, error: BaseException) -> None:
+        '''Retain the registration and record the command as unknown.'''
+
+        record = _UnknownSubmission(
+            command_id=self.command_id,
+            strategy_id=self.strategy_id,
+            created_at=self.now(),
+            action_type=self.action_type,
+            symbol=self.symbol,
+            side=self.side,
+            order_notional=self.order_notional,
+            error=str(error),
+        )
+
+        with self.lock:
+            self.unknown_submissions[self.command_id] = record
+
+    def rollback(self, error: BaseException) -> None:
+        '''Undo every registration effect; idempotent.
+
+        Args:
+            error: The failure that triggered the rollback (logged).
+        '''
+
+        if self.rollback_position is not None:
+            self.rollback_position()
+
+        if self.reservation_consumed:
+            recover_result = self.capital_controller.recover_orphaned_order(
+                self.command_id,
+                'submit_failed',
+            )
+            if not recover_result.success:
+                _log.warning(
+                    'recover_orphaned_order rejected during pre-register '
+                    'rollback',
+                    extra={
+                        'command_id': self.command_id,
+                        'reason': recover_result.reason,
+                    },
+                )
+
+        with self.lock:
+            self.command_strategy_ids.pop(self.command_id, None)
+            if self.context_registered:
+                self.command_contexts.pop(self.command_id, None)
+            self.unknown_submissions.pop(self.command_id, None)
+
+        _log.warning(
+            'pre-registered submission rolled back',
+            extra={'command_id': self.command_id, 'reason': str(error)},
+        )
+
+
+@dataclass
+class _PreRegisterWiring:
+    '''Per-account references a pre_register callback closes over.
+
+    Grouped so the registration logic can live in the module-level
+    `_make_pre_register` factory — testable in isolation — rather than
+    as an opaque closure inside `_build_nexus_runtime`.
+
+    Args:
+        pending_registrations: command_id -> (action, strategy_id, ctx),
+            populated by the submitter's recording build_context so the
+            callback can recover per-action metadata from `cmd` alone.
+        command_strategy_ids: strategy-id registry to insert into.
+        command_contexts: OrderContext registry to insert into.
+        unknown_submissions: registry retaining unknown-outcome commands.
+        command_registry_lock: lock guarding the three registries.
+        capital_controller: for `send_order` and rollback recovery.
+        state: live InstanceState for position effects.
+        positions_lock: guards position / pending_exit writes.
+        fallback_price_provider: ENTER placeholder pricing.
+        now: wall-clock UTC provider for unknown-submission timestamps.
+    '''
+
+    pending_registrations: dict[str, tuple[Action, str, ValidationRequestContext]]
+    command_strategy_ids: dict[str, str]
+    command_contexts: dict[str, OrderContext]
+    unknown_submissions: dict[str, _UnknownSubmission]
+    command_registry_lock: threading.Lock
+    capital_controller: CapitalController
+    state: InstanceState
+    positions_lock: threading.Lock
+    fallback_price_provider: Callable[[], Decimal | None]
+    now: Callable[[], datetime]
+
+
+def _make_pre_register(
+    wiring: _PreRegisterWiring,
+) -> Callable[[NexusTradeCommand, ValidationDecision], _PreRegisteredSubmission]:
+    '''Build the pre-registration callback for `submit_actions`.
+
+    The returned callable registers a command's strategy mapping,
+    capital order, position effect, and `OrderContext` BEFORE the
+    `send_command` handoff, keyed on the deterministic `cmd.command_id`,
+    and returns a `_PreRegisteredSubmission` handle driving confirm /
+    unknown / rollback.
+
+    Args:
+        wiring: The per-account references to operate on.
+
+    Returns:
+        A `pre_register(cmd, decision)` callable.
+    '''
+
+    def pre_register(
+        cmd: NexusTradeCommand,
+        decision: ValidationDecision,
+    ) -> _PreRegisteredSubmission:
+        action, strategy_id, ctx = wiring.pending_registrations[cmd.command_id]
+
+        reservation_consumed = False
+
+        with wiring.command_registry_lock:
+            wiring.command_strategy_ids[cmd.command_id] = strategy_id
+
+            if decision.reservation is not None:
+                send_result = wiring.capital_controller.send_order(
+                    decision.reservation.reservation_id,
+                    cmd.command_id,
+                )
+                if not send_result.success:
+                    wiring.command_strategy_ids.pop(cmd.command_id, None)
+                    msg = (
+                        f'send_order failed for {cmd.command_id}: '
+                        f'{send_result.reason}'
+                    )
+                    raise RuntimeError(msg)
+                reservation_consumed = True
+
+        rollback_position: Callable[[], None] | None = None
+        forced_trade_id: str | None = None
+
+        # Once `send_order` consumed the reservation into a capital order,
+        # every step below must be exception-safe: if one raises,
+        # `submit_actions`' catch calls `_release_granted_reservation`,
+        # which is a no-op for an already-consumed reservation — leaking
+        # the capital order and the `command_strategy_ids` entry until
+        # boot reconcile. Mirror `rollback` here (undo the position
+        # effect, recover the orphaned order, pop the registries) before
+        # re-raising so the cleanup contract does not depend on these
+        # helpers staying raise-free.
+        try:
+            if action.action_type == ActionType.ENTER:
+                forced_trade_id = cmd.command_id
+                _ensure_entry_position(
+                    state=wiring.state,
+                    action=action,
+                    strategy_id=strategy_id,
+                    trade_id=forced_trade_id,
+                    fallback_price_provider=wiring.fallback_price_provider,
+                    positions_lock=wiring.positions_lock,
+                )
+
+                def rollback_position() -> None:
+                    with wiring.positions_lock:
+                        position = wiring.state.positions.get(cmd.command_id)
+                        if position is not None and position.size == _ZERO:
+                            del wiring.state.positions[cmd.command_id]
+
+            elif (
+                action.action_type == ActionType.EXIT
+                and action.trade_id is not None
+                and ctx.order_size is not None
+            ):
+                exit_trade_id = action.trade_id
+                exit_size = ctx.order_size
+
+                with wiring.positions_lock:
+                    position = wiring.state.positions.get(exit_trade_id)
+                    if position is not None:
+                        position.pending_exit += exit_size
+
+                def rollback_position() -> None:
+                    with wiring.positions_lock:
+                        position = wiring.state.positions.get(exit_trade_id)
+                        if position is not None:
+                            position.pending_exit -= exit_size
+
+            # Build the OrderContext from the validator's already-captured
+            # `ctx`, NOT by re-running `build_context`: this code has just
+            # mutated `position.pending_exit`, and a re-run would recompute
+            # `intended_full_close` (= `action.size == size - pending_exit`)
+            # against the inflated value, flipping a true full-close to
+            # not-full-close and breaking the dust-close path. `ctx` was
+            # computed by the validator before the mutation.
+            order_context = _build_order_context(
+                action=action,
+                strategy_id=strategy_id,
+                command_id=cmd.command_id,
+                build_context=lambda _action, _strategy_id: ctx,
+                forced_trade_id=forced_trade_id,
+            )
+
+            context_registered = order_context is not None
+
+            if order_context is not None:
+                with wiring.command_registry_lock:
+                    wiring.command_contexts[cmd.command_id] = order_context
+        except BaseException:
+            # BaseException, not Exception: a CancelledError after
+            # `send_order` must still run the capital-recovery cleanup, or
+            # the consumed reservation leaks. The cleanup re-raises, so
+            # KeyboardInterrupt / SystemExit are not swallowed.
+            if rollback_position is not None:
+                rollback_position()
+            if reservation_consumed:
+                wiring.capital_controller.recover_orphaned_order(
+                    cmd.command_id,
+                    'submit_failed',
+                )
+            with wiring.command_registry_lock:
+                wiring.command_strategy_ids.pop(cmd.command_id, None)
+                wiring.command_contexts.pop(cmd.command_id, None)
+            raise
+
+        return _PreRegisteredSubmission(
+            command_id=cmd.command_id,
+            strategy_id=strategy_id,
+            command_strategy_ids=wiring.command_strategy_ids,
+            command_contexts=wiring.command_contexts,
+            unknown_submissions=wiring.unknown_submissions,
+            capital_controller=wiring.capital_controller,
+            lock=wiring.command_registry_lock,
+            reservation_consumed=reservation_consumed,
+            context_registered=context_registered,
+            action_type=action.action_type.value,
+            symbol=cmd.symbol,
+            side=cmd.side.value,
+            order_notional=cmd.notional,
+            now=wiring.now,
+            rollback_position=rollback_position,
+        )
+
+    return pre_register
+
+
+class _UnknownSubmissionMonitor:
+    '''Periodically warn about commands stuck in SUBMISSION_UNKNOWN.
+
+    A command lands in `unknown_submissions` when its `send_command`
+    handoff timed out: the command may still be executing at the venue,
+    so the registration is retained and a late outcome will clear it
+    (`process_outcome` pops on the first successfully-processed outcome,
+    including ACK). This monitor surfaces the ones that never clear —
+    telemetry only, no venue query and no forced release.
+
+    Mirrors `SnapshotScheduler`'s `threading.Timer` cadence because the
+    `unknown_submissions` registry is guarded by `command_registry_lock`
+    (a `threading.Lock`) and written from the `OutcomeLoop` worker
+    thread.
+
+    Args:
+        unknown_submissions: The launcher's unknown-submission registry.
+        lock: `command_registry_lock` guarding the registry.
+        now: Wall-clock UTC provider for age computation.
+        warn_seconds: Age above which a command is reported.
+        scan_seconds: Seconds between scans. Must be positive.
+    '''
+
+    def __init__(
+        self,
+        unknown_submissions: dict[str, _UnknownSubmission],
+        lock: threading.Lock,
+        now: Callable[[], datetime],
+        warn_seconds: float,
+        scan_seconds: float,
+    ) -> None:
+        self._unknown_submissions = unknown_submissions
+        self._lock = lock
+        self._now = now
+        self._warn_seconds = warn_seconds
+        self._scan_seconds = scan_seconds
+        self._timer: threading.Timer | None = None
+        self._running = False
+        self._state_lock = threading.Lock()
+
+    @property
+    def running(self) -> bool:
+        '''Whether the scan loop is currently scheduling ticks.'''
+
+        return self._running
+
+    def start(self) -> None:
+        '''Start the periodic scan loop.'''
+
+        with self._state_lock:
+            if self._running:
+                return
+
+            self._running = True
+            self._schedule_locked()
+
+    def stop(self) -> None:
+        '''Stop the loop and cancel any pending scan.'''
+
+        with self._state_lock:
+            self._running = False
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+
+    def scan_once(self) -> None:
+        '''Run one scan without scheduling another tick.'''
+
+        now = self._now()
+
+        with self._lock:
+            aged = [
+                record
+                for record in self._unknown_submissions.values()
+                if (now - record.created_at).total_seconds() >= self._warn_seconds
+            ]
+
+        if not aged:
+            return
+
+        max_age = max((now - record.created_at).total_seconds() for record in aged)
+        command_ids = [record.command_id for record in aged][
+            :_UNKNOWN_SUBMISSION_LOG_ID_LIMIT
+        ]
+
+        _log.warning(
+            'submissions stuck in SUBMISSION_UNKNOWN',
+            extra={
+                'count': len(aged),
+                'max_age_seconds': max_age,
+                'command_ids': command_ids,
+            },
+        )
+
+    def _schedule_locked(self) -> None:
+        if not self._running:
+            return
+
+        self._timer = threading.Timer(self._scan_seconds, self._tick)
+        self._timer.daemon = True
+        self._timer.start()
+
+    def _tick(self) -> None:
+        with self._state_lock:
+            if not self._running:
+                return
+
+        try:
+            self.scan_once()
+        except Exception:  # noqa: BLE001 - a scan failure must not abort the loop
+            _log.exception('unknown-submission scan failed; next tick will retry')
+
+        with self._state_lock:
+            self._schedule_locked()
+
+
 def _register_wired_kline_sizes(
     wired_sensors: Iterable[Any],
 ) -> tuple[int, ...]:
@@ -1239,6 +1693,50 @@ def _build_strategy_context(
     )
 
 
+def _build_state_snapshot_locks(
+    state: InstanceState,
+    positions_lock: threading.Lock,
+    capital_controller: CapitalController,
+) -> StateSnapshotLocks:
+    '''Build the `StateStore` snapshot-lock bundle, asserting lock identity.
+
+    `serialize_state` iterates `state.positions`, `state.risk.per_strategy`,
+    and `state.capital.per_strategy_deployed`. `StateStore` acquires the
+    bundle's `positions_lock` + `capital_lock` around that serialization, so
+    `positions_lock` only covers `state.risk.per_strategy` when it IS
+    `state.risk.lock` (the same object). This is the composition point that
+    holds all three objects, so the identity is enforced here — once the
+    Nexus-side construction guards moved out of `ShutdownSequencer` /
+    `SnapshotScheduler`, this is the single place that can catch a miswire.
+
+    Args:
+        state: The recovered instance state (its `risk.lock` must already
+            be wired to `positions_lock`).
+        positions_lock: The shared lock guarding `state.positions`.
+        capital_controller: Source of the capital lock via `lock_cm`.
+
+    Returns:
+        A `StateSnapshotLocks` bundle for `StateStore.attach_snapshot_locks`.
+
+    Raises:
+        RuntimeError: If `state.risk.lock is not positions_lock`.
+    '''
+
+    if state.risk.lock is not positions_lock:
+        msg = (
+            'StateStore snapshot-lock bundle requires `state.risk.lock` to be '
+            'the same object as `positions_lock` so the bundle covers '
+            '`state.risk.per_strategy` serialization; got '
+            f'state.risk.lock={state.risk.lock!r}, positions_lock={positions_lock!r}'
+        )
+        raise RuntimeError(msg)
+
+    return StateSnapshotLocks(
+        positions_lock=positions_lock,
+        capital_lock=capital_controller.lock_cm(),
+    )
+
+
 @dataclass(frozen=True)
 class InstanceConfig:
     '''Configuration for one Nexus Manager instance.
@@ -1286,6 +1784,7 @@ class _NexusRuntime:
     health_loop: HealthLoop
     snapshot_scheduler: SnapshotScheduler
     mtm_loop: MtmLoop
+    unknown_submission_monitor: _UnknownSubmissionMonitor
     outcome_processor: OutcomeProcessor
     process_outcome: Callable[[NexusTradeOutcome], None]
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -1859,6 +2358,7 @@ class Launcher:
             runtime.health_loop.stop()
             runtime.mtm_loop.stop()
             runtime.snapshot_scheduler.stop()
+            runtime.unknown_submission_monitor.stop()
 
             shutdown = ShutdownSequencer(
                 runner=runtime.runner,
@@ -1879,7 +2379,6 @@ class Launcher:
                 outcome_processor=runtime.outcome_processor,
                 non_pending_outcome_handler=runtime.process_outcome,
                 positions_lock=runtime.positions_lock,
-                capital_controller=runtime.capital_controller,
             )
             shutdown.shutdown()
 
@@ -1957,6 +2456,9 @@ class Launcher:
             )
             raise RuntimeError(msg)
         state.risk.lock = positions_lock
+        state_store.attach_snapshot_locks(
+            _build_state_snapshot_locks(state, positions_lock, capital_controller),
+        )
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
@@ -2022,19 +2524,71 @@ class Launcher:
 
         command_strategy_ids: dict[str, str] = {}
         command_contexts: dict[str, OrderContext] = {}
+        unknown_submissions: dict[str, _UnknownSubmission] = {}
 
         def submitter(actions: list[Action], strategy_id: str) -> None:
+            # `pending_registrations` is per-call, not shared: `submitter`
+            # is the `action_submit` callback for PredictLoop / TimerLoop /
+            # OutcomeLoop (separate threads, no shared submission lock), so a
+            # module-scoped dict would race — a concurrent call clearing it
+            # between this call's `recording_build_context` populate and
+            # `pre_register`'s lookup. The shared registries
+            # (`command_strategy_ids` / `command_contexts` /
+            # `unknown_submissions`) stay shared and are guarded by
+            # `command_registry_lock`.
+            pending_registrations: dict[
+                str, tuple[Action, str, ValidationRequestContext]
+            ] = {}
+
+            def recording_build_context(
+                action: Action,
+                inner_strategy_id: str,
+            ) -> ValidationRequestContext | None:
+                ctx = build_context(action, inner_strategy_id)
+
+                if ctx is not None and ctx.command_id is not None:
+                    pending_registrations[ctx.command_id] = (
+                        action,
+                        inner_strategy_id,
+                        ctx,
+                    )
+
+                return ctx
+
+            pre_register = (
+                _make_pre_register(
+                    _PreRegisterWiring(
+                        pending_registrations=pending_registrations,
+                        command_strategy_ids=command_strategy_ids,
+                        command_contexts=command_contexts,
+                        unknown_submissions=unknown_submissions,
+                        command_registry_lock=command_registry_lock,
+                        capital_controller=capital_controller,
+                        state=state,
+                        positions_lock=positions_lock,
+                        fallback_price_provider=fallback_price_provider,
+                        now=lambda: datetime.now(UTC),
+                    ),
+                )
+                if praxis_outbound.supports_command_id
+                else None
+            )
+
             results = submit_actions(
                 actions,
                 strategy_id=strategy_id,
                 config=nexus_instance_config,
                 praxis_outbound=praxis_outbound,
                 validator=pipeline,
-                build_context=build_context,
+                build_context=recording_build_context,
                 now=lambda: datetime.now(UTC),
                 capital_controller=capital_controller,
                 positions_lock=positions_lock,
+                pre_register=pre_register,
             )
+
+            if praxis_outbound.supports_command_id:
+                return
 
             for action, outcome in results:
                 if (
@@ -2128,6 +2682,7 @@ class Launcher:
                     with command_registry_lock:
                         command_contexts.pop(outcome.command_id, None)
                         command_strategy_ids.pop(outcome.command_id, None)
+                        unknown_submissions.pop(outcome.command_id, None)
                     recover_result = capital_controller.recover_orphaned_order(
                         outcome.command_id,
                         outcome.outcome_type.value,
@@ -2153,11 +2708,15 @@ class Launcher:
                         'error': result.error_reason,
                     },
                 )
+            else:
+                with command_registry_lock:
+                    unknown_submissions.pop(outcome.command_id, None)
 
             if outcome.outcome_type.is_terminal:
                 with command_registry_lock:
                     command_contexts.pop(outcome.command_id, None)
                     command_strategy_ids.pop(outcome.command_id, None)
+                    unknown_submissions.pop(outcome.command_id, None)
                 if (
                     order_context.is_entry
                     and order_context.trade_id is not None
@@ -2197,16 +2756,16 @@ class Launcher:
                     pending_persist_snapshot = dict(wiring.unpersisted_commands)
 
                 try:
-                    # `positions_lock` makes the serialize mutually
-                    # exclusive with `_apply_sync_accounting`'s in-memory
-                    # mutations on the trading thread — `state.positions`
-                    # and `state.account_dust` are dict-iterated during
-                    # encoding, and a concurrent insert would raise or
-                    # produce a torn snapshot. Capital fields are guarded
-                    # by the controller's own lock and decode-validated;
-                    # serialize-wide locking belongs in the Nexus codec.
-                    with positions_lock:
-                        state_store.append_mutation(state)
+                    # `state_store` acquires `positions_lock` + the capital
+                    # lock itself (its `StateSnapshotLocks` bundle) around the
+                    # serialize, keeping it mutually exclusive with
+                    # `_apply_sync_accounting`'s in-memory mutations on the
+                    # trading thread — `state.positions` / `state.account_dust`
+                    # are dict-iterated during encoding and a concurrent insert
+                    # would tear the snapshot. Wrapping here too would
+                    # re-acquire the non-reentrant `positions_lock` and
+                    # self-deadlock.
+                    state_store.append_mutation(state)
                 except Exception:  # noqa: BLE001 - persistence failure must not abort outcome flow
                     mutation_persisted = False
                     _log.exception(
@@ -2285,8 +2844,6 @@ class Launcher:
             state_store=state_store,
             state=state,
             interval_seconds=snapshot_interval,
-            positions_lock=positions_lock,
-            capital_lock_cm=capital_controller.lock_cm,
         )
         snapshot_scheduler.start()
 
@@ -2309,6 +2866,23 @@ class Launcher:
         )
         mtm_loop.start()
 
+        unknown_warn_seconds = _positive_float_env(
+            'NEXUS_UNKNOWN_SUBMISSION_WARN_SECONDS',
+            _DEFAULT_UNKNOWN_SUBMISSION_WARN_SECONDS,
+        )
+        unknown_scan_seconds = _positive_float_env(
+            'NEXUS_UNKNOWN_SUBMISSION_SCAN_SECONDS',
+            _DEFAULT_UNKNOWN_SUBMISSION_SCAN_SECONDS,
+        )
+        unknown_submission_monitor = _UnknownSubmissionMonitor(
+            unknown_submissions=unknown_submissions,
+            lock=command_registry_lock,
+            now=lambda: datetime.now(UTC),
+            warn_seconds=unknown_warn_seconds,
+            scan_seconds=unknown_scan_seconds,
+        )
+        unknown_submission_monitor.start()
+
         return _NexusRuntime(
             state_store=state_store,
             sequencer=sequencer,
@@ -2326,6 +2900,7 @@ class Launcher:
             health_loop=health_loop,
             snapshot_scheduler=snapshot_scheduler,
             mtm_loop=mtm_loop,
+            unknown_submission_monitor=unknown_submission_monitor,
             outcome_processor=outcome_processor,
             process_outcome=process_outcome,
             positions_lock=positions_lock,
