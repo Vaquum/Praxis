@@ -61,32 +61,33 @@ def _call_lineno(func_src: str, predicate: Callable[[ast.expr], bool]) -> int | 
     return None
 
 
-def test_attach_precedes_snapshot_scheduler_start() -> None:
+@pytest.mark.parametrize('consumer', ['outcome_loop', 'snapshot_scheduler'])
+def test_attach_precedes_store_consumer_start(consumer: str) -> None:
     src = inspect.getsource(Launcher._build_nexus_runtime)
 
     def is_attach(func: ast.expr) -> bool:
         return isinstance(func, ast.Attribute) and func.attr == 'attach_snapshot_locks'
 
-    def is_scheduler_start(func: ast.expr) -> bool:
+    def is_consumer_start(func: ast.expr) -> bool:
         return (
             isinstance(func, ast.Attribute)
             and func.attr == 'start'
             and isinstance(func.value, ast.Name)
-            and func.value.id == 'snapshot_scheduler'
+            and func.value.id == consumer
         )
 
     attach_line = _call_lineno(src, is_attach)
-    scheduler_start_line = _call_lineno(src, is_scheduler_start)
+    consumer_start_line = _call_lineno(src, is_consumer_start)
 
     assert attach_line is not None, (
         '_build_nexus_runtime must call state_store.attach_snapshot_locks'
     )
-    assert scheduler_start_line is not None, (
-        '_build_nexus_runtime must start the snapshot_scheduler'
+    assert consumer_start_line is not None, (
+        f'_build_nexus_runtime must start {consumer}'
     )
-    assert attach_line < scheduler_start_line, (
-        'attach_snapshot_locks must run before snapshot_scheduler.start so the '
-        'store owns the bundle before the periodic checkpoint thread mutates it'
+    assert attach_line < consumer_start_line, (
+        f'attach_snapshot_locks must run before {consumer}.start so the store '
+        'owns the bundle before that thread reaches append_mutation / checkpoint'
     )
 
 
