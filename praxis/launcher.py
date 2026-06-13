@@ -1302,6 +1302,10 @@ def _make_pre_register(
                 with wiring.command_registry_lock:
                     wiring.command_contexts[cmd.command_id] = order_context
         except BaseException:
+            # BaseException, not Exception: a CancelledError after
+            # `send_order` must still run the capital-recovery cleanup, or
+            # the consumed reservation leaks. The cleanup re-raises, so
+            # KeyboardInterrupt / SystemExit are not swallowed.
             if rollback_position is not None:
                 rollback_position()
             if reservation_consumed:
