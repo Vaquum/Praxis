@@ -788,7 +788,8 @@ def _build_exit_context(
         )
 
         if quantization.rejection_reason is not None:
-            _log.warning(
+            log_rejection = _log.info if intended_full_close else _log.warning
+            log_rejection(
                 'EXIT action rejected by venue filters at intake; skipping',
                 extra={
                     'strategy_id': strategy_id,

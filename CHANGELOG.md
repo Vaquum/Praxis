@@ -1041,3 +1041,16 @@
 ### Add
 
 - Add `account_id` and `command_strategy_ids` to [`_AccountOutcomeWiring`](praxis/launcher.py) — telemetry-only references for the skip warning, registered alongside the existing wiring fields
+
+## v0.79.0 on 12th of June, 2026
+
+### Add
+
+- Add optional `command_id: str | None = None` to [`ExecutionManager.submit_command`](praxis/core/execution_manager.py): a caller-supplied identifier is used verbatim (treated as an opaque non-empty string; an identifier already in use by any accepted or in-memory command fails inbound validation rather than being regenerated, and the identity is reserved before the spine append's await so concurrent same-id submissions cannot interleave), and a UUID is minted exactly as before when omitted. This lets the caller know the command's identity before the handoff and register it in its own state pre-submit — the enabling half of the cross-repo fix for the registration-gap race ([#146](https://github.com/Vaquum/Praxis/issues/146); companion Nexus changes track [Vaquum/Nexus#86](https://github.com/Vaquum/Nexus/issues/86) and [Vaquum/Nexus#87](https://github.com/Vaquum/Nexus/issues/87))
+- Add [`validate_command_id_for_client_order_id`](praxis/core/generate_client_order_id.py) and enforce it in `submit_command`: a caller-supplied `command_id` must have at least 16 characters after stripping hyphens (the `generate_client_order_id` derivation floor), so a too-short id is rejected at the inbound boundary before a `CommandAccepted` is persisted rather than failing later at submission. `generate_client_order_id` now delegates its inline length check to the same validator
+- Add tests to [`tests/test_execution_manager.py::TestSubmitCommand`](tests/test_execution_manager.py): caller-supplied id used verbatim and registered; empty id rejected; too-short id rejected before any `CommandAccepted` reaches the spine; in-use id rejected; concurrent same-id submissions — exactly one wins and exactly one `CommandAccepted` reaches the spine; a failed/cancelled spine append frees the reservation for reuse
+
+### Update
+
+- Update [`praxis/launcher.py:_build_exit_context`](praxis/launcher.py): the venue-filter intake rejection logs at info when `intended_full_close` is set — that rejection IS the designed dust-close trigger (v0.76.0) and was producing 1,000+ warning lines per trading cycle for nominal behavior. Rejections of partial-close EXITs keep the warning level ([#147](https://github.com/Vaquum/Praxis/issues/147))
+- Add `test_full_close_rejection_logs_info_partial_logs_warning` to [`tests/test_launcher_validation_context.py`](tests/test_launcher_validation_context.py) pinning the level split

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from praxis.core.domain.enums import ExecutionMode
 
-__all__ = ['generate_client_order_id']
+__all__ = ['generate_client_order_id', 'validate_command_id_for_client_order_id']
 
 _MAX_LENGTH = 36
 _MAX_SEQUENCE = 999
@@ -25,6 +25,32 @@ _MODE_PREFIX: dict[ExecutionMode, str] = {
 }
 
 _CMD_ID_HEX_LENGTH = 16
+
+
+def validate_command_id_for_client_order_id(command_id: str) -> None:
+    '''Validate that `command_id` can derive a client order ID.
+
+    `generate_client_order_id` slices the hyphen-stripped command_id to
+    `_CMD_ID_HEX_LENGTH` characters; an id shorter than that after
+    stripping cannot produce a valid client order ID. Callers that
+    accept caller-supplied ids should run this at their inbound
+    boundary so a too-short id is rejected before any state is
+    persisted, rather than failing later at submission.
+
+    Args:
+        command_id: The command identifier to validate.
+
+    Raises:
+        ValueError: If `command_id` has fewer than
+            `_CMD_ID_HEX_LENGTH` characters after stripping hyphens.
+    '''
+
+    if len(command_id.replace('-', '')) < _CMD_ID_HEX_LENGTH:
+        msg = (
+            f'command_id must have at least {_CMD_ID_HEX_LENGTH} '
+            'characters after stripping hyphens'
+        )
+        raise ValueError(msg)
 
 
 def generate_client_order_id(
@@ -61,11 +87,10 @@ def generate_client_order_id(
         msg = 'retry must be non-negative'
         raise ValueError(msg)
 
+    validate_command_id_for_client_order_id(command_id)
+
     prefix = _MODE_PREFIX[mode]
     cmd_hex = command_id.replace('-', '')[:_CMD_ID_HEX_LENGTH]
-    if len(cmd_hex) < _CMD_ID_HEX_LENGTH:
-        msg = f"command_id must contain at least {_CMD_ID_HEX_LENGTH} hex characters after stripping hyphens"
-        raise ValueError(msg)
     seq_str = f"{sequence:03d}"
     retry_str = f"r{retry}" if retry > 0 else ''
 

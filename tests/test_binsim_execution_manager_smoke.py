@@ -172,23 +172,43 @@ async def _wait_for_event_types(
     spine: EventSpine,
     types: set[str],
     timeout_s: float = 5.0,
+    min_counts: dict[str, int] | None = None,
 ) -> list[tuple[int, Any]]:
 
     deadline = time.monotonic() + timeout_s
+    required = dict.fromkeys(types, 1)
+
+    if min_counts is not None:
+        required.update(min_counts)
+
+    def _satisfied(events: list[tuple[int, Any]]) -> bool:
+        counts: dict[str, int] = {}
+
+        for _, event in events:
+            name = type(event).__name__
+            counts[name] = counts.get(name, 0) + 1
+
+        return all(counts.get(name, 0) >= n for name, n in required.items())
 
     while time.monotonic() < deadline:
         events = await spine.read(_EPOCH, after_seq=0)
-        observed = {type(event).__name__ for _, event in events}
 
-        if types.issubset(observed):
+        if _satisfied(events):
             return events
 
         await asyncio.sleep(0.05)
 
     events = await spine.read(_EPOCH, after_seq=0)
-    observed = {type(event).__name__ for _, event in events}
-    missing = types - observed
-    msg = f'event-spine did not contain {missing} within {timeout_s}s; got {observed}'
+    counts: dict[str, int] = {}
+    for _, event in events:
+        name = type(event).__name__
+        counts[name] = counts.get(name, 0) + 1
+    unmet = {
+        name: f'{counts.get(name, 0)}/{n}'
+        for name, n in required.items()
+        if counts.get(name, 0) < n
+    }
+    msg = f'event-spine did not reach {unmet} within {timeout_s}s; got {counts}'
     raise AssertionError(msg)
 
 
@@ -239,7 +259,11 @@ async def test_market_buy_walks_multiple_levels_emits_per_level_fills(
 
     await mgr.submit_command(**_market_buy_cmd_kwargs(qty=Decimal('15.0')))
 
-    events = await _wait_for_event_types(spine, types={'FillReceived'})
+    events = await _wait_for_event_types(
+        spine,
+        types={'FillReceived'},
+        min_counts={'FillReceived': 2},
+    )
     fills = [e for _, e in events if isinstance(e, FillReceived)]
 
     assert len(fills) == 2

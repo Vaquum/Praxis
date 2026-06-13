@@ -48,7 +48,10 @@ from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import estimate_slippage
-from praxis.core.generate_client_order_id import generate_client_order_id
+from praxis.core.generate_client_order_id import (
+    generate_client_order_id,
+    validate_command_id_for_client_order_id,
+)
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
@@ -718,6 +721,7 @@ class ExecutionManager:
         created_at: datetime,
         strategy_id: str | None = None,
         quote_qty: Decimal | None = None,
+        command_id: str | None = None,
     ) -> str:
         '''
         Accept a command, assign command_id, persist, and enqueue.
@@ -741,13 +745,31 @@ class ExecutionManager:
             stp_mode (STPMode): Self-trade prevention mode.
             created_at (datetime): Command creation time.
             strategy_id (str | None): Nexus strategy identifier for position attribution.
+            command_id (str | None): Caller-supplied command identifier.
+                When supplied it becomes the command's identity verbatim,
+                letting the caller register the command in its own state
+                before the handoff. It must be non-empty and have at
+                least 16 characters after stripping hyphens (the
+                `generate_client_order_id` derivation floor — validated
+                here so a too-short id is rejected before any state is
+                persisted rather than failing at submission). An
+                identifier already in use by any accepted or in-memory
+                command is rejected rather than regenerated. The
+                identity is reserved in the accepted registry before the
+                spine append's await (and rolled back if the append
+                fails), so two concurrent submissions of the same id
+                cannot interleave at the yield — exactly one wins. When
+                omitted a UUID is minted exactly as before.
 
         Returns:
-            str: Assigned command_id (UUID).
+            str: Assigned command_id (the caller-supplied identifier
+                when given, otherwise a minted UUID).
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
-            ValueError: If command fails inbound validation.
+            ValueError: If command fails inbound validation, including
+                an empty, too-short, or already-in-use caller-supplied
+                `command_id`.
         '''
 
         runtime = self._accounts.get(account_id)
@@ -755,7 +777,21 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
-        command_id = str(uuid.uuid4())
+        if command_id is not None:
+            if not command_id:
+                msg = 'caller-supplied command_id must be a non-empty string'
+                raise ValueError(msg)
+
+            validate_command_id_for_client_order_id(command_id)
+
+            if (
+                command_id in self._accepted_commands
+                or command_id in self._commands
+            ):
+                msg = f"command_id '{command_id}' is already in use"
+                raise ValueError(msg)
+        else:
+            command_id = str(uuid.uuid4())
 
         cmd = TradeCommand(
             command_id=command_id,
@@ -784,10 +820,16 @@ class ExecutionManager:
             trade_id=trade_id,
             strategy_id=strategy_id,
         )
-        await self._event_spine.append(event, self._epoch_id)
+        self._accepted_commands[command_id] = account_id
+
+        try:
+            await self._event_spine.append(event, self._epoch_id)
+        except BaseException:
+            self._accepted_commands.pop(command_id, None)
+            self._aborted_commands.pop(command_id, None)
+            raise
 
         runtime.command_queue.put_nowait(cmd)
-        self._accepted_commands[command_id] = account_id
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
 
