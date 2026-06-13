@@ -2494,39 +2494,56 @@ class Launcher:
         command_strategy_ids: dict[str, str] = {}
         command_contexts: dict[str, OrderContext] = {}
         unknown_submissions: dict[str, _UnknownSubmission] = {}
-        pending_registrations: dict[
-            str, tuple[Action, str, ValidationRequestContext]
-        ] = {}
-
-        def recording_build_context(
-            action: Action,
-            strategy_id: str,
-        ) -> ValidationRequestContext | None:
-            ctx = build_context(action, strategy_id)
-
-            if ctx is not None and ctx.command_id is not None:
-                pending_registrations[ctx.command_id] = (action, strategy_id, ctx)
-
-            return ctx
-
-        pre_register = _make_pre_register(
-            _PreRegisterWiring(
-                pending_registrations=pending_registrations,
-                command_strategy_ids=command_strategy_ids,
-                command_contexts=command_contexts,
-                unknown_submissions=unknown_submissions,
-                command_registry_lock=command_registry_lock,
-                capital_controller=capital_controller,
-                state=state,
-                positions_lock=positions_lock,
-                fallback_price_provider=fallback_price_provider,
-                build_context=build_context,
-                now=lambda: datetime.now(UTC),
-            ),
-        )
 
         def submitter(actions: list[Action], strategy_id: str) -> None:
-            pending_registrations.clear()
+            # `pending_registrations` is per-call, not shared: `submitter`
+            # is the `action_submit` callback for PredictLoop / TimerLoop /
+            # OutcomeLoop (separate threads, no shared submission lock), so a
+            # module-scoped dict would race — a concurrent call clearing it
+            # between this call's `recording_build_context` populate and
+            # `pre_register`'s lookup. The shared registries
+            # (`command_strategy_ids` / `command_contexts` /
+            # `unknown_submissions`) stay shared and are guarded by
+            # `command_registry_lock`.
+            pending_registrations: dict[
+                str, tuple[Action, str, ValidationRequestContext]
+            ] = {}
+
+            def recording_build_context(
+                action: Action,
+                inner_strategy_id: str,
+            ) -> ValidationRequestContext | None:
+                ctx = build_context(action, inner_strategy_id)
+
+                if ctx is not None and ctx.command_id is not None:
+                    pending_registrations[ctx.command_id] = (
+                        action,
+                        inner_strategy_id,
+                        ctx,
+                    )
+
+                return ctx
+
+            pre_register = (
+                _make_pre_register(
+                    _PreRegisterWiring(
+                        pending_registrations=pending_registrations,
+                        command_strategy_ids=command_strategy_ids,
+                        command_contexts=command_contexts,
+                        unknown_submissions=unknown_submissions,
+                        command_registry_lock=command_registry_lock,
+                        capital_controller=capital_controller,
+                        state=state,
+                        positions_lock=positions_lock,
+                        fallback_price_provider=fallback_price_provider,
+                        build_context=build_context,
+                        now=lambda: datetime.now(UTC),
+                    ),
+                )
+                if praxis_outbound.supports_command_id
+                else None
+            )
+
             results = submit_actions(
                 actions,
                 strategy_id=strategy_id,
@@ -2537,9 +2554,7 @@ class Launcher:
                 now=lambda: datetime.now(UTC),
                 capital_controller=capital_controller,
                 positions_lock=positions_lock,
-                pre_register=(
-                    pre_register if praxis_outbound.supports_command_id else None
-                ),
+                pre_register=pre_register,
             )
 
             if praxis_outbound.supports_command_id:
