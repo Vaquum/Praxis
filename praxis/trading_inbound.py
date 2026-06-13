@@ -45,6 +45,7 @@ class _ExecutionInboundGateway(Protocol):
         created_at: datetime,
         strategy_id: str | None = None,
         quote_qty: Decimal | None = None,
+        command_id: str | None = None,
     ) -> str: ...
 
     def submit_abort(self, abort: TradeAbort) -> None: ...
@@ -170,6 +171,7 @@ class TradingInbound:
         created_at: datetime,
         strategy_id: str | None = None,
         quote_qty: Decimal | None = None,
+        command_id: str | None = None,
     ) -> str:
         '''
         Route inbound command submission to the execution layer.
@@ -193,6 +195,9 @@ class TradingInbound:
             stp_mode (STPMode): Self-trade prevention mode.
             created_at (datetime): Timezone-aware command creation time.
             strategy_id (str | None): Nexus strategy identifier for position attribution.
+            command_id (str | None): Caller-supplied deterministic command
+                identifier. Used verbatim by the execution layer when
+                provided; a UUID is minted when omitted.
 
         Returns:
             str: Assigned command identifier.
@@ -218,6 +223,7 @@ class TradingInbound:
             stp_mode=stp_mode,
             created_at=created_at,
             strategy_id=strategy_id,
+            command_id=command_id,
         )
 
     def submit_abort(self, abort: TradeAbort) -> None:

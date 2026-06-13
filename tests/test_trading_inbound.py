@@ -107,6 +107,7 @@ class _FakeExecutionManager:
         created_at: datetime,
         strategy_id: str | None = None,  # noqa: ARG002
         quote_qty: Decimal | None = None,  # noqa: ARG002
+        command_id: str | None = None,
     ) -> str:
         if self.submit_command_error is not None:
             raise self.submit_command_error
@@ -125,8 +126,9 @@ class _FakeExecutionManager:
             'maker_preference': maker_preference,
             'stp_mode': stp_mode,
             'created_at': created_at,
+            'command_id': command_id,
         }
-        return 'cmd-123'
+        return command_id if command_id is not None else 'cmd-123'
 
     def submit_abort(self, abort: TradeAbort) -> None:
         if self.submit_abort_error is not None:
@@ -293,7 +295,30 @@ async def test_submit_command_routes_and_returns_command_id() -> None:
 
     assert command_id == 'cmd-123'
     assert execution.submit_command_calls == ['acc-1']
-    assert execution.last_submit_command == _SUBMIT_COMMAND_KWARGS
+    assert execution.last_submit_command == {
+        **_SUBMIT_COMMAND_KWARGS,
+        'command_id': None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_submit_command_forwards_caller_supplied_command_id() -> None:
+    execution = _FakeExecutionManager()
+    venue = _FakeVenueAdapter()
+    trading = TradingInbound(
+        execution_manager=execution,
+        venue_adapter=venue,
+        account_credentials={'acc-1': ('key-1', 'secret-1')},
+    )
+    supplied_id = 'cmd-0123456789abcdef0123456789abcdef'
+
+    command_id = await trading.submit_command(
+        **_SUBMIT_COMMAND_KWARGS, command_id=supplied_id
+    )
+
+    assert command_id == supplied_id
+    assert execution.last_submit_command is not None
+    assert execution.last_submit_command['command_id'] == supplied_id
 
 
 @pytest.mark.asyncio

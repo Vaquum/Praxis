@@ -41,6 +41,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.trading_inbound import TradingInbound
 from praxis.infrastructure.venue_adapter import (
     CancelResult,
     ImmediateFill,
@@ -2265,3 +2266,72 @@ class TestEmitWsOutcome:
         callback.assert_not_awaited()
 
         await mgr.unregister_account(_ACCT)
+
+
+class _FakeVenueRegistry:
+    def __init__(self) -> None:
+        self.credentials: dict[str, tuple[str, str]] = {}
+
+    def register_account(
+        self, account_id: str, api_key: str, api_secret: str
+    ) -> None:
+        self.credentials[account_id] = (api_key, api_secret)
+
+    def unregister_account(self, account_id: str) -> None:
+        del self.credentials[account_id]
+
+
+class TestSubmitCommandRealChain:
+    @pytest.mark.asyncio
+    async def test_supplied_command_id_flows_through_inbound_to_execution(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        em = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter
+        )
+        inbound = TradingInbound(
+            execution_manager=em,
+            venue_adapter=_FakeVenueRegistry(),
+            account_credentials={_ACCT: ('key-1', 'secret-1')},
+        )
+        inbound.register_account(_ACCT)
+        try:
+            command_id = await inbound.submit_command(
+                **_CMD_KWARGS, command_id=_LONG_ID_VERBATIM
+            )
+
+            assert command_id == _LONG_ID_VERBATIM
+            events = await spine.read(_EPOCH, after_seq=0)
+            accepted = [e for _seq, e in events if isinstance(e, CommandAccepted)]
+            assert len(accepted) == 1
+            assert accepted[0].command_id == _LONG_ID_VERBATIM
+        finally:
+            await em.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_short_command_id_rejected_through_inbound_chain(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        em = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter
+        )
+        inbound = TradingInbound(
+            execution_manager=em,
+            venue_adapter=_FakeVenueRegistry(),
+            account_credentials={_ACCT: ('key-1', 'secret-1')},
+        )
+        inbound.register_account(_ACCT)
+        try:
+            with pytest.raises(ValueError, match='at least 16 characters'):
+                await inbound.submit_command(
+                    **_CMD_KWARGS, command_id='cmd-short-1'
+                )
+
+            events = await spine.read(_EPOCH, after_seq=0)
+            assert events == []
+        finally:
+            await em.unregister_account(_ACCT)
