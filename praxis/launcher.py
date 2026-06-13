@@ -1178,8 +1178,6 @@ class _PreRegisterWiring:
         state: live InstanceState for position effects.
         positions_lock: guards position / pending_exit writes.
         fallback_price_provider: ENTER placeholder pricing.
-        build_context: the validation-context builder (re-run by
-            `_build_order_context`).
         now: wall-clock UTC provider for unknown-submission timestamps.
     '''
 
@@ -1192,7 +1190,6 @@ class _PreRegisterWiring:
     state: InstanceState
     positions_lock: threading.Lock
     fallback_price_provider: Callable[[], Decimal | None]
-    build_context: Callable[[Action, str], ValidationRequestContext | None]
     now: Callable[[], datetime]
 
 
@@ -1288,11 +1285,18 @@ def _make_pre_register(
                         if position is not None:
                             position.pending_exit -= exit_size
 
+            # Build the OrderContext from the validator's already-captured
+            # `ctx`, NOT by re-running `build_context`: this code has just
+            # mutated `position.pending_exit`, and a re-run would recompute
+            # `intended_full_close` (= `action.size == size - pending_exit`)
+            # against the inflated value, flipping a true full-close to
+            # not-full-close and breaking the dust-close path. `ctx` was
+            # computed by the validator before the mutation.
             order_context = _build_order_context(
                 action=action,
                 strategy_id=strategy_id,
                 command_id=cmd.command_id,
-                build_context=wiring.build_context,
+                build_context=lambda _action, _strategy_id: ctx,
                 forced_trade_id=forced_trade_id,
             )
 
@@ -2563,7 +2567,6 @@ class Launcher:
                         state=state,
                         positions_lock=positions_lock,
                         fallback_price_provider=fallback_price_provider,
-                        build_context=build_context,
                         now=lambda: datetime.now(UTC),
                     ),
                 )

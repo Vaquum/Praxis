@@ -154,15 +154,8 @@ def _wiring(
         state=state,
         positions_lock=threading.Lock(),
         fallback_price_provider=lambda: Decimal('50000'),
-        build_context=lambda action, _sid: pending.get(
-            _cid_for(action), (None, None, None),
-        )[2],
         now=lambda: _NOW,
     )
-
-
-def _cid_for(action: Action) -> str:
-    return action.command_id or ''
 
 
 def _granted_decision(
@@ -223,14 +216,19 @@ def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
     state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
     controller = CapitalController(state.capital)
     cmd = _command('cmd-0000000000000001')
-    action = _enter_action()
+    # ENTER with no reference price; the negative fallback makes
+    # `_ensure_entry_position`'s `Position(entry_price=...)` raise AFTER
+    # `send_order` has consumed the reservation into a capital order.
+    action = Action(
+        action_type=ActionType.ENTER,
+        direction=OrderSide.BUY,
+        size=Decimal('0.01'),
+        execution_mode=ExecutionMode.SINGLE_SHOT,
+        order_type=OrderType.MARKET,
+        deadline=60,
+        command_id=cmd.command_id,
+    )
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-
-    def boom_build_context(
-        _action: Action,
-        _sid: str,
-    ) -> ValidationRequestContext | None:
-        raise RuntimeError('context build boom')
 
     wiring = _PreRegisterWiring(
         pending_registrations=pending,
@@ -241,17 +239,56 @@ def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
         capital_controller=controller,
         state=state,
         positions_lock=threading.Lock(),
-        fallback_price_provider=lambda: Decimal('50000'),
-        build_context=boom_build_context,
+        fallback_price_provider=lambda: Decimal('-1'),
         now=lambda: _NOW,
     )
 
-    with pytest.raises(RuntimeError, match='context build boom'):
+    with pytest.raises(ValueError):
         _make_pre_register(wiring)(cmd, _granted_decision(controller))
 
     assert cmd.command_id not in wiring.command_strategy_ids
     assert cmd.command_id not in state.positions
     assert cmd.command_id not in controller._orders
+
+
+def test_exit_order_context_carries_captured_full_close() -> None:
+    from nexus.core.domain.position import Position
+
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    state.positions['trade-1'] = Position(
+        trade_id='trade-1',
+        strategy_id='strat_a',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        size=Decimal('0.05'),
+        entry_price=Decimal('50000'),
+    )
+    cmd = _command('cmd-0000000000000002', trade_id='trade-1')
+    action = _exit_action('trade-1')
+    ctx = ValidationRequestContext(
+        command_id=cmd.command_id,
+        strategy_id='strat_a',
+        action=ValidationAction.EXIT,
+        order_side=OrderSide.SELL,
+        order_size=Decimal('0.01'),
+        order_notional=Decimal('500'),
+        estimated_fees=Decimal('0.5'),
+        symbol='BTCUSDT',
+        trade_id='trade-1',
+        strategy_budget=Decimal('100000'),
+        state=state,
+        config=_config(),
+        intended_full_close=True,
+    )
+    contexts: dict[str, OrderContext] = {}
+    pending = {cmd.command_id: (action, 'strat_a', ctx)}
+    wiring = _wiring(state, controller, pending, contexts)
+
+    _make_pre_register(wiring)(cmd, ValidationDecision(allowed=True, reservation=None))
+
+    assert state.positions['trade-1'].pending_exit == Decimal('0.01')
+    assert contexts[cmd.command_id].intended_full_close is True
 
 
 def test_enter_rollback_removes_placeholder() -> None:
@@ -370,7 +407,6 @@ def test_registries_populated_when_send_command_is_entered() -> None:
         state=state,
         positions_lock=threading.Lock(),
         fallback_price_provider=lambda: Decimal('50000'),
-        build_context=build_context,
         now=lambda: _NOW,
     )
 
