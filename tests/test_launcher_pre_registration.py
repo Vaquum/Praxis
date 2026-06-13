@@ -9,7 +9,11 @@ real `CapitalController` / `InstanceState` and a fake context builder.
 
 from __future__ import annotations
 
+import ast
+import inspect
+import logging
 import threading
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -37,11 +41,6 @@ from praxis.launcher import (
     _UnknownSubmission,
     _UnknownSubmissionMonitor,
 )
-
-import ast
-import inspect
-import logging
-from datetime import UTC, datetime, timedelta
 
 _NOW = datetime(2026, 6, 13, tzinfo=UTC)
 
@@ -218,6 +217,41 @@ def test_send_order_failure_raises_and_leaves_no_registration() -> None:
 
     assert cmd.command_id not in wiring.command_strategy_ids
     assert cmd.command_id not in wiring.command_contexts
+
+
+def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = _enter_action()
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+
+    def boom_build_context(
+        _action: Action,
+        _sid: str,
+    ) -> ValidationRequestContext | None:
+        raise RuntimeError('context build boom')
+
+    wiring = _PreRegisterWiring(
+        pending_registrations=pending,
+        command_strategy_ids={},
+        command_contexts={},
+        unknown_submissions={},
+        command_registry_lock=threading.Lock(),
+        capital_controller=controller,
+        state=state,
+        positions_lock=threading.Lock(),
+        fallback_price_provider=lambda: Decimal('50000'),
+        build_context=boom_build_context,
+        now=lambda: _NOW,
+    )
+
+    with pytest.raises(RuntimeError, match='context build boom'):
+        _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    assert cmd.command_id not in wiring.command_strategy_ids
+    assert cmd.command_id not in state.positions
+    assert cmd.command_id not in controller._orders
 
 
 def test_enter_rollback_removes_placeholder() -> None:

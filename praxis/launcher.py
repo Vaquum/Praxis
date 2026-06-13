@@ -1021,7 +1021,8 @@ class _UnknownSubmission:
     outcome resolves against it, but the launcher's periodic scan warns
     about ones that linger. Cleared when any outcome for the command is
     successfully processed (an ACK proves it reached the venue
-    lifecycle).
+    lifecycle), and defensively on terminal cleanup in `process_outcome`
+    (including the no-`OrderContext` branch).
 
     Args:
         command_id: The deterministic command identity.
@@ -1100,7 +1101,7 @@ class _PreRegisteredSubmission:
     now: Callable[[], datetime]
     rollback_position: Callable[[], None] | None = None
 
-    def mark_submitted(self, command_id: str) -> None:
+    def mark_submitted(self, _command_id: str) -> None:
         '''Confirm acceptance; registration already stands, nothing to do.'''
 
     def mark_unknown(self, error: BaseException) -> None:
@@ -1241,55 +1242,77 @@ def _make_pre_register(
         rollback_position: Callable[[], None] | None = None
         forced_trade_id: str | None = None
 
-        if action.action_type == ActionType.ENTER:
-            forced_trade_id = cmd.command_id
-            _ensure_entry_position(
-                state=wiring.state,
-                action=action,
-                strategy_id=strategy_id,
-                trade_id=forced_trade_id,
-                fallback_price_provider=wiring.fallback_price_provider,
-                positions_lock=wiring.positions_lock,
-            )
+        # Once `send_order` consumed the reservation into a capital order,
+        # every step below must be exception-safe: if one raises,
+        # `submit_actions`' catch calls `_release_granted_reservation`,
+        # which is a no-op for an already-consumed reservation — leaking
+        # the capital order and the `command_strategy_ids` entry until
+        # boot reconcile. Mirror `rollback` here (undo the position
+        # effect, recover the orphaned order, pop the registries) before
+        # re-raising so the cleanup contract does not depend on these
+        # helpers staying raise-free.
+        try:
+            if action.action_type == ActionType.ENTER:
+                forced_trade_id = cmd.command_id
+                _ensure_entry_position(
+                    state=wiring.state,
+                    action=action,
+                    strategy_id=strategy_id,
+                    trade_id=forced_trade_id,
+                    fallback_price_provider=wiring.fallback_price_provider,
+                    positions_lock=wiring.positions_lock,
+                )
 
-            def rollback_position() -> None:
-                with wiring.positions_lock:
-                    position = wiring.state.positions.get(cmd.command_id)
-                    if position is not None and position.size == _ZERO:
-                        del wiring.state.positions[cmd.command_id]
+                def rollback_position() -> None:
+                    with wiring.positions_lock:
+                        position = wiring.state.positions.get(cmd.command_id)
+                        if position is not None and position.size == _ZERO:
+                            del wiring.state.positions[cmd.command_id]
 
-        elif (
-            action.action_type == ActionType.EXIT
-            and action.trade_id is not None
-            and ctx.order_size is not None
-        ):
-            exit_trade_id = action.trade_id
-            exit_size = ctx.order_size
+            elif (
+                action.action_type == ActionType.EXIT
+                and action.trade_id is not None
+                and ctx.order_size is not None
+            ):
+                exit_trade_id = action.trade_id
+                exit_size = ctx.order_size
 
-            with wiring.positions_lock:
-                position = wiring.state.positions.get(exit_trade_id)
-                if position is not None:
-                    position.pending_exit += exit_size
-
-            def rollback_position() -> None:
                 with wiring.positions_lock:
                     position = wiring.state.positions.get(exit_trade_id)
                     if position is not None:
-                        position.pending_exit -= exit_size
+                        position.pending_exit += exit_size
 
-        order_context = _build_order_context(
-            action=action,
-            strategy_id=strategy_id,
-            command_id=cmd.command_id,
-            build_context=wiring.build_context,
-            forced_trade_id=forced_trade_id,
-        )
+                def rollback_position() -> None:
+                    with wiring.positions_lock:
+                        position = wiring.state.positions.get(exit_trade_id)
+                        if position is not None:
+                            position.pending_exit -= exit_size
 
-        context_registered = order_context is not None
+            order_context = _build_order_context(
+                action=action,
+                strategy_id=strategy_id,
+                command_id=cmd.command_id,
+                build_context=wiring.build_context,
+                forced_trade_id=forced_trade_id,
+            )
 
-        if order_context is not None:
+            context_registered = order_context is not None
+
+            if order_context is not None:
+                with wiring.command_registry_lock:
+                    wiring.command_contexts[cmd.command_id] = order_context
+        except BaseException:
+            if rollback_position is not None:
+                rollback_position()
+            if reservation_consumed:
+                wiring.capital_controller.recover_orphaned_order(
+                    cmd.command_id,
+                    'submit_failed',
+                )
             with wiring.command_registry_lock:
-                wiring.command_contexts[cmd.command_id] = order_context
+                wiring.command_strategy_ids.pop(cmd.command_id, None)
+                wiring.command_contexts.pop(cmd.command_id, None)
+            raise
 
         return _PreRegisteredSubmission(
             command_id=cmd.command_id,
