@@ -257,9 +257,11 @@ class TestSubmitCommand:
     ) -> None:
         mgr.register_account(_ACCT)
         original_append = mgr._event_spine.append
+        entered = asyncio.Event()
         gate = asyncio.Event()
 
         async def _stall(_event: object, _epoch_id: int) -> None:
+            entered.set()
             await gate.wait()
 
         mgr._event_spine.append = _stall
@@ -267,7 +269,7 @@ class TestSubmitCommand:
             task = asyncio.create_task(
                 mgr.submit_command(**_CMD_KWARGS, command_id=_LONG_ID_B),
             )
-            await asyncio.sleep(0)
+            await entered.wait()
             assert _LONG_ID_B in mgr._accepted_commands
 
             task.cancel()
