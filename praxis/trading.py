@@ -813,6 +813,7 @@ class Trading:
         created_at: datetime,
         strategy_id: str | None = None,
         quote_qty: Decimal | None = None,
+        command_id: str | None = None,
     ) -> str:
         '''Submit trade command through inbound facade.'''
 
@@ -836,6 +837,7 @@ class Trading:
             stp_mode=stp_mode,
             created_at=created_at,
             strategy_id=strategy_id,
+            command_id=command_id,
         )
 
     def submit_abort(self, abort: TradeAbort) -> None:

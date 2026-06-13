@@ -31,7 +31,12 @@ from praxis.launcher import _build_praxis_outbound
 
 def _build_outbound() -> tuple[MagicMock, asyncio.AbstractEventLoop, threading.Thread, object]:
     trading = MagicMock()
-    trading.submit_command = AsyncMock(return_value='cmd-id-1')
+
+    async def _echo_command_id(**kwargs: object) -> str:
+        command_id = kwargs.get('command_id')
+        return str(command_id) if command_id is not None else 'cmd-id-1'
+
+    trading.submit_command = AsyncMock(side_effect=_echo_command_id)
     trading.register_account = MagicMock()
     trading.unregister_account = AsyncMock()
     trading.pull_positions = MagicMock(return_value={})

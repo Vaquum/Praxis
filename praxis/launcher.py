@@ -275,6 +275,7 @@ def _build_praxis_outbound(
         maker_preference: Any,
         stp_mode: Any,
         execution_params: Any,
+        command_id: str | None = None,
         **kwargs: Any,
     ) -> str:
         return await trading.submit_command(
@@ -284,6 +285,7 @@ def _build_praxis_outbound(
             maker_preference=translate_maker_preference(maker_preference),
             stp_mode=translate_stp_mode(stp_mode),
             execution_params=build_single_shot_params(execution_params),
+            command_id=command_id,
             **kwargs,
         )
 
