@@ -20,10 +20,8 @@ def _write_manifest(
     account_id: str,
     allocated_capital: int = 10000,
     capital_pool: int = 10000,
-    exp_slug: str = 'exp',
+    exp_slug: str = 'exp',  # noqa: ARG001 - retained for call-site compatibility
 ) -> None:
-    exp_dir = path.parent / f'{exp_slug}_experiment'
-    exp_dir.mkdir(exist_ok=True)
     (path.parent / 'strat.py').write_text('# stub\n')
     path.write_text(
         f'account_id: {account_id}\n'
@@ -32,10 +30,9 @@ def _write_manifest(
         f'strategies:\n'
         f'  - id: s\n'
         f'    file: strat.py\n'
-        f'    sensors:\n'
-        f'      - experiment: {exp_dir}\n'
-        f'        permutation_ids: [1]\n'
-        f'        interval_seconds: 60\n'
+        f'    signal:\n'
+        f'      series: time_15m\n'
+        f'      interval_seconds: 900\n'
         f'    capital_pct: 100\n'
     )
 

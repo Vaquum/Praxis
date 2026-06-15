@@ -12,7 +12,7 @@ authors = [
 ]
 license = { text = "MIT" }
 requires-python = ">=3.12"
-dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "pandas>=2.0", "binancial @ git+https://github.com/Vaquum/Binancial@0118288f1c79939daf8872c828b262f648110dd0", "vaquum_limen @ git+https://github.com/Vaquum/Limen@06815fabd238d470e50b129b24d12e79f9a69995", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus@b59a4e7beab34f06f143f8918cda7a51386c83cc"]
+dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus@742d85113b2d066f29a4d0325f5d2694daae747c"]
 
 [project.optional-dependencies]
 dev = [

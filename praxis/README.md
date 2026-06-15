@@ -21,7 +21,7 @@ This package is the top-level execution façade for Praxis.
 - `praxis/trading_config.py`
 - `praxis/trading_inbound.py`
 - `praxis/launcher.py`
-- `praxis/market_data_poller.py`
+- `praxis/arrow_price_store.py`
 
 ## Adjacent Modules
 
