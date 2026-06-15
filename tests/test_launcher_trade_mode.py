@@ -1,15 +1,12 @@
 '''Tests for launcher `TRADE_MODE` env-var URL routing (MAJOR-001).
 
-`TRADE_MODE=paper` resolves to the in-code Binance Spot testnet URLs
-plus `market_data_testnet=True`; `TRADE_MODE=live` resolves to the
-mainnet URLs plus `market_data_testnet=False`. Anything else raises
+`TRADE_MODE=paper` resolves to the in-code Binance Spot testnet URLs;
+`TRADE_MODE=live` resolves to the mainnet URLs. Anything else raises
 `RuntimeError` so a misconfigured deployment cannot reach the venue.
 
 `BINSIM_URL` under `TRADE_MODE=paper` overrides the trading-path URLs
-to binsim **and** routes market data to mainnet (`testnet=False`),
-because binsim is a fully internal venue with its own mainnet-quality
-depth feed — pairing it with sparse testnet aggTrades for sensor
-feature reconstruction defeats the purpose of running the sim.
+to the in-process binsim instance; binsim is a fully internal venue, so
+its orders never reach a real venue.
 '''
 
 from __future__ import annotations
@@ -29,37 +26,33 @@ from praxis.launcher import _resolve_trade_mode
 
 class TestResolveTradeMode:
 
-    def test_paper_returns_testnet_urls_and_testnet_flag(self) -> None:
-        rest, ws, ws_api, testnet = _resolve_trade_mode({'TRADE_MODE': 'paper'})
+    def test_paper_returns_testnet_urls(self) -> None:
+        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': 'paper'})
 
         assert rest == TESTNET_REST_URL
         assert ws == TESTNET_WS_URL
         assert ws_api == TESTNET_WS_API_URL
-        assert testnet is True
 
-    def test_live_returns_mainnet_urls_and_testnet_flag_false(self) -> None:
-        rest, ws, ws_api, testnet = _resolve_trade_mode({'TRADE_MODE': 'live'})
+    def test_live_returns_mainnet_urls(self) -> None:
+        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': 'live'})
 
         assert rest == MAINNET_REST_URL
         assert ws == MAINNET_WS_URL
         assert ws_api == MAINNET_WS_API_URL
-        assert testnet is False
 
     def test_paper_is_case_insensitive_and_strips_whitespace(self) -> None:
-        rest, ws, ws_api, testnet = _resolve_trade_mode({'TRADE_MODE': '  PAPER  '})
+        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': '  PAPER  '})
 
         assert rest == TESTNET_REST_URL
         assert ws == TESTNET_WS_URL
         assert ws_api == TESTNET_WS_API_URL
-        assert testnet is True
 
     def test_live_is_case_insensitive(self) -> None:
-        rest, ws, ws_api, testnet = _resolve_trade_mode({'TRADE_MODE': 'Live'})
+        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': 'Live'})
 
         assert rest == MAINNET_REST_URL
         assert ws == MAINNET_WS_URL
         assert ws_api == MAINNET_WS_API_URL
-        assert testnet is False
 
     def test_unknown_value_rejected(self) -> None:
         with pytest.raises(RuntimeError, match='TRADE_MODE must be one of'):
@@ -72,17 +65,8 @@ class TestResolveTradeMode:
 
 class TestResolveTradeModeBinsim:
 
-    def test_paper_with_binsim_url_returns_derived_urls_and_mainnet_market_data(self) -> None:
-        '''binsim drives trading-path URLs and forces market_data_testnet=False.
-
-        binsim is a fully internal venue with its own mainnet-quality
-        depth feed; the market-data poller must read mainnet to feed
-        sensors with the same data distribution binsim is matching
-        against. Pinning this prevents the regression where the
-        sim trades on testnet-sparseness features.
-        '''
-
-        rest, ws, ws_api, testnet = _resolve_trade_mode({
+    def test_paper_with_binsim_url_returns_derived_urls(self) -> None:
+        rest, ws, ws_api = _resolve_trade_mode({
             'TRADE_MODE': 'paper',
             'BINSIM_URL': 'http://binsim:8081',
         })
@@ -90,10 +74,9 @@ class TestResolveTradeModeBinsim:
         assert rest == 'http://binsim:8081'
         assert ws == 'ws://binsim:8081'
         assert ws_api == 'ws://binsim:8081/ws-api/v3'
-        assert testnet is False
 
-    def test_paper_with_https_binsim_url_uses_wss_and_mainnet_market_data(self) -> None:
-        rest, ws, ws_api, testnet = _resolve_trade_mode({
+    def test_paper_with_https_binsim_url_uses_wss(self) -> None:
+        rest, ws, ws_api = _resolve_trade_mode({
             'TRADE_MODE': 'paper',
             'BINSIM_URL': 'https://binsim.internal:8443',
         })
@@ -101,10 +84,9 @@ class TestResolveTradeModeBinsim:
         assert rest == 'https://binsim.internal:8443'
         assert ws == 'wss://binsim.internal:8443'
         assert ws_api == 'wss://binsim.internal:8443/ws-api/v3'
-        assert testnet is False
 
     def test_paper_with_empty_binsim_url_falls_back_to_testnet(self) -> None:
-        rest, ws, ws_api, _testnet = _resolve_trade_mode({
+        rest, ws, ws_api = _resolve_trade_mode({
             'TRADE_MODE': 'paper',
             'BINSIM_URL': '',
         })
@@ -114,7 +96,7 @@ class TestResolveTradeModeBinsim:
         assert ws_api == TESTNET_WS_API_URL
 
     def test_paper_with_whitespace_only_binsim_url_falls_back_to_testnet(self) -> None:
-        rest, _, _, _ = _resolve_trade_mode({
+        rest, _, _ = _resolve_trade_mode({
             'TRADE_MODE': 'paper',
             'BINSIM_URL': '   ',
         })
@@ -122,7 +104,7 @@ class TestResolveTradeModeBinsim:
         assert rest == TESTNET_REST_URL
 
     def test_paper_with_binsim_url_strips_trailing_path(self) -> None:
-        rest, ws, ws_api, _ = _resolve_trade_mode({
+        rest, ws, ws_api = _resolve_trade_mode({
             'TRADE_MODE': 'paper',
             'BINSIM_URL': 'http://binsim:8081/api/v3',
         })

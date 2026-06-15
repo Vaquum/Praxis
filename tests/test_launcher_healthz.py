@@ -9,7 +9,6 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import cast
-from unittest.mock import MagicMock, patch
 
 import aiosqlite
 import pytest
@@ -23,19 +22,21 @@ from tests.test_launcher import MockVenueAdapter, _make_manifest_yaml
 
 
 @pytest.fixture(autouse=True)
-def _mock_trainer() -> None:
-    '''Patch Limen Trainer so launcher startup skips real training.'''
+def _conduit_arrow_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    '''Point the launcher's Conduit/Arrow roots at empty tmp dirs.
 
-    mock_sensor = MagicMock()
-    mock_sensor.permutation_id = 1
-    mock_sensor.round_params = {}
+    The launcher reads predictions from Conduit and prices from the
+    control-plane Arrow volume; both default to `/opt/...`. These tests
+    only exercise startup/shutdown, so empty roots are sufficient — the
+    `PredictLoop` scheduler does not read either until its first tick,
+    900s out, well beyond the test window.
+    '''
 
-    mock_trainer = MagicMock()
-    mock_trainer.return_value.train.return_value = [mock_sensor]
-    mock_trainer.return_value._manifest = MagicMock()
-
-    with patch('nexus.startup.sequencer.Trainer', mock_trainer):
-        yield
+    monkeypatch.setenv('PRAXIS_CONDUIT_DIR', str(tmp_path / 'conduit'))
+    monkeypatch.setenv('PRAXIS_ARROW_DIR', str(tmp_path / 'arrow'))
 
 
 def _free_port() -> int:
@@ -54,7 +55,6 @@ def _get_healthz(port: int) -> tuple[int, str]:
 
 class TestHealthzEndpoint:
 
-    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_healthz_returns_200_when_healthy(self, tmp_path: Path) -> None:
         '''GET /healthz returns 200 while Trading is up.'''
 
@@ -117,7 +117,6 @@ class TestHealthzEndpoint:
             loop.call_soon_threadsafe(loop.stop)
             loop_thread.join(timeout=5)
 
-    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_healthz_serves_503_while_shutdown_runs(self, tmp_path: Path) -> None:
         '''PT-FIX-22: `_stop_healthz` must run only after `_trading.stop()`
         completes so `/healthz` keeps returning 503 with
@@ -222,7 +221,6 @@ class TestHealthzEndpoint:
             loop.call_soon_threadsafe(loop.stop)
             loop_thread.join(timeout=5)
 
-    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_healthz_returns_503_during_shutdown(self, tmp_path: Path) -> None:
         '''GET /healthz returns 503 once the stop event is set.'''
 

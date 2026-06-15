@@ -1,7 +1,8 @@
-'''Process launcher for Praxis + Nexus + Limen.
+'''Process launcher for Praxis + Nexus.
 
-Single entry point that starts the Trading service, market data poller,
-and one Nexus Manager thread per account.
+Single entry point that starts the Trading service and one Nexus
+Manager thread per account. Predictions are read from Conduit and
+prices from the control-plane Arrow volume via `ArrowPriceStore`.
 '''
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import signal
 import sys
 import threading
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -25,9 +26,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import aiosqlite
-import polars as pl
 from aiohttp import web
-from binance.client import Client
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
@@ -103,10 +102,9 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
+from praxis.arrow_price_store import ArrowPriceStore
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
-from praxis.market_data_cache import CacheScheduler, MainCache
-from praxis.market_data_poller import MarketDataPoller, StaleMarketDataError
 from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.trading import Trading
@@ -554,8 +552,8 @@ def _build_validation_context(
         state: Current mutable instance state (live, not a snapshot).
         capital_pct: Strategy's manifest capital allocation percentage.
         fallback_price_provider: Returns the latest reference price
-            (e.g. last `MarketDataPoller` close) or `None` when no
-            market data is available yet.
+            (the latest closed-bar close from `ArrowPriceStore`) or
+            `None` when no market data is available yet.
         fee_rate: Effective taker fee rate for fee estimation.
         enter_symbol: Symbol used for `ENTER` actions when the action
             itself does not carry one.
@@ -1461,152 +1459,124 @@ class _UnknownSubmissionMonitor:
             self._schedule_locked()
 
 
-def _register_wired_kline_sizes(
-    wired_sensors: Iterable[Any],
-) -> tuple[int, ...]:
-    '''Collect kline sizes from wired sensors.
+def _resolve_mark_price_series(manifest: Manifest) -> tuple[str, int]:
+    '''Resolve the OHLCV series + interval used for fallback / MTM pricing.
 
-    Called from `_build_nexus_runtime` after `sequencer.start()` has
-    trained the manifest's sensors. Each `WiredSensor` carries a live
-    `limen_manifest` whose `data_source_config.params['kline_size']`
-    declares the bucket width the sensor needs. Pre-PR (PT-FIX-1) the
-    launcher tried to read `_limen_manifest` from raw `SensorSpec`
-    objects in the manifest YAML; that attribute is not set until the
-    Limen `Trainer` runs, so the lookup always returned `None`, the
-    poller started empty, and `signal_producer.produce_signal` raised
-    `ValueError("market_data is empty for sensor X")` on every tick.
+    The `fallback_price_provider` (ENTER reference pricing) and the
+    `mark_price_provider` (mark-to-market) read closed-bar closes from
+    the control-plane Arrow volume via `ArrowPriceStore.latest_close`,
+    which needs a `(series, interval_seconds)` pair. Each manifest
+    strategy declares its own `signal.series` / `signal.interval_seconds`;
+    this resolves the single pair the launcher prices against.
 
-    Returns the sorted tuple of declared kline sizes for the
-    launcher's `fallback_price_provider` closure to iterate. Post
-    market-data-cache rewire (Praxis #108) the cache is
-    symbol-scoped — there is no per-kline_size registration to
-    perform, so this function only collects the sizes from wired
-    sensor manifests.
+    Resolution order:
+
+    - `PRAXIS_MARK_PRICE_SERIES` set and present among the manifest
+      series: use it with the matching `interval_seconds`.
+    - `PRAXIS_MARK_PRICE_SERIES` set but absent from the manifest:
+      require `PRAXIS_MARK_PRICE_INTERVAL_SECONDS` (positive int) and
+      use that interval; raise if the var is missing or invalid.
+    - `PRAXIS_MARK_PRICE_SERIES` unset and the manifest declares exactly
+      one distinct series: use it.
+    - `PRAXIS_MARK_PRICE_SERIES` unset and the manifest declares several
+      distinct series: raise — the operator must disambiguate via
+      `PRAXIS_MARK_PRICE_SERIES`.
+    - No manifest series at all: raise.
+
+    Args:
+        manifest: Loaded strategy manifest.
+
+    Returns:
+        The `(series, interval_seconds)` pair to price against.
+
+    Raises:
+        RuntimeError: When the series cannot be resolved unambiguously
+            or a required env var is missing or invalid.
     '''
 
-    sizes: set[int] = set()
+    series_intervals: dict[str, int] = {}
+    for spec in manifest.strategies:
+        existing = series_intervals.get(spec.signal.series)
 
-    for wired in wired_sensors:
+        if existing is not None and existing != spec.signal.interval_seconds:
+            msg = (
+                f'manifest declares series {spec.signal.series!r} with conflicting '
+                f'interval_seconds ({existing} vs {spec.signal.interval_seconds}); '
+                'cannot resolve a single mark-price interval'
+            )
+            raise RuntimeError(msg)
+
+        series_intervals[spec.signal.series] = spec.signal.interval_seconds
+
+    env_series = os.environ.get('PRAXIS_MARK_PRICE_SERIES')
+
+    if env_series:
+        if env_series in series_intervals:
+            return env_series, series_intervals[env_series]
+
+        raw_interval = os.environ.get('PRAXIS_MARK_PRICE_INTERVAL_SECONDS')
+        if not raw_interval:
+            msg = (
+                f'PRAXIS_MARK_PRICE_SERIES={env_series!r} is not declared by any '
+                'manifest strategy; set PRAXIS_MARK_PRICE_INTERVAL_SECONDS to '
+                'its bar width in seconds'
+            )
+            raise RuntimeError(msg)
+
         try:
-            config = getattr(
-                getattr(wired, 'limen_manifest', None),
-                'data_source_config',
-                None,
+            interval = int(raw_interval)
+        except ValueError as exc:
+            msg = (
+                f'PRAXIS_MARK_PRICE_INTERVAL_SECONDS={raw_interval!r} is not a '
+                'valid integer'
             )
+            raise RuntimeError(msg) from exc
 
-            if config is None:
-                continue
-
-            params = getattr(config, 'params', None)
-
-            if params is None:
-                continue
-
-            raw = params.get('kline_size')
-
-            if raw is None:
-                continue
-
-            kline_size = int(raw)
-
-            if kline_size <= 0:
-                _log.warning(
-                    'skipping wired sensor with non-positive kline_size',
-                    extra={
-                        'sensor_type': type(wired).__name__,
-                        'kline_size': kline_size,
-                    },
-                )
-                continue
-
-            if kline_size % 60 != 0:
-                _log.warning(
-                    'skipping wired sensor with non-multiple-of-60 kline_size',
-                    extra={
-                        'sensor_type': type(wired).__name__,
-                        'kline_size': kline_size,
-                    },
-                )
-                continue
-
-            sizes.add(kline_size)
-        except Exception:  # noqa: BLE001 - per-sensor parse must not abort startup
-            _log.warning(
-                'skipping wired sensor with invalid kline_size configuration',
-                extra={'sensor_type': type(wired).__name__},
-                exc_info=True,
+        if interval <= 0:
+            msg = (
+                f'PRAXIS_MARK_PRICE_INTERVAL_SECONDS={raw_interval!r} must be a '
+                'positive integer'
             )
+            raise RuntimeError(msg)
 
-    return tuple(sorted(sizes))
+        return env_series, interval
+
+    if len(series_intervals) == 1:
+        series, interval = next(iter(series_intervals.items()))
+        return series, interval
+
+    if len(series_intervals) > 1:
+        msg = (
+            'manifest declares multiple signal series '
+            f'{sorted(series_intervals)!r}; set PRAXIS_MARK_PRICE_SERIES to '
+            'select the one to price fallback / mark-to-market against'
+        )
+        raise RuntimeError(msg)
+
+    msg = (
+        'manifest declares no signal series; cannot resolve a mark-price '
+        'series for fallback / mark-to-market pricing'
+    )
+    raise RuntimeError(msg)
 
 
 def _ensure_strategies_path_importable(strategies_base_path: Path) -> None:
-    '''Prepend `strategies_base_path` to `sys.path` so user SFD modules import.
+    '''Prepend `strategies_base_path` to `sys.path` so strategy modules import.
 
-    Limen `Trainer` resolves the SFD class via
-    `importlib.import_module(metadata['sfd_module'])`; the module path
-    recorded at training time must be importable in the launcher
-    process at boot. Foundational SFDs ship inside `vaquum_limen` so
-    they always resolve, but user-defined SFDs (e.g. a custom
-    `Round3SFD` co-located with strategies) need the strategy
-    directory on `sys.path` before `_wire_sensors` runs. This helper
-    is idempotent and prepends rather than appends so a user-supplied
-    module shadows any installed package of the same name.
+    Nexus's `StartupSequencer` imports each strategy implementation named
+    by the manifest's `file:` field at boot; the strategy module (and any
+    helper modules co-located with it) must be importable in the launcher
+    process. This helper is idempotent and prepends rather than appends so
+    a user-supplied module shadows any installed package of the same name.
 
-    Operators with SFDs outside `STRATEGIES_BASE_PATH` should add the
-    extra path to `PYTHONPATH` at deploy time; the launcher does not
-    enumerate alternative roots.
+    Operators with strategy modules outside `STRATEGIES_BASE_PATH` should
+    add the extra path to `PYTHONPATH` at deploy time; the launcher does
+    not enumerate alternative roots.
     '''
 
     resolved = str(strategies_base_path.resolve())
     if resolved not in sys.path:
         sys.path.insert(0, resolved)
-
-
-def _last_close_from_poller(
-    poller: MarketDataPoller | None,
-    kline_sizes: tuple[int, ...],
-) -> Decimal | None:
-    '''Return the last-known close from the poller, or `None` if absent or stale.
-
-    Iterates `kline_sizes` (smallest first) and returns the close value
-    of the last row in the first non-empty, non-stale DataFrame found.
-    Returns `None` when the poller is absent, every kline_size is empty
-    or stale, or no DataFrame has a `close` column.
-
-    Round-18 MAJOR-005: a stale entry now raises `StaleMarketDataError`
-    from `get_market_data`. This helper swallows the exception per
-    kline_size and falls through to the next; if every kline_size is
-    stale (or empty), the caller (`fallback_price_provider`) returns
-    `None`, which the validator's PRICE stage rejects with a clear
-    reason. Pre-fix the helper returned the indefinitely-stale cached
-    value, sizing ENTERs against ancient prices.
-    '''
-
-    if poller is None:
-        return None
-
-    for kline_size in kline_sizes:
-        try:
-            df = poller.get_market_data(kline_size)
-        except StaleMarketDataError as exc:
-            _log.warning(
-                'fallback_price_provider skipping stale kline_size: %s',
-                exc,
-            )
-            continue
-
-        if df.height == 0 or 'close' not in df.columns:
-            continue
-
-        last_close = df.tail(1).get_column('close').item()
-
-        if last_close is None:
-            continue
-
-        return Decimal(str(last_close))
-
-    return None
 
 
 def _build_strategy_context(
@@ -1861,7 +1831,7 @@ class _AccountOutcomeWiring:
 
 
 class Launcher:
-    '''Orchestrates Praxis + Nexus + Limen in one process.
+    '''Orchestrates Praxis + Nexus in one process.
 
     Args:
         trading_config: Praxis trading configuration.
@@ -1882,7 +1852,6 @@ class Launcher:
         db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
         healthz_port: int | None = None,
-        market_data_testnet: bool = False,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -1896,14 +1865,10 @@ class Launcher:
         self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
         self._healthz_port = healthz_port
-        self._market_data_testnet = market_data_testnet
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
         self._trading: Trading | None = None
-        self._cache: MainCache | None = None
-        self._cache_scheduler: CacheScheduler | None = None
-        self._poller: MarketDataPoller | None = None
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
@@ -1923,7 +1888,6 @@ class Launcher:
 
         self._start_event_loop()
         self._start_trading()
-        self._start_poller()
         self._start_nexus_instances()
         self._start_healthz()
 
@@ -2152,68 +2116,6 @@ class Launcher:
                 extra={'outcome_id': outcome_id, 'account_id': account_id},
             )
 
-    def _start_poller(self) -> None:
-        '''Build the MainCache, fill it at boot, start CacheScheduler, wrap in MarketDataPoller.
-
-        On first-ever boot the on-disk parquet at `MAIN_CACHE_DIR`
-        is missing; `bootstrap_if_empty()` triggers a synchronous
-        `refresh_from_limen()` to populate it from the HF dataset.
-        Then a synchronous `refresh_from_binancial()` fills the
-        trailing-day gap that Limen does not cover, so when
-        `CacheScheduler.start()` returns and the first sensor tick
-        fires, the cache already has fresh data — no 1-minute
-        warm-up window where strategies see only Limen bars.
-        Restart-with-existing-parquet skips bootstrap and just
-        calls `load()` to populate the in-memory mirror.
-
-        The `MarketDataPoller` adapter wraps the cache for
-        backward-compat with the existing `market_data_provider`
-        callback and the staleness-aware `fallback_price_provider`.
-        Lifecycle is owned by `CacheScheduler`, not the adapter.
-        '''
-
-        client = Client(None, None, ping=False, testnet=self._market_data_testnet)
-        cache_dir = Path(os.environ.get('MAIN_CACHE_DIR', '/var/lib/praxis/maincache'))
-        parquet_path = cache_dir / 'btcusdt_1m.parquet'
-        state_path = cache_dir / 'main_cache_state.json'
-
-        try:
-            self._cache = MainCache(
-                client,
-                parquet_path=parquet_path,
-                main_cache_state_path=state_path,
-            )
-        except OSError as exc:
-            msg = (
-                f'failed to initialize MainCache at {cache_dir}: {exc!r}. '
-                f'Set the MAIN_CACHE_DIR environment variable to a writable '
-                f'host bind mount (default: /var/lib/praxis/maincache).'
-            )
-            raise RuntimeError(msg) from exc
-
-        self._cache.load()
-
-        try:
-            self._cache.bootstrap_if_empty()
-        except Exception:  # noqa: BLE001 - resilience: scheduler retries
-            _log.exception(
-                'cache bootstrap_if_empty failed at boot; '
-                'CacheScheduler will retry on the next 05:00 UTC tick',
-            )
-
-        try:
-            self._cache.refresh_from_binancial()
-        except Exception:  # noqa: BLE001 - resilience: scheduler retries
-            _log.exception(
-                'cache refresh_from_binancial failed at boot; '
-                'CacheScheduler will retry on the next 60s tick. '
-                'Sensors will see StaleMarketDataError until refresh succeeds',
-            )
-
-        self._cache_scheduler = CacheScheduler(self._cache)
-        self._cache_scheduler.start()
-        self._poller = MarketDataPoller(self._cache)
-
     def _start_healthz(self) -> None:
         '''Start the /healthz HTTP listener on the launcher's asyncio loop.
 
@@ -2308,9 +2210,6 @@ class Launcher:
                     'nexus thread did not finish within timeout',
                     extra={'thread': thread.name},
                 )
-
-        if self._cache_scheduler is not None:
-            self._cache_scheduler.stop()
 
         if self._trading is not None and self._loop is not None:
             future = asyncio.run_coroutine_threadsafe(self._trading.stop(), self._loop)
@@ -2464,7 +2363,10 @@ class Launcher:
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
-        kline_sizes = _register_wired_kline_sizes(sequencer.wired_sensors)
+        conduit_dir = Path(os.environ.get('PRAXIS_CONDUIT_DIR', '/opt/conduit'))
+        arrow_dir = Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
+        arrow_price_store = ArrowPriceStore(arrow_dir)
+        mark_series, mark_interval = _resolve_mark_price_series(manifest)
 
         # Pre-bind `outcome_processor` so the `build_context` closure below
         # captures the name safely. The real `OutcomeProcessor(...)` is
@@ -2475,11 +2377,6 @@ class Launcher:
         # the construction line would raise `UnboundLocalError`.
         outcome_processor: OutcomeProcessor | None = None
 
-        def market_data_provider(kline_size: int) -> Any:
-            if self._poller is None:
-                return pl.DataFrame()
-            return self._poller.get_market_data(kline_size)
-
         def context_provider(strategy_id: str) -> StrategyContext:
             return _build_strategy_context(
                 sequencer.instance_state,
@@ -2489,7 +2386,7 @@ class Launcher:
             )
 
         def fallback_price_provider() -> Decimal | None:
-            return _last_close_from_poller(self._poller, kline_sizes)
+            return arrow_price_store.latest_close(mark_series, mark_interval)
 
         def build_context(
             action: Action,
@@ -2799,10 +2696,11 @@ class Launcher:
 
         predict_loop = PredictLoop(
             runner=runner,
-            wired_sensors=sequencer.wired_sensors,
-            market_data_provider=market_data_provider,
+            signal_bindings=sequencer.signal_bindings,
             context_provider=context_provider,
             action_submit=submitter,
+            conduit_dir=conduit_dir,
+            arrow_dir=arrow_dir,
         )
         predict_loop.start()
 
@@ -2858,7 +2756,7 @@ class Launcher:
             if symbol != _DEFAULT_SYMBOL:
                 return None
 
-            return _last_close_from_poller(self._poller, kline_sizes)
+            return arrow_price_store.latest_close(mark_series, mark_interval)
 
         mtm_loop = MtmLoop(
             state=state,
@@ -2917,31 +2815,23 @@ def _check_required_env(env: dict[str, str]) -> None:
         raise RuntimeError(msg)
 
 
-def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
-    '''Map `TRADE_MODE` to the venue REST/WS-stream/WS-API URLs and the testnet flag.
+def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str]:
+    '''Map `TRADE_MODE` to the venue REST / WS-stream / WS-API URLs.
 
     Operators set `TRADE_MODE=paper` or `TRADE_MODE=live`; all three URLs
-    and the market-data poller's testnet routing are derived from the
-    in-code constants in `binance_urls`. There is no operator path
-    that can submit orders to mainnet while the rest of the system
-    thinks it is on testnet (MAJOR-001).
+    are derived from the in-code constants in `binance_urls`. There is no
+    operator path that can submit orders to mainnet while the rest of the
+    system thinks it is on testnet (MAJOR-001).
 
     `BINSIM_URL` is an optional paper-mode override pointing at an
     in-process binsim instance (`http://host:port`). When set under
-    `TRADE_MODE=paper`, all three venue URLs are derived from it
-    (REST stays http(s)://, WS endpoints become ws(s)://) and the
-    market-data poller is routed to Binance Spot mainnet
-    (`testnet=False`). Binsim is a fully internal venue with its own
-    mainnet-quality depth feed (binsim PR #112 spec, "Order book — live
-    source"); pairing it with sparse testnet aggTrades for sensor
-    feature reconstruction is the asymmetry the binsim project was built
-    to remove. MAJOR-001's order-routing invariant (orders submitted to
-    mainnet only when the system as a whole is in live mode) is
-    preserved — binsim orders never reach a real venue, so the
-    market-data → mainnet routing does not create the asymmetric
-    configuration MAJOR-001 protects against. Mixing `BINSIM_URL` with
-    `TRADE_MODE=live` is a hard error: it would silently divert mainnet
-    flow at the URL layer.
+    `TRADE_MODE=paper`, all three venue URLs are derived from it (REST
+    stays http(s)://, WS endpoints become ws(s)://). Binsim is a fully
+    internal venue, so its orders never reach a real venue and
+    MAJOR-001's order-routing invariant (orders submitted to mainnet
+    only when the system as a whole is in live mode) is preserved.
+    Mixing `BINSIM_URL` with `TRADE_MODE=live` is a hard error: it would
+    silently divert mainnet flow at the URL layer.
     '''
 
     raw = env['TRADE_MODE'].strip().lower()
@@ -2949,17 +2839,16 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
 
     if raw == _TRADE_MODE_PAPER:
         if binsim_url:
-            rest, ws, ws_api = _derive_binsim_urls(binsim_url)
-            return rest, ws, ws_api, False
+            return _derive_binsim_urls(binsim_url)
 
-        return TESTNET_REST_URL, TESTNET_WS_URL, TESTNET_WS_API_URL, True
+        return TESTNET_REST_URL, TESTNET_WS_URL, TESTNET_WS_API_URL
 
     if raw == _TRADE_MODE_LIVE:
         if binsim_url:
             msg = 'BINSIM_URL must not be set when TRADE_MODE=live'
             raise RuntimeError(msg)
 
-        return MAINNET_REST_URL, MAINNET_WS_URL, MAINNET_WS_API_URL, False
+        return MAINNET_REST_URL, MAINNET_WS_URL, MAINNET_WS_API_URL
 
     msg = (
         f'TRADE_MODE must be one of {list(_TRADE_MODES)!r}; got {env["TRADE_MODE"]!r}'
@@ -3075,7 +2964,7 @@ def main() -> None:
     env = dict(os.environ)
     _check_required_env(env)
 
-    venue_rest_url, venue_ws_url, venue_ws_api_url, market_data_testnet = _resolve_trade_mode(env)
+    venue_rest_url, venue_ws_url, venue_ws_api_url = _resolve_trade_mode(env)
 
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
@@ -3163,7 +3052,6 @@ def main() -> None:
         instances=instances,
         db_path=state_base / 'event_spine.sqlite',
         healthz_port=healthz_port,
-        market_data_testnet=market_data_testnet,
     )
 
     _log.info(

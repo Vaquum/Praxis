@@ -13,7 +13,6 @@ from datetime import datetime, UTC
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import patch
 
 import aiosqlite
 import pytest
@@ -141,7 +140,7 @@ class MockVenueAdapter:
 
 def _make_manifest_yaml(
     tmp_path: Path,
-    exp_dir: Path,
+    _exp_dir: Path,
     account_id: str = 'test-acc',
     allocated_capital: int = 10000,
     capital_pool: int = 10000,
@@ -157,10 +156,9 @@ def _make_manifest_yaml(
         f'strategies:\n'
         f'  - id: test_strat\n'
         f'    file: strat.py\n'
-        f'    sensors:\n'
-        f'      - experiment: {exp_dir}\n'
-        f'        permutation_ids: [1]\n'
-        f'        interval_seconds: 60\n'
+        f'    signal:\n'
+        f'      series: time_15m\n'
+        f'      interval_seconds: 900\n'
         f'    capital_pct: 100\n'
     )
     return manifest_path
@@ -168,88 +166,15 @@ def _make_manifest_yaml(
 
 class TestLauncherLifecycle:
 
-    @pytest.mark.usefixtures('mock_market_data_cache')
-    def test_start_poller_constructs_binance_client_with_testnet_flag(
+    def test_start_and_shutdown(
         self,
         tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        '''Pin: `_start_poller` builds the binance.Client with
-        `testnet=self._market_data_testnet`.
-
-        Pre-rewire regression (PT-FIX-3): `_poll_loop` constructed
-        `Client(None, None, ping=False)` with no testnet flag, so a
-        Praxis instance running paper trades on Binance testnet was
-        reading klines from mainnet BTCUSDT — a separate market with
-        separate prices. ENTER notional sizing went haywire. Post-
-        cache-rewire (Praxis #108) the Client construction moved from
-        the poller to `_start_poller`; the test moved with it. Asserts
-        both `testnet=True` and `testnet=False` paths.
-        '''
-
-        config = TradingConfig(
-            epoch_id=1,
-            account_credentials={'test-acc': ('key', 'secret')},
-        )
-        venue_adapter = cast(VenueAdapter, MockVenueAdapter())
-
-        for i, testnet in enumerate((True, False)):
-            launcher = Launcher(
-                trading_config=config,
-                instances=[],
-                db_path=tmp_path / f'spine_{i}.db',
-                venue_adapter=venue_adapter,
-                market_data_testnet=testnet,
-            )
-
-            with patch('praxis.launcher.Client') as mock_client_cls:
-                launcher._start_poller()
-                if launcher._cache_scheduler is not None:
-                    launcher._cache_scheduler.stop(timeout_seconds=1.0)
-
-            mock_client_cls.assert_called_once()
-            call_kwargs = mock_client_cls.call_args.kwargs
-            assert call_kwargs['testnet'] is testnet
-
-    def test_start_poller_raises_runtime_error_on_unwritable_cache_dir(
-        self,
-        tmp_path: Path,
-    ) -> None:
-        '''Pin: when `MAIN_CACHE_DIR` is unwritable, `_start_poller`
-        wraps the underlying `OSError` in a `RuntimeError` carrying
-        an operator-actionable message (set MAIN_CACHE_DIR to a
-        writable host bind mount). Without this wrapping the raw
-        `PermissionError` aborts `Launcher.launch()` before the
-        `/healthz` endpoint exists, leaving operators with only a
-        stack trace.
-        '''
-
-        config = TradingConfig(
-            epoch_id=1,
-            account_credentials={'test-acc': ('key', 'secret')},
-        )
-        venue_adapter = cast(VenueAdapter, MockVenueAdapter())
-        launcher = Launcher(
-            trading_config=config,
-            instances=[],
-            db_path=tmp_path / 'spine.db',
-            venue_adapter=venue_adapter,
-        )
-
-        with patch('praxis.launcher.MainCache') as mock_cache_cls:
-            mock_cache_cls.side_effect = PermissionError(
-                "[Errno 13] Permission denied: '/var/lib/praxis/maincache'",
-            )
-
-            with pytest.raises(RuntimeError) as exc_info:
-                launcher._start_poller()
-
-        assert 'failed to initialize MainCache' in str(exc_info.value)
-        assert 'MAIN_CACHE_DIR' in str(exc_info.value)
-        assert isinstance(exc_info.value.__cause__, PermissionError)
-
-    @pytest.mark.usefixtures('mock_market_data_cache')
-    def test_start_and_shutdown(self, tmp_path: Path) -> None:
         '''Launcher starts, runs briefly, then shuts down cleanly.'''
+
+        monkeypatch.setenv('PRAXIS_CONDUIT_DIR', str(tmp_path / 'conduit'))
+        monkeypatch.setenv('PRAXIS_ARROW_DIR', str(tmp_path / 'arrow'))
 
         exp_dir = tmp_path / 'experiment'
         exp_dir.mkdir()
@@ -592,7 +517,6 @@ class TestLauncherLifecycle:
         launcher._loop.call_soon_threadsafe(launcher._loop.stop)
         launcher._loop_thread.join(timeout=5)
 
-    @pytest.mark.usefixtures('mock_market_data_cache')
     def test_build_failure_sets_stop_event_and_unwinds(self, tmp_path: Path) -> None:
         '''PT-FIX-24: When `_build_nexus_runtime` raises, `_run_nexus_instance`
         must set `_stop_event` so `launch()` exits the wait, runs `_shutdown`,
