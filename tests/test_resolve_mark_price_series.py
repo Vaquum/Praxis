@@ -98,3 +98,14 @@ def test_unknown_series_missing_interval_raises(
         _resolve_mark_price_series(
             _manifest(('time_15m', 900)),  # type: ignore[arg-type]
         )
+
+
+def test_same_series_conflicting_intervals_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv('PRAXIS_MARK_PRICE_SERIES', raising=False)
+
+    with pytest.raises(RuntimeError, match='conflicting interval_seconds'):
+        _resolve_mark_price_series(
+            _manifest(('time_15m', 900), ('time_15m', 300)),  # type: ignore[arg-type]
+        )

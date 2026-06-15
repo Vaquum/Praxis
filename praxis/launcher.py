@@ -1494,10 +1494,19 @@ def _resolve_mark_price_series(manifest: Manifest) -> tuple[str, int]:
             or a required env var is missing or invalid.
     '''
 
-    series_intervals = {
-        spec.signal.series: spec.signal.interval_seconds
-        for spec in manifest.strategies
-    }
+    series_intervals: dict[str, int] = {}
+    for spec in manifest.strategies:
+        existing = series_intervals.get(spec.signal.series)
+
+        if existing is not None and existing != spec.signal.interval_seconds:
+            msg = (
+                f'manifest declares series {spec.signal.series!r} with conflicting '
+                f'interval_seconds ({existing} vs {spec.signal.interval_seconds}); '
+                'cannot resolve a single mark-price interval'
+            )
+            raise RuntimeError(msg)
+
+        series_intervals[spec.signal.series] = spec.signal.interval_seconds
 
     env_series = os.environ.get('PRAXIS_MARK_PRICE_SERIES')
 

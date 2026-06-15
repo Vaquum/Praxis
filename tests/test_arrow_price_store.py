@@ -101,3 +101,35 @@ def test_corrupt_frame_returns_none(tmp_path: Path) -> None:
     store = ArrowPriceStore(tmp_path, clock=_clock)
 
     assert store.latest_close(_SERIES, _INTERVAL) is None
+
+
+def test_stale_latest_closed_bar_returns_none(tmp_path: Path) -> None:
+    stale = _now_ns() - 4000 * _NS
+    _write_frame(tmp_path, [{'ts': stale, 'close': 64000.0}])
+
+    store = ArrowPriceStore(tmp_path, clock=_clock)
+
+    assert store.latest_close(_SERIES, _INTERVAL) is None
+
+
+def test_stale_bound_is_configurable(tmp_path: Path) -> None:
+    stale = _now_ns() - 4000 * _NS
+    _write_frame(tmp_path, [{'ts': stale, 'close': 64000.0}])
+
+    store = ArrowPriceStore(tmp_path, clock=_clock, max_staleness_intervals=10)
+
+    assert store.latest_close(_SERIES, _INTERVAL) == Decimal('64000.0')
+
+
+def test_non_int64_ts_returns_none(tmp_path: Path) -> None:
+    series_dir = tmp_path / _SERIES
+    series_dir.mkdir(parents=True)
+    frame = pl.DataFrame(
+        {'ts': [datetime(2026, 1, 1, tzinfo=UTC)], 'close': [64000.0]},
+        schema={'ts': pl.Datetime(time_unit='ns', time_zone='UTC'), 'close': pl.Float64},
+    )
+    frame.write_ipc(series_dir / 'latest.arrow')
+
+    store = ArrowPriceStore(tmp_path, clock=_clock)
+
+    assert store.latest_close(_SERIES, _INTERVAL) is None
