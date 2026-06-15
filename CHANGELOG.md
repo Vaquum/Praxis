@@ -1093,3 +1093,26 @@
 - Add `TestSubmitCommandRealChain` to [`tests/test_execution_manager.py`](tests/test_execution_manager.py): drives a caller-supplied `command_id` through the real `TradingInbound` → `ExecutionManager` chain and asserts the returned id and the emitted `CommandAccepted.command_id` both equal the supplied id (no `TypeError`), plus a boundary case asserting a too-short id is rejected before any `CommandAccepted` is appended
 - Add `test_submit_command_forwards_caller_supplied_command_id` to [`tests/test_trading_inbound.py`](tests/test_trading_inbound.py) pinning that `TradingInbound` forwards and returns a supplied `command_id`; update `_FakeExecutionManager.submit_command` to mirror the real `command_id` parameter so the test double can no longer drift ahead of the production signature
 - Update the `submit_command` fake in [`tests/test_launcher_execution_params_shim.py`](tests/test_launcher_execution_params_shim.py) to echo the supplied `command_id` instead of returning a fixed id: now that the launcher wrapper declares `command_id` explicitly, `PraxisOutbound` classifies the id as authoritative and rejects a returned id that diverges from the transmitted one, so the double must honour the identity contract the real execution layer upholds
+
+## v0.81.0 on 15th of June, 2026
+
+### BREAKING
+
+- Cut the price/market-data path over to the Furnace Conduit data plane and drop the in-process market-data cache. The launcher no longer fetches or aggregates bars from Binance: predictions are consumed from the `furnace_conduit` volume (`/opt/conduit`) and ENTER / mark-to-market prices from the control-plane Arrow volume (`/opt/arrow`) via [`ArrowPriceStore`](praxis/arrow_price_store.py). The deployment must mount both volumes read-only on the praxis service. Pairs with Nexus v0.63.0 (the Conduit signal API): `PredictLoop` is constructed with `signal_bindings` + `conduit_dir` / `arrow_dir` (no `market_data_provider`), and the strategy manifest's per-strategy block is now `signal: {series, interval_seconds, ...}` (was `sensors: [...]`)
+
+### NOTE
+
+- Mark-price / fallback pricing resolves a single `(series, interval_seconds)` pair against the manifest via [`_resolve_mark_price_series`](praxis/launcher.py): the lone manifest series by default, or `PRAXIS_MARK_PRICE_SERIES` (plus `PRAXIS_MARK_PRICE_INTERVAL_SECONDS` when the chosen series is not declared by any strategy) to disambiguate; it raises loudly on an ambiguous (multiple) or empty series set. Conduit / Arrow roots are overridable via `PRAXIS_CONDUIT_DIR` / `PRAXIS_ARROW_DIR`
+
+### Add
+
+- Add [`praxis/arrow_price_store.py`](praxis/arrow_price_store.py) `ArrowPriceStore`: a stateless reader of `/opt/arrow/<series>/latest.arrow` returning the latest closed bar's `close` (`ts + interval_seconds <= now`, excluding the still-forming bar) as a `Decimal`; `None` on an absent frame, no closed bar, or a non-finite close. Backs `fallback_price_provider` (ENTER reference price) and the `MtmLoop` mark-price provider
+- Add [`_resolve_mark_price_series`](praxis/launcher.py) and [`tests/test_resolve_mark_price_series.py`](tests/test_resolve_mark_price_series.py) (5 cases): single manifest series by default; `PRAXIS_MARK_PRICE_SERIES` override matching a manifest series; an off-manifest series with `PRAXIS_MARK_PRICE_INTERVAL_SECONDS`; and `RuntimeError`s on the multiple-series-unset and unknown-series-missing-interval paths
+
+### Update
+
+- Bump [`vaquum-nexus`](pyproject.toml) pin to v0.63.0 (`742d851`): `StartupSequencer` exposes `signal_bindings`, and `PredictLoop(signal_bindings, conduit_dir, arrow_dir)` polls Conduit instead of running in-process Limen inference
+
+### Remove
+
+- Remove [`praxis/market_data_cache.py`](praxis/market_data_cache.py) (`MainCache` / `CacheScheduler`) and [`praxis/market_data_poller.py`](praxis/market_data_poller.py) (`MarketDataPoller`), the launcher's `_start_poller` bootstrap, `_register_wired_kline_sizes`, and `_last_close_from_poller`; and the `vaquum_limen`, `binancial`, and `pandas` dependencies (`pandas` was used only by the removed market-data modules)
