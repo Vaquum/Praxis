@@ -91,3 +91,13 @@ def test_returns_decimal_type(tmp_path: Path) -> None:
 
     assert isinstance(result, Decimal)
     assert result == Decimal('63821.99')
+
+
+def test_corrupt_frame_returns_none(tmp_path: Path) -> None:
+    series_dir = tmp_path / _SERIES
+    series_dir.mkdir(parents=True)
+    (series_dir / 'latest.arrow').write_bytes(b'not an arrow file')
+
+    store = ArrowPriceStore(tmp_path, clock=_clock)
+
+    assert store.latest_close(_SERIES, _INTERVAL) is None

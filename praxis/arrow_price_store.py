@@ -71,7 +71,12 @@ class ArrowPriceStore:
             _log.warning('ohlcv frame not found', extra={'series': series, 'path': str(path)})
             return None
 
-        df = pl.read_ipc(path, memory_map=True)
+        try:
+            df = pl.read_ipc(path, memory_map=True)
+        except (OSError, pl.exceptions.PolarsError):
+            _log.warning('ohlcv frame unreadable', extra={'series': series, 'path': str(path)})
+            return None
+
         if df.is_empty() or 'ts' not in df.columns or 'close' not in df.columns:
             _log.warning('ohlcv frame empty or malformed', extra={'series': series})
             return None

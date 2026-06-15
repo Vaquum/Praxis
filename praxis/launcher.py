@@ -1843,7 +1843,6 @@ class Launcher:
         db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
         healthz_port: int | None = None,
-        market_data_testnet: bool = False,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -1857,7 +1856,6 @@ class Launcher:
         self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
         self._healthz_port = healthz_port
-        self._market_data_testnet = market_data_testnet
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
@@ -2808,31 +2806,23 @@ def _check_required_env(env: dict[str, str]) -> None:
         raise RuntimeError(msg)
 
 
-def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
-    '''Map `TRADE_MODE` to the venue REST/WS-stream/WS-API URLs and the testnet flag.
+def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str]:
+    '''Map `TRADE_MODE` to the venue REST / WS-stream / WS-API URLs.
 
     Operators set `TRADE_MODE=paper` or `TRADE_MODE=live`; all three URLs
-    and the market-data poller's testnet routing are derived from the
-    in-code constants in `binance_urls`. There is no operator path
-    that can submit orders to mainnet while the rest of the system
-    thinks it is on testnet (MAJOR-001).
+    are derived from the in-code constants in `binance_urls`. There is no
+    operator path that can submit orders to mainnet while the rest of the
+    system thinks it is on testnet (MAJOR-001).
 
     `BINSIM_URL` is an optional paper-mode override pointing at an
     in-process binsim instance (`http://host:port`). When set under
-    `TRADE_MODE=paper`, all three venue URLs are derived from it
-    (REST stays http(s)://, WS endpoints become ws(s)://) and the
-    market-data poller is routed to Binance Spot mainnet
-    (`testnet=False`). Binsim is a fully internal venue with its own
-    mainnet-quality depth feed (binsim PR #112 spec, "Order book — live
-    source"); pairing it with sparse testnet aggTrades for sensor
-    feature reconstruction is the asymmetry the binsim project was built
-    to remove. MAJOR-001's order-routing invariant (orders submitted to
-    mainnet only when the system as a whole is in live mode) is
-    preserved — binsim orders never reach a real venue, so the
-    market-data → mainnet routing does not create the asymmetric
-    configuration MAJOR-001 protects against. Mixing `BINSIM_URL` with
-    `TRADE_MODE=live` is a hard error: it would silently divert mainnet
-    flow at the URL layer.
+    `TRADE_MODE=paper`, all three venue URLs are derived from it (REST
+    stays http(s)://, WS endpoints become ws(s)://). Binsim is a fully
+    internal venue, so its orders never reach a real venue and
+    MAJOR-001's order-routing invariant (orders submitted to mainnet
+    only when the system as a whole is in live mode) is preserved.
+    Mixing `BINSIM_URL` with `TRADE_MODE=live` is a hard error: it would
+    silently divert mainnet flow at the URL layer.
     '''
 
     raw = env['TRADE_MODE'].strip().lower()
@@ -2840,17 +2830,16 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str, bool]:
 
     if raw == _TRADE_MODE_PAPER:
         if binsim_url:
-            rest, ws, ws_api = _derive_binsim_urls(binsim_url)
-            return rest, ws, ws_api, False
+            return _derive_binsim_urls(binsim_url)
 
-        return TESTNET_REST_URL, TESTNET_WS_URL, TESTNET_WS_API_URL, True
+        return TESTNET_REST_URL, TESTNET_WS_URL, TESTNET_WS_API_URL
 
     if raw == _TRADE_MODE_LIVE:
         if binsim_url:
             msg = 'BINSIM_URL must not be set when TRADE_MODE=live'
             raise RuntimeError(msg)
 
-        return MAINNET_REST_URL, MAINNET_WS_URL, MAINNET_WS_API_URL, False
+        return MAINNET_REST_URL, MAINNET_WS_URL, MAINNET_WS_API_URL
 
     msg = (
         f'TRADE_MODE must be one of {list(_TRADE_MODES)!r}; got {env["TRADE_MODE"]!r}'
@@ -2966,7 +2955,7 @@ def main() -> None:
     env = dict(os.environ)
     _check_required_env(env)
 
-    venue_rest_url, venue_ws_url, venue_ws_api_url, market_data_testnet = _resolve_trade_mode(env)
+    venue_rest_url, venue_ws_url, venue_ws_api_url = _resolve_trade_mode(env)
 
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
@@ -3054,7 +3043,6 @@ def main() -> None:
         instances=instances,
         db_path=state_base / 'event_spine.sqlite',
         healthz_port=healthz_port,
-        market_data_testnet=market_data_testnet,
     )
 
     _log.info(
