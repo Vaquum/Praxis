@@ -1872,7 +1872,7 @@ class Launcher:
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
-        self._outcome_translator = OutcomeTranslator()
+        self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
         self._account_outcome_wiring_lock = threading.Lock()
 
