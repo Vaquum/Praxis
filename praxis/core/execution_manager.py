@@ -1517,7 +1517,9 @@ class ExecutionManager:
         self._commands.pop(order.command_id, None)
         self._aborted_commands.pop(order.command_id, None)
 
-        if filled_qty > _ZERO:
+        if filled_qty > _ZERO and self._closes_position(
+            runtime, order.account_id, trade_id, order.side
+        ):
             closed = TradeClosed(
                 account_id=order.account_id,
                 timestamp=ts,
@@ -1702,7 +1704,9 @@ class ExecutionManager:
             self._commands.pop(cmd.command_id, None)
             self._aborted_commands.pop(cmd.command_id, None)
 
-            if filled_qty > _ZERO:
+            if filled_qty > _ZERO and self._closes_position(
+                runtime, cmd.account_id, cmd.trade_id, cmd.side
+            ):
                 closed = TradeClosed(
                     account_id=cmd.account_id,
                     timestamp=ts,
@@ -1726,3 +1730,37 @@ class ExecutionManager:
         await self._dispatch_outcome_with_retry(outcome, source='process_command')
 
         return outcome
+
+    def _closes_position(
+        self,
+        runtime: _AccountRuntime,
+        account_id: str,
+        trade_id: str,
+        side: OrderSide,
+    ) -> bool:
+        '''Whether a terminal fill on `side` closes the trade's position.
+
+        `TradeClosed` must mean "position lifecycle closed", not merely
+        "order terminal". Emitting it for an entry fill is a durability
+        bug: on event replay the position is created from the entry
+        `FillReceived` and then immediately deleted by the entry's own
+        `TradeClosed`, so a restart rebuilds zero open positions and boot
+        reconciliation evicts the live position. A position closes only
+        on a reducing fill — one whose side is opposite the open
+        position's side. An entry fill (same side as the position it
+        opens) does not close it; a `trade_id` with no live position
+        (already removed by an exact-zero reduction) needs no further
+        `TradeClosed`.
+
+        NOTE: a partial reducing fill also returns True under the current
+        single-position, full-exit strategy model; precise full-close
+        detection for partial exits is tracked as TD-096.
+        '''
+
+        positions = runtime.trading_state.snapshot_positions()
+        pos = positions.get((trade_id, account_id))
+
+        if pos is None:
+            return False
+
+        return side != pos.side

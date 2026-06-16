@@ -835,3 +835,16 @@ Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in
 
 **When to fix**: Before mainnet, OR when maker orders / fee tiers are in use.
 **Migration**: Thread the venue-reported `fee` (and `fee_asset`) from `FillReceived` through `Order` and the Praxis `TradeOutcome` aggregate into the translator, and emit it verbatim as `actual_fees` instead of re-deriving from `fee_rate`.
+
+---
+
+## TD-096: `TradeClosed` close-detection is side-based, not full-close-aware
+
+**Origin**: Restart durability fix (`TradeClosed` = position-closed semantics)
+**Severity**: Low (current strategies open one position and exit it in full)
+**Module**: `praxis/core/execution_manager.py`
+
+`_closes_position` treats any reducing fill (side opposite the open position) as closing the position — it emits `TradeClosed` and clears the projection. Under the current single-position, full-exit strategy model this is correct. A partial reducing fill would clear the position prematurely. Praxis does not yet carry the Nexus `OrderContext.intended_full_close` intent, so it cannot distinguish a partial reduce from a full close.
+
+**When to fix**: Before partial-exit / scale-out strategies are used.
+**Migration**: Thread `intended_full_close` (and entry/exit intent) from the Nexus `OrderContext` into the Praxis command/intent events, and emit `TradeClosed` only when the position reaches zero/dust after the reducing fill.
