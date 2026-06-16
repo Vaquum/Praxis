@@ -4,16 +4,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-009: VWAP re-read from spine on abort
-
-**Origin**: PR #52 (PR review)
-**Severity**: Low (epochs are small currently)
-**Module**: `praxis/core/execution_manager.py`
-
-`_process_abort` computes VWAP by calling `EventSpine.read()` and filtering for `FillReceived` events matching the `client_order_id`. This re-reads and rehydrates the entire epoch for every abort with fills, scaling as O(events_in_epoch). The `Order` dataclass tracks `filled_qty` but not `avg_fill_price`.
-
-**When to fix**: Before epochs grow to thousands of events or abort frequency increases.
-**Migration**: Either add cumulative notional tracking to `Order`/`TradingState` so VWAP is available without spine re-read, or add a spine query method that fetches only `FillReceived` rows for a given `client_order_id`.
+## TD-009: VWAP re-read from spine on abort — RESOLVED
 
 ---
 
@@ -56,16 +47,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-020: `command_strategy_ids` registry grows unbounded per account
-
-**Origin**: PR #73 (zero-bang review)
-**Severity**: Low (negligible at MMVP throughput)
-**Module**: `praxis/launcher.py`
-
-The per-account `command_strategy_ids: dict[str, str]` registry built inside `Launcher._build_nexus_runtime` records `command_id → strategy_id` on every `SubmissionStatus.SUBMITTED` outcome from `submit_actions`, but no entry is ever removed. At MMVP testnet throughput (~100 commands/day per account) the long-run footprint is negligible (~1 MB/year), but a long-lived production process accumulating thousands of commands per day per account would eventually warrant pruning.
-
-**When to fix**: Before sustained mainnet operation past a few weeks per process.
-**Migration**: Have the OutcomeLoop drop `command_strategy_ids[outcome.command_id]` after dispatching a terminal `TradeOutcomeType` (`FILLED`, `REJECTED`, `EXPIRED`, `CANCELED`). Non-terminal outcomes (`ACK`, `PARTIAL`) keep the entry so subsequent fills still resolve.
+## TD-020: `command_strategy_ids` registry grows unbounded per account — RESOLVED
 
 ---
 
@@ -373,16 +355,7 @@ Boot reconciliation walks `trading_state.orders` (rebuilt from EventSpine) and q
 
 ---
 
-## TD-045: Symbol filters not loaded for fresh accounts; `_validate_order` fails open
-
-**Origin**: Round-18 codex-supervised audit (Pass 10)
-**Severity**: Low (Binance applies its own filter checks; rate limit waste only)
-**Module**: `praxis/trading.py:302-304` (`_startup_account`); `praxis/core/execution_manager.py:219-243` (`active_symbols`); `praxis/infrastructure/binance_adapter.py:958-962` (`_validate_order` cache miss)
-
-`load_filters` runs only when `active_symbols(account_id)` is non-empty at boot, which requires existing orders or positions from the spine. A fresh account with no exposure starts with no filters loaded for the strategies' target symbols. `BinanceAdapter._validate_order` logs a warning and returns without validation when cache misses (`self._filters.get(symbol) is None`). Binance's server-side check is the only remaining safety net.
-
-**When to fix**: Before any deployment where venue rate-limit budget matters, OR alongside MAJOR-007 (filter ValueError orphan) — the no-preload fail-open path is what currently shields fresh accounts from MAJOR-007's orphan trap.
-**Migration**: At boot, walk the manifest's strategy specs to compute the union of intended symbols and call `load_filters(symbols)` before any strategy callback fires. Alternatively, on-demand load inside `_validate_order` on cache miss.
+## TD-045: Symbol filters not loaded for fresh accounts; `_validate_order` fails open — RESOLVED
 
 ---
 
