@@ -39,7 +39,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueOrder,
     VenueTrade,
 )
-from praxis.launcher import InstanceConfig, Launcher
+from praxis.launcher import _DEFAULT_FEE_RATE, InstanceConfig, Launcher
 from praxis.trading_config import TradingConfig
 
 
@@ -577,3 +577,35 @@ class TestLauncherLifecycle:
         finally:
             loop.call_soon_threadsafe(loop.stop)
             loop_thread.join(timeout=5)
+
+
+class TestLauncherFeeRateWiring:
+    '''The launcher wires the outcome translator with the venue fee rate.'''
+
+    def test_outcome_translator_uses_default_fee_rate(self, tmp_path: Path) -> None:
+        '''Settled fills carry the venue fee, not the zero-fee default.
+
+        The reservation path already estimates fees at `_DEFAULT_FEE_RATE`;
+        the outcome translator must use the same rate so realized fees
+        flowing to Nexus match the reservation and the venue charge,
+        instead of the translator's testnet-era zero default.
+        '''
+
+        config = TradingConfig(epoch_id=1)
+        inst = InstanceConfig(
+            account_id='test-acc',
+            manifest_path=tmp_path / 'manifest.yaml',
+            strategies_base_path=tmp_path,
+            state_dir=tmp_path,
+        )
+        adapter = cast(VenueAdapter, MockVenueAdapter())
+
+        launcher = Launcher(
+            trading_config=config,
+            instances=[inst],
+            db_path=tmp_path / 'spine.db',
+            venue_adapter=adapter,
+        )
+
+        assert Decimal('0') < _DEFAULT_FEE_RATE
+        assert launcher._outcome_translator._fee_rate == _DEFAULT_FEE_RATE

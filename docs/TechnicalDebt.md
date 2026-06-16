@@ -146,16 +146,7 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 
 ---
 
-## TD-030: `OutcomeTranslator` `fee_rate=0` latent inconsistency with capital reserve estimate
-
-**Origin**: Round-13 audit, re-verified round-14
-**Severity**: Low (latent; safe under fee_rate=0)
-**Module**: `praxis/launcher.py:1037` (translator default `fee_rate=_ZERO`); `praxis/launcher.py:105` (`_DEFAULT_FEE_RATE = Decimal('0.001')` for capital reserve estimate)
-
-Capital reserve at action-submit time uses `_DEFAULT_FEE_RATE = 0.001`. Translator emits `actual_fees=0` because `fee_rate=_ZERO`. `order_fill` reconciles via the `fee_delta > 0` branch (`capital_controller.py:759-760`). Currently safe. If a future deployment switches `OutcomeTranslator.fee_rate` to non-zero AND the venue actually charges more than estimated, `fee_delta < 0` and `abs(fee_delta) > fee_reserve` (which starts at zero) → `order_fill` returns `EXPECTED_MISS` → position FAILS to grow on FILL → silent state drift.
-
-**When to fix**: Before any deployment switches `OutcomeTranslator.fee_rate` to non-zero. Couples with Nexus TD-051 (realized_pnl exit-fee accounting).
-**Migration**: Bring translator `fee_rate` in line with the validator's `_DEFAULT_FEE_RATE`, OR document the asymmetry and gate any future fee_rate change on a `_reduce_position` exit-fee accounting update.
+## TD-030: `OutcomeTranslator` `fee_rate=0` latent inconsistency with capital reserve estimate — RESOLVED
 
 ---
 
@@ -831,3 +822,16 @@ Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in
 ## TD-082: `Launcher.build_context` closure late-binds `outcome_processor` (RESOLVED in v0.76.0)
 
 **Resolved** in v0.76.0 during PR review (Vaquum/Praxis#143, round 4). The launcher now pre-binds `outcome_processor: OutcomeProcessor | None = None` above the `build_context` closure definition; the later `outcome_processor = OutcomeProcessor(...)` reassigns the same name and the closure resolves it at call time. The `UnboundLocalError` hazard no longer exists on any startup-order refactor. Entry retained as historical record.
+
+---
+
+## TD-095: `OutcomeTranslator` re-derives `actual_fees` from a constant rate, not the venue fill fee
+
+**Origin**: Fee-accounting fix (post-Conduit), Greybeard pre-PR review
+**Severity**: Low (exact for binsim's flat 10 bps; diverges only on a variable-fee venue)
+**Module**: `praxis/outcome_translator.py`
+
+`_build_partial` / `_build_filled` compute `actual_fees = delta_notional * self._fee_rate` from a single `fee_rate` (now `_DEFAULT_FEE_RATE` = 0.001). The venue's own per-fill fee is present on `FillReceived.fee` but is not threaded into the Praxis `TradeOutcome` aggregate the translator consumes, so it cannot be passed through. For binsim's flat 10 bps taker fee the constant is exact; on a venue with a maker/taker split, tiered fees, or a BNB discount, the re-derived `actual_fees` diverges from the true fill fee and mis-states realized PnL by the difference.
+
+**When to fix**: Before mainnet, OR when maker orders / fee tiers are in use.
+**Migration**: Thread the venue-reported `fee` (and `fee_asset`) from `FillReceived` through `Order` and the Praxis `TradeOutcome` aggregate into the translator, and emit it verbatim as `actual_fees` instead of re-deriving from `fee_rate`.

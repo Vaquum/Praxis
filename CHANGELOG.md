@@ -1116,3 +1116,18 @@
 ### Remove
 
 - Remove [`praxis/market_data_cache.py`](praxis/market_data_cache.py) (`MainCache` / `CacheScheduler`) and [`praxis/market_data_poller.py`](praxis/market_data_poller.py) (`MarketDataPoller`), the launcher's `_start_poller` bootstrap, `_register_wired_kline_sizes`, and `_last_close_from_poller`; and the `vaquum_limen`, `binancial`, and `pandas` dependencies (`pandas` was used only by the removed market-data modules)
+
+## v0.82.0 on 16th of June, 2026
+
+### Add
+
+- Add `TestLauncherFeeRateWiring` to [`tests/test_launcher.py`](tests/test_launcher.py) asserting the launcher wires the outcome translator with `_DEFAULT_FEE_RATE` (and that the rate is positive)
+- Add TD-095 to [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md): the outcome translator re-derives `actual_fees` from the constant `_DEFAULT_FEE_RATE` rather than the venue-reported `FillReceived.fee` — exact for binsim's flat 10 bps, an approximation on a venue with a maker/taker split or fee discounts
+
+### Fix
+
+- Construct [`OutcomeTranslator`](praxis/outcome_translator.py) with `fee_rate=_DEFAULT_FEE_RATE` in the launcher instead of the zero-fee default: settled-fill `actual_fees` forwarded to Nexus now match the venue charge and the reservation-time fee estimate (both already use `_DEFAULT_FEE_RATE` = 0.10%), so realized PnL and capital release account for fees instead of treating trading as fee-free. The previous zero default was a testnet-era assumption that no longer holds against a fee-charging venue. Resolves TD-030; with `actual_fees` non-zero, Nexus's existing `realized_pnl = gross_pnl - actual_fees` (TD-051) takes effect
+
+### Remove
+
+- Prune the technical-debt register in [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md): collapse code-verified-resolved (TD-009, TD-020, TD-030, TD-045) and Conduit-obsoleted (TD-019, TD-060, TD-061, TD-062) entries to heading-only status markers, and reframe TD-053 around the Conduit/Arrow feed-staleness path that replaced `MarketDataPoller`
