@@ -507,9 +507,12 @@ class TestLauncherLifecycle:
         )
 
         positions = launcher._trading.pull_positions('test-acc')
-        assert positions == {}, (
-            f'position should be deleted after FILLED outcome → TradeClosed; got {positions}'
+        assert ('trade-1', 'test-acc') in positions, (
+            f'entry position must survive a FILLED outcome — an entry fill '
+            f'no longer emits TradeClosed, so the position stays tracked and '
+            f'is recoverable across a restart; got {positions}'
         )
+        assert positions[('trade-1', 'test-acc')].qty == Decimal('1')
 
         stop_future = asyncio.run_coroutine_threadsafe(launcher._trading.stop(), launcher._loop)
         stop_future.result(timeout=10)

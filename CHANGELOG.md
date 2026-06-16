@@ -1131,3 +1131,18 @@
 ### Remove
 
 - Prune the technical-debt register in [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md): collapse code-verified-resolved (TD-009, TD-020, TD-030, TD-045) and Conduit-obsoleted (TD-019, TD-060, TD-061, TD-062) entries to heading-only status markers, and reframe TD-053 around the Conduit/Arrow feed-staleness path that replaced `MarketDataPoller`
+
+## v0.83.0 on 16th of June, 2026
+
+### Add
+
+- Add `TestTradeClosedPositionSemantics` to [`tests/test_execution_manager.py`](tests/test_execution_manager.py): an entry fill keeps the position and emits no `TradeClosed`; a reducing fill that closes the position emits `TradeClosed` and clears it. Update `test_full_cycle_submit_fill_outcome_shutdown` to assert the entry position survives a `FILLED` outcome (was asserting deletion)
+- Add TD-096 to [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md) recording that close-detection is side-based, not full-close-aware (partial-exit refinement for future scale-out strategies)
+
+### Fix
+
+- Emit `TradeClosed` only when a fill closes the position, not on every terminal filled order. `_build_outcome` and `_build_abort_outcome` now gate `TradeClosed` on [`_closes_position`](praxis/core/execution_manager.py) (a reducing fill — side opposite the open position), so an entry fill no longer emits it. Previously an entry's `TradeClosed` deleted its own position on event replay, so a process restart rebuilt zero open positions and boot reconciliation evicted the live position (orphaning the venue holding). Entry positions now survive a restart, which the Nexus boot reconciliation depends on
+
+### Update
+
+- Bump the [`vaquum-nexus`](pyproject.toml) pin to v0.64.0 (`5c63468`), which keys boot reconciliation on `pos.trade_id` and preserves + fails closed on a Nexus-only position instead of silently evicting it. The two changes are coupled: this PR keeps Praxis from under-reporting open positions on replay, and the Nexus pin keeps reconciliation from deleting them
