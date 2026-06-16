@@ -34,16 +34,7 @@ Known technical debt in shipped code. Each item includes origin PR, severity, an
 
 ---
 
-## TD-019: MarketDataPoller refetches the full window on every tick
-
-**Origin**: PR #72 (PR review)
-**Severity**: Low for MMVP paper trading; moderate at production cadence
-**Module**: `praxis/market_data_poller.py`
-
-`_fetch()` computes `start_date` as `now - n_rows * kline_size` on every poll and refetches the full window (default `n_rows=5000`). At short polling intervals this generates unnecessary REST traffic and can press against Binance rate limits once multiple `kline_size` buckets or multiple accounts share the poller. The current behavior predates this PR; the binancial migration preserved the same pattern.
-
-**When to fix**: Before increasing poll frequency, adding multiple `kline_size` buckets, or going live on mainnet.
-**Migration**: Track the highest `close_time` already in `_data[kline_size]` and refetch only from there forward, merging new rows into the in-memory DataFrame. Deduplicate on `close_time` to handle the always-partial last candle. Cap stored history at `n_rows` rolling.
+## TD-019: MarketDataPoller refetches the full window on every tick — OBSOLETE (superseded by Conduit migration)
 
 ---
 
@@ -464,24 +455,23 @@ The runtime retry handles transient callback failures; the `OutcomeAcked` event 
 
 ---
 
-## TD-053: HealthLoop demote to REDUCE_ONLY on sustained market-data failure
+## TD-053: HealthLoop demote to REDUCE_ONLY on sustained Conduit/Arrow feed staleness
 
-**Origin**: Round-18 MAJOR-005 part scope deferral (Praxis #86)
+**Origin**: Round-18 MAJOR-005 deferral (Praxis #86); reframed for the Conduit/Arrow feed after the Furnace-Conduit migration retired `MarketDataPoller`.
 **Severity**: Major (defense-in-depth on top of validator PRICE-stage rejection)
-**Module**: `praxis/market_data_poller.py`; cross-repo: `nexus/core/health_loop.py`, `praxis/core/domain/health_snapshot.py`
+**Modules**: `nexus/strategy/predict_loop.py`, `praxis/arrow_price_store.py`; cross-repo: `nexus/core/health_loop.py`, `praxis/core/domain/health_snapshot.py`
 
-MAJOR-005 landed cache-freshness enforcement (`StaleMarketDataError` from `MarketDataPoller.get_market_data` after `max_age_seconds`, default `2 * kline_size`) and `fallback_price_provider` now returns `None` on stale data, so the validator's PRICE stage rejects ENTERs cleanly. The bigger M05.4 / M05.7 acceptance — counting consecutive `_fetch` failures and surfacing them to `HealthSnapshot` so HealthLoop demotes `state.mode` to `REDUCE_ONLY` (EXITs still work, ENTERs blocked) — was scoped out because it requires plumbing a new health-signal field into `HealthSnapshot`, wiring it through the `health_snapshot_provider` callback the launcher gives to `HealthLoop`, and verifying mode-transition semantics in the cross-repo loop.
+Freshness is enforced per call site after the migration: the Conduit `PredictLoop` skips a tick when `serving_manifest.generated_at` is stale, and `ArrowPriceStore.latest_close` returns `None` when the latest closed bar exceeds `max_staleness_intervals`, so `fallback_price_provider` / `mark_price_provider` yield `None` and the validator's PRICE stage rejects ENTERs cleanly. There is still no single system-wide signal: sustained Conduit/Arrow staleness does not demote `state.mode` to `REDUCE_ONLY` (EXITs allowed, ENTERs blocked) the way a venue-feed-degraded health gate would.
 
-The current behavior is safe for paper trading: stale data raises in the predict tick (loop catches, signal skipped), and stale fallback rejects ENTER at PRICE-stage. Mode demotion would add a single coherent system-wide signal instead of relying on per-callsite rejection.
+The current behavior is safe for paper trading (stale predictions are skipped; stale mark price rejects ENTER at PRICE stage). Mode demotion would add one coherent operator-facing signal instead of relying on per-call-site rejection.
 
-**When to fix**: Before sustained mainnet operation, OR when a single operator-facing health signal is needed for "venue feed degraded; trading reduced".
+**When to fix**: Before sustained mainnet operation, OR when a single operator-facing "feed degraded; trading reduced" signal is needed.
 
 **Migration**:
-1. Add a `consecutive_fetch_failures: int` counter to `MarketDataPoller` (per-kline_size dict); reset on `_fetch` success, increment on failure.
-2. Expose `health_status() -> dict[int, MarketDataHealth]` (or similar) reporting per-kline failure counts and stale flags.
-3. Add a `market_data_healthy: bool` field to `HealthSnapshot` (Praxis-side dataclass); the launcher's `_build_health_snapshot` callback samples `MarketDataPoller.health_status()` and sets it.
-4. In Nexus `HealthLoop` / `HealthEvaluator`, add a transition: `market_data_healthy=False` → `REDUCE_ONLY` (EXITs still work, ENTERs blocked).
-5. Test: simulate repeated `_fetch` failures → after N attempts, snapshot reports unhealthy → HealthLoop demotes mode within next tick → validator's MODE stage rejects ENTERs.
+1. Track consecutive stale/missing reads in the Conduit `PredictLoop` and/or `ArrowPriceStore` (per series); reset on a fresh read, increment on stale/absent.
+2. Add a `feed_healthy: bool` field to `HealthSnapshot`; the launcher's health-snapshot callback samples the staleness counters and sets it.
+3. In Nexus `HealthLoop` / `HealthEvaluator`, add a transition: `feed_healthy=False` to `REDUCE_ONLY`.
+4. Test: simulate sustained stale Conduit manifest / Arrow frames so the snapshot reports unhealthy, HealthLoop demotes mode within the next tick, and the validator's MODE stage rejects ENTERs while EXITs still pass.
 
 ---
 
@@ -594,55 +584,15 @@ Between `await session.ws_connect(ws_api_url)` and the success-path assignment `
 
 ---
 
-## TD-060: `MarketDataPoller` test cleanup not protected by `try/finally`
-
-**Origin**: Copilot review on PR #103 (fix/poller-fixed-cadence)
-**Severity**: Low (test hygiene; theoretical pollution risk, never observed)
-**Module**: `tests/test_market_data_poller.py` — 18 of 20 `poller.start()` callsites
-
-Most `MarketDataPoller` tests follow the pattern `poller.start(); ...assertions...; poller.stop()` without a `try/finally` guard between them. If any assertion in the middle raises, `poller.stop()` is skipped and the daemon poller thread leaks for the rest of the pytest session. Once the calling test's `with patch('...get_spot_klines', ...)` context exits, the leaked thread reverts to the real `get_spot_klines` import and starts hitting Binance for real. The next test that patches the same symbol then sees its mock's `call_count` bumped by the leaked thread, causing flake.
-
-The risk is real but theoretical: 18 unprotected sites have run consistently green across many CI cycles. Copilot flagged 3 specific instances on PR #103 but the lack of `try/finally` is the project-wide convention in this file, not a regression introduced by that PR.
-
-**When to fix**: When a `poller.*` test starts flaking in CI for unexplained reasons (the leaked-thread pollution mechanism would be a candidate), OR when the next refactor of `tests/test_market_data_poller.py` happens for any other reason and the sweep cost is amortised.
-
-**Migration**: Wrap all 18 `poller.start()`-with-assertion sites in `try/finally`:
-
-```python
-poller.start()
-try:
-    ...assertions...
-finally:
-    poller.stop()
-```
-
-Or extract a small `_run_with_poller(poller, fn)` context manager / pytest fixture so individual tests don't pay the boilerplate. Keep the 2 already-wrapped sites (which use the right pattern) as the template.
+## TD-060: `MarketDataPoller` test cleanup not protected by `try/finally` — OBSOLETE (superseded by Conduit migration)
 
 ---
 
-## TD-061: Synchronous Limen + binancial fetches block `Launcher.launch()` for minutes
-
-**Severity**: Medium (operator UX; no correctness impact)
-**Module**: `praxis/launcher.py:_start_poller` (introduced by Vaquum/Praxis#108)
-
-`_start_poller` calls `MainCache.bootstrap_if_empty()` (downloads ~100MB HF snapshot when the disk parquet is missing) and `MainCache.refresh_from_binancial()` (walks Binance trades for the trailing window) synchronously inline in `launch()`. On first-ever boot, that's a few minutes of blocking work between `_start_trading` and `_start_nexus_instances` with no progress signal — `/healthz` is not yet listening either, so an operator sees a hung process. The choice was deliberate (Vaquum/Praxis#108 deploy plan) to ensure sensors see fresh data on the first tick after `_start_nexus_instances`, not 1 minute later.
-
-**When to fix**: When boot latency starts mattering for ops (e.g. faster crash-recovery cycles, or once we have a watchdog that times out the initial fill). At that point, move the synchronous `refresh_from_binancial()` out of `_start_poller` and let `CacheScheduler`'s binancial thread fire it asynchronously; sensors get fresh data on the first scheduler tick (~60s post-boot).
-
-**Migration**: Drop `self._cache.refresh_from_binancial()` from `_start_poller`. Document the new "first 60s of uptime have ≤24h-stale data" contract in the launcher docstring.
+## TD-061: Synchronous Limen + binancial fetches block `Launcher.launch()` for minutes — OBSOLETE (superseded by Conduit migration)
 
 ---
 
-## TD-062: `_aggregate_spot_klines` is a private Limen helper that Praxis depends on
-
-**Severity**: Low (coupling, no correctness impact)
-**Module**: `praxis/market_data_cache.py:30` (introduced by Vaquum/Praxis#108)
-
-`MainCache.get_market_data` calls Limen's `_aggregate_spot_klines` (imported as `_limen_aggregate_spot_klines`) to aggregate 1-min bars up to the requested kline_size. No `# noqa: PLC2701` suppression on the import: PLC2701 isn't enabled in the current ruff config (the `PL` selector in `pyproject.toml` does not activate it for this codebase's ruff version), so adding the noqa would itself trip RUF100 (unused noqa). The aliased import name keeps the cross-package private dependency visible at the call site. That function is canonical (weighted mean, sum-of-squares for std, sum for volume / liquidity / maker_volume, first / last for OHLC) and reusing it avoids drift between training-time aggregation and live aggregation — but importing a private name across packages is fragile: a Limen rename or signature change would break Praxis without a deprecation warning.
-
-**When to fix**: Either (a) ask the Limen team to expose `aggregate_spot_klines` as a public API (preferred — single source of truth), or (b) copy the function body + `_base_interval_seconds` + `_round_spot_kline_columns` helpers into Praxis (~120 LOC) and accept the drift risk.
-
-**Migration**: For (a), once Limen ships a public name, swap the import to the public symbol. For (b), copy the three functions verbatim, add a comment pointing at the upstream version + Limen pin in `pyproject.toml` so a reviewer knows to re-sync on the next Limen pin bump. If a future ruff config enables PLC2701, add the `# noqa: PLC2701` suppression at the same time as either path.
+## TD-062: `_aggregate_spot_klines` is a private Limen helper that Praxis depends on — OBSOLETE (superseded by Conduit migration)
 
 ---
 
