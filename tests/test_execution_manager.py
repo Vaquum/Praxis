@@ -2425,3 +2425,55 @@ class TestTradeClosedPositionSemantics:
 
         positions = mgr.pull_positions(_ACCT)
         assert (_TRADE, _ACCT) not in positions
+
+    @pytest.mark.asyncio
+    async def test_exact_full_exit_clears_position_without_trade_closed(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.side_effect = [
+            SubmitResult(
+                venue_order_id='v-entry',
+                status=OrderStatus.FILLED,
+                immediate_fills=(
+                    ImmediateFill(
+                        venue_trade_id='t-entry',
+                        qty=Decimal('1'),
+                        price=Decimal('50000'),
+                        fee=Decimal('0.001'),
+                        fee_asset='BTC',
+                        is_maker=False,
+                    ),
+                ),
+            ),
+            SubmitResult(
+                venue_order_id='v-exit',
+                status=OrderStatus.FILLED,
+                immediate_fills=(
+                    ImmediateFill(
+                        venue_trade_id='t-exit',
+                        qty=Decimal('1'),
+                        price=Decimal('51000'),
+                        fee=Decimal('0.001'),
+                        fee_asset='BTC',
+                        is_maker=False,
+                    ),
+                ),
+            ),
+        ]
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('1')}
+        await mgr.submit_command(**exit_kwargs)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'TradeClosed' not in types
+
+        positions = mgr.pull_positions(_ACCT)
+        assert (_TRADE, _ACCT) not in positions
