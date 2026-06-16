@@ -1142,3 +1142,7 @@
 ### Fix
 
 - Emit `TradeClosed` only when a fill closes the position, not on every terminal filled order. `_build_outcome` and `_build_abort_outcome` now gate `TradeClosed` on [`_closes_position`](praxis/core/execution_manager.py) (a reducing fill — side opposite the open position), so an entry fill no longer emits it. Previously an entry's `TradeClosed` deleted its own position on event replay, so a process restart rebuilt zero open positions and boot reconciliation evicted the live position (orphaning the venue holding). Entry positions now survive a restart, which the Nexus boot reconciliation depends on
+
+### Update
+
+- Bump the [`vaquum-nexus`](pyproject.toml) pin to v0.64.0 (`5c63468`), which keys boot reconciliation on `pos.trade_id` and preserves + fails closed on a Nexus-only position instead of silently evicting it. The two changes are coupled: this PR keeps Praxis from under-reporting open positions on replay, and the Nexus pin keeps reconciliation from deleting them
