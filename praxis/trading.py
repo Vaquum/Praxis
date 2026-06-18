@@ -330,6 +330,8 @@ class Trading:
         if symbols:
             await self._venue_adapter.load_filters(sorted(symbols))
 
+        account_ready = await self._sweep_orphan_venue_orders(account_id)
+
         if isinstance(self._venue_adapter, BinanceAdapter):
             adapter = self._venue_adapter
 
@@ -346,7 +348,7 @@ class Trading:
 
         await self._reconcile_account(account_id)
 
-        if await self._sweep_orphan_venue_orders(account_id):
+        if account_ready:
             self._ready_accounts.add(account_id)
         else:
             _log.error(
@@ -533,12 +535,17 @@ class Trading:
 
         A venue order whose `OrderSubmitIntent` never reached the spine
         (a SIGKILL between the REST acknowledgement and the spine append)
-        is invisible to local replay, leaving orphaned exposure. After
-        local reconciliation, sweep the venue's open orders for every
+        is invisible to local replay, leaving orphaned exposure. This runs
+        after event replay populates the local record but before the venue
+        user stream opens, so an orphan is cancelled before the stream
+        could deliver — and `_on_execution_report` silently drop — its
+        fill report. The sweep queries the venue's open orders for every
         managed symbol; any open order whose `client_order_id` is unknown
         locally is cancelled — never adopted, because Praxis cannot
         reconstruct its `command_id` / `trade_id` / Nexus capital lineage
-        from a venue order alone — with a high-severity log.
+        from a venue order alone — with a high-severity log. An OCO leg is
+        cancelled via `cancel_order_list`, since the venue rejects
+        single-leg OCO cancellation (mirroring `stop`).
 
         Args:
             account_id (str): Account identifier to sweep.
@@ -590,11 +597,18 @@ class Trading:
                 )
 
                 try:
-                    await self._venue_adapter.cancel_order(
-                        account_id,
-                        symbol,
-                        client_order_id=venue_order.client_order_id,
-                    )
+                    if venue_order.order_type == OrderType.OCO:
+                        await self._venue_adapter.cancel_order_list(
+                            account_id,
+                            symbol,
+                            client_order_id=venue_order.client_order_id,
+                        )
+                    else:
+                        await self._venue_adapter.cancel_order(
+                            account_id,
+                            symbol,
+                            client_order_id=venue_order.client_order_id,
+                        )
                 except VenueError as exc:
                     _log.error(
                         'failed to cancel orphan venue order; account stays '

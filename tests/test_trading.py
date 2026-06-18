@@ -2336,6 +2336,7 @@ class _SweepVenueAdapter(_InjectedVenueAdapter):
         self._cancel_fails = cancel_fails
         self._query_fails = query_fails
         self.cancelled: list[str] = []
+        self.cancelled_lists: list[str] = []
 
     async def query_open_orders(self, account_id: str, symbol: str) -> list[VenueOrder]:
         del account_id
@@ -2357,6 +2358,21 @@ class _SweepVenueAdapter(_InjectedVenueAdapter):
         assert client_order_id is not None
         self.cancelled.append(client_order_id)
         return CancelResult(venue_order_id='v-cancel', status=OrderStatus.CANCELED)
+
+    async def cancel_order_list(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+        del account_id, symbol, venue_order_id
+        if self._cancel_fails:
+            raise VenueError('cancel failed')
+        assert client_order_id is not None
+        self.cancelled_lists.append(client_order_id)
+        return CancelResult(venue_order_id='v-cancel-list', status=OrderStatus.CANCELED)
 
 
 def _orphan_order() -> VenueOrder:
@@ -2405,6 +2421,29 @@ async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSp
 
     assert adapter.cancelled == []
     assert 'acc-1' not in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_cancels_orphan_oco_via_cancel_order_list(spine: EventSpine) -> None:
+    oco_orphan = VenueOrder(
+        venue_order_id='v-orphan-oco',
+        client_order_id='SS-orphanoco00000-000',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.SELL,
+        order_type=OrderType.OCO,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+    adapter = _SweepVenueAdapter([oco_orphan])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert adapter.cancelled_lists == ['SS-orphanoco00000-000']
+    assert 'acc-1' in trading._ready_accounts
 
 
 @pytest.mark.asyncio
