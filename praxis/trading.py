@@ -345,7 +345,15 @@ class Trading:
             self._user_streams[account_id] = stream
 
         await self._reconcile_account(account_id)
-        self._ready_accounts.add(account_id)
+
+        if await self._sweep_orphan_venue_orders(account_id):
+            self._ready_accounts.add(account_id)
+        else:
+            _log.error(
+                'account %s not marked ready: an orphan venue open order could '
+                'not be cancelled during the boot sweep (fail closed)',
+                account_id,
+            )
 
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
@@ -519,6 +527,85 @@ class Trading:
                 await self._reconcile_terminal(
                     account_id, order, venue_order,
                 )
+
+    async def _sweep_orphan_venue_orders(self, account_id: str) -> bool:
+        '''Cancel venue open orders with no local record.
+
+        A venue order whose `OrderSubmitIntent` never reached the spine
+        (a SIGKILL between the REST acknowledgement and the spine append)
+        is invisible to local replay, leaving orphaned exposure. After
+        local reconciliation, sweep the venue's open orders for every
+        managed symbol; any open order whose `client_order_id` is unknown
+        locally is cancelled — never adopted, because Praxis cannot
+        reconstruct its `command_id` / `trade_id` / Nexus capital lineage
+        from a venue order alone — with a high-severity log.
+
+        Args:
+            account_id (str): Account identifier to sweep.
+
+        Returns:
+            bool: `True` when the account is safe to mark ready (no
+            orphan, or every orphan cancelled); `False` when an orphan
+            could not be cancelled or a sweep query failed (so orphans
+            cannot be confirmed), in which case the caller leaves the
+            account not-ready (fail closed — never trade alongside a
+            possible live, untracked venue order).
+        '''
+
+        trading_state = self._execution_manager.get_trading_state(account_id)
+        if trading_state is None:
+            return True
+
+        known = set(trading_state.orders) | set(trading_state.closed_orders)
+        symbols = (
+            set(self._execution_manager.active_symbols(account_id))
+            | self._bootstrap_filter_symbols
+        )
+        safe = True
+
+        for symbol in sorted(symbols):
+            try:
+                venue_orders = await self._venue_adapter.query_open_orders(account_id, symbol)
+            except VenueError as exc:
+                _log.error(
+                    'open-orders sweep query failed; cannot confirm orphans, account '
+                    'stays not-ready (fail closed): symbol=%s error=%s',
+                    symbol,
+                    exc.args[0] if exc.args else str(exc),
+                )
+                safe = False
+                continue
+
+            for venue_order in venue_orders:
+                if venue_order.client_order_id in known:
+                    continue
+
+                _log.error(
+                    'orphan venue open order with no local record — cancelling, '
+                    'not adopting: symbol=%s client_order_id=%s venue_order_id=%s status=%s',
+                    symbol,
+                    venue_order.client_order_id,
+                    venue_order.venue_order_id,
+                    venue_order.status.value,
+                )
+
+                try:
+                    await self._venue_adapter.cancel_order(
+                        account_id,
+                        symbol,
+                        client_order_id=venue_order.client_order_id,
+                    )
+                except VenueError as exc:
+                    _log.error(
+                        'failed to cancel orphan venue order; account stays '
+                        'not-ready (fail closed): symbol=%s client_order_id=%s error=%s',
+                        symbol,
+                        venue_order.client_order_id,
+                        exc.args[0] if exc.args else str(exc),
+                    )
+                    safe = False
+
+        return safe
 
     async def _reconcile_fills(
         self,

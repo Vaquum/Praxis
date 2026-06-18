@@ -1152,3 +1152,13 @@
 ### Update
 
 - Bump the [`vaquum-nexus`](pyproject.toml) pin to v0.65.0 (`f0dec50`): snaps sub-ULP Decimal residues in the capital aggregates to zero so a restart cannot brick recovery on a persisted `-1E-27` `working_order_notional`. Required alongside the fee-aware settlement (v0.82.0), which made the residue non-zero; full suite passes against the upgraded pin
+
+## v0.84.0 on 18th of June, 2026
+
+### Add
+
+- Add `test_boot_sweep_cancels_orphan_and_marks_account_ready`, `test_boot_sweep_cancel_failure_leaves_account_not_ready`, `test_boot_sweep_query_failure_leaves_account_not_ready`, `test_boot_sweep_no_open_orders_marks_account_ready`, and `test_boot_sweep_keeps_locally_known_open_order` to [`tests/test_trading.py`](tests/test_trading.py): a `_SweepVenueAdapter` surfaces venue open orders so `start()` exercises the boot sweep — an orphan is cancelled and the account becomes ready, a cancel failure and a query failure each leave the account not-ready, an empty open-order list and a locally-known open order both leave the account ready with no cancel
+
+### Fix
+
+- Sweep venue open orders at boot and cancel any order with no local record. `_startup_account` now calls [`_sweep_orphan_venue_orders`](praxis/trading.py) after `_reconcile_account`: for each managed symbol (`active_symbols(account_id)` ∪ `bootstrap_filter_symbols`) it queries `query_open_orders` and cancels any venue order whose `client_order_id` is absent from `trading_state.orders` / `closed_orders`, logging a high-severity orphan event and never adopting it (Praxis cannot reconstruct the `command_id` / `trade_id` / Nexus capital lineage from a venue order alone). The account is marked ready only when every orphan cancels; a cancel failure or a sweep query error that cannot confirm orphans leaves the account not-ready so it never trades alongside a live untracked venue order. Closes the gap where an open venue order whose `OrderSubmitIntent` never reached the spine (process kill between venue ACK and append) was invisible at restart. Narrows TD-042 to the mainnet/shared-account hardening that remains
