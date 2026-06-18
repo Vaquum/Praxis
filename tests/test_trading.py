@@ -2319,3 +2319,187 @@ async def test_outcome_routed_through_callback_reaches_queue(
 
     delivered = q.get_nowait()
     assert delivered is outcome
+
+
+class _SweepVenueAdapter(_InjectedVenueAdapter):
+    '''Venue adapter that surfaces a configurable set of open orders and
+    records (or fails) cancellations, for the boot orphan-sweep tests.'''
+
+    def __init__(
+        self,
+        open_orders: list[VenueOrder],
+        cancel_fails: bool = False,
+        query_fails: bool = False,
+    ) -> None:
+        super().__init__()
+        self._open_orders = open_orders
+        self._cancel_fails = cancel_fails
+        self._query_fails = query_fails
+        self.cancelled: list[str] = []
+        self.cancelled_lists: list[str] = []
+
+    async def query_open_orders(self, account_id: str, symbol: str) -> list[VenueOrder]:
+        del account_id
+        if self._query_fails:
+            raise VenueError('query failed')
+        return [o for o in self._open_orders if o.symbol == symbol]
+
+    async def cancel_order(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+        del account_id, symbol, venue_order_id
+        if self._cancel_fails:
+            raise VenueError('cancel failed')
+        assert client_order_id is not None
+        self.cancelled.append(client_order_id)
+        return CancelResult(venue_order_id='v-cancel', status=OrderStatus.CANCELED)
+
+    async def cancel_order_list(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> CancelResult:
+        del account_id, symbol, venue_order_id
+        if self._cancel_fails:
+            raise VenueError('cancel failed')
+        assert client_order_id is not None
+        self.cancelled_lists.append(client_order_id)
+        return CancelResult(venue_order_id='v-cancel-list', status=OrderStatus.CANCELED)
+
+
+def _orphan_order() -> VenueOrder:
+    return VenueOrder(
+        venue_order_id='v-orphan',
+        client_order_id='SS-orphan0000000-000',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+
+
+def _sweep_trading(adapter: _SweepVenueAdapter, spine: EventSpine) -> Trading:
+    return Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': ('key', 'secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+        bootstrap_filter_symbols=frozenset({'BTCUSDT'}),
+    )
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_cancels_orphan_and_marks_account_ready(spine: EventSpine) -> None:
+    adapter = _SweepVenueAdapter([_orphan_order()])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == ['SS-orphan0000000-000']
+    assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSpine) -> None:
+    adapter = _SweepVenueAdapter([_orphan_order()], cancel_fails=True)
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert 'acc-1' not in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_cancels_orphan_oco_via_cancel_order_list(spine: EventSpine) -> None:
+    oco_orphan = VenueOrder(
+        venue_order_id='v-orphan-oco',
+        client_order_id='SS-orphanoco00000-000',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.SELL,
+        order_type=OrderType.OCO,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+    adapter = _SweepVenueAdapter([oco_orphan])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert adapter.cancelled_lists == ['SS-orphanoco00000-000']
+    assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_query_failure_leaves_account_not_ready(spine: EventSpine) -> None:
+    adapter = _SweepVenueAdapter([_orphan_order()], query_fails=True)
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert 'acc-1' not in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_no_open_orders_marks_account_ready(spine: EventSpine) -> None:
+    adapter = _SweepVenueAdapter([])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_keeps_locally_known_open_order(spine: EventSpine) -> None:
+    ts = _CREATED_AT
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+    ), 1)
+    await spine.append(OrderSubmitIntent(
+        account_id='acc-1', timestamp=ts, command_id='cmd-1', trade_id='trade-1',
+        client_order_id='SS-known-00', symbol='BTCUSDT', side=OrderSide.BUY,
+        order_type=OrderType.LIMIT, qty=Decimal('1'),
+        price=Decimal('50000'), stop_price=None, stop_limit_price=None,
+    ), 1)
+    await spine.append(OrderSubmitted(
+        account_id='acc-1', timestamp=ts,
+        client_order_id='SS-known-00', venue_order_id='v-known',
+    ), 1)
+
+    known = VenueOrder(
+        venue_order_id='v-known',
+        client_order_id='SS-known-00',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+    adapter = _SweepVenueAdapter([known])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert 'acc-1' in trading._ready_accounts
