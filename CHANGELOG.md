@@ -1146,3 +1146,9 @@
 ### Update
 
 - Bump the [`vaquum-nexus`](pyproject.toml) pin to v0.64.0 (`5c63468`), which keys boot reconciliation on `pos.trade_id` and preserves + fails closed on a Nexus-only position instead of silently evicting it. The two changes are coupled: this PR keeps Praxis from under-reporting open positions on replay, and the Nexus pin keeps reconciliation from deleting them
+
+## v0.83.1 on 16th of June, 2026
+
+### Update
+
+- Bump the [`vaquum-nexus`](pyproject.toml) pin to v0.65.0 (`f0dec50`): snaps sub-ULP Decimal residues in the capital aggregates to zero so a restart cannot brick recovery on a persisted `-1E-27` `working_order_notional`. Required alongside the fee-aware settlement (v0.82.0), which made the residue non-zero; full suite passes against the upgraded pin
