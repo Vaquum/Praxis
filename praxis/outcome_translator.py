@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import uuid
 from collections import OrderedDict
 from dataclasses import dataclass
 from decimal import Decimal
@@ -61,6 +60,7 @@ class _CommandState:
     last_cumulative_notional: Decimal = _ZERO
     ack_emitted: bool = False
     terminal_emitted: bool = False
+    partial_seq: int = 0
 
 
 class OutcomeTranslator:
@@ -174,8 +174,10 @@ class OutcomeTranslator:
                             outcome,
                             delta_size=delta_size,
                             delta_notional=delta_notional,
+                            partial_idx=state.partial_seq,
                         ),
                     )
+                    state.partial_seq += 1
                     state.last_filled_qty = outcome.filled_qty
                     state.last_cumulative_notional = cumulative_notional
                 return results
@@ -205,8 +207,10 @@ class OutcomeTranslator:
                             outcome,
                             delta_size=delta_size,
                             delta_notional=delta_notional,
+                            partial_idx=state.partial_seq,
                         ),
                     )
+                    state.partial_seq += 1
                     state.last_filled_qty = outcome.filled_qty
                     state.last_cumulative_notional = cumulative_notional
                 results.append(self._build_terminal(outcome))
@@ -232,7 +236,7 @@ class OutcomeTranslator:
     def _build_ack(self, outcome: PraxisTradeOutcome) -> NexusTradeOutcome:
 
         return NexusTradeOutcome(
-            outcome_id=_new_outcome_id(),
+            outcome_id=_leg_outcome_id(outcome, 'ack'),
             command_id=outcome.command_id,
             outcome_type=TradeOutcomeType.ACK,
             timestamp=outcome.created_at,
@@ -244,6 +248,7 @@ class OutcomeTranslator:
         *,
         delta_size: Decimal,
         delta_notional: Decimal,
+        partial_idx: int,
     ) -> NexusTradeOutcome:
 
         delta_price = delta_notional / delta_size
@@ -255,7 +260,7 @@ class OutcomeTranslator:
         )
 
         return NexusTradeOutcome(
-            outcome_id=_new_outcome_id(),
+            outcome_id=_leg_outcome_id(outcome, 'partial', partial_idx),
             command_id=outcome.command_id,
             outcome_type=TradeOutcomeType.PARTIAL,
             timestamp=outcome.created_at,
@@ -278,7 +283,7 @@ class OutcomeTranslator:
         actual_fees = delta_notional * self._fee_rate
 
         return NexusTradeOutcome(
-            outcome_id=_new_outcome_id(),
+            outcome_id=_leg_outcome_id(outcome, 'filled'),
             command_id=outcome.command_id,
             outcome_type=TradeOutcomeType.FILLED,
             timestamp=outcome.created_at,
@@ -293,7 +298,7 @@ class OutcomeTranslator:
         reason = outcome.reason if outcome.reason else 'rejected'
 
         return NexusTradeOutcome(
-            outcome_id=_new_outcome_id(),
+            outcome_id=_leg_outcome_id(outcome, 'rejected'),
             command_id=outcome.command_id,
             outcome_type=TradeOutcomeType.REJECTED,
             timestamp=outcome.created_at,
@@ -316,7 +321,7 @@ class OutcomeTranslator:
         )
 
         return NexusTradeOutcome(
-            outcome_id=_new_outcome_id(),
+            outcome_id=_leg_outcome_id(outcome, 'terminal'),
             command_id=outcome.command_id,
             outcome_type=outcome_type,
             timestamp=outcome.created_at,
@@ -325,6 +330,30 @@ class OutcomeTranslator:
         )
 
 
-def _new_outcome_id() -> str:
+def _leg_outcome_id(
+    outcome: PraxisTradeOutcome,
+    leg: str,
+    idx: int | None = None,
+) -> str:
+    '''Deterministic Nexus `outcome_id` for one translated leg.
 
-    return uuid.uuid4().hex
+    Derived from the Praxis outcome's stable identity (`account_id`,
+    `command_id`) plus the leg kind, so re-translating the same Praxis
+    outcome at boot replay yields the same id and the Nexus durable
+    dedup recognises it as already-applied (TD-052 ↔ Nexus#86). `idx`
+    distinguishes successive `partial` legs of one command.
+
+    Args:
+        outcome (PraxisTradeOutcome): Source outcome carrying identity.
+        leg (str): Leg kind — 'ack' / 'partial' / 'filled' / 'rejected'
+            / 'terminal'.
+        idx (int | None): Zero-based partial sequence, or None for
+            single-instance legs.
+
+    Returns:
+        str: Deterministic `outcome_id`.
+    '''
+
+    base = f'{outcome.account_id}:{outcome.command_id}:{leg}'
+
+    return base if idx is None else f'{base}:{idx}'

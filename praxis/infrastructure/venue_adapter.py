@@ -833,6 +833,24 @@ class VenueAdapter(Protocol):
 
         ...
 
+    def cached_filters(self, symbol: str) -> SymbolFilters | None:
+        '''
+        Return the preloaded trading filters for a symbol, or None.
+
+        Reads the in-memory cache populated by `load_filters` /
+        `get_exchange_info`; performs no venue round-trip. Returns None
+        when the symbol's filters are not cached, so callers must treat a
+        missing entry as "unknown" rather than substitute a default.
+
+        Args:
+            symbol (str): Trading pair symbol.
+
+        Returns:
+            SymbolFilters | None: Cached filters, or None if not loaded.
+        '''
+
+        ...
+
     def parse_execution_report(self, data: dict[str, Any]) -> ExecutionReport:
         '''
         Parse a venue-specific execution report payload into an ExecutionReport.

@@ -1536,6 +1536,9 @@ class ExecutionManager:
             trade_id=trade_id,
             status=TradeStatus.CANCELED,
             reason=reason,
+            filled_qty=outcome.filled_qty,
+            cumulative_notional=outcome.cumulative_notional,
+            target_qty=outcome.target_qty,
         )
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
@@ -1723,6 +1726,9 @@ class ExecutionManager:
             trade_id=cmd.trade_id,
             status=status,
             reason=reason,
+            filled_qty=outcome.filled_qty,
+            cumulative_notional=outcome.cumulative_notional,
+            target_qty=outcome.target_qty,
         )
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
@@ -1752,9 +1758,18 @@ class ExecutionManager:
         (already removed by an exact-zero reduction) needs no further
         `TradeClosed`.
 
-        NOTE: a partial reducing fill also returns True under the current
-        single-position, full-exit strategy model; precise full-close
-        detection for partial exits is tracked as TD-096.
+        Quantity-aware (TD-096): the fill has already been applied to
+        `trading_state`, so `pos.qty` is the post-fill remaining. A
+        reducing fill closes the position only when that remainder is
+        at or below dust — strictly below the symbol's `LOT_SIZE`
+        `lot_step`, the largest quantity the venue cannot trade — so a
+        partial reducing fill that leaves a tradeable remainder does NOT
+        emit `TradeClosed` (which would close the position projection
+        early on replay). A full-close exit that lot-rounds to a sub-step
+        residue is still dust and closes. When the symbol's filters are
+        not cached, fall back to closing on any reducing fill (the prior
+        side-only behaviour), safe for the single-position full-exit
+        model.
         '''
 
         positions = runtime.trading_state.snapshot_positions()
@@ -1763,4 +1778,12 @@ class ExecutionManager:
         if pos is None:
             return False
 
-        return side != pos.side
+        if side == pos.side:
+            return False
+
+        filters = self._venue_adapter.cached_filters(pos.symbol)
+
+        if filters is None:
+            return True
+
+        return pos.qty < filters.lot_step

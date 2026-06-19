@@ -450,12 +450,25 @@ class TradeOutcomeProduced(_EventBase):
         trade_id (str): Trade correlation identifier.
         status (TradeStatus): Outcome status at time of production.
         reason (str | None): Descriptive reason for status.
+        filled_qty (Decimal): Cumulative filled quantity carried from the
+            `TradeOutcome`, so boot replay (TD-052) can rebuild the Praxis
+            outcome and re-run `OutcomeTranslator` to derive the same
+            deterministic Nexus `outcome_id`s. Defaults to `_ZERO` for
+            no-fill outcomes and for pre-TD-052 events on replay.
+        cumulative_notional (Decimal): Venue-side cumulative notional
+            (sum of fill qty * price) carried from the `TradeOutcome`,
+            the other input the translator needs to derive fill deltas.
+        target_qty (Decimal | None): Command target quantity, used by the
+            translator to derive `remaining_size`. None when unknown.
     '''
 
     command_id: str
     trade_id: str
     status: TradeStatus
     reason: str | None = None
+    filled_qty: Decimal = _ZERO
+    cumulative_notional: Decimal = _ZERO
+    target_qty: Decimal | None = None
 
     def __post_init__(self) -> None:
 
@@ -465,6 +478,18 @@ class TradeOutcomeProduced(_EventBase):
         _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'trade_id', self.trade_id)
         _require_str(name, 'reason', self.reason, optional=True)
+
+        if self.filled_qty < _ZERO:
+            msg = 'TradeOutcomeProduced.filled_qty must be non-negative'
+            raise ValueError(msg)
+
+        if self.cumulative_notional < _ZERO:
+            msg = 'TradeOutcomeProduced.cumulative_notional must be non-negative'
+            raise ValueError(msg)
+
+        if self.target_qty is not None and self.target_qty <= _ZERO:
+            msg = 'TradeOutcomeProduced.target_qty must be positive when set'
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True)

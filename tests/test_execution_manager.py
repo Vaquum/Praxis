@@ -48,6 +48,7 @@ from praxis.infrastructure.venue_adapter import (
     NotFoundError,
     OrderRejectedError,
     SubmitResult,
+    SymbolFilters,
     TransientError,
     VenueAdapter,
 )
@@ -92,6 +93,7 @@ def adapter() -> AsyncMock:
         status=OrderStatus.OPEN,
         immediate_fills=(),
     )
+    mock.cached_filters.return_value = None
     return mock
 
 
@@ -2381,6 +2383,126 @@ class TestTradeClosedPositionSemantics:
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
+        adapter.submit_order.side_effect = [
+            SubmitResult(
+                venue_order_id='v-entry',
+                status=OrderStatus.FILLED,
+                immediate_fills=(
+                    ImmediateFill(
+                        venue_trade_id='t-entry',
+                        qty=Decimal('1'),
+                        price=Decimal('50000'),
+                        fee=Decimal('0.001'),
+                        fee_asset='BTC',
+                        is_maker=False,
+                    ),
+                ),
+            ),
+            SubmitResult(
+                venue_order_id='v-exit',
+                status=OrderStatus.FILLED,
+                immediate_fills=(
+                    ImmediateFill(
+                        venue_trade_id='t-exit',
+                        qty=Decimal('0.99999'),
+                        price=Decimal('51000'),
+                        fee=Decimal('0.001'),
+                        fee_asset='BTC',
+                        is_maker=False,
+                    ),
+                ),
+            ),
+        ]
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('0.99999')}
+        await mgr.submit_command(**exit_kwargs)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'TradeClosed' in types
+
+        positions = mgr.pull_positions(_ACCT)
+        assert (_TRADE, _ACCT) not in positions
+
+    @pytest.mark.asyncio
+    async def test_partial_reducing_fill_emits_no_trade_closed(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.cached_filters.return_value = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('9000'),
+            min_notional=Decimal('10'),
+        )
+        adapter.submit_order.side_effect = [
+            SubmitResult(
+                venue_order_id='v-entry',
+                status=OrderStatus.FILLED,
+                immediate_fills=(
+                    ImmediateFill(
+                        venue_trade_id='t-entry',
+                        qty=Decimal('1'),
+                        price=Decimal('50000'),
+                        fee=Decimal('0.001'),
+                        fee_asset='BTC',
+                        is_maker=False,
+                    ),
+                ),
+            ),
+            SubmitResult(
+                venue_order_id='v-exit',
+                status=OrderStatus.FILLED,
+                immediate_fills=(
+                    ImmediateFill(
+                        venue_trade_id='t-exit',
+                        qty=Decimal('0.4'),
+                        price=Decimal('51000'),
+                        fee=Decimal('0.001'),
+                        fee_asset='BTC',
+                        is_maker=False,
+                    ),
+                ),
+            ),
+        ]
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('0.4')}
+        await mgr.submit_command(**exit_kwargs)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'TradeClosed' not in types
+
+        positions = mgr.pull_positions(_ACCT)
+        assert positions[(_TRADE, _ACCT)].qty == Decimal('0.6')
+
+    @pytest.mark.asyncio
+    async def test_sub_lot_residue_exit_emits_trade_closed(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.cached_filters.return_value = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.0001'),
+            lot_min=Decimal('0.0001'),
+            lot_max=Decimal('9000'),
+            min_notional=Decimal('10'),
+        )
         adapter.submit_order.side_effect = [
             SubmitResult(
                 venue_order_id='v-entry',
