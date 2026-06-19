@@ -28,6 +28,7 @@ __all__ = [
     'OrderSubmitIntent',
     'OrderSubmitted',
     'OutcomeAcked',
+    'OutcomeDeliveryContextRecorded',
     'TradeClosed',
     'TradeOutcomeProduced',
 ]
@@ -537,6 +538,83 @@ class OutcomeAcked(_EventBase):
         _require_str(name, 'outcome_id', self.outcome_id)
 
 
+@dataclass(frozen=True)
+class OutcomeDeliveryContextRecorded(_EventBase):
+
+    '''Persist the Nexus delivery `OrderContext` for a submitted command.
+
+    The launcher builds an `OrderContext` (Nexus connector routing
+    metadata: `strategy_id`, `is_entry`, `order_notional`,
+    `estimated_fees`, `order_size`, `intended_full_close`) from the
+    strategy `Action` at submit time and holds it only in the in-memory
+    `command_contexts` map, which is empty after a restart. Boot replay
+    (TD-052) needs that context to re-route an unacked `TradeOutcomeProduced`
+    through `OutcomeProcessor.process`. This event durably records the
+    context on the spine at submit time, keyed by `command_id`, so the
+    boot-replay step can rebuild the `OrderContext` without the live map.
+    It carries no execution truth and `TradingState.apply` ignores it.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Command the context belongs to.
+        side (OrderSide): Venue order direction.
+        is_entry (bool): True when the order grows a position (ENTER).
+        order_notional (Decimal): Order notional in quote asset.
+        estimated_fees (Decimal): Estimated fees at reservation time.
+        strategy_id (str | None): Owning strategy, None when unattributed.
+        trade_id (str | None): Position reference; None for a new entry
+            until assigned.
+        order_size (Decimal | None): Order size in base asset; None for a
+            quote-native ENTER.
+        intended_full_close (bool): True on an EXIT meant to close the
+            trade completely (drives dust-close routing downstream).
+    '''
+
+    command_id: str
+    side: OrderSide
+    is_entry: bool
+    order_notional: Decimal
+    estimated_fees: Decimal
+    strategy_id: str | None = None
+    trade_id: str | None = None
+    order_size: Decimal | None = None
+    intended_full_close: bool = False
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'strategy_id', self.strategy_id, optional=True)
+        _require_str(name, 'trade_id', self.trade_id, optional=True)
+
+        if not isinstance(self.side, OrderSide):
+            msg = f'{name}.side must be an OrderSide'
+            raise ValueError(msg)
+
+        if not isinstance(self.is_entry, bool):
+            msg = f'{name}.is_entry must be a bool'
+            raise ValueError(msg)
+
+        if not isinstance(self.intended_full_close, bool):
+            msg = f'{name}.intended_full_close must be a bool'
+            raise ValueError(msg)
+
+        if self.order_notional < _ZERO:
+            msg = f'{name}.order_notional must be non-negative'
+            raise ValueError(msg)
+
+        if self.estimated_fees < _ZERO:
+            msg = f'{name}.estimated_fees must be non-negative'
+            raise ValueError(msg)
+
+        if self.order_size is not None and self.order_size <= _ZERO:
+            msg = f'{name}.order_size must be positive when set'
+            raise ValueError(msg)
+
+
 type Event = (
     CommandAccepted
     | OrderSubmitIntent
@@ -551,4 +629,5 @@ type Event = (
     | TradeClosed
     | TradeOutcomeProduced
     | OutcomeAcked
+    | OutcomeDeliveryContextRecorded
 )
