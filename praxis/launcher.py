@@ -92,7 +92,7 @@ from praxis.command_translator import (
 )
 from praxis.core.domain.enums import OrderType
 from praxis.core.domain.trade_abort import TradeAbort
-from praxis.core.domain.events import OutcomeAcked
+from praxis.core.domain.events import OutcomeAcked, OutcomeDeliveryContextRecorded
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.binance_urls import (
     MAINNET_REST_URL,
@@ -1179,6 +1179,11 @@ class _PreRegisterWiring:
         positions_lock: guards position / pending_exit writes.
         fallback_price_provider: ENTER placeholder pricing.
         now: wall-clock UTC provider for unknown-submission timestamps.
+        append_delivery_context: durably records the `OrderContext` on the
+            spine (`OutcomeDeliveryContextRecorded`) before the command is
+            handed to `send_command`, so boot replay (TD-052) can rebuild
+            the context after a restart. Raises on append failure so the
+            submission is aborted rather than left un-replayable.
     '''
 
     pending_registrations: dict[str, tuple[Action, str, ValidationRequestContext]]
@@ -1191,6 +1196,7 @@ class _PreRegisterWiring:
     positions_lock: threading.Lock
     fallback_price_provider: Callable[[], Decimal | None]
     now: Callable[[], datetime]
+    append_delivery_context: Callable[[str, OrderContext], None]
 
 
 def _make_pre_register(
@@ -1303,6 +1309,7 @@ def _make_pre_register(
             context_registered = order_context is not None
 
             if order_context is not None:
+                wiring.append_delivery_context(cmd.account_id, order_context)
                 with wiring.command_registry_lock:
                     wiring.command_contexts[cmd.command_id] = order_context
         except BaseException:
@@ -2116,6 +2123,48 @@ class Launcher:
                 extra={'outcome_id': outcome_id, 'account_id': account_id},
             )
 
+    def _append_outcome_delivery_context(
+        self, account_id: str, ctx: OrderContext,
+    ) -> None:
+        '''Durably record a command's Nexus delivery `OrderContext` on the spine.
+
+        Appended at submit time on the Nexus submitter thread, before the
+        command is handed to `send_command`, so boot replay (TD-052) can
+        rebuild the `OrderContext` for an unacked outcome after a restart —
+        the in-memory `command_contexts` map does not survive one. Unlike
+        `_append_outcome_acked`, this RAISES on append failure so the caller
+        aborts the submission (unwinding capital / registry state) rather
+        than submitting a command whose outcome could never be replayed.
+        '''
+
+        if self._loop is None or self._trading is None:
+            msg = (
+                'cannot append OutcomeDeliveryContextRecorded: '
+                'loop or trading not initialised'
+            )
+            raise RuntimeError(msg)
+
+        event = OutcomeDeliveryContextRecorded(
+            account_id=account_id,
+            timestamp=datetime.now(UTC),
+            command_id=ctx.command_id,
+            side=ctx.side,
+            is_entry=ctx.is_entry,
+            order_notional=ctx.order_notional,
+            estimated_fees=ctx.estimated_fees,
+            strategy_id=ctx.strategy_id,
+            trade_id=ctx.trade_id,
+            order_size=ctx.order_size,
+            intended_full_close=ctx.intended_full_close,
+        )
+        epoch_id = self._trading_config.epoch_id
+        spine = self._trading.event_spine
+
+        future = asyncio.run_coroutine_threadsafe(
+            spine.append(event, epoch_id), self._loop,
+        )
+        future.result(timeout=10)
+
     def _start_healthz(self) -> None:
         '''Start the /healthz HTTP listener on the launcher's asyncio loop.
 
@@ -2467,6 +2516,7 @@ class Launcher:
                         positions_lock=positions_lock,
                         fallback_price_provider=fallback_price_provider,
                         now=lambda: datetime.now(UTC),
+                        append_delivery_context=self._append_outcome_delivery_context,
                     ),
                 )
                 if praxis_outbound.supports_command_id
