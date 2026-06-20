@@ -214,3 +214,79 @@ def test_plan_ignores_other_account_events() -> None:
     plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
 
     assert plan == []
+
+
+def _produced(
+    command_id: str,
+    status: TradeStatus,
+    filled_qty: Decimal,
+    cumulative_notional: Decimal,
+    target_qty: Decimal,
+    account_id: str = 'acct-1',
+) -> TradeOutcomeProduced:
+    return TradeOutcomeProduced(
+        account_id=account_id,
+        timestamp=_TS,
+        command_id=command_id,
+        trade_id='trade-1',
+        status=status,
+        filled_qty=filled_qty,
+        cumulative_notional=cumulative_notional,
+        target_qty=target_qty,
+    )
+
+
+def test_plan_replays_partial_partial_filled_sequence() -> None:
+    events = _enumerate([
+        _ctx_event('cmd-1'),
+        _produced('cmd-1', TradeStatus.PARTIAL, Decimal('1'), Decimal('100'), Decimal('3')),
+        _produced('cmd-1', TradeStatus.PARTIAL, Decimal('2'), Decimal('200'), Decimal('3')),
+        _produced('cmd-1', TradeStatus.FILLED, Decimal('3'), Decimal('300'), Decimal('3')),
+    ])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert [o.outcome_id for o, _ in plan] == [
+        'acct-1:cmd-1:ack',
+        'acct-1:cmd-1:partial:0',
+        'acct-1:cmd-1:partial:1',
+        'acct-1:cmd-1:filled',
+    ]
+
+
+def test_plan_replays_only_unacked_legs_in_partial_sequence() -> None:
+    events = _enumerate([
+        _ctx_event('cmd-1'),
+        _produced('cmd-1', TradeStatus.PARTIAL, Decimal('1'), Decimal('100'), Decimal('3')),
+        _produced('cmd-1', TradeStatus.PARTIAL, Decimal('2'), Decimal('200'), Decimal('3')),
+        _produced('cmd-1', TradeStatus.FILLED, Decimal('3'), Decimal('300'), Decimal('3')),
+        _acked('acct-1:cmd-1:ack'),
+        _acked('acct-1:cmd-1:partial:0'),
+    ])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert [o.outcome_id for o, _ in plan] == [
+        'acct-1:cmd-1:partial:1',
+        'acct-1:cmd-1:filled',
+    ]
+
+
+def test_plan_preserves_global_spine_order_across_commands() -> None:
+    events = _enumerate([
+        _ctx_event('cmd-a'),
+        _ctx_event('cmd-b'),
+        _produced('cmd-a', TradeStatus.PARTIAL, Decimal('1'), Decimal('100'), Decimal('2')),
+        _produced('cmd-b', TradeStatus.FILLED, Decimal('2'), Decimal('200'), Decimal('2')),
+        _produced('cmd-a', TradeStatus.FILLED, Decimal('2'), Decimal('200'), Decimal('2')),
+    ])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert [o.outcome_id for o, _ in plan] == [
+        'acct-1:cmd-a:ack',
+        'acct-1:cmd-a:partial:0',
+        'acct-1:cmd-b:ack',
+        'acct-1:cmd-b:filled',
+        'acct-1:cmd-a:filled',
+    ]

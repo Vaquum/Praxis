@@ -421,30 +421,7 @@ The events table has no `account_id` column; the field lives only inside the orj
 
 ---
 
-## TD-052: Boot replay-from-spine for unconsumed `TradeOutcomeProduced` events
-
-**Origin**: Round-18 MAJOR-004 part B scope deferral (Praxis #86)
-**Severity**: Major (closes the cross-restart half of MAJOR-004; runtime retry already lands)
-**Module**: `praxis/trading.py` (`Trading.start`); `praxis/outcome_translator.py` (`_new_outcome_id`); cross-cutting (`OutcomeAcked` event already exists)
-
-MAJOR-004 part B added a runtime retry for `_on_trade_outcome` callback failures and a durable `OutcomeAcked` marker that the launcher's `process_outcome` appends after `OutcomeProcessor.process` returns success. Boot replay-from-spine — re-delivering `TradeOutcomeProduced` events that lack a matching `OutcomeAcked` — was scoped out because it requires translator-determinism prework: `outcome_translator._new_outcome_id` currently generates `uuid.uuid4().hex` per call, so re-translating the same Praxis `TradeOutcome` after restart produces NEW Nexus `outcome_id`s that do NOT match Nexus's idempotency dedup set. Without stable IDs, boot replay would either skip outcomes (if matched on a non-existent Praxis-side outcome_id) or double-apply them (if Nexus dedup misses).
-
-The runtime retry handles transient callback failures; the `OutcomeAcked` event is already on the spine for forward use. Cross-restart loss of an outcome that was produced but never consumed by Nexus still requires manual operator intervention (e.g., re-issue the command).
-
-**When to fix**: Before any sustained multi-day paper trading where dropped outcomes accumulate, OR before MAJOR-005 / future audits surface this as a hot path.
-
-**Migration**:
-1. Add stable `outcome_id: str` field to `praxis.core.domain.trade_outcome.TradeOutcome` (in-memory) and to the `TradeOutcomeProduced` event (durable) — generated once in `ExecutionManager._build_outcome` / `_emit_ws_outcome`.
-2. Update `OutcomeTranslator` so derived Nexus outcome_ids are deterministic from the Praxis `outcome_id` (e.g., `f"{praxis_outcome_id}-{seq}"`).
-3. In `Trading.start`, after `replay_events` and `reconcile_orphan_commands`, scan per-account `TradeOutcomeProduced` events. For each, compute the full set of derived Nexus `outcome_id`s (per step 2) and consider the produced event consumed only when ALL derived ids appear as `OutcomeAcked.outcome_id` (and, once TD-086 ships, also covered by the Nexus-side durable applied-outcome marker). Re-deliver any `TradeOutcomeProduced` with at least one un-acked derived id by reconstructing the Praxis `TradeOutcome` from the spine fields and dispatching via `self._on_trade_outcome`; Nexus-side dedup catches the derived outcomes that were already applied.
-4. Nexus's in-memory dedup (already keyed on outcome_id from MAJOR-004 part A) catches re-delivered outcomes within a single process lifetime. Cross-restart safety requires BOTH the derived-id-set `OutcomeAcked` filter at boot-replay-emission time AND the Nexus-side durable applied-outcome marker from TD-086 — the `OutcomeAcked` filter alone is insufficient because Nexus may have applied the outcome and persisted a checkpoint before the ack landed (see acceptance addendum).
-5. Add integration test: simulate Nexus crash after spine append but before consumption → restart → boot replay drives Nexus to the same end state as if no crash had occurred.
-
-**Acceptance addendum (codex-supervised audit re-run, 2026-05-04)**:
-- Replay must handle the case where Nexus state was checkpointed (via `_final_checkpoint` at shutdown OR via `_reconcile_capital` boot adjustment) AFTER memory mutation but BEFORE `OutcomeAcked` was emitted.
-- Replay must NOT assume "missing `OutcomeAcked`" implies "Nexus did not mutate". The check must consult a durable Nexus-side applied-outcome record OR the replay consumer must produce the same end-state as a successful first delivery did (idempotent `_handle_*`).
-- Boot replay scan order: read all `TradeOutcomeProduced` for epoch. The fan-out granularity matters — a single Praxis `TradeOutcome` can produce multiple Nexus `NexusTradeOutcome`s (ACK + zero-or-more PARTIALs + a terminal), each with its own Nexus `outcome_id`, and `OutcomeAcked.outcome_id` records the Nexus id, not the Praxis id. The migration's step 2 (deterministic derived Nexus outcome_ids from the stable Praxis `outcome_id`, e.g. `f"{praxis_outcome_id}-{seq}"`) is what lets the boot-replay filter work: for each `TradeOutcomeProduced`, compute the full set of derived Nexus outcome_ids and re-deliver iff ANY derived id lacks a matching `OutcomeAcked` (and is not already covered by a Nexus-side durable applied-outcome marker). Re-delivery goes through the same callback chain; Nexus-side dedup catches the derived outcomes that were already applied.
-- TD-052 must NOT ship without TD-086 (paired implementation boundary).
+## TD-052: Boot replay-from-spine for unconsumed `TradeOutcomeProduced` events — RESOLVED
 
 ---
 
@@ -840,13 +817,30 @@ Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in
 
 ---
 
-## TD-096: `TradeClosed` close-detection is side-based, not full-close-aware
+## TD-096: `TradeClosed` close-detection is side-based, not full-close-aware — RESOLVED
 
-**Origin**: Restart durability fix (`TradeClosed` = position-closed semantics)
-**Severity**: Low (current strategies open one position and exit it in full)
-**Module**: `praxis/core/execution_manager.py`
+---
 
-`_closes_position` treats any reducing fill (side opposite the open position) as closing the position — it emits `TradeClosed` and clears the projection. Under the current single-position, full-exit strategy model this is correct. A partial reducing fill would clear the position prematurely. Praxis does not yet carry the Nexus `OrderContext.intended_full_close` intent, so it cannot distinguish a partial reduce from a full close.
+## TD-097: Boot outcome-replay runs after the venue user stream opens, not before
 
-**When to fix**: Before partial-exit / scale-out strategies are used.
-**Migration**: Thread `intended_full_close` (and entry/exit intent) from the Nexus `OrderContext` into the Praxis command/intent events, and emit `TradeClosed` only when the position reaches zero/dust after the reducing fill.
+**Origin**: TD-052 boot-replay deferral (codex review)
+**Severity**: Low (Nexus#86 durable dedup makes the overlap a no-op, not a double-apply)
+**Module**: `praxis/launcher.py` (`_replay_unacked_outcomes` in `_build_nexus_runtime`); `praxis/trading.py` (`Trading.start` / `_startup_account`)
+
+`launch()` calls `_start_trading()` (which opens the Binance user stream in `_startup_account`) before `_start_nexus_instances()`, so the TD-052 boot replay hooks before the Nexus loops but AFTER the venue stream is live. A live WS outcome and a replayed outcome can therefore race for the same command during boot. This is acceptable today only because the replayed and live legs carry the same deterministic `outcome_id` and Nexus's durable `processed_outcome_ids` dedup drops the duplicate.
+
+**When to fix**: If the boot-window race ever needs to be eliminated structurally (e.g. before relying on replay without the Nexus dedup, or on a venue without idempotent application).
+**Migration**: Split `Trading.start()` into a recovery phase (state replay + reconcile) and a venue-stream phase, run the outcome replay between them, and open the user stream only after replay completes.
+
+---
+
+## TD-098: Delivery-context recording on the consumer-registration path is best-effort
+
+**Origin**: TD-052 boot-replay deferral (codex review)
+**Severity**: Low (the authoritative pre-registration path records the context durably; this path is the unknown-submission fallback)
+**Module**: `praxis/launcher.py` (consumer-side `command_contexts` registration in `_build_nexus_runtime`)
+
+The pre-registration path (`pre_register`) appends `OutcomeDeliveryContextRecorded` durably before the `send_command` handoff, so a normal submission's context survives a restart. The legacy consumer-registration path — which rebuilds an `OrderContext` when an outcome arrives for a command with no pre-registered context — does NOT append the context, because by then the command has already been submitted and a durable record before the fact is impossible. An outcome whose context was only ever built on this path is not replayable after a restart (boot replay skips it with a no-context warning).
+
+**When to fix**: If unknown-submission recovery ever becomes a normal (non-exceptional) path, or before relying on replay for commands that bypass pre-registration.
+**Migration**: Append a best-effort `OutcomeDeliveryContextRecorded` when the consumer rebuilds the context, accepting that it lands after submission rather than before; or eliminate the consumer-registration path in favour of always pre-registering.

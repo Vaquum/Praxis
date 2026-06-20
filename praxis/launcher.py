@@ -1112,7 +1112,6 @@ def _plan_outcome_replay(
     '''
 
     contexts_by_cmd: dict[str, OutcomeDeliveryContextRecorded] = {}
-    produced_by_cmd: dict[str, list[TradeOutcomeProduced]] = {}
     acked_ids: set[str] = set()
 
     for _seq, event in seq_events:
@@ -1120,32 +1119,48 @@ def _plan_outcome_replay(
             continue
         if isinstance(event, OutcomeDeliveryContextRecorded):
             contexts_by_cmd[event.command_id] = event
-        elif isinstance(event, TradeOutcomeProduced):
-            produced_by_cmd.setdefault(event.command_id, []).append(event)
         elif isinstance(event, OutcomeAcked):
             acked_ids.add(event.outcome_id)
 
+    # Second pass walks `TradeOutcomeProduced` in original spine order — NOT
+    # grouped per command — so an interleaved sequence (`A partial`, `B
+    # filled`, `A filled`) re-delivers in the same order it was produced.
+    # `OutcomeProcessor` mutates shared capital / position / risk state, so
+    # cross-command order can matter. A lazily-created per-command translator
+    # preserves each command's cumulative deltas and partial indexes.
+    translators: dict[str, OutcomeTranslator] = {}
+    contexts: dict[str, OrderContext] = {}
+    skipped_no_context: set[str] = set()
     plan: list[tuple[NexusTradeOutcome, OrderContext]] = []
 
-    for command_id, produced in produced_by_cmd.items():
-        context_event = contexts_by_cmd.get(command_id)
-        if context_event is None:
-            _log.warning(
-                'boot replay: produced outcome with no delivery context; '
-                'leaving unacked for operator review',
-                extra={'command_id': command_id, 'account_id': account_id},
-            )
+    for _seq, event in seq_events:
+        if event.account_id != account_id or not isinstance(event, TradeOutcomeProduced):
             continue
 
-        order_context = _order_context_from_recorded(context_event)
-        translator = OutcomeTranslator(fee_rate=fee_rate)
+        command_id = event.command_id
+        context_event = contexts_by_cmd.get(command_id)
+        if context_event is None:
+            if command_id not in skipped_no_context:
+                skipped_no_context.add(command_id)
+                _log.warning(
+                    'boot replay: produced outcome with no delivery context; '
+                    'leaving unacked for operator review',
+                    extra={'command_id': command_id, 'account_id': account_id},
+                )
+            continue
 
-        for produced_event in produced:
-            praxis_outcome = _trade_outcome_from_produced(produced_event)
-            for nexus_outcome in translator.translate(praxis_outcome):
-                if nexus_outcome.outcome_id in acked_ids:
-                    continue
-                plan.append((nexus_outcome, order_context))
+        order_context = contexts.setdefault(
+            command_id, _order_context_from_recorded(context_event),
+        )
+        translator = translators.setdefault(
+            command_id, OutcomeTranslator(fee_rate=fee_rate),
+        )
+
+        praxis_outcome = _trade_outcome_from_produced(event)
+        for nexus_outcome in translator.translate(praxis_outcome):
+            if nexus_outcome.outcome_id in acked_ids:
+                continue
+            plan.append((nexus_outcome, order_context))
 
     return plan
 
