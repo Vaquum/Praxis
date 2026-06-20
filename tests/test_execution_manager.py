@@ -2599,3 +2599,31 @@ class TestTradeClosedPositionSemantics:
 
         positions = mgr.pull_positions(_ACCT)
         assert (_TRADE, _ACCT) not in positions
+
+
+class TestInjectedClock:
+    @pytest.mark.asyncio
+    async def test_command_accepted_uses_injected_clock(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        fixed = datetime(2026, 1, 1, tzinfo=UTC)
+        em = ExecutionManager(
+            event_spine=spine,
+            epoch_id=_EPOCH,
+            venue_adapter=adapter,
+            clock=lambda: fixed,
+        )
+        em.register_account(_ACCT)
+
+        try:
+            await em.submit_command(**_CMD_KWARGS, command_id=_LONG_ID_DUP)
+            events = await spine.read(_EPOCH, after_seq=0)
+            accepted = [e for _seq, e in events if isinstance(e, CommandAccepted)]
+
+            assert len(accepted) == 1
+            assert accepted[0].timestamp == fixed
+        finally:
+            for account_id in list(em._accounts):
+                await em.unregister_account(account_id)

@@ -50,6 +50,13 @@ _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.EXPIRED,
 })
 
+
+def _utc_now() -> datetime:
+    '''Return the current UTC time.'''
+
+    return datetime.now(UTC)
+
+
 class Trading:
     '''
     Main trading composition root for MMVP wiring.
@@ -80,6 +87,7 @@ class Trading:
         event_spine: EventSpine,
         venue_adapter: VenueAdapter | None = None,
         bootstrap_filter_symbols: frozenset[str] = frozenset(),
+        clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         '''Compose core trading dependencies and manager-facing facade.
 
@@ -99,6 +107,7 @@ class Trading:
 
         self._config = config
         self._event_spine = event_spine
+        self._clock = clock
         self._bootstrap_filter_symbols = frozenset(bootstrap_filter_symbols)
         if venue_adapter is None:
             self._venue_adapter = cast(
@@ -117,6 +126,7 @@ class Trading:
             epoch_id=config.epoch_id,
             venue_adapter=self._venue_adapter,
             on_trade_outcome=config.on_trade_outcome,
+            clock=clock,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,
@@ -711,7 +721,7 @@ class Trading:
         if trading_state is None:
             return
 
-        ts = datetime.now(UTC)
+        ts = self._clock()
         event: OrderCanceled | OrderExpired | OrderRejected | None = None
 
         if venue_order.status == OrderStatus.CANCELED:

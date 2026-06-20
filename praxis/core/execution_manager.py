@@ -86,6 +86,12 @@ _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
 
+def _utc_now() -> datetime:
+    '''Return the current UTC time.'''
+
+    return datetime.now(UTC)
+
+
 class AccountNotRegisteredError(Exception):
     '''Raised when a command targets an unregistered account_id.'''
 
@@ -133,6 +139,9 @@ class ExecutionManager:
             Async callback awaited once per produced TradeOutcome after
             TradeOutcomeProduced is appended to the event spine. None to skip.
             Callback exceptions are logged and suppressed.
+        clock (Callable[[], datetime]): Source of the current UTC time
+            for event timestamps and staleness gating. Defaults to wall
+            clock; a replay run injects a cursor advanced per bar settle.
     '''
 
     def __init__(
@@ -141,6 +150,7 @@ class ExecutionManager:
         epoch_id: int,
         venue_adapter: VenueAdapter,
         on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None,
+        clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         '''Store dependencies and initialize empty account registry.'''
 
@@ -148,6 +158,7 @@ class ExecutionManager:
         self._epoch_id = epoch_id
         self._venue_adapter = venue_adapter
         self._on_trade_outcome = on_trade_outcome
+        self._clock = clock
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
@@ -495,7 +506,7 @@ class ExecutionManager:
         command_id: str,
         trade_id: str,
     ) -> None:
-        ts = datetime.now(UTC)
+        ts = self._clock()
         produced = TradeOutcomeProduced(
             account_id=runtime.account_id,
             timestamp=ts,
@@ -815,7 +826,7 @@ class ExecutionManager:
 
         event = CommandAccepted(
             account_id=account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             command_id=command_id,
             trade_id=trade_id,
             strategy_id=strategy_id,
@@ -1027,7 +1038,7 @@ class ExecutionManager:
             cmd.command_id,
             sequence=0,
         )
-        now = datetime.now(UTC)
+        now = self._clock()
 
         intent = OrderSubmitIntent(
             account_id=cmd.account_id,
@@ -1061,7 +1072,7 @@ class ExecutionManager:
                 client_order_id=client_order_id,
                 quote_qty=cmd.quote_qty,
             )
-            post_venue_ts = datetime.now(UTC)
+            post_venue_ts = self._clock()
         except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
             rescued = await self._rescue_by_client_order_id(
                 runtime, cmd, client_order_id, exc,
@@ -1071,7 +1082,7 @@ class ExecutionManager:
                     runtime, cmd, client_order_id, str(exc.args[0]),
                 )
             result = rescued
-            post_venue_ts = datetime.now(UTC)
+            post_venue_ts = self._clock()
         except VenueError as exc:
             return await self._record_submit_failed(
                 runtime, cmd, client_order_id, str(exc.args[0]),
@@ -1261,7 +1272,7 @@ class ExecutionManager:
 
         failed = OrderSubmitFailed(
             account_id=cmd.account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             client_order_id=client_order_id,
             reason=reason,
         )
@@ -1439,7 +1450,7 @@ class ExecutionManager:
         if cancel_confirmed:
             canceled = OrderCanceled(
                 account_id=order.account_id,
-                timestamp=datetime.now(UTC),
+                timestamp=self._clock(),
                 client_order_id=order.client_order_id,
                 venue_order_id=venue_order_id,
                 reason=abort.reason,
@@ -1496,7 +1507,7 @@ class ExecutionManager:
             TradeOutcome: CANCELED outcome.
         '''
 
-        ts = datetime.now(UTC)
+        ts = self._clock()
 
         outcome = TradeOutcome(
             command_id=order.command_id,
@@ -1685,7 +1696,7 @@ class ExecutionManager:
             TradeOutcome: The constructed outcome.
         '''
 
-        ts = datetime.now(UTC)
+        ts = self._clock()
 
         outcome = TradeOutcome(
             command_id=cmd.command_id,

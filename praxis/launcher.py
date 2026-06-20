@@ -137,6 +137,12 @@ _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
+
+
+def _utc_now() -> datetime:
+    '''Return the current UTC time.'''
+
+    return datetime.now(UTC)
 _DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
 _DEFAULT_SNAPSHOT_INTERVAL_SECONDS = 300.0
 _DEFAULT_MTM_INTERVAL_SECONDS = 30.0
@@ -2065,6 +2071,7 @@ class Launcher:
         db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
         healthz_port: int | None = None,
+        clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -2078,6 +2085,7 @@ class Launcher:
         self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
         self._healthz_port = healthz_port
+        self._clock = clock
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
@@ -2230,6 +2238,7 @@ class Launcher:
             event_spine=self._event_spine,
             venue_adapter=self._venue_adapter,
             bootstrap_filter_symbols=frozenset({_DEFAULT_SYMBOL}),
+            clock=self._clock,
         )
 
         for inst in self._instances:
@@ -2642,7 +2651,7 @@ class Launcher:
             raise RuntimeError(msg)
 
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
-        capital_controller = CapitalController(state.capital)
+        capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
         pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
         positions_lock = threading.Lock()
@@ -3059,6 +3068,7 @@ class Launcher:
             action_submit=submitter,
             conduit_dir=conduit_dir,
             arrow_dir=arrow_dir,
+            clock=self._clock,
         )
         predict_loop.start()
 
