@@ -2558,6 +2558,7 @@ class Launcher:
 
         try:
             runtime = self._build_nexus_runtime(inst, outcome_queue)
+            self._start_nexus_loops(runtime)
 
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
@@ -2608,10 +2609,11 @@ class Launcher:
         `CapitalController`, six-stage `ValidationPipeline`, submitter /
         `build_context` / `context_provider` / `fallback_price_provider`
         closures → `PredictLoop`, `TimerLoop` (when the manifest carries
-        timers), and `OutcomeLoop`, all started before returning. The
-        caller is responsible for waiting on the shutdown signal and
-        then invoking `ShutdownSequencer.shutdown()` on the returned
-        runtime.
+        timers), and `OutcomeLoop`. The loops are built but NOT started;
+        the caller starts them via `_start_nexus_loops` (the live path)
+        or drives them directly (a replay run). The caller is also
+        responsible for waiting on the shutdown signal and then invoking
+        `ShutdownSequencer.shutdown()` on the returned runtime.
 
         Raises:
             RuntimeError: If `sequencer.start()` completed but the
@@ -3070,7 +3072,6 @@ class Launcher:
             arrow_dir=arrow_dir,
             clock=self._clock,
         )
-        predict_loop.start()
 
         timer_loop: TimerLoop | None = None
 
@@ -3081,7 +3082,6 @@ class Launcher:
                 context_provider=context_provider,
                 action_submit=submitter,
             )
-            timer_loop.start()
 
         praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
 
@@ -3094,7 +3094,6 @@ class Launcher:
             action_submit=submitter,
             process_outcome=process_outcome,
         )
-        outcome_loop.start()
 
         health_loop = _build_health_loop(
             trading=self._trading,
@@ -3102,7 +3101,6 @@ class Launcher:
             account_id=inst.account_id,
             state_store=state_store,
         )
-        health_loop.start()
 
         snapshot_interval = _positive_float_env(
             'NEXUS_SNAPSHOT_INTERVAL_SECONDS',
@@ -3113,7 +3111,6 @@ class Launcher:
             state=state,
             interval_seconds=snapshot_interval,
         )
-        snapshot_scheduler.start()
 
         mtm_interval = _positive_float_env(
             'NEXUS_MTM_INTERVAL_SECONDS',
@@ -3132,7 +3129,6 @@ class Launcher:
             interval_seconds=mtm_interval,
             positions_lock=positions_lock,
         )
-        mtm_loop.start()
 
         unknown_warn_seconds = _positive_float_env(
             'NEXUS_UNKNOWN_SUBMISSION_WARN_SECONDS',
@@ -3149,7 +3145,6 @@ class Launcher:
             warn_seconds=unknown_warn_seconds,
             scan_seconds=unknown_scan_seconds,
         )
-        unknown_submission_monitor.start()
 
         return _NexusRuntime(
             state_store=state_store,
@@ -3173,6 +3168,25 @@ class Launcher:
             process_outcome=process_outcome,
             positions_lock=positions_lock,
         )
+
+    def _start_nexus_loops(self, runtime: _NexusRuntime) -> None:
+        '''Start the realtime loops of a built runtime (the live path).
+
+        A replay run skips this and drives `runtime.predict_loop`
+        synchronously via `tick_once` instead.
+        '''
+
+        runtime.predict_loop.start()
+
+        if runtime.timer_loop is not None:
+            runtime.timer_loop.start()
+
+        runtime.outcome_loop.start()
+        runtime.health_loop.start()
+        runtime.snapshot_scheduler.start()
+        runtime.mtm_loop.start()
+        runtime.unknown_submission_monitor.start()
+
 
 def _check_required_env(env: dict[str, str]) -> None:
     '''Raise if any required env var is missing or empty.'''

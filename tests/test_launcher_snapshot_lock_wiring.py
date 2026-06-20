@@ -63,31 +63,44 @@ def _call_lineno(func_src: str, predicate: Callable[[ast.expr], bool]) -> int | 
 
 @pytest.mark.parametrize('consumer', ['outcome_loop', 'snapshot_scheduler'])
 def test_attach_precedes_store_consumer_start(consumer: str) -> None:
-    src = inspect.getsource(Launcher._build_nexus_runtime)
+    build_src = inspect.getsource(Launcher._build_nexus_runtime)
+    start_src = inspect.getsource(Launcher._start_nexus_loops)
+    run_src = inspect.getsource(Launcher._run_nexus_instance)
 
     def is_attach(func: ast.expr) -> bool:
         return isinstance(func, ast.Attribute) and func.attr == 'attach_snapshot_locks'
 
-    def is_consumer_start(func: ast.expr) -> bool:
+    def is_runtime_consumer_start(func: ast.expr) -> bool:
         return (
             isinstance(func, ast.Attribute)
             and func.attr == 'start'
-            and isinstance(func.value, ast.Name)
-            and func.value.id == consumer
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == consumer
         )
 
-    attach_line = _call_lineno(src, is_attach)
-    consumer_start_line = _call_lineno(src, is_consumer_start)
+    def is_build(func: ast.expr) -> bool:
+        return isinstance(func, ast.Attribute) and func.attr == '_build_nexus_runtime'
 
-    assert attach_line is not None, (
+    def is_start_loops(func: ast.expr) -> bool:
+        return isinstance(func, ast.Attribute) and func.attr == '_start_nexus_loops'
+
+    assert _call_lineno(build_src, is_attach) is not None, (
         '_build_nexus_runtime must call state_store.attach_snapshot_locks'
     )
-    assert consumer_start_line is not None, (
-        f'_build_nexus_runtime must start {consumer}'
+    assert _call_lineno(start_src, is_runtime_consumer_start) is not None, (
+        f'_start_nexus_loops must start {consumer}'
     )
-    assert attach_line < consumer_start_line, (
-        f'attach_snapshot_locks must run before {consumer}.start so the store '
-        'owns the bundle before that thread reaches append_mutation / checkpoint'
+
+    build_call = _call_lineno(run_src, is_build)
+    start_call = _call_lineno(run_src, is_start_loops)
+
+    assert build_call is not None and start_call is not None, (
+        '_run_nexus_instance must build the runtime then start its loops'
+    )
+    assert build_call < start_call, (
+        'attach_snapshot_locks (in _build_nexus_runtime) must run before the '
+        f'loops start (in _start_nexus_loops) so the store owns the bundle '
+        f'before {consumer} reaches append_mutation / checkpoint'
     )
 
 
