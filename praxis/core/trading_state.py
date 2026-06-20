@@ -28,6 +28,7 @@ from praxis.core.domain.events import (
     OrderSubmitted,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
+    OutcomeReplayAbandoned,
     TradeClosed,
     TradeOutcomeProduced,
 )
@@ -124,7 +125,9 @@ class TradingState:
                 event.outcome_id,
                 self.account_id,
             )
-        elif isinstance(event, OutcomeDeliveryContextRecorded):
+        elif isinstance(
+            event, (OutcomeDeliveryContextRecorded, OutcomeReplayAbandoned),
+        ):
             return
         else:
             _log.warning(

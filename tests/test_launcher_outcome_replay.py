@@ -19,6 +19,7 @@ from praxis.core.domain.enums import OrderSide, TradeStatus
 from praxis.core.domain.events import (
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
+    OutcomeReplayAbandoned,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -290,3 +291,21 @@ def test_plan_preserves_global_spine_order_across_commands() -> None:
         'acct-1:cmd-b:filled',
         'acct-1:cmd-a:filled',
     ]
+
+
+def test_plan_skips_abandoned_legs() -> None:
+    events = _enumerate([
+        _ctx_event('cmd-1'),
+        _produced_filled('cmd-1'),
+        _acked('acct-1:cmd-1:ack'),
+        OutcomeReplayAbandoned(
+            account_id='acct-1',
+            timestamp=_TS,
+            outcome_id='acct-1:cmd-1:filled',
+            reason='order not found',
+        ),
+    ])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert plan == []

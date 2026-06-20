@@ -64,6 +64,7 @@ from nexus.infrastructure.praxis_connector.order_context import OrderContext
 from nexus.infrastructure.praxis_connector.outcome_processor import OutcomeProcessor
 from nexus.infrastructure.praxis_connector.praxis_inbound import PraxisInbound
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
+from nexus.infrastructure.praxis_connector.process_result import ProcessResult
 from nexus.infrastructure.snapshot_scheduler import SnapshotScheduler
 from nexus.infrastructure.praxis_connector.trade_command import (
     TradeCommand as NexusTradeCommand,
@@ -96,6 +97,7 @@ from praxis.core.domain.events import (
     Event,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
+    OutcomeReplayAbandoned,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -1091,12 +1093,12 @@ def _plan_outcome_replay(
 
     Pure planning over the spine events for one account: groups the
     recorded delivery contexts, the `TradeOutcomeProduced` events (kept
-    in append order per command), and the already-recorded `OutcomeAcked`
-    ids. For each produced command it rebuilds the `OrderContext` and the
+    in append order per command), and the ids already settled
+    (`OutcomeAcked`, or `OutcomeReplayAbandoned` for a leg a prior boot
+    could not apply). For each produced command it rebuilds the `OrderContext` and the
     Praxis `TradeOutcome` from their durable records, re-runs a fresh
     `OutcomeTranslator` to derive the deterministic Nexus `outcome_id`s,
-    and returns every `(outcome, context)` pair whose id has no matching
-    `OutcomeAcked`. A produced command with no recorded delivery context
+    and returns every `(outcome, context)` pair whose id is not yet settled. A produced command with no recorded delivery context
     is skipped (logged) — it cannot be routed and is left for operator
     review. Nexus#86's durable dedup makes re-delivery of an already-
     applied (but un-acked) leg a no-op.
@@ -1112,15 +1114,15 @@ def _plan_outcome_replay(
     '''
 
     contexts_by_cmd: dict[str, OutcomeDeliveryContextRecorded] = {}
-    acked_ids: set[str] = set()
+    settled_ids: set[str] = set()
 
     for _seq, event in seq_events:
         if event.account_id != account_id:
             continue
         if isinstance(event, OutcomeDeliveryContextRecorded):
             contexts_by_cmd[event.command_id] = event
-        elif isinstance(event, OutcomeAcked):
-            acked_ids.add(event.outcome_id)
+        elif isinstance(event, (OutcomeAcked, OutcomeReplayAbandoned)):
+            settled_ids.add(event.outcome_id)
 
     # Second pass walks `TradeOutcomeProduced` in original spine order — NOT
     # grouped per command — so an interleaved sequence (`A partial`, `B
@@ -1158,7 +1160,7 @@ def _plan_outcome_replay(
 
         praxis_outcome = _trade_outcome_from_produced(event)
         for nexus_outcome in translator.translate(praxis_outcome):
-            if nexus_outcome.outcome_id in acked_ids:
+            if nexus_outcome.outcome_id in settled_ids:
                 continue
             plan.append((nexus_outcome, order_context))
 
@@ -2277,6 +2279,49 @@ class Launcher:
                 extra={'outcome_id': outcome_id, 'account_id': account_id},
             )
 
+    def _append_outcome_replay_abandoned(
+        self, account_id: str, outcome_id: str, reason: str,
+    ) -> None:
+        '''Durably mark a boot-replayed outcome that could not be applied.
+
+        TD-052: a replayed leg that fails irrecoverably (e.g. an entry
+        fill whose capital order was cleared by `reconcile_at_boot`, so
+        `order_fill` returns `order not found`) would otherwise be
+        re-planned and re-fail on every boot. Recording an
+        `OutcomeReplayAbandoned` makes the boot-replay planner skip it on
+        later boots; the underlying venue/Nexus divergence is owned by the
+        boot capital reconcile (TD-097/TD-098). Best-effort, like
+        `_append_outcome_acked`: a failed append just means the next boot
+        re-attempts the (still-failing) leg.
+        '''
+
+        if self._loop is None or self._trading is None:
+            _log.warning(
+                'cannot append OutcomeReplayAbandoned: loop or trading not initialised',
+                extra={'outcome_id': outcome_id, 'account_id': account_id},
+            )
+            return
+
+        event = OutcomeReplayAbandoned(
+            account_id=account_id,
+            timestamp=datetime.now(UTC),
+            outcome_id=outcome_id,
+            reason=reason,
+        )
+        epoch_id = self._trading_config.epoch_id
+        spine = self._trading.event_spine
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                spine.append(event, epoch_id), self._loop,
+            )
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - abandon-mark failure must not abort boot
+            _log.exception(
+                'OutcomeReplayAbandoned append failed; leg will be re-attempted next boot',
+                extra={'outcome_id': outcome_id, 'account_id': account_id},
+            )
+
     def _append_outcome_delivery_context(
         self, account_id: str, ctx: OrderContext,
     ) -> None:
@@ -2777,7 +2822,7 @@ class Launcher:
             order_context: OrderContext,
             *,
             source: str,
-        ) -> None:
+        ) -> ProcessResult:
             result = outcome_processor.process(outcome, order_context)
             if not result.success:
                 _log.warning(
@@ -2874,6 +2919,8 @@ class Launcher:
             if result.success and mutation_persisted:
                 self._append_outcome_acked(inst.account_id, outcome.outcome_id)
 
+            return result
+
         def process_outcome(outcome: NexusTradeOutcome) -> None:
             with command_registry_lock:
                 order_context = command_contexts.get(outcome.command_id)
@@ -2929,9 +2976,15 @@ class Launcher:
             plan = _plan_outcome_replay(seq_events, inst.account_id, _DEFAULT_FEE_RATE)
 
             for nexus_outcome, order_context in plan:
-                _process_nexus_outcome(
+                result = _process_nexus_outcome(
                     nexus_outcome, order_context, source='boot_replay',
                 )
+                if not result.success:
+                    self._append_outcome_replay_abandoned(
+                        inst.account_id,
+                        nexus_outcome.outcome_id,
+                        result.error_reason or 'replay process failed',
+                    )
 
             if plan:
                 _log.info(

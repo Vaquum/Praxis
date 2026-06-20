@@ -29,6 +29,7 @@ __all__ = [
     'OrderSubmitted',
     'OutcomeAcked',
     'OutcomeDeliveryContextRecorded',
+    'OutcomeReplayAbandoned',
     'TradeClosed',
     'TradeOutcomeProduced',
 ]
@@ -539,6 +540,41 @@ class OutcomeAcked(_EventBase):
 
 
 @dataclass(frozen=True)
+class OutcomeReplayAbandoned(_EventBase):
+
+    '''Mark a boot-replayed Nexus outcome that could not be applied.
+
+    Boot replay (TD-052) re-delivers an unacked `outcome_id`. Some
+    legs can never be applied on a retry — e.g. a never-applied entry
+    fill whose `CapitalController` order was cleared by `reconcile_at_boot`,
+    so `order_fill` returns `order not found`. Without a durable marker
+    such a leg would be re-planned and re-fail on every subsequent boot.
+    This event records that replay has given up on the `outcome_id`; the
+    boot-replay planner subtracts these ids so the leg is not retried.
+    The underlying venue/Nexus divergence is owned by the boot capital
+    reconcile, not by replay. Carries no execution truth and
+    `TradingState.apply` ignores it.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        outcome_id (str): Nexus-side outcome identifier replay abandoned.
+        reason (str): Why the leg could not be applied (operator context).
+    '''
+
+    outcome_id: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'outcome_id', self.outcome_id)
+        _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
 class OutcomeDeliveryContextRecorded(_EventBase):
 
     '''Persist the Nexus delivery `OrderContext` for a submitted command.
@@ -630,4 +666,5 @@ type Event = (
     | TradeOutcomeProduced
     | OutcomeAcked
     | OutcomeDeliveryContextRecorded
+    | OutcomeReplayAbandoned
 )

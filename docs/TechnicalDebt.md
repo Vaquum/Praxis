@@ -844,3 +844,16 @@ The pre-registration path (`pre_register`) appends `OutcomeDeliveryContextRecord
 
 **When to fix**: If unknown-submission recovery ever becomes a normal (non-exceptional) path, or before relying on replay for commands that bypass pre-registration.
 **Migration**: Append a best-effort `OutcomeDeliveryContextRecorded` when the consumer rebuilds the context, accepting that it lands after submission rather than before; or eliminate the consumer-registration path in favour of always pre-registering.
+
+## TD-099: Boot replay cannot re-apply a never-applied entry fill whose capital order was cleared
+
+**Origin**: TD-052 boot-replay edge (pre-PR review)
+**Severity**: Low (guarded against a re-fail loop; the divergence is owned by the boot capital reconcile)
+**Module**: `praxis/launcher.py` (`_process_nexus_outcome` via `_replay_unacked_outcomes`); cross-repo: `nexus/core/capital_controller/capital_controller.py` (`reconcile_at_boot`, `order_fill`)
+
+A boot-replayed ENTRY fill calls `CapitalController.order_fill(command_id)`, but `reconcile_at_boot` rebuilds `_orders` empty before replay runs, so `order_fill` returns `order not found` and the leg cannot be applied. The common replay case (outcome applied and persisted, only the `OutcomeAcked` lost) is unaffected — Nexus#86's durable dedup no-ops it. The never-applied case is a venue↔Nexus capital divergence: the venue filled, but Nexus discarded the in-flight order at boot.
+
+The re-fail loop is guarded: a failed replay leg records `OutcomeReplayAbandoned`, which `_plan_outcome_replay` subtracts so the leg is not retried on later boots. The underlying divergence is NOT reconciled by replay.
+
+**When to fix**: Before relying on replay to recover venue-filled-but-Nexus-unaware entries (e.g. mainnet, or if `reconcile_at_boot` stops releasing stranded in-flight capital).
+**Migration**: Have the boot capital reconcile (`_reconcile_capital`) detect and settle a venue position with no matching Nexus capital order (reconstruct the fill from the spine `FillReceived`), rather than expecting outcome replay to re-apply it through `order_fill`.
