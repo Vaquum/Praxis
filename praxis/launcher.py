@@ -1167,6 +1167,44 @@ def _plan_outcome_replay(
     return plan
 
 
+def _apply_replay_plan(
+    plan: list[tuple[NexusTradeOutcome, OrderContext]],
+    process_fn: Callable[[NexusTradeOutcome, OrderContext], ProcessResult],
+    abandon_fn: Callable[[str, str], None],
+) -> None:
+    '''Apply a boot-replay plan; a failing or raising leg is abandoned, never wedges boot.
+
+    Each leg is routed through `process_fn`. A leg that returns an
+    unsuccessful `ProcessResult` OR raises is recorded via `abandon_fn`
+    (an `OutcomeReplayAbandoned` marker) and skipped. Catching the raise
+    is what keeps one un-applyable leg from propagating out of startup
+    and wedging the instance into a boot loop — and the abandon marker
+    keeps it from being re-planned and re-raised on the next boot (TD-099).
+
+    Args:
+        plan: `(outcome, context)` pairs from `_plan_outcome_replay`.
+        process_fn: Routes one leg, returning its `ProcessResult`.
+        abandon_fn: Records `(outcome_id, reason)` as abandoned.
+    '''
+
+    for nexus_outcome, order_context in plan:
+        try:
+            result = process_fn(nexus_outcome, order_context)
+        except Exception:  # noqa: BLE001 - one un-applyable leg must not wedge boot
+            _log.exception(
+                'boot replay leg raised; abandoning so it does not wedge startup',
+                extra={'outcome_id': nexus_outcome.outcome_id},
+            )
+            abandon_fn(nexus_outcome.outcome_id, 'replay raised')
+            continue
+
+        if not result.success:
+            abandon_fn(
+                nexus_outcome.outcome_id,
+                result.error_reason or 'replay process failed',
+            )
+
+
 @dataclass(frozen=True)
 class _UnknownSubmission:
     '''Telemetry record for a command whose handoff outcome is unknown.
@@ -2979,16 +3017,18 @@ class Launcher:
 
             plan = _plan_outcome_replay(seq_events, inst.account_id, _DEFAULT_FEE_RATE)
 
-            for nexus_outcome, order_context in plan:
-                result = _process_nexus_outcome(
-                    nexus_outcome, order_context, source='boot_replay',
+            def _abandon(outcome_id: str, reason: str) -> None:
+                self._append_outcome_replay_abandoned(
+                    inst.account_id, outcome_id, reason,
                 )
-                if not result.success:
-                    self._append_outcome_replay_abandoned(
-                        inst.account_id,
-                        nexus_outcome.outcome_id,
-                        result.error_reason or 'replay process failed',
-                    )
+
+            _apply_replay_plan(
+                plan,
+                lambda outcome, ctx: _process_nexus_outcome(
+                    outcome, ctx, source='boot_replay',
+                ),
+                _abandon,
+            )
 
             if plan:
                 _log.info(

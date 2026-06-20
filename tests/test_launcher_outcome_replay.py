@@ -25,6 +25,7 @@ from praxis.core.domain.events import (
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.launcher import (
     _DEFAULT_FEE_RATE,
+    _apply_replay_plan,
     _order_context_from_recorded,
     _plan_outcome_replay,
     _trade_outcome_from_produced,
@@ -309,3 +310,59 @@ def test_plan_skips_abandoned_legs() -> None:
     plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
 
     assert plan == []
+
+
+class _StubResult:
+    def __init__(self, success: bool, error_reason: str | None = None) -> None:
+        self.success = success
+        self.error_reason = error_reason
+
+
+class _StubOutcome:
+    def __init__(self, outcome_id: str) -> None:
+        self.outcome_id = outcome_id
+
+
+def test_apply_replay_plan_abandons_on_raise() -> None:
+    abandoned: list[tuple[str, str]] = []
+
+    def _proc(_outcome: object, _ctx: object) -> _StubResult:
+        raise RuntimeError('boom')
+
+    _apply_replay_plan(
+        [(_StubOutcome('id-1'), None)],
+        _proc,
+        lambda oid, reason: abandoned.append((oid, reason)),
+    )
+
+    assert abandoned == [('id-1', 'replay raised')]
+
+
+def test_apply_replay_plan_abandons_on_failure() -> None:
+    abandoned: list[tuple[str, str]] = []
+
+    def _proc(_outcome: object, _ctx: object) -> _StubResult:
+        return _StubResult(success=False, error_reason='order not found')
+
+    _apply_replay_plan(
+        [(_StubOutcome('id-1'), None)],
+        _proc,
+        lambda oid, reason: abandoned.append((oid, reason)),
+    )
+
+    assert abandoned == [('id-1', 'order not found')]
+
+
+def test_apply_replay_plan_success_does_not_abandon() -> None:
+    abandoned: list[tuple[str, str]] = []
+
+    def _proc(_outcome: object, _ctx: object) -> _StubResult:
+        return _StubResult(success=True)
+
+    _apply_replay_plan(
+        [(_StubOutcome('id-1'), None)],
+        _proc,
+        lambda oid, reason: abandoned.append((oid, reason)),
+    )
+
+    assert abandoned == []
