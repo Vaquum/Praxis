@@ -17,6 +17,7 @@ from nexus.infrastructure.praxis_connector.order_context import OrderContext
 
 from praxis.core.domain.enums import OrderSide, TradeStatus
 from praxis.core.domain.events import (
+    OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     TradeOutcomeProduced,
 )
@@ -24,6 +25,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.launcher import (
     _DEFAULT_FEE_RATE,
     _order_context_from_recorded,
+    _plan_outcome_replay,
     _trade_outcome_from_produced,
 )
 from praxis.outcome_translator import OutcomeTranslator
@@ -120,3 +122,95 @@ def test_reconstructed_no_fill_outcome_has_no_avg_price() -> None:
     assert rebuilt.avg_fill_price is None
     assert rebuilt.filled_qty == Decimal('0')
     assert rebuilt.cumulative_notional == Decimal('0')
+
+
+def _ctx_event(command_id: str, account_id: str = 'acct-1') -> OutcomeDeliveryContextRecorded:
+    return OutcomeDeliveryContextRecorded(
+        account_id=account_id,
+        timestamp=_TS,
+        command_id=command_id,
+        side=OrderSide.BUY,
+        is_entry=True,
+        order_notional=Decimal('200'),
+        estimated_fees=Decimal('0.2'),
+        strategy_id='strat_a',
+        trade_id='trade-1',
+        order_size=None,
+    )
+
+
+def _produced_filled(command_id: str, account_id: str = 'acct-1') -> TradeOutcomeProduced:
+    return TradeOutcomeProduced(
+        account_id=account_id,
+        timestamp=_TS,
+        command_id=command_id,
+        trade_id='trade-1',
+        status=TradeStatus.FILLED,
+        filled_qty=Decimal('2'),
+        cumulative_notional=Decimal('200'),
+        target_qty=Decimal('2'),
+    )
+
+
+def _acked(outcome_id: str, account_id: str = 'acct-1') -> OutcomeAcked:
+    return OutcomeAcked(account_id=account_id, timestamp=_TS, outcome_id=outcome_id)
+
+
+def _enumerate(events: list[object]) -> list[tuple[int, object]]:
+    return list(enumerate(events))
+
+
+def test_plan_replays_fully_unacked_command() -> None:
+    events = _enumerate([_ctx_event('cmd-1'), _produced_filled('cmd-1')])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert [o.outcome_id for o, _ in plan] == [
+        'acct-1:cmd-1:ack',
+        'acct-1:cmd-1:filled',
+    ]
+    assert all(ctx.command_id == 'cmd-1' for _, ctx in plan)
+
+
+def test_plan_skips_fully_acked_command() -> None:
+    events = _enumerate([
+        _ctx_event('cmd-1'),
+        _produced_filled('cmd-1'),
+        _acked('acct-1:cmd-1:ack'),
+        _acked('acct-1:cmd-1:filled'),
+    ])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert plan == []
+
+
+def test_plan_replays_only_unacked_legs() -> None:
+    events = _enumerate([
+        _ctx_event('cmd-1'),
+        _produced_filled('cmd-1'),
+        _acked('acct-1:cmd-1:ack'),
+    ])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert [o.outcome_id for o, _ in plan] == ['acct-1:cmd-1:filled']
+
+
+def test_plan_skips_produced_without_context() -> None:
+    events = _enumerate([_produced_filled('cmd-1')])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert plan == []
+
+
+def test_plan_ignores_other_account_events() -> None:
+    events = _enumerate([
+        _ctx_event('cmd-2', account_id='acct-2'),
+        _produced_filled('cmd-2', account_id='acct-2'),
+    ])
+
+    plan = _plan_outcome_replay(events, 'acct-1', _DEFAULT_FEE_RATE)
+
+    assert plan == []

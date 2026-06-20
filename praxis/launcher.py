@@ -93,6 +93,7 @@ from praxis.command_translator import (
 from praxis.core.domain.enums import OrderSide as _PraxisOrderSide, OrderType
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
+    Event,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     TradeOutcomeProduced,
@@ -1079,6 +1080,74 @@ def _trade_outcome_from_produced(event: TradeOutcomeProduced) -> TradeOutcome:
         created_at=event.timestamp,
         cumulative_notional=event.cumulative_notional,
     )
+
+
+def _plan_outcome_replay(
+    seq_events: list[tuple[int, Event]],
+    account_id: str,
+    fee_rate: Decimal,
+) -> list[tuple[NexusTradeOutcome, OrderContext]]:
+    '''Compute the unacked Nexus outcomes to re-deliver at boot (TD-052).
+
+    Pure planning over the spine events for one account: groups the
+    recorded delivery contexts, the `TradeOutcomeProduced` events (kept
+    in append order per command), and the already-recorded `OutcomeAcked`
+    ids. For each produced command it rebuilds the `OrderContext` and the
+    Praxis `TradeOutcome` from their durable records, re-runs a fresh
+    `OutcomeTranslator` to derive the deterministic Nexus `outcome_id`s,
+    and returns every `(outcome, context)` pair whose id has no matching
+    `OutcomeAcked`. A produced command with no recorded delivery context
+    is skipped (logged) — it cannot be routed and is left for operator
+    review. Nexus#86's durable dedup makes re-delivery of an already-
+    applied (but un-acked) leg a no-op.
+
+    Args:
+        seq_events: `(seq, Event)` pairs from `EventSpine.read`.
+        account_id: Account whose outcomes to plan.
+        fee_rate: Translator fee rate; must match the live translator so
+            replayed fill outcomes carry the same `actual_fees`.
+
+    Returns:
+        Ordered `(NexusTradeOutcome, OrderContext)` pairs to re-deliver.
+    '''
+
+    contexts_by_cmd: dict[str, OutcomeDeliveryContextRecorded] = {}
+    produced_by_cmd: dict[str, list[TradeOutcomeProduced]] = {}
+    acked_ids: set[str] = set()
+
+    for _seq, event in seq_events:
+        if event.account_id != account_id:
+            continue
+        if isinstance(event, OutcomeDeliveryContextRecorded):
+            contexts_by_cmd[event.command_id] = event
+        elif isinstance(event, TradeOutcomeProduced):
+            produced_by_cmd.setdefault(event.command_id, []).append(event)
+        elif isinstance(event, OutcomeAcked):
+            acked_ids.add(event.outcome_id)
+
+    plan: list[tuple[NexusTradeOutcome, OrderContext]] = []
+
+    for command_id, produced in produced_by_cmd.items():
+        context_event = contexts_by_cmd.get(command_id)
+        if context_event is None:
+            _log.warning(
+                'boot replay: produced outcome with no delivery context; '
+                'leaving unacked for operator review',
+                extra={'command_id': command_id, 'account_id': account_id},
+            )
+            continue
+
+        order_context = _order_context_from_recorded(context_event)
+        translator = OutcomeTranslator(fee_rate=fee_rate)
+
+        for produced_event in produced:
+            praxis_outcome = _trade_outcome_from_produced(produced_event)
+            for nexus_outcome in translator.translate(praxis_outcome):
+                if nexus_outcome.outcome_id in acked_ids:
+                    continue
+                plan.append((nexus_outcome, order_context))
+
+    return plan
 
 
 @dataclass(frozen=True)
@@ -2842,49 +2911,17 @@ class Launcher:
             future = asyncio.run_coroutine_threadsafe(spine.read(epoch_id), self._loop)
             seq_events = future.result(timeout=30)
 
-            contexts_by_cmd: dict[str, OutcomeDeliveryContextRecorded] = {}
-            produced_by_cmd: dict[str, list[TradeOutcomeProduced]] = {}
-            acked_ids: set[str] = set()
+            plan = _plan_outcome_replay(seq_events, inst.account_id, _DEFAULT_FEE_RATE)
 
-            for _seq, event in seq_events:
-                if event.account_id != inst.account_id:
-                    continue
-                if isinstance(event, OutcomeDeliveryContextRecorded):
-                    contexts_by_cmd[event.command_id] = event
-                elif isinstance(event, TradeOutcomeProduced):
-                    produced_by_cmd.setdefault(event.command_id, []).append(event)
-                elif isinstance(event, OutcomeAcked):
-                    acked_ids.add(event.outcome_id)
+            for nexus_outcome, order_context in plan:
+                _process_nexus_outcome(
+                    nexus_outcome, order_context, source='boot_replay',
+                )
 
-            replayed = 0
-
-            for command_id, produced in produced_by_cmd.items():
-                context_event = contexts_by_cmd.get(command_id)
-                if context_event is None:
-                    _log.warning(
-                        'boot replay: produced outcome with no delivery context; '
-                        'leaving unacked for operator review',
-                        extra={'command_id': command_id, 'account_id': inst.account_id},
-                    )
-                    continue
-
-                order_context = _order_context_from_recorded(context_event)
-                replay_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
-
-                for produced_event in produced:
-                    praxis_outcome = _trade_outcome_from_produced(produced_event)
-                    for nexus_outcome in replay_translator.translate(praxis_outcome):
-                        if nexus_outcome.outcome_id in acked_ids:
-                            continue
-                        _process_nexus_outcome(
-                            nexus_outcome, order_context, source='boot_replay',
-                        )
-                        replayed += 1
-
-            if replayed:
+            if plan:
                 _log.info(
                     'boot replay re-delivered unacked outcomes',
-                    extra={'account_id': inst.account_id, 'replayed': replayed},
+                    extra={'account_id': inst.account_id, 'replayed': len(plan)},
                 )
 
         _replay_unacked_outcomes()
