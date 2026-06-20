@@ -1172,14 +1172,27 @@ def _apply_replay_plan(
     process_fn: Callable[[NexusTradeOutcome, OrderContext], ProcessResult],
     abandon_fn: Callable[[str, str], None],
 ) -> None:
-    '''Apply a boot-replay plan; a failing or raising leg is abandoned, never wedges boot.
+    '''Apply a boot-replay plan; no leg can wedge boot, and only deterministic failures are abandoned.
 
-    Each leg is routed through `process_fn`. A leg that returns an
-    unsuccessful `ProcessResult` OR raises is recorded via `abandon_fn`
-    (an `OutcomeReplayAbandoned` marker) and skipped. Catching the raise
-    is what keeps one un-applyable leg from propagating out of startup
-    and wedging the instance into a boot loop — and the abandon marker
-    keeps it from being re-planned and re-raised on the next boot (TD-099).
+    Each leg is routed through `process_fn`. The two failure modes are
+    treated differently on purpose:
+
+    - A leg that returns `ProcessResult(success=False)` is a deterministic,
+      non-retryable failure (e.g. capital `order not found` because
+      `reconcile_at_boot` cleared the order). It is recorded via
+      `abandon_fn` (`OutcomeReplayAbandoned`) so the planner skips it on
+      later boots — it would never succeed (TD-099).
+    - A leg that RAISES is caught and skipped for THIS boot only, with NO
+      abandon marker, because the exception may be transient (e.g. a WAL
+      append failing mid-`_handle_fill` after capital/position already
+      mutated). Durably abandoning it would permanently hide an outcome
+      that should retry once the transient failure clears, and leave
+      capital/position/risk inconsistent. It is re-planned next boot; a
+      genuinely permanent raise simply re-logs and re-skips each boot
+      without wedging startup.
+
+    Catching the raise is what keeps one un-applyable leg from propagating
+    out of startup and wedging the instance into a boot loop.
 
     Args:
         plan: `(outcome, context)` pairs from `_plan_outcome_replay`.
@@ -1190,12 +1203,11 @@ def _apply_replay_plan(
     for nexus_outcome, order_context in plan:
         try:
             result = process_fn(nexus_outcome, order_context)
-        except Exception:  # noqa: BLE001 - one un-applyable leg must not wedge boot
+        except Exception:  # noqa: BLE001 - skip this boot (may be transient); never wedge startup
             _log.exception(
-                'boot replay leg raised; abandoning so it does not wedge startup',
+                'boot replay leg raised; skipping this boot, will retry next boot',
                 extra={'outcome_id': nexus_outcome.outcome_id},
             )
-            abandon_fn(nexus_outcome.outcome_id, 'replay raised')
             continue
 
         if not result.success:

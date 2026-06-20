@@ -323,19 +323,21 @@ class _StubOutcome:
         self.outcome_id = outcome_id
 
 
-def test_apply_replay_plan_abandons_on_raise() -> None:
+def test_apply_replay_plan_skips_raise_without_abandon() -> None:
     abandoned: list[tuple[str, str]] = []
 
     def _proc(_outcome: object, _ctx: object) -> _StubResult:
         raise RuntimeError('boom')
 
+    # A raise is caught (does not propagate / wedge boot) but is NOT durably
+    # abandoned — it may be transient and must be retried next boot.
     _apply_replay_plan(
         [(_StubOutcome('id-1'), None)],
         _proc,
         lambda oid, reason: abandoned.append((oid, reason)),
     )
 
-    assert abandoned == [('id-1', 'replay raised')]
+    assert abandoned == []
 
 
 def test_apply_replay_plan_abandons_on_failure() -> None:
