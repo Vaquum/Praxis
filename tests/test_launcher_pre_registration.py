@@ -539,7 +539,7 @@ def _process_outcome_clears_on_success_not_failure() -> bool:
     tree = ast.parse(src)
 
     for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef) or node.name != 'process_outcome':
+        if not isinstance(node, ast.FunctionDef) or node.name != '_process_nexus_outcome':
             continue
         for stmt in ast.walk(node):
             if not isinstance(stmt, ast.If):

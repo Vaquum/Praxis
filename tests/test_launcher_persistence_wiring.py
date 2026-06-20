@@ -28,7 +28,7 @@ def _process_outcome_calls_append_mutation() -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
-        if node.name != 'process_outcome':
+        if node.name != '_process_nexus_outcome':
             continue
         for inner in ast.walk(node):
             if not isinstance(inner, ast.Call):
@@ -102,7 +102,7 @@ def _append_mutation_guard_mentions_capital_updated() -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
-        if node.name != 'process_outcome':
+        if node.name != '_process_nexus_outcome':
             continue
         for inner in ast.walk(node):
             if not isinstance(inner, ast.If):
@@ -185,7 +185,7 @@ def _process_outcome_clears_pending_set_in_bulk() -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
-        if node.name != 'process_outcome':
+        if node.name != '_process_nexus_outcome':
             continue
         for inner in ast.walk(node):
             if not isinstance(inner, ast.Call):
