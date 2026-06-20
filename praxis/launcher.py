@@ -2968,6 +2968,10 @@ class Launcher:
             mutation.
             '''
 
+            if self._loop is None or self._trading is None:
+                _log.warning('cannot run boot replay: loop or trading not initialised')
+                return
+
             epoch_id = self._trading_config.epoch_id
             spine = self._trading.event_spine
             future = asyncio.run_coroutine_threadsafe(spine.read(epoch_id), self._loop)
