@@ -1,8 +1,11 @@
 '''Closed-bar price reader over the control-plane Arrow volume.
 
 Reads `<root>/<series>/latest.arrow` (the OHLCV frame Furnace predicts
-on) and returns the most recent closed bar's `close`. A bar with open
-timestamp `ts` is closed once `ts + interval_seconds <= now`, so the
+on) and returns the most recent closed bar's `close`. The bar's settle
+instant is family-dependent: for time bars `ts` is the bucket open, so
+settle is `ts + interval_seconds`; for dollar bars (carrying a
+`start_ts` open column) `ts` is already the settle, so settle is `ts`.
+A bar is closed once its settle is at or before now, so the
 still-forming final bar is excluded. Used for ENTER reference pricing
 and mark-to-market once the in-process market-data cache is retired.
 '''
@@ -25,6 +28,7 @@ _log = logging.getLogger(__name__)
 _LATEST_ARROW = 'latest.arrow'
 _NS_PER_SECOND = 1_000_000_000
 _DEFAULT_MAX_STALENESS_INTERVALS = 3
+_DOLLAR_OPEN_COLUMN = 'start_ts'
 
 
 def _utc_now() -> datetime:
@@ -63,19 +67,23 @@ class ArrowPriceStore:
     ) -> Decimal | None:
         '''Return the latest closed bar's close for a series, or None.
 
-        A bar with open `ts` (Int64 UTC epoch nanoseconds) is closed
-        when `ts + interval_seconds` nanoseconds is at or before now.
-        Returns None when the frame is absent (transient atomic-swap),
-        unreadable / malformed (missing columns, or `ts` not Int64 — a
-        `Datetime` or ms/s `ts` would otherwise compare meaninglessly
-        against the ns cutoff and leak the forming bar), has no closed
-        bar yet, the latest closed bar is staler than
-        `max_staleness_intervals` intervals (frozen feed), or the close
-        is missing or non-finite.
+        A bar's `ts` (Int64 UTC epoch nanoseconds) is the bucket open
+        for time bars and the settle for dollar bars; the latter are
+        identified by a `start_ts` open column. A bar is closed when its
+        settle (`ts + interval_seconds` for time bars, `ts` for dollar
+        bars) is at or before now. Returns None when the frame is absent
+        (transient atomic-swap), unreadable / malformed (missing
+        columns, or `ts` not Int64 — a `Datetime` or ms/s `ts` would
+        otherwise compare meaninglessly against the ns cutoff and leak
+        the forming bar), has no closed bar yet, the latest closed bar
+        is staler than `max_staleness_intervals` intervals (frozen
+        feed), or the close is missing or non-finite.
 
         Args:
             series: Series identifier, e.g. 'time_15m'.
-            interval_seconds: Bar width in seconds for the series.
+            interval_seconds: For time bars the bar width; for dollar
+                bars the predict cadence, used only as the staleness
+                window since dollar bars have no fixed width.
 
         Returns:
             The closed-bar close as a Decimal, or None.
@@ -104,7 +112,8 @@ class ArrowPriceStore:
             return None
 
         now_ns = int(self._clock().timestamp() * _NS_PER_SECOND)
-        cutoff = now_ns - interval_seconds * _NS_PER_SECOND
+        settle_offset = 0 if _DOLLAR_OPEN_COLUMN in df.columns else interval_seconds
+        cutoff = now_ns - settle_offset * _NS_PER_SECOND
 
         try:
             closed = df.filter(pl.col('ts') <= cutoff).sort('ts')
