@@ -516,3 +516,77 @@ class TestFinalMajor07TranslatorUsesVenueCumulativeNotional:
             f'venue_cumulative={cumulative_notional} '
             f'delta={sum_emitted - cumulative_notional}'
         )
+
+
+def test_leg_outcome_ids_are_deterministic() -> None:
+
+    translator = OutcomeTranslator()
+
+    result = translator.translate(
+        _praxis_outcome(
+            status=TradeStatus.FILLED,
+            target_qty=Decimal('2'),
+            filled_qty=Decimal('2'),
+            avg_fill_price=Decimal('100'),
+        ),
+    )
+
+    assert [o.outcome_id for o in result] == [
+        'acct-1:cmd-1:ack',
+        'acct-1:cmd-1:filled',
+    ]
+
+
+def test_successive_partials_get_indexed_ids() -> None:
+
+    translator = OutcomeTranslator()
+
+    first = translator.translate(
+        _praxis_outcome(
+            status=TradeStatus.PARTIAL,
+            target_qty=Decimal('3'),
+            filled_qty=Decimal('1'),
+            avg_fill_price=Decimal('100'),
+        ),
+    )
+    second = translator.translate(
+        _praxis_outcome(
+            status=TradeStatus.PARTIAL,
+            target_qty=Decimal('3'),
+            filled_qty=Decimal('2'),
+            avg_fill_price=Decimal('100'),
+        ),
+    )
+
+    partial_ids = [
+        o.outcome_id
+        for o in (*first, *second)
+        if o.outcome_type == TradeOutcomeType.PARTIAL
+    ]
+    assert partial_ids == ['acct-1:cmd-1:partial:0', 'acct-1:cmd-1:partial:1']
+
+
+def test_replay_reproduces_identical_outcome_ids() -> None:
+
+    sequence = [
+        _praxis_outcome(
+            status=TradeStatus.PARTIAL,
+            target_qty=Decimal('3'),
+            filled_qty=Decimal('1'),
+            avg_fill_price=Decimal('100'),
+        ),
+        _praxis_outcome(
+            status=TradeStatus.FILLED,
+            target_qty=Decimal('3'),
+            filled_qty=Decimal('3'),
+            avg_fill_price=Decimal('100'),
+        ),
+    ]
+
+    live = OutcomeTranslator()
+    live_ids = [o.outcome_id for s in sequence for o in live.translate(s)]
+
+    replay = OutcomeTranslator()
+    replay_ids = [o.outcome_id for s in sequence for o in replay.translate(s)]
+
+    assert replay_ids == live_ids

@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import inspect
 import logging
+from collections.abc import Callable
 import threading
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -143,6 +144,7 @@ def _wiring(
     controller: CapitalController,
     pending: dict[str, tuple[Action, str, ValidationRequestContext]],
     contexts: dict[str, OrderContext],
+    append_delivery_context: Callable[[str, OrderContext], None] = lambda *_: None,
 ) -> _PreRegisterWiring:
     return _PreRegisterWiring(
         pending_registrations=pending,
@@ -155,6 +157,7 @@ def _wiring(
         positions_lock=threading.Lock(),
         fallback_price_provider=lambda: Decimal('50000'),
         now=lambda: _NOW,
+        append_delivery_context=append_delivery_context,
     )
 
 
@@ -241,6 +244,7 @@ def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
         positions_lock=threading.Lock(),
         fallback_price_provider=lambda: Decimal('-1'),
         now=lambda: _NOW,
+        append_delivery_context=lambda *_: None,
     )
 
     with pytest.raises(ValueError):
@@ -408,6 +412,7 @@ def test_registries_populated_when_send_command_is_entered() -> None:
         positions_lock=threading.Lock(),
         fallback_price_provider=lambda: Decimal('50000'),
         now=lambda: _NOW,
+        append_delivery_context=lambda *_: None,
     )
 
     observed: dict[str, bool] = {}
@@ -534,7 +539,7 @@ def _process_outcome_clears_on_success_not_failure() -> bool:
     tree = ast.parse(src)
 
     for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef) or node.name != 'process_outcome':
+        if not isinstance(node, ast.FunctionDef) or node.name != '_process_nexus_outcome':
             continue
         for stmt in ast.walk(node):
             if not isinstance(stmt, ast.If):
@@ -577,3 +582,50 @@ def test_process_outcome_clears_unknown_on_success_only() -> None:
         'launcher process_outcome must pop unknown_submissions in the '
         'result.success branch and must NOT pop it in the failure branch'
     )
+
+
+def test_delivery_context_appended_before_registration() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000010')
+    action = _enter_action()
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+    contexts: dict[str, OrderContext] = {}
+
+    recorded: list[tuple[str, OrderContext]] = []
+
+    def _record(account_id: str, ctx: OrderContext) -> None:
+        recorded.append((account_id, ctx))
+
+    wiring = _wiring(
+        state, controller, pending, contexts, append_delivery_context=_record,
+    )
+
+    handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    assert len(recorded) == 1
+    assert recorded[0][0] == cmd.account_id
+    assert recorded[0][1].command_id == cmd.command_id
+    handle.mark_submitted(cmd.command_id)
+
+
+def test_delivery_context_append_failure_aborts_submission() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000011')
+    action = _enter_action()
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+    contexts: dict[str, OrderContext] = {}
+
+    def _boom(_account_id: str, _ctx: OrderContext) -> None:
+        raise RuntimeError('append failed')
+
+    wiring = _wiring(
+        state, controller, pending, contexts, append_delivery_context=_boom,
+    )
+
+    with pytest.raises(RuntimeError, match='append failed'):
+        _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    assert cmd.command_id not in contexts
+    assert cmd.command_id not in wiring.command_strategy_ids

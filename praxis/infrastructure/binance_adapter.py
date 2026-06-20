@@ -1701,6 +1701,21 @@ class BinanceAdapter:
                 continue
             self._filters[symbol] = await self.get_exchange_info(symbol)
 
+    def cached_filters(self, symbol: str) -> SymbolFilters | None:
+        '''Return preloaded `SymbolFilters` for a symbol, or None.
+
+        Reads the `_filters` cache populated by `load_filters` /
+        `get_exchange_info`; no venue round-trip. None when not loaded.
+
+        Args:
+            symbol (str): Trading pair symbol.
+
+        Returns:
+            SymbolFilters | None: Cached filters, or None if not loaded.
+        '''
+
+        return self._filters.get(symbol)
+
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
 
         '''

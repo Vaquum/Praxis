@@ -19,7 +19,7 @@ def _process_outcome_calls_append_outcome_acked() -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
-        if node.name != 'process_outcome':
+        if node.name != '_process_nexus_outcome':
             continue
         for inner in ast.walk(node):
             if not isinstance(inner, ast.Call):

@@ -27,6 +27,8 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
     OutcomeAcked,
+    OutcomeDeliveryContextRecorded,
+    OutcomeReplayAbandoned,
     TradeClosed,
     TradeOutcomeProduced,
 )
@@ -123,6 +125,10 @@ class TradingState:
                 event.outcome_id,
                 self.account_id,
             )
+        elif isinstance(
+            event, (OutcomeDeliveryContextRecorded, OutcomeReplayAbandoned),
+        ):
+            return
         else:
             _log.warning(
                 'unhandled event type in apply: %s account=%s',
