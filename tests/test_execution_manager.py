@@ -2627,3 +2627,43 @@ class TestInjectedClock:
         finally:
             for account_id in list(em._accounts):
                 await em.unregister_account(account_id)
+
+
+class TestQuiesce:
+    @pytest.mark.asyncio
+    async def test_quiesce_waits_for_full_command_processing(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        adapter.submit_order.return_value = SubmitResult(
+            venue_order_id='v-100',
+            status=OrderStatus.FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id='t-100',
+                    qty=Decimal('1'),
+                    price=Decimal('50000'),
+                    fee=Decimal('0.001'),
+                    fee_asset='BTC',
+                    is_maker=False,
+                ),
+            ),
+        )
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await mgr.quiesce(_ACCT)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+
+        assert 'FillReceived' in types
+        assert 'TradeOutcomeProduced' in types
+
+    @pytest.mark.asyncio
+    async def test_quiesce_unregistered_account_returns(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        await mgr.quiesce('unregistered')

@@ -856,6 +856,27 @@ class ExecutionManager:
 
         return command_id
 
+    async def quiesce(self, account_id: str) -> None:
+        '''Wait until an account's queued commands are fully processed.
+
+        Blocks until every command enqueued for `account_id` has been
+        submitted, filled, and had its outcome dispatched — the account
+        loop calls `command_queue.task_done()` only after
+        `_process_command` (which awaits outcome delivery) returns. Used
+        by deterministic replay to settle a bar's effects before
+        advancing the clock. Returns immediately for an unregistered
+        account.
+
+        Args:
+            account_id: Account whose command queue to drain.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        await runtime.command_queue.join()
+
     async def _account_loop(self, runtime: _AccountRuntime) -> None:
         '''
         Drain priority and command queues for a single account.
@@ -939,6 +960,8 @@ class ExecutionManager:
                         cmd.trade_id,
                         runtime.account_id,
                     )
+                finally:
+                    runtime.command_queue.task_done()
         except asyncio.CancelledError:
             _log.info('account loop cancelled: %s', runtime.account_id)
             raise

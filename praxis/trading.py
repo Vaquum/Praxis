@@ -960,6 +960,19 @@ class Trading:
         self._require_account_ready(abort.account_id)
         self._inbound.submit_abort(abort)
 
+    async def quiesce(self, account_id: str) -> None:
+        '''Wait until an account's queued commands are fully processed.
+
+        Delegates to `ExecutionManager.quiesce`; used by deterministic
+        replay to settle a bar's submissions, fills, and outcome
+        dispatch before the clock advances.
+
+        Args:
+            account_id: Account whose command queue to drain.
+        '''
+
+        await self._execution_manager.quiesce(account_id)
+
     async def get_health_snapshot(self, account_id: str) -> HealthSnapshot:
         '''Return a HealthSnapshot for an account.
 
