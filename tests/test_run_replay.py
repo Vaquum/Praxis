@@ -4,9 +4,13 @@ from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from pathlib import Path
 
+import sys
+
+import pytest
+
 from praxis.infrastructure.venue_adapter import SymbolFilters
 from praxis.replay.replay_scenario import ReplayBar, ReplayScenario
-from praxis.replay.run_replay import run_replay
+from praxis.replay.run_replay import _drop_from_sys_path, run_replay
 
 _SERIES = 'time_15m'
 _INTERVAL = 900
@@ -186,6 +190,23 @@ def test_run_replay_dollar_bars(tmp_path: Path) -> None:
     assert result.buy_qty == result.sell_qty
     assert result.buy_qty > Decimal(0)
     assert result.realized_pnl > Decimal(0)
+
+
+def test_drop_from_sys_path_clears_resolved_relative_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    work_dir = Path('run')
+    resolved = str(work_dir.resolve())
+    sys.path.insert(0, resolved)
+
+    try:
+        _drop_from_sys_path(work_dir)
+        assert resolved not in sys.path
+    finally:
+        while resolved in sys.path:
+            sys.path.remove(resolved)
 
 
 def test_run_replay_is_deterministic(tmp_path: Path) -> None:

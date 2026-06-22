@@ -167,15 +167,16 @@ def run_replay(
 def _drop_from_sys_path(work_dir: Path) -> None:
     '''Remove the run's strategy dir from sys.path after the run.
 
-    The launcher inserts the strategies base path (the run's work dir)
-    onto sys.path to import the replay strategy module; drop it so a
-    finished run does not leave its dir resolving later imports.
+    The launcher inserts the resolved strategies base path (the run's
+    work dir) onto sys.path to import the replay strategy module; drop
+    both the given and resolved forms so a finished run — even one with a
+    relative work_dir — does not leave its dir resolving later imports.
     '''
 
-    entry = str(work_dir)
+    for entry in {str(work_dir), str(work_dir.resolve())}:
 
-    while entry in sys.path:
-        sys.path.remove(entry)
+        while entry in sys.path:
+            sys.path.remove(entry)
 
 
 def _activate_mode(runtime: _NexusRuntime, clock: ReplayClock) -> None:
