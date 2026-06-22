@@ -857,3 +857,14 @@ The re-fail loop is guarded: a failed replay leg records `OutcomeReplayAbandoned
 
 **When to fix**: Before relying on replay to recover venue-filled-but-Nexus-unaware entries (e.g. mainnet, or if `reconcile_at_boot` stops releasing stranded in-flight capital).
 **Migration**: Have the boot capital reconcile (`_reconcile_capital`) detect and settle a venue position with no matching Nexus capital order (reconstruct the fill from the spine `FillReceived`), rather than expecting outcome replay to re-apply it through `order_fill`.
+
+## TD-100: Replay API enforces the bar cap only after loading the full range
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (the API is loopback-only, so the caller is trusted/local)
+**Module**: `praxis/replay/replay_api.py` (`post_replay`); `praxis/replay/load_replay_bars.py`
+
+`POST /replay` calls `load_replay_bars` to read and join the full requested `[start, end]` window into `ReplayBar`s, and only then rejects the request if the bar count exceeds `max_bars`. A loopback caller can still force the full read/join (memory + CPU) for an oversized range before receiving the `400`.
+
+**When to fix**: If the endpoint ever serves a less-trusted caller, or replay ranges grow large enough that the pre-rejection load is itself costly.
+**Migration**: Push the cap into `load_replay_bars` (count or slice the prediction frame's `ts` against `[start, end]` and the limit before materializing all `ReplayBar`s), so an over-limit range is rejected before the full join.

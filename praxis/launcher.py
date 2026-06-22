@@ -418,6 +418,7 @@ def _build_validation_pipeline(
     price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
         _default_price_snapshot
     ),
+    clock: Callable[[], datetime] = _utc_now,
 ) -> ValidationPipeline:
     '''Build a six-stage `ValidationPipeline` for one account.
 
@@ -452,12 +453,15 @@ def _build_validation_pipeline(
             platform-limits snapshot. Defaults to an empty snapshot.
         price_snapshot_provider: Callable returning the current
             price-check snapshot. Defaults to `None`.
+        clock: Source of UTC time for the duplicate-order and order-rate
+            intake hooks; a replay run injects its cursor so these gate
+            on simulated time rather than wall time.
 
     Returns:
         Six-stage `ValidationPipeline` ready for use by `submit_actions`.
     '''
 
-    intake_hooks = build_default_intake_hooks(nexus_config)
+    intake_hooks = build_default_intake_hooks(nexus_config, now_fn=clock)
     risk_limits = RiskStageLimits()
     price_limits = build_price_stage_limits_from_config(nexus_config)
     platform_limits = PlatformLimitsStageLimits()
@@ -2325,7 +2329,7 @@ class Launcher:
 
         event = OutcomeAcked(
             account_id=account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             outcome_id=outcome_id,
         )
         epoch_id = self._trading_config.epoch_id
@@ -2367,7 +2371,7 @@ class Launcher:
 
         event = OutcomeReplayAbandoned(
             account_id=account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             outcome_id=outcome_id,
             reason=reason,
         )
@@ -2408,7 +2412,7 @@ class Launcher:
 
         event = OutcomeDeliveryContextRecorded(
             account_id=account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             command_id=ctx.command_id,
             side=_PraxisOrderSide(ctx.side.value),
             is_entry=ctx.is_entry,
@@ -2659,7 +2663,9 @@ class Launcher:
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
         capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
-        pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
+        pipeline = _build_validation_pipeline(
+            nexus_instance_config, capital_controller, clock=self._clock,
+        )
         positions_lock = threading.Lock()
         command_registry_lock = threading.Lock()
         if not hasattr(state.risk, 'lock'):
@@ -3149,7 +3155,7 @@ class Launcher:
         unknown_submission_monitor = _UnknownSubmissionMonitor(
             unknown_submissions=unknown_submissions,
             lock=command_registry_lock,
-            now=lambda: datetime.now(UTC),
+            now=self._clock,
             warn_seconds=unknown_warn_seconds,
             scan_seconds=unknown_scan_seconds,
         )

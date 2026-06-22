@@ -19,6 +19,7 @@ deterministic: the same scenario yields the same fills and PnL.
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -129,10 +130,10 @@ def run_replay(
         arrow_dir=arrow_dir,
     )
 
-    launcher._start_event_loop()
-    launcher._start_trading()
-
     try:
+        launcher._start_event_loop()
+        launcher._start_trading()
+
         runtime = launcher._build_nexus_runtime(
             inst, launcher._outcome_queues[scenario.account_id],
         )
@@ -160,6 +161,21 @@ def run_replay(
     finally:
         launcher._stop_event.set()
         launcher._shutdown()
+        _drop_from_sys_path(work_dir)
+
+
+def _drop_from_sys_path(work_dir: Path) -> None:
+    '''Remove the run's strategy dir from sys.path after the run.
+
+    The launcher inserts the strategies base path (the run's work dir)
+    onto sys.path to import the replay strategy module; drop it so a
+    finished run does not leave its dir resolving later imports.
+    '''
+
+    entry = str(work_dir)
+
+    while entry in sys.path:
+        sys.path.remove(entry)
 
 
 def _activate_mode(runtime: _NexusRuntime, clock: ReplayClock) -> None:

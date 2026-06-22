@@ -165,7 +165,7 @@ def build_replay_app(
         return web.json_response(_record_json(run_id, record))
 
     async def _shutdown_executor(_app: web.Application) -> None:
-        executor.shutdown(wait=False)
+        executor.shutdown(wait=True, cancel_futures=True)
 
     app = web.Application(middlewares=[_loopback_only])
     app.router.add_post('/replay', post_replay)
