@@ -1182,3 +1182,26 @@
 
 - Bump the [`vaquum-nexus`](pyproject.toml) pin to v0.66.0 (`689f5be`), whose durable outcome dedup (`processed_outcome_ids` on `InstanceState`) is the paired-boundary requirement for the TD-052 boot replay: re-delivery is safe only because Nexus recognises an already-applied `outcome_id` and no-ops it. Full suite passes against the upgraded pin
 - Mark TD-052 and TD-096 RESOLVED in [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md) (collapsed to heading-only tombstones), and record TD-097 (boot replay runs after the venue stream opens, not before), TD-098 (delivery-context recording is best-effort on the consumer-registration path), and TD-099 (replay cannot re-apply a never-applied entry fill whose capital order was cleared at boot) for the TD-052 deferrals
+
+## v0.86.0 on 22nd of June, 2026
+
+### Add
+
+- Add a deterministic replay engine that drives the live trading pipeline over historical bars at simulated time ([`praxis/replay/`](praxis/replay/)). [`run_replay`](praxis/replay/run_replay.py) boots an isolated `Launcher` (throwaway event spine, [`ReplayVenueAdapter`](praxis/replay/replay_venue_adapter.py), [`ReplayClock`](praxis/replay/replay_clock.py)) with the real per-account wiring built but its realtime loops unstarted, then walks a scenario's settle-ordered bars — materialising the Conduit/OHLCV frames, advancing the clock to each bar's settle, running `PredictLoop.tick_once`, and settling the bar deterministically (`ExecutionManager.quiesce` + `OutcomeLoop.tick_once`) — and returns spine-derived results. The same scenario yields the same fills and PnL
+- Add [`ReplayVenueAdapter`](praxis/replay/replay_venue_adapter.py): a `VenueAdapter` that fills market orders synchronously at the current bar's close and returns them via `SubmitResult.immediate_fills` (the live fill path; no network, no stream, no resting orders). Fees mirror the binsim paper venue (taker fraction of notional, debited in the quote asset) so a replay and a paper run book identical costs
+- Add [`ReplayClock`](praxis/replay/replay_clock.py), a monotonic cursor-driven UTC clock injected wherever live code reads the wall clock and advanced per bar settle
+- Add [`materialize_bar_frames`](praxis/replay/materialize_bar_frames.py) (writes the per-bar OHLCV / prediction frames and serving manifest a replay step exposes to `PredictLoop`) and [`load_replay_bars`](praxis/replay/load_replay_bars.py) (slices a `[start, end]` window out of the mounted prediction and OHLCV frames into `ReplayBar`s, for both time and dollar families)
+- Add a loopback-only HTTP surface ([`build_replay_app`](praxis/replay/replay_api.py)): `POST /replay` schedules a run off the aiohttp loop and returns a `run_id`, `GET /replay/{run_id}` reports status then the result summary. A middleware rejects non-local peers because a request carries a strategy module the run executes
+- Add an injectable `clock` seam across [`ExecutionManager`](praxis/core/execution_manager.py), [`Trading`](praxis/trading.py), the [`Launcher`](praxis/launcher.py), and the validation intake hooks (wall-clock default, so the live path is unchanged) so a replay drives every event timestamp, staleness gate, reservation expiry, and signal-freshness check on simulated time
+- Add `ExecutionManager.quiesce` (awaits the per-account command queue's `join`, the loop now calling `task_done` after each command) so a replay settles a bar's submissions, fills, and outcomes deterministically before advancing the clock
+- Add the [`praxis/replay/`](praxis/replay/) test suite (clock, adapter, materializer, loader, quiesce, `run_replay` end-to-end including dollar bars, and the loopback API)
+
+### Fix
+
+- Gate closed-bar selection in [`ArrowPriceStore`](praxis/arrow_price_store.py) on a per-family settle: dollar bars (carrying a `start_ts` open column) are closed once `ts <= now` since their `ts` is the settle, while time bars keep `ts + interval_seconds <= now`. The time-bar formula was previously applied to every family, gating dollar bars a full interval late and mis-scaling the staleness window — latent while the prod mark series is `time_15m`, surfaced the moment a dollar series drives pricing or replay
+
+### Update
+
+- Split the Launcher's per-account assembly: [`_build_nexus_runtime`](praxis/launcher.py) now builds the runtime without starting the realtime loops, and a new `_start_nexus_loops` starts them (the live path builds then starts, unchanged), so a replay can build the real pipeline and drive it via `tick_once` instead of the wall-clock scheduler
+- Accept `conduit_dir` / `arrow_dir` on the `Launcher` so a replay passes its run directories explicitly instead of mutating process env
+- Record TD-100: the replay API enforces its bar cap only after loading the requested range, acceptable while the endpoint is loopback-only
