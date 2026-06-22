@@ -2072,6 +2072,8 @@ class Launcher:
         venue_adapter: VenueAdapter | None = None,
         healthz_port: int | None = None,
         clock: Callable[[], datetime] = _utc_now,
+        conduit_dir: Path | None = None,
+        arrow_dir: Path | None = None,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -2086,6 +2088,8 @@ class Launcher:
         self._venue_adapter = venue_adapter
         self._healthz_port = healthz_port
         self._clock = clock
+        self._conduit_dir = conduit_dir
+        self._arrow_dir = arrow_dir
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
@@ -2672,9 +2676,13 @@ class Launcher:
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
-        conduit_dir = Path(os.environ.get('PRAXIS_CONDUIT_DIR', '/opt/conduit'))
-        arrow_dir = Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
-        arrow_price_store = ArrowPriceStore(arrow_dir)
+        conduit_dir = self._conduit_dir or Path(
+            os.environ.get('PRAXIS_CONDUIT_DIR', '/opt/conduit'),
+        )
+        arrow_dir = self._arrow_dir or Path(
+            os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'),
+        )
+        arrow_price_store = ArrowPriceStore(arrow_dir, clock=self._clock)
         mark_series, mark_interval = _resolve_mark_price_series(manifest)
 
         # Pre-bind `outcome_processor` so the `build_context` closure below
@@ -2775,7 +2783,7 @@ class Launcher:
                         state=state,
                         positions_lock=positions_lock,
                         fallback_price_provider=fallback_price_provider,
-                        now=lambda: datetime.now(UTC),
+                        now=self._clock,
                         append_delivery_context=self._append_outcome_delivery_context,
                     ),
                 )
@@ -2790,7 +2798,7 @@ class Launcher:
                 praxis_outbound=praxis_outbound,
                 validator=pipeline,
                 build_context=recording_build_context,
-                now=lambda: datetime.now(UTC),
+                now=self._clock,
                 capital_controller=capital_controller,
                 positions_lock=positions_lock,
                 pre_register=pre_register,

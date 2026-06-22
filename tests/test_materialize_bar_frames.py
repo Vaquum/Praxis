@@ -73,6 +73,38 @@ def test_predict_loop_reads_materialized_frames(tmp_path: Path) -> None:
     assert signal.values['_probs'] == 0.91
 
 
+def test_dollar_frame_carries_start_ts_for_family_detection(tmp_path: Path) -> None:
+    from decimal import Decimal
+
+    import polars as pl
+
+    from praxis.arrow_price_store import ArrowPriceStore
+
+    conduit_dir = tmp_path / 'conduit'
+    arrow_dir = tmp_path / 'arrow'
+    settle = datetime(2026, 1, 1, 1, 0, 0, tzinfo=UTC)
+    settle_ns = int(settle.timestamp() * _NS)
+    open_ns = settle_ns - 400 * _NS
+
+    materialize_bar_frames(
+        conduit_dir=conduit_dir,
+        arrow_dir=arrow_dir,
+        series='dollar_60M',
+        generated_at=settle,
+        ohlcv_rows=[(settle_ns, 64000.0)],
+        prediction_rows=[(settle_ns, 1, 0.9)],
+        start_ts=[open_ns],
+    )
+
+    frame = pl.read_ipc(arrow_dir / 'dollar_60M' / 'latest.arrow')
+    assert 'start_ts' in frame.columns
+
+    clock = ReplayClock(settle)
+    store = ArrowPriceStore(arrow_dir, clock=clock.now)
+
+    assert store.latest_close('dollar_60M', 300) == Decimal('64000.0')
+
+
 def test_no_dispatch_when_manifest_stale(tmp_path: Path) -> None:
     from nexus.strategy.predict_loop import PredictLoop
 

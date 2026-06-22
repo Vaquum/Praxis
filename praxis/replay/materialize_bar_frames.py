@@ -37,6 +37,7 @@ def materialize_bar_frames(
     generated_at: datetime,
     ohlcv_rows: list[tuple[int, float]],
     prediction_rows: list[tuple[int, int, float]],
+    start_ts: list[int] | None = None,
 ) -> None:
     '''Write the OHLCV frame, prediction frame, and serving manifest.
 
@@ -52,17 +53,31 @@ def materialize_bar_frames(
             bar.
         prediction_rows: Cumulative `(ts_ns, prediction, probability)`
             rows up to the current bar; every row is marked usable.
+        start_ts: Cumulative dollar-bar open `ts` values, aligned with
+            `ohlcv_rows`. When provided the OHLCV frame carries a
+            `start_ts` column, which marks the series as dollar-family
+            (its `ts` is the settle); omit for time bars.
     '''
 
     series_arrow_dir = arrow_dir / series
     series_arrow_dir.mkdir(parents=True, exist_ok=True)
-    pl.DataFrame(
-        {
-            'ts': [ts for ts, _ in ohlcv_rows],
-            'close': [close for _, close in ohlcv_rows],
-        },
-        schema={'ts': pl.Int64, 'close': pl.Float64},
-    ).write_ipc(series_arrow_dir / _LATEST_ARROW)
+
+    ohlcv_columns: dict[str, list[int] | list[float]] = {
+        'ts': [ts for ts, _ in ohlcv_rows],
+        'close': [close for _, close in ohlcv_rows],
+    }
+    ohlcv_schema: dict[str, type[pl.DataType] | pl.DataType] = {
+        'ts': pl.Int64,
+        'close': pl.Float64,
+    }
+
+    if start_ts is not None:
+        ohlcv_columns['start_ts'] = start_ts
+        ohlcv_schema['start_ts'] = pl.Int64
+
+    pl.DataFrame(ohlcv_columns, schema=ohlcv_schema).write_ipc(
+        series_arrow_dir / _LATEST_ARROW,
+    )
 
     series_conduit_dir = conduit_dir / series
     series_conduit_dir.mkdir(parents=True, exist_ok=True)
