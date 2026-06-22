@@ -881,3 +881,14 @@ The related `strategy_source` execution risk is accepted and bounded: `replay_ap
 
 **When to fix**: when the `Launcher` per-account assembly is next refactored, or before replay is run outside a trusted dev host.
 **Migration**: expose a public `Launcher` seam for replay (a build-runtime-without-loops entrypoint plus accessors for the spine / loop / per-account outcome queue) and have `run_replay` use it instead of reaching into privates.
+
+## TD-102: Replay does not run the Nexus ShutdownSequencer
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (deliberate; does not affect a replay's fills or realized PnL over the bar range)
+**Module**: `praxis/replay/run_replay.py`
+
+`run_replay` builds a `_NexusRuntime` and tears the run down via `launcher._shutdown()` (which only joins live Nexus threads — none are started in replay); it does not run `ShutdownSequencer`. So strategy `on_shutdown` / `on_save`, the final Nexus checkpoint, and instance deregistration do not fire. This is deliberate: shutdown is an operational event, not part of the replayed market timeline, and a throwaway replay instance has no state to persist or deregister — running `on_shutdown` could fire close-on-shutdown actions that do not belong in the replayed history. Recorded for traceability.
+
+**When to fix**: if replay must reproduce the live end-of-run lifecycle (e.g. measuring an `on_shutdown` close-all), or if replay strategies need `on_save` state carried across runs.
+**Migration**: run a `ShutdownSequencer` pass at the end of `run_replay` against the isolated runtime, accepting that its actions land on the spine after the last bar.

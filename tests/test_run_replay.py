@@ -209,6 +209,33 @@ def test_drop_from_sys_path_clears_resolved_relative_dir(
             sys.path.remove(resolved)
 
 
+def test_run_replay_open_position_realized_pnl_zero(tmp_path: Path) -> None:
+    settle = datetime(2026, 1, 1, 1, 0, 0, tzinfo=UTC)
+    ts = int((settle - timedelta(seconds=_INTERVAL)).timestamp() * _NS)
+    bars = (
+        ReplayBar(
+            ts_ns=ts, settle=settle, close=60000.0, prediction=1, probability=0.9,
+        ),
+    )
+    scenario = ReplayScenario(
+        account_id='replay-acc',
+        series=_SERIES,
+        interval_seconds=_INTERVAL,
+        symbol=_SYMBOL,
+        capital_pool=Decimal('10000'),
+        filters=_filters(),
+        strategy_source=_STRATEGY_SOURCE,
+        bars=bars,
+    )
+
+    result = run_replay(scenario, work_dir=tmp_path)
+
+    assert result.fills == 1
+    assert result.buy_qty > Decimal(0)
+    assert result.sell_qty == Decimal(0)
+    assert result.realized_pnl == Decimal(0)
+
+
 def test_run_replay_is_deterministic(tmp_path: Path) -> None:
     first = run_replay(_scenario(), work_dir=tmp_path / 'a')
     second = run_replay(_scenario(), work_dir=tmp_path / 'b')

@@ -121,6 +121,28 @@ async def test_non_market_order_rejected() -> None:
 
 
 @pytest.mark.asyncio
+async def test_qty_and_quote_qty_rejected() -> None:
+    adapter = _make_adapter()
+
+    with pytest.raises(OrderRejectedError, match='mutually exclusive'):
+        await adapter.submit_order(
+            _ACCT, _SYMBOL, OrderSide.BUY, OrderType.MARKET, Decimal('0.1'),
+            quote_qty=Decimal('6000'),
+        )
+
+
+@pytest.mark.asyncio
+async def test_quote_qty_sell_rejected() -> None:
+    adapter = _make_adapter()
+
+    with pytest.raises(OrderRejectedError, match='MARKET BUY'):
+        await adapter.submit_order(
+            _ACCT, _SYMBOL, OrderSide.SELL, OrderType.MARKET, None,
+            quote_qty=Decimal('6000'),
+        )
+
+
+@pytest.mark.asyncio
 async def test_insufficient_quote_balance_rejected() -> None:
     adapter = _make_adapter(quote='10')
 

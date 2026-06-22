@@ -209,6 +209,63 @@ async def test_bad_decimal_rejected(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('mutate', 'value'),
+    [
+        ('capital_pool', 'NaN'),
+        ('capital_pool', 'Infinity'),
+        ('capital_pool', '0'),
+        ('interval_seconds', 0),
+    ],
+)
+async def test_non_finite_or_nonpositive_rejected(
+    tmp_path: Path, mutate: str, value: object,
+) -> None:
+    arrow_dir, conduit_dir = _write_frames(tmp_path)
+    app = build_replay_app(
+        arrow_dir=arrow_dir, conduit_dir=conduit_dir, work_root=tmp_path / 'runs',
+    )
+
+    payload = _payload()
+    payload[mutate] = value
+
+    async with TestClient(TestServer(app)) as client:
+        post = await client.post('/replay', json=payload)
+        assert post.status == 400
+
+
+@pytest.mark.asyncio
+async def test_zero_lot_step_rejected(tmp_path: Path) -> None:
+    arrow_dir, conduit_dir = _write_frames(tmp_path)
+    app = build_replay_app(
+        arrow_dir=arrow_dir, conduit_dir=conduit_dir, work_root=tmp_path / 'runs',
+    )
+
+    payload = _payload()
+    payload['filters']['lot_step'] = '0'
+
+    async with TestClient(TestServer(app)) as client:
+        post = await client.post('/replay', json=payload)
+        assert post.status == 400
+
+
+@pytest.mark.asyncio
+async def test_start_after_end_rejected(tmp_path: Path) -> None:
+    arrow_dir, conduit_dir = _write_frames(tmp_path)
+    app = build_replay_app(
+        arrow_dir=arrow_dir, conduit_dir=conduit_dir, work_root=tmp_path / 'runs',
+    )
+
+    payload = _payload()
+    payload['start'] = '2030-01-01T00:00:00Z'
+    payload['end'] = '2020-01-01T00:00:00Z'
+
+    async with TestClient(TestServer(app)) as client:
+        post = await client.post('/replay', json=payload)
+        assert post.status == 400
+
+
+@pytest.mark.asyncio
 async def test_empty_range_rejected(tmp_path: Path) -> None:
     arrow_dir, conduit_dir = _write_frames(tmp_path)
     app = build_replay_app(

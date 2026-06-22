@@ -182,6 +182,20 @@ class ReplayVenueAdapter:
                 reason='unknown_account',
             )
 
+        if qty is not None and quote_qty is not None:
+            raise OrderRejectedError(
+                'qty and quote_qty are mutually exclusive',
+                venue_code=_FILTER_REJECT_CODE,
+                reason='qty_and_quote_qty',
+            )
+
+        if quote_qty is not None and side is not OrderSide.BUY:
+            raise OrderRejectedError(
+                'quote_qty is only valid for a MARKET BUY',
+                venue_code=_FILTER_REJECT_CODE,
+                reason='quote_qty_sell',
+            )
+
         base_qty = self._resolve_base_qty(symbol, qty, quote_qty, fill_price)
         notional = base_qty * fill_price
         fee = notional * self._fee_rate

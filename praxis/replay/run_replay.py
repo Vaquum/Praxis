@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import cast
 
 from nexus.core.domain.enums import OperationalMode
+from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.operational_mode import ModeState
 
 from praxis.core.domain.enums import OrderSide
@@ -59,7 +60,9 @@ class ReplayResult:
         buy_qty: Total base quantity bought.
         sell_qty: Total base quantity sold.
         fees: Total fees paid, in the quote asset.
-        realized_pnl: Sell proceeds minus buy cost minus fees.
+        realized_pnl: Net realized PnL from the run's Nexus risk state
+            (realized on closes, net of fees; zero while a position stays
+            open — not a naive sell-minus-buy of the fills).
         outcome_status_counts: Count of TradeOutcomeProduced by status.
     '''
 
@@ -156,7 +159,7 @@ def run_replay(
             spine.read(epoch_id), loop,
         ).result(timeout=_SETTLE_TIMEOUT_SECONDS)
 
-        return _build_result(scenario, events)
+        return _build_result(scenario, events, runtime.state)
 
     finally:
         launcher._stop_event.set()
@@ -266,17 +269,12 @@ def _settle(
 def _build_result(
     scenario: ReplayScenario,
     events: Sequence[tuple[int, object]],
+    state: InstanceState,
 ) -> ReplayResult:
-    '''Summarise a run's fills and PnL from its spine events.'''
+    '''Summarise a run's fills from the spine and realized PnL from state.'''
 
     fills = [event for _, event in events if isinstance(event, FillReceived)]
 
-    buy_cost = sum(
-        (f.qty * f.price for f in fills if f.side is OrderSide.BUY), _ZERO,
-    )
-    sell_proceeds = sum(
-        (f.qty * f.price for f in fills if f.side is OrderSide.SELL), _ZERO,
-    )
     buy_qty = sum((f.qty for f in fills if f.side is OrderSide.BUY), _ZERO)
     sell_qty = sum((f.qty for f in fills if f.side is OrderSide.SELL), _ZERO)
     fees = sum((f.fee for f in fills), _ZERO)
@@ -296,7 +294,7 @@ def _build_result(
         buy_qty=buy_qty,
         sell_qty=sell_qty,
         fees=fees,
-        realized_pnl=sell_proceeds - buy_cost - fees,
+        realized_pnl=state.risk.realized_pnl,
         outcome_status_counts=status_counts,
     )
 

@@ -195,8 +195,17 @@ def _scenario_from_request(
 
     series = str(payload['series'])
     interval_seconds = int(payload['interval_seconds'])
+
+    if interval_seconds <= 0:
+        msg = f'interval_seconds must be positive: {interval_seconds}'
+        raise ValueError(msg)
+
     start = _parse_ts(payload['start'])
     end = _parse_ts(payload['end'])
+
+    if start > end:
+        msg = f'start must not be after end: {start} > {end}'
+        raise ValueError(msg)
 
     bars = load_replay_bars(
         arrow_dir=arrow_dir,
@@ -212,23 +221,35 @@ def _scenario_from_request(
         series=series,
         interval_seconds=interval_seconds,
         symbol=str(payload['symbol']),
-        capital_pool=Decimal(str(payload['capital_pool'])),
+        capital_pool=_positive_decimal(payload['capital_pool'], 'capital_pool'),
         filters=_filters_from_request(str(payload['symbol']), payload['filters']),
         strategy_source=str(payload['strategy_source']),
         bars=bars,
     )
 
 
+def _positive_decimal(raw: Any, name: str) -> Decimal:
+    '''Parse a finite, strictly-positive Decimal or raise ValueError.'''
+
+    value = Decimal(str(raw))
+
+    if not value.is_finite() or value <= 0:
+        msg = f'{name} must be a finite positive number: {raw!r}'
+        raise ValueError(msg)
+
+    return value
+
+
 def _filters_from_request(symbol: str, raw: dict[str, Any]) -> SymbolFilters:
-    '''Build SymbolFilters from a request's filter payload.'''
+    '''Build SymbolFilters from a request's filter payload, all positive.'''
 
     return SymbolFilters(
         symbol=symbol,
-        tick_size=Decimal(str(raw['tick_size'])),
-        lot_step=Decimal(str(raw['lot_step'])),
-        lot_min=Decimal(str(raw['lot_min'])),
-        lot_max=Decimal(str(raw['lot_max'])),
-        min_notional=Decimal(str(raw['min_notional'])),
+        tick_size=_positive_decimal(raw['tick_size'], 'tick_size'),
+        lot_step=_positive_decimal(raw['lot_step'], 'lot_step'),
+        lot_min=_positive_decimal(raw['lot_min'], 'lot_min'),
+        lot_max=_positive_decimal(raw['lot_max'], 'lot_max'),
+        min_notional=_positive_decimal(raw['min_notional'], 'min_notional'),
     )
 
 
