@@ -892,3 +892,25 @@ The related `strategy_source` execution risk is accepted and bounded: `replay_ap
 
 **When to fix**: if replay must reproduce the live end-of-run lifecycle (e.g. measuring an `on_shutdown` close-all), or if replay strategies need `on_save` state carried across runs.
 **Migration**: run a `ShutdownSequencer` pass at the end of `run_replay` against the isolated runtime, accepting that its actions land on the spine after the last bar.
+
+## TD-103: Replay API run registry grows unbounded
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (in-memory; only matters if the replay API runs as a long-lived service)
+**Module**: `praxis/replay/replay_api.py`
+
+`build_replay_app` keeps every run's `_RunRecord` in an in-memory dict keyed by `run_id`, never evicted. A short-lived / dev invocation is fine, but a long-lived API process accumulates one record per run forever (each holding a `ReplayResult`), so memory grows without bound.
+
+**When to fix**: before running the replay API as a persistent service rather than per-session.
+**Migration**: add a bounded registry (LRU or TTL eviction, or persist results and drop in-memory records after a window) and have `GET /replay/{run_id}` return 404/410 for an evicted id.
+
+## TD-104: Parallel replays need per-run strategy-module isolation
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (the API executor is single-worker, so runs serialize and cannot collide today)
+**Module**: `praxis/replay/replay_api.py`; `praxis/replay/run_replay.py`
+
+`run_replay` writes the scenario's strategy to `work_dir` and the launcher imports it; the API executor is `max_workers=1`, so runs serialize and never import concurrently, and `sys.path` is cleaned per run (the launcher loads via `spec_from_file_location`, so there is no `sys.modules` collision today). Before raising the worker count to run replays in parallel, per-run module isolation must be in place so concurrent imports of same-named strategy modules cannot interfere.
+
+**When to fix**: before bumping the executor worker count above 1.
+**Migration**: give each run a unique strategy module name (or an isolated import context), verify no shared import state leaks across concurrent runs, then raise `max_workers`.
