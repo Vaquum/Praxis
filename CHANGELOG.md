@@ -1204,4 +1204,4 @@
 
 - Split the Launcher's per-account assembly: [`_build_nexus_runtime`](praxis/launcher.py) now builds the runtime without starting the realtime loops, and a new `_start_nexus_loops` starts them (the live path builds then starts, unchanged), so a replay can build the real pipeline and drive it via `tick_once` instead of the wall-clock scheduler
 - Accept `conduit_dir` / `arrow_dir` on the `Launcher` so a replay passes its run directories explicitly instead of mutating process env
-- Record TD-100: the replay API enforces its bar cap only after loading the requested range, acceptable while the endpoint is loopback-only
+- Record TD-100 (the replay API enforces its bar cap only after loading the requested range, acceptable while the endpoint is loopback-only) and TD-101 (`run_replay` drives the live pipeline through `Launcher` private members — track a public replay seam for when the assembly is refactored)

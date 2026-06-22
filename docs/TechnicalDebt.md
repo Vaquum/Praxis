@@ -868,3 +868,16 @@ The re-fail loop is guarded: a failed replay leg records `OutcomeReplayAbandoned
 
 **When to fix**: If the endpoint ever serves a less-trusted caller, or replay ranges grow large enough that the pre-rejection load is itself costly.
 **Migration**: Push the cap into `load_replay_bars` (count or slice the prediction frame's `ts` against `[start, end]` and the limit before materializing all `ReplayBar`s), so an over-limit range is rejected before the full join.
+
+## TD-101: run_replay couples to Launcher private members
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (internal package; the `run_replay` end-to-end test catches a break, and replay is dev-only)
+**Module**: `praxis/replay/run_replay.py`; `praxis/launcher.py`
+
+`run_replay` drives the live pipeline by calling `Launcher` private members directly — `_start_event_loop`, `_start_trading`, `_build_nexus_runtime`, `_outcome_queues`, `_trading`, `_loop`, `_event_spine`, `_stop_event`, `_shutdown`. There is no public seam or boundary test asserting those exist, so a `Launcher` assembly refactor can silently break replay (caught only by the `run_replay` e2e test, not at the call site).
+
+The related `strategy_source` execution risk is accepted and bounded: `replay_api` is loopback-only (a middleware rejects non-local peers) and the behaviour is documented in the module docstring; TD-100 bounds the request's range cap.
+
+**When to fix**: when the `Launcher` per-account assembly is next refactored, or before replay is run outside a trusted dev host.
+**Migration**: expose a public `Launcher` seam for replay (a build-runtime-without-loops entrypoint plus accessors for the spine / loop / per-account outcome queue) and have `run_replay` use it instead of reaching into privates.
