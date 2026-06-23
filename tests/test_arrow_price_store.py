@@ -9,6 +9,7 @@ import polars as pl
 from praxis.arrow_price_store import ArrowPriceStore
 
 _SERIES = 'time_15m'
+_DOLLAR_SERIES = 'dollar_60M'
 _INTERVAL = 900
 _NS = 1_000_000_000
 
@@ -28,6 +29,15 @@ def _clock() -> datetime:
 def _write_frame(root: Path, rows: list[dict[str, object]], *, series: str = _SERIES) -> None:
     frame = pl.DataFrame(rows, schema={'ts': pl.Int64, 'close': pl.Float64})
     series_dir = root / series
+    series_dir.mkdir(parents=True, exist_ok=True)
+    frame.write_ipc(series_dir / 'latest.arrow')
+
+
+def _write_dollar_frame(root: Path, rows: list[dict[str, object]]) -> None:
+    frame = pl.DataFrame(
+        rows, schema={'ts': pl.Int64, 'start_ts': pl.Int64, 'close': pl.Float64},
+    )
+    series_dir = root / _DOLLAR_SERIES
     series_dir.mkdir(parents=True, exist_ok=True)
     frame.write_ipc(series_dir / 'latest.arrow')
 
@@ -119,6 +129,48 @@ def test_stale_bound_is_configurable(tmp_path: Path) -> None:
     store = ArrowPriceStore(tmp_path, clock=_clock, max_staleness_intervals=10)
 
     assert store.latest_close(_SERIES, _INTERVAL) == Decimal('64000.0')
+
+
+def test_dollar_bar_ts_is_settle_not_open(tmp_path: Path) -> None:
+    settled = _now_ns() - 100 * _NS
+    _write_dollar_frame(
+        tmp_path, [{'ts': settled, 'start_ts': settled - 400 * _NS, 'close': 64000.0}],
+    )
+
+    store = ArrowPriceStore(tmp_path, clock=_clock)
+
+    assert store.latest_close(_DOLLAR_SERIES, _INTERVAL) == Decimal('64000.0')
+
+
+def test_time_bar_same_ts_is_still_forming(tmp_path: Path) -> None:
+    forming = _now_ns() - 100 * _NS
+    _write_frame(tmp_path, [{'ts': forming, 'close': 64000.0}])
+
+    store = ArrowPriceStore(tmp_path, clock=_clock)
+
+    assert store.latest_close(_SERIES, _INTERVAL) is None
+
+
+def test_dollar_bar_future_settle_excluded(tmp_path: Path) -> None:
+    future = _now_ns() + 100 * _NS
+    _write_dollar_frame(
+        tmp_path, [{'ts': future, 'start_ts': future - 400 * _NS, 'close': 99999.0}],
+    )
+
+    store = ArrowPriceStore(tmp_path, clock=_clock)
+
+    assert store.latest_close(_DOLLAR_SERIES, _INTERVAL) is None
+
+
+def test_dollar_bar_stale_settle_returns_none(tmp_path: Path) -> None:
+    stale = _now_ns() - 4000 * _NS
+    _write_dollar_frame(
+        tmp_path, [{'ts': stale, 'start_ts': stale - 400 * _NS, 'close': 64000.0}],
+    )
+
+    store = ArrowPriceStore(tmp_path, clock=_clock)
+
+    assert store.latest_close(_DOLLAR_SERIES, _INTERVAL) is None
 
 
 def test_non_int64_ts_returns_none(tmp_path: Path) -> None:

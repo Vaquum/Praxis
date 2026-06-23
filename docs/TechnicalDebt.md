@@ -857,3 +857,71 @@ The re-fail loop is guarded: a failed replay leg records `OutcomeReplayAbandoned
 
 **When to fix**: Before relying on replay to recover venue-filled-but-Nexus-unaware entries (e.g. mainnet, or if `reconcile_at_boot` stops releasing stranded in-flight capital).
 **Migration**: Have the boot capital reconcile (`_reconcile_capital`) detect and settle a venue position with no matching Nexus capital order (reconstruct the fill from the spine `FillReceived`), rather than expecting outcome replay to re-apply it through `order_fill`.
+
+## TD-100: Replay API enforces the bar cap only after loading the full range
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (the API is loopback-only, so the caller is trusted/local)
+**Module**: `praxis/replay/replay_api.py` (`post_replay`); `praxis/replay/load_replay_bars.py`
+
+`POST /replay` calls `load_replay_bars` to read and join the full requested `[start, end]` window into `ReplayBar`s, and only then rejects the request if the bar count exceeds `max_bars`. A loopback caller can still force the full read/join (memory + CPU) for an oversized range before receiving the `400`.
+
+**When to fix**: If the endpoint ever serves a less-trusted caller, or replay ranges grow large enough that the pre-rejection load is itself costly.
+**Migration**: Push the cap into `load_replay_bars` (count or slice the prediction frame's `ts` against `[start, end]` and the limit before materializing all `ReplayBar`s), so an over-limit range is rejected before the full join.
+
+## TD-101: run_replay couples to Launcher private members
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (internal package; the `run_replay` end-to-end test catches a break, and replay is dev-only)
+**Module**: `praxis/replay/run_replay.py`; `praxis/launcher.py`
+
+`run_replay` drives the live pipeline by calling `Launcher` private members directly — `_start_event_loop`, `_start_trading`, `_build_nexus_runtime`, `_outcome_queues`, `_trading`, `_loop`, `_event_spine`, `_stop_event`, `_shutdown`. There is no public seam or boundary test asserting those exist, so a `Launcher` assembly refactor can silently break replay (caught only by the `run_replay` e2e test, not at the call site).
+
+The related `strategy_source` execution risk is accepted and bounded: `replay_api` is loopback-only (a middleware rejects non-local peers) and the behaviour is documented in the module docstring; TD-100 bounds the request's range cap.
+
+**When to fix**: when the `Launcher` per-account assembly is next refactored, or before replay is run outside a trusted dev host.
+**Migration**: expose a public `Launcher` seam for replay (a build-runtime-without-loops entrypoint plus accessors for the spine / loop / per-account outcome queue) and have `run_replay` use it instead of reaching into privates.
+
+## TD-102: Replay does not run the Nexus ShutdownSequencer
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (deliberate; does not affect a replay's fills or realized PnL over the bar range)
+**Module**: `praxis/replay/run_replay.py`
+
+`run_replay` builds a `_NexusRuntime` and tears the run down via `launcher._shutdown()` (which only joins live Nexus threads — none are started in replay); it does not run `ShutdownSequencer`. So strategy `on_shutdown` / `on_save`, the final Nexus checkpoint, and instance deregistration do not fire. This is deliberate: shutdown is an operational event, not part of the replayed market timeline, and a throwaway replay instance has no state to persist or deregister — running `on_shutdown` could fire close-on-shutdown actions that do not belong in the replayed history. Recorded for traceability.
+
+**When to fix**: if replay must reproduce the live end-of-run lifecycle (e.g. measuring an `on_shutdown` close-all), or if replay strategies need `on_save` state carried across runs.
+**Migration**: run a `ShutdownSequencer` pass at the end of `run_replay` against the isolated runtime, accepting that its actions land on the spine after the last bar.
+
+## TD-103: Replay API run registry grows unbounded
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (in-memory; only matters if the replay API runs as a long-lived service)
+**Module**: `praxis/replay/replay_api.py`
+
+`build_replay_app` keeps every run's `_RunRecord` in an in-memory dict keyed by `run_id`, never evicted. A short-lived / dev invocation is fine, but a long-lived API process accumulates one record per run forever (each holding a `ReplayResult`), so memory grows without bound.
+
+**When to fix**: before running the replay API as a persistent service rather than per-session.
+**Migration**: add a bounded registry (LRU or TTL eviction, or persist results and drop in-memory records after a window) and have `GET /replay/{run_id}` return 404/410 for an evicted id.
+
+## TD-104: Parallel replays need per-run strategy-module isolation
+
+**Origin**: replay-engine branch (pre-PR review)
+**Severity**: Low (the API executor is single-worker, so runs serialize and cannot collide today)
+**Module**: `praxis/replay/replay_api.py`; `praxis/replay/run_replay.py`
+
+`run_replay` writes the scenario's strategy to `work_dir` and the launcher imports it; the API executor is `max_workers=1`, so runs serialize and never import concurrently, and `sys.path` is cleaned per run (the launcher loads via `spec_from_file_location`, so there is no `sys.modules` collision today). Before raising the worker count to run replays in parallel, per-run module isolation must be in place so concurrent imports of same-named strategy modules cannot interfere.
+
+**When to fix**: before bumping the executor worker count above 1.
+**Migration**: give each run a unique strategy module name (or an isolated import context), verify no shared import state leaks across concurrent runs, then raise `max_workers`.
+
+## TD-105: Replay drops strategy on_startup actions
+
+**Origin**: replay-engine branch (PR #159 review)
+**Severity**: Low (the Conduit strategies enter on signal, not startup; out of scope for phase one)
+**Module**: `praxis/replay/run_replay.py`; `praxis/launcher.py` (`_build_nexus_runtime`)
+
+A strategy's `on_startup` actions are drained inside `_build_nexus_runtime` (via `sequencer.drain_pending_startup_actions`), which runs before `run_replay` forces ACTIVE mode (`_activate_mode`), sets the bar price (`adapter.set_price`), or materialises any frame. So a startup action is submitted while the instance is `REDUCE_ONLY` and the price context is unset, and is rejected (`OrderRejectedError('no_price')` / mode gate) and recorded as a silently-dropped `OrderSubmitFailed`. A strategy that opens its initial position on startup rather than on the first signal would diverge from a live/paper run with no warning. `_activate_mode` cannot run before the build because it needs the `runtime.state` the build creates.
+
+**When to fix**: before supporting strategies that enter on `on_startup` in replay.
+**Migration**: refactor the launcher so a replay can force ACTIVE mode + seed the opening price + materialise the first bar before the in-build startup drain (or expose a build hook that runs the drain after that context is set). Relates to the public-replay-seam work in TD-101.

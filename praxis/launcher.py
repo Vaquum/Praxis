@@ -137,6 +137,12 @@ _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
+
+
+def _utc_now() -> datetime:
+    '''Return the current UTC time.'''
+
+    return datetime.now(UTC)
 _DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
 _DEFAULT_SNAPSHOT_INTERVAL_SECONDS = 300.0
 _DEFAULT_MTM_INTERVAL_SECONDS = 30.0
@@ -412,6 +418,7 @@ def _build_validation_pipeline(
     price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
         _default_price_snapshot
     ),
+    clock: Callable[[], datetime] = _utc_now,
 ) -> ValidationPipeline:
     '''Build a six-stage `ValidationPipeline` for one account.
 
@@ -446,12 +453,15 @@ def _build_validation_pipeline(
             platform-limits snapshot. Defaults to an empty snapshot.
         price_snapshot_provider: Callable returning the current
             price-check snapshot. Defaults to `None`.
+        clock: Source of UTC time for the duplicate-order and order-rate
+            intake hooks; a replay run injects its cursor so these gate
+            on simulated time rather than wall time.
 
     Returns:
         Six-stage `ValidationPipeline` ready for use by `submit_actions`.
     '''
 
-    intake_hooks = build_default_intake_hooks(nexus_config)
+    intake_hooks = build_default_intake_hooks(nexus_config, now_fn=clock)
     risk_limits = RiskStageLimits()
     price_limits = build_price_stage_limits_from_config(nexus_config)
     platform_limits = PlatformLimitsStageLimits()
@@ -2065,6 +2075,9 @@ class Launcher:
         db_path: Path | None = None,
         venue_adapter: VenueAdapter | None = None,
         healthz_port: int | None = None,
+        clock: Callable[[], datetime] = _utc_now,
+        conduit_dir: Path | None = None,
+        arrow_dir: Path | None = None,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
@@ -2078,6 +2091,9 @@ class Launcher:
         self._owns_spine = event_spine is None
         self._venue_adapter = venue_adapter
         self._healthz_port = healthz_port
+        self._clock = clock
+        self._conduit_dir = conduit_dir
+        self._arrow_dir = arrow_dir
         self._stop_event = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
@@ -2230,6 +2246,7 @@ class Launcher:
             event_spine=self._event_spine,
             venue_adapter=self._venue_adapter,
             bootstrap_filter_symbols=frozenset({_DEFAULT_SYMBOL}),
+            clock=self._clock,
         )
 
         for inst in self._instances:
@@ -2312,7 +2329,7 @@ class Launcher:
 
         event = OutcomeAcked(
             account_id=account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             outcome_id=outcome_id,
         )
         epoch_id = self._trading_config.epoch_id
@@ -2354,7 +2371,7 @@ class Launcher:
 
         event = OutcomeReplayAbandoned(
             account_id=account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             outcome_id=outcome_id,
             reason=reason,
         )
@@ -2395,7 +2412,7 @@ class Launcher:
 
         event = OutcomeDeliveryContextRecorded(
             account_id=account_id,
-            timestamp=datetime.now(UTC),
+            timestamp=self._clock(),
             command_id=ctx.command_id,
             side=_PraxisOrderSide(ctx.side.value),
             is_entry=ctx.is_entry,
@@ -2549,6 +2566,7 @@ class Launcher:
 
         try:
             runtime = self._build_nexus_runtime(inst, outcome_queue)
+            self._start_nexus_loops(runtime)
 
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
@@ -2599,10 +2617,11 @@ class Launcher:
         `CapitalController`, six-stage `ValidationPipeline`, submitter /
         `build_context` / `context_provider` / `fallback_price_provider`
         closures → `PredictLoop`, `TimerLoop` (when the manifest carries
-        timers), and `OutcomeLoop`, all started before returning. The
-        caller is responsible for waiting on the shutdown signal and
-        then invoking `ShutdownSequencer.shutdown()` on the returned
-        runtime.
+        timers), and `OutcomeLoop`. The loops are built but NOT started;
+        the caller starts them via `_start_nexus_loops` (the live path)
+        or drives them directly (a replay run). The caller is also
+        responsible for waiting on the shutdown signal and then invoking
+        `ShutdownSequencer.shutdown()` on the returned runtime.
 
         Raises:
             RuntimeError: If `sequencer.start()` completed but the
@@ -2642,9 +2661,11 @@ class Launcher:
             raise RuntimeError(msg)
 
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
-        capital_controller = CapitalController(state.capital)
+        capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
-        pipeline = _build_validation_pipeline(nexus_instance_config, capital_controller)
+        pipeline = _build_validation_pipeline(
+            nexus_instance_config, capital_controller, clock=self._clock,
+        )
         positions_lock = threading.Lock()
         command_registry_lock = threading.Lock()
         if not hasattr(state.risk, 'lock'):
@@ -2661,9 +2682,13 @@ class Launcher:
         capital_pct_by_strategy = {
             spec.strategy_id: spec.capital_pct for spec in manifest.strategies
         }
-        conduit_dir = Path(os.environ.get('PRAXIS_CONDUIT_DIR', '/opt/conduit'))
-        arrow_dir = Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
-        arrow_price_store = ArrowPriceStore(arrow_dir)
+        conduit_dir = self._conduit_dir or Path(
+            os.environ.get('PRAXIS_CONDUIT_DIR', '/opt/conduit'),
+        )
+        arrow_dir = self._arrow_dir or Path(
+            os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'),
+        )
+        arrow_price_store = ArrowPriceStore(arrow_dir, clock=self._clock)
         mark_series, mark_interval = _resolve_mark_price_series(manifest)
 
         # Pre-bind `outcome_processor` so the `build_context` closure below
@@ -2764,7 +2789,7 @@ class Launcher:
                         state=state,
                         positions_lock=positions_lock,
                         fallback_price_provider=fallback_price_provider,
-                        now=lambda: datetime.now(UTC),
+                        now=self._clock,
                         append_delivery_context=self._append_outcome_delivery_context,
                     ),
                 )
@@ -2779,7 +2804,7 @@ class Launcher:
                 praxis_outbound=praxis_outbound,
                 validator=pipeline,
                 build_context=recording_build_context,
-                now=lambda: datetime.now(UTC),
+                now=self._clock,
                 capital_controller=capital_controller,
                 positions_lock=positions_lock,
                 pre_register=pre_register,
@@ -3059,8 +3084,8 @@ class Launcher:
             action_submit=submitter,
             conduit_dir=conduit_dir,
             arrow_dir=arrow_dir,
+            clock=self._clock,
         )
-        predict_loop.start()
 
         timer_loop: TimerLoop | None = None
 
@@ -3071,7 +3096,6 @@ class Launcher:
                 context_provider=context_provider,
                 action_submit=submitter,
             )
-            timer_loop.start()
 
         praxis_inbound = PraxisInbound(outcome_queue=outcome_queue)
 
@@ -3084,7 +3108,6 @@ class Launcher:
             action_submit=submitter,
             process_outcome=process_outcome,
         )
-        outcome_loop.start()
 
         health_loop = _build_health_loop(
             trading=self._trading,
@@ -3092,7 +3115,6 @@ class Launcher:
             account_id=inst.account_id,
             state_store=state_store,
         )
-        health_loop.start()
 
         snapshot_interval = _positive_float_env(
             'NEXUS_SNAPSHOT_INTERVAL_SECONDS',
@@ -3103,7 +3125,6 @@ class Launcher:
             state=state,
             interval_seconds=snapshot_interval,
         )
-        snapshot_scheduler.start()
 
         mtm_interval = _positive_float_env(
             'NEXUS_MTM_INTERVAL_SECONDS',
@@ -3122,7 +3143,6 @@ class Launcher:
             interval_seconds=mtm_interval,
             positions_lock=positions_lock,
         )
-        mtm_loop.start()
 
         unknown_warn_seconds = _positive_float_env(
             'NEXUS_UNKNOWN_SUBMISSION_WARN_SECONDS',
@@ -3135,11 +3155,10 @@ class Launcher:
         unknown_submission_monitor = _UnknownSubmissionMonitor(
             unknown_submissions=unknown_submissions,
             lock=command_registry_lock,
-            now=lambda: datetime.now(UTC),
+            now=self._clock,
             warn_seconds=unknown_warn_seconds,
             scan_seconds=unknown_scan_seconds,
         )
-        unknown_submission_monitor.start()
 
         return _NexusRuntime(
             state_store=state_store,
@@ -3163,6 +3182,25 @@ class Launcher:
             process_outcome=process_outcome,
             positions_lock=positions_lock,
         )
+
+    def _start_nexus_loops(self, runtime: _NexusRuntime) -> None:
+        '''Start the realtime loops of a built runtime (the live path).
+
+        A replay run skips this and drives `runtime.predict_loop`
+        synchronously via `tick_once` instead.
+        '''
+
+        runtime.predict_loop.start()
+
+        if runtime.timer_loop is not None:
+            runtime.timer_loop.start()
+
+        runtime.outcome_loop.start()
+        runtime.health_loop.start()
+        runtime.snapshot_scheduler.start()
+        runtime.mtm_loop.start()
+        runtime.unknown_submission_monitor.start()
+
 
 def _check_required_env(env: dict[str, str]) -> None:
     '''Raise if any required env var is missing or empty.'''
