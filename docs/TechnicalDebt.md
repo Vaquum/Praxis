@@ -914,3 +914,14 @@ The related `strategy_source` execution risk is accepted and bounded: `replay_ap
 
 **When to fix**: before bumping the executor worker count above 1.
 **Migration**: give each run a unique strategy module name (or an isolated import context), verify no shared import state leaks across concurrent runs, then raise `max_workers`.
+
+## TD-105: Replay drops strategy on_startup actions
+
+**Origin**: replay-engine branch (PR #159 review)
+**Severity**: Low (the Conduit strategies enter on signal, not startup; out of scope for phase one)
+**Module**: `praxis/replay/run_replay.py`; `praxis/launcher.py` (`_build_nexus_runtime`)
+
+A strategy's `on_startup` actions are drained inside `_build_nexus_runtime` (via `sequencer.drain_pending_startup_actions`), which runs before `run_replay` forces ACTIVE mode (`_activate_mode`), sets the bar price (`adapter.set_price`), or materialises any frame. So a startup action is submitted while the instance is `REDUCE_ONLY` and the price context is unset, and is rejected (`OrderRejectedError('no_price')` / mode gate) and recorded as a silently-dropped `OrderSubmitFailed`. A strategy that opens its initial position on startup rather than on the first signal would diverge from a live/paper run with no warning. `_activate_mode` cannot run before the build because it needs the `runtime.state` the build creates.
+
+**When to fix**: before supporting strategies that enter on `on_startup` in replay.
+**Migration**: refactor the launcher so a replay can force ACTIVE mode + seed the opening price + materialise the first bar before the in-build startup drain (or expose a build hook that runs the drain after that context is set). Relates to the public-replay-seam work in TD-101.
