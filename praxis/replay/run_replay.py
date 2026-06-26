@@ -37,6 +37,8 @@ from praxis.launcher import InstanceConfig, Launcher, _NexusRuntime
 from praxis.replay.materialize_bar_frames import materialize_bar_frames
 from praxis.replay.replay_clock import ReplayClock
 from praxis.replay.replay_scenario import ReplayScenario
+from praxis.replay.build_replay_report import build_replay_report
+from praxis.replay.replay_report import ReplayMetrics, Trade
 from praxis.replay.replay_venue_adapter import ReplayVenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
@@ -64,6 +66,8 @@ class ReplayResult:
             (realized on closes, net of fees; zero while a position stays
             open — not a naive sell-minus-buy of the fills).
         outcome_status_counts: Count of TradeOutcomeProduced by status.
+        trades: Closed round-trips in entry order.
+        metrics: Summary statistics over the trades and equity curve.
     '''
 
     bars: int
@@ -73,6 +77,8 @@ class ReplayResult:
     fees: Decimal
     realized_pnl: Decimal
     outcome_status_counts: dict[str, int]
+    trades: tuple[Trade, ...]
+    metrics: ReplayMetrics
 
 
 def run_replay(
@@ -288,6 +294,8 @@ def _build_result(
                 status_counts.get(event.status.value, 0) + 1
             )
 
+    trades, metrics = build_replay_report(scenario, fills)
+
     return ReplayResult(
         bars=len(scenario.bars),
         fills=len(fills),
@@ -296,6 +304,8 @@ def _build_result(
         fees=fees,
         realized_pnl=state.risk.realized_pnl,
         outcome_status_counts=status_counts,
+        trades=trades,
+        metrics=metrics,
     )
 
 
