@@ -18,7 +18,6 @@ __all__ = ['build_replay_report']
 
 _ZERO = Decimal(0)
 _HUNDRED = Decimal(100)
-_NS_PER_SECOND = 1_000_000_000
 _SECONDS_PER_YEAR = 31_536_000
 _MIN_RETURNS = 2
 
@@ -46,24 +45,22 @@ def build_replay_report(
     '''
 
     ordered = sorted(fills, key=lambda fill: fill.timestamp)
-    settles = [int(bar.settle.timestamp() * _NS_PER_SECOND) for bar in scenario.bars]
+    settles = [bar.settle for bar in scenario.bars]
     trades = _pair_trades(ordered, settles)
-    equity, in_position = _equity_curve(ordered, scenario, settles)
+    equity, in_position_bars = _equity_curve(ordered, scenario, settles)
     open_qty = sum(
         (fill.qty if fill.side is OrderSide.BUY else -fill.qty for fill in ordered),
         _ZERO,
     )
     total_fees = sum((fill.fee for fill in ordered), _ZERO)
-    metrics = _summarise(trades, equity, in_position, open_qty, total_fees, scenario)
+    metrics = _summarise(trades, equity, in_position_bars, open_qty, total_fees, scenario)
 
     return trades, metrics
 
 
-def _fill_bar(fill: FillReceived, settles: list[int]) -> int:
+def _fill_bar(fill: FillReceived, settles: list[datetime]) -> int:
 
-    fill_ns = int(fill.timestamp.timestamp() * _NS_PER_SECOND)
-
-    return max(0, bisect_right(settles, fill_ns) - 1)
+    return max(0, bisect_right(settles, fill.timestamp) - 1)
 
 
 @dataclass
@@ -83,7 +80,7 @@ def _take_fee(remaining_fee: Decimal, remaining_qty: Decimal, taken: Decimal) ->
     return remaining_fee * taken / remaining_qty
 
 
-def _pair_trades(fills: Sequence[FillReceived], settles: list[int]) -> tuple[Trade, ...]:
+def _pair_trades(fills: Sequence[FillReceived], settles: list[datetime]) -> tuple[Trade, ...]:
 
     by_position: dict[str, list[FillReceived]] = {}
 
@@ -100,7 +97,7 @@ def _pair_trades(fills: Sequence[FillReceived], settles: list[int]) -> tuple[Tra
     return tuple(trades)
 
 
-def _pair_position(position_fills: Sequence[FillReceived], settles: list[int]) -> list[Trade]:
+def _pair_position(position_fills: Sequence[FillReceived], settles: list[datetime]) -> list[Trade]:
 
     trades: list[Trade] = []
     lots: deque[_Lot] = deque()
@@ -160,7 +157,7 @@ def _pair_position(position_fills: Sequence[FillReceived], settles: list[int]) -
 def _equity_curve(
     fills: Sequence[FillReceived],
     scenario: ReplayScenario,
-    settles: list[int],
+    settles: list[datetime],
 ) -> tuple[list[Decimal], int]:
 
     by_bar: dict[int, list[FillReceived]] = defaultdict(list)
@@ -171,7 +168,7 @@ def _equity_curve(
     cash = scenario.capital_pool
     position = _ZERO
     equity: list[Decimal] = []
-    in_position = 0
+    in_position_bars = 0
 
     for index, bar in enumerate(scenario.bars):
 
@@ -188,15 +185,15 @@ def _equity_curve(
         equity.append(cash + position * Decimal(str(bar.close)))
 
         if position > _ZERO:
-            in_position += 1
+            in_position_bars += 1
 
-    return equity, in_position
+    return equity, in_position_bars
 
 
 def _summarise(
     trades: tuple[Trade, ...],
     equity: list[Decimal],
-    in_position: int,
+    in_position_bars: int,
     open_position_qty: Decimal,
     total_fees: Decimal,
     scenario: ReplayScenario,
@@ -223,7 +220,7 @@ def _summarise(
         profit_factor=win_total / -loss_total if loss_total < _ZERO else None,
         max_drawdown_pct=_max_drawdown_pct(equity),
         sharpe=_sharpe(equity, scenario.interval_seconds),
-        exposure_pct=Decimal(in_position) / Decimal(bars) * _HUNDRED if bars else _ZERO,
+        exposure_pct=Decimal(in_position_bars) / Decimal(bars) * _HUNDRED if bars else _ZERO,
         final_equity=equity[-1] if equity else scenario.capital_pool,
         open_position_qty=open_position_qty,
     )
@@ -231,7 +228,10 @@ def _summarise(
 
 def _max_drawdown_pct(equity: list[Decimal]) -> Decimal:
 
-    peak = _ZERO
+    if not equity:
+        return _ZERO
+
+    peak = equity[0]
     worst = _ZERO
 
     for value in equity:

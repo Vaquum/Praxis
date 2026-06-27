@@ -387,6 +387,15 @@ def test_drawdown_and_exposure_from_equity():
     assert metrics.max_drawdown_pct == Decimal('20')
 
 
+def test_drawdown_surfaces_negative_equity_wipeout():
+    bars = [_bar(0, '200'), _bar(1, '50')]
+    fills = [_fill(0, OrderSide.BUY, '1', '200', '0')]
+    _, metrics = build_replay_report(_scenario(bars, capital='100'), fills)
+
+    assert metrics.final_equity < Decimal('0')
+    assert metrics.max_drawdown_pct > Decimal('100')
+
+
 def test_net_pnl_pct_against_capital():
     bars = [_bar(i, '100') for i in range(4)]
     fills = [
