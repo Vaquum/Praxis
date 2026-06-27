@@ -192,6 +192,31 @@ def test_run_replay_dollar_bars(tmp_path: Path) -> None:
     assert result.realized_pnl > Decimal(0)
 
 
+def test_run_replay_time_report_reconciles_to_result_fills(tmp_path: Path) -> None:
+    result = run_replay(_scenario(), work_dir=tmp_path)
+
+    assert len(result.trades) == 1
+    assert result.metrics.trade_count == 1
+    assert result.metrics.total_fees == result.fees
+    assert result.metrics.open_position_qty == Decimal('0')
+    assert result.metrics.gross_pnl == result.trades[0].gross_pnl
+    assert result.metrics.net_pnl == result.trades[0].net_pnl
+    assert result.metrics.final_equity == Decimal('10000') + result.metrics.net_pnl
+
+
+def test_run_replay_dollar_report_reconciles_and_bars_held_is_bar_count(
+    tmp_path: Path,
+) -> None:
+    result = run_replay(_dollar_scenario(), work_dir=tmp_path)
+
+    assert len(result.trades) == 1
+    assert result.trades[0].bars_held == 1
+    assert result.metrics.total_fees == result.fees
+    assert result.metrics.open_position_qty == Decimal('0')
+    assert result.metrics.final_equity == Decimal('10000') + result.metrics.net_pnl
+    assert result.metrics.sharpe is None
+
+
 def test_drop_from_sys_path_clears_resolved_relative_dir(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -234,6 +259,9 @@ def test_run_replay_open_position_realized_pnl_zero(tmp_path: Path) -> None:
     assert result.buy_qty > Decimal(0)
     assert result.sell_qty == Decimal(0)
     assert result.realized_pnl == Decimal(0)
+    assert result.metrics.trade_count == 0
+    assert result.metrics.open_position_qty == result.buy_qty
+    assert result.metrics.total_fees == result.fees
 
 
 def test_run_replay_is_deterministic(tmp_path: Path) -> None:

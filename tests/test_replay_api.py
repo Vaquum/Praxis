@@ -160,6 +160,48 @@ async def test_post_then_poll_completes(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_done_response_includes_report_metrics_and_trades_json(tmp_path: Path) -> None:
+    arrow_dir, conduit_dir = _write_frames(tmp_path)
+    app = build_replay_app(
+        arrow_dir=arrow_dir, conduit_dir=conduit_dir, work_root=tmp_path / 'runs',
+    )
+
+    async with TestClient(TestServer(app)) as client:
+        post = await client.post('/replay', json=_payload())
+        run_id = (await post.json())['run_id']
+
+        for _ in range(_POLL_ATTEMPTS):
+            got = await client.get(f'/replay/{run_id}')
+            body = await got.json()
+            if body['status'] != 'running':
+                break
+            await asyncio.sleep(_POLL_DELAY)
+
+        assert body['status'] == 'done', body
+        result = body['result']
+        metrics = result['metrics']
+        trades = result['trades']
+
+        assert metrics['trade_count'] == 1
+        assert metrics['win_rate'] == '100'
+        assert metrics['avg_loss'] is None
+        assert metrics['profit_factor'] is None
+        assert len(trades) == 1
+        assert trades[0]['bars_held'] == 1
+
+        for key in (
+            'gross_pnl', 'net_pnl', 'total_fees', 'pnl_pct',
+            'max_drawdown_pct', 'exposure_pct', 'final_equity', 'open_position_qty',
+        ):
+            assert isinstance(metrics[key], str)
+
+        for key in (
+            'entry_price', 'exit_price', 'qty', 'gross_pnl', 'fees', 'net_pnl', 'return_pct',
+        ):
+            assert isinstance(trades[0][key], str)
+
+
+@pytest.mark.asyncio
 async def test_unknown_run_id_returns_404(tmp_path: Path) -> None:
     arrow_dir, conduit_dir = _write_frames(tmp_path)
     app = build_replay_app(
