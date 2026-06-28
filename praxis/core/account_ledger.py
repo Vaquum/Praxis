@@ -25,6 +25,7 @@ from praxis.core.domain.chart_of_accounts import Account, is_debit_normal
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import Event, FillReceived, TradeClosed
 from praxis.core.domain.journal_entry import JournalEntry, JournalLine
+from praxis.core.domain.trade_pnl import TradePnL
 
 __all__ = ['AccountLedger', 'CostBasisMethod']
 
@@ -76,6 +77,7 @@ class AccountLedger:
         self.account_id = account_id
         self.cost_basis_method = cost_basis_method
         self.balances: dict[Account, Decimal] = dict.fromkeys(Account, _ZERO)
+        self.trades: dict[str, TradePnL] = {}
         self.journal: list[JournalEntry] = []
         self._lots: dict[str, deque[_Lot]] = {}
         self._lock = threading.Lock()
@@ -92,7 +94,7 @@ class AccountLedger:
             self._on_fill_received(event)
 
         elif isinstance(event, TradeClosed):
-            return
+            self._on_trade_closed(event)
 
     def _on_fill_received(self, event: FillReceived) -> None:
 
@@ -101,10 +103,21 @@ class AccountLedger:
             raise NotImplementedError(msg)
 
         if event.side is OrderSide.BUY:
-            self._post(self._buy_entry(event))
+            entry = self._buy_entry(event)
+            realized = _ZERO
 
         else:
-            self._post(self._sell_entry(event))
+            entry, realized = self._sell_entry(event)
+
+        self._post(entry, event.trade_id, realized, event.fee)
+
+    def _on_trade_closed(self, event: TradeClosed) -> None:
+
+        with self._lock:
+            trade = self.trades.get(event.trade_id)
+
+            if trade is not None:
+                trade.closed = True
 
     def _buy_entry(self, event: FillReceived) -> JournalEntry:
 
@@ -132,7 +145,7 @@ class AccountLedger:
 
         lots.append(_Lot(qty, price))
 
-    def _sell_entry(self, event: FillReceived) -> JournalEntry:
+    def _sell_entry(self, event: FillReceived) -> tuple[JournalEntry, Decimal]:
 
         proceeds = event.qty * event.price
         cost = self._consume_lots(event.trade_id, event.qty)
@@ -150,7 +163,7 @@ class AccountLedger:
 
         lines.extend(self._fee_lines(event.fee))
 
-        return self._entry(event, 'sell fill', lines)
+        return self._entry(event, 'sell fill', lines), realized
 
     def _consume_lots(self, trade_id: str, qty: Decimal) -> Decimal:
 
@@ -197,7 +210,7 @@ class AccountLedger:
             lines=tuple(lines),
         )
 
-    def _post(self, entry: JournalEntry) -> None:
+    def _post(self, entry: JournalEntry, trade_id: str, realized: Decimal, fee: Decimal) -> None:
 
         with self._lock:
             self.journal.append(entry)
@@ -205,3 +218,7 @@ class AccountLedger:
             for line in entry.lines:
                 delta = line.debit - line.credit if is_debit_normal(line.account) else line.credit - line.debit
                 self.balances[line.account] += delta
+
+            trade = self.trades.setdefault(trade_id, TradePnL(trade_id))
+            trade.realized_gross += realized
+            trade.fees += fee

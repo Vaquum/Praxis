@@ -130,6 +130,53 @@ def test_default_cost_basis_is_fifo():
     assert _ledger().cost_basis_method is CostBasisMethod.FIFO
 
 
+def test_per_trade_pnl_accumulates_gross_and_fees():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.1'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '110', '0.11'))
+    trade = ledger.trades['a']
+
+    assert trade.realized_gross == Decimal('10')
+    assert trade.fees == Decimal('0.21')
+    assert trade.net == Decimal('9.79')
+    assert trade.closed is False
+
+
+def test_per_trade_pnl_is_isolated_by_trade_id():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0', tid='a'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '110', '0', tid='a'))
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0', tid='b'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '90', '0', tid='b'))
+
+    assert ledger.trades['a'].realized_gross == Decimal('10')
+    assert ledger.trades['b'].realized_gross == Decimal('-10')
+
+
+def test_trade_closed_marks_trade_closed():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '110', '0'))
+    ledger.apply(TradeClosed(account_id='acc', timestamp=_TS, trade_id='a', command_id='cmd'))
+
+    assert ledger.trades['a'].closed is True
+
+
+def test_trade_closed_for_unknown_trade_is_noop():
+    ledger = _ledger()
+    ledger.apply(TradeClosed(account_id='acc', timestamp=_TS, trade_id='zzz', command_id='cmd'))
+
+    assert ledger.trades == {}
+
+
+def test_per_trade_realized_matches_realized_pnl_balance_for_single_trade():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '2', '100', '0'))
+    ledger.apply(_fill(OrderSide.SELL, '2', '130', '0'))
+
+    assert ledger.trades['a'].realized_gross == ledger.balances[Account.REALIZED_PNL]
+
+
 def test_average_cost_basis_blends_lot_cost():
     ledger = AccountLedger('acc', CostBasisMethod.AVERAGE)
     ledger.apply(_fill(OrderSide.BUY, '1', '100', '0'))
