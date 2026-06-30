@@ -20,6 +20,7 @@ from collections import deque
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 
 from praxis.core.domain.chart_of_accounts import Account, is_debit_normal
 from praxis.core.domain.enums import OrderSide
@@ -95,6 +96,71 @@ class AccountLedger:
 
         elif isinstance(event, TradeClosed):
             self._on_trade_closed(event)
+
+    def state(self) -> dict[str, Any]:
+
+        '''Return the resumable projection state as a JSON-serialisable dict.
+
+        Holds balances, per-trade P&L, and open cost-basis lots — the
+        derived state needed to resume without replaying from genesis.
+        The journal is the audit trail and is not part of this state.
+        '''
+
+        with self._lock:
+            return {
+                'account_id': self.account_id,
+                'cost_basis_method': self.cost_basis_method.value,
+                'balances': {account.value: str(amount) for account, amount in self.balances.items()},
+                'trades': {
+                    trade_id: {
+                        'realized_gross': str(trade.realized_gross),
+                        'fees': str(trade.fees),
+                        'closed': trade.closed,
+                    }
+                    for trade_id, trade in self.trades.items()
+                },
+                'lots': {
+                    trade_id: [{'qty': str(lot.qty), 'unit_cost': str(lot.unit_cost)} for lot in lots]
+                    for trade_id, lots in self._lots.items()
+                },
+            }
+
+    def to_snapshot(self, last_applied_event_seq: int, epoch_id: int) -> dict[str, Any]:
+
+        '''Return a snapshot of the ledger tagged with its spine position.
+
+        Args:
+            last_applied_event_seq: Sequence of the last event applied.
+            epoch_id: Epoch the snapshot belongs to.
+        '''
+
+        return {
+            'last_applied_event_seq': last_applied_event_seq,
+            'epoch_id': epoch_id,
+            'state': self.state(),
+        }
+
+    @classmethod
+    def from_snapshot(cls, snapshot: dict[str, Any]) -> AccountLedger:
+
+        '''Rebuild a ledger from a `to_snapshot` payload (journal not restored).'''
+
+        state = snapshot['state']
+        ledger = cls(state['account_id'], CostBasisMethod(state['cost_basis_method']))
+
+        for account_value, amount in state['balances'].items():
+            ledger.balances[Account(account_value)] = Decimal(amount)
+
+        ledger.trades = {
+            trade_id: TradePnL(trade_id, Decimal(t['realized_gross']), Decimal(t['fees']), t['closed'])
+            for trade_id, t in state['trades'].items()
+        }
+        ledger._lots = {
+            trade_id: deque(_Lot(Decimal(lot['qty']), Decimal(lot['unit_cost'])) for lot in lots)
+            for trade_id, lots in state['lots'].items()
+        }
+
+        return ledger
 
     def _on_fill_received(self, event: FillReceived) -> None:
 

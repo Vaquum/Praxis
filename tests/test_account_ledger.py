@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -202,3 +203,62 @@ def test_fifo_and_average_differ_on_partial_exit():
 
     assert fifo.balances[Account.REALIZED_PNL] == Decimal('20')
     assert average.balances[Account.REALIZED_PNL] == Decimal('15')
+
+
+def test_snapshot_round_trip_preserves_state():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '2', '100', '0.2'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '130', '0.13'))
+    snapshot = ledger.to_snapshot(last_applied_event_seq=7, epoch_id=3)
+    restored = AccountLedger.from_snapshot(snapshot)
+
+    assert snapshot['last_applied_event_seq'] == 7
+    assert snapshot['epoch_id'] == 3
+    assert restored.state() == ledger.state()
+
+
+def test_replay_reproduces_live_state():
+    events = [
+        _fill(OrderSide.BUY, '2', '100', '0.2'),
+        _fill(OrderSide.SELL, '1', '130', '0.13'),
+        _fill(OrderSide.BUY, '1', '105', '0', tid='b'),
+        TradeClosed(account_id='acc', timestamp=_TS, trade_id='b', command_id='cmd'),
+    ]
+    live = _ledger()
+    replayed = _ledger()
+
+    for event in events:
+        live.apply(event)
+
+    for event in events:
+        replayed.apply(event)
+
+    assert replayed.state() == live.state()
+
+
+def test_restored_ledger_realizes_against_restored_lots():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0'))
+    restored = AccountLedger.from_snapshot(ledger.to_snapshot(1, 1))
+    restored.apply(_fill(OrderSide.SELL, '1', '110', '0'))
+
+    assert restored.trades['a'].realized_gross == Decimal('10')
+    assert restored.balances[Account.REALIZED_PNL] == Decimal('10')
+
+
+def test_snapshot_does_not_restore_journal():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.1'))
+    restored = AccountLedger.from_snapshot(ledger.to_snapshot(1, 1))
+
+    assert restored.journal == []
+    assert restored.balances[Account.CRYPTO_BTC] == Decimal('100')
+
+
+def test_snapshot_is_json_serialisable():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.1'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '110', '0.11'))
+    snapshot = ledger.to_snapshot(2, 1)
+
+    assert json.loads(json.dumps(snapshot)) == snapshot
