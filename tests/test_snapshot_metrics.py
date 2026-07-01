@@ -78,7 +78,7 @@ def test_drawdown_depth_and_duration():
 
 def test_rolling_window_and_cvar_present():
     steps = [_step(d, True, 0.01 * (1 if d % 2 else -1), 0.01 * (1 if d % 2 else -1)) for d in range(10)]
-    result = snapshot_metrics(steps, clock_window='1D')
+    result = snapshot_metrics(steps, clock_window='1d')
 
     assert result['rolling_return_net_bps_p50'] is not None
     assert result['return_on_exposure_p50'] is not None

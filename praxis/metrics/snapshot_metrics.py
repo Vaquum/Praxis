@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from praxis.metrics.metric_step import MetricStep
 from praxis.metrics.percentiles import finite_values, quantile_triple
@@ -37,7 +37,7 @@ SNAPSHOT_METRIC_NAMES = (
 
 def snapshot_metrics(
     steps: Sequence[MetricStep],
-    clock_window: str = '1D',
+    clock_window: str = '1d',
     trade_returns: Sequence[tuple[float, float]] | None = None,
 ) -> dict[str, float | None]:
 
@@ -45,8 +45,8 @@ def snapshot_metrics(
 
     Args:
         steps: The run's return series, in time order.
-        clock_window: Pandas offset alias for rolling-window bucketing
-            (e.g. '1D'); rolling return and return-on-exposure are
+        clock_window: Polars duration string for rolling-window bucketing
+            (e.g. '1d'); rolling return and return-on-exposure are
             computed per window.
         trade_returns: Optional per-trade `(gross_return, net_return)`
             pairs to source the per-trade metrics from, instead of
@@ -73,7 +73,7 @@ def snapshot_metrics(
     rolling_return_net_bps, return_on_exposure = _clock_window_returns(steps, clock_window)
     drawdown_depth_bps, drawdown_duration_days = _drawdown_episodes(steps)
 
-    triples = {
+    triples: dict[str, Sequence[float | None]] = {
         'edge_per_signal_bps': edge_per_signal,
         'trade_pnl_net_bps': trade_pnl_net_bps,
         'cost_drag_bps': cost_drag_bps,
@@ -131,25 +131,33 @@ def _trade_runs(steps: Sequence[MetricStep]) -> tuple[list[float], list[float]]:
 def _clock_window_returns(
     steps: Sequence[MetricStep],
     clock_window: str,
-) -> tuple[list[float], list[float]]:
+) -> tuple[list[float], list[float | None]]:
 
     if not steps:
         return [], []
 
-    frame = pd.DataFrame(
+    frame = pl.DataFrame(
         {
             'timestamp': [s.timestamp for s in steps],
             'net_return': [s.net_return for s in steps],
             'exposure': [1.0 if s.in_position else 0.0 for s in steps],
         }
     )
-    windows = pd.to_datetime(frame['timestamp']).dt.floor(clock_window)
-    window_return = (1.0 + frame['net_return']).groupby(windows).prod() - 1.0
-    exposure = frame['exposure'].groupby(windows).mean()
-    return_on_exposure = (window_return / exposure).where(exposure > 0) * _BPS_PER_UNIT
+    windowed = frame.group_by(
+        pl.col('timestamp').dt.truncate(clock_window).alias('window'),
+        maintain_order=True,
+    ).agg(
+        ((1.0 + pl.col('net_return')).product() - 1.0).alias('window_return'),
+        pl.col('exposure').mean().alias('exposure'),
+    )
 
-    rolling_bps = (window_return * _BPS_PER_UNIT).tolist()
-    roe = return_on_exposure.tolist()
+    rolling_bps = [value * _BPS_PER_UNIT for value in windowed['window_return']]
+    roe = [
+        window_return / exposure * _BPS_PER_UNIT if exposure > 0 else None
+        for window_return, exposure in zip(
+            windowed['window_return'], windowed['exposure'], strict=True,
+        )
+    ]
 
     return rolling_bps, roe
 

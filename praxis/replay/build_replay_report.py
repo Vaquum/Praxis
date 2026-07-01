@@ -22,7 +22,7 @@ __all__ = ['build_metrics_from_timeline', 'build_replay_report']
 _ZERO = Decimal(0)
 _HUNDRED = Decimal(100)
 _SECONDS_PER_YEAR = 31_536_000
-_CLOCK_WINDOW = '1D'
+_CLOCK_WINDOW = '1d'
 _MIN_RETURNS = 2
 
 
@@ -124,6 +124,8 @@ def _equity_steps(
 
     for index, (settle, close) in enumerate(timeline):
 
+        held_in = position
+
         for fill in by_step.get(index, ()):
             notional = fill.qty * fill.price
 
@@ -142,7 +144,7 @@ def _equity_steps(
         steps.append(
             MetricStep(
                 timestamp=settle,
-                in_position=position > _ZERO,
+                in_position=position > _ZERO or held_in > _ZERO,
                 gross_return=float(gross_eq / prev_gross - 1) if prev_gross > _ZERO else 0.0,
                 net_return=float(net_eq / prev_net - 1) if prev_net > _ZERO else 0.0,
             )

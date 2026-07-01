@@ -18,7 +18,7 @@ _QUANTILES = (0.05, 0.50, 0.95)
 _DEFAULT_DECIMALS = 1
 
 
-def finite_values(values: Iterable[float]) -> np.ndarray:
+def finite_values(values: Iterable[float | None]) -> np.ndarray:
 
     '''Return the finite values as a float array, dropping NaN and Inf.
 
@@ -32,11 +32,11 @@ def finite_values(values: Iterable[float]) -> np.ndarray:
 
     arr = np.asarray(list(values), dtype=float)
 
-    return arr[np.isfinite(arr)]
+    return np.asarray(arr[np.isfinite(arr)])
 
 
 def quantile_triple(
-    values: Iterable[float],
+    values: Iterable[float | None],
     decimals: int = _DEFAULT_DECIMALS,
 ) -> tuple[float | None, float | None, float | None]:
 
@@ -58,4 +58,6 @@ def quantile_triple(
     if arr.size == 0:
         return (None, None, None)
 
-    return tuple(round(float(np.quantile(arr, q)), decimals) for q in _QUANTILES)
+    p5, p50, p95 = (round(float(np.quantile(arr, q)), decimals) for q in _QUANTILES)
+
+    return (p5, p50, p95)

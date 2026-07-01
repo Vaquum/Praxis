@@ -140,6 +140,7 @@ _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
+_LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
 
 
 def _utc_now() -> datetime:
@@ -2537,9 +2538,14 @@ class Launcher:
     async def _metrics_handler(self, request: web.Request) -> web.Response:
         '''Serve paper-trading metrics for one account from its spine events.
 
-        The `account_id` query parameter selects the account; it defaults
-        to the sole configured account when exactly one exists.
+        Restricted to loopback callers, since it exposes PnL and fills; the
+        `/healthz` route on the same listener stays open. The `account_id`
+        query parameter selects the account; it defaults to the sole
+        configured account when exactly one exists.
         '''
+
+        if request.remote not in _LOOPBACK_HOSTS:
+            return web.json_response({'error': 'forbidden'}, status=403)
 
         if self._event_spine is None:
             return web.json_response({'error': 'spine_not_initialised'}, status=503)
@@ -2593,7 +2599,7 @@ class Launcher:
 
         arrow_dir = self._arrow_dir or Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
         arrow_price_store = ArrowPriceStore(arrow_dir, clock=self._clock)
-        interval = _mark_sample_interval_seconds()
+        interval = int(_mark_sample_interval_seconds())
         epoch_id = self._trading_config.epoch_id
 
         async def append(event: MarkSampled) -> None:

@@ -7,10 +7,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
+from unittest.mock import Mock
 
 import aiosqlite
 import pytest
 from aiohttp.test_utils import make_mocked_request
+from aiohttp.web import Request
 
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived, MarkSampled
@@ -55,6 +57,13 @@ async def _spine_with_run() -> EventSpine:
     return spine
 
 
+def _request(path: str, remote: str = '127.0.0.1') -> Request:
+    transport = Mock()
+    transport.get_extra_info = lambda key, default=None: (remote, 0) if key == 'peername' else default
+
+    return make_mocked_request('GET', path, transport=transport)
+
+
 def _launcher(spine: EventSpine, tmp_path: Path) -> Launcher:
     exp_dir = tmp_path / 'experiment'
     exp_dir.mkdir()
@@ -76,7 +85,7 @@ async def test_metrics_endpoint_returns_paper_report(tmp_path: Path) -> None:
     spine = await _spine_with_run()
     launcher = _launcher(spine, tmp_path)
 
-    response = await launcher._metrics_handler(make_mocked_request('GET', '/metrics'))
+    response = await launcher._metrics_handler(_request('/metrics'))
     body = json.loads(response.body)
 
     assert response.status == 200
@@ -93,11 +102,21 @@ async def test_metrics_endpoint_unknown_account_404(tmp_path: Path) -> None:
     spine = await _spine_with_run()
     launcher = _launcher(spine, tmp_path)
 
-    response = await launcher._metrics_handler(
-        make_mocked_request('GET', '/metrics?account_id=nope'),
-    )
+    response = await launcher._metrics_handler(_request('/metrics?account_id=nope'))
 
     assert response.status == 404
+
+    await spine._conn.close()
+
+
+@pytest.mark.asyncio
+async def test_metrics_endpoint_rejects_non_loopback(tmp_path: Path) -> None:
+    spine = await _spine_with_run()
+    launcher = _launcher(spine, tmp_path)
+
+    response = await launcher._metrics_handler(_request('/metrics', remote='10.0.0.5'))
+
+    assert response.status == 403
 
     await spine._conn.close()
 
@@ -108,7 +127,7 @@ async def test_metrics_endpoint_503_without_spine(tmp_path: Path) -> None:
     launcher = _launcher(spine, tmp_path)
     launcher._event_spine = None
 
-    response = await launcher._metrics_handler(make_mocked_request('GET', '/metrics'))
+    response = await launcher._metrics_handler(_request('/metrics'))
 
     assert response.status == 503
 
