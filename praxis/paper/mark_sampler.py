@@ -78,7 +78,9 @@ class MarkSampler:
             raise RuntimeError('MarkSampler already running')
 
         self._stop_event.clear()
-        self._task = asyncio.create_task(self._loop(), name='mark-sampler')
+        self._task = asyncio.create_task(
+            self._loop(), name=f"mark-sampler-{self._account_id}-{self._symbol}",
+        )
 
     async def stop(self) -> None:
 

@@ -87,3 +87,18 @@ async def test_tick_failure_does_not_propagate_from_loop():
 
     assert running is True
     assert len(calls) >= 2
+
+
+@pytest.mark.asyncio
+async def test_task_name_identifies_account_and_symbol():
+    sampler = MarkSampler('acc-7', 'BTCUSDT', lambda: Decimal('100'), _noop_append, lambda: _TS, 60.0)
+    sampler.start()
+    name = sampler._task.get_name()
+    await sampler.stop()
+
+    assert 'acc-7' in name
+    assert 'BTCUSDT' in name
+
+
+async def _noop_append(_event: MarkSampled) -> None:
+    return None
