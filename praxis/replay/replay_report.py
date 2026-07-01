@@ -74,9 +74,11 @@ class ReplayMetrics:
         open_position_qty: Base quantity still open at the run's end.
         snapshot: Limen-parity distribution metrics keyed by name (the
             p5/p50/p95 triples plus `cvar_95_return_bps`), per-trade metrics
-            on the trade-notional basis; empty for a run with no steps.
+            on the trade-notional basis. Every key is present; a value is
+            `None` where the metric is undefined (e.g. a run with no steps).
         snapshot_portfolio: The same distribution metrics on a total-account-
-            equity basis (return on deployed capital, not Limen-comparable).
+            equity basis (return on deployed capital, not Limen-comparable);
+            same keys-present-with-`None` shape as `snapshot`.
         expected_value: Mean net PnL per closed trade, in the quote asset.
         net_long_volume: Total entry notional of long trades, quote asset.
         net_short_volume: Total entry notional of short trades, quote asset.

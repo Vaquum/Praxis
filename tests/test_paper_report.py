@@ -56,7 +56,7 @@ def test_report_no_fills_empty_trades():
     report = build_paper_report(Decimal('10000'), _INTERVAL, events)
 
     assert report['trades'] == []
-    assert report['metrics']['expected_value'] == '0'
+    assert report['metrics']['expected_value'] == '0.00'
 
 
 def test_report_decimal_fields_are_strings():

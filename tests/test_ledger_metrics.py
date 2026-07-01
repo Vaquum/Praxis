@@ -14,6 +14,7 @@ def test_empty_trades_all_zero():
     assert result['net_long_volume'] == Decimal('0')
     assert result['net_short_volume'] == Decimal('0')
     assert result['net_trade_volume'] == Decimal('0')
+    assert all(str(value) == '0.00' for value in result.values())
 
 
 def test_expected_value_is_mean_pnl():

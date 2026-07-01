@@ -48,11 +48,13 @@ def ledger_metrics(trades: Sequence[LedgerTrade]) -> dict[str, Decimal]:
     '''
 
     if not trades:
+        zero = _ZERO.quantize(_QUANTUM)
+
         return {
-            'expected_value': _ZERO,
-            'net_long_volume': _ZERO,
-            'net_short_volume': _ZERO,
-            'net_trade_volume': _ZERO,
+            'expected_value': zero,
+            'net_long_volume': zero,
+            'net_short_volume': zero,
+            'net_trade_volume': zero,
         }
 
     total_pnl = sum((trade.pnl for trade in trades), _ZERO)
