@@ -14,6 +14,7 @@ from praxis.core.domain.events import MarkSampled
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.launcher import InstanceConfig, Launcher
+from praxis.paper.mark_sampler import MarkSampler
 from praxis.trading_config import TradingConfig
 
 from tests.test_launcher import MockVenueAdapter, _make_manifest_yaml
@@ -50,7 +51,8 @@ async def test_build_mark_samplers_one_per_account(tmp_path: Path, monkeypatch: 
     spine = await _empty_spine()
     launcher = _launcher(spine, tmp_path)
 
-    samplers = await launcher._build_mark_samplers()
+    await launcher._build_mark_samplers()
+    samplers = launcher._mark_samplers
 
     assert len(samplers) == 1
     assert samplers[0].running
@@ -65,7 +67,8 @@ async def test_mark_sampler_appends_to_spine(tmp_path: Path, monkeypatch: pytest
     spine = await _empty_spine()
     launcher = _launcher(spine, tmp_path)
 
-    samplers = await launcher._build_mark_samplers()
+    await launcher._build_mark_samplers()
+    samplers = launcher._mark_samplers
     await samplers[0].tick_once()
 
     records = await spine.read(1)
@@ -86,7 +89,8 @@ async def test_mark_sampler_skips_when_price_unavailable(tmp_path: Path, monkeyp
     spine = await _empty_spine()
     launcher = _launcher(spine, tmp_path)
 
-    samplers = await launcher._build_mark_samplers()
+    await launcher._build_mark_samplers()
+    samplers = launcher._mark_samplers
     appended = await samplers[0].tick_once()
 
     records = await spine.read(1)
@@ -96,4 +100,31 @@ async def test_mark_sampler_skips_when_price_unavailable(tmp_path: Path, monkeyp
     assert marks == []
 
     await samplers[0].stop()
+    await spine._conn.close()
+
+
+@pytest.mark.asyncio
+async def test_started_samplers_tracked_when_build_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ArrowPriceStore, 'latest_close', lambda _self, _s, _i: Decimal('62000'))
+    spine = await _empty_spine()
+    launcher = _launcher(spine, tmp_path)
+
+    original = MarkSampler.start
+    calls = {'n': 0}
+
+    def start_then_raise(self: MarkSampler) -> None:
+        original(self)
+        calls['n'] += 1
+        raise RuntimeError('interrupted after start')
+
+    monkeypatch.setattr(MarkSampler, 'start', start_then_raise)
+
+    with pytest.raises(RuntimeError, match='interrupted'):
+        await launcher._build_mark_samplers()
+
+    assert calls['n'] == 1
+    assert len(launcher._mark_samplers) == 1
+
+    monkeypatch.setattr(MarkSampler, 'start', original)
+    await launcher._mark_samplers[0].stop()
     await spine._conn.close()

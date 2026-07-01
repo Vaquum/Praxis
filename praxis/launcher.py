@@ -2593,18 +2593,23 @@ class Launcher:
         if self._loop is None or self._event_spine is None:
             return
 
-        try:
-            future = asyncio.run_coroutine_threadsafe(self._build_mark_samplers(), self._loop)
-            self._mark_samplers = future.result(timeout=10)
-            _log.info('mark samplers started', extra={'count': len(self._mark_samplers)})
-        except Exception:  # noqa: BLE001 - metrics sampling must never abort trading
-            _log.exception('mark sampler startup failed; paper metrics series will be empty')
+        future = asyncio.run_coroutine_threadsafe(self._build_mark_samplers(), self._loop)
 
-    async def _build_mark_samplers(self) -> list[MarkSampler]:
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - metrics sampling must never abort trading
+            future.cancel()
+            _log.exception(
+                'mark sampler startup failed; any started samplers are tracked for shutdown',
+            )
+        else:
+            _log.info('mark samplers started', extra={'count': len(self._mark_samplers)})
+
+    async def _build_mark_samplers(self) -> None:
         spine = self._event_spine
 
         if spine is None:
-            return []
+            return
 
         arrow_dir = self._arrow_dir or Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
         arrow_price_store = ArrowPriceStore(arrow_dir, clock=self._clock)
@@ -2613,8 +2618,6 @@ class Launcher:
 
         async def append(event: MarkSampled) -> None:
             await spine.append(event, epoch_id)
-
-        samplers: list[MarkSampler] = []
 
         for account in self._paper_account_map().values():
 
@@ -2629,10 +2632,8 @@ class Launcher:
                 clock=self._clock,
                 interval_seconds=interval,
             )
+            self._mark_samplers.append(sampler)
             sampler.start()
-            samplers.append(sampler)
-
-        return samplers
 
     def _stop_mark_samplers(self) -> None:
         '''Stop every mark sampler; best-effort during shutdown.'''
@@ -2646,13 +2647,15 @@ class Launcher:
             for sampler in samplers:
                 await sampler.stop()
 
+        future = asyncio.run_coroutine_threadsafe(_stop_all(), self._loop)
+
         try:
-            future = asyncio.run_coroutine_threadsafe(_stop_all(), self._loop)
             future.result(timeout=10)
         except Exception:  # noqa: BLE001 - best effort during shutdown
-            _log.exception('mark sampler shutdown failed')
-
-        self._mark_samplers = []
+            future.cancel()
+            _log.exception('mark sampler shutdown failed; keeping references for retry')
+        else:
+            self._mark_samplers = []
 
     async def _healthz_handler(self, _request: web.Request) -> web.Response:
         failures: list[str] = []
