@@ -110,6 +110,8 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_URL,
 )
 from praxis.arrow_price_store import ArrowPriceStore
+from praxis.paper.mark_sampler import MarkSampler
+from praxis.paper.paper_report import build_paper_report
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
@@ -146,6 +148,7 @@ def _utc_now() -> datetime:
 _DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
 _DEFAULT_SNAPSHOT_INTERVAL_SECONDS = 300.0
 _DEFAULT_MTM_INTERVAL_SECONDS = 30.0
+_DEFAULT_MARK_SAMPLE_INTERVAL_SECONDS = 60.0
 _DEFAULT_UNKNOWN_SUBMISSION_WARN_SECONDS = 60.0
 _DEFAULT_UNKNOWN_SUBMISSION_SCAN_SECONDS = 15.0
 _UNKNOWN_SUBMISSION_LOG_ID_LIMIT = 10
@@ -185,6 +188,16 @@ def _positive_float_env(name: str, default: float) -> float:
         raise RuntimeError(msg)
 
     return value
+
+
+def _mark_sample_interval_seconds() -> float:
+    '''Return the paper-metrics mark sampling cadence, in seconds.'''
+
+    return _positive_float_env(
+        'PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS', _DEFAULT_MARK_SAMPLE_INTERVAL_SECONDS,
+    )
+
+
 _ZERO = Decimal('0')
 _HUNDRED = Decimal('100')
 
@@ -1951,6 +1964,25 @@ class InstanceConfig:
     strategy_state_path: Path | None = None
 
 
+@dataclass(frozen=True)
+class _PaperAccount:
+    '''Per-account inputs for paper-trading metrics.
+
+    Args:
+        account_id: Trading account identifier.
+        symbol: Symbol the marks and metrics apply to.
+        capital_pool: Starting quote capital.
+        mark_series: OHLCV series the mark price is read from.
+        mark_interval: Mark series interval in seconds.
+    '''
+
+    account_id: str
+    symbol: str
+    capital_pool: Decimal
+    mark_series: str
+    mark_interval: int
+
+
 @dataclass
 class _NexusRuntime:
     '''Wired runtime components for one Nexus Manager instance.
@@ -2100,6 +2132,8 @@ class Launcher:
         self._trading: Trading | None = None
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
+        self._paper_accounts: dict[str, _PaperAccount] | None = None
+        self._mark_samplers: list[MarkSampler] = []
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
@@ -2468,11 +2502,69 @@ class Launcher:
     async def _build_healthz_runner(self, port: int) -> web.AppRunner:
         app = web.Application()
         app.router.add_get('/healthz', self._healthz_handler)
+        app.router.add_get('/metrics', self._metrics_handler)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host='0.0.0.0', port=port)  # noqa: S104
         await site.start()
         return runner
+
+    def _paper_account_map(self) -> dict[str, _PaperAccount]:
+        '''Return per-account paper-metrics inputs, loaded once from manifests.'''
+
+        if self._paper_accounts is not None:
+            return self._paper_accounts
+
+        accounts: dict[str, _PaperAccount] = {}
+
+        for inst in self._instances:
+            manifest = load_manifest(inst.manifest_path)
+            mark_series, mark_interval = _resolve_mark_price_series(manifest)
+            accounts[inst.account_id] = _PaperAccount(
+                account_id=inst.account_id,
+                symbol=_DEFAULT_SYMBOL,
+                capital_pool=manifest.capital_pool,
+                mark_series=mark_series,
+                mark_interval=mark_interval,
+            )
+
+        self._paper_accounts = accounts
+
+        return accounts
+
+    async def _metrics_handler(self, request: web.Request) -> web.Response:
+        '''Serve paper-trading metrics for one account from its spine events.
+
+        The `account_id` query parameter selects the account; it defaults
+        to the sole configured account when exactly one exists.
+        '''
+
+        if self._event_spine is None:
+            return web.json_response({'error': 'spine_not_initialised'}, status=503)
+
+        accounts = self._paper_account_map()
+        account_id = request.query.get('account_id')
+
+        if account_id is None and len(accounts) == 1:
+            account_id = next(iter(accounts))
+
+        account = accounts.get(account_id) if account_id is not None else None
+
+        if account is None:
+            return web.json_response(
+                {'error': 'unknown_account', 'known': sorted(accounts)}, status=404,
+            )
+
+        epoch_id = self._trading_config.epoch_id
+        records = await self._event_spine.read(epoch_id)
+        events = [
+            event for _seq, event in records if event.account_id == account.account_id
+        ]
+        report = build_paper_report(
+            account.capital_pool, int(_mark_sample_interval_seconds()), events,
+        )
+
+        return web.json_response({'account_id': account.account_id, **report})
 
     async def _healthz_handler(self, _request: web.Request) -> web.Response:
         failures: list[str] = []
