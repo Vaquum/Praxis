@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -68,3 +69,21 @@ def test_rejects_bad_construction():
 
     with pytest.raises(ValueError, match='interval_seconds must be positive'):
         MarkSampler('acc', 'BTCUSDT', lambda: None, append, lambda: _TS, 0.0)
+
+
+@pytest.mark.asyncio
+async def test_tick_failure_does_not_propagate_from_loop():
+    calls = []
+
+    async def failing_append(_event: MarkSampled) -> None:
+        calls.append(1)
+        raise RuntimeError('spine append failed')
+
+    sampler = MarkSampler('acc', 'BTCUSDT', lambda: Decimal('100'), failing_append, lambda: _TS, 0.05)
+    sampler.start()
+    await asyncio.sleep(0.16)
+    running = sampler.running
+    await sampler.stop()
+
+    assert running is True
+    assert len(calls) >= 2

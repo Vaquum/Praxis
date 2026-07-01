@@ -65,3 +65,18 @@ def test_report_decimal_fields_are_strings():
 
     for key in ('gross_pnl', 'net_pnl', 'total_fees', 'final_equity', 'expected_value'):
         assert isinstance(report['metrics'][key], str)
+
+
+def test_report_drops_duplicate_timestamp_marks():
+    dupe = _mark(1, '105')
+    events = [_mark(0, '100'), dupe, dupe, _mark(2, '110'), _fill(0, OrderSide.BUY, '1', '100', '0')]
+    report = build_paper_report(Decimal('10000'), _INTERVAL, events)
+
+    assert report['metrics']['final_equity'] is not None
+
+
+def test_report_tolerates_non_increasing_marks_without_raising():
+    events = [_mark(2, '110'), _mark(2, '111'), _mark(0, '100'), _mark(1, '105')]
+    report = build_paper_report(Decimal('10000'), _INTERVAL, events)
+
+    assert 'metrics' in report

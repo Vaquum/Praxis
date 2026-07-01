@@ -9,6 +9,7 @@ endpoint and of any offline analysis of a paper run's spine.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -42,7 +43,17 @@ def build_paper_report(
         (event for event in events if isinstance(event, MarkSampled)),
         key=lambda event: event.timestamp,
     )
-    marks = [(event.timestamp, event.mark_price) for event in samples]
+    marks: list[tuple[datetime, Decimal]] = []
+    last_timestamp: datetime | None = None
+
+    for event in samples:
+
+        if last_timestamp is not None and event.timestamp <= last_timestamp:
+            continue
+
+        marks.append((event.timestamp, event.mark_price))
+        last_timestamp = event.timestamp
+
     trades, metrics = build_paper_metrics(capital_pool, interval_seconds, fills, marks)
 
     return {

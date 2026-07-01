@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from decimal import Decimal
@@ -17,6 +18,8 @@ from decimal import Decimal
 from praxis.core.domain.events import MarkSampled
 
 __all__ = ['MarkSampler']
+
+_log = logging.getLogger(__name__)
 
 
 class MarkSampler:
@@ -118,7 +121,10 @@ class MarkSampler:
 
         while not self._stop_event.is_set():
 
-            await self.tick_once()
+            try:
+                await self.tick_once()
+            except Exception:  # noqa: BLE001 - a sampling failure must not stop the loop
+                _log.exception('mark sample tick failed; continuing')
 
             try:
                 await asyncio.wait_for(self._stop_event.wait(), self._interval_seconds)
