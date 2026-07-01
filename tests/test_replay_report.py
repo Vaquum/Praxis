@@ -415,3 +415,38 @@ def test_sharpe_positive_for_rising_equity():
 
     assert metrics.sharpe is not None
     assert metrics.sharpe > 0
+
+
+def test_limen_snapshot_per_trade_on_notional_basis():
+    bars = [_bar(i, str(100 + i)) for i in range(5)]
+    fills = [_fill(0, OrderSide.BUY, '1', '100', '0.10'), _fill(2, OrderSide.SELL, '1', '110', '0.11')]
+    _, metrics = build_replay_report(_scenario(bars, capital='10000'), fills)
+
+    assert metrics.snapshot['trade_pnl_net_bps_p50'] == 979.0
+    assert metrics.snapshot['cost_drag_bps_p50'] == 21.0
+
+
+def test_portfolio_snapshot_diluted_by_idle_capital():
+    bars = [_bar(i, str(100 + i)) for i in range(5)]
+    fills = [_fill(0, OrderSide.BUY, '1', '100', '0.10'), _fill(2, OrderSide.SELL, '1', '110', '0.11')]
+    _, metrics = build_replay_report(_scenario(bars, capital='10000'), fills)
+
+    assert metrics.snapshot_portfolio['trade_pnl_net_bps_p50'] < metrics.snapshot['trade_pnl_net_bps_p50']
+
+
+def test_scalar_metrics_present_on_report():
+    bars = [_bar(i, str(100 + i)) for i in range(5)]
+    fills = [_fill(0, OrderSide.BUY, '1', '100', '0'), _fill(2, OrderSide.SELL, '1', '110', '0')]
+    _, metrics = build_replay_report(_scenario(bars), fills)
+
+    assert metrics.expected_value == Decimal('10.00')
+    assert metrics.net_long_volume == Decimal('100.00')
+    assert metrics.net_trade_volume == Decimal('100.00')
+
+
+def test_snapshots_empty_for_no_fills():
+    bars = [_bar(i, str(100 + i)) for i in range(3)]
+    _, metrics = build_replay_report(_scenario(bars), [])
+
+    assert metrics.snapshot['trade_pnl_net_bps_p50'] is None
+    assert metrics.expected_value == Decimal('0')

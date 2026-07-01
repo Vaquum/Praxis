@@ -312,6 +312,12 @@ def _metrics_json(metrics: ReplayMetrics) -> dict[str, Any]:
         'exposure_pct': str(metrics.exposure_pct),
         'final_equity': str(metrics.final_equity),
         'open_position_qty': str(metrics.open_position_qty),
+        'snapshot': metrics.snapshot,
+        'snapshot_portfolio': metrics.snapshot_portfolio,
+        'expected_value': str(metrics.expected_value),
+        'net_long_volume': str(metrics.net_long_volume),
+        'net_short_volume': str(metrics.net_short_volume),
+        'net_trade_volume': str(metrics.net_trade_volume),
     }
 
 

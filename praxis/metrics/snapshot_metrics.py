@@ -38,6 +38,7 @@ SNAPSHOT_METRIC_NAMES = (
 def snapshot_metrics(
     steps: Sequence[MetricStep],
     clock_window: str = '1D',
+    trade_returns: Sequence[tuple[float, float]] | None = None,
 ) -> dict[str, float | None]:
 
     '''Compute the Limen-parity distribution metrics for a run.
@@ -47,6 +48,11 @@ def snapshot_metrics(
         clock_window: Pandas offset alias for rolling-window bucketing
             (e.g. '1D'); rolling return and return-on-exposure are
             computed per window.
+        trade_returns: Optional per-trade `(gross_return, net_return)`
+            pairs to source the per-trade metrics from, instead of
+            grouping the step series into position runs. Pass these when
+            the run's per-trade returns are known on a different basis
+            (e.g. trade notional) than the step series.
 
     Returns:
         A dict keyed by `SNAPSHOT_METRIC_NAMES`. Each distribution metric
@@ -55,7 +61,13 @@ def snapshot_metrics(
     '''
 
     edge_per_signal = [s.gross_return * _BPS_PER_UNIT for s in steps if s.in_position]
-    trade_net, trade_gross = _trade_runs(steps)
+
+    if trade_returns is None:
+        trade_net, trade_gross = _trade_runs(steps)
+    else:
+        trade_gross = [g for g, _ in trade_returns]
+        trade_net = [n for _, n in trade_returns]
+
     trade_pnl_net_bps = [v * _BPS_PER_UNIT for v in trade_net]
     cost_drag_bps = [(g - n) * _BPS_PER_UNIT for g, n in zip(trade_gross, trade_net, strict=True)]
     rolling_return_net_bps, return_on_exposure = _clock_window_returns(steps, clock_window)
