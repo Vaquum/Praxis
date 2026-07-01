@@ -59,6 +59,8 @@ def quantile_triple(
     if arr.size == 0:
         return (None, None, None)
 
-    p5, p50, p95 = (round(float(np.quantile(arr, q)), decimals) for q in _QUANTILES)
+    p5, p50, p95 = (
+        round(float(np.quantile(arr, q, method='linear')), decimals) for q in _QUANTILES
+    )
 
     return (p5, p50, p95)

@@ -55,9 +55,9 @@ def snapshot_metrics(
             (e.g. trade notional) than the step series.
 
     Returns:
-        A dict keyed by `SNAPSHOT_METRIC_NAMES`. Each distribution metric
-        contributes `_p5`/`_p50`/`_p95` keys; `cvar_95_return_bps` is a
-        single value. Missing values are `None`.
+        A dict whose keys are each distribution metric in
+        `SNAPSHOT_METRIC_NAMES` suffixed with `_p5`/`_p50`/`_p95`, plus the
+        single `cvar_95_return_bps`. Missing values are `None`.
     '''
 
     edge_per_signal = [s.gross_return * _BPS_PER_UNIT for s in steps if s.in_position]
@@ -208,6 +208,6 @@ def _cvar(rolling_return_net_bps: Sequence[float]) -> float | None:
     if values.size == 0:
         return None
 
-    cutoff = np.quantile(values, _CVAR_QUANTILE)
+    cutoff = np.quantile(values, _CVAR_QUANTILE, method='linear')
 
     return round(float(values[values <= cutoff].mean()), 1)
