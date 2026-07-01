@@ -95,6 +95,7 @@ from praxis.core.domain.enums import OrderSide as _PraxisOrderSide, OrderType
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
     Event,
+    MarkSampled,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
@@ -2153,6 +2154,7 @@ class Launcher:
         self._start_trading()
         self._start_nexus_instances()
         self._start_healthz()
+        self._start_mark_samplers()
 
         _log.info('all nexus instances started', extra={'count': len(self._nexus_threads)})
 
@@ -2566,6 +2568,77 @@ class Launcher:
 
         return web.json_response({'account_id': account.account_id, **report})
 
+    def _start_mark_samplers(self) -> None:
+        '''Start one paper-metrics mark sampler per account on the launcher loop.
+
+        Best-effort: a build or start failure is logged and leaves trading
+        unaffected, since the mark series is auxiliary telemetry.
+        '''
+
+        if self._loop is None or self._event_spine is None:
+            return
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(self._build_mark_samplers(), self._loop)
+            self._mark_samplers = future.result(timeout=10)
+            _log.info('mark samplers started', extra={'count': len(self._mark_samplers)})
+        except Exception:  # noqa: BLE001 - metrics sampling must never abort trading
+            _log.exception('mark sampler startup failed; paper metrics series will be empty')
+
+    async def _build_mark_samplers(self) -> list[MarkSampler]:
+        spine = self._event_spine
+
+        if spine is None:
+            return []
+
+        arrow_dir = self._arrow_dir or Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
+        arrow_price_store = ArrowPriceStore(arrow_dir, clock=self._clock)
+        interval = _mark_sample_interval_seconds()
+        epoch_id = self._trading_config.epoch_id
+
+        async def append(event: MarkSampled) -> None:
+            await spine.append(event, epoch_id)
+
+        samplers: list[MarkSampler] = []
+
+        for account in self._paper_account_map().values():
+
+            def mark_price_provider(bound: _PaperAccount = account) -> Decimal | None:
+                return arrow_price_store.latest_close(bound.mark_series, bound.mark_interval)
+
+            sampler = MarkSampler(
+                account_id=account.account_id,
+                symbol=account.symbol,
+                mark_price_provider=mark_price_provider,
+                append=append,
+                clock=self._clock,
+                interval_seconds=interval,
+            )
+            sampler.start()
+            samplers.append(sampler)
+
+        return samplers
+
+    def _stop_mark_samplers(self) -> None:
+        '''Stop every mark sampler; best-effort during shutdown.'''
+
+        if self._loop is None or not self._mark_samplers:
+            return
+
+        samplers = self._mark_samplers
+
+        async def _stop_all() -> None:
+            for sampler in samplers:
+                await sampler.stop()
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(_stop_all(), self._loop)
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - best effort during shutdown
+            _log.exception('mark sampler shutdown failed')
+
+        self._mark_samplers = []
+
     async def _healthz_handler(self, _request: web.Request) -> web.Response:
         failures: list[str] = []
 
@@ -2609,6 +2682,8 @@ class Launcher:
             thread.start()
 
     def _shutdown(self) -> None:
+        self._stop_mark_samplers()
+
         for thread in self._nexus_threads:
             thread.join(timeout=30)
 
