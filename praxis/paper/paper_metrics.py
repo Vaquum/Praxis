@@ -33,7 +33,10 @@ def build_paper_metrics(
 
     Args:
         capital_pool: Starting quote capital.
-        interval_seconds: Mark sampling spacing, used to annualize Sharpe.
+        interval_seconds: Nominal mark sampling spacing; used to annualize
+            Sharpe only as a fallback when fewer than two marks exist. With
+            two or more marks the observed mean cadence is used instead, so
+            a timeline made irregular by skipped samples is not mis-scaled.
         fills: The run's `FillReceived` events in any order.
         marks: Time-ordered `(timestamp, mark_price)` samples; timestamps
             must be timezone-aware and strictly increasing, prices
@@ -70,4 +73,27 @@ def build_paper_metrics(
 
         previous = timestamp
 
-    return build_metrics_from_timeline(capital_pool, interval_seconds, fills, marks)
+    effective = _effective_interval_seconds(marks, interval_seconds)
+
+    return build_metrics_from_timeline(capital_pool, effective, fills, marks)
+
+
+def _effective_interval_seconds(
+    marks: Sequence[tuple[datetime, Decimal]],
+    fallback: int,
+) -> int:
+
+    '''Return the mean seconds between consecutive marks, or `fallback`.
+
+    A paper mark timeline is irregular when the sampler skips ticks, so the
+    Sharpe annualization uses the observed mean cadence (total span over the
+    number of intervals) rather than the nominal one. Falls back to
+    `fallback` when fewer than two marks exist.
+    '''
+
+    if len(marks) < 2:
+        return fallback
+
+    span_seconds = (marks[-1][0] - marks[0][0]).total_seconds()
+
+    return max(round(span_seconds / (len(marks) - 1)), 1)

@@ -5,7 +5,7 @@ import pytest
 
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived
-from praxis.paper.paper_metrics import build_paper_metrics
+from praxis.paper.paper_metrics import _effective_interval_seconds, build_paper_metrics
 
 _BASE = datetime(2026, 1, 1, tzinfo=UTC)
 _INTERVAL = 900
@@ -86,3 +86,21 @@ def test_tz_aware_but_no_offset_mark_rejected():
 
     with pytest.raises(ValueError, match='timezone-aware'):
         build_paper_metrics(Decimal('10000'), _INTERVAL, [], marks)
+
+
+def test_effective_interval_is_mean_delta_with_gaps():
+    marks = [(_BASE, Decimal('100')), (_BASE + timedelta(seconds=60), Decimal('101')),
+             (_BASE + timedelta(seconds=300), Decimal('102'))]
+
+    assert _effective_interval_seconds(marks, 60) == 150
+
+
+def test_effective_interval_regular_marks():
+    marks = [(_BASE + timedelta(seconds=60 * i), Decimal('100')) for i in range(5)]
+
+    assert _effective_interval_seconds(marks, 999) == 60
+
+
+def test_effective_interval_falls_back_below_two_marks():
+    assert _effective_interval_seconds([], 60) == 60
+    assert _effective_interval_seconds([(_BASE, Decimal('100'))], 60) == 60
