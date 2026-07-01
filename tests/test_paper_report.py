@@ -80,3 +80,13 @@ def test_report_tolerates_non_increasing_marks_without_raising():
     report = build_paper_report(Decimal('10000'), _INTERVAL, events)
 
     assert 'metrics' in report
+
+
+def test_report_fills_without_marks_final_equity_consistent():
+    events = [_fill(0, OrderSide.BUY, '1', '100', '0'), _fill(2, OrderSide.SELL, '1', '110', '0')]
+    report = build_paper_report(Decimal('10000'), _INTERVAL, events)
+
+    assert report['metrics']['trade_count'] == 1
+    assert report['metrics']['net_pnl'] == '10'
+    assert report['metrics']['final_equity'] == '10010'
+    assert report['metrics']['pnl_pct'] == '0.100'

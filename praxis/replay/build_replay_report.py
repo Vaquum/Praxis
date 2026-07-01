@@ -404,7 +404,7 @@ def _summarise(
         max_drawdown_pct=_max_drawdown_pct(equity),
         sharpe=_sharpe(equity, interval_seconds),
         exposure_pct=Decimal(in_position_bars) / Decimal(step_count) * _HUNDRED if step_count else _ZERO,
-        final_equity=equity[-1] if equity else capital_pool,
+        final_equity=equity[-1] if equity else capital_pool + net,
         open_position_qty=open_position_qty,
         snapshot=snapshot,
         snapshot_portfolio=snapshot_portfolio,
