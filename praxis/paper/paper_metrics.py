@@ -20,6 +20,7 @@ from praxis.replay.replay_report import ReplayMetrics, Trade
 __all__ = ['build_paper_metrics']
 
 _ZERO = Decimal(0)
+_MIN_MARKS_FOR_INTERVAL = 2
 
 
 def build_paper_metrics(
@@ -91,7 +92,7 @@ def _effective_interval_seconds(
     `fallback` when fewer than two marks exist.
     '''
 
-    if len(marks) < 2:
+    if len(marks) < _MIN_MARKS_FOR_INTERVAL:
         return fallback
 
     span_seconds = (marks[-1][0] - marks[0][0]).total_seconds()
