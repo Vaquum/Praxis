@@ -18,6 +18,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    MarkSampled,
     OrderAcked,
     OrderCanceled,
     OrderExpired,
@@ -126,7 +127,7 @@ class TradingState:
                 self.account_id,
             )
         elif isinstance(
-            event, (OutcomeDeliveryContextRecorded, OutcomeReplayAbandoned),
+            event, (OutcomeDeliveryContextRecorded, OutcomeReplayAbandoned, MarkSampled),
         ):
             return
         else:
