@@ -56,7 +56,7 @@ def build_paper_metrics(
 
     for timestamp, price in marks:
 
-        if timestamp.tzinfo is None:
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
             msg = f'mark timestamp must be timezone-aware, got {timestamp}'
             raise ValueError(msg)
 

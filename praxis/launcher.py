@@ -192,12 +192,21 @@ def _positive_float_env(name: str, default: float) -> float:
     return value
 
 
-def _mark_sample_interval_seconds() -> float:
-    '''Return the paper-metrics mark sampling cadence, in seconds.'''
+def _mark_sample_interval_seconds() -> int:
+    '''Return the paper-metrics mark sampling cadence, in whole seconds.'''
 
-    return _positive_float_env(
+    value = _positive_float_env(
         'PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS', _DEFAULT_MARK_SAMPLE_INTERVAL_SECONDS,
     )
+
+    if value != int(value):
+        msg = (
+            f'env var PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS={value!r} must be a whole '
+            'number of seconds'
+        )
+        raise RuntimeError(msg)
+
+    return int(value)
 
 
 _ZERO = Decimal('0')
@@ -2569,7 +2578,7 @@ class Launcher:
             event for _seq, event in records if event.account_id == account.account_id
         ]
         report = build_paper_report(
-            account.capital_pool, int(_mark_sample_interval_seconds()), events,
+            account.capital_pool, _mark_sample_interval_seconds(), events,
         )
 
         return web.json_response({'account_id': account.account_id, **report})
@@ -2599,7 +2608,7 @@ class Launcher:
 
         arrow_dir = self._arrow_dir or Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
         arrow_price_store = ArrowPriceStore(arrow_dir, clock=self._clock)
-        interval = int(_mark_sample_interval_seconds())
+        interval = _mark_sample_interval_seconds()
         epoch_id = self._trading_config.epoch_id
 
         async def append(event: MarkSampled) -> None:

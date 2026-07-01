@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from decimal import Decimal
 
 import pytest
@@ -68,3 +68,21 @@ def test_no_fills_empty_metrics():
     assert trades == ()
     assert metrics.expected_value == Decimal('0')
     assert metrics.snapshot['trade_pnl_net_bps_p50'] is None
+
+
+class _NoOffsetTz(tzinfo):
+    def utcoffset(self, _dt: datetime | None) -> None:
+        return None
+
+    def tzname(self, _dt: datetime | None) -> None:
+        return None
+
+    def dst(self, _dt: datetime | None) -> None:
+        return None
+
+
+def test_tz_aware_but_no_offset_mark_rejected():
+    marks = [(datetime(2026, 1, 1, tzinfo=_NoOffsetTz()), Decimal('100'))]
+
+    with pytest.raises(ValueError, match='timezone-aware'):
+        build_paper_metrics(Decimal('10000'), _INTERVAL, [], marks)
