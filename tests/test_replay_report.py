@@ -450,3 +450,16 @@ def test_snapshots_empty_for_no_fills():
 
     assert metrics.snapshot['trade_pnl_net_bps_p50'] is None
     assert metrics.expected_value == Decimal('0')
+
+
+def test_entry_fee_reflected_in_position_basis_net():
+    bars = [_bar(i, str(100 + i)) for i in range(5)]
+    no_fee = [_fill(0, OrderSide.BUY, '1', '100', '0'), _fill(2, OrderSide.SELL, '1', '110', '0')]
+    with_fee = [_fill(0, OrderSide.BUY, '1', '100', '0.50'), _fill(2, OrderSide.SELL, '1', '110', '0')]
+    _, metrics_no_fee = build_replay_report(_scenario(bars, capital='10000'), no_fee)
+    _, metrics_fee = build_replay_report(_scenario(bars, capital='10000'), with_fee)
+
+    assert (
+        metrics_fee.snapshot['rolling_return_net_bps_p50']
+        < metrics_no_fee.snapshot['rolling_return_net_bps_p50']
+    )

@@ -184,16 +184,19 @@ def _position_steps(
         held_in = position
         fee = sum((fill.fee for fill in by_step.get(index, ())), _ZERO)
 
+        for fill in by_step.get(index, ()):
+            position += fill.qty if fill.side is OrderSide.BUY else -fill.qty
+
         if held_in > _ZERO and prev_close > _ZERO:
             base = held_in * prev_close
             gross = (close / prev_close) - 1
             net = gross - fee / base
+        elif position > _ZERO and close > _ZERO:
+            gross = _ZERO
+            net = -fee / (position * close)
         else:
             gross = _ZERO
-            net = (-fee / (held_in * close)) if held_in > _ZERO and close > _ZERO else _ZERO
-
-        for fill in by_step.get(index, ()):
-            position += fill.qty if fill.side is OrderSide.BUY else -fill.qty
+            net = _ZERO
 
         steps.append(
             MetricStep(

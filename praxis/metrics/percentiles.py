@@ -23,8 +23,9 @@ def finite_values(values: Iterable[float | None]) -> np.ndarray:
     '''Return the finite values as a float array, dropping NaN and Inf.
 
     Args:
-        values: Any iterable of numbers; non-numeric entries coerce to NaN
-            and are dropped.
+        values: An iterable of floats or `None`; `None`, NaN, and Inf are
+            dropped. Entries must already be numeric or `None` — a
+            non-numeric value raises `ValueError` when coerced to float.
 
     Returns:
         A 1-D float array of only the finite values, in input order.
