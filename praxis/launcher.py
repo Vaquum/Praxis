@@ -95,6 +95,7 @@ from praxis.core.domain.enums import OrderSide as _PraxisOrderSide, OrderType
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
     Event,
+    MarkSampled,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
@@ -110,6 +111,8 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_URL,
 )
 from praxis.arrow_price_store import ArrowPriceStore
+from praxis.paper.mark_sampler import MarkSampler
+from praxis.paper.paper_report import build_paper_report
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
@@ -137,6 +140,7 @@ _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
+_LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
 
 
 def _utc_now() -> datetime:
@@ -146,6 +150,7 @@ def _utc_now() -> datetime:
 _DEFAULT_HEALTH_INTERVAL_SECONDS = 5.0
 _DEFAULT_SNAPSHOT_INTERVAL_SECONDS = 300.0
 _DEFAULT_MTM_INTERVAL_SECONDS = 30.0
+_DEFAULT_MARK_SAMPLE_INTERVAL_SECONDS = 60.0
 _DEFAULT_UNKNOWN_SUBMISSION_WARN_SECONDS = 60.0
 _DEFAULT_UNKNOWN_SUBMISSION_SCAN_SECONDS = 15.0
 _UNKNOWN_SUBMISSION_LOG_ID_LIMIT = 10
@@ -185,6 +190,25 @@ def _positive_float_env(name: str, default: float) -> float:
         raise RuntimeError(msg)
 
     return value
+
+
+def _mark_sample_interval_seconds() -> int:
+    '''Return the paper-metrics mark sampling cadence, in whole seconds.'''
+
+    value = _positive_float_env(
+        'PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS', _DEFAULT_MARK_SAMPLE_INTERVAL_SECONDS,
+    )
+
+    if value != int(value):
+        msg = (
+            f'env var PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS={value!r} must be a whole '
+            'number of seconds'
+        )
+        raise RuntimeError(msg)
+
+    return int(value)
+
+
 _ZERO = Decimal('0')
 _HUNDRED = Decimal('100')
 
@@ -1951,6 +1975,25 @@ class InstanceConfig:
     strategy_state_path: Path | None = None
 
 
+@dataclass(frozen=True)
+class _PaperAccount:
+    '''Per-account inputs for paper-trading metrics.
+
+    Args:
+        account_id: Trading account identifier.
+        symbol: Symbol the marks and metrics apply to.
+        capital_pool: Starting quote capital.
+        mark_series: OHLCV series the mark price is read from.
+        mark_interval: Mark series interval in seconds.
+    '''
+
+    account_id: str
+    symbol: str
+    capital_pool: Decimal
+    mark_series: str
+    mark_interval: int
+
+
 @dataclass
 class _NexusRuntime:
     '''Wired runtime components for one Nexus Manager instance.
@@ -2100,6 +2143,8 @@ class Launcher:
         self._trading: Trading | None = None
         self._nexus_threads: list[threading.Thread] = []
         self._healthz_runner: web.AppRunner | None = None
+        self._paper_accounts: dict[str, _PaperAccount] | None = None
+        self._mark_samplers: list[MarkSampler] = []
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
@@ -2119,6 +2164,7 @@ class Launcher:
         self._start_trading()
         self._start_nexus_instances()
         self._start_healthz()
+        self._start_mark_samplers()
 
         _log.info('all nexus instances started', extra={'count': len(self._nexus_threads)})
 
@@ -2468,11 +2514,148 @@ class Launcher:
     async def _build_healthz_runner(self, port: int) -> web.AppRunner:
         app = web.Application()
         app.router.add_get('/healthz', self._healthz_handler)
+        app.router.add_get('/metrics', self._metrics_handler)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host='0.0.0.0', port=port)  # noqa: S104
         await site.start()
         return runner
+
+    def _paper_account_map(self) -> dict[str, _PaperAccount]:
+        '''Return per-account paper-metrics inputs, loaded once from manifests.'''
+
+        if self._paper_accounts is not None:
+            return self._paper_accounts
+
+        accounts: dict[str, _PaperAccount] = {}
+
+        for inst in self._instances:
+            manifest = load_manifest(inst.manifest_path)
+            mark_series, mark_interval = _resolve_mark_price_series(manifest)
+            accounts[inst.account_id] = _PaperAccount(
+                account_id=inst.account_id,
+                symbol=_DEFAULT_SYMBOL,
+                capital_pool=manifest.capital_pool,
+                mark_series=mark_series,
+                mark_interval=mark_interval,
+            )
+
+        self._paper_accounts = accounts
+
+        return accounts
+
+    async def _metrics_handler(self, request: web.Request) -> web.Response:
+        '''Serve paper-trading metrics for one account from its spine events.
+
+        Restricted to loopback callers, since it exposes PnL and fills; the
+        `/healthz` route on the same listener stays open. The `account_id`
+        query parameter selects the account; it defaults to the sole
+        configured account when exactly one exists.
+        '''
+
+        if request.remote not in _LOOPBACK_HOSTS:
+            return web.json_response({'error': 'forbidden'}, status=403)
+
+        if self._event_spine is None:
+            return web.json_response({'error': 'spine_not_initialised'}, status=503)
+
+        accounts = self._paper_account_map()
+        account_id = request.query.get('account_id')
+
+        if account_id is None and len(accounts) == 1:
+            account_id = next(iter(accounts))
+
+        account = accounts.get(account_id) if account_id is not None else None
+
+        if account is None:
+            return web.json_response(
+                {'error': 'unknown_account', 'known': sorted(accounts)}, status=404,
+            )
+
+        epoch_id = self._trading_config.epoch_id
+        records = await self._event_spine.read(epoch_id)
+        events = [
+            event for _seq, event in records if event.account_id == account.account_id
+        ]
+        report = build_paper_report(
+            account.capital_pool, _mark_sample_interval_seconds(), events,
+        )
+
+        return web.json_response({'account_id': account.account_id, **report})
+
+    def _start_mark_samplers(self) -> None:
+        '''Start one paper-metrics mark sampler per account on the launcher loop.
+
+        Best-effort: a build or start failure is logged and leaves trading
+        unaffected, since the mark series is auxiliary telemetry.
+        '''
+
+        if self._loop is None or self._event_spine is None:
+            return
+
+        future = asyncio.run_coroutine_threadsafe(self._build_mark_samplers(), self._loop)
+
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - metrics sampling must never abort trading
+            future.cancel()
+            _log.exception(
+                'mark sampler startup failed; any started samplers are tracked for shutdown',
+            )
+        else:
+            _log.info('mark samplers started', extra={'count': len(self._mark_samplers)})
+
+    async def _build_mark_samplers(self) -> None:
+        spine = self._event_spine
+
+        if spine is None:
+            return
+
+        arrow_dir = self._arrow_dir or Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
+        arrow_price_store = ArrowPriceStore(arrow_dir, clock=self._clock)
+        interval = _mark_sample_interval_seconds()
+        epoch_id = self._trading_config.epoch_id
+
+        async def append(event: MarkSampled) -> None:
+            await spine.append(event, epoch_id)
+
+        for account in self._paper_account_map().values():
+
+            def mark_price_provider(bound: _PaperAccount = account) -> Decimal | None:
+                return arrow_price_store.latest_close(bound.mark_series, bound.mark_interval)
+
+            sampler = MarkSampler(
+                account_id=account.account_id,
+                symbol=account.symbol,
+                mark_price_provider=mark_price_provider,
+                append=append,
+                clock=self._clock,
+                interval_seconds=interval,
+            )
+            self._mark_samplers.append(sampler)
+            sampler.start()
+
+    def _stop_mark_samplers(self) -> None:
+        '''Stop every mark sampler; best-effort during shutdown.'''
+
+        if self._loop is None or not self._mark_samplers:
+            return
+
+        samplers = self._mark_samplers
+
+        async def _stop_all() -> None:
+            for sampler in samplers:
+                await sampler.stop()
+
+        future = asyncio.run_coroutine_threadsafe(_stop_all(), self._loop)
+
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - best effort during shutdown
+            future.cancel()
+            _log.exception('mark sampler shutdown failed; keeping references for retry')
+        else:
+            self._mark_samplers = []
 
     async def _healthz_handler(self, _request: web.Request) -> web.Response:
         failures: list[str] = []
@@ -2517,6 +2700,8 @@ class Launcher:
             thread.start()
 
     def _shutdown(self) -> None:
+        self._stop_mark_samplers()
+
         for thread in self._nexus_threads:
             thread.join(timeout=30)
 

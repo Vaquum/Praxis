@@ -20,6 +20,7 @@ __all__ = [
     'CommandAccepted',
     'Event',
     'FillReceived',
+    'MarkSampled',
     'OrderAcked',
     'OrderCanceled',
     'OrderExpired',
@@ -440,6 +441,34 @@ class TradeClosed(_EventBase):
 
 
 @dataclass(frozen=True)
+class MarkSampled(_EventBase):
+
+    '''
+    Represent a periodic mark-price sample for the metrics equity series.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Sample time, must be timezone-aware.
+        symbol (str): Symbol the mark applies to.
+        mark_price (Decimal): Mark price at the sample, must be positive.
+    '''
+
+    symbol: str
+    mark_price: Decimal
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'symbol', self.symbol)
+
+        if not self.mark_price.is_finite() or self.mark_price <= _ZERO:
+            msg = 'MarkSampled.mark_price must be a positive finite Decimal'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class TradeOutcomeProduced(_EventBase):
 
     '''
@@ -667,4 +696,5 @@ type Event = (
     | OutcomeAcked
     | OutcomeDeliveryContextRecorded
     | OutcomeReplayAbandoned
+    | MarkSampled
 )

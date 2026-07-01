@@ -31,7 +31,7 @@ from aiohttp import web
 from praxis.infrastructure.venue_adapter import SymbolFilters
 from praxis.replay.load_replay_bars import load_replay_bars
 from praxis.replay.replay_scenario import ReplayScenario
-from praxis.replay.replay_report import ReplayMetrics, Trade
+from praxis.replay.metrics_serialization import metrics_to_json, trade_to_json
 from praxis.replay.run_replay import ReplayResult, run_replay
 
 __all__ = ['build_replay_app', 'serve_replay_app']
@@ -277,56 +277,11 @@ def _record_json(run_id: str, record: _RunRecord) -> dict[str, Any]:
             'fees': str(result.fees),
             'realized_pnl': str(result.realized_pnl),
             'outcome_status_counts': result.outcome_status_counts,
-            'metrics': _metrics_json(result.metrics),
-            'trades': [_trade_json(trade) for trade in result.trades],
+            'metrics': metrics_to_json(result.metrics),
+            'trades': [trade_to_json(trade) for trade in result.trades],
         }
 
     if record.error is not None:
         body['error'] = record.error
 
     return body
-
-
-def _optional_decimal(value: Decimal | None) -> str | None:
-
-    return None if value is None else str(value)
-
-
-def _metrics_json(metrics: ReplayMetrics) -> dict[str, Any]:
-    '''Render `ReplayMetrics` as a JSON-serialisable dict.'''
-
-    return {
-        'trade_count': metrics.trade_count,
-        'win_count': metrics.win_count,
-        'loss_count': metrics.loss_count,
-        'win_rate': _optional_decimal(metrics.win_rate),
-        'gross_pnl': str(metrics.gross_pnl),
-        'net_pnl': str(metrics.net_pnl),
-        'total_fees': str(metrics.total_fees),
-        'pnl_pct': str(metrics.pnl_pct),
-        'avg_win': _optional_decimal(metrics.avg_win),
-        'avg_loss': _optional_decimal(metrics.avg_loss),
-        'profit_factor': _optional_decimal(metrics.profit_factor),
-        'max_drawdown_pct': str(metrics.max_drawdown_pct),
-        'sharpe': _optional_decimal(metrics.sharpe),
-        'exposure_pct': str(metrics.exposure_pct),
-        'final_equity': str(metrics.final_equity),
-        'open_position_qty': str(metrics.open_position_qty),
-    }
-
-
-def _trade_json(trade: Trade) -> dict[str, Any]:
-    '''Render a `Trade` as a JSON-serialisable dict.'''
-
-    return {
-        'entry_ts': trade.entry_ts.isoformat(),
-        'exit_ts': trade.exit_ts.isoformat(),
-        'entry_price': str(trade.entry_price),
-        'exit_price': str(trade.exit_price),
-        'qty': str(trade.qty),
-        'gross_pnl': str(trade.gross_pnl),
-        'fees': str(trade.fees),
-        'net_pnl': str(trade.net_pnl),
-        'return_pct': str(trade.return_pct),
-        'bars_held': trade.bars_held,
-    }

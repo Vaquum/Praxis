@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from praxis.launcher import _positive_float_env
+from praxis.launcher import _mark_sample_interval_seconds, _positive_float_env
 
 
 def test_unset_env_returns_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,3 +83,16 @@ def test_nan_env_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(RuntimeError, match=r'must be a positive, finite number'):
         _positive_float_env('NEXUS_TEST_INTERVAL_SECONDS', 30.0)
+
+
+def test_mark_sample_interval_rejects_fractional(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS', '0.5')
+
+    with pytest.raises(RuntimeError, match='whole number of seconds'):
+        _mark_sample_interval_seconds()
+
+
+def test_mark_sample_interval_accepts_whole_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS', '90')
+
+    assert _mark_sample_interval_seconds() == 90

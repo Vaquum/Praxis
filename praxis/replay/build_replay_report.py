@@ -11,14 +11,18 @@ from decimal import Decimal
 
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived
+from praxis.metrics.ledger_metrics import LedgerTrade, ledger_metrics
+from praxis.metrics.metric_step import MetricStep
+from praxis.metrics.snapshot_metrics import snapshot_metrics
 from praxis.replay.replay_report import ReplayMetrics, Trade
 from praxis.replay.replay_scenario import ReplayScenario
 
-__all__ = ['build_replay_report']
+__all__ = ['build_metrics_from_timeline', 'build_replay_report']
 
 _ZERO = Decimal(0)
 _HUNDRED = Decimal(100)
 _SECONDS_PER_YEAR = 31_536_000
+_CLOCK_WINDOW = '1d'
 _MIN_RETURNS = 2
 
 
@@ -44,18 +48,192 @@ def build_replay_report(
         The closed trades in entry order and the run's `ReplayMetrics`.
     '''
 
+    timeline = [(bar.settle, Decimal(str(bar.close))) for bar in scenario.bars]
+
+    return build_metrics_from_timeline(
+        scenario.capital_pool, scenario.interval_seconds, fills, timeline,
+    )
+
+
+def build_metrics_from_timeline(
+    capital_pool: Decimal,
+    interval_seconds: int,
+    fills: Sequence[FillReceived],
+    timeline: Sequence[tuple[datetime, Decimal]],
+) -> tuple[tuple[Trade, ...], ReplayMetrics]:
+    '''Pair fills into trades and summarise them against a mark timeline.
+
+    Shared by replay (bar closes) and paper trading (MtmLoop marks). The
+    timeline is the settle-ordered `(timestamp, mark_price)` series the
+    equity curve and return steps are built against.
+
+    Args:
+        capital_pool: Starting quote capital.
+        interval_seconds: Step spacing, used to annualize Sharpe.
+        fills: The run's `FillReceived` events in any order.
+        timeline: Settle-ordered `(timestamp, mark_price)` steps.
+
+    Returns:
+        The closed trades in entry order and the run's `ReplayMetrics`.
+    '''
+
     ordered = sorted(fills, key=lambda fill: fill.timestamp)
-    settles = [bar.settle for bar in scenario.bars]
+    settles = [settle for settle, _ in timeline]
     trades = _pair_trades(ordered, settles)
-    equity, in_position_bars = _equity_curve(ordered, scenario, settles)
+    equity, in_position_bars = _equity_curve(ordered, capital_pool, timeline)
     open_qty = sum(
         (fill.qty if fill.side is OrderSide.BUY else -fill.qty for fill in ordered),
         _ZERO,
     )
     total_fees = sum((fill.fee for fill in ordered), _ZERO)
-    metrics = _summarise(trades, equity, in_position_bars, open_qty, total_fees, scenario)
+    snapshot = snapshot_metrics(
+        _position_steps(ordered, timeline), _CLOCK_WINDOW, _trade_returns(trades),
+    )
+    snapshot_portfolio = snapshot_metrics(
+        _equity_steps(ordered, capital_pool, timeline), _CLOCK_WINDOW,
+    )
+    scalars = ledger_metrics(_ledger_trades(trades))
+    metrics = _summarise(
+        trades, equity, in_position_bars, open_qty, total_fees,
+        snapshot, snapshot_portfolio, scalars, capital_pool, interval_seconds, len(timeline),
+    )
 
     return trades, metrics
+
+
+def _equity_steps(
+    fills: Sequence[FillReceived],
+    capital_pool: Decimal,
+    timeline: Sequence[tuple[datetime, Decimal]],
+) -> list[MetricStep]:
+
+    '''Return per-step marks on a total-account-equity basis (portfolio view).'''
+
+    settles = [settle for settle, _ in timeline]
+    by_step: dict[int, list[FillReceived]] = defaultdict(list)
+
+    for fill in fills:
+        by_step[_fill_bar(fill, settles)].append(fill)
+
+    net_cash = capital_pool
+    gross_cash = capital_pool
+    position = _ZERO
+    steps: list[MetricStep] = []
+    prev_net = capital_pool
+    prev_gross = capital_pool
+
+    for index, (settle, close) in enumerate(timeline):
+
+        held_in = position
+
+        for fill in by_step.get(index, ()):
+            notional = fill.qty * fill.price
+
+            if fill.side is OrderSide.BUY:
+                net_cash -= notional + fill.fee
+                gross_cash -= notional
+                position += fill.qty
+            else:
+                net_cash += notional - fill.fee
+                gross_cash += notional
+                position -= fill.qty
+
+        marked = position * close
+        net_eq = net_cash + marked
+        gross_eq = gross_cash + marked
+        steps.append(
+            MetricStep(
+                timestamp=settle,
+                in_position=position > _ZERO or held_in > _ZERO,
+                gross_return=float(gross_eq / prev_gross - 1) if prev_gross > _ZERO else 0.0,
+                net_return=float(net_eq / prev_net - 1) if prev_net > _ZERO else 0.0,
+            )
+        )
+        prev_net = net_eq
+        prev_gross = gross_eq
+
+    return steps
+
+
+def _position_steps(
+    fills: Sequence[FillReceived],
+    timeline: Sequence[tuple[datetime, Decimal]],
+) -> list[MetricStep]:
+
+    '''Return per-step marks on the held-position notional basis (Limen view).
+
+    Per held step the gross return is the position's close-to-close price
+    move; net subtracts that step's fills' fees as a fraction of the held
+    notional. Flat steps contribute zero. This matches Limen's fully-invested
+    return series for the edge and clock-window metrics; per-trade metrics
+    are supplied separately on the trade-notional basis.
+    '''
+
+    settles = [settle for settle, _ in timeline]
+    by_step: dict[int, list[FillReceived]] = defaultdict(list)
+
+    for fill in fills:
+        by_step[_fill_bar(fill, settles)].append(fill)
+
+    position = _ZERO
+    prev_close = _ZERO
+    steps: list[MetricStep] = []
+
+    for index, (settle, close) in enumerate(timeline):
+
+        held_in = position
+        fee = sum((fill.fee for fill in by_step.get(index, ())), _ZERO)
+
+        for fill in by_step.get(index, ()):
+            position += fill.qty if fill.side is OrderSide.BUY else -fill.qty
+
+        if held_in > _ZERO and prev_close > _ZERO:
+            base = held_in * prev_close
+            gross = (close / prev_close) - 1
+            net = gross - fee / base
+        elif position > _ZERO and close > _ZERO:
+            gross = _ZERO
+            net = -fee / (position * close)
+        else:
+            gross = _ZERO
+            net = _ZERO
+
+        steps.append(
+            MetricStep(
+                timestamp=settle,
+                in_position=position > _ZERO or held_in > _ZERO,
+                gross_return=float(gross),
+                net_return=float(net),
+            )
+        )
+        prev_close = close
+
+    return steps
+
+
+def _trade_returns(trades: Sequence[Trade]) -> list[tuple[float, float]]:
+
+    '''Return per-trade `(gross_return, net_return)` on the trade's cost basis.'''
+
+    pairs: list[tuple[float, float]] = []
+
+    for trade in trades:
+        cost = trade.entry_price * trade.qty
+
+        if cost <= _ZERO:
+            continue
+
+        pairs.append((float(trade.gross_pnl / cost), float(trade.net_pnl / cost)))
+
+    return pairs
+
+
+def _ledger_trades(trades: Sequence[Trade]) -> list[LedgerTrade]:
+
+    return [
+        LedgerTrade(is_long=True, pnl=trade.net_pnl, volume=trade.entry_price * trade.qty)
+        for trade in trades
+    ]
 
 
 def _fill_bar(fill: FillReceived, settles: list[datetime]) -> int:
@@ -156,23 +334,24 @@ def _pair_position(position_fills: Sequence[FillReceived], settles: list[datetim
 
 def _equity_curve(
     fills: Sequence[FillReceived],
-    scenario: ReplayScenario,
-    settles: list[datetime],
+    capital_pool: Decimal,
+    timeline: Sequence[tuple[datetime, Decimal]],
 ) -> tuple[list[Decimal], int]:
 
-    by_bar: dict[int, list[FillReceived]] = defaultdict(list)
+    settles = [settle for settle, _ in timeline]
+    by_step: dict[int, list[FillReceived]] = defaultdict(list)
 
     for fill in fills:
-        by_bar[_fill_bar(fill, settles)].append(fill)
+        by_step[_fill_bar(fill, settles)].append(fill)
 
-    cash = scenario.capital_pool
+    cash = capital_pool
     position = _ZERO
     equity: list[Decimal] = []
     in_position_bars = 0
 
-    for index, bar in enumerate(scenario.bars):
+    for index, (_settle, close) in enumerate(timeline):
 
-        for fill in by_bar.get(index, ()):
+        for fill in by_step.get(index, ()):
             notional = fill.qty * fill.price
 
             if fill.side is OrderSide.BUY:
@@ -182,7 +361,7 @@ def _equity_curve(
                 cash += notional - fill.fee
                 position -= fill.qty
 
-        equity.append(cash + position * Decimal(str(bar.close)))
+        equity.append(cash + position * close)
 
         if position > _ZERO:
             in_position_bars += 1
@@ -196,7 +375,12 @@ def _summarise(
     in_position_bars: int,
     open_position_qty: Decimal,
     total_fees: Decimal,
-    scenario: ReplayScenario,
+    snapshot: dict[str, float | None],
+    snapshot_portfolio: dict[str, float | None],
+    scalars: dict[str, Decimal],
+    capital_pool: Decimal,
+    interval_seconds: int,
+    step_count: int,
 ) -> ReplayMetrics:
 
     wins = [trade for trade in trades if trade.net_pnl > _ZERO]
@@ -204,7 +388,6 @@ def _summarise(
     loss_total = sum((trade.net_pnl for trade in losses), _ZERO)
     win_total = sum((trade.net_pnl for trade in wins), _ZERO)
     net = sum((trade.net_pnl for trade in trades), _ZERO)
-    bars = len(scenario.bars)
 
     return ReplayMetrics(
         trade_count=len(trades),
@@ -214,15 +397,21 @@ def _summarise(
         gross_pnl=sum((trade.gross_pnl for trade in trades), _ZERO),
         net_pnl=net,
         total_fees=total_fees,
-        pnl_pct=net / scenario.capital_pool * _HUNDRED if scenario.capital_pool > _ZERO else _ZERO,
+        pnl_pct=net / capital_pool * _HUNDRED if capital_pool > _ZERO else _ZERO,
         avg_win=win_total / Decimal(len(wins)) if wins else None,
         avg_loss=loss_total / Decimal(len(losses)) if losses else None,
         profit_factor=win_total / -loss_total if loss_total < _ZERO else None,
         max_drawdown_pct=_max_drawdown_pct(equity),
-        sharpe=_sharpe(equity, scenario.interval_seconds),
-        exposure_pct=Decimal(in_position_bars) / Decimal(bars) * _HUNDRED if bars else _ZERO,
-        final_equity=equity[-1] if equity else scenario.capital_pool,
+        sharpe=_sharpe(equity, interval_seconds),
+        exposure_pct=Decimal(in_position_bars) / Decimal(step_count) * _HUNDRED if step_count else _ZERO,
+        final_equity=equity[-1] if equity else capital_pool + net,
         open_position_qty=open_position_qty,
+        snapshot=snapshot,
+        snapshot_portfolio=snapshot_portfolio,
+        expected_value=scalars['expected_value'],
+        net_long_volume=scalars['net_long_volume'],
+        net_short_volume=scalars['net_short_volume'],
+        net_trade_volume=scalars['net_trade_volume'],
     )
 
 

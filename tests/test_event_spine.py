@@ -19,6 +19,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    MarkSampled,
     OrderAcked,
     OrderCanceled,
     OrderExpired,
@@ -100,6 +101,10 @@ _ALL_EVENTS: list[Event] = [
     TradeClosed(
         account_id=_ACCT, timestamp=_TS,
         trade_id=_TRADE, command_id=_CMD,
+    ),
+    MarkSampled(
+        account_id=_ACCT, timestamp=_TS,
+        symbol=_SYMBOL, mark_price=Decimal('62000.5'),
     ),
 
 ]

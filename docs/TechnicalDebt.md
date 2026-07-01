@@ -925,3 +925,14 @@ A strategy's `on_startup` actions are drained inside `_build_nexus_runtime` (via
 
 **When to fix**: before supporting strategies that enter on `on_startup` in replay.
 **Migration**: refactor the launcher so a replay can force ACTIVE mode + seed the opening price + materialise the first bar before the in-build startup drain (or expose a build hook that runs the drain after that context is set). Relates to the public-replay-seam work in TD-101.
+
+## TD-106: /metrics reads the whole epoch spine per request
+
+**Origin**: Limen-parity metrics branch (Greybeard pre-PR review)
+**Severity**: Low (on-demand loopback endpoint, not a hot path)
+**Module**: `praxis/launcher.py` (`_metrics_handler`)
+
+`_metrics_handler` calls `EventSpine.read(epoch_id)` and filters the full result in Python on every request. A multi-day paper epoch accumulates one `MarkSampled` per sample interval plus every fill, so each `/metrics` hit reads and rebuilds the entire epoch's events. Same class as TD-103's unbounded replay registry.
+
+**When to fix**: before the endpoint is polled frequently or a paper epoch runs long enough for the read to dominate response time.
+**Migration**: read only the account's events (a spine query filtered by `account_id`), and/or cache the built report between samples and invalidate on new fills.
