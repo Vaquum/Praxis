@@ -73,9 +73,10 @@ class ReplayMetrics:
         final_equity: Cash plus marked position at the last bar close.
         open_position_qty: Base quantity still open at the run's end.
         snapshot: Limen-parity distribution metrics keyed by name (the
-            p5/p50/p95 triples plus `cvar_95_return_bps`), per-trade metrics
-            on the trade-notional basis. Every key is present; a value is
-            `None` where the metric is undefined (e.g. a run with no steps).
+            p5/p50/p95 triples plus `cvar_95_return_bps`, and the extra
+            `return_on_exposure_full` triple), per-trade metrics on the
+            trade-notional basis. Every key is present; a value is `None`
+            where the metric is undefined (e.g. a run with no steps).
         snapshot_portfolio: The same distribution metrics on a total-account-
             equity basis (return on deployed capital, not Limen-comparable);
             same keys-present-with-`None` shape as `snapshot`.

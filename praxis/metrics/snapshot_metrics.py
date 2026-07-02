@@ -59,11 +59,12 @@ def snapshot_metrics(
 
     Returns:
         A dict whose keys are each distribution metric in
-        `SNAPSHOT_METRIC_NAMES` suffixed with `_p5`/`_p50`/`_p95`, plus the
-        single `cvar_95_return_bps`. `return_on_exposure` is the Limen-exact
-        variant (first, execution-lag step excluded from the exposure
-        denominator); `return_on_exposure_full_p5`/`_p50`/`_p95` add the
-        variant that counts every step. Missing values are `None`.
+        `SNAPSHOT_METRIC_NAMES` suffixed with `_p5`/`_p50`/`_p95`, the single
+        `cvar_95_return_bps`, and the extra `return_on_exposure_full_p5`/
+        `_p50`/`_p95` triple. `return_on_exposure` is the Limen-exact variant
+        (first, execution-lag step excluded from the exposure denominator);
+        `return_on_exposure_full` counts every step. Missing values are
+        `None`.
     '''
 
     edge_per_signal = [s.gross_return * _BPS_PER_UNIT for s in steps if s.in_position]
