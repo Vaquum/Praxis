@@ -33,6 +33,11 @@ SNAPSHOT_METRIC_NAMES = (
     'drawdown_duration_days',
     'cvar_95_return_bps',
 )
+'''The Limen-parity metric set (matches Limen's `backtest_snapshot`).
+
+`snapshot_metrics` returns these keys (percentile metrics suffixed
+`_p5`/`_p50`/`_p95`, `cvar_95_return_bps` single) plus the non-Limen
+extension `return_on_exposure_full_p5`/`_p50`/`_p95`.'''
 
 
 def snapshot_metrics(

@@ -95,7 +95,6 @@ def test_no_positions_no_trades_no_drawdown():
 
 
 def test_return_on_exposure_limen_excludes_first_step_full_keeps_all():
-    # one 1d window (hours apart): step0 flat, steps1-3 in position (+1% each), step4 flat.
     nets = [0.0, 0.01, 0.01, 0.01, 0.0]
     steps = [
         MetricStep(_BASE + timedelta(hours=i), i in (1, 2, 3), nets[i], nets[i])
