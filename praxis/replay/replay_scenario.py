@@ -23,6 +23,8 @@ class ReplayBar:
             here before the bar is dispatched. Equals `ts_ns` (as a
             datetime) for dollar bars and `ts_ns + interval` for time
             bars.
+        open: The bar's open price; the intrabar move `close - open` is the
+            Limen-parity entry-bar return.
         close: The bar's close price, used as the fill price.
         prediction: Binary signal, 0 (exit) or 1 (enter).
         probability: Model probability carried on the signal.
@@ -34,6 +36,7 @@ class ReplayBar:
 
     ts_ns: int
     settle: datetime
+    open: float
     close: float
     prediction: int
     probability: float

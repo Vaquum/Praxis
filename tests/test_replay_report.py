@@ -24,7 +24,10 @@ def _filters() -> SymbolFilters:
 def _bar(index: int, close: str) -> ReplayBar:
     ts_ns = int(_BASE.timestamp()) * _NS + index * _INTERVAL * _NS
     settle = _BASE + timedelta(seconds=(index + 1) * _INTERVAL)
-    return ReplayBar(ts_ns=ts_ns, settle=settle, close=float(close), prediction=1, probability=0.6)
+    return ReplayBar(
+        ts_ns=ts_ns, settle=settle, open=float(close), close=float(close),
+        prediction=1, probability=0.6,
+    )
 
 
 def _scenario(bars: list[ReplayBar], capital: str = '20000') -> ReplayScenario:
