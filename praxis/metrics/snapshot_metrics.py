@@ -5,6 +5,9 @@ Reproduces Limen's `backtest_snapshot` metric definitions from a
 clock-window rolling return and return-on-exposure, drawdown depth and
 duration, and 95% CVaR — each distribution metric as a p5/p50/p95 triple,
 all basis-point scaled.
+
+`SNAPSHOT_METRIC_NAMES` is the Limen-parity metric set; `snapshot_metrics`
+also returns the non-Limen `return_on_exposure_full` extension.
 '''
 
 from __future__ import annotations
@@ -33,11 +36,6 @@ SNAPSHOT_METRIC_NAMES = (
     'drawdown_duration_days',
     'cvar_95_return_bps',
 )
-'''The Limen-parity metric set (matches Limen's `backtest_snapshot`).
-
-`snapshot_metrics` returns these keys (percentile metrics suffixed
-`_p5`/`_p50`/`_p95`, `cvar_95_return_bps` single) plus the non-Limen
-extension `return_on_exposure_full_p5`/`_p50`/`_p95`.'''
 
 
 def snapshot_metrics(
