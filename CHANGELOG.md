@@ -1226,3 +1226,14 @@
 - Add a [`MarkSampled`](praxis/core/domain/events.py) spine event (account, timestamp, symbol, positive mark price) as the durable per-sample record a paper run's equity series is built from, registered for spine round-trip and treated as a no-op by the `TradingState` projection
 - Add [`MarkSampler`](praxis/paper/mark_sampler.py), started once per account on the launcher loop after healthz, which appends a `MarkSampled` each `PRAXIS_MARK_SAMPLE_INTERVAL_SECONDS` from the stateless `ArrowPriceStore` mark, skips ticks when no mark is available, and logs and continues on a tick failure so a transient append error cannot stop the loop; and a loopback-restricted `GET /metrics` on the launcher healthz server, which reads the account's spine events for the epoch and serves the shared paper report (dropping any non-increasing-timestamp mark first, so a clock step or a post-restart duplicate cannot fault the endpoint; non-loopback callers get 403 since it exposes PnL and fills). Sampler startup is best-effort so a failure never aborts trading, and the samplers stop first during shutdown so no sample races the spine teardown
 - Add the [`praxis/metrics/`](praxis/metrics/) and [`praxis/paper/`](praxis/paper/) test suites plus launcher `/metrics` endpoint and mark-sampler wiring tests, covering the percentile and metric definitions against Limen's, the two replay return bases, the paper report from spine events, the `MarkSampled` round-trip, and the sampler append and price-unavailable paths
+
+## v0.89.0 on 2nd of July, 2026
+
+### Fix
+
+- Make `return_on_exposure` in [`snapshot_metrics`](praxis/metrics/snapshot_metrics.py) exactly Limen-equivalent by excluding the first (execution-lag) step from the exposure denominator, matching Limen's `backtest_snapshot` — which drops its `execution_lag_bars` row from the eval mask — so all 22 distribution metrics now reproduce Limen's real `backtest_snapshot` bit-for-bit (verified against the Limen codebase across scenarios with 1, 3, and 6 leading flat bars). It was the only metric sensitive to the excluded row, since that row is flat and so neutral to the rolling-return, drawdown, and edge series
+
+### Add
+
+- Add `return_on_exposure_full_p5`/`_p50`/`_p95` to the snapshot alongside the Limen-exact `return_on_exposure`, computing exposure over every step rather than excluding the lag row. Fill-based replay and paper runs have no execution lag, so this all-steps variant is the more complete return-on-exposure for them; both variants appear on `ReplayMetrics.snapshot` and `snapshot_portfolio`
+- Add snapshot tests pinning the Limen-exact-vs-full return-on-exposure split (exposure denominator over eligible vs all steps) and the all-flat `None` case

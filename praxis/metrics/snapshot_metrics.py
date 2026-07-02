@@ -5,6 +5,9 @@ Reproduces Limen's `backtest_snapshot` metric definitions from a
 clock-window rolling return and return-on-exposure, drawdown depth and
 duration, and 95% CVaR — each distribution metric as a p5/p50/p95 triple,
 all basis-point scaled.
+
+`SNAPSHOT_METRIC_NAMES` is the Limen-parity metric set; `snapshot_metrics`
+also returns the non-Limen `return_on_exposure_full` extension.
 '''
 
 from __future__ import annotations
@@ -56,8 +59,12 @@ def snapshot_metrics(
 
     Returns:
         A dict whose keys are each distribution metric in
-        `SNAPSHOT_METRIC_NAMES` suffixed with `_p5`/`_p50`/`_p95`, plus the
-        single `cvar_95_return_bps`. Missing values are `None`.
+        `SNAPSHOT_METRIC_NAMES` suffixed with `_p5`/`_p50`/`_p95`, the single
+        `cvar_95_return_bps`, and the extra `return_on_exposure_full_p5`/
+        `_p50`/`_p95` triple. `return_on_exposure` is the Limen-exact variant
+        (first, execution-lag step excluded from the exposure denominator);
+        `return_on_exposure_full` counts every step. Missing values are
+        `None`.
     '''
 
     edge_per_signal = [s.gross_return * _BPS_PER_UNIT for s in steps if s.in_position]
@@ -70,7 +77,9 @@ def snapshot_metrics(
 
     trade_pnl_net_bps = [v * _BPS_PER_UNIT for v in trade_net]
     cost_drag_bps = [(g - n) * _BPS_PER_UNIT for g, n in zip(trade_gross, trade_net, strict=True)]
-    rolling_return_net_bps, return_on_exposure = _clock_window_returns(steps, clock_window)
+    rolling_return_net_bps, return_on_exposure, return_on_exposure_full = _clock_window_returns(
+        steps, clock_window,
+    )
     drawdown_depth_bps, drawdown_duration_days = _drawdown_episodes(steps)
 
     triples: dict[str, Sequence[float | None]] = {
@@ -80,6 +89,7 @@ def snapshot_metrics(
         'rolling_return_net_bps': rolling_return_net_bps,
         'return_on_exposure': return_on_exposure,
         'drawdown_depth_bps': drawdown_depth_bps,
+        'return_on_exposure_full': return_on_exposure_full,
     }
 
     result: dict[str, float | None] = {}
@@ -131,16 +141,26 @@ def _trade_runs(steps: Sequence[MetricStep]) -> tuple[list[float], list[float]]:
 def _clock_window_returns(
     steps: Sequence[MetricStep],
     clock_window: str,
-) -> tuple[list[float], list[float | None]]:
+) -> tuple[list[float], list[float | None], list[float | None]]:
+
+    '''Return per-window rolling return, Limen-exact ROE, and full ROE.
+
+    Return-on-exposure divides the window's net return by the fraction of
+    the window in position. Limen excludes the first (execution-lag) row
+    from that denominator; the `full` variant counts every step. Both share
+    the rolling-return series, which is neutral to the excluded leading row
+    (it is flat, so its `(1 + 0)` factor does not change the product).
+    '''
 
     if not steps:
-        return [], []
+        return [], [], []
 
     frame = pl.DataFrame(
         {
             'timestamp': [s.timestamp for s in steps],
             'net_return': [s.net_return for s in steps],
-            'exposure': [1.0 if s.in_position else 0.0 for s in steps],
+            'in_position': [1.0 if s.in_position else 0.0 for s in steps],
+            'eligible': [0.0, *[1.0] * (len(steps) - 1)],
         }
     )
     windowed = frame.group_by(
@@ -148,18 +168,28 @@ def _clock_window_returns(
         maintain_order=True,
     ).agg(
         ((1.0 + pl.col('net_return')).product() - 1.0).alias('window_return'),
-        pl.col('exposure').mean().alias('exposure'),
+        pl.col('in_position').mean().alias('exposure_full'),
+        (pl.col('in_position') * pl.col('eligible')).sum().alias('in_position_eligible'),
+        pl.col('eligible').sum().alias('eligible_count'),
     )
 
     rolling_bps = [value * _BPS_PER_UNIT for value in windowed['window_return']]
-    roe = [
+    roe_full = [
         window_return / exposure * _BPS_PER_UNIT if exposure > 0 else None
         for window_return, exposure in zip(
-            windowed['window_return'], windowed['exposure'], strict=True,
+            windowed['window_return'], windowed['exposure_full'], strict=True,
         )
     ]
+    roe_limen: list[float | None] = []
 
-    return rolling_bps, roe
+    for window_return, in_position_eligible, eligible_count in zip(
+        windowed['window_return'], windowed['in_position_eligible'],
+        windowed['eligible_count'], strict=True,
+    ):
+        exposure = in_position_eligible / eligible_count if eligible_count > 0 else 0.0
+        roe_limen.append(window_return / exposure * _BPS_PER_UNIT if exposure > 0 else None)
+
+    return rolling_bps, roe_limen, roe_full
 
 
 def _drawdown_episodes(steps: Sequence[MetricStep]) -> tuple[list[float], list[float]]:

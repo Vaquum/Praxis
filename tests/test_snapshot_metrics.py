@@ -92,3 +92,28 @@ def test_no_positions_no_trades_no_drawdown():
     assert result['trade_pnl_net_bps_p50'] is None
     assert result['edge_per_signal_bps_p50'] is None
     assert result['drawdown_depth_bps_p50'] is None
+
+
+def test_return_on_exposure_limen_excludes_first_step_full_keeps_all():
+    nets = [0.0, 0.01, 0.01, 0.01, 0.0]
+    steps = [
+        MetricStep(_BASE + timedelta(hours=i), i in (1, 2, 3), nets[i], nets[i])
+        for i in range(5)
+    ]
+    result = snapshot_metrics(steps, clock_window='1d')
+
+    window_return = 1.01 ** 3 - 1.0
+    roe_full = window_return / (3 / 5) * 10_000.0     # exposure over all 5 steps
+    roe_limen = window_return / (3 / 4) * 10_000.0     # first step excluded -> 4 eligible
+
+    assert result['return_on_exposure_p50'] == round(roe_limen, 1)
+    assert result['return_on_exposure_full_p50'] == round(roe_full, 1)
+    assert result['return_on_exposure_p50'] < result['return_on_exposure_full_p50']
+
+
+def test_return_on_exposure_full_present_and_none_when_flat():
+    flat = [_step(d, False, 0.0, 0.0) for d in range(3)]
+    result = snapshot_metrics(flat)
+
+    assert result['return_on_exposure_full_p50'] is None
+    assert result['return_on_exposure_p50'] is None
