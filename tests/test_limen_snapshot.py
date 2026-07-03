@@ -84,7 +84,13 @@ def test_infinite_price_raises():
 
 def test_non_datetime_timestamp_raises():
     dt = [datetime.fromisoformat('2026-01-01T00:00:00+00:00'), None]
-    with pytest.raises(ValueError, match='datetime instances'):
+    with pytest.raises(ValueError, match='timezone-aware'):
+        limen_snapshot([1, 1], [100, 100], [101, 101], [1, 1], dt)
+
+
+def test_naive_timestamp_rejected():
+    dt = [datetime(2026, 1, 1), datetime(2026, 1, 1, 1)]
+    with pytest.raises(ValueError, match='timezone-aware'):
         limen_snapshot([1, 1], [100, 100], [101, 101], [1, 1], dt)
 
 

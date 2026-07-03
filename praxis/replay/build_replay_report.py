@@ -6,7 +6,7 @@ from bisect import bisect_right
 from collections import defaultdict, deque
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from praxis.core.domain.enums import OrderSide
@@ -23,6 +23,7 @@ __all__ = ['build_metrics_from_timeline', 'build_replay_report']
 _ZERO = Decimal(0)
 _HUNDRED = Decimal(100)
 _SECONDS_PER_YEAR = 31_536_000
+_NS_PER_SECOND = 1_000_000_000
 _CLOCK_WINDOW = '1d'
 _MIN_RETURNS = 2
 
@@ -63,7 +64,11 @@ def _limen_snapshot_from_bars(bars: Sequence[ReplayBar]) -> dict[str, float | No
 
     The Limen-parity snapshot is the decoder-level backtest Limen would run
     on these bars' predictions and OHLC, independent of the actual fills, so
-    it is directly comparable to Limen. Empty for a bar-less run.
+    it is directly comparable to Limen. Buckets on the bar's shared `ts`
+    (the open timestamp for time bars, the settle for dollar bars) that
+    Limen keys its clock windows on — not the settle, which is one interval
+    later for time bars and would shift boundary bars into another day
+    window. Empty for a bar-less run.
     '''
 
     if not bars:
@@ -74,7 +79,7 @@ def _limen_snapshot_from_bars(bars: Sequence[ReplayBar]) -> dict[str, float | No
         [bar.open for bar in bars],
         [bar.close for bar in bars],
         [bar.close - bar.open for bar in bars],
-        [bar.settle for bar in bars],
+        [datetime.fromtimestamp(bar.ts_ns / _NS_PER_SECOND, UTC) for bar in bars],
     )
 
 

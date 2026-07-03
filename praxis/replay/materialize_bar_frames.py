@@ -35,7 +35,7 @@ def materialize_bar_frames(
     arrow_dir: Path,
     series: str,
     generated_at: datetime,
-    ohlcv_rows: list[tuple[int, float]],
+    ohlcv_rows: list[tuple[int, float, float]],
     prediction_rows: list[tuple[int, int, float]],
     start_ts: list[int] | None = None,
 ) -> None:
@@ -49,8 +49,8 @@ def materialize_bar_frames(
         generated_at: Manifest freshness stamp; set to the current bar's
             settle so PredictLoop's staleness gate passes against the
             replay clock.
-        ohlcv_rows: Cumulative `(ts_ns, close)` rows up to the current
-            bar.
+        ohlcv_rows: Cumulative `(ts_ns, open, close)` rows up to the
+            current bar.
         prediction_rows: Cumulative `(ts_ns, prediction, probability)`
             rows up to the current bar; every row is marked usable.
         start_ts: Cumulative dollar-bar open `ts` values, aligned with
@@ -63,11 +63,13 @@ def materialize_bar_frames(
     series_arrow_dir.mkdir(parents=True, exist_ok=True)
 
     ohlcv_columns: dict[str, list[int] | list[float]] = {
-        'ts': [ts for ts, _ in ohlcv_rows],
-        'close': [close for _, close in ohlcv_rows],
+        'ts': [ts for ts, _, _ in ohlcv_rows],
+        'open': [open_ for _, open_, _ in ohlcv_rows],
+        'close': [close for _, _, close in ohlcv_rows],
     }
     ohlcv_schema: dict[str, type[pl.DataType] | pl.DataType] = {
         'ts': pl.Int64,
+        'open': pl.Float64,
         'close': pl.Float64,
     }
 

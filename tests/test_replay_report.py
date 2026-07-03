@@ -15,7 +15,7 @@ def _limen(bars: list[ReplayBar]) -> dict[str, float | None]:
     return limen_snapshot(
         [bar.prediction for bar in bars], [bar.open for bar in bars],
         [bar.close for bar in bars], [bar.close - bar.open for bar in bars],
-        [bar.settle for bar in bars],
+        [datetime.fromtimestamp(bar.ts_ns / _NS, UTC) for bar in bars],
     )
 
 _BASE = datetime(2022, 1, 1, tzinfo=UTC)
@@ -435,6 +435,26 @@ def test_replay_snapshot_is_limen_backtest_over_bars():
     _, metrics = build_replay_report(_scenario(bars, capital='10000'), fills)
 
     assert metrics.snapshot == _limen(bars)
+
+
+def test_snapshot_buckets_by_bar_ts_not_settle():
+    near_midnight = datetime(2022, 1, 1, 23, 40, tzinfo=UTC)
+    bars = [
+        ReplayBar(
+            ts_ns=int((near_midnight + timedelta(seconds=i * _INTERVAL)).timestamp()) * _NS,
+            settle=near_midnight + timedelta(seconds=(i + 1) * _INTERVAL),
+            open=float(100 + i), close=float(101 + i), prediction=1, probability=0.6,
+        )
+        for i in range(3)
+    ]
+    _, metrics = build_replay_report(_scenario(bars), [])
+    by_settle = limen_snapshot(
+        [b.prediction for b in bars], [b.open for b in bars], [b.close for b in bars],
+        [b.close - b.open for b in bars], [b.settle for b in bars],
+    )
+
+    assert metrics.snapshot == _limen(bars)
+    assert metrics.snapshot != by_settle
 
 
 def test_portfolio_snapshot_diluted_by_idle_capital():

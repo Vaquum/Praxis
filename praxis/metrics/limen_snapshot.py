@@ -95,9 +95,10 @@ def limen_snapshot(
         ValueError: The series is empty, the columns differ in length,
             `execution_lag_bars` is negative, a prediction is not 0/1,
             `price_change != close - open`, or a timestamp is not a
-            `datetime`. Unlike Limen, invalid timestamps are rejected
-            rather than silently coerced, since the callers guarantee
-            valid timestamps and a missing one signals a caller bug.
+            timezone-aware `datetime`. Unlike Limen, invalid timestamps
+            are rejected rather than silently coerced, since the callers
+            guarantee valid timestamps and a missing one signals a caller
+            bug.
     '''
 
     pred = np.asarray(predictions, dtype=float)
@@ -112,8 +113,13 @@ def limen_snapshot(
     if not (open_arr.size == close_arr.size == dpx.size == len(datetimes) == size):
         raise ValueError('all input columns must have the same length')
 
-    if not all(isinstance(moment, datetime) for moment in datetimes):
-        raise ValueError('datetimes must all be datetime instances')
+    if not all(
+        isinstance(moment, datetime)
+        and moment.tzinfo is not None
+        and moment.utcoffset() is not None
+        for moment in datetimes
+    ):
+        raise ValueError('datetimes must all be timezone-aware datetime instances')
 
     if execution_lag_bars < 0:
         raise ValueError('execution_lag_bars must be >= 0')
