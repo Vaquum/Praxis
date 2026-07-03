@@ -42,15 +42,16 @@ LIMEN_SNAPSHOT_METRIC_NAMES = (
 
 def _shift(values: np.ndarray, periods: int, fill: float) -> np.ndarray:
 
-    out = np.full_like(values, fill, dtype=values.dtype)
-
     if periods == 0:
         return values.copy()
 
-    if periods > 0:
-        out[periods:] = values[:-periods] if periods < len(values) else out[periods:]
-    else:
-        out[:periods] = values[-periods:] if -periods < len(values) else out[:periods]
+    out = np.full_like(values, fill, dtype=values.dtype)
+    size = len(values)
+
+    if 0 < periods < size:
+        out[periods:] = values[:-periods]
+    elif -size < periods < 0:
+        out[:periods] = values[-periods:]
 
     return out
 
