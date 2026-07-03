@@ -44,8 +44,8 @@ def test_loads_time_bars_with_settle_offset(tmp_path: Path) -> None:
     arrow_dir, conduit_dir = _write(
         tmp_path,
         'time_15m',
-        {'ts': opens, 'close': [60000.0, 61000.0, 62000.0]},
-        {'ts': pl.Int64, 'close': pl.Float64},
+        {'ts': opens, 'open': [59900.0, 60900.0, 61900.0], 'close': [60000.0, 61000.0, 62000.0]},
+        {'ts': pl.Int64, 'open': pl.Float64, 'close': pl.Float64},
         {
             'ts': opens,
             'prediction': [1, 0, 1],
@@ -68,6 +68,7 @@ def test_loads_time_bars_with_settle_offset(tmp_path: Path) -> None:
     assert bars[0].ts_ns == 1000 * _NS
     assert bars[0].settle == datetime.fromtimestamp(1000 + _INTERVAL, tz=UTC)
     assert bars[0].prediction == 1
+    assert bars[0].open == 59900.0
     assert bars[0].close == 60000.0
 
 
@@ -77,8 +78,8 @@ def test_loads_dollar_bars_settle_is_ts(tmp_path: Path) -> None:
     arrow_dir, conduit_dir = _write(
         tmp_path,
         'dollar_60M',
-        {'ts': settles, 'close': [60000.0, 61000.0], 'start_ts': opens},
-        {'ts': pl.Int64, 'close': pl.Float64, 'start_ts': pl.Int64},
+        {'ts': settles, 'open': [59950.0, 60950.0], 'close': [60000.0, 61000.0], 'start_ts': opens},
+        {'ts': pl.Int64, 'open': pl.Float64, 'close': pl.Float64, 'start_ts': pl.Int64},
         {
             'ts': settles,
             'prediction': [1, 0],
@@ -107,8 +108,8 @@ def test_skips_unusable_rows(tmp_path: Path) -> None:
     arrow_dir, conduit_dir = _write(
         tmp_path,
         'time_15m',
-        {'ts': opens, 'close': [60000.0, 61000.0]},
-        {'ts': pl.Int64, 'close': pl.Float64},
+        {'ts': opens, 'open': [59900.0, 60900.0], 'close': [60000.0, 61000.0]},
+        {'ts': pl.Int64, 'open': pl.Float64, 'close': pl.Float64},
         {
             'ts': opens,
             'prediction': [1, 1],
@@ -135,8 +136,8 @@ def test_range_filter_on_settle(tmp_path: Path) -> None:
     arrow_dir, conduit_dir = _write(
         tmp_path,
         'time_15m',
-        {'ts': opens, 'close': [60000.0, 61000.0, 62000.0]},
-        {'ts': pl.Int64, 'close': pl.Float64},
+        {'ts': opens, 'open': [59900.0, 60900.0, 61900.0], 'close': [60000.0, 61000.0, 62000.0]},
+        {'ts': pl.Int64, 'open': pl.Float64, 'close': pl.Float64},
         {
             'ts': opens,
             'prediction': [1, 0, 1],

@@ -108,6 +108,7 @@ def _scenario() -> ReplayScenario:
         ReplayBar(
             ts_ns=first_open,
             settle=first_settle,
+            open=60000.0,
             close=60000.0,
             prediction=1,
             probability=0.9,
@@ -115,6 +116,7 @@ def _scenario() -> ReplayScenario:
         ReplayBar(
             ts_ns=second_open,
             settle=second_settle,
+            open=61000.0,
             close=61000.0,
             prediction=0,
             probability=0.1,
@@ -143,6 +145,7 @@ def _dollar_scenario() -> ReplayScenario:
         ReplayBar(
             ts_ns=first_settle_ns,
             settle=first_settle,
+            open=60000.0,
             close=60000.0,
             prediction=1,
             probability=0.9,
@@ -151,6 +154,7 @@ def _dollar_scenario() -> ReplayScenario:
         ReplayBar(
             ts_ns=second_settle_ns,
             settle=second_settle,
+            open=61000.0,
             close=61000.0,
             prediction=0,
             probability=0.1,
@@ -239,7 +243,7 @@ def test_run_replay_open_position_realized_pnl_zero(tmp_path: Path) -> None:
     ts = int((settle - timedelta(seconds=_INTERVAL)).timestamp() * _NS)
     bars = (
         ReplayBar(
-            ts_ns=ts, settle=settle, close=60000.0, prediction=1, probability=0.9,
+            ts_ns=ts, settle=settle, open=60000.0, close=60000.0, prediction=1, probability=0.9,
         ),
     )
     scenario = ReplayScenario(

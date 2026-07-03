@@ -48,7 +48,7 @@ def test_predict_loop_reads_materialized_frames(tmp_path: Path) -> None:
         arrow_dir=arrow_dir,
         series=_SERIES,
         generated_at=settle,
-        ohlcv_rows=[(ts, 64000.0)],
+        ohlcv_rows=[(ts, 63900.0, 64000.0)],
         prediction_rows=[(ts, 1, 0.91)],
     )
 
@@ -91,7 +91,7 @@ def test_dollar_frame_carries_start_ts_for_family_detection(tmp_path: Path) -> N
         arrow_dir=arrow_dir,
         series='dollar_60M',
         generated_at=settle,
-        ohlcv_rows=[(settle_ns, 64000.0)],
+        ohlcv_rows=[(settle_ns, 63900.0, 64000.0)],
         prediction_rows=[(settle_ns, 1, 0.9)],
         start_ts=[open_ns],
     )
@@ -118,7 +118,7 @@ def test_no_dispatch_when_manifest_stale(tmp_path: Path) -> None:
         arrow_dir=arrow_dir,
         series=_SERIES,
         generated_at=settle,
-        ohlcv_rows=[(ts, 64000.0)],
+        ohlcv_rows=[(ts, 63900.0, 64000.0)],
         prediction_rows=[(ts, 1, 0.91)],
     )
 

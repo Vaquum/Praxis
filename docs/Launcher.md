@@ -106,7 +106,7 @@ For each manifest found under `MANIFESTS_DIR`, the launcher reads:
 
 `praxis/arrow_price_store.py` supplies closed-bar close prices from the control-plane Arrow volume.
 
-`ArrowPriceStore.latest_close(series, interval_seconds)` reads `<PRAXIS_ARROW_DIR>/<series>/latest.arrow` (an OHLCV IPC frame written by Furnace) and returns the latest closed bar's `close` as a `Decimal`. A bar with open timestamp `ts` (Int64 UTC epoch nanoseconds) is closed when `ts + interval_seconds` nanoseconds is at or before now, so the still-forming final bar is excluded.
+`ArrowPriceStore.latest_close(series, interval_seconds)` reads `<PRAXIS_ARROW_DIR>/<series>/latest.arrow` (an OHLCV IPC frame written by Furnace, carrying `ts`, `open`, `close` — plus `high`, `low`, `volume` — and `start_ts` for dollar series) and returns the latest closed bar's `close` as a `Decimal`. It uses only `ts`/`close`; the replay loader (`load_replay_bars`) also reads `open` to feed the Limen-parity snapshot's entry-bar return. A bar with open timestamp `ts` (Int64 UTC epoch nanoseconds) is closed when `ts + interval_seconds` nanoseconds is at or before now, so the still-forming final bar is excluded.
 
 The method returns `None` — which aborts the MTM tick and yields no fallback price for ENTER actions — when:
 

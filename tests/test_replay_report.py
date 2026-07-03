@@ -6,8 +6,17 @@ import pytest
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived
 from praxis.infrastructure.venue_adapter import SymbolFilters
-from praxis.replay.build_replay_report import build_replay_report
+from praxis.metrics.limen_snapshot import limen_snapshot
+from praxis.replay.build_replay_report import _ns_to_datetime, build_replay_report
 from praxis.replay.replay_scenario import ReplayBar, ReplayScenario
+
+
+def _limen(bars: list[ReplayBar]) -> dict[str, float | None]:
+    return limen_snapshot(
+        [bar.prediction for bar in bars], [bar.open for bar in bars],
+        [bar.close for bar in bars], [bar.close - bar.open for bar in bars],
+        [_ns_to_datetime(bar.ts_ns) for bar in bars],
+    )
 
 _BASE = datetime(2022, 1, 1, tzinfo=UTC)
 _INTERVAL = 900
@@ -24,7 +33,10 @@ def _filters() -> SymbolFilters:
 def _bar(index: int, close: str) -> ReplayBar:
     ts_ns = int(_BASE.timestamp()) * _NS + index * _INTERVAL * _NS
     settle = _BASE + timedelta(seconds=(index + 1) * _INTERVAL)
-    return ReplayBar(ts_ns=ts_ns, settle=settle, close=float(close), prediction=1, probability=0.6)
+    return ReplayBar(
+        ts_ns=ts_ns, settle=settle, open=float(close), close=float(close),
+        prediction=1, probability=0.6,
+    )
 
 
 def _scenario(bars: list[ReplayBar], capital: str = '20000') -> ReplayScenario:
@@ -417,13 +429,32 @@ def test_sharpe_positive_for_rising_equity():
     assert metrics.sharpe > 0
 
 
-def test_limen_snapshot_per_trade_on_notional_basis():
+def test_replay_snapshot_is_limen_backtest_over_bars():
     bars = [_bar(i, str(100 + i)) for i in range(5)]
     fills = [_fill(0, OrderSide.BUY, '1', '100', '0.10'), _fill(2, OrderSide.SELL, '1', '110', '0.11')]
     _, metrics = build_replay_report(_scenario(bars, capital='10000'), fills)
 
-    assert metrics.snapshot['trade_pnl_net_bps_p50'] == 979.0
-    assert metrics.snapshot['cost_drag_bps_p50'] == 21.0
+    assert metrics.snapshot == _limen(bars)
+
+
+def test_snapshot_buckets_by_bar_ts_not_settle():
+    near_midnight = datetime(2022, 1, 1, 23, 40, tzinfo=UTC)
+    bars = [
+        ReplayBar(
+            ts_ns=int((near_midnight + timedelta(seconds=i * _INTERVAL)).timestamp()) * _NS,
+            settle=near_midnight + timedelta(seconds=(i + 1) * _INTERVAL),
+            open=float(100 + i), close=float(101 + i), prediction=1, probability=0.6,
+        )
+        for i in range(3)
+    ]
+    _, metrics = build_replay_report(_scenario(bars), [])
+    by_settle = limen_snapshot(
+        [b.prediction for b in bars], [b.open for b in bars], [b.close for b in bars],
+        [b.close - b.open for b in bars], [b.settle for b in bars],
+    )
+
+    assert metrics.snapshot == _limen(bars)
+    assert metrics.snapshot != by_settle
 
 
 def test_portfolio_snapshot_diluted_by_idle_capital():
@@ -444,22 +475,25 @@ def test_scalar_metrics_present_on_report():
     assert metrics.net_trade_volume == Decimal('100.00')
 
 
-def test_snapshots_empty_for_no_fills():
+def test_no_fills_empty_portfolio_but_limen_snapshot_present():
     bars = [_bar(i, str(100 + i)) for i in range(3)]
     _, metrics = build_replay_report(_scenario(bars), [])
 
-    assert metrics.snapshot['trade_pnl_net_bps_p50'] is None
     assert metrics.expected_value == Decimal('0')
+    assert metrics.trade_count == 0
+    assert metrics.snapshot_portfolio['trade_pnl_net_bps_p50'] is None
+    assert metrics.snapshot == _limen(bars)
 
 
-def test_entry_fee_reflected_in_position_basis_net():
+def test_replay_snapshot_independent_of_fill_fees():
     bars = [_bar(i, str(100 + i)) for i in range(5)]
     no_fee = [_fill(0, OrderSide.BUY, '1', '100', '0'), _fill(2, OrderSide.SELL, '1', '110', '0')]
     with_fee = [_fill(0, OrderSide.BUY, '1', '100', '0.50'), _fill(2, OrderSide.SELL, '1', '110', '0')]
     _, metrics_no_fee = build_replay_report(_scenario(bars, capital='10000'), no_fee)
     _, metrics_fee = build_replay_report(_scenario(bars, capital='10000'), with_fee)
 
+    assert metrics_fee.snapshot == metrics_no_fee.snapshot
     assert (
-        metrics_fee.snapshot['rolling_return_net_bps_p50']
-        < metrics_no_fee.snapshot['rolling_return_net_bps_p50']
+        metrics_fee.snapshot_portfolio['rolling_return_net_bps_p50']
+        < metrics_no_fee.snapshot_portfolio['rolling_return_net_bps_p50']
     )

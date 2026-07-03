@@ -1,9 +1,11 @@
-'''Scalar ledger metrics over a closed-trade list (Limen parity).
+'''Scalar ledger metrics over a closed-trade list.
 
-Covers the Limen `BacktestSequential` scalars that the Praxis replay
-report does not already produce: expected value (mean PnL per trade) and
-traded volume by side. PnL, win rate, max drawdown, and Sharpe are already
-reported elsewhere and are not duplicated here.
+`expected_value` (mean net PnL per closed trade) reproduces Limen's
+`BacktestSequential` definition. The traded-volume scalars are the entry
+notional actually filled per side (`entry_price * qty`); Limen's sequential
+backtest reinvests the full balance each trade, so its volume is not
+value-comparable — these are Praxis's own traded-volume totals. PnL, win
+rate, max drawdown, and Sharpe are reported elsewhere and not duplicated.
 '''
 
 from __future__ import annotations

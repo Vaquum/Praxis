@@ -4,8 +4,8 @@ A replay run over real history slices a `[start, end]` window out of the
 projection frames Praxis already mounts read-only: the Conduit prediction
 frame (`<conduit>/<series>/latest.arrow`, full history of
 `ts, prediction, probability, reason_code`) and the control-plane OHLCV
-frame (`<arrow>/<series>/latest.arrow`, `ts, close`, plus `start_ts` for
-dollar series). The two are joined on the shared `ts`, usable rows are
+frame (`<arrow>/<series>/latest.arrow`, `ts, open, close`, plus `start_ts`
+for dollar series). The two are joined on the shared `ts`, usable rows are
 kept, and each surviving row becomes a `ReplayBar`.
 
 Family is read from the OHLCV frame: a `start_ts` column means the series
@@ -16,7 +16,7 @@ is a time series (its `ts` is the open and the settle is
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 import polars as pl
@@ -63,7 +63,7 @@ def load_replay_bars(
     predictions = pl.read_ipc(conduit_dir / series / _LATEST_ARROW, memory_map=True)
 
     is_dollar = _DOLLAR_OPEN_COLUMN in ohlcv.columns
-    ohlcv_columns = ['ts', 'close']
+    ohlcv_columns = ['ts', 'open', 'close']
 
     if is_dollar:
         ohlcv_columns.append(_DOLLAR_OPEN_COLUMN)
@@ -84,10 +84,16 @@ def load_replay_bars(
         if settle_ns < start_ns or settle_ns > end_ns:
             continue
 
+        settle_seconds, settle_nanos = divmod(settle_ns, _NS_PER_SECOND)
+
         bars.append(
             ReplayBar(
                 ts_ns=ts_ns,
-                settle=datetime.fromtimestamp(settle_ns / _NS_PER_SECOND, tz=UTC),
+                settle=(
+                    datetime.fromtimestamp(settle_seconds, tz=UTC)
+                    + timedelta(microseconds=settle_nanos // 1000)
+                ),
+                open=float(row['open']),
                 close=float(row['close']),
                 prediction=int(row['prediction']),
                 probability=float(row['probability']),

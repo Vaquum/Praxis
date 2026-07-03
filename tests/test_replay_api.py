@@ -93,8 +93,8 @@ def _write_frames(root: Path) -> tuple[Path, Path]:
     opens = [1000 * _NS, 1900 * _NS]
 
     pl.DataFrame(
-        {'ts': opens, 'close': [60000.0, 61000.0]},
-        schema={'ts': pl.Int64, 'close': pl.Float64},
+        {'ts': opens, 'open': [59900.0, 60900.0], 'close': [60000.0, 61000.0]},
+        schema={'ts': pl.Int64, 'open': pl.Float64, 'close': pl.Float64},
     ).write_ipc(arrow_dir / 'time_15m' / 'latest.arrow')
 
     pl.DataFrame(

@@ -218,13 +218,13 @@ def _drive(
 ) -> None:
     '''Walk the scenario's bars, dispatching each through PredictLoop.'''
 
-    ohlcv_rows: list[tuple[int, float]] = []
+    ohlcv_rows: list[tuple[int, float, float]] = []
     prediction_rows: list[tuple[int, int, float]] = []
     dollar_open_ts: list[int] = []
     bindings = runtime.sequencer.signal_bindings
 
     for bar in scenario.bars:
-        ohlcv_rows.append((bar.ts_ns, bar.close))
+        ohlcv_rows.append((bar.ts_ns, bar.open, bar.close))
         prediction_rows.append((bar.ts_ns, bar.prediction, bar.probability))
 
         if bar.start_ts_ns is not None:

@@ -94,7 +94,7 @@ def test_no_positions_no_trades_no_drawdown():
     assert result['drawdown_depth_bps_p50'] is None
 
 
-def test_return_on_exposure_limen_excludes_first_step_full_keeps_all():
+def test_return_on_exposure_numerator_and_denominator_over_same_steps():
     nets = [0.0, 0.01, 0.01, 0.01, 0.0]
     steps = [
         MetricStep(_BASE + timedelta(hours=i), i in (1, 2, 3), nets[i], nets[i])
@@ -103,17 +103,14 @@ def test_return_on_exposure_limen_excludes_first_step_full_keeps_all():
     result = snapshot_metrics(steps, clock_window='1d')
 
     window_return = 1.01 ** 3 - 1.0
-    roe_full = window_return / (3 / 5) * 10_000.0     # exposure over all 5 steps
-    roe_limen = window_return / (3 / 4) * 10_000.0     # first step excluded -> 4 eligible
+    roe = window_return / (3 / 5) * 10_000.0
 
-    assert result['return_on_exposure_p50'] == round(roe_limen, 1)
-    assert result['return_on_exposure_full_p50'] == round(roe_full, 1)
-    assert result['return_on_exposure_p50'] < result['return_on_exposure_full_p50']
+    assert result['return_on_exposure_p50'] == round(roe, 1)
+    assert 'return_on_exposure_full_p50' not in result
 
 
-def test_return_on_exposure_full_present_and_none_when_flat():
+def test_return_on_exposure_none_when_flat():
     flat = [_step(d, False, 0.0, 0.0) for d in range(3)]
     result = snapshot_metrics(flat)
 
-    assert result['return_on_exposure_full_p50'] is None
     assert result['return_on_exposure_p50'] is None
