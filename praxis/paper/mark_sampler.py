@@ -84,11 +84,18 @@ class MarkSampler:
 
     async def stop(self) -> None:
 
-        '''Signal the loop to exit and await it.'''
+        '''Signal the loop to exit, then cancel and await it.
+
+        The loop exits on the stop event within one interval; the cancel
+        bounds the wait if a tick's spine append is in flight, so shutdown
+        cannot hang on the sampler.
+        '''
 
         self._stop_event.set()
 
         if self._task is not None:
+            self._task.cancel()
+
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
 

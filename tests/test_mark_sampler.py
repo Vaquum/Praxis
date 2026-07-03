@@ -100,5 +100,18 @@ async def test_task_name_identifies_account_and_symbol():
     assert 'BTCUSDT' in name
 
 
+@pytest.mark.asyncio
+async def test_stop_cancels_a_hung_tick():
+    async def hanging_append(_event: MarkSampled) -> None:
+        await asyncio.Event().wait()
+
+    sampler = MarkSampler('acc', 'BTCUSDT', lambda: Decimal('100'), hanging_append, lambda: _TS, 0.05)
+    sampler.start()
+    await asyncio.sleep(0.06)
+    await asyncio.wait_for(sampler.stop(), timeout=1.0)
+
+    assert not sampler.running
+
+
 async def _noop_append(_event: MarkSampled) -> None:
     return None

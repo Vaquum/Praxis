@@ -99,6 +99,27 @@ async def test_metrics_endpoint_returns_paper_report(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_metrics_endpoint_returns_500_on_build_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spine = await _spine_with_run()
+    launcher = _launcher(spine, tmp_path)
+
+    def boom(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise ValueError('malformed spine')
+
+    monkeypatch.setattr('praxis.launcher.build_paper_report', boom)
+
+    response = await launcher._metrics_handler(_request('/metrics'))
+    body = json.loads(response.body)
+
+    assert response.status == 500
+    assert body['error'] == 'metrics_unavailable'
+
+    await spine._conn.close()
+
+
+@pytest.mark.asyncio
 async def test_metrics_endpoint_unknown_account_404(tmp_path: Path) -> None:
     spine = await _spine_with_run()
     launcher = _launcher(spine, tmp_path)

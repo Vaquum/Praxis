@@ -2573,13 +2573,18 @@ class Launcher:
             )
 
         epoch_id = self._trading_config.epoch_id
-        records = await self._event_spine.read(epoch_id)
-        events = [
-            event for _seq, event in records if event.account_id == account.account_id
-        ]
-        report = build_paper_report(
-            account.capital_pool, _mark_sample_interval_seconds(), events,
-        )
+
+        try:
+            records = await self._event_spine.read(epoch_id)
+            events = [
+                event for _seq, event in records if event.account_id == account.account_id
+            ]
+            report = build_paper_report(
+                account.capital_pool, _mark_sample_interval_seconds(), events,
+            )
+        except Exception:  # noqa: BLE001 - a malformed spine must not crash the handler
+            _log.exception('metrics endpoint failed to build the paper report')
+            return web.json_response({'error': 'metrics_unavailable'}, status=500)
 
         return web.json_response({'account_id': account.account_id, **report})
 
@@ -2608,7 +2613,7 @@ class Launcher:
     async def _build_mark_samplers(self) -> None:
         spine = self._event_spine
 
-        if spine is None:
+        if spine is None or self._mark_samplers:
             return
 
         arrow_dir = self._arrow_dir or Path(os.environ.get('PRAXIS_ARROW_DIR', '/opt/arrow'))
