@@ -34,7 +34,8 @@ def test_report_from_events_has_metrics_and_trades():
     report = build_paper_report(Decimal('10000'), _INTERVAL, events)
 
     assert report['metrics']['trade_count'] == 1
-    assert report['metrics']['snapshot']['trade_pnl_net_bps_p50'] == 979.0
+    assert report['metrics']['snapshot'] == {}
+    assert report['metrics']['snapshot_portfolio']['trade_pnl_net_bps_p50'] is not None
     assert report['metrics']['expected_value'] == '9.79'
     assert len(report['trades']) == 1
     assert isinstance(report['trades'][0]['net_pnl'], str)

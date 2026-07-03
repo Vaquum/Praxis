@@ -12,10 +12,11 @@ from decimal import Decimal
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived
 from praxis.metrics.ledger_metrics import LedgerTrade, ledger_metrics
+from praxis.metrics.limen_snapshot import limen_snapshot
 from praxis.metrics.metric_step import MetricStep
 from praxis.metrics.snapshot_metrics import snapshot_metrics
 from praxis.replay.replay_report import ReplayMetrics, Trade
-from praxis.replay.replay_scenario import ReplayScenario
+from praxis.replay.replay_scenario import ReplayBar, ReplayScenario
 
 __all__ = ['build_metrics_from_timeline', 'build_replay_report']
 
@@ -52,6 +53,28 @@ def build_replay_report(
 
     return build_metrics_from_timeline(
         scenario.capital_pool, scenario.interval_seconds, fills, timeline,
+        _limen_snapshot_from_bars(scenario.bars),
+    )
+
+
+def _limen_snapshot_from_bars(bars: Sequence[ReplayBar]) -> dict[str, float | None]:
+
+    '''Return Limen's `backtest_snapshot` metrics over the replay bars.
+
+    The Limen-parity snapshot is the decoder-level backtest Limen would run
+    on these bars' predictions and OHLC, independent of the actual fills, so
+    it is directly comparable to Limen. Empty for a bar-less run.
+    '''
+
+    if not bars:
+        return {}
+
+    return limen_snapshot(
+        [bar.prediction for bar in bars],
+        [bar.open for bar in bars],
+        [bar.close for bar in bars],
+        [bar.close - bar.open for bar in bars],
+        [bar.settle for bar in bars],
     )
 
 
@@ -60,18 +83,22 @@ def build_metrics_from_timeline(
     interval_seconds: int,
     fills: Sequence[FillReceived],
     timeline: Sequence[tuple[datetime, Decimal]],
+    snapshot: dict[str, float | None],
 ) -> tuple[tuple[Trade, ...], ReplayMetrics]:
     '''Pair fills into trades and summarise them against a mark timeline.
 
     Shared by replay (bar closes) and paper trading (MtmLoop marks). The
     timeline is the settle-ordered `(timestamp, mark_price)` series the
-    equity curve and return steps are built against.
+    equity curve and portfolio return steps are built against.
 
     Args:
         capital_pool: Starting quote capital.
         interval_seconds: Step spacing, used to annualize Sharpe.
         fills: The run's `FillReceived` events in any order.
         timeline: Settle-ordered `(timestamp, mark_price)` steps.
+        snapshot: The Limen-parity distribution metrics for the run;
+            replay supplies Limen's bar backtest, paper supplies `{}`
+            since a Limen bar backtest is undefined on live marks.
 
     Returns:
         The closed trades in entry order and the run's `ReplayMetrics`.
@@ -86,9 +113,6 @@ def build_metrics_from_timeline(
         _ZERO,
     )
     total_fees = sum((fill.fee for fill in ordered), _ZERO)
-    snapshot = snapshot_metrics(
-        _position_steps(ordered, timeline), _CLOCK_WINDOW, _trade_returns(trades),
-    )
     snapshot_portfolio = snapshot_metrics(
         _equity_steps(ordered, capital_pool, timeline), _CLOCK_WINDOW,
     )
@@ -153,79 +177,6 @@ def _equity_steps(
         prev_gross = gross_eq
 
     return steps
-
-
-def _position_steps(
-    fills: Sequence[FillReceived],
-    timeline: Sequence[tuple[datetime, Decimal]],
-) -> list[MetricStep]:
-
-    '''Return per-step marks on the held-position notional basis (Limen view).
-
-    Per held step the gross return is the position's close-to-close price
-    move; net subtracts that step's fills' fees as a fraction of the held
-    notional. Flat steps contribute zero. This matches Limen's fully-invested
-    return series for the edge and clock-window metrics; per-trade metrics
-    are supplied separately on the trade-notional basis.
-    '''
-
-    settles = [settle for settle, _ in timeline]
-    by_step: dict[int, list[FillReceived]] = defaultdict(list)
-
-    for fill in fills:
-        by_step[_fill_bar(fill, settles)].append(fill)
-
-    position = _ZERO
-    prev_close = _ZERO
-    steps: list[MetricStep] = []
-
-    for index, (settle, close) in enumerate(timeline):
-
-        held_in = position
-        fee = sum((fill.fee for fill in by_step.get(index, ())), _ZERO)
-
-        for fill in by_step.get(index, ()):
-            position += fill.qty if fill.side is OrderSide.BUY else -fill.qty
-
-        if held_in > _ZERO and prev_close > _ZERO:
-            base = held_in * prev_close
-            gross = (close / prev_close) - 1
-            net = gross - fee / base
-        elif position > _ZERO and close > _ZERO:
-            gross = _ZERO
-            net = -fee / (position * close)
-        else:
-            gross = _ZERO
-            net = _ZERO
-
-        steps.append(
-            MetricStep(
-                timestamp=settle,
-                in_position=position > _ZERO or held_in > _ZERO,
-                gross_return=float(gross),
-                net_return=float(net),
-            )
-        )
-        prev_close = close
-
-    return steps
-
-
-def _trade_returns(trades: Sequence[Trade]) -> list[tuple[float, float]]:
-
-    '''Return per-trade `(gross_return, net_return)` on the trade's cost basis.'''
-
-    pairs: list[tuple[float, float]] = []
-
-    for trade in trades:
-        cost = trade.entry_price * trade.qty
-
-        if cost <= _ZERO:
-            continue
-
-        pairs.append((float(trade.gross_pnl / cost), float(trade.net_pnl / cost)))
-
-    return pairs
 
 
 def _ledger_trades(trades: Sequence[Trade]) -> list[LedgerTrade]:

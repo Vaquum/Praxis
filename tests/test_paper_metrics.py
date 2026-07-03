@@ -30,8 +30,8 @@ def test_paper_metrics_match_shared_core_on_marks():
     trades, metrics = build_paper_metrics(Decimal('10000'), _INTERVAL, fills, marks)
 
     assert len(trades) == 1
-    assert metrics.snapshot['trade_pnl_net_bps_p50'] == 979.0
-    assert metrics.snapshot_portfolio['trade_pnl_net_bps_p50'] < metrics.snapshot['trade_pnl_net_bps_p50']
+    assert metrics.snapshot == {}
+    assert metrics.snapshot_portfolio['trade_pnl_net_bps_p50'] is not None
     assert metrics.expected_value == Decimal('9.79')
 
 
@@ -67,7 +67,8 @@ def test_no_fills_empty_metrics():
 
     assert trades == ()
     assert metrics.expected_value == Decimal('0')
-    assert metrics.snapshot['trade_pnl_net_bps_p50'] is None
+    assert metrics.snapshot == {}
+    assert metrics.snapshot_portfolio['trade_pnl_net_bps_p50'] is None
 
 
 class _NoOffsetTz(tzinfo):

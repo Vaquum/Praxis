@@ -3,8 +3,9 @@
 A paper run's return series is the mark timeline the MtmLoop samples —
 `(timestamp, mark_price)` pairs — against which the account equity and
 per-step returns are built from the run's spine `FillReceived` events. The
-metrics themselves come from the same shared core replay uses, so a paper
-run and a replay are directly comparable.
+portfolio-basis metrics come from the same shared core replay uses. A paper
+run has no Limen bar backtest (there are no bars, only live marks), so its
+Limen-parity `snapshot` is empty; it reports `snapshot_portfolio` only.
 '''
 
 from __future__ import annotations
@@ -76,7 +77,7 @@ def build_paper_metrics(
 
     effective = _effective_interval_seconds(marks, interval_seconds)
 
-    return build_metrics_from_timeline(capital_pool, effective, fills, marks)
+    return build_metrics_from_timeline(capital_pool, effective, fills, marks, {})
 
 
 def _effective_interval_seconds(
