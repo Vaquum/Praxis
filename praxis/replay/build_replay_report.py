@@ -101,7 +101,7 @@ def build_metrics_from_timeline(
     interval_seconds: int,
     fills: Sequence[FillReceived],
     timeline: Sequence[tuple[datetime, Decimal]],
-    snapshot: dict[str, float | None],
+    snapshot: dict[str, float | None] | None = None,
 ) -> tuple[tuple[Trade, ...], ReplayMetrics]:
     '''Pair fills into trades and summarise them against a mark timeline.
 
@@ -117,11 +117,13 @@ def build_metrics_from_timeline(
         snapshot: The Limen-parity distribution metrics for the run;
             replay supplies Limen's bar backtest, paper supplies `{}`
             since a Limen bar backtest is undefined on live marks.
+            Defaults to `{}` when omitted.
 
     Returns:
         The closed trades in entry order and the run's `ReplayMetrics`.
     '''
 
+    snapshot = snapshot if snapshot is not None else {}
     ordered = sorted(fills, key=lambda fill: fill.timestamp)
     settles = [settle for settle, _ in timeline]
     trades = _pair_trades(ordered, settles)

@@ -7,7 +7,7 @@ from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived
 from praxis.infrastructure.venue_adapter import SymbolFilters
 from praxis.metrics.limen_snapshot import limen_snapshot
-from praxis.replay.build_replay_report import build_replay_report
+from praxis.replay.build_replay_report import _ns_to_datetime, build_replay_report
 from praxis.replay.replay_scenario import ReplayBar, ReplayScenario
 
 
@@ -15,7 +15,7 @@ def _limen(bars: list[ReplayBar]) -> dict[str, float | None]:
     return limen_snapshot(
         [bar.prediction for bar in bars], [bar.open for bar in bars],
         [bar.close for bar in bars], [bar.close - bar.open for bar in bars],
-        [datetime.fromtimestamp(bar.ts_ns / _NS, UTC) for bar in bars],
+        [_ns_to_datetime(bar.ts_ns) for bar in bars],
     )
 
 _BASE = datetime(2022, 1, 1, tzinfo=UTC)
