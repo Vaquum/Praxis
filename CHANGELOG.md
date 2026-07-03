@@ -1237,3 +1237,22 @@
 
 - Add `return_on_exposure_full_p5`/`_p50`/`_p95` to the snapshot alongside the Limen-exact `return_on_exposure`, computing exposure over every step rather than excluding the lag row. Fill-based replay and paper runs have no execution lag, so this all-steps variant is the more complete return-on-exposure for them; both variants appear on `ReplayMetrics.snapshot` and `snapshot_portfolio`
 - Add snapshot tests pinning the Limen-exact-vs-full return-on-exposure split (exposure denominator over eligible vs all steps) and the all-flat `None` case
+
+## v0.90.0 on 3rd of July, 2026
+
+### NOTE
+
+- A Codex-supervised audit of the v0.88.0/v0.89.0 metrics upgrade found the replay/paper `snapshot` was Limen-*shaped* but not Limen-*equal*: it fed fill/mark-derived steps into a metric core that expects Limen's OHLC bar backtest, so entry-bar edge, per-trade return, and cost drag diverged, and `return_on_exposure` was internally inconsistent when a run entered on the first step. This release reworks the Limen-parity snapshot to a bit-exact bar backtest and retires the v0.89.0 `return_on_exposure` eligible-split approach and the `return_on_exposure_full` extension
+- `ReplayMetrics.snapshot` is now the Limen backtest over a run's bars (replay only). A paper run has no bar backtest, so its `snapshot` is `{}`; consumers of the paper `/metrics` endpoint read `snapshot_portfolio` instead
+
+### Add
+
+- Add [`limen_snapshot`](praxis/metrics/limen_snapshot.py), a faithful numpy port of Limen's `backtest_snapshot`, so a replay over historical bars reproduces Limen's distribution metrics without a pandas/Limen runtime dependency. Pinned by golden fixtures generated from the real Limen across 11 scenarios (entry-on-first-bar, always/never in position, open-at-end, single/two-bar, `execution_lag_bars > 1`, non-default fee/slip, and a zero-close continuation that preserves the infinite return Limen produces), plus validation cases for non-binary/NaN predictions, non-finite prices, and mismatched lengths
+- Carry each bar's `open` price onto [`ReplayBar`](praxis/replay/replay_scenario.py) and read it in `load_replay_bars`, so the Limen entry-bar return `close - open` is available (the column already existed in the mounted OHLCV frames)
+
+### Fix
+
+- Compute the replay Limen-parity `snapshot` by running the `limen_snapshot` port over the run's bars, independent of the actual fills, so it is bit-for-bit equal to Limen; `snapshot_portfolio` stays the fill-based total-account-equity view
+- Make `return_on_exposure` in [`snapshot_metrics`](praxis/metrics/snapshot_metrics.py) internally consistent by computing its numerator and denominator over the same steps, dropping the execution-lag eligible/first-step split; `snapshot_metrics` now serves the portfolio basis only
+- Validate a timezone-aware timestamp and finite returns on [`MetricStep`](praxis/metrics/metric_step.py); cancel the [`MarkSampler`](praxis/paper/mark_sampler.py) task on stop so a stuck spine append cannot block shutdown, and guard the sampler build against a duplicate start; wrap the launcher `/metrics` read and report build so malformed spine state returns a structured `500` rather than an unhandled error
+- Restate the ledger volume metric as Praxis's actual filled entry notional (`entry_price * qty`) rather than claiming exact parity with Limen's reinvestment-model volume; `expected_value` remains the Limen-parity scalar
