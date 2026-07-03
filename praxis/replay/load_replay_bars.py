@@ -16,7 +16,7 @@ is a time series (its `ts` is the open and the settle is
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 import polars as pl
@@ -84,10 +84,15 @@ def load_replay_bars(
         if settle_ns < start_ns or settle_ns > end_ns:
             continue
 
+        settle_seconds, settle_nanos = divmod(settle_ns, _NS_PER_SECOND)
+
         bars.append(
             ReplayBar(
                 ts_ns=ts_ns,
-                settle=datetime.fromtimestamp(settle_ns / _NS_PER_SECOND, tz=UTC),
+                settle=(
+                    datetime.fromtimestamp(settle_seconds, tz=UTC)
+                    + timedelta(microseconds=settle_nanos // 1000)
+                ),
                 open=float(row['open']),
                 close=float(row['close']),
                 prediction=int(row['prediction']),

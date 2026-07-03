@@ -6,7 +6,7 @@ from bisect import bisect_right
 from collections import defaultdict, deque
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from praxis.core.domain.enums import OrderSide
@@ -79,8 +79,21 @@ def _limen_snapshot_from_bars(bars: Sequence[ReplayBar]) -> dict[str, float | No
         [bar.open for bar in bars],
         [bar.close for bar in bars],
         [bar.close - bar.open for bar in bars],
-        [datetime.fromtimestamp(bar.ts_ns / _NS_PER_SECOND, UTC) for bar in bars],
+        [_ns_to_datetime(bar.ts_ns) for bar in bars],
     )
+
+
+def _ns_to_datetime(ns: int) -> datetime:
+
+    '''Convert UTC epoch nanoseconds to a datetime without float rounding.
+
+    Uses integer `divmod` so a timestamp on a day boundary cannot drift into
+    an adjacent day window, which `ns / 1e9` could do at epoch magnitudes.
+    '''
+
+    seconds, nanos = divmod(ns, _NS_PER_SECOND)
+
+    return datetime.fromtimestamp(seconds, UTC) + timedelta(microseconds=nanos // 1000)
 
 
 def build_metrics_from_timeline(
