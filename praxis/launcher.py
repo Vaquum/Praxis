@@ -2605,7 +2605,7 @@ class Launcher:
         except Exception:  # noqa: BLE001 - metrics sampling must never abort trading
             future.cancel()
             _log.exception(
-                'mark sampler startup failed; any started samplers are tracked for shutdown',
+                'mark sampler startup failed; any started samplers were stopped and the build can retry',
             )
         else:
             _log.info('mark samplers started', extra={'count': len(self._mark_samplers)})
@@ -2624,21 +2624,32 @@ class Launcher:
         async def append(event: MarkSampled) -> None:
             await spine.append(event, epoch_id)
 
-        for account in self._paper_account_map().values():
+        samplers: list[MarkSampler] = []
 
-            def mark_price_provider(bound: _PaperAccount = account) -> Decimal | None:
-                return arrow_price_store.latest_close(bound.mark_series, bound.mark_interval)
+        try:
+            for account in self._paper_account_map().values():
 
-            sampler = MarkSampler(
-                account_id=account.account_id,
-                symbol=account.symbol,
-                mark_price_provider=mark_price_provider,
-                append=append,
-                clock=self._clock,
-                interval_seconds=interval,
-            )
-            self._mark_samplers.append(sampler)
-            sampler.start()
+                def mark_price_provider(bound: _PaperAccount = account) -> Decimal | None:
+                    return arrow_price_store.latest_close(bound.mark_series, bound.mark_interval)
+
+                sampler = MarkSampler(
+                    account_id=account.account_id,
+                    symbol=account.symbol,
+                    mark_price_provider=mark_price_provider,
+                    append=append,
+                    clock=self._clock,
+                    interval_seconds=interval,
+                )
+                samplers.append(sampler)
+                sampler.start()
+
+        except Exception:
+            for sampler in samplers:
+                await sampler.stop()
+
+            raise
+
+        self._mark_samplers = samplers
 
     def _stop_mark_samplers(self) -> None:
         '''Stop every mark sampler; best-effort during shutdown.'''

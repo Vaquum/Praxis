@@ -104,17 +104,17 @@ async def test_mark_sampler_skips_when_price_unavailable(tmp_path: Path, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_started_samplers_tracked_when_build_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_failed_build_stops_samplers_and_stays_retryable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ArrowPriceStore, 'latest_close', lambda _self, _s, _i: Decimal('62000'))
     spine = await _empty_spine()
     launcher = _launcher(spine, tmp_path)
 
     original = MarkSampler.start
-    calls = {'n': 0}
+    started: list[MarkSampler] = []
 
     def start_then_raise(self: MarkSampler) -> None:
         original(self)
-        calls['n'] += 1
+        started.append(self)
         raise RuntimeError('interrupted after start')
 
     monkeypatch.setattr(MarkSampler, 'start', start_then_raise)
@@ -122,9 +122,14 @@ async def test_started_samplers_tracked_when_build_raises(tmp_path: Path, monkey
     with pytest.raises(RuntimeError, match='interrupted'):
         await launcher._build_mark_samplers()
 
-    assert calls['n'] == 1
-    assert len(launcher._mark_samplers) == 1
+    assert launcher._mark_samplers == []
+    assert not started[0].running
 
     monkeypatch.setattr(MarkSampler, 'start', original)
+    await launcher._build_mark_samplers()
+
+    assert len(launcher._mark_samplers) == 1
+    assert launcher._mark_samplers[0].running
+
     await launcher._mark_samplers[0].stop()
     await spine._conn.close()
