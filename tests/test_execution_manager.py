@@ -33,8 +33,11 @@ from praxis.core.domain.events import (
     OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
+    RegisterAccount,
     TradeOutcomeProduced,
 )
+from praxis.core.account_ledger import CostBasisMethod
+from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -2667,3 +2670,75 @@ class TestQuiesce:
         mgr: ExecutionManager,
     ) -> None:
         await mgr.quiesce('unregistered')
+
+
+class TestAccountLedgerWiring:
+    '''AccountLedger projection wired into the per-account spine-append path.'''
+
+    def _fill(self, fee_asset: str = 'USDT') -> FillReceived:
+        return FillReceived(
+            account_id=_ACCT, timestamp=_TS, client_order_id='c-1',
+            venue_order_id='v-1', venue_trade_id='vt-1', trade_id=_TRADE, command_id='cmd-1',
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'), price=Decimal('100'),
+            fee=Decimal('0.1'), fee_asset=fee_asset, is_maker=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_replay_legacy_history_default_registers_and_books(
+        self, mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        mgr.replay_events(_ACCT, [(1, self._fill())])
+        ledger = mgr._accounts[_ACCT].account_ledger
+
+        assert ledger.cost_basis_method is CostBasisMethod.FIFO
+        assert ledger.balances[Account.CRYPTO_BTC] == Decimal('100')
+
+    @pytest.mark.asyncio
+    async def test_replay_honors_registered_cost_basis_method(
+        self, mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        mgr.replay_events(_ACCT, [
+            (1, RegisterAccount(account_id=_ACCT, timestamp=_TS, cost_basis_method='AVERAGE')),
+            (2, self._fill()),
+        ])
+        ledger = mgr._accounts[_ACCT].account_ledger
+
+        assert ledger.cost_basis_method is CostBasisMethod.AVERAGE
+        assert ledger.balances[Account.CRYPTO_BTC] == Decimal('100')
+
+    @pytest.mark.asyncio
+    async def test_ledger_projection_failure_is_isolated(
+        self, mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        mgr.replay_events(_ACCT, [(1, self._fill(fee_asset='BNB'))])
+        runtime = mgr._accounts[_ACCT]
+
+        assert (_TRADE, _ACCT) in mgr.pull_positions(_ACCT)
+        assert runtime.account_ledger.balances[Account.CRYPTO_BTC] == Decimal('0')
+
+    @pytest.mark.asyncio
+    async def test_new_account_registration_appends_and_registers(
+        self, mgr: ExecutionManager, spine: EventSpine,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.register_account_on_spine(_ACCT)
+        events = await spine.read(_EPOCH)
+        ledger = mgr._accounts[_ACCT].account_ledger
+
+        assert any(isinstance(event, RegisterAccount) for _seq, event in events)
+        assert ledger.cost_basis_method is CostBasisMethod.FIFO
+
+    @pytest.mark.asyncio
+    async def test_register_account_on_spine_is_idempotent(
+        self, mgr: ExecutionManager, spine: EventSpine,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.register_account_on_spine(_ACCT)
+        await mgr.register_account_on_spine(_ACCT)
+        events = await spine.read(_EPOCH)
+
+        registrations = [event for _seq, event in events if isinstance(event, RegisterAccount)]
+        assert len(registrations) == 1

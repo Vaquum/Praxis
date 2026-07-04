@@ -35,6 +35,7 @@ from praxis.core.domain.events import (
     OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
+    RegisterAccount,
     TradeOutcomeProduced,
 )
 from praxis.core.execution_manager import ExecutionManager
@@ -63,6 +64,17 @@ from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
 
 _CREATED_AT = datetime(2099, 1, 1, tzinfo=UTC)
+
+
+async def _trading_events(spine: EventSpine) -> list[tuple[int, object]]:
+    '''Return epoch-1 spine events excluding the per-account `RegisterAccount`.
+
+    A new account now durably registers on the spine at startup; these tests
+    assert on the trading events only.
+    '''
+
+    return [(seq, event) for seq, event in await spine.read(1)
+            if not isinstance(event, RegisterAccount)]
 
 
 class _InjectedVenueAdapter:
@@ -1075,7 +1087,7 @@ async def test_reconcile_account_skips_terminal_orders(spine: EventSpine) -> Non
 
     await trading._reconcile_account('acc-1')
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1088,7 +1100,7 @@ async def test_reconcile_account_handles_not_found(spine: EventSpine) -> None:
 
     await trading._reconcile_account('acc-1')
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1130,7 +1142,7 @@ async def test_reconcile_account_reconciles_fills_when_venue_has_more(
     await trading._reconcile_account('acc-1')
     await asyncio.sleep(0.15)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 1
     _, event = events[0]
     assert isinstance(event, FillReceived)
@@ -1163,7 +1175,7 @@ async def test_reconcile_account_emits_terminal_when_venue_is_terminal(
 
     await trading._reconcile_account('acc-1')
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 1
     _, event = events[0]
     assert isinstance(event, OrderCanceled)
@@ -1194,11 +1206,11 @@ async def test_reconcile_fills_deduplicates(spine: EventSpine) -> None:
     adapter._venue_trades = [trade]
 
     await trading._reconcile_fills('acc-1', order)
-    events_after_first = await spine.read(1)
+    events_after_first = await _trading_events(spine)
     assert len(events_after_first) == 1
 
     await trading._reconcile_fills('acc-1', order)
-    events_after_second = await spine.read(1)
+    events_after_second = await _trading_events(spine)
     assert len(events_after_second) == 1
     await trading.stop()
 
@@ -1210,7 +1222,7 @@ async def test_reconcile_fills_skips_unknown_account(spine: EventSpine) -> None:
     order = _make_order()
     await trading._reconcile_fills('unknown-acc', order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1234,7 +1246,7 @@ async def test_reconcile_fills_handles_venue_error(spine: EventSpine) -> None:
 
     await trading._reconcile_fills('acc-1', order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1264,7 +1276,7 @@ async def test_reconcile_fills_skips_mismatched_client_order_id(
 
     await trading._reconcile_fills('acc-1', order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1293,7 +1305,7 @@ async def test_reconcile_fills_skips_missing_trade_id_mapping(
 
     await trading._reconcile_fills('acc-1', order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1316,7 +1328,7 @@ async def test_reconcile_terminal_emits_canceled(spine: EventSpine) -> None:
 
     await trading._reconcile_terminal('acc-1', order, venue_order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 1
     _, event = events[0]
     assert isinstance(event, OrderCanceled)
@@ -1341,7 +1353,7 @@ async def test_reconcile_terminal_emits_expired(spine: EventSpine) -> None:
 
     await trading._reconcile_terminal('acc-1', order, venue_order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 1
     _, event = events[0]
     assert isinstance(event, OrderExpired)
@@ -1366,7 +1378,7 @@ async def test_reconcile_terminal_emits_rejected(spine: EventSpine) -> None:
 
     await trading._reconcile_terminal('acc-1', order, venue_order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 1
     _, event = events[0]
     assert isinstance(event, OrderRejected)
@@ -1393,7 +1405,7 @@ async def test_reconcile_terminal_skips_non_terminal_venue_status(
 
     await trading._reconcile_terminal('acc-1', order, venue_order)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1406,7 +1418,7 @@ async def test_on_execution_report_ignores_non_execution_report(
 
     await trading._on_execution_report('acc-1', {'e': 'outboundAccountPosition'})
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1419,7 +1431,7 @@ async def test_on_execution_report_ignores_non_binance_adapter(
 
     await trading._on_execution_report('acc-1', {'e': 'executionReport'})
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1434,7 +1446,7 @@ async def test_on_execution_report_skips_unknown_account(
 
     await trading._on_execution_report('unknown-acc', {'e': 'executionReport'})
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 
@@ -1477,7 +1489,7 @@ async def test_on_execution_report_processes_fill(spine: EventSpine) -> None:
     await trading._on_execution_report('acc-1', {'e': 'executionReport'})
     await asyncio.sleep(0.15)
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 1
     _, event = events[0]
     assert isinstance(event, FillReceived)
@@ -1527,7 +1539,7 @@ async def test_on_execution_report_skips_terminal_for_closed_order(
 
     await trading._on_execution_report('acc-1', {'e': 'executionReport'})
 
-    events = await spine.read(1)
+    events = await _trading_events(spine)
     assert len(events) == 0
     await trading.stop()
 

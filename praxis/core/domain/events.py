@@ -727,4 +727,5 @@ type Event = (
     | OutcomeDeliveryContextRecorded
     | OutcomeReplayAbandoned
     | MarkSampled
+    | RegisterAccount
 )
