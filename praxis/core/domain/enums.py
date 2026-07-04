@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['ExecutionMode', 'ExecutionType', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'TradeStatus']
+__all__ = ['CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'TradeStatus']
 
 
 class OrderSide(Enum):
@@ -19,6 +19,14 @@ class OrderSide(Enum):
 
     BUY = 'BUY'
     SELL = 'SELL'
+
+
+class CostBasisMethod(Enum):
+
+    '''Cost-basis method for realizing P&L on a sell.'''
+
+    FIFO = 'FIFO'
+    AVERAGE = 'AVERAGE'
 
 
 class OrderType(Enum):

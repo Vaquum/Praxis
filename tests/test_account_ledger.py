@@ -7,7 +7,7 @@ import pytest
 from praxis.core.account_ledger import AccountLedger, CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account, is_debit_normal
 from praxis.core.domain.enums import OrderSide
-from praxis.core.domain.events import FillReceived, TradeClosed
+from praxis.core.domain.events import FillReceived, RegisterAccount, TradeClosed
 
 _TS = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -22,8 +22,15 @@ def _fill(side: OrderSide, qty: str, price: str, fee: str, tid: str = 'a',
     )
 
 
-def _ledger() -> AccountLedger:
-    return AccountLedger('acc')
+def _register(account_id: str = 'acc', method: CostBasisMethod = CostBasisMethod.FIFO) -> RegisterAccount:
+    return RegisterAccount(account_id=account_id, timestamp=_TS, cost_basis_method=method.value)
+
+
+def _ledger(method: CostBasisMethod = CostBasisMethod.FIFO) -> AccountLedger:
+    ledger = AccountLedger('acc')
+    ledger.apply(_register(method=method))
+
+    return ledger
 
 
 def test_buy_posts_balanced_entry_and_balances():
@@ -104,8 +111,8 @@ def test_non_quote_fee_asset_raises():
 
 
 def test_unsupported_cost_basis_method_rejected():
-    with pytest.raises(ValueError, match='unsupported cost_basis_method'):
-        AccountLedger('acc', cost_basis_method='LIFO')  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match='cost_basis_method must be one of'):
+        RegisterAccount(account_id='acc', timestamp=_TS, cost_basis_method='LIFO')
 
 
 def test_every_entry_is_balanced_and_balances_reconcile():
@@ -127,8 +134,46 @@ def test_every_entry_is_balanced_and_balances_reconcile():
     assert recomputed == ledger.balances
 
 
-def test_default_cost_basis_is_fifo():
-    assert _ledger().cost_basis_method is CostBasisMethod.FIFO
+def test_register_account_defaults_to_fifo():
+    ledger = AccountLedger('acc')
+    ledger.apply(RegisterAccount(account_id='acc', timestamp=_TS))
+
+    assert ledger.cost_basis_method is CostBasisMethod.FIFO
+
+
+def test_register_account_sets_average_method():
+    ledger = _ledger(CostBasisMethod.AVERAGE)
+
+    assert ledger.cost_basis_method is CostBasisMethod.AVERAGE
+
+
+def test_re_registration_is_rejected_as_immutable():
+    ledger = _ledger(CostBasisMethod.FIFO)
+
+    with pytest.raises(ValueError, match='already registered'):
+        ledger.apply(_register(method=CostBasisMethod.AVERAGE))
+
+
+def test_fill_before_registration_raises():
+    ledger = AccountLedger('acc')
+
+    with pytest.raises(ValueError, match='not registered'):
+        ledger.apply(_fill(OrderSide.BUY, '1', '100', '0'))
+
+
+def test_trade_closed_before_registration_raises():
+    ledger = AccountLedger('acc')
+
+    with pytest.raises(ValueError, match='not registered'):
+        ledger.apply(TradeClosed(account_id='acc', timestamp=_TS, trade_id='a', command_id='cmd'))
+
+
+def test_snapshot_round_trips_registration():
+    ledger = _ledger(CostBasisMethod.AVERAGE)
+    restored = AccountLedger.from_snapshot(ledger.to_snapshot(1, 1))
+
+    assert restored.cost_basis_method is CostBasisMethod.AVERAGE
+    assert restored.state()['registered'] is True
 
 
 def test_per_trade_pnl_accumulates_gross_and_fees():
@@ -179,7 +224,7 @@ def test_per_trade_realized_matches_realized_pnl_balance_for_single_trade():
 
 
 def test_average_cost_basis_blends_lot_cost():
-    ledger = AccountLedger('acc', CostBasisMethod.AVERAGE)
+    ledger = _ledger(CostBasisMethod.AVERAGE)
     ledger.apply(_fill(OrderSide.BUY, '1', '100', '0'))
     ledger.apply(_fill(OrderSide.BUY, '1', '110', '0'))
     ledger.apply(_fill(OrderSide.SELL, '1', '120', '0'))
@@ -194,8 +239,8 @@ def test_fifo_and_average_differ_on_partial_exit():
         (OrderSide.BUY, '1', '110'),
         (OrderSide.SELL, '1', '120'),
     ]
-    fifo = AccountLedger('acc', CostBasisMethod.FIFO)
-    average = AccountLedger('acc', CostBasisMethod.AVERAGE)
+    fifo = _ledger(CostBasisMethod.FIFO)
+    average = _ledger(CostBasisMethod.AVERAGE)
 
     for side, qty, price in sequence:
         fifo.apply(_fill(side, qty, price, '0'))

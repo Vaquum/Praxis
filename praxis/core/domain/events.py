@@ -14,7 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from praxis.core.domain._require_str import _require_str
-from praxis.core.domain.enums import OrderSide, OrderType, TradeStatus
+from praxis.core.domain.enums import CostBasisMethod, OrderSide, OrderType, TradeStatus
 
 __all__ = [
     'CommandAccepted',
@@ -31,11 +31,13 @@ __all__ = [
     'OutcomeAcked',
     'OutcomeDeliveryContextRecorded',
     'OutcomeReplayAbandoned',
+    'RegisterAccount',
     'TradeClosed',
     'TradeOutcomeProduced',
 ]
 
 _ZERO = Decimal(0)
+_COST_BASIS_METHOD_VALUES = frozenset(method.value for method in CostBasisMethod)
 
 
 @dataclass(frozen=True)
@@ -465,6 +467,34 @@ class MarkSampled(_EventBase):
 
         if not self.mark_price.is_finite() or self.mark_price <= _ZERO:
             msg = 'MarkSampled.mark_price must be a positive finite Decimal'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class RegisterAccount(_EventBase):
+
+    '''
+    Represent registration of an account with its immutable cost-basis method.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        cost_basis_method (str): Cost-basis method fixed for the account's
+            lifetime, one of 'FIFO' or 'AVERAGE'. Defaults to 'FIFO'.
+    '''
+
+    cost_basis_method: str = CostBasisMethod.FIFO.value
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'cost_basis_method', self.cost_basis_method)
+
+        if self.cost_basis_method not in _COST_BASIS_METHOD_VALUES:
+            allowed = ', '.join(sorted(_COST_BASIS_METHOD_VALUES))
+            msg = f'{name}.cost_basis_method must be one of {allowed}'
             raise ValueError(msg)
 
 

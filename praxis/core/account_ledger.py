@@ -19,12 +19,11 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
 from typing import Any
 
 from praxis.core.domain.chart_of_accounts import Account, is_debit_normal
-from praxis.core.domain.enums import OrderSide
-from praxis.core.domain.events import Event, FillReceived, TradeClosed
+from praxis.core.domain.enums import CostBasisMethod, OrderSide
+from praxis.core.domain.events import Event, FillReceived, RegisterAccount, TradeClosed
 from praxis.core.domain.journal_entry import JournalEntry, JournalLine
 from praxis.core.domain.trade_pnl import TradePnL
 
@@ -34,14 +33,6 @@ _log = logging.getLogger(__name__)
 
 _ZERO = Decimal(0)
 _QUOTE_ASSET = 'USDT'
-
-
-class CostBasisMethod(Enum):
-
-    '''Cost-basis method for realizing P&L on a sell.'''
-
-    FIFO = 'FIFO'
-    AVERAGE = 'AVERAGE'
 
 
 @dataclass
@@ -55,32 +46,27 @@ class AccountLedger:
 
     '''In-memory double-entry ledger projection for one account.
 
+    The ledger starts unregistered: a `RegisterAccount` event fixes the
+    per-account `cost_basis_method` immutably and must be applied before any
+    fill or trade-closed event.
+
     Args:
         account_id: Account this ledger belongs to.
-        cost_basis_method: Method for realizing P&L on a sell — `FIFO` or
-            `AVERAGE` (weighted average). Set immutably per account.
     '''
 
-    def __init__(
-        self,
-        account_id: str,
-        cost_basis_method: CostBasisMethod = CostBasisMethod.FIFO,
-    ) -> None:
+    def __init__(self, account_id: str) -> None:
 
         if not account_id:
             msg = 'AccountLedger.account_id must be a non-empty string'
             raise ValueError(msg)
 
-        if not isinstance(cost_basis_method, CostBasisMethod):
-            msg = f'unsupported cost_basis_method: {cost_basis_method}'
-            raise ValueError(msg)
-
         self.account_id = account_id
-        self.cost_basis_method = cost_basis_method
+        self.cost_basis_method: CostBasisMethod | None = None
         self.balances: dict[Account, Decimal] = dict.fromkeys(Account, _ZERO)
         self.trades: dict[str, TradePnL] = {}
         self.journal: list[JournalEntry] = []
         self._lots: dict[str, deque[_Lot]] = {}
+        self._registered = False
         self._lock = threading.Lock()
 
     def apply(self, event: Event) -> None:
@@ -89,7 +75,21 @@ class AccountLedger:
 
         Args:
             event: Domain event to project.
+
+        Raises:
+            ValueError: A `RegisterAccount` re-registers an already-registered
+                account, or a fill or trade-closed event arrives before the
+                account is registered.
         '''
+
+        if isinstance(event, RegisterAccount):
+            self._on_register_account(event)
+
+            return
+
+        if not self._registered:
+            msg = f'account {self.account_id!r} not registered; apply RegisterAccount first'
+            raise ValueError(msg)
 
         if isinstance(event, FillReceived):
             self._on_fill_received(event)
@@ -109,7 +109,8 @@ class AccountLedger:
         with self._lock:
             return {
                 'account_id': self.account_id,
-                'cost_basis_method': self.cost_basis_method.value,
+                'registered': self._registered,
+                'cost_basis_method': self.cost_basis_method.value if self.cost_basis_method is not None else None,
                 'balances': {account.value: str(amount) for account, amount in self.balances.items()},
                 'trades': {
                     trade_id: {
@@ -146,7 +147,13 @@ class AccountLedger:
         '''Rebuild a ledger from a `to_snapshot` payload (journal not restored).'''
 
         state = snapshot['state']
-        ledger = cls(state['account_id'], CostBasisMethod(state['cost_basis_method']))
+        ledger = cls(state['account_id'])
+
+        method = state['cost_basis_method']
+        if method is not None:
+            ledger.cost_basis_method = CostBasisMethod(method)
+
+        ledger._registered = state.get('registered', method is not None)
 
         for account_value, amount in state['balances'].items():
             ledger.balances[Account(account_value)] = Decimal(amount)
@@ -161,6 +168,16 @@ class AccountLedger:
         }
 
         return ledger
+
+    def _on_register_account(self, event: RegisterAccount) -> None:
+
+        with self._lock:
+            if self._registered:
+                msg = f'account {self.account_id!r} already registered; cost_basis_method is immutable'
+                raise ValueError(msg)
+
+            self.cost_basis_method = CostBasisMethod(event.cost_basis_method)
+            self._registered = True
 
     def _on_fill_received(self, event: FillReceived) -> None:
 
