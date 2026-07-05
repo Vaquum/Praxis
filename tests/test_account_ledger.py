@@ -103,11 +103,46 @@ def test_trade_closed_is_noop():
     assert len(ledger.journal) == journal_len
 
 
-def test_non_quote_fee_asset_raises():
+def test_third_asset_fee_on_buy_raises():
     ledger = _ledger()
 
-    with pytest.raises(NotImplementedError, match='not yet supported'):
+    with pytest.raises(NotImplementedError, match='not supported for a buy fill'):
         ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.001', fee_asset='BNB'))
+
+
+def test_third_asset_fee_on_sell_raises():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0'))
+
+    with pytest.raises(NotImplementedError, match='not supported for a sell fill'):
+        ledger.apply(_fill(OrderSide.SELL, '1', '110', '0.001', fee_asset='BNB'))
+
+
+def test_base_asset_fee_on_buy_expenses_value_and_reduces_position():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.001', fee_asset='BTC'))
+
+    assert ledger.balances[Account.CASH_USDT] == Decimal('-100')
+    assert ledger.balances[Account.FEES] == Decimal('0.1')
+    assert ledger.balances[Account.CRYPTO_BTC] == Decimal('99.9')
+    assert ledger.trades['a'].fees == Decimal('0.1')
+
+
+def test_base_asset_fee_lot_is_net_received():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.001', fee_asset='BTC'))
+    ledger.apply(_fill(OrderSide.SELL, '0.999', '110', '0'))
+
+    assert ledger.balances[Account.CRYPTO_BTC] == Decimal('0')
+    assert ledger.balances[Account.REALIZED_PNL] == Decimal('9.99')
+
+
+def test_base_asset_fee_sell_exceeding_net_lot_raises():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.001', fee_asset='BTC'))
+
+    with pytest.raises(ValueError, match='sell qty exceeds open lots'):
+        ledger.apply(_fill(OrderSide.SELL, '1', '110', '0'))
 
 
 def test_unsupported_cost_basis_method_rejected():

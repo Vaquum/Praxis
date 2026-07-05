@@ -9,7 +9,10 @@ independent store.
 Cost basis is chosen per account — FIFO or weighted-average (AVERAGE).
 Fees are expensed to `Expense:Fees`; the base asset is carried at trade
 price (fees are not capitalised), so realized P&L is the proceeds less the
-lot cost (FIFO or average) and fees stand alone.
+lot cost (FIFO or average) and fees stand alone. A quote-asset (`USDT`)
+fee credits `Cash:USDT`; a base-asset (`BTC`) fee — charged on a buy — is
+valued at the fill price, credits `Crypto:BTC`, and reduces the booked lot
+to the net quantity received. Any other fee asset is unsupported.
 '''
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ _log = logging.getLogger(__name__)
 
 _ZERO = Decimal(0)
 _QUOTE_ASSET = 'USDT'
+_BASE_ASSET = 'BTC'
 
 
 @dataclass
@@ -181,18 +185,14 @@ class AccountLedger:
 
     def _on_fill_received(self, event: FillReceived) -> None:
 
-        if event.fee_asset != _QUOTE_ASSET:
-            msg = f'fee_asset {event.fee_asset!r} not yet supported (only {_QUOTE_ASSET})'
-            raise NotImplementedError(msg)
-
         if event.side is OrderSide.BUY:
-            entry = self._buy_entry(event)
+            entry, fee_value = self._buy_entry(event)
             realized = _ZERO
 
         else:
-            entry, realized = self._sell_entry(event)
+            entry, realized, fee_value = self._sell_entry(event)
 
-        self._post(entry, event.trade_id, realized, event.fee)
+        self._post(entry, event.trade_id, realized, fee_value)
 
     def _on_trade_closed(self, event: TradeClosed) -> None:
 
@@ -202,17 +202,31 @@ class AccountLedger:
             if trade is not None:
                 trade.closed = True
 
-    def _buy_entry(self, event: FillReceived) -> JournalEntry:
+    def _buy_entry(self, event: FillReceived) -> tuple[JournalEntry, Decimal]:
 
         notional = event.qty * event.price
         lines = [
             JournalLine(Account.CRYPTO_BTC, notional, _ZERO),
             JournalLine(Account.CASH_USDT, _ZERO, notional),
         ]
-        lines.extend(self._fee_lines(event.fee))
-        self._add_lot(event.trade_id, event.qty, event.price)
 
-        return self._entry(event, 'buy fill', lines)
+        if event.fee_asset == _QUOTE_ASSET:
+            fee_value = event.fee
+            lines.extend(self._fee_lines(fee_value, Account.CASH_USDT))
+            lot_qty = event.qty
+
+        elif event.fee_asset == _BASE_ASSET:
+            fee_value = event.fee * event.price
+            lines.extend(self._fee_lines(fee_value, Account.CRYPTO_BTC))
+            lot_qty = event.qty - event.fee
+
+        else:
+            msg = f'fee_asset {event.fee_asset!r} not supported for a buy fill'
+            raise NotImplementedError(msg)
+
+        self._add_lot(event.trade_id, lot_qty, event.price)
+
+        return self._entry(event, 'buy fill', lines), fee_value
 
     def _add_lot(self, trade_id: str, qty: Decimal, price: Decimal) -> None:
 
@@ -228,7 +242,11 @@ class AccountLedger:
 
         lots.append(_Lot(qty, price))
 
-    def _sell_entry(self, event: FillReceived) -> tuple[JournalEntry, Decimal]:
+    def _sell_entry(self, event: FillReceived) -> tuple[JournalEntry, Decimal, Decimal]:
+
+        if event.fee_asset != _QUOTE_ASSET:
+            msg = f'fee_asset {event.fee_asset!r} not supported for a sell fill'
+            raise NotImplementedError(msg)
 
         proceeds = event.qty * event.price
         cost = self._consume_lots(event.trade_id, event.qty)
@@ -244,9 +262,9 @@ class AccountLedger:
         elif realized < _ZERO:
             lines.append(JournalLine(Account.REALIZED_PNL, -realized, _ZERO))
 
-        lines.extend(self._fee_lines(event.fee))
+        lines.extend(self._fee_lines(event.fee, Account.CASH_USDT))
 
-        return self._entry(event, 'sell fill', lines), realized
+        return self._entry(event, 'sell fill', lines), realized, event.fee
 
     def _consume_lots(self, trade_id: str, qty: Decimal) -> Decimal:
 
@@ -272,14 +290,14 @@ class AccountLedger:
         return cost
 
     @staticmethod
-    def _fee_lines(fee: Decimal) -> list[JournalLine]:
+    def _fee_lines(fee_value: Decimal, credit_account: Account) -> list[JournalLine]:
 
-        if fee <= _ZERO:
+        if fee_value <= _ZERO:
             return []
 
         return [
-            JournalLine(Account.FEES, fee, _ZERO),
-            JournalLine(Account.CASH_USDT, _ZERO, fee),
+            JournalLine(Account.FEES, fee_value, _ZERO),
+            JournalLine(credit_account, _ZERO, fee_value),
         ]
 
     @staticmethod
