@@ -432,7 +432,7 @@ def test_base_asset_fee_not_smaller_than_qty_raises():
 
 def test_concurrent_apply_and_read_never_observe_a_half_applied_event():
     ledger = _ledger()
-    inconsistent: list[dict[Account, object]] = []
+    inconsistent: list[dict[Account, Decimal]] = []
 
     def read() -> None:
         for _ in range(500):
