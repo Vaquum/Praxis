@@ -420,3 +420,10 @@ def test_read_trade_pnls_returns_detached_copies():
 
     assert ledger.trades['a'].realized_gross == Decimal('10')
     assert ledger.read_trade_pnls()['a'].net == Decimal('9.79')
+
+
+def test_base_asset_fee_not_smaller_than_qty_raises():
+    ledger = _ledger()
+
+    with pytest.raises(ValueError, match='must be smaller than the filled qty'):
+        ledger.apply(_fill(OrderSide.BUY, '1', '100', '1', fee_asset='BTC'))

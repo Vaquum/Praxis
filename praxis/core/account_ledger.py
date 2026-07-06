@@ -266,6 +266,10 @@ class AccountLedger:
             lot_qty = event.qty
 
         elif event.fee_asset == _BASE_ASSET:
+            if event.fee >= event.qty:
+                msg = f'base-asset fee {event.fee} must be smaller than the filled qty {event.qty}'
+                raise ValueError(msg)
+
             fee_value = event.fee * event.price
             lines.extend(self._fee_lines(fee_value, Account.CRYPTO_BTC))
             lot_qty = event.qty - event.fee
