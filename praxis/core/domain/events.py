@@ -14,12 +14,13 @@ from datetime import datetime
 from decimal import Decimal
 
 from praxis.core.domain._require_str import _require_str
-from praxis.core.domain.enums import OrderSide, OrderType, TradeStatus
+from praxis.core.domain.enums import CostBasisMethod, FundDirection, OrderSide, OrderType, TradeStatus
 
 __all__ = [
     'CommandAccepted',
     'Event',
     'FillReceived',
+    'FundTransaction',
     'MarkSampled',
     'OrderAcked',
     'OrderCanceled',
@@ -31,11 +32,14 @@ __all__ = [
     'OutcomeAcked',
     'OutcomeDeliveryContextRecorded',
     'OutcomeReplayAbandoned',
+    'RegisterAccount',
     'TradeClosed',
     'TradeOutcomeProduced',
 ]
 
 _ZERO = Decimal(0)
+_COST_BASIS_METHOD_VALUES = frozenset(method.value for method in CostBasisMethod)
+_FUND_DIRECTION_VALUES = frozenset(direction.value for direction in FundDirection)
 
 
 @dataclass(frozen=True)
@@ -469,6 +473,69 @@ class MarkSampled(_EventBase):
 
 
 @dataclass(frozen=True)
+class RegisterAccount(_EventBase):
+
+    '''
+    Represent registration of an account with its immutable cost-basis method.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        cost_basis_method (str): Cost-basis method fixed for the account's
+            lifetime, one of 'FIFO' or 'AVERAGE'. Defaults to 'FIFO'.
+    '''
+
+    cost_basis_method: str = CostBasisMethod.FIFO.value
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'cost_basis_method', self.cost_basis_method)
+
+        if self.cost_basis_method not in _COST_BASIS_METHOD_VALUES:
+            allowed = ', '.join(sorted(_COST_BASIS_METHOD_VALUES))
+            msg = f'{name}.cost_basis_method must be one of {allowed}'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class FundTransaction(_EventBase):
+
+    '''
+    Represent a deposit or withdrawal of quote-asset funds on an account.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        fund_transaction_id (str): Stable unique identifier for the transaction.
+        amount (Decimal): Quote-asset amount moved, must be positive and finite.
+        direction (str): 'DEPOSIT' or 'WITHDRAWAL'.
+    '''
+
+    fund_transaction_id: str
+    amount: Decimal
+    direction: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'fund_transaction_id', self.fund_transaction_id)
+
+        if not self.amount.is_finite() or self.amount <= _ZERO:
+            msg = f'{name}.amount must be a positive finite Decimal'
+            raise ValueError(msg)
+
+        if self.direction not in _FUND_DIRECTION_VALUES:
+            allowed = ', '.join(sorted(_FUND_DIRECTION_VALUES))
+            msg = f'{name}.direction must be one of {allowed}'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class TradeOutcomeProduced(_EventBase):
 
     '''
@@ -697,4 +764,6 @@ type Event = (
     | OutcomeDeliveryContextRecorded
     | OutcomeReplayAbandoned
     | MarkSampled
+    | RegisterAccount
+    | FundTransaction
 )

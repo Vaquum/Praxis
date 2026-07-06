@@ -936,3 +936,25 @@ A strategy's `on_startup` actions are drained inside `_build_nexus_runtime` (via
 
 **When to fix**: before the endpoint is polled frequently or a paper epoch runs long enough for the read to dominate response time.
 **Migration**: read only the account's events (a spine query filtered by `account_id`), and/or cache the built report between samples and invalidate on new fills.
+
+## TD-107: Account-ledger projection failures are swallowed
+
+**Origin**: Account sub-system branch (Greybeard pre-PR review)
+**Severity**: Low (the ledger is a secondary projection; the Event Spine remains the durable record)
+**Module**: `praxis/core/execution_manager.py` (`_project_to_ledger`)
+
+`_project_to_ledger` wraps `AccountLedger.apply` in a broad `except` that logs and never propagates, so a booking failure cannot break the trading path. The trade-off is that the "authoritative books" can silently and permanently stop booking — e.g. if a fill reaches an unregistered ledger, every subsequent fill for that account is swallowed and only a log line records it. Nothing surfaces the drift to an operator.
+
+**When to fix**: before the ledger balances back any user-facing reporting or reconciliation that must be trusted without cross-checking the spine.
+**Migration**: add a metric/alert on ledger projection failures (count per account), or a periodic reconciliation of the ledger against a spine replay, so silent drift is detected rather than only logged.
+
+## TD-108: FundTransaction has no spine-level idempotency
+
+**Origin**: Account sub-system branch (Greybeard / Copilot pre-PR review)
+**Severity**: Low (replay applies each spine event once; the risk is a duplicate append, not replay)
+**Module**: `praxis/infrastructure/event_spine.py`; `praxis/core/account_ledger.py` (`_on_fund_transaction`)
+
+`FundTransaction` carries a stable `fund_transaction_id`, but the spine only deduplicates `FillReceived` (on `venue_trade_id`). A duplicate `FundTransaction` append would double-book capital against `Equity:Contributions` with nothing to stop it; the id is stored for a future dedup that does not exist yet.
+
+**When to fix**: before a fund-transaction producer that can retry appends (e.g. a deposit API or Nexus-driven top-up) is wired in.
+**Migration**: extend the spine dedup to key `FundTransaction` on `fund_transaction_id` (as `FillReceived` does on `venue_trade_id`), so a duplicate append is a no-op.

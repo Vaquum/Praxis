@@ -331,6 +331,7 @@ class Trading:
         '''
 
         self._execution_manager.replay_events(account_id, account_events)
+        await self._execution_manager.register_account_on_spine(account_id)
         await self._execution_manager.reconcile_orphan_commands(
             account_id, account_events,
         )

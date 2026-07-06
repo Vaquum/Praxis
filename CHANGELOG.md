@@ -1256,3 +1256,18 @@
 - Make `return_on_exposure` in [`snapshot_metrics`](praxis/metrics/snapshot_metrics.py) internally consistent by computing its numerator and denominator over the same steps, dropping the execution-lag eligible/first-step split; `snapshot_metrics` now serves the portfolio basis only
 - Validate a timezone-aware timestamp and finite returns on [`MetricStep`](praxis/metrics/metric_step.py); cancel the [`MarkSampler`](praxis/paper/mark_sampler.py) task on stop so a stuck spine append cannot block shutdown, and guard the sampler build against a duplicate start; wrap the launcher `/metrics` read and report build so malformed spine state returns a structured `500` rather than an unhandled error
 - Restate the ledger volume metric as Praxis's actual filled entry notional (`entry_price * qty`) rather than claiming exact parity with Limen's reinvestment-model volume; `expected_value` remains the Limen-parity scalar
+
+## v0.91.0 on 6th of July, 2026
+
+### NOTE
+
+- The Account sub-system is a per-account double-entry ledger — the authoritative books, distinct from Nexus which owns capital and PnL for decisions. [`AccountLedger`](praxis/core/account_ledger.py) is a projection rebuilt by replaying Event Spine events, like `TradingState`; it is a secondary projection, so a booking failure is logged and never propagated into the trading path
+- [`JournalEntry`](praxis/core/domain/journal_entry.py) moves from the trade-specific `trade_id`/`command_id` fields to generic `source_event_type`/`source_event_id`, since each entry derives from exactly one spine event; `CostBasisMethod` moves to the shared [`enums`](praxis/core/domain/enums.py) module
+
+### Add
+
+- Add a [`RegisterAccount`](praxis/core/domain/events.py) spine event that fixes each account's immutable `cost_basis_method` (FIFO default, validated). The ledger starts unregistered and is strict: a `FillReceived` or `TradeClosed` before registration is rejected, and re-registration raises
+- Wire [`AccountLedger.apply`](praxis/core/execution_manager.py) into the per-account spine-append path via a single projection helper, at replay and the live fill and trade-closed append sites. A genuinely new account durably emits `RegisterAccount` at startup; pre-feature spine history that carries no `RegisterAccount` is registered in memory with the FIFO default at replay and never written back
+- Add base-asset fee handling: a `BTC` fee on a buy is valued at the fill price, credits `Crypto:BTC` rather than `Cash:USDT`, and reduces the cost-basis lot to the net quantity received, so the ledger's base inventory and cost basis match the venue balance. Quote-asset (`USDT`) fees are unchanged; any other fee asset raises
+- Add a [`FundTransaction`](praxis/core/domain/events.py) spine event (`amount`, a `FundDirection` of `DEPOSIT` or `WITHDRAWAL`, and a stable `fund_transaction_id`) booking a deposit as `Dr Cash:USDT / Cr Equity:Contributions` and a withdrawal as the reverse; the ledger records an over-withdrawal rather than rejecting it, since enforcement belongs upstream
+- Add balances and per-trade realized-P&L read accessors — `read_balances`/`read_trade_pnls` on [`AccountLedger`](praxis/core/account_ledger.py) and `get_account_balances`/`get_account_trade_pnls` on [`ExecutionManager`](praxis/core/execution_manager.py) — returning detached copies so a caller cannot mutate the projection

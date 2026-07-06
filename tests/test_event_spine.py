@@ -19,6 +19,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FundTransaction,
     MarkSampled,
     OrderAcked,
     OrderCanceled,
@@ -27,6 +28,7 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    RegisterAccount,
     TradeClosed,
 )
 from praxis.infrastructure.event_spine import EventSpine
@@ -105,6 +107,14 @@ _ALL_EVENTS: list[Event] = [
     MarkSampled(
         account_id=_ACCT, timestamp=_TS,
         symbol=_SYMBOL, mark_price=Decimal('62000.5'),
+    ),
+    RegisterAccount(
+        account_id=_ACCT, timestamp=_TS,
+        cost_basis_method='AVERAGE',
+    ),
+    FundTransaction(
+        account_id=_ACCT, timestamp=_TS,
+        fund_transaction_id='fund-1', amount=Decimal('1000'), direction='DEPOSIT',
     ),
 
 ]

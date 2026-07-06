@@ -18,7 +18,10 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 
+from praxis.core.account_ledger import AccountLedger
+from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.enums import (
+    CostBasisMethod,
     ExecutionMode,
     MakerPreference,
     OrderSide,
@@ -31,6 +34,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FundTransaction,
     OrderCanceled,
     OrderExpired,
     OrderQuoteNativeFilled,
@@ -38,12 +42,14 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    RegisterAccount,
     TradeClosed,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
+from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
@@ -106,6 +112,7 @@ class _AccountRuntime:
         priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
         ws_event_queue (asyncio.Queue[Event]): Unbounded queue for WS events.
         trading_state (TradingState): Per-account state projection.
+        account_ledger (AccountLedger): Per-account double-entry projection.
     '''
 
     def __init__(
@@ -115,14 +122,16 @@ class _AccountRuntime:
         priority_queue: asyncio.Queue[TradeAbort],
         ws_event_queue: asyncio.Queue[Event],
         trading_state: TradingState,
+        account_ledger: AccountLedger,
     ) -> None:
-        '''Store per-account queues and projection.'''
+        '''Store per-account queues and projections.'''
 
         self.account_id = account_id
         self.command_queue = command_queue
         self.priority_queue = priority_queue
         self.ws_event_queue = ws_event_queue
         self.trading_state = trading_state
+        self.account_ledger = account_ledger
         self.task: asyncio.Task[None] | None = None
         self.command_to_order: dict[str, str] = {}
 
@@ -275,6 +284,7 @@ class ExecutionManager:
             priority_queue=asyncio.Queue(),
             ws_event_queue=asyncio.Queue(),
             trading_state=TradingState(account_id),
+            account_ledger=AccountLedger(account_id),
         )
         runtime.task = asyncio.create_task(
             self._account_loop(runtime),
@@ -367,8 +377,10 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
+        self._bridge_legacy_registration(runtime, events)
+
         for _seq, event in events:
-            runtime.trading_state.apply(event)
+            self._project(runtime, event)
 
             if isinstance(event, CommandAccepted):
                 self._accepted_commands[event.command_id] = account_id
@@ -406,6 +418,104 @@ class ExecutionManager:
                         stp_mode=STPMode.NONE,
                         created_at=event.timestamp,
                     )
+
+    def _project(self, runtime: _AccountRuntime, event: Event) -> None:
+        '''Apply an event to the account's trading-state and ledger projections.
+
+        `RegisterAccount` and `FundTransaction` book into the ledger only;
+        `FillReceived` and `TradeClosed` book into both; every other event
+        advances the trading state alone. The ledger is a secondary
+        projection, so a projection failure is logged and never propagated
+        into the trading path.
+        '''
+
+        if isinstance(event, RegisterAccount | FundTransaction):
+            self._project_to_ledger(runtime, event)
+
+            return
+
+        runtime.trading_state.apply(event)
+
+        if isinstance(event, FillReceived | TradeClosed):
+            self._project_to_ledger(runtime, event)
+
+    def _project_to_ledger(self, runtime: _AccountRuntime, event: Event) -> None:
+
+        try:
+            runtime.account_ledger.apply(event)
+        except Exception:  # noqa: BLE001 - ledger is a secondary projection; never break trading
+            _log.exception(
+                'account ledger projection failed: account=%s event=%s',
+                runtime.account_id,
+                type(event).__name__,
+            )
+
+    def _bridge_legacy_registration(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Register a pre-feature account's ledger with the FIFO default.
+
+        Spine history written before the Account sub-system carries no
+        `RegisterAccount` event. When such history books ledger events, the
+        strict ledger is registered in memory with the default method so
+        replay can project the fills; the synthetic event is never written
+        back to the spine.
+        '''
+
+        booked = [
+            event for _seq, event in events
+            if isinstance(event, RegisterAccount | FillReceived | TradeClosed | FundTransaction)
+        ]
+
+        if booked and not any(isinstance(event, RegisterAccount) for event in booked):
+            runtime.account_ledger.apply(
+                RegisterAccount(
+                    account_id=runtime.account_id,
+                    timestamp=self._clock(),
+                    cost_basis_method=CostBasisMethod.FIFO.value,
+                )
+            )
+
+    async def register_account_on_spine(
+        self,
+        account_id: str,
+        cost_basis_method: CostBasisMethod = CostBasisMethod.FIFO,
+    ) -> None:
+        '''Append a `RegisterAccount` event and project it into the ledger.
+
+        Called for a genuinely new account so its registration is a durable,
+        replayable fact ahead of any booked event. A ledger already
+        registered (from replayed history or the legacy bridge) is left
+        untouched.
+
+        Args:
+            account_id: Account to register on the spine.
+            cost_basis_method: Cost-basis method fixed for the account.
+
+        Raises:
+            AccountNotRegisteredError: If account_id has no runtime.
+        '''
+
+        runtime = self._accounts.get(account_id)
+
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        if runtime.account_ledger.cost_basis_method is not None:
+            return
+
+        event = RegisterAccount(
+            account_id=account_id,
+            timestamp=self._clock(),
+            cost_basis_method=cost_basis_method.value,
+        )
+        seq = await self._event_spine.append(event, self._epoch_id)
+
+        if seq is not None:
+            self._project(runtime, event)
 
     async def reconcile_orphan_commands(
         self,
@@ -562,6 +672,48 @@ class ExecutionManager:
             raise AccountNotRegisteredError(msg)
 
         return runtime.trading_state.snapshot_positions()
+
+    def get_account_balances(self, account_id: str) -> dict[Account, Decimal]:
+        '''
+        Return a detached snapshot of the account-ledger balances.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[Account, Decimal]: Ledger balances by account.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return runtime.account_ledger.read_balances()
+
+    def get_account_trade_pnls(self, account_id: str) -> dict[str, TradePnL]:
+        '''
+        Return a detached snapshot of per-trade realized P&L for an account.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[str, TradePnL]: Per-trade realized P&L keyed by trade_id.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return runtime.account_ledger.read_trade_pnls()
 
     def get_trading_state(self, account_id: str) -> TradingState | None:
         '''
@@ -893,7 +1045,7 @@ class ExecutionManager:
                 while not runtime.ws_event_queue.empty():
                     event = runtime.ws_event_queue.get_nowait()
                     try:
-                        runtime.trading_state.apply(event)
+                        self._project(runtime, event)
                     except asyncio.CancelledError:
                         raise
                     except Exception:  # noqa: BLE001
@@ -1143,7 +1295,7 @@ class ExecutionManager:
             )
             seq = await self._event_spine.append(fill_event, self._epoch_id)
             if seq is not None:
-                runtime.trading_state.apply(fill_event)
+                self._project(runtime, fill_event)
 
         _log.info(
             'order submitted: client_order_id=%s venue_order_id=%s fills=%d',
@@ -1561,7 +1713,7 @@ class ExecutionManager:
                 command_id=order.command_id,
             )
             await self._event_spine.append(closed, self._epoch_id)
-            runtime.trading_state.apply(closed)
+            self._project(runtime, closed)
 
         produced = TradeOutcomeProduced(
             account_id=order.account_id,
@@ -1751,7 +1903,7 @@ class ExecutionManager:
                     command_id=cmd.command_id,
                 )
                 await self._event_spine.append(closed, self._epoch_id)
-                runtime.trading_state.apply(closed)
+                self._project(runtime, closed)
 
         produced = TradeOutcomeProduced(
             account_id=cmd.account_id,
