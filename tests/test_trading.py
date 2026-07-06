@@ -29,6 +29,7 @@ from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
     CommandAccepted,
+    Event,
     FillReceived,
     MarkSampled,
     OrderCanceled,
@@ -68,7 +69,7 @@ from praxis.trading_inbound import TradingInbound
 _CREATED_AT = datetime(2099, 1, 1, tzinfo=UTC)
 
 
-async def _trading_events(spine: EventSpine) -> list[tuple[int, object]]:
+async def _trading_events(spine: EventSpine) -> list[tuple[int, Event]]:
     '''Return epoch-1 spine events excluding the per-account `RegisterAccount`.
 
     A new account now durably registers on the spine at startup; these tests

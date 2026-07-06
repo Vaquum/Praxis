@@ -87,10 +87,15 @@ class AccountLedger:
             event: Domain event to project.
 
         Raises:
-            ValueError: A `RegisterAccount` re-registers an already-registered
-                account, or a fill or trade-closed event arrives before the
-                account is registered.
+            ValueError: The event belongs to a different account, a
+                `RegisterAccount` re-registers an already-registered account,
+                or a fill or trade-closed event arrives before the account is
+                registered.
         '''
+
+        if event.account_id != self.account_id:
+            msg = f'event for account {event.account_id!r} routed to the ledger for {self.account_id!r}'
+            raise ValueError(msg)
 
         with self._lock:
 

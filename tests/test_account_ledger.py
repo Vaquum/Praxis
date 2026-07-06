@@ -455,3 +455,10 @@ def test_concurrent_apply_and_read_never_observe_a_half_applied_event():
 
     assert inconsistent == []
     assert ledger.balances[Account.CASH_USDT] == Decimal('0')
+
+
+def test_event_for_a_different_account_raises():
+    ledger = _ledger()
+
+    with pytest.raises(ValueError, match='routed to the ledger'):
+        ledger.apply(RegisterAccount(account_id='other-acc', timestamp=_TS))
