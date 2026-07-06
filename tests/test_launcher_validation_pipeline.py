@@ -10,6 +10,7 @@ from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.capital_state import CapitalState
 from nexus.core.domain.enums import OrderSide
 from nexus.core.domain.instance_state import InstanceState
+from nexus.core.domain.position import Position
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import (
     HealthStageSnapshot,
@@ -24,7 +25,12 @@ from nexus.core.validator import (
 )
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 
-from praxis.launcher import _build_validation_pipeline, _env_positive_decimal
+from praxis.launcher import (
+    _build_platform_snapshot_provider,
+    _build_validation_pipeline,
+    _env_positive_decimal,
+    _projected_position,
+)
 
 
 def _nexus_config(
@@ -59,19 +65,30 @@ def _enter_context(
     command_id: str = 'cmd_1',
     order_notional: Decimal = Decimal('100'),
     strategy_budget: Decimal = Decimal('1000'),
+    order_side: OrderSide = OrderSide.BUY,
+    order_size: Decimal = Decimal('0.001'),
 ) -> ValidationRequestContext:
     return ValidationRequestContext(
         strategy_id='strat_a',
         action=ValidationAction.ENTER,
         symbol='BTCUSDT',
-        order_side=OrderSide.BUY,
-        order_size=Decimal('0.001'),
+        order_side=order_side,
+        order_size=order_size,
         command_id=command_id,
         order_notional=order_notional,
         estimated_fees=Decimal('0.1'),
         strategy_budget=strategy_budget,
         state=state,
         config=config,
+    )
+
+
+def _position(
+    size: str, side: OrderSide = OrderSide.BUY, symbol: str = 'BTCUSDT',
+) -> Position:
+    return Position(
+        trade_id=f't-{size}-{symbol}', strategy_id='strat_a', symbol=symbol,
+        side=side, size=Decimal(size), entry_price=Decimal('100'),
     )
 
 
@@ -320,3 +337,83 @@ class TestEnvPositiveDecimal:
 
         with pytest.raises(ValueError, match='must be a positive finite decimal'):
             _env_positive_decimal('PRAXIS_TEST_LIMIT')
+
+
+class TestProjectedPosition:
+
+    def test_adds_buy_order_to_current_position(self) -> None:
+        positions = {'t1': _position('1')}
+        context = _enter_context(
+            config=_nexus_config(), state=_instance_state(),
+            order_side=OrderSide.BUY, order_size=Decimal('0.5'),
+        )
+
+        assert _projected_position(positions, context) == Decimal('1.5')
+
+    def test_projects_from_empty_positions(self) -> None:
+        context = _enter_context(
+            config=_nexus_config(), state=_instance_state(),
+            order_side=OrderSide.BUY, order_size=Decimal('0.5'),
+        )
+
+        assert _projected_position({}, context) == Decimal('0.5')
+
+    def test_sell_reduces_and_floors_at_zero(self) -> None:
+        positions = {'t1': _position('0.3')}
+        context = _enter_context(
+            config=_nexus_config(), state=_instance_state(),
+            order_side=OrderSide.SELL, order_size=Decimal('0.5'),
+        )
+
+        assert _projected_position(positions, context) == Decimal('0')
+
+    def test_ignores_other_symbols(self) -> None:
+        positions = {'t1': _position('1', symbol='ETHUSDT')}
+        context = _enter_context(
+            config=_nexus_config(), state=_instance_state(),
+            order_side=OrderSide.BUY, order_size=Decimal('0.5'),
+        )
+
+        assert _projected_position(positions, context) == Decimal('0.5')
+
+
+class TestPlatformLimitsMaxPosition:
+
+    def test_denies_when_projected_position_exceeds_cap(self) -> None:
+        config = _nexus_config()
+        state = _instance_state()
+        pipeline = _build_validation_pipeline(
+            config, _capital_controller(),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1')}),
+            platform_limits=PlatformLimitsStageLimits(max_position=Decimal('1')),
+        )
+
+        decision = pipeline.validate(_enter_context(config=config, state=state))
+
+        assert not decision.allowed
+        assert decision.failed_stage == ValidationStage.PLATFORM_LIMITS
+
+    def test_allows_when_projected_position_within_cap(self) -> None:
+        config = _nexus_config()
+        state = _instance_state()
+        pipeline = _build_validation_pipeline(
+            config, _capital_controller(),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('0.5')}),
+            platform_limits=PlatformLimitsStageLimits(max_position=Decimal('1')),
+        )
+
+        decision = pipeline.validate(_enter_context(config=config, state=state))
+
+        assert decision.allowed
+
+    def test_unset_cap_ignores_projected_position(self) -> None:
+        config = _nexus_config()
+        state = _instance_state()
+        pipeline = _build_validation_pipeline(
+            config, _capital_controller(),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1000')}),
+        )
+
+        decision = pipeline.validate(_enter_context(config=config, state=state))
+
+        assert decision.allowed

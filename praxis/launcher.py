@@ -417,10 +417,56 @@ def _default_health_snapshot() -> HealthStageSnapshot:
     )
 
 
-def _default_platform_snapshot() -> PlatformLimitsStageSnapshot:
-    '''Return an empty `PlatformLimitsStageSnapshot` for MMVP defaults.'''
+def _default_platform_snapshot(
+    _context: ValidationRequestContext,
+) -> PlatformLimitsStageSnapshot:
+    '''Return an empty `PlatformLimitsStageSnapshot` (MMVP-lenient default).'''
 
     return PlatformLimitsStageSnapshot()
+
+
+def _projected_position(
+    positions: dict[str, Position],
+    context: ValidationRequestContext,
+) -> Decimal:
+    '''Return the account's projected base position for the context's order.
+
+    Sums current open positions in the order's symbol (long positive, short
+    negative) and applies the pending order's signed size, so the
+    platform-limits stage gates the position the order would leave, not the
+    position before it. Floored at zero.
+    '''
+
+    current = sum(
+        (position.size if position.side is OrderSide.BUY else -position.size
+         for position in positions.values() if position.symbol == context.symbol),
+        _ZERO,
+    )
+    delta = context.order_size or _ZERO
+
+    if context.order_side is OrderSide.SELL:
+        delta = -delta
+
+    projected = current + delta
+
+    return projected if projected > _ZERO else _ZERO
+
+
+def _build_platform_snapshot_provider(
+    positions: dict[str, Position],
+) -> Callable[[ValidationRequestContext], PlatformLimitsStageSnapshot]:
+    '''Return a provider that projects the account position for each order.
+
+    Args:
+        positions: The account's live open positions keyed by trade_id.
+    '''
+
+    def provider(context: ValidationRequestContext) -> PlatformLimitsStageSnapshot:
+        return PlatformLimitsStageSnapshot(
+            projected_position=_projected_position(positions, context),
+        )
+
+    return provider
 
 
 def _default_price_snapshot() -> PriceCheckSnapshot | None:
@@ -467,7 +513,7 @@ def _build_validation_pipeline(
     health_snapshot_provider: Callable[[], HealthStageSnapshot] = (
         _default_health_snapshot
     ),
-    platform_snapshot_provider: Callable[[], PlatformLimitsStageSnapshot] = (
+    platform_snapshot_provider: Callable[[ValidationRequestContext], PlatformLimitsStageSnapshot] = (
         _default_platform_snapshot
     ),
     price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
@@ -507,8 +553,9 @@ def _build_validation_pipeline(
             mutable `CapitalState` from `sequencer.instance_state.capital`.
         health_snapshot_provider: Callable returning the current health
             snapshot. Defaults to a neutral-healthy snapshot.
-        platform_snapshot_provider: Callable returning the current
-            platform-limits snapshot. Defaults to an empty snapshot.
+        platform_snapshot_provider: Callable returning the platform-limits
+            snapshot for a request context, used to project the order's
+            resulting position. Defaults to an empty snapshot.
         price_snapshot_provider: Callable returning the current
             price-check snapshot. Defaults to `None`.
         platform_limits: Operator-configured platform caps for the
@@ -556,7 +603,7 @@ def _build_validation_pipeline(
         return validate_platform_limits_stage(
             context,
             platform_limits,
-            platform_snapshot_provider(),
+            platform_snapshot_provider(context),
         )
 
     validators: dict[ValidationStage, StageValidator] = {
@@ -2902,8 +2949,10 @@ class Launcher:
         capital_controller.reconcile_at_boot(positions=state.positions.values())
         pipeline = _build_validation_pipeline(
             nexus_instance_config, capital_controller,
+            platform_snapshot_provider=_build_platform_snapshot_provider(state.positions),
             platform_limits=PlatformLimitsStageLimits(
                 max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),
+                max_position=_env_positive_decimal('PRAXIS_MAX_POSITION'),
             ),
             clock=self._clock,
         )
