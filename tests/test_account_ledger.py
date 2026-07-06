@@ -14,11 +14,11 @@ _TS = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _fill(side: OrderSide, qty: str, price: str, fee: str, tid: str = 'a',
-          fee_asset: str = 'USDT') -> FillReceived:
+          fee_asset: str = 'USDT', symbol: str = 'BTCUSDT') -> FillReceived:
     return FillReceived(
         account_id='acc', timestamp=_TS, client_order_id=f'c-{side.value}-{qty}-{price}',
         venue_order_id='v', venue_trade_id='vt', trade_id=tid, command_id='cmd',
-        symbol='BTCUSDT', side=side, qty=Decimal(qty), price=Decimal(price),
+        symbol=symbol, side=side, qty=Decimal(qty), price=Decimal(price),
         fee=Decimal(fee), fee_asset=fee_asset, is_maker=False,
     )
 
@@ -462,3 +462,10 @@ def test_event_for_a_different_account_raises():
 
     with pytest.raises(ValueError, match='routed to the ledger'):
         ledger.apply(RegisterAccount(account_id='other-acc', timestamp=_TS))
+
+
+def test_fill_for_unsupported_symbol_raises():
+    ledger = _ledger()
+
+    with pytest.raises(NotImplementedError, match='the ledger books only BTCUSDT'):
+        ledger.apply(_fill(OrderSide.BUY, '1', '100', '0', symbol='ETHUSDT'))

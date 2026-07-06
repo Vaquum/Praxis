@@ -43,6 +43,7 @@ _log = logging.getLogger(__name__)
 _ZERO = Decimal(0)
 _QUOTE_ASSET = 'USDT'
 _BASE_ASSET = 'BTC'
+_SYMBOL = 'BTCUSDT'
 
 
 @dataclass
@@ -213,6 +214,10 @@ class AccountLedger:
         self._registered = True
 
     def _on_fill_received(self, event: FillReceived) -> None:
+
+        if event.symbol != _SYMBOL:
+            msg = f'symbol {event.symbol!r} not supported; the ledger books only {_SYMBOL}'
+            raise NotImplementedError(msg)
 
         if event.side is OrderSide.BUY:
             entry, fee_value = self._buy_entry(event)
