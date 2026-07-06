@@ -28,6 +28,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
+    FundTransaction,
     OrderCanceled,
     OrderExpired,
     OrderRejected,
@@ -2742,3 +2743,20 @@ class TestAccountLedgerWiring:
 
         registrations = [event for _seq, event in events if isinstance(event, RegisterAccount)]
         assert len(registrations) == 1
+
+    @pytest.mark.asyncio
+    async def test_replay_books_fund_transaction(
+        self, mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        mgr.replay_events(_ACCT, [
+            (1, RegisterAccount(account_id=_ACCT, timestamp=_TS, cost_basis_method='FIFO')),
+            (2, FundTransaction(
+                account_id=_ACCT, timestamp=_TS, fund_transaction_id='f-1',
+                amount=Decimal('1000'), direction='DEPOSIT',
+            )),
+        ])
+        ledger = mgr._accounts[_ACCT].account_ledger
+
+        assert ledger.balances[Account.CASH_USDT] == Decimal('1000')
+        assert ledger.balances[Account.CONTRIBUTIONS] == Decimal('1000')

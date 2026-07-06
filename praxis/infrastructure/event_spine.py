@@ -31,6 +31,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FundTransaction,
     MarkSampled,
     OrderAcked,
     OrderCanceled,
@@ -112,6 +113,7 @@ _EVENT_REGISTRY: dict[str, type] = {
         OutcomeReplayAbandoned,
         MarkSampled,
         RegisterAccount,
+        FundTransaction,
     )
 }
 

@@ -55,15 +55,16 @@ class JournalEntry:
 
     Args:
         timestamp: Event time, timezone-aware.
-        trade_id: Trade correlation identifier the entry posts against.
-        command_id: Originating command identifier.
+        source_event_type: Type name of the spine event this entry derives
+            from, e.g. `'FillReceived'` or `'FundTransaction'`.
+        source_event_id: Stable identifier of that source event.
         memo: Short human-readable description of the entry.
         lines: The debit and credit lines; total debits equal total credits.
     '''
 
     timestamp: datetime
-    trade_id: str
-    command_id: str
+    source_event_type: str
+    source_event_id: str
     memo: str
     lines: tuple[JournalLine, ...]
 

@@ -33,6 +33,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FundTransaction,
     OrderCanceled,
     OrderExpired,
     OrderQuoteNativeFilled,
@@ -419,13 +420,14 @@ class ExecutionManager:
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Apply an event to the account's trading-state and ledger projections.
 
-        `RegisterAccount` books into the ledger only; `FillReceived` and
-        `TradeClosed` book into both; every other event advances the trading
-        state alone. The ledger is a secondary projection, so a projection
-        failure is logged and never propagated into the trading path.
+        `RegisterAccount` and `FundTransaction` book into the ledger only;
+        `FillReceived` and `TradeClosed` book into both; every other event
+        advances the trading state alone. The ledger is a secondary
+        projection, so a projection failure is logged and never propagated
+        into the trading path.
         '''
 
-        if isinstance(event, RegisterAccount):
+        if isinstance(event, RegisterAccount | FundTransaction):
             self._project_to_ledger(runtime, event)
 
             return
@@ -462,7 +464,7 @@ class ExecutionManager:
 
         booked = [
             event for _seq, event in events
-            if isinstance(event, RegisterAccount | FillReceived | TradeClosed)
+            if isinstance(event, RegisterAccount | FillReceived | TradeClosed | FundTransaction)
         ]
 
         if booked and not any(isinstance(event, RegisterAccount) for event in booked):

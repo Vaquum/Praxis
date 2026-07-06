@@ -19,6 +19,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FundTransaction,
     MarkSampled,
     OrderAcked,
     OrderCanceled,
@@ -110,6 +111,10 @@ _ALL_EVENTS: list[Event] = [
     RegisterAccount(
         account_id=_ACCT, timestamp=_TS,
         cost_basis_method='AVERAGE',
+    ),
+    FundTransaction(
+        account_id=_ACCT, timestamp=_TS,
+        fund_transaction_id='fund-1', amount=Decimal('1000'), direction='DEPOSIT',
     ),
 
 ]

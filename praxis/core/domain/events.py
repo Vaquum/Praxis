@@ -14,12 +14,13 @@ from datetime import datetime
 from decimal import Decimal
 
 from praxis.core.domain._require_str import _require_str
-from praxis.core.domain.enums import CostBasisMethod, OrderSide, OrderType, TradeStatus
+from praxis.core.domain.enums import CostBasisMethod, FundDirection, OrderSide, OrderType, TradeStatus
 
 __all__ = [
     'CommandAccepted',
     'Event',
     'FillReceived',
+    'FundTransaction',
     'MarkSampled',
     'OrderAcked',
     'OrderCanceled',
@@ -38,6 +39,7 @@ __all__ = [
 
 _ZERO = Decimal(0)
 _COST_BASIS_METHOD_VALUES = frozenset(method.value for method in CostBasisMethod)
+_FUND_DIRECTION_VALUES = frozenset(direction.value for direction in FundDirection)
 
 
 @dataclass(frozen=True)
@@ -499,6 +501,41 @@ class RegisterAccount(_EventBase):
 
 
 @dataclass(frozen=True)
+class FundTransaction(_EventBase):
+
+    '''
+    Represent a deposit or withdrawal of quote-asset funds on an account.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        fund_transaction_id (str): Stable unique identifier for the transaction.
+        amount (Decimal): Quote-asset amount moved, must be positive and finite.
+        direction (str): 'DEPOSIT' or 'WITHDRAWAL'.
+    '''
+
+    fund_transaction_id: str
+    amount: Decimal
+    direction: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'fund_transaction_id', self.fund_transaction_id)
+
+        if not self.amount.is_finite() or self.amount <= _ZERO:
+            msg = f'{name}.amount must be a positive finite Decimal'
+            raise ValueError(msg)
+
+        if self.direction not in _FUND_DIRECTION_VALUES:
+            allowed = ', '.join(sorted(_FUND_DIRECTION_VALUES))
+            msg = f'{name}.direction must be one of {allowed}'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class TradeOutcomeProduced(_EventBase):
 
     '''
@@ -728,4 +765,5 @@ type Event = (
     | OutcomeReplayAbandoned
     | MarkSampled
     | RegisterAccount
+    | FundTransaction
 )

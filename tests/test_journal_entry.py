@@ -10,7 +10,10 @@ _TS = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _entry(lines: list[JournalLine]) -> JournalEntry:
-    return JournalEntry(timestamp=_TS, trade_id='a', command_id='cmd', memo='m', lines=tuple(lines))
+    return JournalEntry(
+        timestamp=_TS, source_event_type='FillReceived', source_event_id='vt-1',
+        memo='m', lines=tuple(lines),
+    )
 
 
 def test_balanced_entry_is_accepted():

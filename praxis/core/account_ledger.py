@@ -25,8 +25,14 @@ from decimal import Decimal
 from typing import Any
 
 from praxis.core.domain.chart_of_accounts import Account, is_debit_normal
-from praxis.core.domain.enums import CostBasisMethod, OrderSide
-from praxis.core.domain.events import Event, FillReceived, RegisterAccount, TradeClosed
+from praxis.core.domain.enums import CostBasisMethod, FundDirection, OrderSide
+from praxis.core.domain.events import (
+    Event,
+    FillReceived,
+    FundTransaction,
+    RegisterAccount,
+    TradeClosed,
+)
 from praxis.core.domain.journal_entry import JournalEntry, JournalLine
 from praxis.core.domain.trade_pnl import TradePnL
 
@@ -100,6 +106,9 @@ class AccountLedger:
 
         elif isinstance(event, TradeClosed):
             self._on_trade_closed(event)
+
+        elif isinstance(event, FundTransaction):
+            self._on_fund_transaction(event)
 
     def state(self) -> dict[str, Any]:
 
@@ -201,6 +210,33 @@ class AccountLedger:
 
             if trade is not None:
                 trade.closed = True
+
+    def _on_fund_transaction(self, event: FundTransaction) -> None:
+
+        if event.direction == FundDirection.DEPOSIT.value:
+            lines = [
+                JournalLine(Account.CASH_USDT, event.amount, _ZERO),
+                JournalLine(Account.CONTRIBUTIONS, _ZERO, event.amount),
+            ]
+            memo = 'deposit'
+
+        else:
+            lines = [
+                JournalLine(Account.CONTRIBUTIONS, event.amount, _ZERO),
+                JournalLine(Account.CASH_USDT, _ZERO, event.amount),
+            ]
+            memo = 'withdrawal'
+
+        entry = JournalEntry(
+            timestamp=event.timestamp,
+            source_event_type='FundTransaction',
+            source_event_id=event.fund_transaction_id,
+            memo=memo,
+            lines=tuple(lines),
+        )
+
+        with self._lock:
+            self._post_entry(entry)
 
     def _buy_entry(self, event: FillReceived) -> tuple[JournalEntry, Decimal]:
 
@@ -305,20 +341,24 @@ class AccountLedger:
 
         return JournalEntry(
             timestamp=event.timestamp,
-            trade_id=event.trade_id,
-            command_id=event.command_id,
+            source_event_type='FillReceived',
+            source_event_id=event.venue_trade_id,
             memo=memo,
             lines=tuple(lines),
         )
 
+    def _post_entry(self, entry: JournalEntry) -> None:
+
+        self.journal.append(entry)
+
+        for line in entry.lines:
+            delta = line.debit - line.credit if is_debit_normal(line.account) else line.credit - line.debit
+            self.balances[line.account] += delta
+
     def _post(self, entry: JournalEntry, trade_id: str, realized: Decimal, fee: Decimal) -> None:
 
         with self._lock:
-            self.journal.append(entry)
-
-            for line in entry.lines:
-                delta = line.debit - line.credit if is_debit_normal(line.account) else line.credit - line.debit
-                self.balances[line.account] += delta
+            self._post_entry(entry)
 
             trade = self.trades.setdefault(trade_id, TradePnL(trade_id))
             trade.realized_gross += realized

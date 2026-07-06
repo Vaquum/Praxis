@@ -6,8 +6,8 @@ import pytest
 
 from praxis.core.account_ledger import AccountLedger, CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account, is_debit_normal
-from praxis.core.domain.enums import OrderSide
-from praxis.core.domain.events import FillReceived, RegisterAccount, TradeClosed
+from praxis.core.domain.enums import FundDirection, OrderSide
+from praxis.core.domain.events import FillReceived, FundTransaction, RegisterAccount, TradeClosed
 
 _TS = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -342,3 +342,60 @@ def test_snapshot_is_json_serialisable():
     snapshot = ledger.to_snapshot(2, 1)
 
     assert json.loads(json.dumps(snapshot)) == snapshot
+
+
+def _fund(direction: FundDirection, amount: str, tx: str = 'f-1') -> FundTransaction:
+    return FundTransaction(
+        account_id='acc', timestamp=_TS, fund_transaction_id=tx,
+        amount=Decimal(amount), direction=direction.value,
+    )
+
+
+def test_deposit_credits_contributions_and_cash():
+    ledger = _ledger()
+    ledger.apply(_fund(FundDirection.DEPOSIT, '1000'))
+
+    assert ledger.balances[Account.CASH_USDT] == Decimal('1000')
+    assert ledger.balances[Account.CONTRIBUTIONS] == Decimal('1000')
+
+
+def test_withdrawal_debits_contributions_and_cash():
+    ledger = _ledger()
+    ledger.apply(_fund(FundDirection.DEPOSIT, '1000'))
+    ledger.apply(_fund(FundDirection.WITHDRAWAL, '300', tx='f-2'))
+
+    assert ledger.balances[Account.CASH_USDT] == Decimal('700')
+    assert ledger.balances[Account.CONTRIBUTIONS] == Decimal('700')
+
+
+def test_over_withdrawal_is_recorded_not_rejected():
+    ledger = _ledger()
+    ledger.apply(_fund(FundDirection.WITHDRAWAL, '500'))
+
+    assert ledger.balances[Account.CASH_USDT] == Decimal('-500')
+    assert ledger.balances[Account.CONTRIBUTIONS] == Decimal('-500')
+
+
+def test_fund_transaction_does_not_create_a_trade():
+    ledger = _ledger()
+    ledger.apply(_fund(FundDirection.DEPOSIT, '1000'))
+
+    assert ledger.trades == {}
+    assert len(ledger.journal) == 1
+    assert ledger.journal[0].source_event_type == 'FundTransaction'
+
+
+def test_fund_transaction_before_registration_raises():
+    ledger = AccountLedger('acc')
+
+    with pytest.raises(ValueError, match='not registered'):
+        ledger.apply(_fund(FundDirection.DEPOSIT, '1000'))
+
+
+def test_fund_transaction_round_trips_through_snapshot():
+    ledger = _ledger()
+    ledger.apply(_fund(FundDirection.DEPOSIT, '1000'))
+    restored = AccountLedger.from_snapshot(ledger.to_snapshot(1, 1))
+
+    assert restored.balances[Account.CASH_USDT] == Decimal('1000')
+    assert restored.balances[Account.CONTRIBUTIONS] == Decimal('1000')
