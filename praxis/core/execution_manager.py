@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 
 from praxis.core.account_ledger import AccountLedger
+from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.enums import (
     CostBasisMethod,
     ExecutionMode,
@@ -48,6 +49,7 @@ from praxis.core.domain.events import (
 from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
+from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
@@ -670,6 +672,48 @@ class ExecutionManager:
             raise AccountNotRegisteredError(msg)
 
         return runtime.trading_state.snapshot_positions()
+
+    def get_account_balances(self, account_id: str) -> dict[Account, Decimal]:
+        '''
+        Return a detached snapshot of the account-ledger balances.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[Account, Decimal]: Ledger balances by account.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return runtime.account_ledger.read_balances()
+
+    def get_account_trade_pnls(self, account_id: str) -> dict[str, TradePnL]:
+        '''
+        Return a detached snapshot of per-trade realized P&L for an account.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[str, TradePnL]: Per-trade realized P&L keyed by trade_id.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return runtime.account_ledger.read_trade_pnls()
 
     def get_trading_state(self, account_id: str) -> TradingState | None:
         '''

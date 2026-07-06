@@ -399,3 +399,24 @@ def test_fund_transaction_round_trips_through_snapshot():
 
     assert restored.balances[Account.CASH_USDT] == Decimal('1000')
     assert restored.balances[Account.CONTRIBUTIONS] == Decimal('1000')
+
+
+def test_read_balances_returns_a_detached_copy():
+    ledger = _ledger()
+    ledger.apply(_fund(FundDirection.DEPOSIT, '1000'))
+    balances = ledger.read_balances()
+    balances[Account.CASH_USDT] = Decimal('0')
+
+    assert ledger.balances[Account.CASH_USDT] == Decimal('1000')
+    assert ledger.read_balances()[Account.CASH_USDT] == Decimal('1000')
+
+
+def test_read_trade_pnls_returns_detached_copies():
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.1'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '110', '0.11'))
+    pnls = ledger.read_trade_pnls()
+    pnls['a'].realized_gross = Decimal('0')
+
+    assert ledger.trades['a'].realized_gross == Decimal('10')
+    assert ledger.read_trade_pnls()['a'].net == Decimal('9.79')

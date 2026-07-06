@@ -2760,3 +2760,29 @@ class TestAccountLedgerWiring:
 
         assert ledger.balances[Account.CASH_USDT] == Decimal('1000')
         assert ledger.balances[Account.CONTRIBUTIONS] == Decimal('1000')
+
+    @pytest.mark.asyncio
+    async def test_read_interface_returns_balances_and_trade_pnls(
+        self, mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        mgr.replay_events(_ACCT, [
+            (1, RegisterAccount(account_id=_ACCT, timestamp=_TS, cost_basis_method='FIFO')),
+            (2, self._fill()),
+        ])
+
+        balances = mgr.get_account_balances(_ACCT)
+        pnls = mgr.get_account_trade_pnls(_ACCT)
+
+        assert balances[Account.CRYPTO_BTC] == Decimal('100')
+        assert pnls[_TRADE].fees == Decimal('0.1')
+
+    @pytest.mark.asyncio
+    async def test_read_interface_raises_for_unknown_account(
+        self, mgr: ExecutionManager,
+    ) -> None:
+        with pytest.raises(AccountNotRegisteredError):
+            mgr.get_account_balances('nope')
+
+        with pytest.raises(AccountNotRegisteredError):
+            mgr.get_account_trade_pnls('nope')

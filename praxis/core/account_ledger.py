@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any
 
@@ -138,6 +138,20 @@ class AccountLedger:
                     for trade_id, lots in self._lots.items()
                 },
             }
+
+    def read_balances(self) -> dict[Account, Decimal]:
+
+        '''Return a copy of the current account balances by ledger account.'''
+
+        with self._lock:
+            return dict(self.balances)
+
+    def read_trade_pnls(self) -> dict[str, TradePnL]:
+
+        '''Return copies of the per-trade realized P&L, keyed by `trade_id`.'''
+
+        with self._lock:
+            return {trade_id: replace(trade) for trade_id, trade in self.trades.items()}
 
     def to_snapshot(self, last_applied_event_seq: int, epoch_id: int) -> dict[str, Any]:
 
