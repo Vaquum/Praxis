@@ -30,6 +30,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
+    MarkSampled,
     OrderCanceled,
     OrderExpired,
     OrderRejected,
@@ -38,6 +39,7 @@ from praxis.core.domain.events import (
     RegisterAccount,
     TradeOutcomeProduced,
 )
+from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.binance_urls import (
@@ -2515,3 +2517,23 @@ async def test_boot_sweep_keeps_locally_known_open_order(spine: EventSpine) -> N
 
     assert adapter.cancelled == []
     assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_start_registers_account_with_only_non_booking_history(spine: EventSpine) -> None:
+    await spine.append(MarkSampled(
+        account_id='acc-1', timestamp=_CREATED_AT, symbol='BTCUSDT', mark_price=Decimal('50000'),
+    ), 1)
+
+    adapter = cast(VenueAdapter, _InjectedVenueAdapter())
+    trading = Trading(
+        config=TradingConfig(epoch_id=1, account_credentials={'acc-1': ('key', 'secret')}),
+        event_spine=spine,
+        venue_adapter=adapter,
+    )
+    await trading.start()
+
+    ledger = trading.execution_manager._accounts['acc-1'].account_ledger
+    assert ledger.cost_basis_method is CostBasisMethod.FIFO
+
+    await trading.stop()

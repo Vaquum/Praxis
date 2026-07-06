@@ -1,4 +1,5 @@
 import json
+import threading
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -427,3 +428,30 @@ def test_base_asset_fee_not_smaller_than_qty_raises():
 
     with pytest.raises(ValueError, match='must be smaller than the filled qty'):
         ledger.apply(_fill(OrderSide.BUY, '1', '100', '1', fee_asset='BTC'))
+
+
+def test_concurrent_apply_and_read_never_observe_a_half_applied_event():
+    ledger = _ledger()
+    inconsistent: list[dict[Account, object]] = []
+
+    def read() -> None:
+        for _ in range(500):
+            balances = ledger.read_balances()
+
+            if balances[Account.CASH_USDT] != balances[Account.CONTRIBUTIONS]:
+                inconsistent.append(balances)
+
+    def write() -> None:
+        for index in range(500):
+            ledger.apply(_fund(FundDirection.DEPOSIT, '1', tx=f'd{index}'))
+            ledger.apply(_fund(FundDirection.WITHDRAWAL, '1', tx=f'w{index}'))
+
+    reader = threading.Thread(target=read)
+    writer = threading.Thread(target=write)
+    reader.start()
+    writer.start()
+    reader.join()
+    writer.join()
+
+    assert inconsistent == []
+    assert ledger.balances[Account.CASH_USDT] == Decimal('0')

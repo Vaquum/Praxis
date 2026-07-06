@@ -92,23 +92,25 @@ class AccountLedger:
                 account is registered.
         '''
 
-        if isinstance(event, RegisterAccount):
-            self._on_register_account(event)
+        with self._lock:
 
-            return
+            if isinstance(event, RegisterAccount):
+                self._on_register_account(event)
 
-        if not self._registered:
-            msg = f'account {self.account_id!r} not registered; apply RegisterAccount first'
-            raise ValueError(msg)
+                return
 
-        if isinstance(event, FillReceived):
-            self._on_fill_received(event)
+            if not self._registered:
+                msg = f'account {self.account_id!r} not registered; apply RegisterAccount first'
+                raise ValueError(msg)
 
-        elif isinstance(event, TradeClosed):
-            self._on_trade_closed(event)
+            if isinstance(event, FillReceived):
+                self._on_fill_received(event)
 
-        elif isinstance(event, FundTransaction):
-            self._on_fund_transaction(event)
+            elif isinstance(event, TradeClosed):
+                self._on_trade_closed(event)
+
+            elif isinstance(event, FundTransaction):
+                self._on_fund_transaction(event)
 
     def state(self) -> dict[str, Any]:
 
@@ -198,13 +200,12 @@ class AccountLedger:
 
     def _on_register_account(self, event: RegisterAccount) -> None:
 
-        with self._lock:
-            if self._registered:
-                msg = f'account {self.account_id!r} already registered; cost_basis_method is immutable'
-                raise ValueError(msg)
+        if self._registered:
+            msg = f'account {self.account_id!r} already registered; cost_basis_method is immutable'
+            raise ValueError(msg)
 
-            self.cost_basis_method = CostBasisMethod(event.cost_basis_method)
-            self._registered = True
+        self.cost_basis_method = CostBasisMethod(event.cost_basis_method)
+        self._registered = True
 
     def _on_fill_received(self, event: FillReceived) -> None:
 
@@ -219,11 +220,10 @@ class AccountLedger:
 
     def _on_trade_closed(self, event: TradeClosed) -> None:
 
-        with self._lock:
-            trade = self.trades.get(event.trade_id)
+        trade = self.trades.get(event.trade_id)
 
-            if trade is not None:
-                trade.closed = True
+        if trade is not None:
+            trade.closed = True
 
     def _on_fund_transaction(self, event: FundTransaction) -> None:
 
@@ -249,8 +249,7 @@ class AccountLedger:
             lines=tuple(lines),
         )
 
-        with self._lock:
-            self._post_entry(entry)
+        self._post_entry(entry)
 
     def _buy_entry(self, event: FillReceived) -> tuple[JournalEntry, Decimal]:
 
@@ -375,9 +374,8 @@ class AccountLedger:
 
     def _post(self, entry: JournalEntry, trade_id: str, realized: Decimal, fee: Decimal) -> None:
 
-        with self._lock:
-            self._post_entry(entry)
+        self._post_entry(entry)
 
-            trade = self.trades.setdefault(trade_id, TradePnL(trade_id))
-            trade.realized_gross += realized
-            trade.fees += fee
+        trade = self.trades.setdefault(trade_id, TradePnL(trade_id))
+        trade.realized_gross += realized
+        trade.fees += fee
