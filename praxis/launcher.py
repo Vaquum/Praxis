@@ -20,7 +20,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -429,6 +429,37 @@ def _default_price_snapshot() -> PriceCheckSnapshot | None:
     return None
 
 
+def _env_positive_decimal(name: str) -> Decimal | None:
+    '''Return a positive finite `Decimal` from environment variable `name`.
+
+    Args:
+        name: Environment variable holding the threshold.
+
+    Returns:
+        The parsed `Decimal`, or `None` when the variable is unset or empty.
+
+    Raises:
+        ValueError: The variable is set but is not a positive finite decimal.
+    '''
+
+    raw = os.environ.get(name)
+
+    if not raw:
+        return None
+
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as exc:
+        msg = f'{name} must be a decimal, got {raw!r}'
+        raise ValueError(msg) from exc
+
+    if not value.is_finite() or value <= _ZERO:
+        msg = f'{name} must be a positive finite decimal, got {raw!r}'
+        raise ValueError(msg)
+
+    return value
+
+
 def _build_validation_pipeline(
     nexus_config: NexusInstanceConfig,
     capital_controller: CapitalController,
@@ -442,6 +473,7 @@ def _build_validation_pipeline(
     price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
         _default_price_snapshot
     ),
+    platform_limits: PlatformLimitsStageLimits | None = None,
     clock: Callable[[], datetime] = _utc_now,
 ) -> ValidationPipeline:
     '''Build a six-stage `ValidationPipeline` for one account.
@@ -451,13 +483,15 @@ def _build_validation_pipeline(
     snapshot, platform-limits snapshot, price-check snapshot) is read on
     every call via the supplied providers.
 
-    MMVP defaults are deliberately lenient: `RiskStageLimits`,
-    `PlatformLimitsStageLimits`, and `HealthStagePolicy` are constructed
-    with all thresholds unset so each stage allows every action;
-    `PriceStageLimits` is derived from `nexus_config` and inherits the
-    same all-unset posture from `_build_nexus_instance_config`.
-    Operator-supplied limits are dialed in pre-live by passing a
-    pre-configured `nexus_config` and richer snapshot providers.
+    MMVP defaults are deliberately lenient: `RiskStageLimits` and
+    `HealthStagePolicy` are constructed with all thresholds unset so each
+    stage allows every action, and `PriceStageLimits` is derived from
+    `nexus_config` and inherits the same all-unset posture from
+    `_build_nexus_instance_config`. `PlatformLimitsStageLimits` is supplied
+    by the caller (empty by default), so operator-configured platform caps
+    such as `max_order_notional` are enforced when set. Operator-supplied
+    limits are dialed in pre-live by passing configured limits and richer
+    snapshot providers.
 
     Intake hooks are built once via `build_default_intake_hooks` so the
     duplicate-order window state is preserved across ticks. Both
@@ -477,6 +511,8 @@ def _build_validation_pipeline(
             platform-limits snapshot. Defaults to an empty snapshot.
         price_snapshot_provider: Callable returning the current
             price-check snapshot. Defaults to `None`.
+        platform_limits: Operator-configured platform caps for the
+            platform-limits stage. Defaults to an empty (all-unset) limit set.
         clock: Source of UTC time for the duplicate-order and order-rate
             intake hooks; a replay run injects its cursor so these gate
             on simulated time rather than wall time.
@@ -488,7 +524,7 @@ def _build_validation_pipeline(
     intake_hooks = build_default_intake_hooks(nexus_config, now_fn=clock)
     risk_limits = RiskStageLimits()
     price_limits = build_price_stage_limits_from_config(nexus_config)
-    platform_limits = PlatformLimitsStageLimits()
+    platform_limits = platform_limits if platform_limits is not None else PlatformLimitsStageLimits()
     health_policy = HealthStagePolicy()
 
     def intake(context: ValidationRequestContext) -> ValidationDecision:
@@ -2865,7 +2901,11 @@ class Launcher:
         capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
         pipeline = _build_validation_pipeline(
-            nexus_instance_config, capital_controller, clock=self._clock,
+            nexus_instance_config, capital_controller,
+            platform_limits=PlatformLimitsStageLimits(
+                max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),
+            ),
+            clock=self._clock,
         )
         positions_lock = threading.Lock()
         command_registry_lock = threading.Lock()

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.capital_state import CapitalState
 from nexus.core.domain.enums import OrderSide
@@ -11,6 +13,7 @@ from nexus.core.domain.instance_state import InstanceState
 from nexus.core.stp_mode import STPMode
 from nexus.core.validator import (
     HealthStageSnapshot,
+    PlatformLimitsStageLimits,
     PriceCheckSnapshot,
     PriceStageLimits,
     ValidationAction,
@@ -21,7 +24,7 @@ from nexus.core.validator import (
 )
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 
-from praxis.launcher import _build_validation_pipeline
+from praxis.launcher import _build_validation_pipeline, _env_positive_decimal
 
 
 def _nexus_config(
@@ -246,3 +249,74 @@ def test_decision_type_returned_is_validation_decision() -> None:
     )
 
     assert isinstance(result, ValidationDecision)
+
+
+class TestPlatformLimitsMaxOrderNotional:
+
+    def test_denies_when_order_notional_exceeds_cap(self) -> None:
+        config = _nexus_config()
+        state = _instance_state()
+        pipeline = _build_validation_pipeline(
+            config, _capital_controller(),
+            platform_limits=PlatformLimitsStageLimits(max_order_notional=Decimal('50')),
+        )
+
+        decision = pipeline.validate(
+            _enter_context(config=config, state=state, order_notional=Decimal('100')),
+        )
+
+        assert not decision.allowed
+        assert decision.failed_stage == ValidationStage.PLATFORM_LIMITS
+
+    def test_allows_when_order_notional_within_cap(self) -> None:
+        config = _nexus_config()
+        state = _instance_state()
+        pipeline = _build_validation_pipeline(
+            config, _capital_controller(),
+            platform_limits=PlatformLimitsStageLimits(max_order_notional=Decimal('50')),
+        )
+
+        decision = pipeline.validate(
+            _enter_context(config=config, state=state, order_notional=Decimal('10')),
+        )
+
+        assert decision.allowed
+
+    def test_unset_cap_allows_any_notional(self) -> None:
+        config = _nexus_config()
+        state = _instance_state()
+        pipeline = _build_validation_pipeline(config, _capital_controller())
+
+        decision = pipeline.validate(
+            _enter_context(
+                config=config, state=state,
+                order_notional=Decimal('1000'), strategy_budget=Decimal('100000'),
+            ),
+        )
+
+        assert decision.allowed
+
+
+class TestEnvPositiveDecimal:
+
+    def test_returns_none_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv('PRAXIS_TEST_LIMIT', raising=False)
+
+        assert _env_positive_decimal('PRAXIS_TEST_LIMIT') is None
+
+    def test_parses_a_positive_decimal(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv('PRAXIS_TEST_LIMIT', '2500.50')
+
+        assert _env_positive_decimal('PRAXIS_TEST_LIMIT') == Decimal('2500.50')
+
+    def test_rejects_a_non_decimal(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv('PRAXIS_TEST_LIMIT', 'abc')
+
+        with pytest.raises(ValueError, match='must be a decimal'):
+            _env_positive_decimal('PRAXIS_TEST_LIMIT')
+
+    def test_rejects_a_non_positive_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv('PRAXIS_TEST_LIMIT', '0')
+
+        with pytest.raises(ValueError, match='must be a positive finite decimal'):
+            _env_positive_decimal('PRAXIS_TEST_LIMIT')
