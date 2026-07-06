@@ -70,6 +70,10 @@ class JournalEntry:
 
     def __post_init__(self) -> None:
 
+        if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
+            msg = 'JournalEntry.timestamp must be timezone-aware'
+            raise ValueError(msg)
+
         if not self.lines:
             msg = 'JournalEntry must have at least one line'
             raise ValueError(msg)

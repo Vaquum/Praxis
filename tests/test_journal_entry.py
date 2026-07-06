@@ -46,3 +46,15 @@ def test_negative_line_is_rejected():
 def test_empty_entry_is_rejected():
     with pytest.raises(ValueError, match='at least one line'):
         _entry([])
+
+
+def test_naive_timestamp_is_rejected():
+    with pytest.raises(ValueError, match='timezone-aware'):
+        JournalEntry(
+            timestamp=datetime(2026, 1, 1), source_event_type='FillReceived',
+            source_event_id='vt-1', memo='m',
+            lines=(
+                JournalLine(Account.CASH_USDT, Decimal('1'), Decimal('0')),
+                JournalLine(Account.CRYPTO_BTC, Decimal('0'), Decimal('1')),
+            ),
+        )
