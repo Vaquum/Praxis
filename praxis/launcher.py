@@ -34,6 +34,7 @@ from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
 from nexus.core.health_loop import HealthLoop
+from nexus.core.mode_controller import ModeController
 from nexus.core.mtm_loop import MtmLoop
 from nexus.core.outcome_loop import OutcomeLoop
 from nexus.core.stp_mode import STPMode
@@ -341,6 +342,7 @@ def _build_health_loop(
     account_id: str,
     interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
     state_store: StateStore | None = None,
+    mode_controller: ModeController | None = None,
 ) -> HealthLoop:
     '''Build a per-account `HealthLoop` wired to Praxis health pulls.
 
@@ -397,6 +399,7 @@ def _build_health_loop(
         state=state,
         interval_seconds=interval_seconds,
         rolling_loss_refresher=rolling_loss_refresher,
+        mode_controller=mode_controller,
     )
 
 
@@ -2103,6 +2106,7 @@ class _NexusRuntime:
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
     health_loop: HealthLoop
+    mode_controller: ModeController
     snapshot_scheduler: SnapshotScheduler
     mtm_loop: MtmLoop
     unknown_submission_monitor: _UnknownSubmissionMonitor
@@ -2966,6 +2970,7 @@ class Launcher:
             )
             raise RuntimeError(msg)
         state.risk.lock = positions_lock
+        mode_controller = ModeController(state, positions_lock, clock=self._clock)
         state_store.attach_snapshot_locks(
             _build_state_snapshot_locks(state, positions_lock, capital_controller),
         )
@@ -3404,6 +3409,7 @@ class Launcher:
             state=state,
             account_id=inst.account_id,
             state_store=state_store,
+            mode_controller=mode_controller,
         )
 
         snapshot_interval = _positive_float_env(
@@ -3465,6 +3471,7 @@ class Launcher:
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
             health_loop=health_loop,
+            mode_controller=mode_controller,
             snapshot_scheduler=snapshot_scheduler,
             mtm_loop=mtm_loop,
             unknown_submission_monitor=unknown_submission_monitor,

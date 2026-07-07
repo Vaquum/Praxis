@@ -6,6 +6,7 @@ wired) is already exercised by `test_launcher_outbound_wiring`.
 
 from __future__ import annotations
 
+import threading
 import time
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -13,6 +14,7 @@ from unittest.mock import MagicMock
 from nexus.core.domain.enums import OperationalMode
 from nexus.core.domain.instance_state import InstanceState
 from nexus.core.health_loop import HealthLoop
+from nexus.core.mode_controller import ModeController
 
 from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.launcher import _build_health_loop
@@ -73,6 +75,23 @@ def test_health_loop_transition_updates_instance_state_mode() -> None:
 
     assert state.mode.mode == OperationalMode.HALTED
     assert state.mode.trigger == 'health'
+
+
+def test_build_health_loop_routes_through_mode_controller() -> None:
+    '''A manual hold on the controller survives a healthy tick via the loop.'''
+
+    state = _state()
+    controller = ModeController(state, threading.Lock())
+    controller.set_manual_halt('manual stop')
+    trading = _trading_returning(_healthy_snapshot())
+
+    loop = _build_health_loop(
+        trading, state, account_id='acct-pt54', mode_controller=controller,
+    )
+    loop.tick_once()
+
+    assert state.mode.mode == OperationalMode.HALTED
+    assert state.mode.trigger == 'manual'
     trading.get_health_snapshot_sync.assert_called_once_with('acct-pt54')
 
 
