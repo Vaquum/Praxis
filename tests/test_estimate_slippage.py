@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from praxis.core.domain.enums import OrderSide
-from praxis.core.estimate_slippage import estimate_slippage
+from praxis.core.estimate_slippage import estimate_slippage, estimate_slippage_for_quote
 from praxis.infrastructure.venue_adapter import OrderBookLevel, OrderBookSnapshot
 
 
@@ -80,3 +80,27 @@ def test_estimate_slippage_partial_depth_logs_warning(
     messages = [r.message for r in caplog.records]
     assert any('book depth insufficient:' in message for message in messages)
     assert any('symbol=BTCUSDT' in message for message in messages)
+
+
+def test_quote_slippage_buy_walks_ask_levels() -> None:
+    book = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=Decimal('100'), qty=Decimal('5')),),
+        asks=(
+            OrderBookLevel(price=Decimal('101'), qty=Decimal('1')),
+            OrderBookLevel(price=Decimal('102'), qty=Decimal('2')),
+        ),
+        last_update_id=1,
+    )
+
+    estimate = estimate_slippage_for_quote(book, Decimal('300'), OrderSide.BUY)
+
+    assert estimate is not None
+    assert estimate.mid_price == Decimal('100.5')
+    assert estimate.simulated_vwap > Decimal('101')
+    assert estimate.slippage_estimate_bps > Decimal('0')
+
+
+def test_quote_slippage_none_on_empty_book() -> None:
+    book = OrderBookSnapshot(bids=(), asks=(), last_update_id=1)
+
+    assert estimate_slippage_for_quote(book, Decimal('100'), OrderSide.BUY) is None
