@@ -19,7 +19,7 @@ import signal
 import sys
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -128,7 +128,9 @@ from praxis.paper.paper_report import build_paper_report
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
-from praxis.infrastructure.venue_adapter import VenueAdapter
+from praxis.infrastructure.book_cache import BookCache, build_price_snapshot
+from praxis.infrastructure.book_poller import BookPoller
+from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
 
@@ -154,6 +156,7 @@ _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
 _LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
 _OPS_CLOSE_TIMEOUT_SECONDS = 60
+_DEFAULT_BOOK_POLL_INTERVAL_SECONDS = 2.0
 
 
 def _utc_now() -> datetime:
@@ -484,7 +487,7 @@ def _build_platform_snapshot_provider(
     return provider
 
 
-def _default_price_snapshot() -> PriceCheckSnapshot | None:
+def _default_price_snapshot(_context: ValidationRequestContext) -> PriceCheckSnapshot | None:
     '''Return `None`; MMVP `PriceStageLimits` are all unset.'''
 
     return None
@@ -531,7 +534,7 @@ def _build_validation_pipeline(
     platform_snapshot_provider: Callable[[ValidationRequestContext], PlatformLimitsStageSnapshot] = (
         _default_platform_snapshot
     ),
-    price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
+    price_snapshot_provider: Callable[[ValidationRequestContext], PriceCheckSnapshot | None] = (
         _default_price_snapshot
     ),
     platform_limits: PlatformLimitsStageLimits | None = None,
@@ -599,7 +602,7 @@ def _build_validation_pipeline(
         return validate_price_stage(
             context,
             price_limits,
-            price_snapshot_provider(),
+            price_snapshot_provider(context),
         )
 
     def capital(context: ValidationRequestContext) -> ValidationDecision:
@@ -2244,6 +2247,8 @@ class Launcher:
         self._healthz_runner: web.AppRunner | None = None
         self._paper_accounts: dict[str, _PaperAccount] | None = None
         self._mark_samplers: list[MarkSampler] = []
+        self._book_cache = BookCache()
+        self._book_pollers: list[BookPoller] = []
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
@@ -2266,6 +2271,7 @@ class Launcher:
         self._start_nexus_instances()
         self._start_healthz()
         self._start_mark_samplers()
+        self._start_book_pollers()
 
         _log.info('all nexus instances started', extra={'count': len(self._nexus_threads)})
 
@@ -3011,6 +3017,87 @@ class Launcher:
         else:
             self._mark_samplers = []
 
+    def _build_price_snapshot_provider(
+        self,
+    ) -> Callable[[ValidationRequestContext], PriceCheckSnapshot | None]:
+        '''Return a provider reading the cached book for the order's symbol.'''
+
+        def provider(context: ValidationRequestContext) -> PriceCheckSnapshot | None:
+            return build_price_snapshot(self._book_cache, context.symbol, self._clock())
+
+        return provider
+
+    def _start_book_pollers(self) -> None:
+        '''Start one order-book poller per account on the launcher loop.
+
+        Best-effort: a start failure is logged and leaves trading unaffected,
+        since an absent book only makes a configured price limit reject.
+        '''
+
+        if self._loop is None or self._venue_adapter is None:
+            return
+
+        future = asyncio.run_coroutine_threadsafe(self._build_book_pollers(), self._loop)
+
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - book polling must never abort trading
+            future.cancel()
+            _log.exception('book poller startup failed; the build can retry')
+        else:
+            _log.info('book pollers started', extra={'count': len(self._book_pollers)})
+
+    async def _build_book_pollers(self) -> None:
+        venue_adapter = self._venue_adapter
+
+        if venue_adapter is None or self._book_pollers:
+            return
+
+        pollers: list[BookPoller] = []
+
+        try:
+            for account in self._paper_account_map().values():
+
+                def fetch(symbol: str = account.symbol) -> Awaitable[OrderBookSnapshot]:
+                    return venue_adapter.query_order_book(symbol)
+
+                poller = BookPoller(
+                    symbol=account.symbol, fetch=fetch, cache=self._book_cache,
+                    clock=self._clock, interval_seconds=_DEFAULT_BOOK_POLL_INTERVAL_SECONDS,
+                )
+                pollers.append(poller)
+                poller.start()
+
+        except Exception:
+            for poller in pollers:
+                await poller.stop()
+
+            raise
+
+        self._book_pollers = pollers
+
+    def _stop_book_pollers(self) -> None:
+        '''Stop every book poller; best-effort during shutdown.'''
+
+        if self._loop is None or not self._book_pollers:
+            return
+
+        pollers = self._book_pollers
+
+        async def _stop_all() -> None:
+            for poller in pollers:
+                await poller.stop()
+
+        future = asyncio.run_coroutine_threadsafe(_stop_all(), self._loop)
+
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - best effort during shutdown
+            future.cancel()
+            _log.exception('book poller shutdown failed; keeping references for retry')
+        else:
+            self._book_pollers = []
+
     async def _healthz_handler(self, _request: web.Request) -> web.Response:
         failures: list[str] = []
 
@@ -3055,6 +3142,7 @@ class Launcher:
 
     def _shutdown(self) -> None:
         self._stop_mark_samplers()
+        self._stop_book_pollers()
 
         for thread in self._nexus_threads:
             thread.join(timeout=30)
@@ -3214,6 +3302,7 @@ class Launcher:
                 max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),
                 max_position=_env_positive_decimal('PRAXIS_MAX_POSITION'),
             ),
+            price_snapshot_provider=self._build_price_snapshot_provider(),
             clock=self._clock,
         )
         positions_lock = threading.Lock()

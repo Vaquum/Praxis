@@ -165,7 +165,7 @@ class TestBuildValidationPipeline:
 
         snapshots: list[PriceCheckSnapshot] = []
 
-        def provider() -> PriceCheckSnapshot:
+        def provider(_context: ValidationRequestContext) -> PriceCheckSnapshot:
             snapshot = PriceCheckSnapshot(
                 now_ms=1_700_000_000_000,
                 book_timestamp_ms=1_700_000_000_000,
@@ -189,7 +189,7 @@ class TestBuildValidationPipeline:
         config = _nexus_config(max_spread_bps=Decimal('10'))
         state = _instance_state()
 
-        def provider() -> PriceCheckSnapshot:
+        def provider(_context: ValidationRequestContext) -> PriceCheckSnapshot:
             return PriceCheckSnapshot(spread_bps=Decimal('25'))
 
         pipeline = _build_validation_pipeline(
