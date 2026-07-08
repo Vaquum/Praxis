@@ -8,6 +8,8 @@ prices from the control-plane Arrow volume via `ArrowPriceStore`.
 from __future__ import annotations
 
 import asyncio
+import hmac
+import json
 import logging
 import math
 import os
@@ -97,6 +99,8 @@ from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
     Event,
     MarkSampled,
+    OperatorHaltRequested,
+    OperatorResumeRequested,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
@@ -2236,6 +2240,8 @@ class Launcher:
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
         self._account_outcome_wiring_lock = threading.Lock()
+        self._nexus_runtimes: dict[str, _NexusRuntime] = {}
+        self._nexus_runtimes_lock = threading.Lock()
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -2602,6 +2608,9 @@ class Launcher:
         app = web.Application()
         app.router.add_get('/healthz', self._healthz_handler)
         app.router.add_get('/metrics', self._metrics_handler)
+        app.router.add_post('/ops/halt', self._ops_halt_handler)
+        app.router.add_post('/ops/resume', self._ops_resume_handler)
+        app.router.add_get('/ops/status', self._ops_status_handler)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host='0.0.0.0', port=port)  # noqa: S104
@@ -2674,6 +2683,139 @@ class Launcher:
             return web.json_response({'error': 'metrics_unavailable'}, status=500)
 
         return web.json_response({'account_id': account.account_id, **report})
+
+    def _ops_auth_error(self, request: web.Request) -> web.Response | None:
+        '''Return an error response when an `/ops` caller is not authorised.
+
+        Mutating operator routes are loopback-only and require a bearer
+        token matching `PRAXIS_OPS_TOKEN`; the routes stay disabled while
+        the variable is unset.
+        '''
+
+        if request.remote not in _LOOPBACK_HOSTS:
+            return web.json_response({'error': 'forbidden'}, status=403)
+
+        token = os.environ.get('PRAXIS_OPS_TOKEN')
+
+        if not token:
+            return web.json_response({'error': 'ops_not_configured'}, status=503)
+
+        expected = f'Bearer {token}'
+
+        if not hmac.compare_digest(request.headers.get('Authorization', ''), expected):
+            return web.json_response({'error': 'unauthorized'}, status=401)
+
+        return None
+
+    def _resolve_ops_runtime(self, request: web.Request) -> _NexusRuntime | None:
+        '''Return the running runtime for the request's account, or `None`.
+
+        The `account_id` query parameter selects the account; it defaults
+        to the sole running account when exactly one exists.
+        '''
+
+        with self._nexus_runtimes_lock:
+            runtimes = dict(self._nexus_runtimes)
+
+        account_id = request.query.get('account_id')
+
+        if account_id is None and len(runtimes) == 1:
+            account_id = next(iter(runtimes))
+
+        return runtimes.get(account_id) if account_id is not None else None
+
+    async def _ops_reason(self, request: web.Request, default: str) -> str:
+        raw = await request.text()
+
+        if not raw:
+            return default
+
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            return default
+
+        reason = body.get('reason') if isinstance(body, dict) else None
+
+        return reason if isinstance(reason, str) and reason.strip() else default
+
+    @staticmethod
+    def _ops_status_body(runtime: _NexusRuntime) -> dict[str, Any]:
+        holds = runtime.state.mode_holds
+
+        return {
+            'account_id': runtime.nexus_config.account_id,
+            'mode': runtime.state.mode.mode.value,
+            'trigger': runtime.state.mode.trigger,
+            'holds': {
+                'manual': holds.manual_hold.active,
+                'risk_daily_loss': holds.risk_daily_loss.active,
+                'risk_drawdown': holds.risk_drawdown.active,
+            },
+        }
+
+    async def _ops_status_handler(self, request: web.Request) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime = self._resolve_ops_runtime(request)
+
+        if runtime is None:
+            return web.json_response({'error': 'unknown_account'}, status=404)
+
+        return web.json_response(self._ops_status_body(runtime))
+
+    async def _ops_halt_handler(self, request: web.Request) -> web.Response:
+        return await self._apply_ops_action(request, halt=True)
+
+    async def _ops_resume_handler(self, request: web.Request) -> web.Response:
+        return await self._apply_ops_action(request, halt=False)
+
+    async def _apply_ops_action(self, request: web.Request, *, halt: bool) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime = self._resolve_ops_runtime(request)
+
+        if runtime is None:
+            return web.json_response({'error': 'unknown_account'}, status=404)
+
+        account_id = runtime.nexus_config.account_id
+        reason = await self._ops_reason(
+            request, 'operator halt' if halt else 'operator resume',
+        )
+
+        if halt:
+            runtime.mode_controller.set_manual_halt(reason)
+            event: Event = OperatorHaltRequested(
+                account_id=account_id, timestamp=self._clock(), reason=reason,
+            )
+
+        else:
+            runtime.mode_controller.clear_manual_halt()
+            event = OperatorResumeRequested(
+                account_id=account_id, timestamp=self._clock(), reason=reason,
+            )
+
+        try:
+            runtime.state_store.append_mutation(runtime.state)
+        except Exception:  # noqa: BLE001 - a halt that is not durable must fail loudly
+            _log.exception('ops action failed to persist')
+            return web.json_response({'error': 'persist_failed'}, status=500)
+
+        if self._event_spine is not None:
+            try:
+                await self._event_spine.append(
+                    event, epoch_id=self._trading_config.epoch_id,
+                )
+            except Exception:  # noqa: BLE001 - the audit trail is best-effort
+                _log.exception('ops audit event append failed')
+
+        return web.json_response(self._ops_status_body(runtime))
 
     def _start_mark_samplers(self) -> None:
         '''Start one paper-metrics mark sampler per account on the launcher loop.
@@ -2854,11 +2996,16 @@ class Launcher:
 
         try:
             runtime = self._build_nexus_runtime(inst, outcome_queue)
+            with self._nexus_runtimes_lock:
+                self._nexus_runtimes[inst.account_id] = runtime
             self._start_nexus_loops(runtime)
 
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
             self._stop_event.wait()
+
+            with self._nexus_runtimes_lock:
+                self._nexus_runtimes.pop(inst.account_id, None)
 
             runtime.health_loop.stop()
             runtime.mtm_loop.stop()
