@@ -7,7 +7,7 @@ import threading
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import aiosqlite
 import pytest
@@ -18,6 +18,8 @@ from nexus.core.domain.capital_state import CapitalState
 from nexus.core.domain.enums import OperationalMode
 from nexus.core.domain.instance_state import InstanceState
 from nexus.core.mode_controller import ModeController
+from praxis.core.domain.enums import OrderSide, OrderType
+from praxis.core.domain.position import Position
 from praxis.core.domain.events import OperatorHaltRequested, OperatorResumeRequested
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import VenueAdapter
@@ -177,3 +179,51 @@ async def test_unknown_account_is_not_found(tmp_path: Path, monkeypatch: pytest.
     response = await launcher._ops_status_handler(_request('/ops/status', method='GET'))
 
     assert response.status == 404
+
+
+@pytest.mark.asyncio
+async def test_cancel_all_aborts_working_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_OPS_TOKEN', _TOKEN)
+    launcher = _launcher(await _spine(), tmp_path)
+    _register_runtime(launcher)
+    launcher._trading = Mock()
+    launcher._trading.execution_manager.get_open_orders.return_value = {
+        'c1': Mock(command_id='cmd-1'),
+        'c2': Mock(command_id='cmd-1'),
+        'c3': Mock(command_id='cmd-2'),
+    }
+
+    response = await launcher._ops_cancel_all_handler(_request('/ops/cancel-all'))
+    body = json.loads(response.body)
+
+    assert response.status == 200
+    assert body['canceled'] == ['cmd-1', 'cmd-2']
+    assert launcher._trading.submit_abort.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_close_all_submits_market_exits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_OPS_TOKEN', _TOKEN)
+    launcher = _launcher(await _spine(), tmp_path)
+    _register_runtime(launcher)
+    trading = Mock()
+    trading.execution_manager.get_open_orders.return_value = {}
+    trading.pull_positions.return_value = {
+        ('t1', _ACCOUNT): Position(
+            account_id=_ACCOUNT, trade_id='t1', symbol='BTCUSDT',
+            side=OrderSide.BUY, qty=Decimal('2'), avg_entry_price=Decimal('100'),
+        ),
+    }
+    trading.submit_command = AsyncMock(return_value='exit-cmd')
+    launcher._trading = trading
+
+    response = await launcher._ops_close_all_handler(_request('/ops/close-all'))
+    body = json.loads(response.body)
+
+    assert response.status == 200
+    assert body['closed'] == [{'trade_id': 't1', 'command_id': 'exit-cmd', 'qty': '2'}]
+
+    kwargs = trading.submit_command.call_args.kwargs
+    assert kwargs['side'] is OrderSide.SELL
+    assert kwargs['order_type'] is OrderType.MARKET
+    assert kwargs['qty'] == Decimal('2')

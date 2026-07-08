@@ -94,7 +94,14 @@ from praxis.command_translator import (
     translate_order_type,
     translate_stp_mode,
 )
-from praxis.core.domain.enums import OrderSide as _PraxisOrderSide, OrderType
+from praxis.core.domain.enums import (
+    ExecutionMode,
+    MakerPreference,
+    OrderSide as _PraxisOrderSide,
+    OrderType,
+    STPMode as _PraxisSTPMode,
+)
+from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
     Event,
@@ -146,6 +153,7 @@ _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
 _LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
+_OPS_CLOSE_TIMEOUT_SECONDS = 60
 
 
 def _utc_now() -> datetime:
@@ -2610,6 +2618,8 @@ class Launcher:
         app.router.add_get('/metrics', self._metrics_handler)
         app.router.add_post('/ops/halt', self._ops_halt_handler)
         app.router.add_post('/ops/resume', self._ops_resume_handler)
+        app.router.add_post('/ops/cancel-all', self._ops_cancel_all_handler)
+        app.router.add_post('/ops/close-all', self._ops_close_all_handler)
         app.router.add_get('/ops/status', self._ops_status_handler)
         runner = web.AppRunner(app)
         await runner.setup()
@@ -2816,6 +2826,105 @@ class Launcher:
                 _log.exception('ops audit event append failed')
 
         return web.json_response(self._ops_status_body(runtime))
+
+    async def _ops_cancel_all_handler(self, request: web.Request) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime = self._resolve_ops_runtime(request)
+
+        if runtime is None:
+            return web.json_response({'error': 'unknown_account'}, status=404)
+
+        account_id = runtime.nexus_config.account_id
+        canceled = self._cancel_all_orders(account_id)
+
+        return web.json_response({'account_id': account_id, 'canceled': canceled})
+
+    async def _ops_close_all_handler(self, request: web.Request) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime = self._resolve_ops_runtime(request)
+
+        if runtime is None:
+            return web.json_response({'error': 'unknown_account'}, status=404)
+
+        account_id = runtime.nexus_config.account_id
+        canceled = self._cancel_all_orders(account_id)
+        closed = await self._close_all_positions(account_id)
+
+        return web.json_response(
+            {'account_id': account_id, 'canceled': canceled, 'closed': closed},
+        )
+
+    def _cancel_all_orders(self, account_id: str) -> list[str]:
+        '''Abort every working command for an account; returns the aborted ids.'''
+
+        if self._trading is None:
+            return []
+
+        command_ids = {
+            order.command_id
+            for order in self._trading.execution_manager.get_open_orders(account_id).values()
+        }
+        canceled: list[str] = []
+
+        for command_id in sorted(command_ids):
+
+            try:
+                self._trading.submit_abort(TradeAbort(
+                    command_id=command_id, account_id=account_id,
+                    reason='operator cancel-all', created_at=self._clock(),
+                ))
+            except Exception:  # noqa: BLE001 - one failed abort must not stop the rest
+                _log.warning('cancel-all skipped a command', extra={'command_id': command_id})
+            else:
+                canceled.append(command_id)
+
+        return canceled
+
+    async def _close_all_positions(self, account_id: str) -> list[dict[str, str]]:
+        '''Submit a market exit for every open position; returns per-trade results.'''
+
+        if self._trading is None:
+            return []
+
+        closed: list[dict[str, str]] = []
+
+        for (trade_id, _acct), position in self._trading.pull_positions(account_id).items():
+            net = position.qty
+
+            if net <= _ZERO:
+                continue
+
+            exit_side = (
+                _PraxisOrderSide.SELL
+                if position.side is _PraxisOrderSide.BUY
+                else _PraxisOrderSide.BUY
+            )
+
+            try:
+                command_id = await self._trading.submit_command(
+                    trade_id=trade_id, account_id=account_id, symbol=position.symbol,
+                    side=exit_side, qty=net, quote_qty=None,
+                    order_type=OrderType.MARKET, execution_mode=ExecutionMode.SINGLE_SHOT,
+                    execution_params=SingleShotParams(),
+                    timeout=_OPS_CLOSE_TIMEOUT_SECONDS, reference_price=None,
+                    maker_preference=MakerPreference.NO_PREFERENCE, stp_mode=_PraxisSTPMode.NONE,
+                    created_at=self._clock(),
+                )
+            except Exception:  # noqa: BLE001 - one failed exit must not stop the rest
+                _log.exception('close-all failed to submit an exit', extra={'trade_id': trade_id})
+                closed.append({'trade_id': trade_id, 'error': 'submit_failed'})
+            else:
+                closed.append({'trade_id': trade_id, 'command_id': command_id, 'qty': str(net)})
+
+        return closed
 
     def _start_mark_samplers(self) -> None:
         '''Start one paper-metrics mark sampler per account on the launcher loop.
