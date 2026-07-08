@@ -274,6 +274,8 @@ def _build_nexus_instance_config(
         duplicate_window_ms=_DEFAULT_DUPLICATE_WINDOW_MS,
         stp_mode=STPMode.CANCEL_TAKER,
         capital_pct=capital_pct,
+        max_spread_bps=_env_positive_decimal('PRAXIS_MAX_SPREAD_BPS'),
+        book_staleness_max_seconds=_env_positive_int('PRAXIS_BOOK_STALENESS_SECONDS'),
     )
 
 
@@ -519,6 +521,37 @@ def _env_positive_decimal(name: str) -> Decimal | None:
 
     if not value.is_finite() or value <= _ZERO:
         msg = f'{name} must be a positive finite decimal, got {raw!r}'
+        raise ValueError(msg)
+
+    return value
+
+
+def _env_positive_int(name: str) -> int | None:
+    '''Return a positive integer from environment variable `name`.
+
+    Args:
+        name: Environment variable holding the value.
+
+    Returns:
+        The parsed integer, or `None` when the variable is unset or empty.
+
+    Raises:
+        ValueError: The variable is set but is not a positive integer.
+    '''
+
+    raw = os.environ.get(name)
+
+    if not raw:
+        return None
+
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        msg = f'{name} must be an integer, got {raw!r}'
+        raise ValueError(msg) from exc
+
+    if value <= 0:
+        msg = f'{name} must be a positive integer, got {raw!r}'
         raise ValueError(msg)
 
     return value

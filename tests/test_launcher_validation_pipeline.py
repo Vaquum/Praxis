@@ -29,6 +29,7 @@ from praxis.launcher import (
     _build_platform_snapshot_provider,
     _build_validation_pipeline,
     _env_positive_decimal,
+    _env_positive_int,
     _projected_position,
 )
 
@@ -417,3 +418,28 @@ class TestPlatformLimitsMaxPosition:
         decision = pipeline.validate(_enter_context(config=config, state=state))
 
         assert decision.allowed
+
+
+class TestEnvPositiveInt:
+
+    def test_returns_none_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv('PRAXIS_TEST_INT', raising=False)
+
+        assert _env_positive_int('PRAXIS_TEST_INT') is None
+
+    def test_parses_a_positive_int(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv('PRAXIS_TEST_INT', '5')
+
+        assert _env_positive_int('PRAXIS_TEST_INT') == 5
+
+    def test_rejects_a_non_integer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv('PRAXIS_TEST_INT', 'abc')
+
+        with pytest.raises(ValueError, match='must be an integer'):
+            _env_positive_int('PRAXIS_TEST_INT')
+
+    def test_rejects_a_non_positive_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv('PRAXIS_TEST_INT', '0')
+
+        with pytest.raises(ValueError, match='must be a positive integer'):
+            _env_positive_int('PRAXIS_TEST_INT')

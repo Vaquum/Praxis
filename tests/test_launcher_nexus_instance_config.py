@@ -6,6 +6,8 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from nexus.core.stp_mode import STPMode
 
 from praxis.launcher import (
@@ -47,6 +49,26 @@ class TestBuildNexusInstanceConfig:
         cfg = _build_nexus_instance_config(_praxis_instance('acct-001'), manifest)
 
         assert cfg.account_id == 'acct-001'
+
+    def test_price_limits_default_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv('PRAXIS_MAX_SPREAD_BPS', raising=False)
+        monkeypatch.delenv('PRAXIS_BOOK_STALENESS_SECONDS', raising=False)
+        manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
+
+        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+
+        assert cfg.max_spread_bps is None
+        assert cfg.book_staleness_max_seconds is None
+
+    def test_price_limits_read_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv('PRAXIS_MAX_SPREAD_BPS', '25')
+        monkeypatch.setenv('PRAXIS_BOOK_STALENESS_SECONDS', '5')
+        manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
+
+        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+
+        assert cfg.max_spread_bps == Decimal('25')
+        assert cfg.book_staleness_max_seconds == 5
 
     def test_venue_defaults_to_binance_spot(self) -> None:
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
