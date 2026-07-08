@@ -2970,7 +2970,10 @@ class Launcher:
             )
             raise RuntimeError(msg)
         state.risk.lock = positions_lock
-        mode_controller = ModeController(state, positions_lock, clock=self._clock)
+        mode_controller = ModeController(
+            state, positions_lock, clock=self._clock,
+            risk_thresholds=manifest.risk_controls,
+        )
         state_store.attach_snapshot_locks(
             _build_state_snapshot_locks(state, positions_lock, capital_controller),
         )
