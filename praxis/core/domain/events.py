@@ -22,6 +22,8 @@ __all__ = [
     'FillReceived',
     'FundTransaction',
     'MarkSampled',
+    'OperatorHaltRequested',
+    'OperatorResumeRequested',
     'OrderAcked',
     'OrderCanceled',
     'OrderExpired',
@@ -536,6 +538,48 @@ class FundTransaction(_EventBase):
 
 
 @dataclass(frozen=True)
+class OperatorHaltRequested(_EventBase):
+
+    '''
+    Represent an operator's manual request to halt trading on an account.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        reason (str): Operator-supplied reason for the halt.
+    '''
+
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        _require_str(type(self).__name__, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class OperatorResumeRequested(_EventBase):
+
+    '''
+    Represent an operator's manual request to resume trading on an account.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        reason (str): Operator-supplied reason for the resume.
+    '''
+
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        _require_str(type(self).__name__, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
 class TradeOutcomeProduced(_EventBase):
 
     '''
@@ -766,4 +810,6 @@ type Event = (
     | MarkSampled
     | RegisterAccount
     | FundTransaction
+    | OperatorHaltRequested
+    | OperatorResumeRequested
 )
