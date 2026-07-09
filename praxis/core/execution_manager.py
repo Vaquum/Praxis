@@ -53,7 +53,11 @@ from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.estimate_slippage import estimate_slippage
+from praxis.core.estimate_slippage import (
+    SlippageEstimate,
+    estimate_slippage,
+    estimate_slippage_for_quote,
+)
 from praxis.core.generate_client_order_id import (
     generate_client_order_id,
     validate_command_id_for_client_order_id,
@@ -160,12 +164,14 @@ class ExecutionManager:
         venue_adapter: VenueAdapter,
         on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None,
         clock: Callable[[], datetime] = _utc_now,
+        max_slippage_bps: Decimal | None = None,
     ) -> None:
         '''Store dependencies and initialize empty account registry.'''
 
         self._event_spine = event_spine
         self._epoch_id = epoch_id
         self._venue_adapter = venue_adapter
+        self._max_slippage_bps = max_slippage_bps
         self._on_trade_outcome = on_trade_outcome
         self._clock = clock
         self._accounts: dict[str, _AccountRuntime] = {}
@@ -1120,7 +1126,43 @@ class ExecutionManager:
         finally:
             _log.info('account loop exited: %s', runtime.account_id)
 
-    async def _process_command(
+    def _slippage_guard_reason(
+        self, cmd: TradeCommand, estimate: SlippageEstimate | None,
+    ) -> str | None:
+        '''Return a rejection reason when a MARKET order's estimated slippage is too wide.
+
+        Guards MARKET orders only; a LIMIT order self-caps at its price. The
+        adverse direction is positive slippage for a BUY and negative for a
+        SELL, so both are compared as a positive breach against the limit.
+        '''
+
+        if (
+            self._max_slippage_bps is None
+            or estimate is None
+            or cmd.order_type is not OrderType.MARKET
+        ):
+            return None
+
+        adverse_bps = (
+            estimate.slippage_estimate_bps
+            if cmd.side is OrderSide.BUY
+            else -estimate.slippage_estimate_bps
+        )
+
+        if adverse_bps <= self._max_slippage_bps:
+            return None
+
+        _log.warning(
+            'slippage guard rejected: command_id=%s trade_id=%s adverse_bps=%s max_bps=%s',
+            cmd.command_id,
+            cmd.trade_id,
+            adverse_bps,
+            self._max_slippage_bps,
+        )
+
+        return f'estimated slippage {adverse_bps} bps exceeds max {self._max_slippage_bps} bps'
+
+    async def _process_command(  # noqa: PLR0911 - one return per pre-submit rejection reason
         self,
         runtime: _AccountRuntime,
         cmd: TradeCommand,
@@ -1177,36 +1219,54 @@ class ExecutionManager:
             )
 
         estimate = None
-        if not cmd.is_quote_native:
-            assert cmd.qty is not None
-            try:
-                book = await self._venue_adapter.query_order_book(
-                    cmd.symbol,
-                    limit=_SLIPPAGE_BOOK_LIMIT,
+        try:
+            book = await self._venue_adapter.query_order_book(
+                cmd.symbol,
+                limit=_SLIPPAGE_BOOK_LIMIT,
+            )
+            if cmd.is_quote_native:
+                assert cmd.quote_qty is not None
+                estimate = estimate_slippage_for_quote(
+                    book, cmd.quote_qty, cmd.side, symbol=cmd.symbol,
                 )
+            else:
+                assert cmd.qty is not None
                 estimate = estimate_slippage(book, cmd.qty, cmd.side, symbol=cmd.symbol)
-                if estimate is None:
-                    _log.warning(
-                        'slippage estimate unavailable: command_id=%s trade_id=%s',
-                        cmd.command_id,
-                        cmd.trade_id,
-                    )
-                else:
-                    _log.info(
-                        'slippage estimate computed: command_id=%s trade_id=%s slippage_estimate_bps=%s mid_price=%s simulated_vwap=%s',
-                        cmd.command_id,
-                        cmd.trade_id,
-                        estimate.slippage_estimate_bps,
-                        estimate.mid_price,
-                        estimate.simulated_vwap,
-                    )
-            except VenueError as exc:
+
+            if estimate is None:
                 _log.warning(
-                    'slippage estimate skipped: command_id=%s trade_id=%s reason=%s',
+                    'slippage estimate unavailable: command_id=%s trade_id=%s',
                     cmd.command_id,
                     cmd.trade_id,
-                    exc.args[0] if exc.args else str(exc),
                 )
+            else:
+                _log.info(
+                    'slippage estimate computed: command_id=%s trade_id=%s slippage_estimate_bps=%s mid_price=%s simulated_vwap=%s',
+                    cmd.command_id,
+                    cmd.trade_id,
+                    estimate.slippage_estimate_bps,
+                    estimate.mid_price,
+                    estimate.simulated_vwap,
+                )
+        except VenueError as exc:
+            _log.warning(
+                'slippage estimate skipped: command_id=%s trade_id=%s reason=%s',
+                cmd.command_id,
+                cmd.trade_id,
+                exc.args[0] if exc.args else str(exc),
+            )
+
+        slippage_reject = self._slippage_guard_reason(cmd, estimate)
+
+        if slippage_reject is not None:
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                TradeStatus.REJECTED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason=slippage_reject,
+            )
 
         client_order_id = generate_client_order_id(
             cmd.execution_mode,

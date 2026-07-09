@@ -88,6 +88,7 @@ class Trading:
         venue_adapter: VenueAdapter | None = None,
         bootstrap_filter_symbols: frozenset[str] = frozenset(),
         clock: Callable[[], datetime] = _utc_now,
+        max_slippage_bps: Decimal | None = None,
     ) -> None:
         '''Compose core trading dependencies and manager-facing facade.
 
@@ -127,6 +128,7 @@ class Trading:
             venue_adapter=self._venue_adapter,
             on_trade_outcome=config.on_trade_outcome,
             clock=clock,
+            max_slippage_bps=max_slippage_bps,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,

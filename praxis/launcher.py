@@ -2433,6 +2433,7 @@ class Launcher:
             venue_adapter=self._venue_adapter,
             bootstrap_filter_symbols=frozenset({_DEFAULT_SYMBOL}),
             clock=self._clock,
+            max_slippage_bps=_env_positive_decimal('PRAXIS_MAX_SLIPPAGE_BPS'),
         )
 
         for inst in self._instances:

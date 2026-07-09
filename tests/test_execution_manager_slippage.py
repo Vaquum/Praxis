@@ -7,7 +7,7 @@ from datetime import datetime, UTC
 from decimal import Decimal
 from typing import Any
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -21,6 +21,8 @@ from praxis.core.domain.enums import (
     STPMode,
 )
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.estimate_slippage import SlippageEstimate
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
@@ -297,3 +299,50 @@ async def test_logs_execution_slippage_for_sell_side(
     arrival_slippage_bps = _extract_decimal_arg(arrival_records[0], 2)
     assert execution_slippage_bps == Decimal('-4')
     assert arrival_slippage_bps == Decimal('-4')
+
+
+def _guard_manager(max_slippage_bps: Decimal | None) -> ExecutionManager:
+    return ExecutionManager(
+        event_spine=MagicMock(), epoch_id=_EPOCH, venue_adapter=MagicMock(),
+        max_slippage_bps=max_slippage_bps,
+    )
+
+
+def _market_command() -> TradeCommand:
+    return TradeCommand(command_id='c1', **{**_CMD_KWARGS, 'order_type': OrderType.MARKET})
+
+
+def _estimate(slippage_bps: str) -> SlippageEstimate:
+    return SlippageEstimate(
+        mid_price=Decimal('100'), simulated_vwap=Decimal('101'),
+        slippage_estimate_bps=Decimal(slippage_bps),
+    )
+
+
+def test_slippage_guard_rejects_market_over_limit() -> None:
+    reason = _guard_manager(Decimal('20'))._slippage_guard_reason(
+        _market_command(), _estimate('50'),
+    )
+
+    assert reason is not None
+    assert '50' in reason
+
+
+def test_slippage_guard_allows_within_limit() -> None:
+    assert _guard_manager(Decimal('60'))._slippage_guard_reason(
+        _market_command(), _estimate('50'),
+    ) is None
+
+
+def test_slippage_guard_skips_limit_orders() -> None:
+    limit_cmd = TradeCommand(command_id='c1', **_CMD_KWARGS)
+
+    assert _guard_manager(Decimal('20'))._slippage_guard_reason(
+        limit_cmd, _estimate('50'),
+    ) is None
+
+
+def test_slippage_guard_disabled_when_unset() -> None:
+    assert _guard_manager(None)._slippage_guard_reason(
+        _market_command(), _estimate('50'),
+    ) is None
