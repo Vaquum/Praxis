@@ -28,7 +28,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import aiosqlite
-from aiohttp import web
+from aiohttp import ClientSession, ClientTimeout, web
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
@@ -128,6 +128,7 @@ from praxis.paper.paper_report import build_paper_report
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
+from praxis.infrastructure.alert_sink import AlertSink
 from praxis.infrastructure.book_cache import BookCache, build_price_snapshot
 from praxis.infrastructure.book_poller import BookPoller
 from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
@@ -157,6 +158,7 @@ _DEFAULT_SYMBOL = 'BTCUSDT'
 _LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
 _OPS_CLOSE_TIMEOUT_SECONDS = 60
 _DEFAULT_BOOK_POLL_INTERVAL_SECONDS = 2.0
+_ALERT_WEBHOOK_TIMEOUT_SECONDS = 5
 
 
 def _utc_now() -> datetime:
@@ -555,6 +557,15 @@ def _env_positive_int(name: str) -> int | None:
         raise ValueError(msg)
 
     return value
+
+
+async def _post_alert_webhook(url: str, payload: dict[str, Any]) -> None:
+    '''POST an alert payload to the configured webhook, raising on non-2xx.'''
+
+    async with ClientSession() as session, session.post(
+        url, json=payload, timeout=ClientTimeout(total=_ALERT_WEBHOOK_TIMEOUT_SECONDS),
+    ) as response:
+        response.raise_for_status()
 
 
 def _build_validation_pipeline(
@@ -2282,6 +2293,10 @@ class Launcher:
         self._mark_samplers: list[MarkSampler] = []
         self._book_cache = BookCache()
         self._book_pollers: list[BookPoller] = []
+        self._alert_sink = AlertSink(
+            webhook_url=os.environ.get('PRAXIS_ALERT_WEBHOOK_URL'),
+            post=_post_alert_webhook,
+        )
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
@@ -2734,6 +2749,16 @@ class Launcher:
 
         return web.json_response({'account_id': account.account_id, **report})
 
+    def _build_mode_halt_alert(self, account_id: str) -> Callable[[str], None]:
+        '''Return an on-halt callback that alerts when the account is halted.'''
+
+        def on_halt(source: str) -> None:
+            self._alert_sink.alert(
+                'mode_halted', severity='critical', account_id=account_id, source=source,
+            )
+
+        return on_halt
+
     def _ops_auth_error(self, request: web.Request) -> web.Response | None:
         '''Return an error response when an `/ops` caller is not authorised.
 
@@ -2865,6 +2890,11 @@ class Launcher:
             except Exception:  # noqa: BLE001 - the audit trail is best-effort
                 _log.exception('ops audit event append failed')
 
+        await self._alert_sink.notify(
+            'operator_halt' if halt else 'operator_resume',
+            severity='warning', account_id=account_id, reason=reason,
+        )
+
         return web.json_response(self._ops_status_body(runtime))
 
     async def _ops_cancel_all_handler(self, request: web.Request) -> web.Response:
@@ -2880,6 +2910,11 @@ class Launcher:
 
         account_id = runtime.nexus_config.account_id
         canceled = self._cancel_all_orders(account_id)
+
+        await self._alert_sink.notify(
+            'operator_cancel_all', severity='warning',
+            account_id=account_id, canceled=len(canceled),
+        )
 
         return web.json_response({'account_id': account_id, 'canceled': canceled})
 
@@ -2897,6 +2932,11 @@ class Launcher:
         account_id = runtime.nexus_config.account_id
         canceled = self._cancel_all_orders(account_id)
         closed = await self._close_all_positions(account_id)
+
+        await self._alert_sink.notify(
+            'operator_close_all', severity='warning',
+            account_id=account_id, canceled=len(canceled), closed=len(closed),
+        )
 
         return web.json_response(
             {'account_id': account_id, 'canceled': canceled, 'closed': closed},
@@ -3352,6 +3392,7 @@ class Launcher:
         mode_controller = ModeController(
             state, positions_lock, clock=self._clock,
             risk_thresholds=manifest.risk_controls,
+            on_halt=self._build_mode_halt_alert(inst.account_id),
         )
         mode_controller.reconcile()
         state_store.attach_snapshot_locks(

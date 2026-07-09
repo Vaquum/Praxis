@@ -21,6 +21,7 @@ from nexus.core.mode_controller import ModeController
 from praxis.core.domain.enums import OrderSide, OrderType
 from praxis.core.domain.position import Position
 from praxis.core.domain.events import OperatorHaltRequested, OperatorResumeRequested
+from praxis.infrastructure.alert_sink import AlertSink
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.launcher import InstanceConfig, Launcher
@@ -227,3 +228,20 @@ async def test_close_all_submits_market_exits(tmp_path: Path, monkeypatch: pytes
     assert kwargs['side'] is OrderSide.SELL
     assert kwargs['order_type'] is OrderType.MARKET
     assert kwargs['qty'] == Decimal('2')
+
+
+@pytest.mark.asyncio
+async def test_halt_emits_operator_alert(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_OPS_TOKEN', _TOKEN)
+    launcher = _launcher(await _spine(), tmp_path)
+    _register_runtime(launcher)
+    posted: list[dict[str, object]] = []
+
+    async def post(_url: str, payload: dict[str, object]) -> None:
+        posted.append(payload)
+
+    launcher._alert_sink = AlertSink(webhook_url='http://hook', post=post)
+
+    await launcher._ops_halt_handler(_request('/ops/halt'))
+
+    assert any(p['event'] == 'operator_halt' for p in posted)
