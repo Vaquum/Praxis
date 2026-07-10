@@ -3224,7 +3224,7 @@ class Launcher:
             if thread.is_alive():
                 _log.warning(
                     'nexus thread did not finish within timeout',
-                    extra={'thread': thread.name},
+                    extra={'thread_name': thread.name},
                 )
 
         if self._trading is not None and self._loop is not None:
