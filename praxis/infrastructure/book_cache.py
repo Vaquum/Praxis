@@ -16,7 +16,7 @@ from nexus.core.validator import PriceCheckSnapshot
 
 from praxis.infrastructure.venue_adapter import OrderBookSnapshot
 
-__all__ = ['BookCache', 'build_price_snapshot']
+__all__ = ['BookCache', 'CachedBook', 'build_price_snapshot']
 
 _ZERO = Decimal('0')
 _TWO = Decimal('2')
@@ -25,7 +25,7 @@ _MS_PER_SECOND = 1000
 
 
 @dataclass
-class _CachedBook:
+class CachedBook:
     snapshot: OrderBookSnapshot
     fetched_at: datetime
 
@@ -34,16 +34,16 @@ class BookCache:
     '''The most recent order book per symbol, written by the poller and read during validation.'''
 
     def __init__(self) -> None:
-        self._books: dict[str, _CachedBook] = {}
+        self._books: dict[str, CachedBook] = {}
         self._lock = threading.Lock()
 
     def update(self, symbol: str, snapshot: OrderBookSnapshot, fetched_at: datetime) -> None:
         '''Store the latest snapshot for `symbol` with its fetch time.'''
 
         with self._lock:
-            self._books[symbol] = _CachedBook(snapshot=snapshot, fetched_at=fetched_at)
+            self._books[symbol] = CachedBook(snapshot=snapshot, fetched_at=fetched_at)
 
-    def get(self, symbol: str) -> _CachedBook | None:
+    def get(self, symbol: str) -> CachedBook | None:
         '''Return the cached book for `symbol`, or `None` when absent.'''
 
         with self._lock:

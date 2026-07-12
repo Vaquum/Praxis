@@ -3168,12 +3168,13 @@ class Launcher:
             return
 
         pollers: list[BookPoller] = []
+        symbols = {account.symbol for account in self._paper_account_map().values()}
 
         try:
-            for account in self._paper_account_map().values():
+            for symbol in sorted(symbols):
                 poller = BookPoller(
-                    symbol=account.symbol,
-                    fetch=_make_book_fetch(venue_adapter, account.symbol),
+                    symbol=symbol,
+                    fetch=_make_book_fetch(venue_adapter, symbol),
                     cache=self._book_cache,
                     clock=self._clock, interval_seconds=_DEFAULT_BOOK_POLL_INTERVAL_SECONDS,
                 )
