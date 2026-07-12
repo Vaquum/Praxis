@@ -61,3 +61,16 @@ async def test_notify_swallows_webhook_failure(caplog: pytest.LogCaptureFixture)
         await sink.notify('x')
 
     assert any('alert webhook failed' in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_notify_normalizes_invalid_severity_in_webhook_payload() -> None:
+    posted: list[dict[str, Any]] = []
+
+    async def post(_url: str, payload: dict[str, Any]) -> None:
+        posted.append(payload)
+
+    sink = AlertSink(webhook_url='http://hook', post=post)
+    await sink.notify('x', severity='bogus', account_id='a1')
+
+    assert posted == [{'event': 'x', 'severity': 'warning', 'account_id': 'a1'}]

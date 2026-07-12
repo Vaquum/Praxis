@@ -270,6 +270,21 @@ def _build_nexus_instance_config(
         spec.strategy_id: spec.capital_pct for spec in manifest.strategies
     }
 
+    book_staleness_max_seconds = _env_positive_int('PRAXIS_BOOK_STALENESS_SECONDS')
+
+    if (
+        book_staleness_max_seconds is not None
+        and book_staleness_max_seconds <= _DEFAULT_BOOK_POLL_INTERVAL_SECONDS
+    ):
+        msg = (
+            f'PRAXIS_BOOK_STALENESS_SECONDS ({book_staleness_max_seconds}) must '
+            f'exceed the book poll interval ({_DEFAULT_BOOK_POLL_INTERVAL_SECONDS}s): '
+            f'at or below it the cached book is always older than the limit, so the '
+            f'price stage rejects every order with PRICE_BOOK_STALE and silently '
+            f'stalls trading.'
+        )
+        raise ValueError(msg)
+
     return NexusInstanceConfig(
         account_id=praxis_inst.account_id,
         venue=_DEFAULT_VENUE,
@@ -277,7 +292,7 @@ def _build_nexus_instance_config(
         stp_mode=STPMode.CANCEL_TAKER,
         capital_pct=capital_pct,
         max_spread_bps=_env_positive_decimal('PRAXIS_MAX_SPREAD_BPS'),
-        book_staleness_max_seconds=_env_positive_int('PRAXIS_BOOK_STALENESS_SECONDS'),
+        book_staleness_max_seconds=book_staleness_max_seconds,
     )
 
 
@@ -476,16 +491,24 @@ def _projected_position(
 
 def _build_platform_snapshot_provider(
     positions: dict[str, Position],
+    positions_lock: threading.Lock,
 ) -> Callable[[ValidationRequestContext], PlatformLimitsStageSnapshot]:
     '''Return a provider that projects the account position for each order.
 
     Args:
         positions: The account's live open positions keyed by trade_id.
+        positions_lock: Guards `positions` against concurrent OutcomeLoop
+            deletes; the provider runs at validation time on the strategy
+            thread, outside the validator's lock, so it snapshots under this
+            lock to avoid a `dictionary changed size during iteration` race.
     '''
 
     def provider(context: ValidationRequestContext) -> PlatformLimitsStageSnapshot:
+        with positions_lock:
+            snapshot = dict(positions)
+
         return PlatformLimitsStageSnapshot(
-            projected_position=_projected_position(positions, context),
+            projected_position=_projected_position(snapshot, context),
         )
 
     return provider
@@ -3370,9 +3393,12 @@ class Launcher:
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
         capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
+        positions_lock = threading.Lock()
         pipeline = _build_validation_pipeline(
             nexus_instance_config, capital_controller,
-            platform_snapshot_provider=_build_platform_snapshot_provider(state.positions),
+            platform_snapshot_provider=_build_platform_snapshot_provider(
+                state.positions, positions_lock,
+            ),
             platform_limits=PlatformLimitsStageLimits(
                 max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),
                 max_position=_env_positive_decimal('PRAXIS_MAX_POSITION'),
@@ -3380,7 +3406,6 @@ class Launcher:
             price_snapshot_provider=self._build_price_snapshot_provider(),
             clock=self._clock,
         )
-        positions_lock = threading.Lock()
         command_registry_lock = threading.Lock()
         if not hasattr(state.risk, 'lock'):
             msg = (

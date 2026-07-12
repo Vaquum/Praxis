@@ -70,6 +70,25 @@ class TestBuildNexusInstanceConfig:
         assert cfg.max_spread_bps == Decimal('25')
         assert cfg.book_staleness_max_seconds == 5
 
+    def test_book_staleness_at_or_below_poll_interval_rejected(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv('PRAXIS_BOOK_STALENESS_SECONDS', '2')
+        manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
+
+        with pytest.raises(ValueError, match='must exceed the book poll interval'):
+            _build_nexus_instance_config(_praxis_instance(), manifest)
+
+    def test_book_staleness_above_poll_interval_accepted(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv('PRAXIS_BOOK_STALENESS_SECONDS', '3')
+        manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
+
+        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+
+        assert cfg.book_staleness_max_seconds == 3
+
     def test_venue_defaults_to_binance_spot(self) -> None:
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 

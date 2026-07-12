@@ -37,18 +37,25 @@ class AlertSink:
         self._webhook_url = webhook_url
         self._post = post
 
-    def alert(self, event: str, severity: str = 'warning', **detail: Any) -> None:
-        '''Emit a structured alert log line. Safe from any thread.'''
+    def alert(self, event: str, severity: str = 'warning', **detail: Any) -> str:
+        '''Emit a structured alert log line. Safe from any thread.
+
+        Returns:
+            The severity actually used, normalised to `warning` when the
+            argument is not a known severity.
+        '''
 
         if severity not in _SEVERITIES:
             severity = 'warning'
 
         _log.warning('ALERT event=%s severity=%s detail=%s', event, severity, json.dumps(detail, default=str))
 
+        return severity
+
     async def notify(self, event: str, severity: str = 'warning', **detail: Any) -> None:
         '''Log the alert and best-effort POST it to the webhook when configured.'''
 
-        self.alert(event, severity, **detail)
+        severity = self.alert(event, severity, **detail)
 
         if self._webhook_url is None or self._post is None:
             return

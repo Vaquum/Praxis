@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -385,7 +387,7 @@ class TestPlatformLimitsMaxPosition:
         state = _instance_state()
         pipeline = _build_validation_pipeline(
             config, _capital_controller(),
-            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1')}),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1')}, threading.Lock()),
             platform_limits=PlatformLimitsStageLimits(max_position=Decimal('1')),
         )
 
@@ -399,7 +401,7 @@ class TestPlatformLimitsMaxPosition:
         state = _instance_state()
         pipeline = _build_validation_pipeline(
             config, _capital_controller(),
-            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('0.5')}),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('0.5')}, threading.Lock()),
             platform_limits=PlatformLimitsStageLimits(max_position=Decimal('1')),
         )
 
@@ -412,7 +414,7 @@ class TestPlatformLimitsMaxPosition:
         state = _instance_state()
         pipeline = _build_validation_pipeline(
             config, _capital_controller(),
-            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1000')}),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1000')}, threading.Lock()),
         )
 
         decision = pipeline.validate(_enter_context(config=config, state=state))
@@ -443,3 +445,28 @@ class TestEnvPositiveInt:
 
         with pytest.raises(ValueError, match='must be a positive integer'):
             _env_positive_int('PRAXIS_TEST_INT')
+
+
+def test_platform_snapshot_provider_snapshots_under_the_lock() -> None:
+    positions = {'t1': _position('1')}
+    lock = threading.Lock()
+    provider = _build_platform_snapshot_provider(positions, lock)
+    context = SimpleNamespace(
+        symbol='BTCUSDT', order_size=Decimal('0'), order_side=OrderSide.BUY,
+    )
+    done = threading.Event()
+    result: dict[str, object] = {}
+
+    def run() -> None:
+        result['snapshot'] = provider(context)
+        done.set()
+
+    with lock:
+        worker = threading.Thread(target=run, daemon=True)
+        worker.start()
+        blocked = not done.wait(timeout=0.2)
+
+    worker.join(timeout=1.0)
+
+    assert blocked
+    assert result['snapshot'].projected_position == Decimal('1')
