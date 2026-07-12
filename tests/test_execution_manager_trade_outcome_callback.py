@@ -24,7 +24,12 @@ from praxis.core.execution_manager import (
     ExecutionManager,
 )
 from praxis.infrastructure.event_spine import EventSpine
-from praxis.infrastructure.venue_adapter import OrderBookLevel, OrderBookSnapshot, SubmitResult, VenueAdapter
+from praxis.infrastructure.venue_adapter import (
+    OrderBookLevel,
+    OrderBookSnapshot,
+    SubmitResult,
+    VenueAdapter,
+)
 
 _TS = datetime(2099, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'

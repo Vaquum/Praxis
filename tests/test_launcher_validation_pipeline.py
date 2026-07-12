@@ -464,7 +464,7 @@ def test_platform_snapshot_provider_snapshots_under_the_lock() -> None:
     with lock:
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
-        blocked = not done.wait(timeout=0.2)
+        blocked = not done.wait(timeout=0.5)
 
     worker.join(timeout=1.0)
 
