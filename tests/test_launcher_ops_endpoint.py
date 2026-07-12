@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 from decimal import Decimal
@@ -288,3 +289,34 @@ async def test_ambiguous_account_returns_400(tmp_path: Path, monkeypatch: pytest
 
     assert response.status == 400
     assert json.loads(response.body)['error'] == 'account_id_required'
+
+
+@pytest.mark.asyncio
+async def test_mode_halt_alert_delivers_webhook_when_loop_available(tmp_path: Path) -> None:
+    launcher = _launcher(await _spine(), tmp_path)
+    posted: list[dict[str, object]] = []
+
+    async def post(_url: str, payload: dict[str, object]) -> None:
+        posted.append(payload)
+
+    launcher._alert_sink = AlertSink(webhook_url='http://hook', post=post)
+    launcher._loop = asyncio.get_running_loop()
+    on_halt = launcher._build_mode_halt_alert('acc-1')
+
+    on_halt('risk')
+    await asyncio.sleep(0.05)
+
+    assert any(p['event'] == 'mode_halted' and p['source'] == 'risk' for p in posted)
+
+
+@pytest.mark.asyncio
+async def test_mode_halt_alert_logs_only_without_loop(tmp_path: Path) -> None:
+    launcher = _launcher(await _spine(), tmp_path)
+    launcher._alert_sink = Mock()
+    launcher._loop = None
+    on_halt = launcher._build_mode_halt_alert('acc-1')
+
+    on_halt('manual')
+
+    launcher._alert_sink.alert.assert_called_once()
+    launcher._alert_sink.notify.assert_not_called()

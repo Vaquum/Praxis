@@ -2809,11 +2809,27 @@ class Launcher:
         return web.json_response({'account_id': account.account_id, **report})
 
     def _build_mode_halt_alert(self, account_id: str) -> Callable[[str], None]:
-        '''Return an on-halt callback that alerts when the account is halted.'''
+        '''Return an on-halt callback that alerts when the account is halted.
+
+        The callback fires on the ModeController's thread, not the event
+        loop, so it schedules `AlertSink.notify` (log + webhook) onto the
+        loop when one is available and falls back to the synchronous
+        log-only `alert` otherwise, keeping webhook delivery best-effort
+        without double-logging.
+        '''
 
         def on_halt(source: str) -> None:
-            self._alert_sink.alert(
-                'mode_halted', severity='critical', account_id=account_id, source=source,
+            if self._loop is None:
+                self._alert_sink.alert(
+                    'mode_halted', severity='critical', account_id=account_id, source=source,
+                )
+                return
+
+            asyncio.run_coroutine_threadsafe(
+                self._alert_sink.notify(
+                    'mode_halted', severity='critical', account_id=account_id, source=source,
+                ),
+                self._loop,
             )
 
         return on_halt
@@ -2918,6 +2934,8 @@ class Launcher:
         if error is not None:
             return error
 
+        assert runtime is not None
+
         return web.json_response(self._ops_status_body(runtime))
 
     async def _ops_halt_handler(self, request: web.Request) -> web.Response:
@@ -2936,6 +2954,8 @@ class Launcher:
 
         if error is not None:
             return error
+
+        assert runtime is not None
 
         account_id = runtime.nexus_config.account_id
         reason = await self._ops_reason(
@@ -2986,6 +3006,8 @@ class Launcher:
         if error is not None:
             return error
 
+        assert runtime is not None
+
         account_id = runtime.nexus_config.account_id
 
         try:
@@ -3011,6 +3033,8 @@ class Launcher:
 
         if error is not None:
             return error
+
+        assert runtime is not None
 
         account_id = runtime.nexus_config.account_id
 
@@ -3397,6 +3421,10 @@ class Launcher:
 
         except Exception:  # noqa: BLE001 - top-level catch for thread, must not propagate
             _log.exception('nexus instance failed', extra={'account_id': inst.account_id})
+
+            with self._nexus_runtimes_lock:
+                self._nexus_runtimes.pop(inst.account_id, None)
+
             self._stop_event.set()
 
     def _build_nexus_runtime(
