@@ -129,7 +129,7 @@ from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.alert_sink import AlertSink
-from praxis.infrastructure.book_cache import BookCache, build_price_snapshot
+from praxis.infrastructure.book_cache import BookCache, book_mid_price, build_price_snapshot
 from praxis.infrastructure.book_poller import BookPoller
 from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
 from praxis.trading import Trading
@@ -466,13 +466,20 @@ def _default_platform_snapshot(
 def _projected_position(
     positions: dict[str, Position],
     context: ValidationRequestContext,
+    mid_price_provider: Callable[[str], Decimal | None],
 ) -> Decimal:
     '''Return the account's projected base position for the context's order.
 
     Sums current open positions in the order's symbol (long positive, short
-    negative) and applies the pending order's signed size, so the
+    negative) and applies the pending order's signed base size, so the
     platform-limits stage gates the position the order would leave, not the
     position before it. Floored at zero.
+
+    A quote-native order carries `order_notional` but no `order_size`, so
+    its base delta is estimated as `order_notional / mid`, where `mid` is
+    the cached top-of-book mid. When no mid is available the delta is zero
+    (the cap degrades to gating the current position), and `order_size`
+    stays `None` so the estimate never leaks onto the delivered order.
     '''
 
     current = sum(
@@ -480,7 +487,16 @@ def _projected_position(
          for position in positions.values() if position.symbol == context.symbol),
         _ZERO,
     )
-    delta = context.order_size or _ZERO
+
+    if context.order_size is not None:
+        delta = context.order_size
+
+    elif context.order_notional is not None:
+        mid = mid_price_provider(context.symbol)
+        delta = context.order_notional / mid if mid is not None and mid > _ZERO else _ZERO
+
+    else:
+        delta = _ZERO
 
     if context.order_side is OrderSide.SELL:
         delta = -delta
@@ -493,6 +509,7 @@ def _projected_position(
 def _build_platform_snapshot_provider(
     positions: dict[str, Position],
     positions_lock: threading.Lock,
+    mid_price_provider: Callable[[str], Decimal | None],
 ) -> Callable[[ValidationRequestContext], PlatformLimitsStageSnapshot]:
     '''Return a provider that projects the account position for each order.
 
@@ -502,6 +519,8 @@ def _build_platform_snapshot_provider(
             deletes; the provider runs at validation time on the strategy
             thread, outside the validator's lock, so it snapshots under this
             lock to avoid a `dictionary changed size during iteration` race.
+        mid_price_provider: Maps a symbol to its cached top-of-book mid,
+            used to project a quote-native order's base delta.
     '''
 
     def provider(context: ValidationRequestContext) -> PlatformLimitsStageSnapshot:
@@ -509,7 +528,7 @@ def _build_platform_snapshot_provider(
             snapshot = dict(positions)
 
         return PlatformLimitsStageSnapshot(
-            projected_position=_projected_position(snapshot, context),
+            projected_position=_projected_position(snapshot, context, mid_price_provider),
         )
 
     return provider
@@ -3152,7 +3171,7 @@ class Launcher:
         return provider
 
     def _start_book_pollers(self) -> None:
-        '''Start one order-book poller per account on the launcher loop.
+        '''Start one order-book poller per unique symbol on the launcher loop.
 
         Best-effort: a start failure is logged and leaves trading unaffected,
         since an absent book only makes a configured price limit reject.
@@ -3424,6 +3443,7 @@ class Launcher:
             nexus_instance_config, capital_controller,
             platform_snapshot_provider=_build_platform_snapshot_provider(
                 state.positions, positions_lock,
+                lambda symbol: book_mid_price(self._book_cache, symbol),
             ),
             platform_limits=PlatformLimitsStageLimits(
                 max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),

@@ -351,7 +351,7 @@ class TestProjectedPosition:
             order_side=OrderSide.BUY, order_size=Decimal('0.5'),
         )
 
-        assert _projected_position(positions, context) == Decimal('1.5')
+        assert _projected_position(positions, context, lambda _s: None) == Decimal('1.5')
 
     def test_projects_from_empty_positions(self) -> None:
         context = _enter_context(
@@ -359,7 +359,7 @@ class TestProjectedPosition:
             order_side=OrderSide.BUY, order_size=Decimal('0.5'),
         )
 
-        assert _projected_position({}, context) == Decimal('0.5')
+        assert _projected_position({}, context, lambda _s: None) == Decimal('0.5')
 
     def test_sell_reduces_and_floors_at_zero(self) -> None:
         positions = {'t1': _position('0.3')}
@@ -368,7 +368,7 @@ class TestProjectedPosition:
             order_side=OrderSide.SELL, order_size=Decimal('0.5'),
         )
 
-        assert _projected_position(positions, context) == Decimal('0')
+        assert _projected_position(positions, context, lambda _s: None) == Decimal('0')
 
     def test_ignores_other_symbols(self) -> None:
         positions = {'t1': _position('1', symbol='ETHUSDT')}
@@ -377,7 +377,7 @@ class TestProjectedPosition:
             order_side=OrderSide.BUY, order_size=Decimal('0.5'),
         )
 
-        assert _projected_position(positions, context) == Decimal('0.5')
+        assert _projected_position(positions, context, lambda _s: None) == Decimal('0.5')
 
 
 class TestPlatformLimitsMaxPosition:
@@ -387,7 +387,7 @@ class TestPlatformLimitsMaxPosition:
         state = _instance_state()
         pipeline = _build_validation_pipeline(
             config, _capital_controller(),
-            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1')}, threading.Lock()),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1')}, threading.Lock(), lambda _s: None),
             platform_limits=PlatformLimitsStageLimits(max_position=Decimal('1')),
         )
 
@@ -401,7 +401,7 @@ class TestPlatformLimitsMaxPosition:
         state = _instance_state()
         pipeline = _build_validation_pipeline(
             config, _capital_controller(),
-            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('0.5')}, threading.Lock()),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('0.5')}, threading.Lock(), lambda _s: None),
             platform_limits=PlatformLimitsStageLimits(max_position=Decimal('1')),
         )
 
@@ -414,7 +414,7 @@ class TestPlatformLimitsMaxPosition:
         state = _instance_state()
         pipeline = _build_validation_pipeline(
             config, _capital_controller(),
-            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1000')}, threading.Lock()),
+            platform_snapshot_provider=_build_platform_snapshot_provider({'t1': _position('1000')}, threading.Lock(), lambda _s: None),
         )
 
         decision = pipeline.validate(_enter_context(config=config, state=state))
@@ -450,7 +450,7 @@ class TestEnvPositiveInt:
 def test_platform_snapshot_provider_snapshots_under_the_lock() -> None:
     positions = {'t1': _position('1')}
     lock = threading.Lock()
-    provider = _build_platform_snapshot_provider(positions, lock)
+    provider = _build_platform_snapshot_provider(positions, lock, lambda _s: None)
     context = SimpleNamespace(
         symbol='BTCUSDT', order_size=Decimal('0'), order_side=OrderSide.BUY,
     )
@@ -470,3 +470,27 @@ def test_platform_snapshot_provider_snapshots_under_the_lock() -> None:
 
     assert blocked
     assert result['snapshot'].projected_position == Decimal('1')
+
+
+def test_projected_position_estimates_quote_native_from_mid() -> None:
+    positions = {'t1': _position('1')}
+    context = SimpleNamespace(
+        symbol='BTCUSDT', order_size=None,
+        order_notional=Decimal('200'), order_side=OrderSide.BUY,
+    )
+
+    result = _projected_position(positions, context, lambda _s: Decimal('100'))
+
+    assert result == Decimal('3')
+
+
+def test_projected_position_quote_native_without_mid_degrades_to_current() -> None:
+    positions = {'t1': _position('1')}
+    context = SimpleNamespace(
+        symbol='BTCUSDT', order_size=None,
+        order_notional=Decimal('200'), order_side=OrderSide.BUY,
+    )
+
+    result = _projected_position(positions, context, lambda _s: None)
+
+    assert result == Decimal('1')

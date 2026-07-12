@@ -16,7 +16,7 @@ from nexus.core.validator import PriceCheckSnapshot
 
 from praxis.infrastructure.venue_adapter import OrderBookSnapshot
 
-__all__ = ['BookCache', 'CachedBook', 'build_price_snapshot']
+__all__ = ['BookCache', 'CachedBook', 'book_mid_price', 'build_price_snapshot']
 
 _ZERO = Decimal('0')
 _TWO = Decimal('2')
@@ -48,6 +48,37 @@ class BookCache:
 
         with self._lock:
             return self._books.get(symbol)
+
+
+def book_mid_price(cache: BookCache, symbol: str) -> Decimal | None:
+    '''Return the cached top-of-book mid for `symbol`, or `None`.
+
+    `None` when no book is cached, the book is empty, or it is crossed, so
+    a caller converting a quote notional to a base size degrades safely
+    rather than dividing by a bad price.
+
+    Args:
+        cache: Book cache the poller keeps current.
+        symbol: Symbol to read.
+    '''
+
+    cached = cache.get(symbol)
+
+    if cached is None:
+        return None
+
+    snapshot = cached.snapshot
+
+    if not snapshot.bids or not snapshot.asks:
+        return None
+
+    best_bid = snapshot.bids[0].price
+    best_ask = snapshot.asks[0].price
+
+    if best_bid <= _ZERO or best_ask < best_bid:
+        return None
+
+    return (best_bid + best_ask) / _TWO
 
 
 def build_price_snapshot(
