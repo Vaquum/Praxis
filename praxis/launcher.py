@@ -158,6 +158,7 @@ _DEFAULT_SYMBOL = 'BTCUSDT'
 _LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
 _OPS_CLOSE_TIMEOUT_SECONDS = 60
 _DEFAULT_BOOK_POLL_INTERVAL_SECONDS = 2.0
+_BOOK_POLL_DEPTH_LEVELS = 5
 _ALERT_WEBHOOK_TIMEOUT_SECONDS = 5
 
 
@@ -2785,9 +2786,9 @@ class Launcher:
     def _ops_auth_error(self, request: web.Request) -> web.Response | None:
         '''Return an error response when an `/ops` caller is not authorised.
 
-        Mutating operator routes are loopback-only and require a bearer
-        token matching `PRAXIS_OPS_TOKEN`; the routes stay disabled while
-        the variable is unset.
+        Every `/ops` route — including read-only `status` — is loopback-only
+        and requires a bearer token matching `PRAXIS_OPS_TOKEN`; the routes
+        stay disabled while the variable is unset.
         '''
 
         if request.remote not in _LOOPBACK_HOSTS:
@@ -3156,7 +3157,7 @@ class Launcher:
             for account in self._paper_account_map().values():
 
                 def fetch(symbol: str = account.symbol) -> Awaitable[OrderBookSnapshot]:
-                    return venue_adapter.query_order_book(symbol)
+                    return venue_adapter.query_order_book(symbol, limit=_BOOK_POLL_DEPTH_LEVELS)
 
                 poller = BookPoller(
                     symbol=account.symbol, fetch=fetch, cache=self._book_cache,
