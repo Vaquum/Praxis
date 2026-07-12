@@ -2949,7 +2949,12 @@ class Launcher:
             return web.json_response({'error': 'unknown_account'}, status=404)
 
         account_id = runtime.nexus_config.account_id
-        canceled = self._cancel_all_orders(account_id)
+
+        try:
+            canceled = self._cancel_all_orders(account_id)
+        except Exception:  # noqa: BLE001 - operator endpoint returns a structured error
+            _log.exception('ops cancel-all failed', extra={'account_id': account_id})
+            return web.json_response({'error': 'cancel_all_failed'}, status=500)
 
         await self._alert_sink.notify(
             'operator_cancel_all', severity='warning',
@@ -2970,8 +2975,13 @@ class Launcher:
             return web.json_response({'error': 'unknown_account'}, status=404)
 
         account_id = runtime.nexus_config.account_id
-        canceled = self._cancel_all_orders(account_id)
-        closed = await self._close_all_positions(account_id)
+
+        try:
+            canceled = self._cancel_all_orders(account_id)
+            closed = await self._close_all_positions(account_id)
+        except Exception:  # noqa: BLE001 - operator endpoint returns a structured error
+            _log.exception('ops close-all failed', extra={'account_id': account_id})
+            return web.json_response({'error': 'close_all_failed'}, status=500)
 
         await self._alert_sink.notify(
             'operator_close_all', severity='warning',

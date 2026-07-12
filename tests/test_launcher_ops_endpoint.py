@@ -245,3 +245,31 @@ async def test_halt_emits_operator_alert(tmp_path: Path, monkeypatch: pytest.Mon
     await launcher._ops_halt_handler(_request('/ops/halt'))
 
     assert any(p['event'] == 'operator_halt' for p in posted)
+
+
+@pytest.mark.asyncio
+async def test_cancel_all_returns_structured_error_on_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_OPS_TOKEN', _TOKEN)
+    launcher = _launcher(await _spine(), tmp_path)
+    _register_runtime(launcher)
+    launcher._trading = Mock()
+    launcher._trading.execution_manager.get_open_orders.side_effect = RuntimeError('not registered')
+
+    response = await launcher._ops_cancel_all_handler(_request('/ops/cancel-all'))
+
+    assert response.status == 500
+    assert json.loads(response.body) == {'error': 'cancel_all_failed'}
+
+
+@pytest.mark.asyncio
+async def test_close_all_returns_structured_error_on_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_OPS_TOKEN', _TOKEN)
+    launcher = _launcher(await _spine(), tmp_path)
+    _register_runtime(launcher)
+    launcher._trading = Mock()
+    launcher._trading.execution_manager.get_open_orders.side_effect = RuntimeError('not registered')
+
+    response = await launcher._ops_close_all_handler(_request('/ops/close-all'))
+
+    assert response.status == 500
+    assert json.loads(response.body) == {'error': 'close_all_failed'}
