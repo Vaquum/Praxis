@@ -280,9 +280,9 @@ def _build_nexus_instance_config(
         msg = (
             f'PRAXIS_BOOK_STALENESS_SECONDS ({book_staleness_max_seconds}) must '
             f'exceed the book poll interval ({_DEFAULT_BOOK_POLL_INTERVAL_SECONDS}s): '
-            f'at or below it the cached book is always older than the limit, so the '
-            f'price stage rejects every order with PRICE_BOOK_STALE and silently '
-            f'stalls trading.'
+            f'at or below it the cached book is frequently older than the limit '
+            f'between polls, so the price stage rejects orders with PRICE_BOOK_STALE '
+            f'often enough to stall trading.'
         )
         raise ValueError(msg)
 
@@ -2819,17 +2819,24 @@ class Launcher:
         '''
 
         def on_halt(source: str) -> None:
-            if self._loop is None:
-                self._alert_sink.alert(
-                    'mode_halted', severity='critical', account_id=account_id, source=source,
-                )
-                return
+            loop = self._loop
 
-            asyncio.run_coroutine_threadsafe(
-                self._alert_sink.notify(
-                    'mode_halted', severity='critical', account_id=account_id, source=source,
-                ),
-                self._loop,
+            if loop is not None and not loop.is_closed():
+
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        self._alert_sink.notify(
+                            'mode_halted', severity='critical',
+                            account_id=account_id, source=source,
+                        ),
+                        loop,
+                    )
+                    return
+                except RuntimeError:
+                    pass
+
+            self._alert_sink.alert(
+                'mode_halted', severity='critical', account_id=account_id, source=source,
             )
 
         return on_halt

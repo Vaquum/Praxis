@@ -320,3 +320,18 @@ async def test_mode_halt_alert_logs_only_without_loop(tmp_path: Path) -> None:
 
     launcher._alert_sink.alert.assert_called_once()
     launcher._alert_sink.notify.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mode_halt_alert_falls_back_when_loop_closed(tmp_path: Path) -> None:
+    launcher = _launcher(await _spine(), tmp_path)
+    launcher._alert_sink = Mock()
+    loop = asyncio.new_event_loop()
+    loop.close()
+    launcher._loop = loop
+    on_halt = launcher._build_mode_halt_alert('acc-1')
+
+    on_halt('risk')
+
+    launcher._alert_sink.alert.assert_called_once()
+    launcher._alert_sink.notify.assert_not_called()
