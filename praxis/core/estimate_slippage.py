@@ -41,14 +41,24 @@ class SlippageEstimate:
 
 
 def _mid_price(book: OrderBookSnapshot) -> Decimal | None:
-    '''Return the book mid-price, or `None` when a side is empty or it is zero.'''
+    '''Return the book mid-price, or `None` for an empty, non-positive, or crossed book.
+
+    Degrades to `None` on a bad book (a side is empty, the best bid is not
+    positive, or the best ask is below the best bid) rather than returning
+    a negative or misleading mid into the slippage estimate and guard,
+    consistent with `book_mid_price` and `build_price_snapshot`.
+    '''
 
     if not book.bids or not book.asks:
         return None
 
-    mid = (book.bids[0].price + book.asks[0].price) / _TWO
+    best_bid = book.bids[0].price
+    best_ask = book.asks[0].price
 
-    return mid if mid != _ZERO else None
+    if best_bid <= _ZERO or best_ask < best_bid:
+        return None
+
+    return (best_bid + best_ask) / _TWO
 
 
 def _slippage_from_fill(mid_price: Decimal, cost: Decimal, filled: Decimal) -> SlippageEstimate:

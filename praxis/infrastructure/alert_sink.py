@@ -60,7 +60,9 @@ class AlertSink:
         if self._webhook_url is None or self._post is None:
             return
 
-        payload = {'event': event, 'severity': severity, **detail}
+        payload = json.loads(
+            json.dumps({'event': event, 'severity': severity, **detail}, default=str),
+        )
 
         try:
             await self._post(self._webhook_url, payload)

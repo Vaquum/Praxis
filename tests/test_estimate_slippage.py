@@ -104,3 +104,13 @@ def test_quote_slippage_none_on_empty_book() -> None:
     book = OrderBookSnapshot(bids=(), asks=(), last_update_id=1)
 
     assert estimate_slippage_for_quote(book, Decimal('100'), OrderSide.BUY) is None
+
+
+def test_estimate_returns_none_for_a_crossed_book() -> None:
+    book = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=Decimal('100'), qty=Decimal('5')),),
+        asks=(OrderBookLevel(price=Decimal('99'), qty=Decimal('5')),),
+        last_update_id=1,
+    )
+
+    assert estimate_slippage_for_quote(book, Decimal('50'), OrderSide.BUY) is None
