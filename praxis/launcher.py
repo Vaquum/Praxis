@@ -3302,6 +3302,7 @@ class Launcher:
                 outcome_processor=runtime.outcome_processor,
                 non_pending_outcome_handler=runtime.process_outcome,
                 positions_lock=runtime.positions_lock,
+                mode_controller=runtime.mode_controller,
             )
             shutdown.shutdown()
 
