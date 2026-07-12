@@ -24,7 +24,7 @@ _BPS = Decimal('10000')
 _MS_PER_SECOND = 1000
 
 
-@dataclass
+@dataclass(frozen=True)
 class CachedBook:
     snapshot: OrderBookSnapshot
     fetched_at: datetime

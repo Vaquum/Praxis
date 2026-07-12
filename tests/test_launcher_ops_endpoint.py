@@ -273,3 +273,18 @@ async def test_close_all_returns_structured_error_on_failure(tmp_path: Path, mon
 
     assert response.status == 500
     assert json.loads(response.body) == {'error': 'close_all_failed'}
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_account_returns_400(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('PRAXIS_OPS_TOKEN', _TOKEN)
+    launcher = _launcher(await _spine(), tmp_path)
+    _register_runtime(launcher)
+    second = Mock()
+    second.nexus_config.account_id = 'other-acc'
+    launcher._nexus_runtimes['other-acc'] = second
+
+    response = await launcher._ops_status_handler(_request('/ops/status', method='GET'))
+
+    assert response.status == 400
+    assert json.loads(response.body)['error'] == 'account_id_required'

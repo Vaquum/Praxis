@@ -2841,11 +2841,16 @@ class Launcher:
 
         return None
 
-    def _resolve_ops_runtime(self, request: web.Request) -> _NexusRuntime | None:
-        '''Return the running runtime for the request's account, or `None`.
+    def _resolve_ops_runtime(
+        self, request: web.Request,
+    ) -> tuple[_NexusRuntime | None, web.Response | None]:
+        '''Resolve the request's runtime, or an error response.
 
         The `account_id` query parameter selects the account; it defaults
-        to the sole running account when exactly one exists.
+        to the sole running account when exactly one exists. When it is
+        omitted and more than one account is running the request is
+        ambiguous — a 400 `account_id_required` rather than a misleading
+        404 `unknown_account`.
         '''
 
         with self._nexus_runtimes_lock:
@@ -2853,10 +2858,24 @@ class Launcher:
 
         account_id = request.query.get('account_id')
 
-        if account_id is None and len(runtimes) == 1:
-            account_id = next(iter(runtimes))
+        if account_id is None:
 
-        return runtimes.get(account_id) if account_id is not None else None
+            if len(runtimes) == 1:
+                return next(iter(runtimes.values())), None
+
+            if len(runtimes) > 1:
+                return None, web.json_response(
+                    {'error': 'account_id_required', 'known': sorted(runtimes)}, status=400,
+                )
+
+            return None, web.json_response({'error': 'unknown_account'}, status=404)
+
+        runtime = runtimes.get(account_id)
+
+        if runtime is None:
+            return None, web.json_response({'error': 'unknown_account'}, status=404)
+
+        return runtime, None
 
     async def _ops_reason(self, request: web.Request, default: str) -> str:
         raw = await request.text()
@@ -2894,10 +2913,10 @@ class Launcher:
         if auth is not None:
             return auth
 
-        runtime = self._resolve_ops_runtime(request)
+        runtime, error = self._resolve_ops_runtime(request)
 
-        if runtime is None:
-            return web.json_response({'error': 'unknown_account'}, status=404)
+        if error is not None:
+            return error
 
         return web.json_response(self._ops_status_body(runtime))
 
@@ -2913,10 +2932,10 @@ class Launcher:
         if auth is not None:
             return auth
 
-        runtime = self._resolve_ops_runtime(request)
+        runtime, error = self._resolve_ops_runtime(request)
 
-        if runtime is None:
-            return web.json_response({'error': 'unknown_account'}, status=404)
+        if error is not None:
+            return error
 
         account_id = runtime.nexus_config.account_id
         reason = await self._ops_reason(
@@ -2962,10 +2981,10 @@ class Launcher:
         if auth is not None:
             return auth
 
-        runtime = self._resolve_ops_runtime(request)
+        runtime, error = self._resolve_ops_runtime(request)
 
-        if runtime is None:
-            return web.json_response({'error': 'unknown_account'}, status=404)
+        if error is not None:
+            return error
 
         account_id = runtime.nexus_config.account_id
 
@@ -2988,10 +3007,10 @@ class Launcher:
         if auth is not None:
             return auth
 
-        runtime = self._resolve_ops_runtime(request)
+        runtime, error = self._resolve_ops_runtime(request)
 
-        if runtime is None:
-            return web.json_response({'error': 'unknown_account'}, status=404)
+        if error is not None:
+            return error
 
         account_id = runtime.nexus_config.account_id
 

@@ -171,7 +171,7 @@ def estimate_slippage_for_quote(
 
     if remaining_quote > _ZERO:
         _log.warning(
-            'book depth insufficient for quote spend: symbol=%s needed_quote=%s side=%s',
+            'book depth insufficient for quote amount: symbol=%s needed_quote=%s side=%s',
             symbol,
             quote_qty,
             side.value,
