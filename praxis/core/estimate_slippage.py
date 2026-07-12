@@ -131,15 +131,16 @@ def estimate_slippage_for_quote(
     symbol: str | None = None,
 ) -> SlippageEstimate | None:
     '''
-    Compute expected slippage for a quote-denominated spend by walking the book.
+    Compute expected slippage for a quote-denominated order by walking the book.
 
-    Walk ask levels for BUY orders, bid levels for SELL orders, spending
+    Walk ask levels for BUY orders, bid levels for SELL orders, consuming
     the quote amount level by level until it is exhausted or book depth
     runs out. Used for quote-native MARKET orders that have no base target.
 
     Args:
         book (OrderBookSnapshot): Current order book snapshot.
-        quote_qty (Decimal): Quote-asset amount to spend.
+        quote_qty (Decimal): Quote-asset amount — the spend for a BUY, the
+            proceeds target for a SELL.
         side (OrderSide): Order side determining which book side to walk.
         symbol (str | None): Symbol used for warning-log correlation.
 

@@ -515,6 +515,22 @@ def _build_platform_snapshot_provider(
     return provider
 
 
+def _make_book_fetch(
+    venue_adapter: VenueAdapter, symbol: str,
+) -> Callable[[], Awaitable[OrderBookSnapshot]]:
+    '''Bind a zero-arg top-of-book fetch for one symbol.
+
+    Binding the symbol in this factory keeps each poller's `fetch` a
+    zero-arg callable (as `BookPoller` expects) and avoids the loop-variable
+    late-binding that an inline closure over the loop `account` would hit.
+    '''
+
+    def fetch() -> Awaitable[OrderBookSnapshot]:
+        return venue_adapter.query_order_book(symbol, limit=_BOOK_POLL_DEPTH_LEVELS)
+
+    return fetch
+
+
 def _default_price_snapshot(_context: ValidationRequestContext) -> PriceCheckSnapshot | None:
     '''Return `None`; MMVP `PriceStageLimits` are all unset.'''
 
@@ -3155,12 +3171,10 @@ class Launcher:
 
         try:
             for account in self._paper_account_map().values():
-
-                def fetch(symbol: str = account.symbol) -> Awaitable[OrderBookSnapshot]:
-                    return venue_adapter.query_order_book(symbol, limit=_BOOK_POLL_DEPTH_LEVELS)
-
                 poller = BookPoller(
-                    symbol=account.symbol, fetch=fetch, cache=self._book_cache,
+                    symbol=account.symbol,
+                    fetch=_make_book_fetch(venue_adapter, account.symbol),
+                    cache=self._book_cache,
                     clock=self._clock, interval_seconds=_DEFAULT_BOOK_POLL_INTERVAL_SECONDS,
                 )
                 pollers.append(poller)
