@@ -32,6 +32,8 @@ from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
+    OrderBookLevel,
+    OrderBookSnapshot,
     DuplicateClientOrderIdError,
     NotFoundError,
     OrderSubmitTimeoutError,
@@ -82,6 +84,11 @@ def adapter() -> AsyncMock:
     mock = AsyncMock(spec=VenueAdapter)
     mock.submit_order.return_value = SubmitResult(
         venue_order_id='v-1', status=OrderStatus.OPEN, immediate_fills=(),
+    )
+    mock.query_order_book.return_value = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=Decimal('49990'), qty=Decimal('2')),),
+        asks=(OrderBookLevel(price=Decimal('50010'), qty=Decimal('2')),),
+        last_update_id=1,
     )
     return mock
 

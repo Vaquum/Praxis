@@ -741,17 +741,7 @@ On cold start, `BinanceAdapter._filters` is empty until the first `get_exchange_
 
 **Migration**: Two options. (i) In `quantize_for_command`, treat `filters is None` as `INTAKE_FILTERS_NOT_CACHED` rejection — the launcher then drops the action and waits for the next cycle once `exchangeInfo` lands. Conservative; eats a few seconds of initial throughput on every cold start. (ii) In `Launcher.start`, gate `start_dispatch()` on a `await venue_adapter.get_exchange_info()` round-trip before opening the strategy event loop. Adds 100-200ms to cold-start; eliminates the window entirely. Option (ii) is cleaner and matches what `BinanceAdapter` already does for the WS keepalive boot sequence.
 
-## TD-078: `estimate_slippage` is observation-only — no execution guard rejects bad-fill MARKET orders
-
-**Origin**: Architectural review during v0.72.0 monkeypatch + codex round-3 design discussion (200 bps buffer hack)
-**Severity**: Low under current scope (BTCUSDT-only, $5–50 per order; BTC top-of-book on Binance routinely has $100k+ within a cent of mid so walking the book costs essentially top-of-book price). Elevated if order sizing scales by 1–2 orders of magnitude, OR during a flash-crash / liquidity-pull where top-20 depth briefly thins.
-**Module**: [`praxis/core/execution_manager.py`](../praxis/core/execution_manager.py) — `_process_command` calls [`estimate_slippage`](../praxis/core/estimate_slippage.py) at line 949 but only logs the result; no rejection path. The estimator computes `simulated_vwap` and `slippage_estimate_bps` (VWAP vs mid) and returns; the command proceeds to `venue_adapter.submit_order` regardless.
-
-The slippage estimator is wired into the pre-submit path for observability — every MARKET order log line carries `slippage_estimate_bps=...` — but there is no threshold-and-reject layer on top of it. A MARKET BUY against a pathologically thin book (flash-crash moment, exchange outage half-recovered, liquidity-provider pulled) would execute at whatever effective price the book offers, with `slippage_estimate_bps` merely logged. The capital ledger remains correct under the post-v0.73.0 `quoteOrderQty` reservation (the spend is exactly the reserved USDT, no ledger divergence is possible) but the strategy/operator receives whatever BTC qty that USDT bought; under thin-book conditions the actual BTC received could be materially below the strategy's expected sizing.
-
-**When to fix**: When either (a) an incident traces back to a thin-book bad fill where the strategy's expected BTC sizing diverged materially from the actual BTC received, OR (b) order sizing scales up significantly (e.g. ≥ $1k per order).
-
-**Migration**: Pre-submit guard in [`ExecutionManager._process_command`](../praxis/core/execution_manager.py) between the existing `estimate_slippage` call (line 949) and `submit_order`. Policy shape: `max_market_slippage_bps: int` config (default ~50, per-symbol override on [`TradingConfig`](../praxis/trading_config.py)). On violation, build a synthetic REJECTED `TradeOutcome` with `reason='EXECUTION_GUARD_SLIPPAGE_EXCEEDED'` and structured extras (`estimate.slippage_estimate_bps`, `policy.max_market_slippage_bps`, `book.top_of_book`, `cmd.symbol`) and short-circuit the venue submission. No auto-convert to LIMIT in v1 — that's a separate execution-mode feature with its own design surface. Only applies to MARKET orders; LIMIT orders self-cap via the price field.
+## TD-078: `estimate_slippage` is observation-only — no execution guard rejects bad-fill MARKET orders — RESOLVED
 
 ## TD-079: Quote-native terminal signal only on REST submit-response path — WS-driven fills do not flip to FILLED
 

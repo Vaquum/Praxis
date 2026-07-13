@@ -1271,3 +1271,23 @@
 - Add base-asset fee handling: a `BTC` fee on a buy is valued at the fill price, credits `Crypto:BTC` rather than `Cash:USDT`, and reduces the cost-basis lot to the net quantity received, so the ledger's base inventory and cost basis match the venue balance. Quote-asset (`USDT`) fees are unchanged; any other fee asset raises
 - Add a [`FundTransaction`](praxis/core/domain/events.py) spine event (`amount`, a `FundDirection` of `DEPOSIT` or `WITHDRAWAL`, and a stable `fund_transaction_id`) booking a deposit as `Dr Cash:USDT / Cr Equity:Contributions` and a withdrawal as the reverse; the ledger records an over-withdrawal rather than rejecting it, since enforcement belongs upstream
 - Add balances and per-trade realized-P&L read accessors — `read_balances`/`read_trade_pnls` on [`AccountLedger`](praxis/core/account_ledger.py) and `get_account_balances`/`get_account_trade_pnls` on [`ExecutionManager`](praxis/core/execution_manager.py) — returning detached copies so a caller cannot mutate the projection
+
+## v0.92.0 on 12th of July, 2026
+
+### NOTE
+
+- WP-Praxis-0008 (Live operability & safety): the live-trading safety controls, pre-trade price/slippage gates, operator control surface, and alerting for the MVP. The operational-mode arbitration lands in Nexus (`ModeController`, halt holds, risk breakers, sole `state.mode` writer), pinned here at `0.70.0`; Praxis wires it per account and adds the pre-trade caps, price stage, slippage guard, `/ops` endpoints, and alert sink
+
+### Add
+
+- Enforce a configurable pre-trade `PRAXIS_MAX_ORDER_NOTIONAL` cap (snapshot-free) and a context-aware `PRAXIS_MAX_POSITION` cap that projects current position plus the order delta, rejecting an order that would breach either before it reaches the venue
+- Wire a per-account `ModeController` into the health loop and configure its risk breakers from the account manifest's `risk_controls` — a live daily-loss or drawdown breach HALTS the account, and `reconcile` re-derives the mode on boot before startup actions drain so a halt that outlived a restart is in force first
+- Add a loopback + bearer-token (`PRAXIS_OPS_TOKEN`, constant-time compare) `/ops` operator surface — `halt`, `resume`, `status`, `cancel-all`, `close-all` — with durable holds (persisted through the state store) and `OperatorHaltRequested` / `OperatorResumeRequested` spine audit events
+- Add an order-book cache and poller that feed the pre-trade price stage: `build_price_snapshot` derives spread and staleness, gated by `PRAXIS_MAX_SPREAD_BPS` and `PRAXIS_BOOK_STALENESS_SECONDS`
+- Reject MARKET orders whose quote-denominated estimated slippage exceeds `PRAXIS_MAX_SLIPPAGE_BPS`, reusing the shared book-walk estimator (resolves TD-078)
+- Add a minimal `AlertSink` (structured log + optional `PRAXIS_ALERT_WEBHOOK_URL` webhook) and route alerts on any HALT transition and every operator action
+- Route shutdown through the Nexus `ModeController` shutdown hold: `ShutdownSequencer` places the dedicated hold (un-liftable by a concurrent health tick) instead of writing `state.mode`, so an in-flight outcome dispatched mid-shutdown cannot resume trading
+
+### Fix
+
+- Use a non-reserved `LogRecord` key for the nexus-thread-timeout warning in `_shutdown`; `extra={'thread': ...}` raised `KeyError: Attempt to overwrite 'thread' in LogRecord` whenever a nexus thread missed its join

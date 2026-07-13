@@ -26,6 +26,8 @@ from praxis.core.domain.events import (
     OrderExpired,
     OrderRejected,
     OrderSubmitFailed,
+    OperatorHaltRequested,
+    OperatorResumeRequested,
     OrderSubmitIntent,
     OrderSubmitted,
     RegisterAccount,
@@ -115,6 +117,12 @@ _ALL_EVENTS: list[Event] = [
     FundTransaction(
         account_id=_ACCT, timestamp=_TS,
         fund_transaction_id='fund-1', amount=Decimal('1000'), direction='DEPOSIT',
+    ),
+    OperatorHaltRequested(
+        account_id=_ACCT, timestamp=_TS, reason='manual stop',
+    ),
+    OperatorResumeRequested(
+        account_id=_ACCT, timestamp=_TS, reason='cleared',
     ),
 
 ]
@@ -625,3 +633,13 @@ async def test_fill_atomicity_rollback_failure_does_not_mask_dml_exception(
 
     with pytest.raises(RuntimeError, match='simulated DML failure'):
         await spine.append(_FILL, epoch_id=_EPOCH)
+
+
+def test_operator_halt_requires_a_reason() -> None:
+    with pytest.raises(ValueError, match='reason'):
+        OperatorHaltRequested(account_id=_ACCT, timestamp=_TS, reason='')
+
+
+def test_operator_resume_requires_a_reason() -> None:
+    with pytest.raises(ValueError, match='reason'):
+        OperatorResumeRequested(account_id=_ACCT, timestamp=_TS, reason='')

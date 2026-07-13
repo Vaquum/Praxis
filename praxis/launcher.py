@@ -8,6 +8,8 @@ prices from the control-plane Arrow volume via `ArrowPriceStore`.
 from __future__ import annotations
 
 import asyncio
+import hmac
+import json
 import logging
 import math
 import os
@@ -17,16 +19,16 @@ import signal
 import sys
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import aiosqlite
-from aiohttp import web
+from aiohttp import ClientSession, ClientTimeout, web
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
@@ -34,6 +36,7 @@ from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
 from nexus.core.health_loop import HealthLoop
+from nexus.core.mode_controller import ModeController
 from nexus.core.mtm_loop import MtmLoop
 from nexus.core.outcome_loop import OutcomeLoop
 from nexus.core.stp_mode import STPMode
@@ -91,11 +94,20 @@ from praxis.command_translator import (
     translate_order_type,
     translate_stp_mode,
 )
-from praxis.core.domain.enums import OrderSide as _PraxisOrderSide, OrderType
+from praxis.core.domain.enums import (
+    ExecutionMode,
+    MakerPreference,
+    OrderSide as _PraxisOrderSide,
+    OrderType,
+    STPMode as _PraxisSTPMode,
+)
+from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
     Event,
     MarkSampled,
+    OperatorHaltRequested,
+    OperatorResumeRequested,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
@@ -116,7 +128,10 @@ from praxis.paper.paper_report import build_paper_report
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
-from praxis.infrastructure.venue_adapter import VenueAdapter
+from praxis.infrastructure.alert_sink import AlertSink
+from praxis.infrastructure.book_cache import BookCache, book_mid_price, build_price_snapshot
+from praxis.infrastructure.book_poller import BookPoller
+from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
 
@@ -141,6 +156,10 @@ _DEFAULT_VENUE = 'binance_spot'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
 _LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
+_OPS_CLOSE_TIMEOUT_SECONDS = 60
+_DEFAULT_BOOK_POLL_INTERVAL_SECONDS = 2.0
+_BOOK_POLL_DEPTH_LEVELS = 5
+_ALERT_WEBHOOK_TIMEOUT_SECONDS = 5
 
 
 def _utc_now() -> datetime:
@@ -252,12 +271,29 @@ def _build_nexus_instance_config(
         spec.strategy_id: spec.capital_pct for spec in manifest.strategies
     }
 
+    book_staleness_max_seconds = _env_positive_int('PRAXIS_BOOK_STALENESS_SECONDS')
+
+    if (
+        book_staleness_max_seconds is not None
+        and book_staleness_max_seconds <= _DEFAULT_BOOK_POLL_INTERVAL_SECONDS
+    ):
+        msg = (
+            f'PRAXIS_BOOK_STALENESS_SECONDS ({book_staleness_max_seconds}) must '
+            f'exceed the book poll interval ({_DEFAULT_BOOK_POLL_INTERVAL_SECONDS}s): '
+            f'at or below it the cached book is frequently older than the limit '
+            f'between polls, so the price stage rejects orders with PRICE_BOOK_STALE '
+            f'often enough to stall trading.'
+        )
+        raise ValueError(msg)
+
     return NexusInstanceConfig(
         account_id=praxis_inst.account_id,
         venue=_DEFAULT_VENUE,
         duplicate_window_ms=_DEFAULT_DUPLICATE_WINDOW_MS,
         stp_mode=STPMode.CANCEL_TAKER,
         capital_pct=capital_pct,
+        max_spread_bps=_env_positive_decimal('PRAXIS_MAX_SPREAD_BPS'),
+        book_staleness_max_seconds=book_staleness_max_seconds,
     )
 
 
@@ -341,6 +377,7 @@ def _build_health_loop(
     account_id: str,
     interval_seconds: float = _DEFAULT_HEALTH_INTERVAL_SECONDS,
     state_store: StateStore | None = None,
+    mode_controller: ModeController | None = None,
 ) -> HealthLoop:
     '''Build a per-account `HealthLoop` wired to Praxis health pulls.
 
@@ -397,6 +434,7 @@ def _build_health_loop(
         state=state,
         interval_seconds=interval_seconds,
         rolling_loss_refresher=rolling_loss_refresher,
+        mode_controller=mode_controller,
     )
 
 
@@ -417,16 +455,176 @@ def _default_health_snapshot() -> HealthStageSnapshot:
     )
 
 
-def _default_platform_snapshot() -> PlatformLimitsStageSnapshot:
-    '''Return an empty `PlatformLimitsStageSnapshot` for MMVP defaults.'''
+def _default_platform_snapshot(
+    _context: ValidationRequestContext,
+) -> PlatformLimitsStageSnapshot:
+    '''Return an empty `PlatformLimitsStageSnapshot` (MMVP-lenient default).'''
 
     return PlatformLimitsStageSnapshot()
 
 
-def _default_price_snapshot() -> PriceCheckSnapshot | None:
+def _projected_position(
+    positions: dict[str, Position],
+    context: ValidationRequestContext,
+    mid_price_provider: Callable[[str], Decimal | None],
+) -> Decimal:
+    '''Return the account's projected base position for the context's order.
+
+    Sums current open positions in the order's symbol (long positive, short
+    negative) and applies the pending order's signed base size, so the
+    platform-limits stage gates the position the order would leave, not the
+    position before it. Floored at zero.
+
+    A quote-native order carries `order_notional` but no `order_size`, so
+    its base delta is estimated as `order_notional / mid`, where `mid` is
+    the cached top-of-book mid. When no mid is available the delta is zero
+    (the cap degrades to gating the current position), and `order_size`
+    stays `None` so the estimate never leaks onto the delivered order.
+    '''
+
+    current = sum(
+        (position.size if position.side is OrderSide.BUY else -position.size
+         for position in positions.values() if position.symbol == context.symbol),
+        _ZERO,
+    )
+
+    if context.order_size is not None:
+        delta = context.order_size
+
+    elif context.order_notional is not None:
+        mid = mid_price_provider(context.symbol)
+        delta = context.order_notional / mid if mid is not None and mid > _ZERO else _ZERO
+
+    else:
+        delta = _ZERO
+
+    if context.order_side is OrderSide.SELL:
+        delta = -delta
+
+    projected = current + delta
+
+    return projected if projected > _ZERO else _ZERO
+
+
+def _build_platform_snapshot_provider(
+    positions: dict[str, Position],
+    positions_lock: threading.Lock,
+    mid_price_provider: Callable[[str], Decimal | None],
+) -> Callable[[ValidationRequestContext], PlatformLimitsStageSnapshot]:
+    '''Return a provider that projects the account position for each order.
+
+    Args:
+        positions: The account's live open positions keyed by trade_id.
+        positions_lock: Guards `positions` against concurrent OutcomeLoop
+            deletes; the provider runs at validation time on the strategy
+            thread, outside the validator's lock, so it snapshots under this
+            lock to avoid a `dictionary changed size during iteration` race.
+        mid_price_provider: Maps a symbol to its cached top-of-book mid,
+            used to project a quote-native order's base delta.
+    '''
+
+    def provider(context: ValidationRequestContext) -> PlatformLimitsStageSnapshot:
+        with positions_lock:
+            snapshot = dict(positions)
+
+        return PlatformLimitsStageSnapshot(
+            projected_position=_projected_position(snapshot, context, mid_price_provider),
+        )
+
+    return provider
+
+
+def _make_book_fetch(
+    venue_adapter: VenueAdapter, symbol: str,
+) -> Callable[[], Awaitable[OrderBookSnapshot]]:
+    '''Bind a zero-arg top-of-book fetch for one symbol.
+
+    Binding the symbol in this factory keeps each poller's `fetch` a
+    zero-arg callable (as `BookPoller` expects) and avoids the loop-variable
+    late-binding that an inline closure over the loop `account` would hit.
+    '''
+
+    def fetch() -> Awaitable[OrderBookSnapshot]:
+        return venue_adapter.query_order_book(symbol, limit=_BOOK_POLL_DEPTH_LEVELS)
+
+    return fetch
+
+
+def _default_price_snapshot(_context: ValidationRequestContext) -> PriceCheckSnapshot | None:
     '''Return `None`; MMVP `PriceStageLimits` are all unset.'''
 
     return None
+
+
+def _env_positive_decimal(name: str) -> Decimal | None:
+    '''Return a positive finite `Decimal` from environment variable `name`.
+
+    Args:
+        name: Environment variable holding the threshold.
+
+    Returns:
+        The parsed `Decimal`, or `None` when the variable is unset or empty.
+
+    Raises:
+        ValueError: The variable is set but is not a positive finite decimal.
+    '''
+
+    raw = os.environ.get(name)
+
+    if not raw:
+        return None
+
+    try:
+        value = Decimal(raw)
+    except InvalidOperation as exc:
+        msg = f'{name} must be a decimal, got {raw!r}'
+        raise ValueError(msg) from exc
+
+    if not value.is_finite() or value <= _ZERO:
+        msg = f'{name} must be a positive finite decimal, got {raw!r}'
+        raise ValueError(msg)
+
+    return value
+
+
+def _env_positive_int(name: str) -> int | None:
+    '''Return a positive integer from environment variable `name`.
+
+    Args:
+        name: Environment variable holding the value.
+
+    Returns:
+        The parsed integer, or `None` when the variable is unset or empty.
+
+    Raises:
+        ValueError: The variable is set but is not a positive integer.
+    '''
+
+    raw = os.environ.get(name)
+
+    if not raw:
+        return None
+
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        msg = f'{name} must be an integer, got {raw!r}'
+        raise ValueError(msg) from exc
+
+    if value <= 0:
+        msg = f'{name} must be a positive integer, got {raw!r}'
+        raise ValueError(msg)
+
+    return value
+
+
+async def _post_alert_webhook(url: str, payload: dict[str, Any]) -> None:
+    '''POST an alert payload to the configured webhook, raising on non-2xx.'''
+
+    async with ClientSession() as session, session.post(
+        url, json=payload, timeout=ClientTimeout(total=_ALERT_WEBHOOK_TIMEOUT_SECONDS),
+    ) as response:
+        response.raise_for_status()
 
 
 def _build_validation_pipeline(
@@ -436,12 +634,13 @@ def _build_validation_pipeline(
     health_snapshot_provider: Callable[[], HealthStageSnapshot] = (
         _default_health_snapshot
     ),
-    platform_snapshot_provider: Callable[[], PlatformLimitsStageSnapshot] = (
+    platform_snapshot_provider: Callable[[ValidationRequestContext], PlatformLimitsStageSnapshot] = (
         _default_platform_snapshot
     ),
-    price_snapshot_provider: Callable[[], PriceCheckSnapshot | None] = (
+    price_snapshot_provider: Callable[[ValidationRequestContext], PriceCheckSnapshot | None] = (
         _default_price_snapshot
     ),
+    platform_limits: PlatformLimitsStageLimits | None = None,
     clock: Callable[[], datetime] = _utc_now,
 ) -> ValidationPipeline:
     '''Build a six-stage `ValidationPipeline` for one account.
@@ -451,13 +650,15 @@ def _build_validation_pipeline(
     snapshot, platform-limits snapshot, price-check snapshot) is read on
     every call via the supplied providers.
 
-    MMVP defaults are deliberately lenient: `RiskStageLimits`,
-    `PlatformLimitsStageLimits`, and `HealthStagePolicy` are constructed
-    with all thresholds unset so each stage allows every action;
-    `PriceStageLimits` is derived from `nexus_config` and inherits the
-    same all-unset posture from `_build_nexus_instance_config`.
-    Operator-supplied limits are dialed in pre-live by passing a
-    pre-configured `nexus_config` and richer snapshot providers.
+    MMVP defaults are deliberately lenient: `RiskStageLimits` and
+    `HealthStagePolicy` are constructed with all thresholds unset so each
+    stage allows every action, and `PriceStageLimits` is derived from
+    `nexus_config` and inherits the same all-unset posture from
+    `_build_nexus_instance_config`. `PlatformLimitsStageLimits` is supplied
+    by the caller (empty by default), so operator-configured platform caps
+    such as `max_order_notional` are enforced when set. Operator-supplied
+    limits are dialed in pre-live by passing configured limits and richer
+    snapshot providers.
 
     Intake hooks are built once via `build_default_intake_hooks` so the
     duplicate-order window state is preserved across ticks. Both
@@ -473,10 +674,13 @@ def _build_validation_pipeline(
             mutable `CapitalState` from `sequencer.instance_state.capital`.
         health_snapshot_provider: Callable returning the current health
             snapshot. Defaults to a neutral-healthy snapshot.
-        platform_snapshot_provider: Callable returning the current
-            platform-limits snapshot. Defaults to an empty snapshot.
+        platform_snapshot_provider: Callable returning the platform-limits
+            snapshot for a request context, used to project the order's
+            resulting position. Defaults to an empty snapshot.
         price_snapshot_provider: Callable returning the current
             price-check snapshot. Defaults to `None`.
+        platform_limits: Operator-configured platform caps for the
+            platform-limits stage. Defaults to an empty (all-unset) limit set.
         clock: Source of UTC time for the duplicate-order and order-rate
             intake hooks; a replay run injects its cursor so these gate
             on simulated time rather than wall time.
@@ -488,7 +692,7 @@ def _build_validation_pipeline(
     intake_hooks = build_default_intake_hooks(nexus_config, now_fn=clock)
     risk_limits = RiskStageLimits()
     price_limits = build_price_stage_limits_from_config(nexus_config)
-    platform_limits = PlatformLimitsStageLimits()
+    platform_limits = platform_limits if platform_limits is not None else PlatformLimitsStageLimits()
     health_policy = HealthStagePolicy()
 
     def intake(context: ValidationRequestContext) -> ValidationDecision:
@@ -501,7 +705,7 @@ def _build_validation_pipeline(
         return validate_price_stage(
             context,
             price_limits,
-            price_snapshot_provider(),
+            price_snapshot_provider(context),
         )
 
     def capital(context: ValidationRequestContext) -> ValidationDecision:
@@ -520,7 +724,7 @@ def _build_validation_pipeline(
         return validate_platform_limits_stage(
             context,
             platform_limits,
-            platform_snapshot_provider(),
+            platform_snapshot_provider(context),
         )
 
     validators: dict[ValidationStage, StageValidator] = {
@@ -2020,6 +2224,7 @@ class _NexusRuntime:
     timer_loop: TimerLoop | None
     outcome_loop: OutcomeLoop
     health_loop: HealthLoop
+    mode_controller: ModeController
     snapshot_scheduler: SnapshotScheduler
     mtm_loop: MtmLoop
     unknown_submission_monitor: _UnknownSubmissionMonitor
@@ -2145,10 +2350,18 @@ class Launcher:
         self._healthz_runner: web.AppRunner | None = None
         self._paper_accounts: dict[str, _PaperAccount] | None = None
         self._mark_samplers: list[MarkSampler] = []
+        self._book_cache = BookCache()
+        self._book_pollers: list[BookPoller] = []
+        self._alert_sink = AlertSink(
+            webhook_url=os.environ.get('PRAXIS_ALERT_WEBHOOK_URL'),
+            post=_post_alert_webhook,
+        )
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
         self._account_outcome_wiring_lock = threading.Lock()
+        self._nexus_runtimes: dict[str, _NexusRuntime] = {}
+        self._nexus_runtimes_lock = threading.Lock()
 
     def launch(self) -> None:
         '''Start Praxis + Nexus in one process.
@@ -2165,6 +2378,7 @@ class Launcher:
         self._start_nexus_instances()
         self._start_healthz()
         self._start_mark_samplers()
+        self._start_book_pollers()
 
         _log.info('all nexus instances started', extra={'count': len(self._nexus_threads)})
 
@@ -2293,6 +2507,7 @@ class Launcher:
             venue_adapter=self._venue_adapter,
             bootstrap_filter_symbols=frozenset({_DEFAULT_SYMBOL}),
             clock=self._clock,
+            max_slippage_bps=_env_positive_decimal('PRAXIS_MAX_SLIPPAGE_BPS'),
         )
 
         for inst in self._instances:
@@ -2515,6 +2730,11 @@ class Launcher:
         app = web.Application()
         app.router.add_get('/healthz', self._healthz_handler)
         app.router.add_get('/metrics', self._metrics_handler)
+        app.router.add_post('/ops/halt', self._ops_halt_handler)
+        app.router.add_post('/ops/resume', self._ops_resume_handler)
+        app.router.add_post('/ops/cancel-all', self._ops_cancel_all_handler)
+        app.router.add_post('/ops/close-all', self._ops_close_all_handler)
+        app.router.add_get('/ops/status', self._ops_status_handler)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host='0.0.0.0', port=port)  # noqa: S104
@@ -2587,6 +2807,323 @@ class Launcher:
             return web.json_response({'error': 'metrics_unavailable'}, status=500)
 
         return web.json_response({'account_id': account.account_id, **report})
+
+    def _build_mode_halt_alert(self, account_id: str) -> Callable[[str], None]:
+        '''Return an on-halt callback that alerts when the account is halted.
+
+        The callback fires on the ModeController's thread, not the event
+        loop, so it schedules `AlertSink.notify` (log + webhook) onto the
+        loop when one is available and falls back to the synchronous
+        log-only `alert` otherwise, keeping webhook delivery best-effort
+        without double-logging.
+        '''
+
+        def on_halt(source: str) -> None:
+            loop = self._loop
+
+            if loop is not None and not loop.is_closed():
+
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        self._alert_sink.notify(
+                            'mode_halted', severity='critical',
+                            account_id=account_id, source=source,
+                        ),
+                        loop,
+                    )
+                    return
+                except RuntimeError:
+                    pass
+
+            self._alert_sink.alert(
+                'mode_halted', severity='critical', account_id=account_id, source=source,
+            )
+
+        return on_halt
+
+    def _ops_auth_error(self, request: web.Request) -> web.Response | None:
+        '''Return an error response when an `/ops` caller is not authorised.
+
+        Every `/ops` route — including read-only `status` — is loopback-only
+        and requires a bearer token matching `PRAXIS_OPS_TOKEN`; the routes
+        stay disabled while the variable is unset.
+        '''
+
+        if request.remote not in _LOOPBACK_HOSTS:
+            return web.json_response({'error': 'forbidden'}, status=403)
+
+        token = os.environ.get('PRAXIS_OPS_TOKEN')
+
+        if not token:
+            return web.json_response({'error': 'ops_not_configured'}, status=503)
+
+        expected = f'Bearer {token}'
+
+        if not hmac.compare_digest(request.headers.get('Authorization', ''), expected):
+            return web.json_response({'error': 'unauthorized'}, status=401)
+
+        return None
+
+    def _resolve_ops_runtime(
+        self, request: web.Request,
+    ) -> tuple[_NexusRuntime | None, web.Response | None]:
+        '''Resolve the request's runtime, or an error response.
+
+        The `account_id` query parameter selects the account; it defaults
+        to the sole running account when exactly one exists. When it is
+        omitted and more than one account is running the request is
+        ambiguous — a 400 `account_id_required` rather than a misleading
+        404 `unknown_account`.
+        '''
+
+        with self._nexus_runtimes_lock:
+            runtimes = dict(self._nexus_runtimes)
+
+        account_id = request.query.get('account_id')
+
+        if account_id is None:
+
+            if len(runtimes) == 1:
+                return next(iter(runtimes.values())), None
+
+            if len(runtimes) > 1:
+                return None, web.json_response(
+                    {'error': 'account_id_required', 'known': sorted(runtimes)}, status=400,
+                )
+
+            return None, web.json_response({'error': 'unknown_account'}, status=404)
+
+        runtime = runtimes.get(account_id)
+
+        if runtime is None:
+            return None, web.json_response({'error': 'unknown_account'}, status=404)
+
+        return runtime, None
+
+    async def _ops_reason(self, request: web.Request, default: str) -> str:
+        raw = await request.text()
+
+        if not raw:
+            return default
+
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            return default
+
+        reason = body.get('reason') if isinstance(body, dict) else None
+
+        return reason if isinstance(reason, str) and reason.strip() else default
+
+    @staticmethod
+    def _ops_status_body(runtime: _NexusRuntime) -> dict[str, Any]:
+        holds = runtime.state.mode_holds
+
+        return {
+            'account_id': runtime.nexus_config.account_id,
+            'mode': runtime.state.mode.mode.value,
+            'trigger': runtime.state.mode.trigger,
+            'holds': {
+                'manual': holds.manual_hold.active,
+                'risk_daily_loss': holds.risk_daily_loss.active,
+                'risk_drawdown': holds.risk_drawdown.active,
+            },
+        }
+
+    async def _ops_status_handler(self, request: web.Request) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime, error = self._resolve_ops_runtime(request)
+
+        if error is not None:
+            return error
+
+        assert runtime is not None
+
+        return web.json_response(self._ops_status_body(runtime))
+
+    async def _ops_halt_handler(self, request: web.Request) -> web.Response:
+        return await self._apply_ops_action(request, halt=True)
+
+    async def _ops_resume_handler(self, request: web.Request) -> web.Response:
+        return await self._apply_ops_action(request, halt=False)
+
+    async def _apply_ops_action(self, request: web.Request, *, halt: bool) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime, error = self._resolve_ops_runtime(request)
+
+        if error is not None:
+            return error
+
+        assert runtime is not None
+
+        account_id = runtime.nexus_config.account_id
+        reason = await self._ops_reason(
+            request, 'operator halt' if halt else 'operator resume',
+        )
+
+        if halt:
+            runtime.mode_controller.set_manual_halt(reason)
+            event: Event = OperatorHaltRequested(
+                account_id=account_id, timestamp=self._clock(), reason=reason,
+            )
+
+        else:
+            runtime.mode_controller.clear_manual_halt()
+            event = OperatorResumeRequested(
+                account_id=account_id, timestamp=self._clock(), reason=reason,
+            )
+
+        try:
+            runtime.state_store.append_mutation(runtime.state)
+        except Exception:  # noqa: BLE001 - a halt that is not durable must fail loudly
+            _log.exception('ops action failed to persist')
+            return web.json_response({'error': 'persist_failed'}, status=500)
+
+        if self._event_spine is not None:
+            try:
+                await self._event_spine.append(
+                    event, epoch_id=self._trading_config.epoch_id,
+                )
+            except Exception:  # noqa: BLE001 - the audit trail is best-effort
+                _log.exception('ops audit event append failed')
+
+        await self._alert_sink.notify(
+            'operator_halt' if halt else 'operator_resume',
+            severity='warning', account_id=account_id, reason=reason,
+        )
+
+        return web.json_response(self._ops_status_body(runtime))
+
+    async def _ops_cancel_all_handler(self, request: web.Request) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime, error = self._resolve_ops_runtime(request)
+
+        if error is not None:
+            return error
+
+        assert runtime is not None
+
+        account_id = runtime.nexus_config.account_id
+
+        try:
+            canceled = self._cancel_all_orders(account_id)
+        except Exception:  # noqa: BLE001 - operator endpoint returns a structured error
+            _log.exception('ops cancel-all failed', extra={'account_id': account_id})
+            return web.json_response({'error': 'cancel_all_failed'}, status=500)
+
+        await self._alert_sink.notify(
+            'operator_cancel_all', severity='warning',
+            account_id=account_id, canceled=len(canceled),
+        )
+
+        return web.json_response({'account_id': account_id, 'canceled': canceled})
+
+    async def _ops_close_all_handler(self, request: web.Request) -> web.Response:
+        auth = self._ops_auth_error(request)
+
+        if auth is not None:
+            return auth
+
+        runtime, error = self._resolve_ops_runtime(request)
+
+        if error is not None:
+            return error
+
+        assert runtime is not None
+
+        account_id = runtime.nexus_config.account_id
+
+        try:
+            canceled = self._cancel_all_orders(account_id)
+            closed = await self._close_all_positions(account_id)
+        except Exception:  # noqa: BLE001 - operator endpoint returns a structured error
+            _log.exception('ops close-all failed', extra={'account_id': account_id})
+            return web.json_response({'error': 'close_all_failed'}, status=500)
+
+        await self._alert_sink.notify(
+            'operator_close_all', severity='warning',
+            account_id=account_id, canceled=len(canceled), closed=len(closed),
+        )
+
+        return web.json_response(
+            {'account_id': account_id, 'canceled': canceled, 'closed': closed},
+        )
+
+    def _cancel_all_orders(self, account_id: str) -> list[str]:
+        '''Abort every working command for an account; returns the aborted ids.'''
+
+        if self._trading is None:
+            return []
+
+        command_ids = {
+            order.command_id
+            for order in self._trading.execution_manager.get_open_orders(account_id).values()
+        }
+        canceled: list[str] = []
+
+        for command_id in sorted(command_ids):
+
+            try:
+                self._trading.submit_abort(TradeAbort(
+                    command_id=command_id, account_id=account_id,
+                    reason='operator cancel-all', created_at=self._clock(),
+                ))
+            except Exception:  # noqa: BLE001 - one failed abort must not stop the rest
+                _log.warning('cancel-all skipped a command', extra={'command_id': command_id})
+            else:
+                canceled.append(command_id)
+
+        return canceled
+
+    async def _close_all_positions(self, account_id: str) -> list[dict[str, str]]:
+        '''Submit a market exit for every open position; returns per-trade results.'''
+
+        if self._trading is None:
+            return []
+
+        closed: list[dict[str, str]] = []
+
+        for (trade_id, _acct), position in self._trading.pull_positions(account_id).items():
+            net = position.qty
+
+            if net <= _ZERO:
+                continue
+
+            exit_side = (
+                _PraxisOrderSide.SELL
+                if position.side is _PraxisOrderSide.BUY
+                else _PraxisOrderSide.BUY
+            )
+
+            try:
+                command_id = await self._trading.submit_command(
+                    trade_id=trade_id, account_id=account_id, symbol=position.symbol,
+                    side=exit_side, qty=net, quote_qty=None,
+                    order_type=OrderType.MARKET, execution_mode=ExecutionMode.SINGLE_SHOT,
+                    execution_params=SingleShotParams(),
+                    timeout=_OPS_CLOSE_TIMEOUT_SECONDS, reference_price=None,
+                    maker_preference=MakerPreference.NO_PREFERENCE, stp_mode=_PraxisSTPMode.NONE,
+                    created_at=self._clock(),
+                )
+            except Exception:  # noqa: BLE001 - one failed exit must not stop the rest
+                _log.exception('close-all failed to submit an exit', extra={'trade_id': trade_id})
+                closed.append({'trade_id': trade_id, 'error': 'submit_failed'})
+            else:
+                closed.append({'trade_id': trade_id, 'command_id': command_id, 'qty': str(net)})
+
+        return closed
 
     def _start_mark_samplers(self) -> None:
         '''Start one paper-metrics mark sampler per account on the launcher loop.
@@ -2673,6 +3210,86 @@ class Launcher:
         else:
             self._mark_samplers = []
 
+    def _build_price_snapshot_provider(
+        self,
+    ) -> Callable[[ValidationRequestContext], PriceCheckSnapshot | None]:
+        '''Return a provider reading the cached book for the order's symbol.'''
+
+        def provider(context: ValidationRequestContext) -> PriceCheckSnapshot | None:
+            return build_price_snapshot(self._book_cache, context.symbol, self._clock())
+
+        return provider
+
+    def _start_book_pollers(self) -> None:
+        '''Start one order-book poller per unique symbol on the launcher loop.
+
+        Best-effort: a start failure is logged and leaves trading unaffected,
+        since an absent book only makes a configured price limit reject.
+        '''
+
+        if self._loop is None or self._venue_adapter is None:
+            return
+
+        future = asyncio.run_coroutine_threadsafe(self._build_book_pollers(), self._loop)
+
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - book polling must never abort trading
+            future.cancel()
+            _log.exception('book poller startup failed; the build can retry')
+        else:
+            _log.info('book pollers started', extra={'count': len(self._book_pollers)})
+
+    async def _build_book_pollers(self) -> None:
+        venue_adapter = self._venue_adapter
+
+        if venue_adapter is None or self._book_pollers:
+            return
+
+        pollers: list[BookPoller] = []
+        symbols = {account.symbol for account in self._paper_account_map().values()}
+
+        try:
+            for symbol in sorted(symbols):
+                poller = BookPoller(
+                    symbol=symbol,
+                    fetch=_make_book_fetch(venue_adapter, symbol),
+                    cache=self._book_cache,
+                    clock=self._clock, interval_seconds=_DEFAULT_BOOK_POLL_INTERVAL_SECONDS,
+                )
+                pollers.append(poller)
+                poller.start()
+
+        except Exception:
+            for poller in pollers:
+                await poller.stop()
+
+            raise
+
+        self._book_pollers = pollers
+
+    def _stop_book_pollers(self) -> None:
+        '''Stop every book poller; best-effort during shutdown.'''
+
+        if self._loop is None or not self._book_pollers:
+            return
+
+        pollers = self._book_pollers
+
+        async def _stop_all() -> None:
+            for poller in pollers:
+                await poller.stop()
+
+        future = asyncio.run_coroutine_threadsafe(_stop_all(), self._loop)
+
+        try:
+            future.result(timeout=10)
+        except Exception:  # noqa: BLE001 - best effort during shutdown
+            future.cancel()
+            _log.exception('book poller shutdown failed; keeping references for retry')
+        else:
+            self._book_pollers = []
+
     async def _healthz_handler(self, _request: web.Request) -> web.Response:
         failures: list[str] = []
 
@@ -2717,6 +3334,7 @@ class Launcher:
 
     def _shutdown(self) -> None:
         self._stop_mark_samplers()
+        self._stop_book_pollers()
 
         for thread in self._nexus_threads:
             thread.join(timeout=30)
@@ -2724,7 +3342,7 @@ class Launcher:
             if thread.is_alive():
                 _log.warning(
                     'nexus thread did not finish within timeout',
-                    extra={'thread': thread.name},
+                    extra={'thread_name': thread.name},
                 )
 
         if self._trading is not None and self._loop is not None:
@@ -2767,11 +3385,16 @@ class Launcher:
 
         try:
             runtime = self._build_nexus_runtime(inst, outcome_queue)
+            with self._nexus_runtimes_lock:
+                self._nexus_runtimes[inst.account_id] = runtime
             self._start_nexus_loops(runtime)
 
             _log.info('nexus instance running', extra={'account_id': inst.account_id})
 
             self._stop_event.wait()
+
+            with self._nexus_runtimes_lock:
+                self._nexus_runtimes.pop(inst.account_id, None)
 
             runtime.health_loop.stop()
             runtime.mtm_loop.stop()
@@ -2797,6 +3420,7 @@ class Launcher:
                 outcome_processor=runtime.outcome_processor,
                 non_pending_outcome_handler=runtime.process_outcome,
                 positions_lock=runtime.positions_lock,
+                mode_controller=runtime.mode_controller,
             )
             shutdown.shutdown()
 
@@ -2804,6 +3428,10 @@ class Launcher:
 
         except Exception:  # noqa: BLE001 - top-level catch for thread, must not propagate
             _log.exception('nexus instance failed', extra={'account_id': inst.account_id})
+
+            with self._nexus_runtimes_lock:
+                self._nexus_runtimes.pop(inst.account_id, None)
+
             self._stop_event.set()
 
     def _build_nexus_runtime(
@@ -2864,10 +3492,20 @@ class Launcher:
         nexus_instance_config = _build_nexus_instance_config(inst, manifest)
         capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
-        pipeline = _build_validation_pipeline(
-            nexus_instance_config, capital_controller, clock=self._clock,
-        )
         positions_lock = threading.Lock()
+        pipeline = _build_validation_pipeline(
+            nexus_instance_config, capital_controller,
+            platform_snapshot_provider=_build_platform_snapshot_provider(
+                state.positions, positions_lock,
+                lambda symbol: book_mid_price(self._book_cache, symbol),
+            ),
+            platform_limits=PlatformLimitsStageLimits(
+                max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),
+                max_position=_env_positive_decimal('PRAXIS_MAX_POSITION'),
+            ),
+            price_snapshot_provider=self._build_price_snapshot_provider(),
+            clock=self._clock,
+        )
         command_registry_lock = threading.Lock()
         if not hasattr(state.risk, 'lock'):
             msg = (
@@ -2877,6 +3515,12 @@ class Launcher:
             )
             raise RuntimeError(msg)
         state.risk.lock = positions_lock
+        mode_controller = ModeController(
+            state, positions_lock, clock=self._clock,
+            risk_thresholds=manifest.risk_controls,
+            on_halt=self._build_mode_halt_alert(inst.account_id),
+        )
+        mode_controller.reconcile()
         state_store.attach_snapshot_locks(
             _build_state_snapshot_locks(state, positions_lock, capital_controller),
         )
@@ -3315,6 +3959,7 @@ class Launcher:
             state=state,
             account_id=inst.account_id,
             state_store=state_store,
+            mode_controller=mode_controller,
         )
 
         snapshot_interval = _positive_float_env(
@@ -3376,6 +4021,7 @@ class Launcher:
             timer_loop=timer_loop,
             outcome_loop=outcome_loop,
             health_loop=health_loop,
+            mode_controller=mode_controller,
             snapshot_scheduler=snapshot_scheduler,
             mtm_loop=mtm_loop,
             unknown_submission_monitor=unknown_submission_monitor,

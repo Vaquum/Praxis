@@ -47,6 +47,8 @@ from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.trading_inbound import TradingInbound
 from praxis.infrastructure.venue_adapter import (
+    OrderBookLevel,
+    OrderBookSnapshot,
     CancelResult,
     ImmediateFill,
     NotFoundError,
@@ -98,6 +100,11 @@ def adapter() -> AsyncMock:
         immediate_fills=(),
     )
     mock.cached_filters.return_value = None
+    mock.query_order_book.return_value = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=Decimal('49990'), qty=Decimal('2')),),
+        asks=(OrderBookLevel(price=Decimal('50010'), qty=Decimal('2')),),
+        last_update_id=1,
+    )
     return mock
 
 
