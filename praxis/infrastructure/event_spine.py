@@ -16,8 +16,10 @@ contract for an append-only log on the order critical path.
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import enum
+import hashlib
 import logging
 import types
 from datetime import datetime
@@ -51,9 +53,29 @@ from praxis.core.domain.events import (
     TradeOutcomeProduced,
 )
 
-__all__ = ['EventSpine']
+__all__ = ['ChainVerificationError', 'EventSpine', 'SpineSchemaError']
 
 _log = logging.getLogger(__name__)
+
+_SCHEMA_VERSION = 1
+_CHAIN_VERSION = 1
+_HASH_DOMAIN = b'praxis.spine.chain.v1'
+_GENESIS_ANCHOR = hashlib.sha256(_HASH_DOMAIN + b'.genesis').hexdigest()
+_FRAME_WIDTH = 8
+
+_META_CHAIN_VERSION = 'chain_version'
+_META_GENESIS_ANCHOR = 'genesis_anchor'
+
+
+class SpineSchemaError(RuntimeError):
+
+    '''Raised when the on-disk schema version is newer than this build supports.'''
+
+
+class ChainVerificationError(RuntimeError):
+
+    '''Raised when the Event Spine hash chain fails verification.'''
+
 
 _CREATE_TABLE = '''
 CREATE TABLE IF NOT EXISTS events (
@@ -61,7 +83,9 @@ CREATE TABLE IF NOT EXISTS events (
     epoch_id INTEGER NOT NULL,
     timestamp TEXT NOT NULL,
     event_type TEXT NOT NULL,
-    payload BLOB NOT NULL
+    payload BLOB NOT NULL,
+    prev_hash TEXT,
+    hash TEXT
 )'''
 
 _CREATE_INDEX = (
@@ -77,17 +101,36 @@ CREATE TABLE IF NOT EXISTS fill_dedup (
     UNIQUE(epoch_id, account_id, dedup_key)
 )'''
 
+_CREATE_META = '''
+CREATE TABLE IF NOT EXISTS spine_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+)'''
+
 _INSERT = (
     'INSERT INTO events (epoch_id, timestamp, event_type, payload) '
     'VALUES (?, ?, ?, ?)'
 )
+
+_UPDATE_HASH = 'UPDATE events SET prev_hash = ?, hash = ? WHERE event_seq = ?'
+
+_TIP_HASH = 'SELECT hash FROM events ORDER BY event_seq DESC LIMIT 1'
 
 _SELECT = (
     'SELECT event_seq, event_type, payload FROM events '
     'WHERE epoch_id = ? AND event_seq > ? ORDER BY event_seq ASC'
 )
 
+_SELECT_CHAIN = (
+    'SELECT event_seq, epoch_id, timestamp, event_type, payload, prev_hash, hash '
+    'FROM events ORDER BY event_seq ASC'
+)
+
 _LAST_SEQ = 'SELECT MAX(event_seq) FROM events WHERE epoch_id = ?'
+
+_META_GET = 'SELECT value FROM spine_meta WHERE key = ?'
+
+_META_SET = 'INSERT OR IGNORE INTO spine_meta (key, value) VALUES (?, ?)'
 
 
 _DEDUP_INSERT = (
@@ -207,6 +250,52 @@ def _hydrate(event_type: str, payload: bytes) -> Event:
     return cls(**coerced)  # type: ignore[no-any-return]
 
 
+def _compute_hash(
+    prev_hash: str,
+    event_seq: int,
+    epoch_id: int,
+    timestamp: str,
+    event_type: str,
+    payload: bytes,
+) -> str:
+
+    '''
+    Compute the SHA-256 chain hash for one event.
+
+    Build a length-framed preimage from the domain marker, chain
+    version, predecessor hash, and every stored field so no two distinct
+    events can collide through field-boundary ambiguity.
+
+    Args:
+        prev_hash (str): Hash of the preceding event, or the genesis anchor.
+        event_seq (int): Global sequence number assigned by the insert.
+        epoch_id (int): Epoch identifier stored on the row.
+        timestamp (str): ISO-8601 timestamp stored on the row.
+        event_type (str): Event class name stored on the row.
+        payload (bytes): Exact serialized payload stored on the row.
+
+    Returns:
+        str: Hex-encoded SHA-256 digest.
+    '''
+
+    digest = hashlib.sha256()
+    parts = (
+        _HASH_DOMAIN,
+        str(_CHAIN_VERSION).encode(),
+        prev_hash.encode(),
+        str(event_seq).encode(),
+        str(epoch_id).encode(),
+        timestamp.encode(),
+        event_type.encode(),
+        payload,
+    )
+    for part in parts:
+        digest.update(len(part).to_bytes(_FRAME_WIDTH, 'big'))
+        digest.update(part)
+
+    return digest.hexdigest()
+
+
 class EventSpine:
 
     '''
@@ -226,30 +315,136 @@ class EventSpine:
         '''
 
         self._conn = conn
+        self._append_lock = asyncio.Lock()
 
     async def ensure_schema(self) -> None:
 
         '''
-        Create the events table, epoch index, and fill dedup table if they do not exist.
+        Create or migrate the schema to the current version, fail-closed on newer.
 
-        Calls `commit()` after the DDL so the schema is durable on the
-        main DB file (not just the rollback journal) before any caller
-        starts appending. Without this, every spine read from a
-        separate connection sees an empty file until the first
-        successful commit elsewhere.
+        Gate the migration on `PRAGMA user_version`: a database newer
+        than this build (`user_version > _SCHEMA_VERSION`) is refused
+        rather than silently downgraded; an older or fresh database is
+        migrated forward once. The migration is additive (nullable hash
+        columns, a metadata table) and idempotent — re-running at the
+        current version is a no-op.
+
+        All DDL, the migration, and the version bump run in one
+        transaction ended by `commit()`, so a crash mid-migration rolls
+        back (the version does not advance) and the next boot re-runs
+        the step. The commit also makes the schema durable on the main
+        DB file before any caller appends; without it a spine read from
+        a separate connection sees an empty file until the first commit.
+
+        Raises:
+            SpineSchemaError: If the on-disk schema is newer than supported.
 
         Returns:
             None
         '''
 
-        async with self._conn.execute(_CREATE_TABLE):
+        version = await self._user_version()
+        if version > _SCHEMA_VERSION:
+            msg = (
+                f'event spine schema version {version} is newer than this '
+                f'build supports ({_SCHEMA_VERSION}); refusing to open'
+            )
+            raise SpineSchemaError(msg)
+
+        try:
+            async with self._conn.execute(_CREATE_TABLE):
+                pass
+            async with self._conn.execute(_CREATE_INDEX):
+                pass
+            async with self._conn.execute(_CREATE_FILL_DEDUP):
+                pass
+            async with self._conn.execute(_CREATE_META):
+                pass
+
+            if version < _SCHEMA_VERSION:
+                await self._migrate_to_v1()
+                async with self._conn.execute(f'PRAGMA user_version = {_SCHEMA_VERSION}'):
+                    pass
+
+            await self._conn.commit()
+        except Exception:
+            await self._safe_rollback('event spine schema migration')
+            _log.exception('event spine schema migration failed (rollback attempted)')
+            raise
+
+        _log.info('event spine schema ensured', extra={'schema_version': _SCHEMA_VERSION})
+
+    async def _user_version(self) -> int:
+
+        '''
+        Return the SQLite `user_version` (0 for a legacy or fresh database).
+
+        Returns:
+            int: The stored schema version.
+        '''
+
+        async with self._conn.execute('PRAGMA user_version') as cursor:
+            row = await cursor.fetchone()
+
+        return int(row[0]) if row else 0
+
+    async def _column_exists(self, table: str, column: str) -> bool:
+
+        '''
+        Report whether a column already exists on a table.
+
+        Args:
+            table (str): Table name to inspect.
+            column (str): Column name to look for.
+
+        Returns:
+            bool: True if the column is present.
+        '''
+
+        async with self._conn.execute(f'PRAGMA table_info({table})') as cursor:
+            rows = await cursor.fetchall()
+
+        return any(row[1] == column for row in rows)
+
+    async def _migrate_to_v1(self) -> None:
+
+        '''
+        Add the hash-chain columns to a legacy events table and seed chain metadata.
+
+        The `ALTER TABLE ADD COLUMN` runs only when the columns are
+        absent, so a fresh database (created with the columns already)
+        skips it. Legacy rows keep NULL hashes and form an unattested
+        prefix; no historical hashes are backfilled.
+
+        Returns:
+            None
+        '''
+
+        if not await self._column_exists('events', 'prev_hash'):
+            async with self._conn.execute('ALTER TABLE events ADD COLUMN prev_hash TEXT'):
+                pass
+        if not await self._column_exists('events', 'hash'):
+            async with self._conn.execute('ALTER TABLE events ADD COLUMN hash TEXT'):
+                pass
+
+        async with self._conn.execute(_META_SET, (_META_CHAIN_VERSION, str(_CHAIN_VERSION))):
             pass
-        async with self._conn.execute(_CREATE_INDEX):
+        async with self._conn.execute(_META_SET, (_META_GENESIS_ANCHOR, _GENESIS_ANCHOR)):
             pass
-        async with self._conn.execute(_CREATE_FILL_DEDUP):
-            pass
-        await self._conn.commit()
-        _log.info('event spine schema ensured')
+
+    async def _genesis_anchor(self) -> str:
+
+        '''
+        Return the stored genesis anchor, falling back to the build constant.
+
+        Returns:
+            str: The predecessor hash for the first hashed event.
+        '''
+
+        async with self._conn.execute(_META_GET, (_META_GENESIS_ANCHOR,)) as cursor:
+            row = await cursor.fetchone()
+
+        return str(row[0]) if row and row[0] is not None else _GENESIS_ANCHOR
 
     async def _safe_rollback(self, context: str) -> None:
 
@@ -271,6 +466,28 @@ class EventSpine:
             _log.exception('event spine rollback failed during %s', context)
 
     async def append(self, event: Event, epoch_id: int) -> int | None:
+
+        '''
+        Serialize, hash-chain, and append a domain event under the append lock.
+
+        Hold `self._append_lock` across the whole critical section — tip
+        read, insert, hash update, and commit — so two concurrent
+        `append` coroutines sharing the one connection cannot interleave
+        at an `await` and fork the chain (both reading the same tip and
+        writing sibling rows with the same `prev_hash`).
+
+        Args:
+            event (Event): Domain event dataclass to persist
+            epoch_id (int): Current epoch identifier
+
+        Returns:
+            int | None: Assigned event_seq, or None if duplicate fill dropped
+        '''
+
+        async with self._append_lock:
+            return await self._append_locked(event, epoch_id)
+
+    async def _append_locked(self, event: Event, epoch_id: int) -> int | None:
 
         '''
         Serialize and append a domain event to the log.
@@ -408,7 +625,14 @@ class EventSpine:
     async def _append_event(self, event: Event, epoch_id: int) -> int:
 
         '''
-        Serialize and insert event into the events table.
+        Serialize, insert, and hash-chain an event into the events table.
+
+        Read the current chain tip, insert the row, then update it with
+        the predecessor hash and this row's SHA-256 chain hash. The tip
+        read and both writes run inside the caller's transaction and
+        under the append lock, so the `prev_hash` committed here is the
+        hash of the immediately preceding event (or the genesis anchor
+        for the first hashed row after a legacy prefix).
 
         Args:
             event (Event): Domain event dataclass to persist
@@ -424,13 +648,42 @@ class EventSpine:
             raise ValueError(msg)
         timestamp = event.timestamp.isoformat()
         payload = orjson.dumps(dataclasses.asdict(event), default=_serialize_default)
+        prev_hash = await self._current_tip_hash()
         async with self._conn.execute(
             _INSERT, (epoch_id, timestamp, event_type, payload)
         ) as cursor:
             if cursor.lastrowid is None:
                 msg = 'cursor.lastrowid was None after INSERT'
                 raise RuntimeError(msg)
-            return cursor.lastrowid
+            event_seq = cursor.lastrowid
+        row_hash = _compute_hash(
+            prev_hash, event_seq, epoch_id, timestamp, event_type, payload,
+        )
+        async with self._conn.execute(_UPDATE_HASH, (prev_hash, row_hash, event_seq)):
+            pass
+
+        return event_seq
+
+    async def _current_tip_hash(self) -> str:
+
+        '''
+        Return the hash of the current chain tip, or the genesis anchor.
+
+        The tip is the row with the highest `event_seq`. A missing row
+        (empty spine) or a NULL-hash tip (the spine still ends in the
+        legacy prefix) both anchor the next hash to the genesis marker.
+
+        Returns:
+            str: The predecessor hash for the next appended event.
+        '''
+
+        async with self._conn.execute(_TIP_HASH) as cursor:
+            row = await cursor.fetchone()
+
+        if row is None or row[0] is None:
+            return await self._genesis_anchor()
+
+        return str(row[0])
 
     async def read(self, epoch_id: int, after_seq: int = 0) -> list[tuple[int, Event]]:
 
@@ -464,3 +717,61 @@ class EventSpine:
         async with self._conn.execute(_LAST_SEQ, (epoch_id,)) as cursor:
             row = await cursor.fetchone()
         return row[0] if row else None
+
+    async def verify_chain(self) -> None:
+
+        '''
+        Verify the global hash chain over every event ordered by event_seq.
+
+        Accept an empty spine and a leading prefix of NULL-hash legacy
+        rows. From the first hashed row onward, require that each row's
+        `prev_hash` equals the preceding hashed row's `hash` (the genesis
+        anchor for the first), and that recomputing the hash over the
+        stored fields reproduces the stored `hash`. A hashed-to-unhashed
+        transition, broken linkage (a deleted or reordered row), or an
+        altered field fails closed.
+
+        Raises:
+            ChainVerificationError: If the chain is broken or tampered.
+
+        Returns:
+            None
+        '''
+
+        expected_prev = await self._genesis_anchor()
+        in_legacy_prefix = True
+
+        async with self._conn.execute(_SELECT_CHAIN) as cursor:
+            rows = list(await cursor.fetchall())
+
+        for event_seq, epoch_id, timestamp, event_type, payload, prev_hash, row_hash in rows:
+            if row_hash is None:
+                if not in_legacy_prefix:
+                    msg = (
+                        f'event spine chain broken: unhashed row at '
+                        f'event_seq={event_seq} follows a hashed row'
+                    )
+                    raise ChainVerificationError(msg)
+                continue
+
+            in_legacy_prefix = False
+            if prev_hash != expected_prev:
+                msg = (
+                    f'event spine chain broken: event_seq={event_seq} '
+                    f'prev_hash does not link to the preceding event'
+                )
+                raise ChainVerificationError(msg)
+
+            recomputed = _compute_hash(
+                prev_hash, event_seq, epoch_id, timestamp, event_type, payload,
+            )
+            if recomputed != row_hash:
+                msg = (
+                    f'event spine chain tampered: event_seq={event_seq} '
+                    f'hash does not match its stored fields'
+                )
+                raise ChainVerificationError(msg)
+
+            expected_prev = row_hash
+
+        _log.info('event spine chain verified', extra={'rows': len(rows)})
