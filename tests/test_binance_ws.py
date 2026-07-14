@@ -16,13 +16,14 @@ import pytest
 import aiohttp
 
 from praxis.infrastructure.binance_ws import BinanceUserStream
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import AuthenticationError, VenueError
 
 
 _ACCOUNT_ID = 'test-account'
 _API_KEY = 'k'
-_API_SECRET = 's'  # noqa: S105 - test fixture, not a real secret
-_FIXTURE_API_SECRET = 'SECRET'  # noqa: S105 - test fixture, not a real secret
+_API_SECRET = 's'
+_FIXTURE_API_SECRET = 'SECRET'
 _WS_API_URL = 'wss://ws-api.testnet.binance.vision/ws-api/v3'
 
 
@@ -49,7 +50,9 @@ def _make_adapter(
 
     adapter = MagicMock()
     adapter._ws_api_url = ws_api_url
-    adapter._get_credentials = MagicMock(return_value=(api_key, api_secret))
+    adapter._get_credentials = MagicMock(
+        return_value=Credentials(api_key=api_key, api_secret=api_secret),
+    )
     adapter._ensure_session = AsyncMock()
     return adapter
 

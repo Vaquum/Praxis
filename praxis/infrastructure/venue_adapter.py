@@ -16,6 +16,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 from praxis.core.domain.health_snapshot import HealthSnapshot
+from praxis.infrastructure.secret_store import Credentials
 
 
 __all__ = [
@@ -492,16 +493,14 @@ class VenueAdapter(Protocol):
     def register_account(
         self,
         account_id: str,
-        api_key: str,
-        api_secret: str,
+        credentials: Credentials,
     ) -> None:
         '''
         Register credentials for an account.
 
         Args:
             account_id (str): Account identifier
-            api_key (str): Venue API key
-            api_secret (str): Venue API secret
+            credentials (Credentials): Resolved venue credentials
         '''
 
         ...

@@ -12,7 +12,7 @@ authors = [
 ]
 license = { text = "MIT" }
 requires-python = ">=3.12"
-dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "numpy>=1.26", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus@2817a70e60a0fcdefd6323349ebfbc2e732769fa"]
+dependencies = ["structlog>=24.1", "orjson>=3.10", "aiosqlite>=0.20", "aiohttp>=3.10", "polars>=1.0", "numpy>=1.26", "keyring>=25.0", "vaquum-nexus @ git+https://github.com/Vaquum/Nexus@2817a70e60a0fcdefd6323349ebfbc2e732769fa"]
 
 [project.optional-dependencies]
 dev = [
@@ -98,7 +98,7 @@ ignore = [
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "BLE001", "PLR2004"]
+"tests/**/*.py" = ["S101", "S105", "S106", "BLE001", "PLR2004"]
 "praxis/replay/replay_venue_adapter.py" = ["ARG002"]
 
 [tool.ruff.lint.pylint]

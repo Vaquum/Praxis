@@ -17,6 +17,7 @@ import pytest
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
@@ -41,7 +42,7 @@ _WS_BASE_URL = 'wss://stream.testnet.binance.vision'
 _WS_API_URL = 'wss://ws-api.testnet.binance.vision/ws-api/v3'
 _ACCOUNT_ID = 'test-account'
 _API_KEY = 'test-api-key'
-_API_SECRET = 'test-api-secret'  # noqa: S105
+_API_SECRET = 'test-api-secret'
 _VENUE_ORDER_ID = '12345'
 _VENUE_TRADE_ID = '99'
 _BINANCE_REJECTION_CODE = -1013
@@ -282,20 +283,22 @@ _TEST_FILTERS = SymbolFilters(
 
 
 def _make_adapter(
-    credentials: dict[str, tuple[str, str]] | None = None,
+    credentials: dict[str, Credentials] | None = None,
 ) -> BinanceAdapter:
 
     '''
     Create a BinanceAdapter with default test credentials.
 
     Args:
-        credentials (dict[str, tuple[str, str]] | None): Override credentials
+        credentials (dict[str, Credentials] | None): Override credentials
 
     Returns:
         BinanceAdapter: Adapter configured for testing
     '''
 
-    creds = credentials or {_ACCOUNT_ID: (_API_KEY, _API_SECRET)}
+    creds = credentials or {
+        _ACCOUNT_ID: Credentials(api_key=_API_KEY, api_secret=_API_SECRET),
+    }
     return BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL, creds)
 
 
@@ -348,8 +351,8 @@ class TestCredentialManagement:
     def test_register_account(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
-        adapter.register_account('acc1', 'key1', 'secret1')
-        assert adapter._get_credentials('acc1') == ('key1', 'secret1')
+        adapter.register_account('acc1', Credentials(api_key='key1', api_secret='secret1'))
+        assert adapter._get_credentials('acc1') == Credentials(api_key='key1', api_secret='secret1')
 
     def test_unregister_account(self) -> None:
 
@@ -2914,7 +2917,7 @@ class TestHealthSignals:
     def test_register_account_creates_health_tracker(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
-        adapter.register_account('acc1', 'k', 's')
+        adapter.register_account('acc1', Credentials(api_key='k', api_secret='s'))
 
         assert 'acc1' in adapter._health_trackers
 
@@ -3039,8 +3042,8 @@ class TestHealthSignals:
     def test_health_trackers_are_isolated_per_account(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
-        adapter.register_account('acc-a', 'k', 's')
-        adapter.register_account('acc-b', 'k', 's')
+        adapter.register_account('acc-a', Credentials(api_key='k', api_secret='s'))
+        adapter.register_account('acc-b', Credentials(api_key='k', api_secret='s'))
 
         adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)
         adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)

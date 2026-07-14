@@ -24,6 +24,7 @@ from typing import Any
 
 from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.core.domain.health_snapshot import HealthSnapshot
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     CancelResult,
@@ -100,7 +101,7 @@ class ReplayVenueAdapter:
 
         self._current_price = price
 
-    def register_account(self, account_id: str, api_key: str, api_secret: str) -> None:
+    def register_account(self, account_id: str, credentials: Credentials) -> None:
         '''Open a balance book for an account seeded with starting balances.'''
 
         self._accounts[account_id] = dict(self._starting_balances)

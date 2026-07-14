@@ -161,13 +161,13 @@ class BinanceUserStream:
             msg = f"Unsupported WS-API URL scheme: {ws_api_url!r}"
             raise ValueError(msg)
 
-        api_key, api_secret = self._adapter._get_credentials(self._account_id)
+        credentials = self._adapter._get_credentials(self._account_id)
 
         session = await self._adapter._ensure_session()
         ws = await session.ws_connect(ws_api_url)
 
         try:
-            await self._subscribe(ws, api_key, api_secret)
+            await self._subscribe(ws, credentials.api_key, credentials.api_secret)
         except (aiohttp.ClientError, TimeoutError, VenueError):
             with contextlib.suppress(aiohttp.ClientError):
                 await ws.close()

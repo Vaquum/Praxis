@@ -16,6 +16,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.infrastructure.secret_store import Credentials
 from praxis.trading_inbound import TradingInbound
 
 
@@ -144,15 +145,10 @@ class _FakeExecutionManager:
 
 class _FakeVenueAdapter:
     def __init__(self) -> None:
-        self.credentials: dict[str, tuple[str, str]] = {}
+        self.credentials: dict[str, Credentials] = {}
 
-    def register_account(
-        self,
-        account_id: str,
-        api_key: str,
-        api_secret: str,
-    ) -> None:
-        self.credentials[account_id] = (api_key, api_secret)
+    def register_account(self, account_id: str, credentials: Credentials) -> None:
+        self.credentials[account_id] = credentials
 
     def unregister_account(self, account_id: str) -> None:
         del self.credentials[account_id]
@@ -164,14 +160,14 @@ def test_register_account_happy_path() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     trading.register_account('acc-1')
 
     assert execution.has_account_calls == ['acc-1']
     assert execution.registered == ['acc-1']
-    assert venue.credentials['acc-1'] == ('key-1', 'secret-1')
+    assert venue.credentials['acc-1'] == Credentials(api_key='key-1', api_secret='secret-1')
 
 
 def test_register_account_unknown_credentials_raises() -> None:
@@ -189,7 +185,7 @@ def test_register_account_empty_account_id_raises() -> None:
     trading = TradingInbound(
         execution_manager=_FakeExecutionManager(),
         venue_adapter=_FakeVenueAdapter(),
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     with pytest.raises(ValueError, match='non-empty string'):
@@ -203,7 +199,7 @@ def test_register_account_rolls_back_venue_on_execution_failure() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     with pytest.raises(ValueError, match='execution register failed'):
@@ -219,7 +215,7 @@ def test_register_account_rolls_back_venue_on_runtime_error() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     with pytest.raises(RuntimeError, match='no running event loop'):
@@ -235,13 +231,13 @@ def test_register_account_already_registered_does_not_rollback() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     trading.register_account('acc-1')
 
     assert execution.registered == []
-    assert venue.credentials['acc-1'] == ('key-1', 'secret-1')
+    assert venue.credentials['acc-1'] == Credentials(api_key='key-1', api_secret='secret-1')
 
 
 @pytest.mark.asyncio
@@ -249,11 +245,11 @@ async def test_unregister_account_removes_runtime_and_credentials() -> None:
     execution = _FakeExecutionManager()
     venue = _FakeVenueAdapter()
     execution.register_account('acc-1')
-    venue.register_account('acc-1', 'key-1', 'secret-1')
+    venue.register_account('acc-1', Credentials(api_key='key-1', api_secret='secret-1'))
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     await trading.unregister_account('acc-1')
@@ -268,11 +264,11 @@ async def test_unregister_account_cleans_up_venue_when_execution_raises() -> Non
     execution.unregister_error = ValueError('account missing')
     venue = _FakeVenueAdapter()
     execution.register_account('acc-1')
-    venue.register_account('acc-1', 'key-1', 'secret-1')
+    venue.register_account('acc-1', Credentials(api_key='key-1', api_secret='secret-1'))
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     with pytest.raises(ValueError, match='account missing'):
@@ -288,7 +284,7 @@ async def test_submit_command_routes_and_returns_command_id() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     command_id = await trading.submit_command(**_SUBMIT_COMMAND_KWARGS)
@@ -308,7 +304,7 @@ async def test_submit_command_forwards_caller_supplied_command_id() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
     supplied_id = 'cmd-0123456789abcdef0123456789abcdef'
 
@@ -329,7 +325,7 @@ async def test_submit_command_propagates_execution_errors() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     with pytest.raises(AccountNotRegisteredError, match='missing account'):
@@ -342,7 +338,7 @@ def test_submit_abort_routes_to_execution_layer() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     trading.submit_abort(
@@ -364,7 +360,7 @@ def test_submit_abort_propagates_execution_errors() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     with pytest.raises(AccountNotRegisteredError, match='missing account'):
@@ -394,7 +390,7 @@ def test_pull_positions_routes_to_execution_layer() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     result = trading.pull_positions('acc-1')
@@ -410,7 +406,7 @@ def test_pull_positions_propagates_execution_errors() -> None:
     trading = TradingInbound(
         execution_manager=execution,
         venue_adapter=venue,
-        account_credentials={'acc-1': ('key-1', 'secret-1')},
+        account_credentials={'acc-1': Credentials(api_key='key-1', api_secret='secret-1')},
     )
 
     with pytest.raises(AccountNotRegisteredError, match='missing account'):

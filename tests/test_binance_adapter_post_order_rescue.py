@@ -17,6 +17,7 @@ import pytest
 
 from praxis.core.domain.enums import OrderSide, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     DuplicateClientOrderIdError,
     OrderRejectedError,
@@ -28,14 +29,14 @@ _WS_BASE_URL = 'wss://stub'
 _WS_API_URL = 'wss://stub-ws-api'
 _ACCOUNT_ID = 'acc1'
 _API_KEY = 'k'
-_API_SECRET = 's'  # noqa: S105 - test fixture, not a real secret
+_API_SECRET = 's'
 _CLIENT_ORDER_ID = 'cid-test-001'
 
 
 def _make_adapter() -> BinanceAdapter:
     return BinanceAdapter(
         _BASE_URL, _WS_BASE_URL, _WS_API_URL,
-        {_ACCOUNT_ID: (_API_KEY, _API_SECRET)},
+        {_ACCOUNT_ID: Credentials(api_key=_API_KEY, api_secret=_API_SECRET)},
     )
 
 

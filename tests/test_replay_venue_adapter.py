@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 
 from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     NotFoundError,
     OrderRejectedError,
@@ -43,7 +44,7 @@ def _make_adapter(quote: str = '100000') -> ReplayVenueAdapter:
         starting_balances={'USDT': Decimal(quote)},
     )
     adapter.set_price(_FILL_PRICE)
-    adapter.register_account(_ACCT, 'k', 's')
+    adapter.register_account(_ACCT, Credentials(api_key='k', api_secret='s'))
     return adapter
 
 
@@ -100,7 +101,7 @@ async def test_buy_then_sell_settles_balances() -> None:
 @pytest.mark.asyncio
 async def test_submit_without_price_rejected() -> None:
     adapter = ReplayVenueAdapter(clock=_clock, filters=_filters())
-    adapter.register_account(_ACCT, 'k', 's')
+    adapter.register_account(_ACCT, Credentials(api_key='k', api_secret='s'))
 
     with pytest.raises(OrderRejectedError, match='no current price'):
         await adapter.submit_order(

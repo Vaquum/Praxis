@@ -32,6 +32,7 @@ from nexus.core.domain.operational_mode import ModeState
 
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived, TradeOutcomeProduced
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.launcher import InstanceConfig, Launcher, _NexusRuntime
 from praxis.replay.materialize_bar_frames import materialize_bar_frames
@@ -120,7 +121,10 @@ def run_replay(
     config = TradingConfig(
         epoch_id=epoch_id,
         account_credentials={
-            scenario.account_id: (_REPLAY_CREDENTIAL, _REPLAY_CREDENTIAL),
+            scenario.account_id: Credentials(
+                api_key=_REPLAY_CREDENTIAL,
+                api_secret=_REPLAY_CREDENTIAL,
+            ),
         },
     )
     inst = InstanceConfig(

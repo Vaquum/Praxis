@@ -36,6 +36,7 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_REST_URL,
     TESTNET_WS_URL,
 )
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
@@ -154,8 +155,8 @@ class BinanceAdapter:
         ws_base_url (str): Binance WebSocket stream base URL (market data)
         ws_api_url (str): Binance WebSocket API base URL (signed requests
             and user-data-stream subscription)
-        credentials (dict[str, tuple[str, str]] | None): Mapping of account_id
-            to (api_key, api_secret) pairs
+        credentials (dict[str, Credentials] | None): Mapping of account_id
+            to resolved Credentials
     '''
 
     def __init__(
@@ -163,7 +164,7 @@ class BinanceAdapter:
         base_url: str,
         ws_base_url: str,
         ws_api_url: str,
-        credentials: dict[str, tuple[str, str]] | None = None,
+        credentials: dict[str, Credentials] | None = None,
     ) -> None:
 
         '''
@@ -174,14 +175,14 @@ class BinanceAdapter:
             ws_base_url (str): Binance WebSocket stream base URL (market data)
             ws_api_url (str): Binance WebSocket API base URL (signed
                 requests + user-data-stream subscription)
-            credentials (dict[str, tuple[str, str]] | None): Initial
+            credentials (dict[str, Credentials] | None): Initial
                 account credentials
         '''
 
         self._base_url = base_url.rstrip('/')
         self._ws_base_url = ws_base_url.rstrip('/')
         self._ws_api_url = ws_api_url.rstrip('/')
-        self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
+        self._credentials: dict[str, Credentials] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
         self._closed: bool = False
         self._filters: dict[str, SymbolFilters] = {}
@@ -316,8 +317,7 @@ class BinanceAdapter:
     def register_account(
         self,
         account_id: str,
-        api_key: str,
-        api_secret: str,
+        credentials: Credentials,
     ) -> None:
 
         '''
@@ -325,11 +325,10 @@ class BinanceAdapter:
 
         Args:
             account_id (str): Account identifier
-            api_key (str): Binance API key
-            api_secret (str): Binance API secret
+            credentials (Credentials): Resolved Binance credentials
         '''
 
-        self._credentials[account_id] = (api_key, api_secret)
+        self._credentials[account_id] = credentials
         with self._health_lock:
             self._health_trackers.setdefault(account_id, HealthTracker())
 
@@ -349,7 +348,7 @@ class BinanceAdapter:
         with self._health_lock:
             self._health_trackers.pop(account_id, None)
 
-    def _get_credentials(self, account_id: str) -> tuple[str, str]:
+    def _get_credentials(self, account_id: str) -> Credentials:
 
         '''
         Look up credentials for an account.
@@ -358,7 +357,7 @@ class BinanceAdapter:
             account_id (str): Account identifier
 
         Returns:
-            tuple[str, str]: (api_key, api_secret) pair
+            Credentials: The account's resolved credentials
 
         Raises:
             AuthenticationError: If account_id is not registered
@@ -601,11 +600,11 @@ class BinanceAdapter:
         '''
 
         session = await self._ensure_session()
-        api_key, api_secret = self._get_credentials(account_id)
-        headers = {_API_KEY_HEADER: api_key}
+        credentials = self._get_credentials(account_id)
+        headers = {_API_KEY_HEADER: credentials.api_key}
 
         def build_request() -> AbstractAsyncContextManager[aiohttp.ClientResponse]:
-            query_string = self._sign_params(params, api_secret)
+            query_string = self._sign_params(params, credentials.api_secret)
             return session.request(
                 method,
                 f"{self._base_url}{path}?{query_string}",

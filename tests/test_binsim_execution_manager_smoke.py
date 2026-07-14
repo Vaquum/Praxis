@@ -55,13 +55,14 @@ from praxis.core.domain.events import (
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.binance_adapter import BinanceAdapter
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.event_spine import EventSpine
 
 
 _ACCOUNT_ID = 'acc-1'
-_API_SECRET = 'apisecret-1'  # noqa: S105 — test fixture, not a real credential
+_API_SECRET = 'apisecret-1'
 _DEPTH_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
-_DEPTH_TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
+_DEPTH_TOKEN = 'test-token'
 _STALENESS_THRESHOLD_MS = 60_000
 _EPOCH = 1
 _TRADE_ID = 'trade-1'
@@ -127,7 +128,7 @@ async def adapter(
     monkeypatch.setenv('BINSIM_URL', base_url)
 
     a = BinanceAdapter(base_url, ws_url, ws_api_url)
-    a.register_account(_ACCOUNT_ID, api_key, _API_SECRET)
+    a.register_account(_ACCOUNT_ID, Credentials(api_key=api_key, api_secret=_API_SECRET))
     await a.load_filters(['BTCUSDT'])
 
     yield a

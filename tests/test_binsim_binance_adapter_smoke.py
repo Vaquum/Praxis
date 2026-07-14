@@ -24,12 +24,13 @@ from praxis.binsim.ledger import Ledger
 from praxis.binsim.server import BinsimServer
 from praxis.core.domain.enums import OrderSide, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter, NotFoundError
+from praxis.infrastructure.secret_store import Credentials
 
 
 _ACCOUNT_ID = 'acc-1'
-_API_SECRET = 'apisecret-1'  # noqa: S105 — test fixture, not a real credential
+_API_SECRET = 'apisecret-1'
 _DEPTH_URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
-_DEPTH_TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
+_DEPTH_TOKEN = 'test-token'
 _THRESHOLD_MS = 60_000
 
 _BIDS = [
@@ -82,7 +83,7 @@ async def adapter(
     base_url = f'http://127.0.0.1:{port}'
 
     a = BinanceAdapter(base_url, base_url, base_url)
-    a.register_account(_ACCOUNT_ID, api_key, _API_SECRET)
+    a.register_account(_ACCOUNT_ID, Credentials(api_key=api_key, api_secret=_API_SECRET))
 
     yield a
 

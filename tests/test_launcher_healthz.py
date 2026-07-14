@@ -14,6 +14,7 @@ import aiosqlite
 import pytest
 
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.launcher import InstanceConfig, Launcher
 from praxis.trading_config import TradingConfig
@@ -66,7 +67,7 @@ class TestHealthzEndpoint:
         manifest_path = _make_manifest_yaml(tmp_path, exp_dir)
         config = TradingConfig(
             epoch_id=1,
-            account_credentials={'test-acc': ('key', 'secret')},
+            account_credentials={'test-acc': Credentials(api_key='key', api_secret='secret')},
         )
         inst = InstanceConfig(
             account_id='test-acc',
@@ -139,7 +140,7 @@ class TestHealthzEndpoint:
         manifest_path = _make_manifest_yaml(tmp_path, exp_dir)
         config = TradingConfig(
             epoch_id=1,
-            account_credentials={'test-acc': ('key', 'secret')},
+            account_credentials={'test-acc': Credentials(api_key='key', api_secret='secret')},
         )
         inst = InstanceConfig(
             account_id='test-acc',
@@ -232,7 +233,7 @@ class TestHealthzEndpoint:
         manifest_path = _make_manifest_yaml(tmp_path, exp_dir)
         config = TradingConfig(
             epoch_id=1,
-            account_credentials={'test-acc': ('key', 'secret')},
+            account_credentials={'test-acc': Credentials(api_key='key', api_secret='secret')},
         )
         inst = InstanceConfig(
             account_id='test-acc',

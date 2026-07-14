@@ -131,6 +131,14 @@ from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.alert_sink import AlertSink
 from praxis.infrastructure.book_cache import BookCache, book_mid_price, build_price_snapshot
 from praxis.infrastructure.book_poller import BookPoller
+from praxis.infrastructure.secret_store import (
+    Credentials,
+    KeyringSecretStore,
+    MappingSecretStore,
+    SecretBackendError,
+    SecretNotFoundError,
+    SecretStore,
+)
 from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
@@ -4209,6 +4217,7 @@ def main() -> None:
     _check_required_env(env)
 
     venue_rest_url, venue_ws_url, venue_ws_api_url = _resolve_trade_mode(env)
+    trade_mode = env['TRADE_MODE'].strip().lower()
 
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
@@ -4219,7 +4228,7 @@ def main() -> None:
 
     manifest_paths = _enumerate_manifests(manifests_dir)
 
-    account_credentials: dict[str, tuple[str, str]] = {}
+    paper_credentials: dict[str, Credentials] = {}
     instances: list[InstanceConfig] = []
     seen_account_ids: dict[str, Path] = {}
     seen_suffixes: dict[str, str] = {}
@@ -4248,17 +4257,21 @@ def main() -> None:
         seen_account_ids[account_id] = manifest_path
         seen_suffixes[suffix] = account_id
 
-        api_key = env.get(f'BINANCE_API_KEY_{suffix}')
-        api_secret = env.get(f'BINANCE_API_SECRET_{suffix}')
+        if trade_mode == _TRADE_MODE_PAPER:
+            api_key = env.get(f'BINANCE_API_KEY_{suffix}')
+            api_secret = env.get(f'BINANCE_API_SECRET_{suffix}')
 
-        if not api_key or not api_secret:
-            msg = (
-                f'missing BINANCE_API_KEY_{suffix} or BINANCE_API_SECRET_{suffix} '
-                f'for account {account_id!r} (manifest {manifest_path})'
+            if not api_key or not api_secret:
+                msg = (
+                    f'missing BINANCE_API_KEY_{suffix} or BINANCE_API_SECRET_{suffix} '
+                    f'for account {account_id!r} (manifest {manifest_path})'
+                )
+                raise RuntimeError(msg)
+
+            paper_credentials[account_id] = Credentials(
+                api_key=api_key,
+                api_secret=api_secret,
             )
-            raise RuntimeError(msg)
-
-        account_credentials[account_id] = (api_key, api_secret)
 
         state_dir = state_base / account_id / str(epoch_id)
         strategy_state_path = (
@@ -4276,6 +4289,19 @@ def main() -> None:
                 strategy_state_path=strategy_state_path,
             ),
         )
+
+    if trade_mode == _TRADE_MODE_LIVE:
+        secret_store: SecretStore = KeyringSecretStore()
+    else:
+        secret_store = MappingSecretStore(paper_credentials)
+
+    account_credentials: dict[str, Credentials] = {}
+    for inst in instances:
+        try:
+            account_credentials[inst.account_id] = secret_store.get(inst.account_id)
+        except (SecretNotFoundError, SecretBackendError) as exc:
+            msg = f'failed to resolve credentials for account {inst.account_id!r}'
+            raise RuntimeError(msg) from exc
 
     trading_config = TradingConfig(
         epoch_id=epoch_id,
