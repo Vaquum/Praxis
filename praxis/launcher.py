@@ -139,7 +139,7 @@ from praxis.infrastructure.secret_store import (
     SecretNotFoundError,
     SecretStore,
 )
-from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
+from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter, VenueError
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
 
@@ -2334,11 +2334,13 @@ class Launcher:
         clock: Callable[[], datetime] = _utc_now,
         conduit_dir: Path | None = None,
         arrow_dir: Path | None = None,
+        enforce_api_permissions: bool = False,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
             raise ValueError(msg)
 
+        self._enforce_api_permissions = enforce_api_permissions
         self._trading_config = trading_config
         self._instances = list(instances)
         self._event_spine = event_spine
@@ -2383,6 +2385,7 @@ class Launcher:
 
         self._start_event_loop()
         self._start_trading()
+        self._assert_api_permissions()
         self._start_nexus_instances()
         self._start_healthz()
         self._start_mark_samplers()
@@ -2562,6 +2565,67 @@ class Launcher:
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
         _log.info('trading started')
+
+    def _assert_api_permissions(self) -> None:
+        '''
+        Assert every account's API key is trade-only before order capability.
+
+        Runs only in live mode (`enforce_api_permissions`). The SAPI
+        permission endpoint is not served by the spot testnet, so paper
+        and testnet skip it. On any failure the trading stack is stopped
+        and the exception propagates, aborting startup before Nexus
+        instances (and thus order submission) start.
+        '''
+
+        if not self._enforce_api_permissions:
+            return
+
+        if self._loop is None or self._trading is None:
+            msg = 'trading not started'
+            raise RuntimeError(msg)
+
+        future = asyncio.run_coroutine_threadsafe(
+            self._verify_api_permissions(), self._loop,
+        )
+        future.result(timeout=30)
+
+    async def _verify_api_permissions(self) -> None:
+        '''
+        Query and validate each account's API-key permissions, fail-closed.
+
+        Reject a key that can withdraw (`enable_withdrawals is not
+        False`) or cannot trade spot (`enable_spot_and_margin_trading is
+        not True`); a missing or mistyped flag already raised in the
+        adapter parse. On any failure stop the trading stack and re-raise.
+        Log account identity and safe status only — never keys,
+        signatures, or the raw authenticated response.
+        '''
+
+        assert self._trading is not None
+        adapter = self._trading.venue_adapter
+        try:
+            for inst in self._instances:
+                perms = await adapter.query_api_permissions(inst.account_id)
+                if perms.enable_withdrawals is not False:
+                    msg = (
+                        f'account {inst.account_id!r} API key has withdrawals '
+                        f'enabled; refusing to start (trade-only required)'
+                    )
+                    raise RuntimeError(msg)
+                if perms.enable_spot_and_margin_trading is not True:
+                    msg = (
+                        f'account {inst.account_id!r} API key cannot trade '
+                        f'spot; refusing to start'
+                    )
+                    raise RuntimeError(msg)
+                _log.info(
+                    'api key permissions verified (trade-only)',
+                    extra={'account_id': inst.account_id},
+                )
+        except (VenueError, RuntimeError):
+            await self._trading.stop()
+            _log.error('api key permission assertion failed; aborting startup')
+            raise
 
     async def _build_event_spine(self) -> EventSpine:
         if self._db_path is None:
@@ -4322,6 +4386,7 @@ def main() -> None:
         instances=instances,
         db_path=state_base / 'event_spine.sqlite',
         healthz_port=healthz_port,
+        enforce_api_permissions=trade_mode == _TRADE_MODE_LIVE,
     )
 
     _log.info(

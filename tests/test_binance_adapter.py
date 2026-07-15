@@ -3603,3 +3603,44 @@ class TestCommandQuantizationInvariant:
                 snapped_qty=Decimal('0.001'),
                 rejection_reason='INTAKE_FOO',
             )
+
+
+class TestQueryApiPermissions:
+
+    @pytest.mark.asyncio
+    async def test_parses_trade_only_key(self) -> None:
+        adapter = _make_adapter()
+        _patch_session(
+            adapter,
+            _mock_response(200, {
+                'enableWithdrawals': False,
+                'enableSpotAndMarginTrading': True,
+            }),
+        )
+
+        perms = await adapter.query_api_permissions(_ACCOUNT_ID)
+
+        assert perms.enable_withdrawals is False
+        assert perms.enable_spot_and_margin_trading is True
+
+    @pytest.mark.asyncio
+    async def test_missing_flag_fails_closed(self) -> None:
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'enableWithdrawals': False}))
+
+        with pytest.raises(VenueError, match='enableSpotAndMarginTrading'):
+            await adapter.query_api_permissions(_ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_non_bool_flag_fails_closed(self) -> None:
+        adapter = _make_adapter()
+        _patch_session(
+            adapter,
+            _mock_response(200, {
+                'enableWithdrawals': 'false',
+                'enableSpotAndMarginTrading': True,
+            }),
+        )
+
+        with pytest.raises(VenueError, match='enableWithdrawals'):
+            await adapter.query_api_permissions(_ACCOUNT_ID)

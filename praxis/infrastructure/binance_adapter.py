@@ -38,6 +38,7 @@ from praxis.infrastructure.binance_urls import (
 )
 from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
+    ApiPermissions,
     AuthenticationError,
     BalanceEntry,
     CancelResult,
@@ -105,6 +106,30 @@ def _binsim_enabled() -> bool:
     '''
 
     return bool((os.getenv('BINSIM_URL') or '').strip())
+
+
+def _require_permission_flag(data: Any, field: str) -> bool:
+
+    '''
+    Extract a boolean permission flag, failing closed on absence or wrong type.
+
+    Args:
+        data (Any): Parsed apiRestrictions response body.
+        field (str): Flag name to extract.
+
+    Returns:
+        bool: The flag value.
+
+    Raises:
+        VenueError: If the field is missing or is not a JSON boolean.
+    '''
+
+    value = data.get(field) if isinstance(data, dict) else None
+    if not isinstance(value, bool):
+        msg = f'apiRestrictions field {field!r} missing or not boolean'
+        raise VenueError(msg)
+
+    return value
 
 
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
@@ -1654,6 +1679,38 @@ class BinanceAdapter:
         data = await self._signed_request('GET', '/api/v3/myTrades', params, account_id)
 
         return [self._parse_venue_trade(entry) for entry in data]
+
+    async def query_api_permissions(self, account_id: str) -> ApiPermissions:
+
+        '''
+        Query the API key's trade-relevant permission flags.
+
+        Calls the signed SAPI apiRestrictions endpoint and parses the
+        withdrawal and spot-trading flags. Fails closed: a missing or
+        non-boolean flag raises rather than being read as permissive.
+        The SAPI endpoint is not served by the spot testnet, so this is
+        only meaningful against the live venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+
+        Returns:
+            ApiPermissions: The key's withdrawal and spot-trading flags
+
+        Raises:
+            VenueError: If a required boolean flag is missing or mistyped
+        '''
+
+        data = await self._signed_request(
+            'GET', '/sapi/v1/account/apiRestrictions', {}, account_id,
+        )
+
+        return ApiPermissions(
+            enable_withdrawals=_require_permission_flag(data, 'enableWithdrawals'),
+            enable_spot_and_margin_trading=_require_permission_flag(
+                data, 'enableSpotAndMarginTrading',
+            ),
+        )
 
     async def load_filters(self, symbols: Sequence[str]) -> None:
 

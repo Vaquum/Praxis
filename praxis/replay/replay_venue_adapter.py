@@ -26,6 +26,7 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
+    ApiPermissions,
     BalanceEntry,
     CancelResult,
     CommandQuantization,
@@ -110,6 +111,12 @@ class ReplayVenueAdapter:
         '''Drop an account's balance book.'''
 
         del self._accounts[account_id]
+
+    async def query_api_permissions(self, account_id: str) -> ApiPermissions:
+        '''Replay does not query venue API-key permissions.'''
+
+        msg = 'ReplayVenueAdapter does not support query_api_permissions'
+        raise NotImplementedError(msg)
 
     def quantize_for_command(
         self,

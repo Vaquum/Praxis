@@ -20,6 +20,7 @@ from praxis.infrastructure.secret_store import Credentials
 
 
 __all__ = [
+    'ApiPermissions',
     'AuthenticationError',
     'BalanceEntry',
     'CancelResult',
@@ -480,6 +481,21 @@ class DuplicateClientOrderIdError(VenueError):
         self.args = (message, client_order_id)
 
 
+@dataclass(frozen=True)
+class ApiPermissions:
+
+    '''
+    Trade-relevant subset of a venue API key's permissions.
+
+    Args:
+        enable_withdrawals (bool): Whether the key can withdraw funds.
+        enable_spot_and_margin_trading (bool): Whether the key can trade spot.
+    '''
+
+    enable_withdrawals: bool
+    enable_spot_and_margin_trading: bool
+
+
 @runtime_checkable
 class VenueAdapter(Protocol):
     '''
@@ -514,6 +530,19 @@ class VenueAdapter(Protocol):
 
         Raises:
             KeyError: If account_id is not registered by the implementation.
+        '''
+
+        ...
+
+    async def query_api_permissions(self, account_id: str) -> ApiPermissions:
+        '''
+        Query the API key's trade-relevant permission flags for an account.
+
+        Args:
+            account_id (str): Account identifier
+
+        Returns:
+            ApiPermissions: The key's withdrawal and spot-trading flags
         '''
 
         ...
