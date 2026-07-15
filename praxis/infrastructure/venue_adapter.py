@@ -775,7 +775,10 @@ class VenueAdapter(Protocol):
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
         '''
         Query historical trade records from the venue.
@@ -783,10 +786,16 @@ class VenueAdapter(Protocol):
         Args:
             account_id (str): Account identifier for API key routing
             symbol (str): Trading pair symbol
-            start_time (datetime | None): Return trades after this time, must be timezone-aware
+            from_id (int | None): Return trades with id at or after this cursor.
+                Mutually exclusive with start_time/end_time.
+            start_time (datetime | None): Return trades at or after this time
+                (timezone-aware).
+            end_time (datetime | None): Return trades at or before this time
+                (timezone-aware).
+            limit (int | None): Maximum number of trades to return (venue max 1000).
 
         Returns:
-            list[VenueTrade]: Trade records from the venue
+            list[VenueTrade]: Trade records from the venue, ascending by id
         '''
 
         ...

@@ -1892,6 +1892,42 @@ class TestQueryTrades:
         with pytest.raises(ValueError, match='timezone-aware'):
             await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=naive)
 
+    @pytest.mark.asyncio
+    async def test_from_id_and_limit_in_url(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', from_id=100, limit=500)
+        url = adapter._session.request.call_args[0][1]  # type: ignore[union-attr]
+        assert 'fromId=100' in url
+        assert 'limit=500' in url
+
+    @pytest.mark.asyncio
+    async def test_end_time_converted_to_ms(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        end = datetime.fromtimestamp(1700000000, tz=UTC)
+        await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', end_time=end)
+        url = adapter._session.request.call_args[0][1]  # type: ignore[union-attr]
+        assert 'endTime=1700000000000' in url
+
+    @pytest.mark.asyncio
+    async def test_from_id_with_time_window_raises(self) -> None:
+
+        adapter = _make_adapter()
+        start = datetime.fromtimestamp(1700000000, tz=UTC)
+        with pytest.raises(ValueError, match='cannot be combined'):
+            await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', from_id=1, start_time=start)
+
+    @pytest.mark.asyncio
+    async def test_naive_end_time_raises(self) -> None:
+
+        adapter = _make_adapter()
+        naive = datetime(2023, 11, 14, 22, 13, 20)
+        with pytest.raises(ValueError, match='timezone-aware'):
+            await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', end_time=naive)
+
 
 class TestGetExchangeInfo:
 

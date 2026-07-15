@@ -334,9 +334,14 @@ class ReplayVenueAdapter:
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
-        '''Return recorded fills for a symbol, optionally after a time.'''
+        '''Return recorded fills for a symbol, filtered by time window and limit.'''
+
+        del from_id
 
         trades = [
             trade
@@ -346,6 +351,12 @@ class ReplayVenueAdapter:
 
         if start_time is not None:
             trades = [trade for trade in trades if trade.timestamp >= start_time]
+
+        if end_time is not None:
+            trades = [trade for trade in trades if trade.timestamp <= end_time]
+
+        if limit is not None:
+            trades = trades[:limit]
 
         return trades
 

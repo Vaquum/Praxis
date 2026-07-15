@@ -107,7 +107,7 @@ async def test_fresh_schema_sets_version_and_hash_columns() -> None:
         spine = EventSpine(conn)
         await spine.ensure_schema()
 
-        assert await _user_version(conn) == 1
+        assert await _user_version(conn) == 2
         assert {'prev_hash', 'hash'} <= await _columns(conn, 'events')
         assert len(await _genesis(conn)) == _SHA256_HEX_LEN
 
@@ -194,7 +194,7 @@ async def test_legacy_db_migrates_keeps_null_prefix_and_verifies(tmp_path: Path)
         spine = EventSpine(conn)
         await spine.ensure_schema()
 
-        assert await _user_version(conn) == 1
+        assert await _user_version(conn) == 2
         assert {'prev_hash', 'hash'} <= await _columns(conn, 'events')
 
         async with conn.execute('SELECT hash FROM events WHERE event_seq = 1') as cursor:
@@ -226,7 +226,7 @@ async def test_migration_is_idempotent() -> None:
 
         await spine.ensure_schema()
 
-        assert await _user_version(conn) == 1
+        assert await _user_version(conn) == 2
         assert await _genesis(conn) == first_genesis
 
 
@@ -235,7 +235,7 @@ async def test_newer_schema_version_is_refused() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         spine = EventSpine(conn)
         await spine.ensure_schema()
-        await conn.execute('PRAGMA user_version = 2')
+        await conn.execute('PRAGMA user_version = 3')
         await conn.commit()
 
         with pytest.raises(SpineSchemaError):
@@ -330,3 +330,72 @@ async def test_unhashed_row_after_hashed_fails_verification() -> None:
 
         with pytest.raises(ChainVerificationError):
             await spine.verify_chain()
+
+
+async def _set_cursor(spine: EventSpine, symbol: str, trade_id: int, epoch_id: int) -> None:
+    await spine.set_reconcile_cursor(
+        _ACCT,
+        symbol,
+        last_confirmed_trade_id=trade_id,
+        last_confirmed_ts=_TS.isoformat(),
+        epoch_id=epoch_id,
+        updated_at=_TS.isoformat(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_reconcile_cursor_missing_returns_none() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        assert await spine.get_reconcile_cursor(_ACCT, 'BTCUSDT') is None
+
+
+@pytest.mark.asyncio
+async def test_reconcile_cursor_set_and_get() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+        await _set_cursor(spine, 'BTCUSDT', 105, _EPOCH)
+
+        assert await spine.get_reconcile_cursor(_ACCT, 'BTCUSDT') == 105
+
+
+@pytest.mark.asyncio
+async def test_reconcile_cursor_upsert_overwrites() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+        await _set_cursor(spine, 'BTCUSDT', 105, _EPOCH)
+        await _set_cursor(spine, 'BTCUSDT', 220, _EPOCH)
+
+        assert await spine.get_reconcile_cursor(_ACCT, 'BTCUSDT') == 220
+
+
+@pytest.mark.asyncio
+async def test_reconcile_cursor_is_per_symbol_and_cross_epoch() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+        await _set_cursor(spine, 'BTCUSDT', 10, 1)
+        await _set_cursor(spine, 'ETHUSDT', 99, 2)
+
+        assert await spine.get_reconcile_cursor(_ACCT, 'BTCUSDT') == 10
+        assert await spine.get_reconcile_cursor(_ACCT, 'ETHUSDT') == 99
+
+
+@pytest.mark.asyncio
+async def test_v1_db_gains_cursor_table_on_migration() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+        await conn.execute('DROP TABLE reconcile_cursor')
+        await conn.execute('PRAGMA user_version = 1')
+        await conn.commit()
+
+        await EventSpine(conn).ensure_schema()
+
+        assert await _user_version(conn) == 2
+        await _set_cursor(spine, 'BTCUSDT', 1, _EPOCH)
+        assert await spine.get_reconcile_cursor(_ACCT, 'BTCUSDT') == 1

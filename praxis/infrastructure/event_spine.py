@@ -57,7 +57,7 @@ __all__ = ['ChainVerificationError', 'EventSpine', 'SpineSchemaError']
 
 _log = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _CHAIN_VERSION = 1
 _HASH_DOMAIN = b'praxis.spine.chain.v1'
 _GENESIS_ANCHOR = hashlib.sha256(_HASH_DOMAIN + b'.genesis').hexdigest()
@@ -107,6 +107,17 @@ CREATE TABLE IF NOT EXISTS spine_meta (
     value TEXT NOT NULL
 )'''
 
+_CREATE_RECONCILE_CURSOR = '''
+CREATE TABLE IF NOT EXISTS reconcile_cursor (
+    account_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    last_confirmed_trade_id INTEGER NOT NULL,
+    last_confirmed_ts TEXT NOT NULL,
+    epoch_id INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(account_id, symbol)
+)'''
+
 _INSERT = (
     'INSERT INTO events (epoch_id, timestamp, event_type, payload) '
     'VALUES (?, ?, ?, ?)'
@@ -131,6 +142,22 @@ _LAST_SEQ = 'SELECT MAX(event_seq) FROM events WHERE epoch_id = ?'
 _META_GET = 'SELECT value FROM spine_meta WHERE key = ?'
 
 _META_SET = 'INSERT OR IGNORE INTO spine_meta (key, value) VALUES (?, ?)'
+
+_CURSOR_GET = (
+    'SELECT last_confirmed_trade_id FROM reconcile_cursor '
+    'WHERE account_id = ? AND symbol = ?'
+)
+
+_CURSOR_UPSERT = '''
+INSERT INTO reconcile_cursor (
+    account_id, symbol, last_confirmed_trade_id, last_confirmed_ts, epoch_id, updated_at
+) VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(account_id, symbol) DO UPDATE SET
+    last_confirmed_trade_id = excluded.last_confirmed_trade_id,
+    last_confirmed_ts = excluded.last_confirmed_ts,
+    epoch_id = excluded.epoch_id,
+    updated_at = excluded.updated_at
+'''
 
 
 _DEDUP_INSERT = (
@@ -359,6 +386,8 @@ class EventSpine:
             async with self._conn.execute(_CREATE_FILL_DEDUP):
                 pass
             async with self._conn.execute(_CREATE_META):
+                pass
+            async with self._conn.execute(_CREATE_RECONCILE_CURSOR):
                 pass
 
             if version < _SCHEMA_VERSION:
@@ -775,3 +804,71 @@ class EventSpine:
             expected_prev = row_hash
 
         _log.info('event spine chain verified', extra={'rows': len(rows)})
+
+    async def get_reconcile_cursor(self, account_id: str, symbol: str) -> int | None:
+
+        '''
+        Return the last REST-confirmed trade id for an (account, symbol).
+
+        The cursor is keyed by account and symbol across epochs — Binance
+        trade ids outlive Praxis epochs — so a restart or epoch bump
+        resumes backfill from the last confirmed id rather than a
+        bootstrap lookback.
+
+        Args:
+            account_id (str): Account identifier.
+            symbol (str): Trading pair symbol.
+
+        Returns:
+            int | None: The last confirmed trade id, or None if unset.
+        '''
+
+        async with self._conn.execute(_CURSOR_GET, (account_id, symbol)) as cursor:
+            row = await cursor.fetchone()
+
+        return int(row[0]) if row is not None else None
+
+    async def set_reconcile_cursor(
+        self,
+        account_id: str,
+        symbol: str,
+        *,
+        last_confirmed_trade_id: int,
+        last_confirmed_ts: str,
+        epoch_id: int,
+        updated_at: str,
+    ) -> None:
+
+        '''
+        Upsert the REST-confirmed backfill cursor for an (account, symbol).
+
+        Only a fully processed REST page advances the cursor; WS
+        observations never do. `epoch_id` is stored as metadata only —
+        the cursor is cross-epoch.
+
+        Args:
+            account_id (str): Account identifier.
+            symbol (str): Trading pair symbol.
+            last_confirmed_trade_id (int): Highest trade id from a fully
+                processed REST page.
+            last_confirmed_ts (str): ISO-8601 timestamp of that trade.
+            epoch_id (int): Epoch that last advanced the cursor (metadata).
+            updated_at (str): ISO-8601 write time.
+
+        Returns:
+            None
+        '''
+
+        async with self._conn.execute(
+            _CURSOR_UPSERT,
+            (
+                account_id,
+                symbol,
+                last_confirmed_trade_id,
+                last_confirmed_ts,
+                epoch_id,
+                updated_at,
+            ),
+        ):
+            pass
+        await self._conn.commit()

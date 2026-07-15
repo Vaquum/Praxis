@@ -132,6 +132,24 @@ def _require_permission_flag(data: Any, field: str) -> bool:
     return value
 
 
+def _require_aware(value: datetime | None, name: str) -> None:
+
+    '''
+    Validate that an optional datetime is timezone-aware.
+
+    Args:
+        value (datetime | None): The datetime to check, or None.
+        name (str): Parameter name for the error message.
+
+    Raises:
+        ValueError: If value is a naive datetime.
+    '''
+
+    if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+        msg = f'{name} must be timezone-aware'
+        raise ValueError(msg)
+
+
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
     'PARTIALLY_FILLED': OrderStatus.PARTIALLY_FILLED,
@@ -1652,7 +1670,10 @@ class BinanceAdapter:
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
 
         '''
@@ -1661,20 +1682,39 @@ class BinanceAdapter:
         Args:
             account_id (str): Account identifier for API key routing
             symbol (str): Trading pair symbol
-            start_time (datetime | None): Return trades after this time, must be timezone-aware
+            from_id (int | None): Return trades with id at or after this cursor.
+                Mutually exclusive with start_time/end_time (Binance rejects the
+                combination).
+            start_time (datetime | None): Return trades at or after this time,
+                must be timezone-aware
+            end_time (datetime | None): Return trades at or before this time,
+                must be timezone-aware
+            limit (int | None): Maximum number of trades to return (venue max 1000)
 
         Returns:
-            list[VenueTrade]: Trade records from the venue
+            list[VenueTrade]: Trade records from the venue, ascending by id
         '''
 
-        if start_time is not None and (start_time.tzinfo is None or start_time.utcoffset() is None):
-            msg = 'start_time must be timezone-aware'
+        if from_id is not None and (start_time is not None or end_time is not None):
+            msg = 'from_id cannot be combined with start_time or end_time'
             raise ValueError(msg)
+
+        _require_aware(start_time, 'start_time')
+        _require_aware(end_time, 'end_time')
 
         params: dict[str, str] = {'symbol': symbol}
 
+        if from_id is not None:
+            params['fromId'] = str(from_id)
+
         if start_time is not None:
             params['startTime'] = str(int(start_time.timestamp() * _MS_PER_SECOND))
+
+        if end_time is not None:
+            params['endTime'] = str(int(end_time.timestamp() * _MS_PER_SECOND))
+
+        if limit is not None:
+            params['limit'] = str(limit)
 
         data = await self._signed_request('GET', '/api/v3/myTrades', params, account_id)
 

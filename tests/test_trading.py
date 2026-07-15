@@ -169,9 +169,12 @@ class _InjectedVenueAdapter:
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
-        del account_id, symbol, start_time
+        del account_id, symbol, from_id, start_time, end_time, limit
         return []
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
@@ -1022,9 +1025,12 @@ class _ReconVenueAdapter(_InjectedVenueAdapter):
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
-        del account_id, symbol, start_time
+        del account_id, symbol, from_id, start_time, end_time, limit
         return self._venue_trades
 
     async def cancel_order(
