@@ -6,7 +6,7 @@ import logging
 import queue
 import threading
 from collections import defaultdict
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -36,7 +36,7 @@ from praxis.core.domain.events import (
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.binance_ws import BinanceUserStream
-from praxis.infrastructure.mytrades_backfill import paginate_my_trades
+from praxis.infrastructure.mytrades_backfill import paginate_my_trades, venue_trade_id_int
 from praxis.infrastructure.venue_adapter import NotFoundError, VenueAdapter, VenueError
 from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
@@ -44,6 +44,7 @@ from praxis.trading_inbound import TradingInbound
 __all__ = ['Trading']
 
 _log = logging.getLogger(__name__)
+_BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
 _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.FILLED,
     OrderStatus.CANCELED,
@@ -781,28 +782,47 @@ class Trading:
         )
         for symbol in sorted(symbols):
             cursor = await self._event_spine.get_reconcile_cursor(account_id, symbol)
+            start_time = (
+                None if cursor is not None
+                else self._clock() - _BACKFILL_BOOTSTRAP_LOOKBACK
+            )
             trades, complete = await paginate_my_trades(
-                self._venue_adapter, account_id, symbol, from_id=cursor,
+                self._venue_adapter,
+                account_id,
+                symbol,
+                from_id=cursor,
+                start_time=start_time,
             )
 
-            max_id = cursor
+            max_id: int | None = None
+            max_trade: Any = None
             for trade in trades:
+                trade_id_num = venue_trade_id_int(trade.venue_trade_id)
+                if trade_id_num is None:
+                    _log.warning(
+                        'skipping fill with non-numeric trade id: %s %s',
+                        account_id,
+                        trade.venue_trade_id,
+                    )
+                    continue
+
                 order = trading_state.orders.get(trade.client_order_id)
                 if order is None:
                     order = trading_state.closed_orders.get(trade.client_order_id)
                 if order is not None:
                     await self._apply_backfilled_fill(account_id, trade, order)
 
-                trade_id_num = int(trade.venue_trade_id)
-                max_id = trade_id_num if max_id is None else max(max_id, trade_id_num)
+                if max_id is None or trade_id_num > max_id:
+                    max_id = trade_id_num
+                    max_trade = trade
 
-            if complete and max_id is not None:
+            if complete and max_id is not None and max_trade is not None:
                 now = self._clock()
                 await self._event_spine.set_reconcile_cursor(
                     account_id,
                     symbol,
                     last_confirmed_trade_id=max_id,
-                    last_confirmed_ts=now.isoformat(),
+                    last_confirmed_ts=max_trade.timestamp.isoformat(),
                     epoch_id=self._config.epoch_id,
                     updated_at=now.isoformat(),
                 )

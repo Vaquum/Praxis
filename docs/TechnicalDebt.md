@@ -1047,3 +1047,25 @@ WP-0005 introduces `PRAGMA user_version` migrations that are additive and fail-c
 
 **When to fix**: before the spine grows large enough, or the deployment cadence high enough, that a manual restore is operationally risky.
 **Migration**: snapshot the spine file (or a SQLite backup-API copy) before applying a migration step, and provide an operator command to roll back to the pre-migration snapshot.
+
+## TD-118: Reconnect backfill skips a fill for a not-yet-known local order and advances past it
+
+**Origin**: WP-Praxis-0005 (Greybeard pre-PR review)
+**Severity**: Low (submission is gated during reconcile, so no order is created mid-pass; the window is a fill whose `OrderSubmitIntent` has not yet reached local state)
+**Module**: `praxis/trading.py` (`_backfill_account`)
+
+`_backfill_account` maps each backfilled trade to a local order by `client_order_id`; a trade whose order is unknown locally is skipped, and the per-`(account, symbol)` cursor still advances past it. For a genuinely external/manual order this is the intended out-of-scope behaviour, but for an order that is only transiently unknown (its intent has not yet been projected) the fill is skipped and never revisited, since the cursor has moved on.
+
+**When to fix**: before the reconnect path can race a still-persisting local order, or before manual/external orders come into scope.
+**Migration**: only advance the cursor past a trade once its order is known, or defer the cursor for unmatched trades and re-query them on a later pass.
+
+## TD-119: `is_order_capable` has no production caller
+
+**Origin**: WP-Praxis-0005 (Greybeard pre-PR review)
+**Severity**: Low (the submission gate is enforced in the per-account writer, not through this query)
+**Module**: `praxis/core/execution_manager.py` (`is_order_capable`)
+
+`ExecutionManager.is_order_capable` reports whether an account is neither reconciling nor poisoned, but the actual gate lives in the writer loop (it stops dequeuing commands). Only tests read the method; no production path consults it before submission.
+
+**When to fix**: when a caller needs a cheap pre-enqueue reject (e.g. the launcher or a fast-path that rejects submits for a poisoned account before they queue), or drop it if none emerges.
+**Migration**: wire it into a pre-submit fast-reject, or remove it and assert the invariant through the writer behaviour only.
