@@ -99,6 +99,28 @@ async def test_buy_then_sell_settles_balances() -> None:
 
 
 @pytest.mark.asyncio
+async def test_query_trades_honors_from_id() -> None:
+    adapter = _make_adapter()
+
+    await adapter.submit_order(
+        _ACCT, _SYMBOL, OrderSide.BUY, OrderType.MARKET, None,
+        quote_qty=Decimal('6000'), client_order_id='coid-1',
+    )
+    await adapter.submit_order(
+        _ACCT, _SYMBOL, OrderSide.SELL, OrderType.MARKET, Decimal('0.05'),
+        client_order_id='coid-2',
+    )
+
+    all_trades = await adapter.query_trades(_ACCT, _SYMBOL)
+    seqs = sorted(int(t.venue_trade_id.rsplit('-', 1)[1]) for t in all_trades)
+    assert len(seqs) == 2
+
+    filtered = await adapter.query_trades(_ACCT, _SYMBOL, from_id=seqs[1])
+    assert len(filtered) == 1
+    assert int(filtered[0].venue_trade_id.rsplit('-', 1)[1]) == seqs[1]
+
+
+@pytest.mark.asyncio
 async def test_submit_without_price_rejected() -> None:
     adapter = ReplayVenueAdapter(clock=_clock, filters=_filters())
     adapter.register_account(_ACCT, Credentials(api_key='k', api_secret='s'))

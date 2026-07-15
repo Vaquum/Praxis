@@ -55,6 +55,12 @@ _REJECT_BELOW_MIN_NOTIONAL = 'INTAKE_BELOW_MIN_NOTIONAL'
 _MS_PER_SECOND = 1000
 
 
+def _replay_trade_seq(venue_trade_id: str) -> int:
+    '''Parse the monotonic sequence from a replay venue trade id (`rv-t-{seq}`).'''
+
+    return int(venue_trade_id.rsplit('-', 1)[1])
+
+
 class ReplayVenueAdapter:
     '''Deterministic market-fill venue driven by a per-bar price cursor.
 
@@ -339,15 +345,19 @@ class ReplayVenueAdapter:
         end_time: datetime | None = None,
         limit: int | None = None,
     ) -> list[VenueTrade]:
-        '''Return recorded fills for a symbol, filtered by time window and limit.'''
-
-        del from_id
+        '''Return recorded fills for a symbol, filtered by cursor, time window, and limit.'''
 
         trades = [
             trade
             for trade in self._trades.get(account_id, [])
             if trade.symbol == symbol
         ]
+
+        if from_id is not None:
+            trades = [
+                trade for trade in trades
+                if _replay_trade_seq(trade.venue_trade_id) >= from_id
+            ]
 
         if start_time is not None:
             trades = [trade for trade in trades if trade.timestamp >= start_time]

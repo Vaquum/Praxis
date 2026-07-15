@@ -539,15 +539,13 @@ class EventSpine:
             venue trade ids seen across all FillReceived events.
         '''
 
-        async with self._conn.execute(_FILL_PAYLOAD_SCAN) as cursor:
-            rows = await cursor.fetchall()
-
         symbols: set[str] = set()
         fill_ids: set[str] = set()
-        for (payload,) in rows:
-            record = orjson.loads(payload)
-            symbols.add(record['symbol'])
-            fill_ids.add(record['venue_trade_id'])
+        async with self._conn.execute(_FILL_PAYLOAD_SCAN) as cursor:
+            async for (payload,) in cursor:
+                record = orjson.loads(payload)
+                symbols.add(record['symbol'])
+                fill_ids.add(record['venue_trade_id'])
 
         return symbols, fill_ids
 
@@ -561,9 +559,7 @@ class EventSpine:
         '''
 
         async with self._conn.execute(_LEGACY_DEDUP_IDS) as cursor:
-            rows = await cursor.fetchall()
-
-        return {row[0] for row in rows}
+            return {row[0] async for row in cursor}
 
     async def _get_meta(self, key: str) -> str | None:
 
@@ -917,40 +913,41 @@ class EventSpine:
         expected_prev = await self._genesis_anchor()
         in_legacy_prefix = True
 
+        row_count = 0
         async with self._conn.execute(_SELECT_CHAIN) as cursor:
-            rows = list(await cursor.fetchall())
+            async for row in cursor:
+                event_seq, epoch_id, timestamp, event_type, payload, prev_hash, row_hash = row
+                row_count += 1
+                if row_hash is None:
+                    if not in_legacy_prefix:
+                        msg = (
+                            f'event spine chain broken: unhashed row at '
+                            f'event_seq={event_seq} follows a hashed row'
+                        )
+                        raise ChainVerificationError(msg)
+                    continue
 
-        for event_seq, epoch_id, timestamp, event_type, payload, prev_hash, row_hash in rows:
-            if row_hash is None:
-                if not in_legacy_prefix:
+                in_legacy_prefix = False
+                if prev_hash != expected_prev:
                     msg = (
-                        f'event spine chain broken: unhashed row at '
-                        f'event_seq={event_seq} follows a hashed row'
+                        f'event spine chain broken: event_seq={event_seq} '
+                        f'prev_hash does not link to the preceding event'
                     )
                     raise ChainVerificationError(msg)
-                continue
 
-            in_legacy_prefix = False
-            if prev_hash != expected_prev:
-                msg = (
-                    f'event spine chain broken: event_seq={event_seq} '
-                    f'prev_hash does not link to the preceding event'
+                recomputed = _compute_hash(
+                    prev_hash, event_seq, epoch_id, timestamp, event_type, payload,
                 )
-                raise ChainVerificationError(msg)
+                if recomputed != row_hash:
+                    msg = (
+                        f'event spine chain tampered: event_seq={event_seq} '
+                        f'hash does not match its stored fields'
+                    )
+                    raise ChainVerificationError(msg)
 
-            recomputed = _compute_hash(
-                prev_hash, event_seq, epoch_id, timestamp, event_type, payload,
-            )
-            if recomputed != row_hash:
-                msg = (
-                    f'event spine chain tampered: event_seq={event_seq} '
-                    f'hash does not match its stored fields'
-                )
-                raise ChainVerificationError(msg)
+                expected_prev = row_hash
 
-            expected_prev = row_hash
-
-        _log.info('event spine chain verified', extra={'rows': len(rows)})
+        _log.info('event spine chain verified', extra={'rows': row_count})
 
     async def get_reconcile_cursor(self, account_id: str, symbol: str) -> int | None:
 

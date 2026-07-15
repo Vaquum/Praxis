@@ -1008,7 +1008,7 @@ The boot assertion rejects withdrawal-enabled keys and requires spot-and-margin 
 
 **Origin**: WP-Praxis-0005 scope (deferred; lands with the reconnect slice)
 **Severity**: Low (requires a pathological, sustained fill rate that keeps every backfill page full)
-**Module**: `praxis/trading.py` (`_reconcile_stream`)
+**Module**: `praxis/trading.py` (`_backfill_account`)
 
 Reconnect backfill paginates until a short page. Under a fill rate that keeps every page at the limit, the per-pass page cap defers the remainder to the next pass, leaving the account gated indefinitely (fail-closed, never trades).
 
@@ -1041,7 +1041,7 @@ The fill dedup key carries no venue component (`(epoch, account, symbol, venue_t
 
 **Origin**: WP-Praxis-0005 scope (deferred; lands with the migration-mechanism slice)
 **Severity**: Medium (a failed migration on the single prod spine has no first-party recovery beyond a manual file restore)
-**Module**: `praxis/infrastructure/event_spine.py` (`ensure_schema` / `migrate`)
+**Module**: `praxis/infrastructure/event_spine.py` (`ensure_schema` / `_migrate_to_v3`)
 
 WP-0005 introduces `PRAGMA user_version` migrations that are additive and fail-closed (a failed step does not advance the version and aborts boot). There is no automated pre-migration backup or rollback; recovery from a corrupt or partial migration is a manual restore of the SQLite file.
 
