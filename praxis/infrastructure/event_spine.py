@@ -57,7 +57,7 @@ __all__ = ['ChainVerificationError', 'EventSpine', 'SpineSchemaError']
 
 _log = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 _CHAIN_VERSION = 1
 _HASH_DOMAIN = b'praxis.spine.chain.v1'
 _GENESIS_ANCHOR = hashlib.sha256(_HASH_DOMAIN + b'.genesis').hexdigest()
@@ -65,6 +65,7 @@ _FRAME_WIDTH = 8
 
 _META_CHAIN_VERSION = 'chain_version'
 _META_GENESIS_ANCHOR = 'genesis_anchor'
+_META_LEGACY_DEDUP_SYMBOL = 'legacy_dedup_symbol'
 
 
 class SpineSchemaError(RuntimeError):
@@ -99,6 +100,15 @@ CREATE TABLE IF NOT EXISTS fill_dedup (
     account_id TEXT NOT NULL,
     dedup_key TEXT NOT NULL,
     UNIQUE(epoch_id, account_id, dedup_key)
+)'''
+
+_CREATE_FILL_DEDUP_V2 = '''
+CREATE TABLE IF NOT EXISTS fill_dedup_v2 (
+    epoch_id INTEGER NOT NULL,
+    account_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    dedup_key TEXT NOT NULL,
+    UNIQUE(epoch_id, account_id, symbol, dedup_key)
 )'''
 
 _CREATE_META = '''
@@ -160,10 +170,18 @@ ON CONFLICT(account_id, symbol) DO UPDATE SET
 '''
 
 
-_DEDUP_INSERT = (
-    'INSERT OR IGNORE INTO fill_dedup (epoch_id, account_id, dedup_key) '
-    'VALUES (?, ?, ?)'
+_DEDUP_V2_INSERT = (
+    'INSERT OR IGNORE INTO fill_dedup_v2 (epoch_id, account_id, symbol, dedup_key) '
+    'VALUES (?, ?, ?, ?)'
 )
+
+_LEGACY_DEDUP_CHECK = (
+    'SELECT 1 FROM fill_dedup WHERE epoch_id = ? AND account_id = ? AND dedup_key = ?'
+)
+
+_LEGACY_DEDUP_IDS = 'SELECT dedup_key FROM fill_dedup'
+
+_FILL_PAYLOAD_SCAN = "SELECT payload FROM events WHERE event_type = 'FillReceived'"
 
 _EVENT_REGISTRY: dict[str, type] = {
     cls.__name__: cls
@@ -343,6 +361,7 @@ class EventSpine:
 
         self._conn = conn
         self._append_lock = asyncio.Lock()
+        self._legacy_dedup_symbol: str | None = None
 
     async def ensure_schema(self) -> None:
 
@@ -385,6 +404,8 @@ class EventSpine:
                 pass
             async with self._conn.execute(_CREATE_FILL_DEDUP):
                 pass
+            async with self._conn.execute(_CREATE_FILL_DEDUP_V2):
+                pass
             async with self._conn.execute(_CREATE_META):
                 pass
             async with self._conn.execute(_CREATE_RECONCILE_CURSOR):
@@ -392,6 +413,7 @@ class EventSpine:
 
             if version < _SCHEMA_VERSION:
                 await self._migrate_to_v1()
+                await self._migrate_to_v3()
                 async with self._conn.execute(f'PRAGMA user_version = {_SCHEMA_VERSION}'):
                     pass
 
@@ -401,6 +423,7 @@ class EventSpine:
             _log.exception('event spine schema migration failed (rollback attempted)')
             raise
 
+        self._legacy_dedup_symbol = await self._get_meta(_META_LEGACY_DEDUP_SYMBOL)
         _log.info('event spine schema ensured', extra={'schema_version': _SCHEMA_VERSION})
 
     async def _user_version(self) -> int:
@@ -460,6 +483,128 @@ class EventSpine:
             pass
         async with self._conn.execute(_META_SET, (_META_GENESIS_ANCHOR, _GENESIS_ANCHOR)):
             pass
+
+    async def _migrate_to_v3(self) -> None:
+
+        '''
+        Establish the fill-dedup-v2 legacy-symbol boundary, fail-closed on ambiguity.
+
+        New fills dedup on `(epoch, account, symbol, venue_trade_id)` in
+        `fill_dedup_v2`. Legacy `fill_dedup` rows carry no symbol, so this
+        step proves the historical symbol set by scanning `FillReceived`
+        payloads. If the legacy database contains zero or one symbol, that
+        proven symbol is recorded and the legacy table is consulted only
+        for it (dual-read gating avoids a cross-symbol false-positive). If
+        it spans multiple symbols, or a legacy dedup row has no matching
+        `FillReceived` event, the migration fails closed — an offline,
+        operator-run symbol-aware backfill is required.
+
+        Raises:
+            SpineSchemaError: If legacy rows span multiple symbols or a
+                legacy dedup row cannot be mapped to a symbol.
+
+        Returns:
+            None
+        '''
+
+        symbols, fill_ids = await self._scan_fill_dedup_symbols()
+        legacy_ids = await self._legacy_dedup_ids()
+
+        unmatched = legacy_ids - fill_ids
+        if unmatched:
+            msg = (
+                f'{len(unmatched)} legacy fill_dedup rows have no matching '
+                f'FillReceived event; offline fill_dedup_v2 migration required'
+            )
+            raise SpineSchemaError(msg)
+
+        if len(symbols) > 1:
+            msg = (
+                f'legacy database spans {len(symbols)} symbols; offline '
+                f'symbol-aware fill_dedup_v2 backfill required'
+            )
+            raise SpineSchemaError(msg)
+
+        legacy_symbol = next(iter(symbols)) if symbols else ''
+        async with self._conn.execute(_META_SET, (_META_LEGACY_DEDUP_SYMBOL, legacy_symbol)):
+            pass
+
+    async def _scan_fill_dedup_symbols(self) -> tuple[set[str], set[str]]:
+
+        '''
+        Scan FillReceived payloads for their distinct symbols and trade ids.
+
+        Returns:
+            tuple[set[str], set[str]]: The distinct symbols and the set of
+            venue trade ids seen across all FillReceived events.
+        '''
+
+        async with self._conn.execute(_FILL_PAYLOAD_SCAN) as cursor:
+            rows = await cursor.fetchall()
+
+        symbols: set[str] = set()
+        fill_ids: set[str] = set()
+        for (payload,) in rows:
+            record = orjson.loads(payload)
+            symbols.add(record['symbol'])
+            fill_ids.add(record['venue_trade_id'])
+
+        return symbols, fill_ids
+
+    async def _legacy_dedup_ids(self) -> set[str]:
+
+        '''
+        Return the set of dedup keys stored in the legacy fill_dedup table.
+
+        Returns:
+            set[str]: The legacy dedup keys (venue trade ids).
+        '''
+
+        async with self._conn.execute(_LEGACY_DEDUP_IDS) as cursor:
+            rows = await cursor.fetchall()
+
+        return {row[0] for row in rows}
+
+    async def _get_meta(self, key: str) -> str | None:
+
+        '''
+        Return a spine_meta value, or None if the key is absent.
+
+        Args:
+            key (str): Metadata key.
+
+        Returns:
+            str | None: The stored value, or None.
+        '''
+
+        async with self._conn.execute(_META_GET, (key,)) as cursor:
+            row = await cursor.fetchone()
+
+        return str(row[0]) if row is not None else None
+
+    async def _is_legacy_duplicate(self, epoch_id: int, event: FillReceived) -> bool:
+
+        '''
+        Report whether a fill was already recorded under the legacy dedup key.
+
+        Consulted only for the proven legacy symbol, so a same-id fill on a
+        different symbol never matches a legacy row.
+
+        Args:
+            epoch_id (int): Current epoch identifier.
+            event (FillReceived): The fill being appended.
+
+        Returns:
+            bool: True if the legacy table already holds this trade id.
+        '''
+
+        if not self._legacy_dedup_symbol or event.symbol != self._legacy_dedup_symbol:
+            return False
+
+        async with self._conn.execute(
+            _LEGACY_DEDUP_CHECK, (epoch_id, event.account_id, event.venue_trade_id)
+        ) as cursor:
+            return await cursor.fetchone() is not None
 
     async def _genesis_anchor(self) -> str:
 
@@ -521,8 +666,10 @@ class EventSpine:
         '''
         Serialize and append a domain event to the log.
 
-        Deduplicate FillReceived events by (account_id, venue_trade_id)
-        within the epoch. Duplicate fills are silently dropped per RFC.
+        Deduplicate FillReceived events by (account_id, symbol,
+        venue_trade_id) within the epoch via `fill_dedup_v2`, plus a
+        dual-read of the legacy `fill_dedup` table for the one proven
+        pre-migration symbol. Duplicate fills are silently dropped per RFC.
         FillReceived atomicity is guaranteed internally: both the
         dedup insert and the event insert run in a single implicit
         transaction (Python sqlite3 auto-begins on the first DML
@@ -582,14 +729,14 @@ class EventSpine:
             #   - commit failure: rollback best-effort, re-raise the
             #     COMMIT exception (preserves the root cause)
             try:
-                async with self._conn.execute(
-                    _DEDUP_INSERT, (epoch_id, event.account_id, event.venue_trade_id)
-                ) as cursor:
-                    rowcount = cursor.rowcount
-                if rowcount == 0:
-                    seq = None
-                else:
-                    seq = await self._append_event(event, epoch_id)
+                is_duplicate = await self._is_legacy_duplicate(epoch_id, event)
+                if not is_duplicate:
+                    async with self._conn.execute(
+                        _DEDUP_V2_INSERT,
+                        (epoch_id, event.account_id, event.symbol, event.venue_trade_id),
+                    ) as cursor:
+                        is_duplicate = cursor.rowcount == 0
+                seq = None if is_duplicate else await self._append_event(event, epoch_id)
             except Exception:
                 await self._safe_rollback('event spine fill-atomic DML failure')
                 _log.exception(

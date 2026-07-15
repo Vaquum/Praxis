@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import aiosqlite
+import orjson
 import pytest
 
 from praxis.core.domain.enums import OrderSide
@@ -107,7 +108,7 @@ async def test_fresh_schema_sets_version_and_hash_columns() -> None:
         spine = EventSpine(conn)
         await spine.ensure_schema()
 
-        assert await _user_version(conn) == 2
+        assert await _user_version(conn) == 3
         assert {'prev_hash', 'hash'} <= await _columns(conn, 'events')
         assert len(await _genesis(conn)) == _SHA256_HEX_LEN
 
@@ -194,7 +195,7 @@ async def test_legacy_db_migrates_keeps_null_prefix_and_verifies(tmp_path: Path)
         spine = EventSpine(conn)
         await spine.ensure_schema()
 
-        assert await _user_version(conn) == 2
+        assert await _user_version(conn) == 3
         assert {'prev_hash', 'hash'} <= await _columns(conn, 'events')
 
         async with conn.execute('SELECT hash FROM events WHERE event_seq = 1') as cursor:
@@ -226,7 +227,7 @@ async def test_migration_is_idempotent() -> None:
 
         await spine.ensure_schema()
 
-        assert await _user_version(conn) == 2
+        assert await _user_version(conn) == 3
         assert await _genesis(conn) == first_genesis
 
 
@@ -235,7 +236,7 @@ async def test_newer_schema_version_is_refused() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         spine = EventSpine(conn)
         await spine.ensure_schema()
-        await conn.execute('PRAGMA user_version = 3')
+        await conn.execute('PRAGMA user_version = 4')
         await conn.commit()
 
         with pytest.raises(SpineSchemaError):
@@ -396,6 +397,107 @@ async def test_v1_db_gains_cursor_table_on_migration() -> None:
 
         await EventSpine(conn).ensure_schema()
 
-        assert await _user_version(conn) == 2
+        assert await _user_version(conn) == 3
         await _set_cursor(spine, 'BTCUSDT', 1, _EPOCH)
         assert await spine.get_reconcile_cursor(_ACCT, 'BTCUSDT') == 1
+
+
+def _fill_symbol(symbol: str, trade_id: str, *, client: str = 'ord') -> FillReceived:
+    return FillReceived(
+        account_id=_ACCT,
+        timestamp=_TS,
+        client_order_id=client,
+        venue_order_id='vo',
+        venue_trade_id=trade_id,
+        trade_id='trade',
+        command_id='cmd',
+        symbol=symbol,
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        price=Decimal('50000'),
+        fee=Decimal('0.001'),
+        fee_asset='USDT',
+        is_maker=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_same_trade_id_different_symbol_both_apply() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        s1 = await spine.append(_fill_symbol('BTCUSDT', 'vt-100'), _EPOCH)
+        s2 = await spine.append(_fill_symbol('ETHUSDT', 'vt-100', client='ord2'), _EPOCH)
+
+        assert s1 is not None
+        assert s2 is not None
+        assert s1 != s2
+
+
+@pytest.mark.asyncio
+async def test_duplicate_fill_same_symbol_dropped() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        assert await spine.append(_fill_symbol('BTCUSDT', 'vt-1'), _EPOCH) is not None
+        assert await spine.append(_fill_symbol('BTCUSDT', 'vt-1'), _EPOCH) is None
+
+
+@pytest.mark.asyncio
+async def test_multi_symbol_history_fails_closed_on_migration() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+        await spine.append(_fill_symbol('BTCUSDT', 'vt-1'), _EPOCH)
+        await spine.append(_fill_symbol('ETHUSDT', 'vt-2'), _EPOCH)
+        await conn.execute('PRAGMA user_version = 2')
+        await conn.commit()
+
+        with pytest.raises(SpineSchemaError, match='spans'):
+            await EventSpine(conn).ensure_schema()
+
+
+@pytest.mark.asyncio
+async def test_unmatched_legacy_dedup_row_fails_closed() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+        await conn.execute(
+            'INSERT INTO fill_dedup (epoch_id, account_id, dedup_key) VALUES (?, ?, ?)',
+            (_EPOCH, _ACCT, 'orphan-id'),
+        )
+        await conn.execute('PRAGMA user_version = 2')
+        await conn.commit()
+
+        with pytest.raises(SpineSchemaError, match='no matching'):
+            await EventSpine(conn).ensure_schema()
+
+
+@pytest.mark.asyncio
+async def test_legacy_symbol_gating_and_dual_read() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        await conn.execute(_LEGACY_SCHEMA)
+        await conn.execute(
+            'CREATE TABLE fill_dedup (epoch_id INTEGER, account_id TEXT, dedup_key TEXT, '
+            'UNIQUE(epoch_id, account_id, dedup_key))'
+        )
+        payload = orjson.dumps({'symbol': 'BTCUSDT', 'venue_trade_id': 'vt-500'})
+        await conn.execute(
+            'INSERT INTO events (epoch_id, timestamp, event_type, payload) VALUES (?, ?, ?, ?)',
+            (_EPOCH, _TS.isoformat(), 'FillReceived', payload),
+        )
+        await conn.execute(
+            'INSERT INTO fill_dedup (epoch_id, account_id, dedup_key) VALUES (?, ?, ?)',
+            (_EPOCH, _ACCT, 'vt-500'),
+        )
+        await conn.execute('PRAGMA user_version = 2')
+        await conn.commit()
+
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        assert spine._legacy_dedup_symbol == 'BTCUSDT'
+        assert await spine.append(_fill_symbol('ETHUSDT', 'vt-500'), _EPOCH) is not None
+        assert await spine.append(_fill_symbol('BTCUSDT', 'vt-500'), _EPOCH) is None

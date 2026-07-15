@@ -349,11 +349,11 @@ async def test_fill_dedup_table_populated(spine: EventSpine) -> None:
 
     await spine.append(_FILL, epoch_id=_EPOCH)
     cursor = await spine._conn.execute(
-        'SELECT epoch_id, account_id, dedup_key FROM fill_dedup'
+        'SELECT epoch_id, account_id, symbol, dedup_key FROM fill_dedup_v2'
     )
     rows = list(await cursor.fetchall())
     assert len(rows) == 1
-    assert rows[0] == (_EPOCH, _ACCT, _VTRD)
+    assert rows[0] == (_EPOCH, _ACCT, _SYMBOL, _VTRD)
 
 
 @pytest_asyncio.fixture
@@ -428,7 +428,7 @@ async def test_fill_atomicity_rollback_on_event_insert_failure(
         await spine.append(_FILL, epoch_id=_EPOCH)
 
     cursor = await spine._conn.execute(
-        'SELECT COUNT(*) FROM fill_dedup WHERE epoch_id = ? AND dedup_key = ?',
+        'SELECT COUNT(*) FROM fill_dedup_v2 WHERE epoch_id = ? AND dedup_key = ?',
         (_EPOCH, _VTRD),
     )
     row = await cursor.fetchone()
@@ -442,7 +442,7 @@ async def test_fill_atomicity_rollback_on_event_insert_failure(
     assert isinstance(seq, int)
 
     cursor = await spine._conn.execute(
-        'SELECT COUNT(*) FROM fill_dedup WHERE epoch_id = ? AND dedup_key = ?',
+        'SELECT COUNT(*) FROM fill_dedup_v2 WHERE epoch_id = ? AND dedup_key = ?',
         (_EPOCH, _VTRD),
     )
     row = await cursor.fetchone()
