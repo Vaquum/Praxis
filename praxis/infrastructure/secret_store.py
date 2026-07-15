@@ -58,6 +58,18 @@ class Credentials:
     api_key: str
     api_secret: str
 
+    def __post_init__(self) -> None:
+
+        '''Validate that both fields are non-empty strings.'''
+
+        if not isinstance(self.api_key, str) or not isinstance(self.api_secret, str):
+            msg = 'Credentials api_key and api_secret must be strings'
+            raise TypeError(msg)
+
+        if not self.api_key or not self.api_secret:
+            msg = 'Credentials api_key and api_secret must be non-empty'
+            raise ValueError(msg)
+
     def __repr__(self) -> str:
 
         '''Return a redacted representation that never exposes the secret.'''

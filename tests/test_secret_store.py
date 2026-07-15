@@ -44,6 +44,16 @@ def test_credentials_redacted_inside_containers() -> None:
     assert _API_SECRET not in repr(config)
 
 
+def test_credentials_rejects_non_string_fields() -> None:
+    with pytest.raises(TypeError):
+        Credentials(api_key=123, api_secret='s')  # type: ignore[arg-type]
+
+
+def test_credentials_rejects_empty_fields() -> None:
+    with pytest.raises(ValueError, match='non-empty'):
+        Credentials(api_key='', api_secret='s')
+
+
 def test_credentials_equality() -> None:
     assert Credentials(api_key='k', api_secret='s') == Credentials(api_key='k', api_secret='s')
     assert Credentials(api_key='k', api_secret='s') != Credentials(api_key='k', api_secret='x')

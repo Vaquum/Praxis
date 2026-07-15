@@ -73,7 +73,7 @@ def test_trading_config_rejects_whitespace_account_id() -> None:
 
 
 def test_trading_config_rejects_empty_credential_parts() -> None:
-    with pytest.raises(ValueError, match='non-empty api_key'):
+    with pytest.raises(ValueError, match='non-empty'):
         TradingConfig(
             epoch_id=1,
             account_credentials={'acc-1': Credentials(api_key='', api_secret='secret')},

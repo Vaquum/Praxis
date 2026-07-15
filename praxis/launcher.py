@@ -139,13 +139,15 @@ from praxis.infrastructure.secret_store import (
     SecretNotFoundError,
     SecretStore,
 )
-from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter, VenueError
+from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
 
 __all__ = ['InstanceConfig', 'Launcher', 'main']
 
 _log = logging.getLogger(__name__)
+
+_PERMISSION_QUERY_TIMEOUT = 15.0
 
 _REQUIRED_ENV_VARS = (
     'EPOCH_ID',
@@ -2587,7 +2589,14 @@ class Launcher:
         future = asyncio.run_coroutine_threadsafe(
             self._verify_api_permissions(), self._loop,
         )
-        future.result(timeout=30)
+        outer_timeout = _PERMISSION_QUERY_TIMEOUT * (len(self._instances) + 2)
+        try:
+            future.result(timeout=outer_timeout)
+        except TimeoutError:
+            future.cancel()
+            msg = 'api key permission assertion timed out; aborting startup'
+            _log.error(msg)
+            raise RuntimeError(msg) from None
 
     async def _verify_api_permissions(self) -> None:
         '''
@@ -2605,7 +2614,10 @@ class Launcher:
         adapter = self._trading.venue_adapter
         try:
             for inst in self._instances:
-                perms = await adapter.query_api_permissions(inst.account_id)
+                perms = await asyncio.wait_for(
+                    adapter.query_api_permissions(inst.account_id),
+                    _PERMISSION_QUERY_TIMEOUT,
+                )
                 if perms.enable_withdrawals is not False:
                     msg = (
                         f'account {inst.account_id!r} API key has withdrawals '
@@ -2622,7 +2634,7 @@ class Launcher:
                     'api key permissions verified (trade-only)',
                     extra={'account_id': inst.account_id},
                 )
-        except (VenueError, RuntimeError):
+        except Exception:
             await self._trading.stop()
             _log.error('api key permission assertion failed; aborting startup')
             raise

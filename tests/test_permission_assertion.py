@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -114,6 +115,37 @@ async def test_auth_error_aborts() -> None:
     trading = _wire_trading(launcher, side_effect=AuthenticationError('bad key'))
 
     with pytest.raises(AuthenticationError):
+        await launcher._verify_api_permissions()
+
+    trading.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_unexpected_error_aborts_fail_closed() -> None:
+    launcher = _launcher(enforce=True, instances=[_instance(_ACCT)])
+    trading = _wire_trading(launcher, side_effect=ValueError('surprise'))
+
+    with pytest.raises(ValueError, match='surprise'):
+        await launcher._verify_api_permissions()
+
+    trading.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_query_timeout_aborts_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    launcher = _launcher(enforce=True, instances=[_instance(_ACCT)])
+
+    async def _hang(_account_id: str) -> object:
+        await asyncio.sleep(10)
+        return None
+
+    trading = Mock()
+    trading.venue_adapter.query_api_permissions = _hang
+    trading.stop = AsyncMock()
+    launcher._trading = trading
+    monkeypatch.setattr('praxis.launcher._PERMISSION_QUERY_TIMEOUT', 0.05)
+
+    with pytest.raises(TimeoutError):
         await launcher._verify_api_permissions()
 
     trading.stop.assert_awaited_once()
