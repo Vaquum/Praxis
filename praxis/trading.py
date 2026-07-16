@@ -370,8 +370,9 @@ class Trading:
             )
             await stream.initiate_connection()
             self._user_streams[account_id] = stream
-
-        await self._reconcile_account(account_id)
+            await self._reconcile_on_reconnect(account_id)
+        else:
+            await self._reconcile_account(account_id)
 
         if account_ready:
             self._ready_accounts.add(account_id)
@@ -719,13 +720,15 @@ class Trading:
 
     async def _reconcile_on_reconnect(self, account_id: str) -> None:
         '''
-        Backfill missed fills and reconcile orders after a reconnect, submission-gated.
+        Backfill missed fills and reconcile orders, submission-gated.
 
-        Runs on the WS reconnect edge. Holds the account's submission gate
-        while it backfills myTrades from the durable cursor and reconciles
-        open orders, then releases the gate. A reconnect arriving mid-pass
-        schedules exactly one rerun. A venue failure leaves the account
-        gated (fail-closed) until a later reconnect succeeds or a restart.
+        Runs at boot (after the stream opens) and on every WS reconnect
+        edge. Holds the account's submission gate while it backfills
+        myTrades from the durable cursor and reconciles open orders, then
+        releases the gate only when the backfill fully drained. A truncated
+        backfill (page cap) or a venue failure leaves the account gated
+        (fail-closed) until a later reconcile drains it or a restart. A
+        reconnect arriving mid-pass schedules exactly one rerun.
 
         Args:
             account_id (str): Account identifier.
@@ -740,14 +743,21 @@ class Trading:
             while True:
                 self._execution_manager.set_reconciling(account_id, True)
                 try:
-                    await self._backfill_account(account_id)
+                    complete = await self._backfill_account(account_id)
                     await self._reconcile_account(account_id)
                 except VenueError as exc:
                     _log.error(
-                        'reconnect reconcile failed; account stays gated (fail '
-                        'closed): %s %s',
+                        'reconcile failed; account stays gated (fail closed): %s %s',
                         account_id,
                         exc.args[0] if exc.args else str(exc),
+                    )
+                    return
+
+                if not complete:
+                    _log.warning(
+                        'backfill incomplete; account stays gated until a later '
+                        'reconcile drains it: %s',
+                        account_id,
                     )
                     return
 
@@ -758,7 +768,7 @@ class Trading:
         finally:
             self._reconciling_accounts.discard(account_id)
 
-    async def _backfill_account(self, account_id: str) -> None:
+    async def _backfill_account(self, account_id: str) -> bool:
         '''
         Paginate myTrades from the durable cursor and apply missed fills per symbol.
 
@@ -770,12 +780,18 @@ class Trading:
 
         Args:
             account_id (str): Account identifier.
+
+        Returns:
+            bool: True when every symbol's myTrades stream fully drained;
+            False when any symbol was truncated (page cap or non-numeric
+            boundary), so backfill is incomplete.
         '''
 
         trading_state = self._execution_manager.get_trading_state(account_id)
         if trading_state is None:
-            return
+            return True
 
+        all_complete = True
         symbols = (
             set(self._execution_manager.active_symbols(account_id))
             | self._bootstrap_filter_symbols
@@ -793,6 +809,8 @@ class Trading:
                 from_id=cursor,
                 start_time=start_time,
             )
+            if not complete:
+                all_complete = False
 
             max_id: int | None = None
             max_trade: Any = None
@@ -826,6 +844,8 @@ class Trading:
                     epoch_id=self._config.epoch_id,
                     updated_at=now.isoformat(),
                 )
+
+        return all_complete
 
     async def _apply_backfilled_fill(self, account_id: str, trade: Any, order: Any) -> None:
         '''

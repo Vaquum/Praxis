@@ -387,6 +387,24 @@ async def test_reconcile_cursor_is_per_symbol_and_cross_epoch() -> None:
 
 
 @pytest.mark.asyncio
+async def test_set_reconcile_cursor_serializes_under_append_lock() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        await spine._append_lock.acquire()
+        task = asyncio.ensure_future(_set_cursor(spine, 'BTCUSDT', 105, _EPOCH))
+        await asyncio.sleep(0)
+
+        assert not task.done()
+
+        spine._append_lock.release()
+        await task
+
+        assert await spine.get_reconcile_cursor(_ACCT, 'BTCUSDT') == 105
+
+
+@pytest.mark.asyncio
 async def test_v1_db_gains_cursor_table_on_migration() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         spine = EventSpine(conn)

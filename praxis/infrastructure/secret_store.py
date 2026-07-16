@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 import keyring
@@ -23,6 +24,7 @@ import keyring.errors
 
 __all__ = [
     'Credentials',
+    'FileSecretStore',
     'KeyringSecretStore',
     'MappingSecretStore',
     'SecretBackendError',
@@ -131,6 +133,27 @@ def _decode_record(account_id: str, raw: str) -> Credentials:
         msg = f'malformed credential record for account {account_id!r}'
         raise SecretBackendError(msg) from exc
 
+    return _credentials_from_record(account_id, record)
+
+
+def _credentials_from_record(account_id: str, record: object) -> Credentials:
+
+    '''
+    Validate a decoded credential mapping into `Credentials`.
+
+    Args:
+        account_id (str): Account identifier, for error messages only.
+        record (object): Decoded record, expected to be a mapping with
+            `api_key` and `api_secret`.
+
+    Returns:
+        Credentials: The validated credentials.
+
+    Raises:
+        SecretBackendError: If the record is not an object or is missing a
+            non-empty api_key/api_secret string.
+    '''
+
     if not isinstance(record, dict):
         msg = f'malformed credential record for account {account_id!r}'
         raise SecretBackendError(msg)
@@ -222,6 +245,92 @@ class MappingSecretStore:
 
         try:
             return self._credentials[account_id]
+        except KeyError as exc:
+            msg = f'no credential record for account {account_id!r}'
+            raise SecretNotFoundError(msg) from exc
+
+
+class FileSecretStore:
+
+    '''
+    Resolve credentials from a JSON secrets file (headless live trading).
+
+    The file holds a JSON object mapping `account_id` to a
+    `{"api_key": ..., "api_secret": ...}` record. It is intended for a
+    container or orchestrator secret mounted at a fixed path where an OS
+    keyring is unavailable. Provisioning is out of band; this store is
+    read-only and loads the file once on first access.
+
+    Args:
+        path (Path): Path to the JSON secrets file.
+    '''
+
+    def __init__(self, path: Path) -> None:
+
+        '''Record the secrets-file path without reading it.'''
+
+        self._path = path
+        self._records: dict[str, Credentials] | None = None
+
+    def _load(self) -> dict[str, Credentials]:
+
+        '''
+        Read and validate the secrets file, caching the parsed records.
+
+        Returns:
+            dict[str, Credentials]: Account-keyed credentials.
+
+        Raises:
+            SecretBackendError: If the file is unreadable, is not valid
+                JSON, is not a JSON object, or holds a malformed record.
+        '''
+
+        if self._records is not None:
+            return self._records
+
+        try:
+            raw = self._path.read_text()
+        except OSError as exc:
+            msg = f'secrets file unreadable at {self._path}'
+            raise SecretBackendError(msg) from exc
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            msg = f'secrets file is not valid JSON at {self._path}'
+            raise SecretBackendError(msg) from exc
+
+        if not isinstance(data, dict):
+            msg = f'secrets file must be a JSON object at {self._path}'
+            raise SecretBackendError(msg)
+
+        records = {
+            account_id: _credentials_from_record(account_id, record)
+            for account_id, record in data.items()
+        }
+        self._records = records
+
+        return records
+
+    def get(self, account_id: str) -> Credentials:
+
+        '''
+        Resolve an account's credentials from the secrets file.
+
+        Args:
+            account_id (str): Account identifier.
+
+        Returns:
+            Credentials: The resolved credentials.
+
+        Raises:
+            SecretNotFoundError: If the file has no record for the account.
+            SecretBackendError: If the file is unreadable or malformed.
+        '''
+
+        records = self._load()
+        try:
+            return records[account_id]
         except KeyError as exc:
             msg = f'no credential record for account {account_id!r}'
             raise SecretNotFoundError(msg) from exc

@@ -1003,16 +1003,17 @@ class EventSpine:
             None
         '''
 
-        async with self._conn.execute(
-            _CURSOR_UPSERT,
-            (
-                account_id,
-                symbol,
-                last_confirmed_trade_id,
-                last_confirmed_ts,
-                epoch_id,
-                updated_at,
-            ),
-        ):
-            pass
-        await self._conn.commit()
+        async with self._append_lock:
+            async with self._conn.execute(
+                _CURSOR_UPSERT,
+                (
+                    account_id,
+                    symbol,
+                    last_confirmed_trade_id,
+                    last_confirmed_ts,
+                    epoch_id,
+                    updated_at,
+                ),
+            ):
+                pass
+            await self._conn.commit()

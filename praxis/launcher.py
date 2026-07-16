@@ -133,6 +133,7 @@ from praxis.infrastructure.book_cache import BookCache, book_mid_price, build_pr
 from praxis.infrastructure.book_poller import BookPoller
 from praxis.infrastructure.secret_store import (
     Credentials,
+    FileSecretStore,
     KeyringSecretStore,
     MappingSecretStore,
     SecretBackendError,
@@ -159,6 +160,7 @@ _REQUIRED_ENV_VARS = (
 _TRADE_MODE_PAPER = 'paper'
 _TRADE_MODE_LIVE = 'live'
 _TRADE_MODES = (_TRADE_MODE_PAPER, _TRADE_MODE_LIVE)
+_SECRETS_FILE_ENV = 'PRAXIS_SECRETS_FILE'
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
@@ -2577,6 +2579,11 @@ class Launcher:
         and testnet skip it. On any failure the trading stack is stopped
         and the exception propagates, aborting startup before Nexus
         instances (and thus order submission) start.
+
+        NOTE: The outer `future.result` timeout bounds the case where the
+        trading event loop is wedged and the inner per-query timeout in
+        `_verify_api_permissions` never gets a chance to fire; it is a
+        startup backstop, not a per-query deadline.
         '''
 
         if not self._enforce_api_permissions:
@@ -4367,7 +4374,11 @@ def main() -> None:
         )
 
     if trade_mode == _TRADE_MODE_LIVE:
-        secret_store: SecretStore = KeyringSecretStore()
+        secrets_file = env.get(_SECRETS_FILE_ENV, '').strip()
+        if secrets_file:
+            secret_store: SecretStore = FileSecretStore(Path(secrets_file))
+        else:
+            secret_store = KeyringSecretStore()
     else:
         secret_store = MappingSecretStore(paper_credentials)
 

@@ -999,7 +999,7 @@ The runtime `SecretStore` protocol exposes `get` only; writing an account's keyr
 **Severity**: Low (the two enforced flags cover the primary capital-exfiltration and trade-capability risks)
 **Module**: `praxis/infrastructure/binance_adapter.py` (`query_api_permissions`)
 
-The boot assertion rejects withdrawal-enabled keys and requires spot-and-margin trading. The remaining `apiRestrictions` flags (`ipRestrict`, `permitsUniversalTransfer`, `enableInternalTransfer`, `enableFutures`, `enableMargin`, `enablePortfolioMarginTrading`) are logged but not enforced.
+The boot assertion rejects withdrawal-enabled keys and requires spot-and-margin trading. The remaining `apiRestrictions` flags (`ipRestrict`, `permitsUniversalTransfer`, `enableInternalTransfer`, `enableFutures`, `enableMargin`, `enablePortfolioMarginTrading`) are neither parsed nor enforced.
 
 **When to fix**: before a hardened live deployment requires IP-pinning or explicitly forbidding transfer/derivatives permissions on the trading key.
 **Migration**: extend the assertion to reject the additional flags per a documented hardening policy; keep the reject list explicit so it never silently broadens.
@@ -1008,9 +1008,9 @@ The boot assertion rejects withdrawal-enabled keys and requires spot-and-margin 
 
 **Origin**: WP-Praxis-0005 scope (deferred; lands with the reconnect slice)
 **Severity**: Low (requires a pathological, sustained fill rate that keeps every backfill page full)
-**Module**: `praxis/trading.py` (`_backfill_account`)
+**Module**: `praxis/trading.py` (`_backfill_account`, `_reconcile_on_reconnect`)
 
-Reconnect backfill paginates until a short page. Under a fill rate that keeps every page at the limit, the per-pass page cap defers the remainder to the next pass, leaving the account gated indefinitely (fail-closed, never trades).
+Reconnect backfill paginates until a short page. Under a fill rate that keeps every page at the limit, the per-pass page cap truncates the backfill; `_backfill_account` reports the truncation and `_reconcile_on_reconnect` keeps the account gated (fail-closed, never trades) until a later pass drains the remainder. A sustained fill rate that outpaces the backfill never yields that draining pass.
 
 **When to fix**: before a strategy/venue combination can sustain a fill rate that outpaces the backfill.
 **Migration**: bound total reconcile passes and, on exhaustion, escalate to an operator alert with an explicit degraded-mode decision rather than silent perpetual gating.

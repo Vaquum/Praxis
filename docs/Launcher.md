@@ -75,17 +75,27 @@ The launcher creates one per-account outcome queue and one per-account Nexus thr
 
 ### Per-account credentials
 
-For each manifest found under `MANIFESTS_DIR`, the launcher reads:
+The launcher resolves each account's credentials once at boot through a `SecretStore` chosen by `TRADE_MODE` (`praxis/infrastructure/secret_store.py`). Credentials are carried as a frozen, redacted `Credentials` value object, not bare strings.
+
+Under `TRADE_MODE=paper`, the launcher reads a per-account env mapping:
 
 - `BINANCE_API_KEY_<ACCOUNT_ID>`
 - `BINANCE_API_SECRET_<ACCOUNT_ID>`
 
 `<ACCOUNT_ID>` is the manifest's `account_id:` value normalized by uppercasing and replacing non-alphanumeric characters with `_`. For example, `account_id: acct-001` resolves to `BINANCE_API_KEY_ACCT_001` / `BINANCE_API_SECRET_ACCT_001`.
 
+Under `TRADE_MODE=live`, env credentials are never read. The launcher resolves from:
+
+- the OS keyring by default (`KeyringSecretStore`): one JSON `{"api_key": ..., "api_secret": ...}` record per `account_id` under service `praxis-binance`, provisioned out of band with the `keyring` CLI, or
+- a mounted JSON secrets file (`FileSecretStore`) when `PRAXIS_SECRETS_FILE` names a readable path — a headless alternative for a slim container where no keyring backend is available. The file is a JSON object mapping `account_id` to the same `{"api_key", "api_secret"}` record.
+
+In live mode the launcher also asserts each key is trade-only before any account becomes order-capable: it reads the signed `apiRestrictions` endpoint and aborts startup on a key with withdrawals enabled or spot trading disabled (the endpoint is not served by the spot testnet, so paper and testnet skip this).
+
 ### Optional environment
 
 | Var | Default | Purpose |
 |---|---|---|
+| `PRAXIS_SECRETS_FILE` | unset | Live mode only. Path to a JSON secrets file (`account_id` → `{"api_key", "api_secret"}`) resolved by `FileSecretStore`. When set, the launcher reads credentials from this file instead of the OS keyring — a headless path for containers without a keyring backend. Ignored in paper mode |
 | `SHUTDOWN_TIMEOUT` | `30` | Seconds to wait for orders to reach terminal state before forcing shutdown |
 | `STRATEGY_STATE_BASE` | unset | Base path for strategy state blobs; each instance gets `STRATEGY_STATE_BASE / <account_id> / <epoch_id>`. When unset, strategy state falls back under `state_dir` (`STATE_BASE / <account_id> / <epoch_id> / strategy_state`) |
 | `PRAXIS_CONDUIT_DIR` | `/opt/conduit` | Read-only mount of the `furnace_conduit` Docker volume. Contains the serving manifest and per-series prediction Arrow frames that the Nexus `PredictLoop` polls for new signals. Mount as `furnace_conduit:/opt/conduit:ro` on the praxis service |

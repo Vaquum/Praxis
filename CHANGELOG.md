@@ -1298,6 +1298,7 @@
 
 - WP-Praxis-0005 (Event Spine integrity, secrets & reconnection): tamper-evident audit, key custody, and no-lost-fills connection integrity for the live-trading MVP. All changes are Praxis-only — the Event Spine, credential path, and venue adapter live here; Nexus consumes aggregate `TradeOutcome`s and needs no change. Introduces the first Event Spine schema-migration mechanism (`PRAGMA user_version`), advanced across this WP to version 3
 - Two changes alter runtime shape on the order-critical path and must be validated on the paper host before a tagged release: the [`EventSpine`](praxis/infrastructure/event_spine.py) per-append `asyncio.Lock` (chain serialization) and the per-account submission gate plus projection fail-stop in [`ExecutionManager`](praxis/core/execution_manager.py)
+- The version 3 migration is fail-closed on a multi-symbol legacy spine: if a pre-existing `fill_dedup` table holds more than one symbol (or a row that cannot be matched to a proven symbol), `ensure_schema` raises and boot aborts rather than guessing the per-symbol dedup key. A spine that only ever traded one symbol migrates cleanly; a multi-symbol legacy database must be reconciled offline before upgrading
 
 ### Add
 

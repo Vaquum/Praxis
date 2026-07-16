@@ -136,6 +136,40 @@ async def test_projection_failure_poisons_and_blocks_commands(
     await mgr.unregister_account(_ACCT)
 
 
+@pytest.mark.asyncio
+async def test_poisoned_account_stops_projecting_further_events(
+    spine: EventSpine,
+    adapter: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mgr = ExecutionManager(event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter)
+    mgr.register_account(_ACCT)
+
+    project_calls = 0
+
+    def _boom(runtime: Any, event: Any) -> None:
+        nonlocal project_calls
+        del runtime, event
+        project_calls += 1
+        raise RuntimeError('projection boom')
+
+    monkeypatch.setattr(mgr, '_project', _boom)
+
+    for n in range(3):
+        mgr.enqueue_ws_event(
+            _ACCT,
+            CommandAccepted(
+                account_id=_ACCT, timestamp=_TS, command_id=f'cmd-{n}', trade_id=f'trade-{n}',
+            ),
+        )
+    await asyncio.sleep(0.3)
+
+    assert mgr.is_order_capable(_ACCT) is False
+    assert project_calls == 1
+
+    await mgr.unregister_account(_ACCT)
+
+
 def _trading(spine: EventSpine) -> Trading:
     config = TradingConfig(
         epoch_id=_EPOCH,
@@ -148,7 +182,7 @@ def _trading(spine: EventSpine) -> Trading:
 async def test_reconcile_on_reconnect_gates_then_releases(spine: EventSpine) -> None:
     trading = _trading(spine)
     trading._execution_manager = MagicMock()
-    trading._backfill_account = AsyncMock()
+    trading._backfill_account = AsyncMock(return_value=True)
     trading._reconcile_account = AsyncMock()
 
     await trading._reconcile_on_reconnect(_ACCT)
@@ -167,11 +201,12 @@ async def test_reconcile_on_reconnect_reruns_when_reentered(spine: EventSpine) -
     trading._reconcile_account = AsyncMock()
     calls = 0
 
-    async def _backfill(account_id: str) -> None:
+    async def _backfill(account_id: str) -> bool:
         nonlocal calls
         calls += 1
         if calls == 1:
             await trading._reconcile_on_reconnect(account_id)
+        return True
 
     trading._backfill_account = _backfill
 
@@ -180,6 +215,21 @@ async def test_reconcile_on_reconnect_reruns_when_reentered(spine: EventSpine) -
     assert calls == 2
     assert _ACCT not in trading._reconciling_accounts
     assert _ACCT not in trading._reconcile_rerun_pending
+
+
+@pytest.mark.asyncio
+async def test_reconcile_on_reconnect_stays_gated_on_incomplete_backfill(spine: EventSpine) -> None:
+    trading = _trading(spine)
+    trading._execution_manager = MagicMock()
+    trading._backfill_account = AsyncMock(return_value=False)
+    trading._reconcile_account = AsyncMock()
+
+    await trading._reconcile_on_reconnect(_ACCT)
+
+    calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
+    assert (_ACCT, True) in calls
+    assert (_ACCT, False) not in calls
+    assert _ACCT not in trading._reconciling_accounts
 
 
 @pytest.mark.asyncio

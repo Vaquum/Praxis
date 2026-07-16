@@ -5,6 +5,7 @@ Tests for praxis.infrastructure.secret_store.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import keyring
 import keyring.errors
@@ -12,6 +13,7 @@ import pytest
 
 from praxis.infrastructure.secret_store import (
     Credentials,
+    FileSecretStore,
     KeyringSecretStore,
     MappingSecretStore,
     SecretBackendError,
@@ -141,3 +143,63 @@ def test_keyring_store_empty_field_raises_backend_error(monkeypatch: pytest.Monk
 
     with pytest.raises(SecretBackendError):
         KeyringSecretStore().get(_ACCT)
+
+
+def _write_secrets(tmp_path: Path, payload: object) -> Path:
+    path = tmp_path / 'secrets.json'
+    path.write_text(json.dumps(payload))
+
+    return path
+
+
+def test_file_store_returns_credentials(tmp_path: Path) -> None:
+    path = _write_secrets(tmp_path, {_ACCT: {'api_key': _API_KEY, 'api_secret': _API_SECRET}})
+
+    assert FileSecretStore(path).get(_ACCT) == Credentials(
+        api_key=_API_KEY, api_secret=_API_SECRET,
+    )
+
+
+def test_file_store_satisfies_protocol(tmp_path: Path) -> None:
+    assert isinstance(FileSecretStore(tmp_path / 'secrets.json'), SecretStore)
+
+
+def test_file_store_missing_account_raises_not_found(tmp_path: Path) -> None:
+    path = _write_secrets(tmp_path, {'other': {'api_key': _API_KEY, 'api_secret': _API_SECRET}})
+
+    with pytest.raises(SecretNotFoundError):
+        FileSecretStore(path).get(_ACCT)
+
+
+def test_file_store_unreadable_raises_backend_error(tmp_path: Path) -> None:
+    with pytest.raises(SecretBackendError):
+        FileSecretStore(tmp_path / 'absent.json').get(_ACCT)
+
+
+def test_file_store_malformed_json_raises_backend_error(tmp_path: Path) -> None:
+    path = tmp_path / 'secrets.json'
+    path.write_text('{not json')
+
+    with pytest.raises(SecretBackendError):
+        FileSecretStore(path).get(_ACCT)
+
+
+def test_file_store_non_object_raises_backend_error(tmp_path: Path) -> None:
+    path = _write_secrets(tmp_path, ['not', 'an', 'object'])
+
+    with pytest.raises(SecretBackendError):
+        FileSecretStore(path).get(_ACCT)
+
+
+def test_file_store_incomplete_record_raises_backend_error(tmp_path: Path) -> None:
+    path = _write_secrets(tmp_path, {_ACCT: {'api_key': _API_KEY}})
+
+    with pytest.raises(SecretBackendError):
+        FileSecretStore(path).get(_ACCT)
+
+
+def test_file_store_empty_field_raises_backend_error(tmp_path: Path) -> None:
+    path = _write_secrets(tmp_path, {_ACCT: {'api_key': '', 'api_secret': _API_SECRET}})
+
+    with pytest.raises(SecretBackendError):
+        FileSecretStore(path).get(_ACCT)

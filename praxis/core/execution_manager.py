@@ -1097,6 +1097,8 @@ class ExecutionManager:
             while True:
                 while not runtime.ws_event_queue.empty():
                     event = runtime.ws_event_queue.get_nowait()
+                    if runtime.poisoned:
+                        continue
                     try:
                         self._project(runtime, event)
                     except asyncio.CancelledError:
