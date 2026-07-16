@@ -347,6 +347,10 @@ class ReplayVenueAdapter:
     ) -> list[VenueTrade]:
         '''Return recorded fills for a symbol, filtered by cursor, time window, and limit.'''
 
+        if from_id is not None and (start_time is not None or end_time is not None):
+            msg = 'from_id cannot be combined with start_time or end_time'
+            raise ValueError(msg)
+
         trades = [
             trade
             for trade in self._trades.get(account_id, [])

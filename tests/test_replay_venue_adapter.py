@@ -121,6 +121,21 @@ async def test_query_trades_honors_from_id() -> None:
 
 
 @pytest.mark.asyncio
+async def test_query_trades_rejects_from_id_with_time_window() -> None:
+    adapter = _make_adapter()
+
+    with pytest.raises(ValueError, match='from_id cannot be combined'):
+        await adapter.query_trades(
+            _ACCT, _SYMBOL, from_id=1, start_time=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+    with pytest.raises(ValueError, match='from_id cannot be combined'):
+        await adapter.query_trades(
+            _ACCT, _SYMBOL, from_id=1, end_time=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+
+@pytest.mark.asyncio
 async def test_submit_without_price_rejected() -> None:
     adapter = ReplayVenueAdapter(clock=_clock, filters=_filters())
     adapter.register_account(_ACCT, Credentials(api_key='k', api_secret='s'))

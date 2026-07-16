@@ -543,9 +543,17 @@ class EventSpine:
         fill_ids: set[str] = set()
         async with self._conn.execute(_FILL_PAYLOAD_SCAN) as cursor:
             async for (payload,) in cursor:
-                record = orjson.loads(payload)
-                symbols.add(record['symbol'])
-                fill_ids.add(record['venue_trade_id'])
+                try:
+                    record = orjson.loads(payload)
+                    symbols.add(record['symbol'])
+                    fill_ids.add(record['venue_trade_id'])
+                except (orjson.JSONDecodeError, KeyError, TypeError) as exc:
+                    msg = (
+                        'legacy FillReceived payload is malformed (missing or '
+                        'undecodable symbol/venue_trade_id); offline repair '
+                        'required before migration'
+                    )
+                    raise SpineSchemaError(msg) from exc
 
         return symbols, fill_ids
 
