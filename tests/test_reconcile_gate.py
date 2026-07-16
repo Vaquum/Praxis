@@ -233,6 +233,44 @@ async def test_reconcile_on_reconnect_stays_gated_on_incomplete_backfill(spine: 
 
 
 @pytest.mark.asyncio
+async def test_reconcile_clears_pending_on_venue_failure(spine: EventSpine) -> None:
+    trading = _trading(spine)
+    trading._execution_manager = MagicMock()
+    trading._reconcile_account = AsyncMock()
+
+    async def _backfill(account_id: str) -> bool:
+        await trading._reconcile_on_reconnect(account_id)
+        raise VenueError('boom')
+
+    trading._backfill_account = _backfill
+
+    await trading._reconcile_on_reconnect(_ACCT)
+
+    assert _ACCT not in trading._reconcile_rerun_pending
+    assert _ACCT not in trading._reconciling_accounts
+
+
+@pytest.mark.asyncio
+async def test_reconcile_clears_pending_on_incomplete_backfill(spine: EventSpine) -> None:
+    trading = _trading(spine)
+    trading._execution_manager = MagicMock()
+    trading._reconcile_account = AsyncMock()
+
+    async def _backfill(account_id: str) -> bool:
+        await trading._reconcile_on_reconnect(account_id)
+        return False
+
+    trading._backfill_account = _backfill
+
+    await trading._reconcile_on_reconnect(_ACCT)
+
+    assert _ACCT not in trading._reconcile_rerun_pending
+    assert _ACCT not in trading._reconciling_accounts
+    calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
+    assert (_ACCT, False) not in calls
+
+
+@pytest.mark.asyncio
 async def test_reconcile_on_reconnect_stays_gated_on_venue_failure(spine: EventSpine) -> None:
     trading = _trading(spine)
     trading._execution_manager = MagicMock()

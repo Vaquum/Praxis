@@ -767,6 +767,7 @@ class Trading:
                 self._reconcile_rerun_pending.discard(account_id)
         finally:
             self._reconciling_accounts.discard(account_id)
+            self._reconcile_rerun_pending.discard(account_id)
 
     async def _backfill_account(self, account_id: str) -> bool:
         '''
