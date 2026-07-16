@@ -761,8 +761,8 @@ class Trading:
                     )
                     return
 
-                self._execution_manager.set_reconciling(account_id, False)
                 if account_id not in self._reconcile_rerun_pending:
+                    self._execution_manager.set_reconciling(account_id, False)
                     return
                 self._reconcile_rerun_pending.discard(account_id)
         finally:

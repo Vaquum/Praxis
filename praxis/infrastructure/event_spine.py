@@ -635,6 +635,28 @@ class EventSpine:
         except Exception:  # noqa: BLE001 - rollback failure is logged, not raised
             _log.exception('event spine rollback failed during %s', context)
 
+    async def _commit(self, context: str) -> None:
+
+        '''
+        Commit the pending transaction, rolling back on commit failure.
+
+        A failed `commit()` can leave the connection in an open
+        transaction that would corrupt later writes. On failure this
+        rolls back best-effort, logs, and re-raises the commit exception
+        so the caller sees the root cause.
+
+        Args:
+            context (str): Short tag for the log line so the operator
+                can tell which commit path failed.
+        '''
+
+        try:
+            await self._conn.commit()
+        except Exception:
+            await self._safe_rollback(context)
+            _log.exception('event spine commit failed during %s', context)
+            raise
+
     async def append(self, event: Event, epoch_id: int) -> int | None:
 
         '''
@@ -782,7 +804,7 @@ class EventSpine:
             return seq
 
         seq = await self._append_event(event, epoch_id)
-        await self._conn.commit()
+        await self._commit('event spine append')
         _log.debug(
             'event spine appended',
             extra={
@@ -1016,4 +1038,4 @@ class EventSpine:
                 ),
             ):
                 pass
-            await self._conn.commit()
+            await self._commit('reconcile cursor upsert')

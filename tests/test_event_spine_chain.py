@@ -405,6 +405,60 @@ async def test_set_reconcile_cursor_serializes_under_append_lock() -> None:
 
 
 @pytest.mark.asyncio
+async def test_set_reconcile_cursor_rolls_back_on_commit_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        rolled_back = False
+        real_rollback = conn.rollback
+
+        async def _boom() -> None:
+            raise RuntimeError('commit failed')
+
+        async def _track_rollback() -> None:
+            nonlocal rolled_back
+            rolled_back = True
+            await real_rollback()
+
+        monkeypatch.setattr(conn, 'commit', _boom)
+        monkeypatch.setattr(conn, 'rollback', _track_rollback)
+
+        with pytest.raises(RuntimeError, match='commit failed'):
+            await _set_cursor(spine, 'BTCUSDT', 105, _EPOCH)
+
+        assert rolled_back
+
+
+@pytest.mark.asyncio
+async def test_append_rolls_back_on_commit_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        rolled_back = False
+        real_rollback = conn.rollback
+
+        async def _boom() -> None:
+            raise RuntimeError('commit failed')
+
+        async def _track_rollback() -> None:
+            nonlocal rolled_back
+            rolled_back = True
+            await real_rollback()
+
+        monkeypatch.setattr(conn, 'commit', _boom)
+        monkeypatch.setattr(conn, 'rollback', _track_rollback)
+
+        with pytest.raises(RuntimeError, match='commit failed'):
+            await spine.append(_cmd(0), _EPOCH)
+
+        assert rolled_back
+
+
+@pytest.mark.asyncio
 async def test_v1_db_gains_cursor_table_on_migration() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         spine = EventSpine(conn)

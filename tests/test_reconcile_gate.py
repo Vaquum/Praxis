@@ -216,6 +216,10 @@ async def test_reconcile_on_reconnect_reruns_when_reentered(spine: EventSpine) -
     assert _ACCT not in trading._reconciling_accounts
     assert _ACCT not in trading._reconcile_rerun_pending
 
+    gate_calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
+    assert gate_calls.count((_ACCT, False)) == 1
+    assert gate_calls[-1] == (_ACCT, False)
+
 
 @pytest.mark.asyncio
 async def test_reconcile_on_reconnect_stays_gated_on_incomplete_backfill(spine: EventSpine) -> None:
