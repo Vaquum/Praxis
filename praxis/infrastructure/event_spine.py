@@ -179,9 +179,9 @@ _LEGACY_DEDUP_CHECK = (
     'SELECT 1 FROM fill_dedup WHERE epoch_id = ? AND account_id = ? AND dedup_key = ?'
 )
 
-_LEGACY_DEDUP_IDS = 'SELECT dedup_key FROM fill_dedup'
+_LEGACY_DEDUP_IDS = 'SELECT epoch_id, account_id, dedup_key FROM fill_dedup'
 
-_FILL_PAYLOAD_SCAN = "SELECT payload FROM events WHERE event_type = 'FillReceived'"
+_FILL_PAYLOAD_SCAN = "SELECT epoch_id, payload FROM events WHERE event_type = 'FillReceived'"
 
 _EVENT_REGISTRY: dict[str, type] = {
     cls.__name__: cls
@@ -507,10 +507,10 @@ class EventSpine:
             None
         '''
 
-        symbols, fill_ids = await self._scan_fill_dedup_symbols()
-        legacy_ids = await self._legacy_dedup_ids()
+        symbols, fill_keys = await self._scan_fill_dedup_symbols()
+        legacy_keys = await self._legacy_dedup_ids()
 
-        unmatched = legacy_ids - fill_ids
+        unmatched = legacy_keys - fill_keys
         if unmatched:
             msg = (
                 f'{len(unmatched)} legacy fill_dedup rows have no matching '
@@ -529,45 +529,49 @@ class EventSpine:
         async with self._conn.execute(_META_SET, (_META_LEGACY_DEDUP_SYMBOL, legacy_symbol)):
             pass
 
-    async def _scan_fill_dedup_symbols(self) -> tuple[set[str], set[str]]:
+    async def _scan_fill_dedup_symbols(self) -> tuple[set[str], set[tuple[int, str, str]]]:
 
         '''
-        Scan FillReceived payloads for their distinct symbols and trade ids.
+        Scan FillReceived events for their symbols and composite dedup keys.
 
         Returns:
-            tuple[set[str], set[str]]: The distinct symbols and the set of
-            venue trade ids seen across all FillReceived events.
+            tuple[set[str], set[tuple[int, str, str]]]: The distinct symbols
+            and the set of `(epoch_id, account_id, venue_trade_id)` identities
+            seen across all FillReceived events. The composite key mirrors the
+            legacy `fill_dedup` uniqueness so orphan detection cannot be fooled
+            by a venue_trade_id shared across accounts or epochs.
         '''
 
         symbols: set[str] = set()
-        fill_ids: set[str] = set()
+        fill_keys: set[tuple[int, str, str]] = set()
         async with self._conn.execute(_FILL_PAYLOAD_SCAN) as cursor:
-            async for (payload,) in cursor:
+            async for epoch_id, payload in cursor:
                 try:
                     record = orjson.loads(payload)
                     symbols.add(record['symbol'])
-                    fill_ids.add(record['venue_trade_id'])
+                    fill_keys.add((epoch_id, record['account_id'], record['venue_trade_id']))
                 except (orjson.JSONDecodeError, KeyError, TypeError) as exc:
                     msg = (
                         'legacy FillReceived payload is malformed (missing or '
-                        'undecodable symbol/venue_trade_id); offline repair '
-                        'required before migration'
+                        'undecodable symbol/account_id/venue_trade_id); offline '
+                        'repair required before migration'
                     )
                     raise SpineSchemaError(msg) from exc
 
-        return symbols, fill_ids
+        return symbols, fill_keys
 
-    async def _legacy_dedup_ids(self) -> set[str]:
+    async def _legacy_dedup_ids(self) -> set[tuple[int, str, str]]:
 
         '''
-        Return the set of dedup keys stored in the legacy fill_dedup table.
+        Return the composite dedup identities in the legacy fill_dedup table.
 
         Returns:
-            set[str]: The legacy dedup keys (venue trade ids).
+            set[tuple[int, str, str]]: The legacy `(epoch_id, account_id,
+            dedup_key)` identities, matching the table's uniqueness constraint.
         '''
 
         async with self._conn.execute(_LEGACY_DEDUP_IDS) as cursor:
-            return {row[0] async for row in cursor}
+            return {(row[0], row[1], row[2]) async for row in cursor}
 
     async def _get_meta(self, key: str) -> str | None:
 

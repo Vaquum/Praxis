@@ -548,6 +548,36 @@ async def test_unmatched_legacy_dedup_row_fails_closed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cross_account_same_trade_id_orphan_fails_closed() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        await conn.execute(_LEGACY_SCHEMA)
+        await conn.execute(
+            'CREATE TABLE fill_dedup (epoch_id INTEGER, account_id TEXT, dedup_key TEXT, '
+            'UNIQUE(epoch_id, account_id, dedup_key))'
+        )
+        payload = orjson.dumps(
+            {'symbol': 'BTCUSDT', 'account_id': 'acc-A', 'venue_trade_id': 'vt-900'},
+        )
+        await conn.execute(
+            'INSERT INTO events (epoch_id, timestamp, event_type, payload) VALUES (?, ?, ?, ?)',
+            (_EPOCH, _TS.isoformat(), 'FillReceived', payload),
+        )
+        await conn.execute(
+            'INSERT INTO fill_dedup (epoch_id, account_id, dedup_key) VALUES (?, ?, ?)',
+            (_EPOCH, 'acc-A', 'vt-900'),
+        )
+        await conn.execute(
+            'INSERT INTO fill_dedup (epoch_id, account_id, dedup_key) VALUES (?, ?, ?)',
+            (_EPOCH, 'acc-B', 'vt-900'),
+        )
+        await conn.execute('PRAGMA user_version = 2')
+        await conn.commit()
+
+        with pytest.raises(SpineSchemaError, match='no matching'):
+            await EventSpine(conn).ensure_schema()
+
+
+@pytest.mark.asyncio
 async def test_malformed_fill_payload_fails_closed_on_migration() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         spine = EventSpine(conn)
@@ -572,7 +602,9 @@ async def test_legacy_symbol_gating_and_dual_read() -> None:
             'CREATE TABLE fill_dedup (epoch_id INTEGER, account_id TEXT, dedup_key TEXT, '
             'UNIQUE(epoch_id, account_id, dedup_key))'
         )
-        payload = orjson.dumps({'symbol': 'BTCUSDT', 'venue_trade_id': 'vt-500'})
+        payload = orjson.dumps(
+            {'symbol': 'BTCUSDT', 'account_id': _ACCT, 'venue_trade_id': 'vt-500'},
+        )
         await conn.execute(
             'INSERT INTO events (epoch_id, timestamp, event_type, payload) VALUES (?, ?, ?, ?)',
             (_EPOCH, _TS.isoformat(), 'FillReceived', payload),
