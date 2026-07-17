@@ -24,7 +24,9 @@ from typing import Any
 
 from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.core.domain.health_snapshot import HealthSnapshot
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
+    ApiPermissions,
     BalanceEntry,
     CancelResult,
     CommandQuantization,
@@ -51,6 +53,12 @@ _ZERO = Decimal(0)
 _REJECT_BELOW_MIN_QTY = 'INTAKE_BELOW_MIN_QTY'
 _REJECT_BELOW_MIN_NOTIONAL = 'INTAKE_BELOW_MIN_NOTIONAL'
 _MS_PER_SECOND = 1000
+
+
+def _replay_trade_seq(venue_trade_id: str) -> int:
+    '''Parse the monotonic sequence from a replay venue trade id (`rv-t-{seq}`).'''
+
+    return int(venue_trade_id.rsplit('-', 1)[1])
 
 
 class ReplayVenueAdapter:
@@ -100,7 +108,7 @@ class ReplayVenueAdapter:
 
         self._current_price = price
 
-    def register_account(self, account_id: str, api_key: str, api_secret: str) -> None:
+    def register_account(self, account_id: str, credentials: Credentials) -> None:
         '''Open a balance book for an account seeded with starting balances.'''
 
         self._accounts[account_id] = dict(self._starting_balances)
@@ -109,6 +117,12 @@ class ReplayVenueAdapter:
         '''Drop an account's balance book.'''
 
         del self._accounts[account_id]
+
+    async def query_api_permissions(self, account_id: str) -> ApiPermissions:
+        '''Replay does not query venue API-key permissions.'''
+
+        msg = 'ReplayVenueAdapter does not support query_api_permissions'
+        raise NotImplementedError(msg)
 
     def quantize_for_command(
         self,
@@ -326,9 +340,16 @@ class ReplayVenueAdapter:
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
-        '''Return recorded fills for a symbol, optionally after a time.'''
+        '''Return recorded fills for a symbol, filtered by cursor, time window, and limit.'''
+
+        if from_id is not None and (start_time is not None or end_time is not None):
+            msg = 'from_id cannot be combined with start_time or end_time'
+            raise ValueError(msg)
 
         trades = [
             trade
@@ -336,8 +357,20 @@ class ReplayVenueAdapter:
             if trade.symbol == symbol
         ]
 
+        if from_id is not None:
+            trades = [
+                trade for trade in trades
+                if _replay_trade_seq(trade.venue_trade_id) >= from_id
+            ]
+
         if start_time is not None:
             trades = [trade for trade in trades if trade.timestamp >= start_time]
+
+        if end_time is not None:
+            trades = [trade for trade in trades if trade.timestamp <= end_time]
+
+        if limit is not None:
+            trades = trades[:limit]
 
         return trades
 

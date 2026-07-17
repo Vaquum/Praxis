@@ -17,6 +17,7 @@ import pytest
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 from praxis.infrastructure.binance_adapter import BinanceAdapter
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     AuthenticationError,
     BalanceEntry,
@@ -41,7 +42,7 @@ _WS_BASE_URL = 'wss://stream.testnet.binance.vision'
 _WS_API_URL = 'wss://ws-api.testnet.binance.vision/ws-api/v3'
 _ACCOUNT_ID = 'test-account'
 _API_KEY = 'test-api-key'
-_API_SECRET = 'test-api-secret'  # noqa: S105
+_API_SECRET = 'test-api-secret'
 _VENUE_ORDER_ID = '12345'
 _VENUE_TRADE_ID = '99'
 _BINANCE_REJECTION_CODE = -1013
@@ -282,20 +283,22 @@ _TEST_FILTERS = SymbolFilters(
 
 
 def _make_adapter(
-    credentials: dict[str, tuple[str, str]] | None = None,
+    credentials: dict[str, Credentials] | None = None,
 ) -> BinanceAdapter:
 
     '''
     Create a BinanceAdapter with default test credentials.
 
     Args:
-        credentials (dict[str, tuple[str, str]] | None): Override credentials
+        credentials (dict[str, Credentials] | None): Override credentials
 
     Returns:
         BinanceAdapter: Adapter configured for testing
     '''
 
-    creds = credentials or {_ACCOUNT_ID: (_API_KEY, _API_SECRET)}
+    creds = credentials or {
+        _ACCOUNT_ID: Credentials(api_key=_API_KEY, api_secret=_API_SECRET),
+    }
     return BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL, creds)
 
 
@@ -348,8 +351,8 @@ class TestCredentialManagement:
     def test_register_account(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
-        adapter.register_account('acc1', 'key1', 'secret1')
-        assert adapter._get_credentials('acc1') == ('key1', 'secret1')
+        adapter.register_account('acc1', Credentials(api_key='key1', api_secret='secret1'))
+        assert adapter._get_credentials('acc1') == Credentials(api_key='key1', api_secret='secret1')
 
     def test_unregister_account(self) -> None:
 
@@ -1889,6 +1892,42 @@ class TestQueryTrades:
         with pytest.raises(ValueError, match='timezone-aware'):
             await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', start_time=naive)
 
+    @pytest.mark.asyncio
+    async def test_from_id_and_limit_in_url(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', from_id=100, limit=500)
+        url = adapter._session.request.call_args[0][1]  # type: ignore[union-attr]
+        assert 'fromId=100' in url
+        assert 'limit=500' in url
+
+    @pytest.mark.asyncio
+    async def test_end_time_converted_to_ms(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, []))
+        end = datetime.fromtimestamp(1700000000, tz=UTC)
+        await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', end_time=end)
+        url = adapter._session.request.call_args[0][1]  # type: ignore[union-attr]
+        assert 'endTime=1700000000000' in url
+
+    @pytest.mark.asyncio
+    async def test_from_id_with_time_window_raises(self) -> None:
+
+        adapter = _make_adapter()
+        start = datetime.fromtimestamp(1700000000, tz=UTC)
+        with pytest.raises(ValueError, match='cannot be combined'):
+            await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', from_id=1, start_time=start)
+
+    @pytest.mark.asyncio
+    async def test_naive_end_time_raises(self) -> None:
+
+        adapter = _make_adapter()
+        naive = datetime(2023, 11, 14, 22, 13, 20)
+        with pytest.raises(ValueError, match='timezone-aware'):
+            await adapter.query_trades(_ACCOUNT_ID, 'BTCUSDT', end_time=naive)
+
 
 class TestGetExchangeInfo:
 
@@ -2914,7 +2953,7 @@ class TestHealthSignals:
     def test_register_account_creates_health_tracker(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
-        adapter.register_account('acc1', 'k', 's')
+        adapter.register_account('acc1', Credentials(api_key='k', api_secret='s'))
 
         assert 'acc1' in adapter._health_trackers
 
@@ -3039,8 +3078,8 @@ class TestHealthSignals:
     def test_health_trackers_are_isolated_per_account(self) -> None:
 
         adapter = BinanceAdapter(_BASE_URL, _WS_BASE_URL, _WS_API_URL)
-        adapter.register_account('acc-a', 'k', 's')
-        adapter.register_account('acc-b', 'k', 's')
+        adapter.register_account('acc-a', Credentials(api_key='k', api_secret='s'))
+        adapter.register_account('acc-b', Credentials(api_key='k', api_secret='s'))
 
         adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)
         adapter._health_trackers['acc-a'].record_request(latency_ms=5.0, succeeded=False)
@@ -3600,3 +3639,44 @@ class TestCommandQuantizationInvariant:
                 snapped_qty=Decimal('0.001'),
                 rejection_reason='INTAKE_FOO',
             )
+
+
+class TestQueryApiPermissions:
+
+    @pytest.mark.asyncio
+    async def test_parses_trade_only_key(self) -> None:
+        adapter = _make_adapter()
+        _patch_session(
+            adapter,
+            _mock_response(200, {
+                'enableWithdrawals': False,
+                'enableSpotAndMarginTrading': True,
+            }),
+        )
+
+        perms = await adapter.query_api_permissions(_ACCOUNT_ID)
+
+        assert perms.enable_withdrawals is False
+        assert perms.enable_spot_and_margin_trading is True
+
+    @pytest.mark.asyncio
+    async def test_missing_flag_fails_closed(self) -> None:
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, {'enableWithdrawals': False}))
+
+        with pytest.raises(VenueError, match='enableSpotAndMarginTrading'):
+            await adapter.query_api_permissions(_ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_non_bool_flag_fails_closed(self) -> None:
+        adapter = _make_adapter()
+        _patch_session(
+            adapter,
+            _mock_response(200, {
+                'enableWithdrawals': 'false',
+                'enableSpotAndMarginTrading': True,
+            }),
+        )
+
+        with pytest.raises(VenueError, match='enableWithdrawals'):
+            await adapter.query_api_permissions(_ACCOUNT_ID)

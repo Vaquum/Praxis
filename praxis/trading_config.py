@@ -10,10 +10,9 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
+from praxis.infrastructure.secret_store import Credentials
 
 __all__ = ['TradingConfig']
-
-_CREDENTIAL_PARTS = 2
 
 
 @dataclass(frozen=True)
@@ -27,8 +26,8 @@ class TradingConfig:
         venue_ws_url (str): Venue WebSocket stream base URL (market data).
         venue_ws_api_url (str): Venue WebSocket API base URL (signed requests
             and user-data-stream subscription).
-        account_credentials (Mapping[str, tuple[str, str]]): Mapping of account_id
-            to (api_key, api_secret).
+        account_credentials (Mapping[str, Credentials]): Mapping of account_id
+            to resolved venue Credentials.
         on_trade_outcome (Callable[[TradeOutcome], Awaitable[None]] | None):
             Optional async callback invoked by execution outcomes.
         shutdown_timeout (float): Seconds to wait for orders to reach terminal
@@ -39,7 +38,7 @@ class TradingConfig:
     venue_rest_url: str = TESTNET_REST_URL
     venue_ws_url: str = TESTNET_WS_URL
     venue_ws_api_url: str = TESTNET_WS_API_URL
-    account_credentials: Mapping[str, tuple[str, str]] = field(default_factory=dict)
+    account_credentials: Mapping[str, Credentials] = field(default_factory=dict)
     on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None
     shutdown_timeout: float = 30.0
 
@@ -72,28 +71,14 @@ class TradingConfig:
                 msg = 'TradingConfig.account_credentials keys must be non-empty strings'
                 raise ValueError(msg)
 
-            if (
-                not isinstance(credentials, tuple)
-                or len(credentials) != _CREDENTIAL_PARTS
-            ):
-                msg = (
-                    'TradingConfig.account_credentials values must be '
-                    '(api_key, api_secret) with non-empty strings'
-                )
+            if not isinstance(credentials, Credentials):
+                msg = 'TradingConfig.account_credentials values must be Credentials'
                 raise ValueError(msg)
 
-            api_key, api_secret = credentials
-            if not isinstance(api_key, str) or not isinstance(api_secret, str):
+            if not credentials.api_key or not credentials.api_secret:
                 msg = (
-                    'TradingConfig.account_credentials values must be '
-                    '(api_key, api_secret) with non-empty strings'
-                )
-                raise ValueError(msg)
-
-            if not api_key or not api_secret:
-                msg = (
-                    'TradingConfig.account_credentials values must be '
-                    '(api_key, api_secret) with non-empty strings'
+                    'TradingConfig.account_credentials Credentials must have '
+                    'a non-empty api_key and api_secret'
                 )
                 raise ValueError(msg)
 

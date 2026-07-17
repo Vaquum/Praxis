@@ -49,6 +49,7 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_URL,
 )
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     CancelResult,
@@ -84,8 +85,8 @@ class _InjectedVenueAdapter:
     def __init__(self) -> None:
         self.closed: bool = False
 
-    def register_account(self, account_id: str, api_key: str, api_secret: str) -> None:
-        del account_id, api_key, api_secret
+    def register_account(self, account_id: str, credentials: Credentials) -> None:
+        del account_id, credentials
 
     def unregister_account(self, account_id: str) -> None:
         del account_id
@@ -168,9 +169,12 @@ class _InjectedVenueAdapter:
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
-        del account_id, symbol, start_time
+        del account_id, symbol, from_id, start_time, end_time, limit
         return []
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
@@ -518,8 +522,8 @@ async def test_trading_start_registers_config_accounts(spine: EventSpine) -> Non
         config=TradingConfig(
             epoch_id=1,
             account_credentials={
-                'acc-1': ('key1', 'secret1'),
-                'acc-2': ('key2', 'secret2'),
+                'acc-1': Credentials(api_key='key1', api_secret='secret1'),
+                'acc-2': Credentials(api_key='key2', api_secret='secret2'),
             },
         ),
         event_spine=spine,
@@ -540,7 +544,7 @@ async def test_trading_stop_cleans_up_execution_account_task(spine: EventSpine) 
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=adapter,
@@ -601,7 +605,7 @@ async def test_trading_start_replays_events_into_account_state() -> None:
     trading = Trading(
         config=TradingConfig(
             epoch_id=epoch,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=adapter,
@@ -644,7 +648,7 @@ async def test_trading_start_preloads_filters_for_active_symbols() -> None:
     trading = Trading(
         config=TradingConfig(
             epoch_id=epoch,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
@@ -667,7 +671,7 @@ async def test_trading_start_preloads_bootstrap_filter_symbols_on_fresh_boot() -
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
@@ -703,7 +707,7 @@ async def test_trading_start_merges_bootstrap_and_active_symbols() -> None:
     trading = Trading(
         config=TradingConfig(
             epoch_id=epoch,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
@@ -727,12 +731,12 @@ async def test_trading_start_creates_user_stream_for_binance_adapter() -> None:
         base_url=TESTNET_REST_URL,
         ws_base_url=TESTNET_WS_URL,
         ws_api_url=TESTNET_WS_API_URL,
-        credentials={'acc-1': ('key', 'secret')},
+        credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
     )
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
@@ -844,7 +848,7 @@ async def test_trading_shutdown_rejects_commands(spine: EventSpine) -> None:
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=adapter,
@@ -882,7 +886,7 @@ async def test_trading_shutdown_rejects_aborts(spine: EventSpine) -> None:
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=adapter,
@@ -915,7 +919,7 @@ async def test_trading_shutdown_cancels_open_orders(spine: EventSpine) -> None:
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
             shutdown_timeout=0.1,
         ),
         event_spine=spine,
@@ -960,7 +964,7 @@ async def test_trading_shutdown_cancels_oco_orders_via_cancel_order_list(
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
             shutdown_timeout=0.1,
         ),
         event_spine=spine,
@@ -1021,9 +1025,12 @@ class _ReconVenueAdapter(_InjectedVenueAdapter):
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
-        del account_id, symbol, start_time
+        del account_id, symbol, from_id, start_time, end_time, limit
         return self._venue_trades
 
     async def cancel_order(
@@ -1072,7 +1079,7 @@ async def _started_trading_with_recon_adapter(
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
             shutdown_timeout=0.1,
         ),
         event_spine=spine,
@@ -2094,7 +2101,7 @@ async def test_loop_cleared_on_failed_start(spine: EventSpine) -> None:
 
     config = TradingConfig(
         epoch_id=1,
-        account_credentials={'acc-1': ('key', 'secret')},
+        account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
     )
     trading = Trading(config=config, event_spine=spine, venue_adapter=_InjectedVenueAdapter())
     trading._event_spine.read = AsyncMock(side_effect=RuntimeError('db error'))
@@ -2247,7 +2254,7 @@ async def test_set_on_trade_outcome_after_start_raises(spine: EventSpine) -> Non
     trading = Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, _InjectedVenueAdapter()),
@@ -2408,7 +2415,7 @@ def _sweep_trading(adapter: _SweepVenueAdapter, spine: EventSpine) -> Trading:
     return Trading(
         config=TradingConfig(
             epoch_id=1,
-            account_credentials={'acc-1': ('key', 'secret')},
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
         ),
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
@@ -2528,7 +2535,10 @@ async def test_start_registers_account_with_only_non_booking_history(spine: Even
 
     adapter = cast(VenueAdapter, _InjectedVenueAdapter())
     trading = Trading(
-        config=TradingConfig(epoch_id=1, account_credentials={'acc-1': ('key', 'secret')}),
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+        ),
         event_spine=spine,
         venue_adapter=adapter,
     )

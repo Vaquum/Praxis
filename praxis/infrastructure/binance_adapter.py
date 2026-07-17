@@ -36,7 +36,9 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_REST_URL,
     TESTNET_WS_URL,
 )
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
+    ApiPermissions,
     AuthenticationError,
     BalanceEntry,
     CancelResult,
@@ -106,6 +108,48 @@ def _binsim_enabled() -> bool:
     return bool((os.getenv('BINSIM_URL') or '').strip())
 
 
+def _require_permission_flag(data: Any, field: str) -> bool:
+
+    '''
+    Extract a boolean permission flag, failing closed on absence or wrong type.
+
+    Args:
+        data (Any): Parsed apiRestrictions response body.
+        field (str): Flag name to extract.
+
+    Returns:
+        bool: The flag value.
+
+    Raises:
+        VenueError: If the field is missing or is not a JSON boolean.
+    '''
+
+    value = data.get(field) if isinstance(data, dict) else None
+    if not isinstance(value, bool):
+        msg = f'apiRestrictions field {field!r} missing or not boolean'
+        raise VenueError(msg)
+
+    return value
+
+
+def _require_aware(value: datetime | None, name: str) -> None:
+
+    '''
+    Validate that an optional datetime is timezone-aware.
+
+    Args:
+        value (datetime | None): The datetime to check, or None.
+        name (str): Parameter name for the error message.
+
+    Raises:
+        ValueError: If value is a naive datetime.
+    '''
+
+    if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+        msg = f'{name} must be timezone-aware'
+        raise ValueError(msg)
+
+
 _BINANCE_STATUS_MAP: dict[str, OrderStatus] = {
     'NEW': OrderStatus.OPEN,
     'PARTIALLY_FILLED': OrderStatus.PARTIALLY_FILLED,
@@ -154,8 +198,8 @@ class BinanceAdapter:
         ws_base_url (str): Binance WebSocket stream base URL (market data)
         ws_api_url (str): Binance WebSocket API base URL (signed requests
             and user-data-stream subscription)
-        credentials (dict[str, tuple[str, str]] | None): Mapping of account_id
-            to (api_key, api_secret) pairs
+        credentials (dict[str, Credentials] | None): Mapping of account_id
+            to resolved Credentials
     '''
 
     def __init__(
@@ -163,7 +207,7 @@ class BinanceAdapter:
         base_url: str,
         ws_base_url: str,
         ws_api_url: str,
-        credentials: dict[str, tuple[str, str]] | None = None,
+        credentials: dict[str, Credentials] | None = None,
     ) -> None:
 
         '''
@@ -174,14 +218,14 @@ class BinanceAdapter:
             ws_base_url (str): Binance WebSocket stream base URL (market data)
             ws_api_url (str): Binance WebSocket API base URL (signed
                 requests + user-data-stream subscription)
-            credentials (dict[str, tuple[str, str]] | None): Initial
+            credentials (dict[str, Credentials] | None): Initial
                 account credentials
         '''
 
         self._base_url = base_url.rstrip('/')
         self._ws_base_url = ws_base_url.rstrip('/')
         self._ws_api_url = ws_api_url.rstrip('/')
-        self._credentials: dict[str, tuple[str, str]] = dict(credentials or {})
+        self._credentials: dict[str, Credentials] = dict(credentials or {})
         self._session: aiohttp.ClientSession | None = None
         self._closed: bool = False
         self._filters: dict[str, SymbolFilters] = {}
@@ -316,8 +360,7 @@ class BinanceAdapter:
     def register_account(
         self,
         account_id: str,
-        api_key: str,
-        api_secret: str,
+        credentials: Credentials,
     ) -> None:
 
         '''
@@ -325,11 +368,10 @@ class BinanceAdapter:
 
         Args:
             account_id (str): Account identifier
-            api_key (str): Binance API key
-            api_secret (str): Binance API secret
+            credentials (Credentials): Resolved Binance credentials
         '''
 
-        self._credentials[account_id] = (api_key, api_secret)
+        self._credentials[account_id] = credentials
         with self._health_lock:
             self._health_trackers.setdefault(account_id, HealthTracker())
 
@@ -349,7 +391,7 @@ class BinanceAdapter:
         with self._health_lock:
             self._health_trackers.pop(account_id, None)
 
-    def _get_credentials(self, account_id: str) -> tuple[str, str]:
+    def _get_credentials(self, account_id: str) -> Credentials:
 
         '''
         Look up credentials for an account.
@@ -358,7 +400,7 @@ class BinanceAdapter:
             account_id (str): Account identifier
 
         Returns:
-            tuple[str, str]: (api_key, api_secret) pair
+            Credentials: The account's resolved credentials
 
         Raises:
             AuthenticationError: If account_id is not registered
@@ -601,11 +643,11 @@ class BinanceAdapter:
         '''
 
         session = await self._ensure_session()
-        api_key, api_secret = self._get_credentials(account_id)
-        headers = {_API_KEY_HEADER: api_key}
+        credentials = self._get_credentials(account_id)
+        headers = {_API_KEY_HEADER: credentials.api_key}
 
         def build_request() -> AbstractAsyncContextManager[aiohttp.ClientResponse]:
-            query_string = self._sign_params(params, api_secret)
+            query_string = self._sign_params(params, credentials.api_secret)
             return session.request(
                 method,
                 f"{self._base_url}{path}?{query_string}",
@@ -1628,7 +1670,10 @@ class BinanceAdapter:
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
 
         '''
@@ -1637,24 +1682,75 @@ class BinanceAdapter:
         Args:
             account_id (str): Account identifier for API key routing
             symbol (str): Trading pair symbol
-            start_time (datetime | None): Return trades after this time, must be timezone-aware
+            from_id (int | None): Return trades with id at or after this cursor.
+                Mutually exclusive with start_time/end_time (Binance rejects the
+                combination).
+            start_time (datetime | None): Return trades at or after this time,
+                must be timezone-aware
+            end_time (datetime | None): Return trades at or before this time,
+                must be timezone-aware
+            limit (int | None): Maximum number of trades to return (venue max 1000)
 
         Returns:
-            list[VenueTrade]: Trade records from the venue
+            list[VenueTrade]: Trade records from the venue, ascending by id
         '''
 
-        if start_time is not None and (start_time.tzinfo is None or start_time.utcoffset() is None):
-            msg = 'start_time must be timezone-aware'
+        if from_id is not None and (start_time is not None or end_time is not None):
+            msg = 'from_id cannot be combined with start_time or end_time'
             raise ValueError(msg)
 
+        _require_aware(start_time, 'start_time')
+        _require_aware(end_time, 'end_time')
+
         params: dict[str, str] = {'symbol': symbol}
+
+        if from_id is not None:
+            params['fromId'] = str(from_id)
 
         if start_time is not None:
             params['startTime'] = str(int(start_time.timestamp() * _MS_PER_SECOND))
 
+        if end_time is not None:
+            params['endTime'] = str(int(end_time.timestamp() * _MS_PER_SECOND))
+
+        if limit is not None:
+            params['limit'] = str(limit)
+
         data = await self._signed_request('GET', '/api/v3/myTrades', params, account_id)
 
         return [self._parse_venue_trade(entry) for entry in data]
+
+    async def query_api_permissions(self, account_id: str) -> ApiPermissions:
+
+        '''
+        Query the API key's trade-relevant permission flags.
+
+        Calls the signed SAPI apiRestrictions endpoint and parses the
+        withdrawal and spot-trading flags. Fails closed: a missing or
+        non-boolean flag raises rather than being read as permissive.
+        The SAPI endpoint is not served by the spot testnet, so this is
+        only meaningful against the live venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+
+        Returns:
+            ApiPermissions: The key's withdrawal and spot-trading flags
+
+        Raises:
+            VenueError: If a required boolean flag is missing or mistyped
+        '''
+
+        data = await self._signed_request(
+            'GET', '/sapi/v1/account/apiRestrictions', {}, account_id,
+        )
+
+        return ApiPermissions(
+            enable_withdrawals=_require_permission_flag(data, 'enableWithdrawals'),
+            enable_spot_and_margin_trading=_require_permission_flag(
+                data, 'enableSpotAndMarginTrading',
+            ),
+        )
 
     async def load_filters(self, symbols: Sequence[str]) -> None:
 

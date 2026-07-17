@@ -1291,3 +1291,26 @@
 ### Fix
 
 - Use a non-reserved `LogRecord` key for the nexus-thread-timeout warning in `_shutdown`; `extra={'thread': ...}` raised `KeyError: Attempt to overwrite 'thread' in LogRecord` whenever a nexus thread missed its join
+
+## v0.93.0 on 14th of July, 2026
+
+### NOTE
+
+- WP-Praxis-0005 (Event Spine integrity, secrets & reconnection): tamper-evident audit, key custody, and no-lost-fills connection integrity for the live-trading MVP. All changes are Praxis-only — the Event Spine, credential path, and venue adapter live here; Nexus consumes aggregate `TradeOutcome`s and needs no change. Introduces the first Event Spine schema-migration mechanism (`PRAGMA user_version`), advanced across this WP to version 3
+- Two changes alter runtime shape on the order-critical path and must be validated on the paper host before a tagged release: the [`EventSpine`](praxis/infrastructure/event_spine.py) per-append `asyncio.Lock` (chain serialization) and the per-account submission gate plus projection fail-stop in [`ExecutionManager`](praxis/core/execution_manager.py)
+- The version 3 migration is fail-closed on a multi-symbol legacy spine: if a pre-existing `fill_dedup` table holds more than one symbol (or a row that cannot be matched to a proven symbol), `ensure_schema` raises and boot aborts rather than guessing the per-symbol dedup key. A spine that only ever traded one symbol migrates cleanly; a multi-symbol legacy database must be reconciled offline before upgrading
+
+### Add
+
+- Add a tamper-evident hash chain to the Event Spine: nullable `prev_hash`/`hash` columns and a SHA-256 chain over a length-framed preimage (domain marker, chain version, predecessor hash, `event_seq`, `epoch_id`, timestamp, event type, payload), serialized per append. [`verify_chain`](praxis/infrastructure/event_spine.py) runs at boot before order capability and fails closed on a broken link, altered field, deletion, or a hashed-to-unhashed transition; legacy rows keep a NULL-hash prefix and are not backfilled
+- Add a versioned, transactional, fail-closed-on-newer schema migration in [`EventSpine.ensure_schema`](praxis/infrastructure/event_spine.py) keyed on `PRAGMA user_version`
+- Add a [`SecretStore`](praxis/infrastructure/secret_store.py) protocol with a frozen, redacted `Credentials` value object, a `KeyringSecretStore` (OS keyring, one JSON record per account under service `praxis-binance`), and a `MappingSecretStore` for paper and tests. Credentials replace bare `(api_key, api_secret)` tuples through `TradingConfig`, `TradingInbound`, the `VenueAdapter` protocol, and `BinanceAdapter`; `main` resolves them once at boot by `TRADE_MODE` — keyring-only under `live`, the env mapping under `paper` (adds the `keyring` dependency)
+- Add a boot-time API-key permission assertion: [`query_api_permissions`](praxis/infrastructure/binance_adapter.py) reads the signed `apiRestrictions` endpoint, and the launcher rejects a key with withdrawals enabled or spot trading disabled before order-capable startup (`live` only — the endpoint is not served by the spot testnet)
+- Extend [`query_trades`](praxis/infrastructure/binance_adapter.py) with `from_id`/`end_time`/`limit` and a durable per-`(account, symbol)` [`reconcile_cursor`](praxis/infrastructure/event_spine.py) that outlives epochs; [`paginate_my_trades`](praxis/infrastructure/mytrades_backfill.py) walks myTrades from the cursor (inclusive overlap, exclusive advance, short-page stop, page cap with a logged truncation), or from a bootstrap time window when no cursor exists yet
+- Add per-symbol fill deduplication: `fill_dedup_v2` keys on `(epoch, account, symbol, venue_trade_id)`, with an O(events) legacy-symbol discovery that records the one proven pre-migration symbol and dual-reads the legacy table only for it — failing closed when the legacy database spans multiple symbols or holds an unmatched row
+- Add full WebSocket reconnect handling to [`BinanceUserStream`](praxis/infrastructure/binance_ws.py): async `on_disconnect`/`on_reconnect` lifecycle callbacks (the reconnect edge only), and a guard so a raw transport exception enters backoff rather than killing the reconnect task
+- Add reconnect reconciliation with a per-account submission gate: on reconnect Praxis backfills missed fills from the cursor and reconciles open orders while new-command submission is gated, then releases; a projection failure poisons the account (fail-stop until a restart replays the durable state), and a venue failure leaves the account gated
+
+### Fix
+
+- Tighten the per-account writer so a projection failure poisons the account (fail-stop) instead of being logged and swallowed, since a durable event that cannot be applied means the in-memory state has diverged and must not keep trading

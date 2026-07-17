@@ -40,6 +40,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueTrade,
 )
 from praxis.launcher import _DEFAULT_FEE_RATE, InstanceConfig, Launcher
+from praxis.infrastructure.secret_store import Credentials
 from praxis.trading_config import TradingConfig
 
 
@@ -75,7 +76,7 @@ class Strategy(Strategy):
 class MockVenueAdapter:
     '''Minimal venue adapter for integration testing.'''
 
-    def register_account(self, account_id: str, api_key: str, api_secret: str) -> None:
+    def register_account(self, account_id: str, credentials: Credentials) -> None:
         pass
 
     def unregister_account(self, account_id: str) -> None:
@@ -234,7 +235,7 @@ class TestLauncherLifecycle:
 
         config = TradingConfig(
             epoch_id=1,
-            account_credentials={'test-acc': ('key', 'secret')},
+            account_credentials={'test-acc': Credentials(api_key='key', api_secret='secret')},
         )
 
         inst = InstanceConfig(
@@ -397,7 +398,7 @@ class TestLauncherLifecycle:
 
         config = TradingConfig(
             epoch_id=1,
-            account_credentials={'test-acc': ('key', 'secret')},
+            account_credentials={'test-acc': Credentials(api_key='key', api_secret='secret')},
             on_trade_outcome=route_to_queue,
         )
 

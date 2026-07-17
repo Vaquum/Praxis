@@ -131,6 +131,15 @@ from praxis.outcome_translator import OutcomeTranslator
 from praxis.infrastructure.alert_sink import AlertSink
 from praxis.infrastructure.book_cache import BookCache, book_mid_price, build_price_snapshot
 from praxis.infrastructure.book_poller import BookPoller
+from praxis.infrastructure.secret_store import (
+    Credentials,
+    FileSecretStore,
+    KeyringSecretStore,
+    MappingSecretStore,
+    SecretBackendError,
+    SecretNotFoundError,
+    SecretStore,
+)
 from praxis.infrastructure.venue_adapter import OrderBookSnapshot, VenueAdapter
 from praxis.trading import Trading
 from praxis.trading_config import TradingConfig
@@ -138,6 +147,8 @@ from praxis.trading_config import TradingConfig
 __all__ = ['InstanceConfig', 'Launcher', 'main']
 
 _log = logging.getLogger(__name__)
+
+_PERMISSION_QUERY_TIMEOUT = 15.0
 
 _REQUIRED_ENV_VARS = (
     'EPOCH_ID',
@@ -149,6 +160,7 @@ _REQUIRED_ENV_VARS = (
 _TRADE_MODE_PAPER = 'paper'
 _TRADE_MODE_LIVE = 'live'
 _TRADE_MODES = (_TRADE_MODE_PAPER, _TRADE_MODE_LIVE)
+_SECRETS_FILE_ENV = 'PRAXIS_SECRETS_FILE'
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
@@ -2326,11 +2338,13 @@ class Launcher:
         clock: Callable[[], datetime] = _utc_now,
         conduit_dir: Path | None = None,
         arrow_dir: Path | None = None,
+        enforce_api_permissions: bool = False,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
             raise ValueError(msg)
 
+        self._enforce_api_permissions = enforce_api_permissions
         self._trading_config = trading_config
         self._instances = list(instances)
         self._event_spine = event_spine
@@ -2375,6 +2389,7 @@ class Launcher:
 
         self._start_event_loop()
         self._start_trading()
+        self._assert_api_permissions()
         self._start_nexus_instances()
         self._start_healthz()
         self._start_mark_samplers()
@@ -2554,6 +2569,82 @@ class Launcher:
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
         _log.info('trading started')
+
+    def _assert_api_permissions(self) -> None:
+        '''
+        Assert every account's API key is trade-only before order capability.
+
+        Runs only in live mode (`enforce_api_permissions`). The SAPI
+        permission endpoint is not served by the spot testnet, so paper
+        and testnet skip it. On any failure the trading stack is stopped
+        and the exception propagates, aborting startup before Nexus
+        instances (and thus order submission) start.
+
+        NOTE: The outer `future.result` timeout bounds the case where the
+        trading event loop is wedged and the inner per-query timeout in
+        `_verify_api_permissions` never gets a chance to fire; it is a
+        startup backstop, not a per-query deadline.
+        '''
+
+        if not self._enforce_api_permissions:
+            return
+
+        if self._loop is None or self._trading is None:
+            msg = 'trading not started'
+            raise RuntimeError(msg)
+
+        future = asyncio.run_coroutine_threadsafe(
+            self._verify_api_permissions(), self._loop,
+        )
+        outer_timeout = _PERMISSION_QUERY_TIMEOUT * (len(self._instances) + 2)
+        try:
+            future.result(timeout=outer_timeout)
+        except TimeoutError:
+            future.cancel()
+            msg = 'api key permission assertion timed out; aborting startup'
+            _log.error(msg)
+            raise RuntimeError(msg) from None
+
+    async def _verify_api_permissions(self) -> None:
+        '''
+        Query and validate each account's API-key permissions, fail-closed.
+
+        Reject a key that can withdraw (`enable_withdrawals is not
+        False`) or cannot trade spot (`enable_spot_and_margin_trading is
+        not True`); a missing or mistyped flag already raised in the
+        adapter parse. On any failure stop the trading stack and re-raise.
+        Log account identity and safe status only — never keys,
+        signatures, or the raw authenticated response.
+        '''
+
+        assert self._trading is not None
+        adapter = self._trading.venue_adapter
+        try:
+            for inst in self._instances:
+                perms = await asyncio.wait_for(
+                    adapter.query_api_permissions(inst.account_id),
+                    _PERMISSION_QUERY_TIMEOUT,
+                )
+                if perms.enable_withdrawals is not False:
+                    msg = (
+                        f'account {inst.account_id!r} API key has withdrawals '
+                        f'enabled; refusing to start (trade-only required)'
+                    )
+                    raise RuntimeError(msg)
+                if perms.enable_spot_and_margin_trading is not True:
+                    msg = (
+                        f'account {inst.account_id!r} API key cannot trade '
+                        f'spot; refusing to start'
+                    )
+                    raise RuntimeError(msg)
+                _log.info(
+                    'api key permissions verified (trade-only)',
+                    extra={'account_id': inst.account_id},
+                )
+        except Exception:
+            await self._trading.stop()
+            _log.error('api key permission assertion failed; aborting startup')
+            raise
 
     async def _build_event_spine(self) -> EventSpine:
         if self._db_path is None:
@@ -4208,6 +4299,7 @@ def main() -> None:
     _check_required_env(env)
 
     venue_rest_url, venue_ws_url, venue_ws_api_url = _resolve_trade_mode(env)
+    trade_mode = env['TRADE_MODE'].strip().lower()
 
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
@@ -4218,7 +4310,7 @@ def main() -> None:
 
     manifest_paths = _enumerate_manifests(manifests_dir)
 
-    account_credentials: dict[str, tuple[str, str]] = {}
+    paper_credentials: dict[str, Credentials] = {}
     instances: list[InstanceConfig] = []
     seen_account_ids: dict[str, Path] = {}
     seen_suffixes: dict[str, str] = {}
@@ -4247,17 +4339,21 @@ def main() -> None:
         seen_account_ids[account_id] = manifest_path
         seen_suffixes[suffix] = account_id
 
-        api_key = env.get(f'BINANCE_API_KEY_{suffix}')
-        api_secret = env.get(f'BINANCE_API_SECRET_{suffix}')
+        if trade_mode == _TRADE_MODE_PAPER:
+            api_key = env.get(f'BINANCE_API_KEY_{suffix}')
+            api_secret = env.get(f'BINANCE_API_SECRET_{suffix}')
 
-        if not api_key or not api_secret:
-            msg = (
-                f'missing BINANCE_API_KEY_{suffix} or BINANCE_API_SECRET_{suffix} '
-                f'for account {account_id!r} (manifest {manifest_path})'
+            if not api_key or not api_secret:
+                msg = (
+                    f'missing BINANCE_API_KEY_{suffix} or BINANCE_API_SECRET_{suffix} '
+                    f'for account {account_id!r} (manifest {manifest_path})'
+                )
+                raise RuntimeError(msg)
+
+            paper_credentials[account_id] = Credentials(
+                api_key=api_key,
+                api_secret=api_secret,
             )
-            raise RuntimeError(msg)
-
-        account_credentials[account_id] = (api_key, api_secret)
 
         state_dir = state_base / account_id / str(epoch_id)
         strategy_state_path = (
@@ -4275,6 +4371,23 @@ def main() -> None:
                 strategy_state_path=strategy_state_path,
             ),
         )
+
+    if trade_mode == _TRADE_MODE_LIVE:
+        secrets_file = env.get(_SECRETS_FILE_ENV, '').strip()
+        if secrets_file:
+            secret_store: SecretStore = FileSecretStore(Path(secrets_file))
+        else:
+            secret_store = KeyringSecretStore()
+    else:
+        secret_store = MappingSecretStore(paper_credentials)
+
+    account_credentials: dict[str, Credentials] = {}
+    for inst in instances:
+        try:
+            account_credentials[inst.account_id] = secret_store.get(inst.account_id)
+        except (SecretNotFoundError, SecretBackendError) as exc:
+            msg = f'failed to resolve credentials for account {inst.account_id!r}'
+            raise RuntimeError(msg) from exc
 
     trading_config = TradingConfig(
         epoch_id=epoch_id,
@@ -4295,6 +4408,7 @@ def main() -> None:
         instances=instances,
         db_path=state_base / 'event_spine.sqlite',
         healthz_port=healthz_port,
+        enforce_api_permissions=trade_mode == _TRADE_MODE_LIVE,
     )
 
     _log.info(

@@ -138,6 +138,8 @@ class _AccountRuntime:
         self.account_ledger = account_ledger
         self.task: asyncio.Task[None] | None = None
         self.command_to_order: dict[str, str] = {}
+        self.reconciling = False
+        self.poisoned = False
 
 
 class ExecutionManager:
@@ -872,6 +874,51 @@ class ExecutionManager:
 
         runtime.ws_event_queue.put_nowait(event)
 
+    def set_reconciling(self, account_id: str, reconciling: bool) -> None:
+
+        '''
+        Gate or release an account's command submission during reconnect reconcile.
+
+        While reconciling the account's writer keeps draining WS and
+        reconciliation events but does not dequeue new commands.
+
+        Args:
+            account_id (str): Account identifier.
+            reconciling (bool): True to gate submission, False to release.
+
+        Raises:
+            AccountNotRegisteredError: If the account is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        runtime.reconciling = reconciling
+
+    def is_order_capable(self, account_id: str) -> bool:
+
+        '''
+        Report whether an account can currently submit orders.
+
+        An account is not order-capable while reconciling, or once poisoned
+        by a projection failure (fail-stop until restart).
+
+        Args:
+            account_id (str): Account identifier.
+
+        Returns:
+            bool: True when the account is registered, not reconciling, and
+            not poisoned.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return False
+
+        return not runtime.reconciling and not runtime.poisoned
+
     async def submit_command(
         self,
         *,
@@ -1050,14 +1097,17 @@ class ExecutionManager:
             while True:
                 while not runtime.ws_event_queue.empty():
                     event = runtime.ws_event_queue.get_nowait()
+                    if runtime.poisoned:
+                        continue
                     try:
                         self._project(runtime, event)
                     except asyncio.CancelledError:
                         raise
                     except Exception:  # noqa: BLE001
+                        runtime.poisoned = True
                         _log.exception(
-                            'unhandled exception while applying event: '
-                            'event_type=%s account_id=%s',
+                            'projection failed; poisoning account (fail-stop, '
+                            'restart required): event_type=%s account_id=%s',
                             type(event).__name__,
                             runtime.account_id,
                         )
@@ -1092,6 +1142,10 @@ class ExecutionManager:
                             abort.command_id,
                             runtime.account_id,
                         )
+
+                if runtime.reconciling or runtime.poisoned:
+                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
+                    continue
 
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)

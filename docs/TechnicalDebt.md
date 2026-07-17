@@ -948,3 +948,124 @@ A strategy's `on_startup` actions are drained inside `_build_nexus_runtime` (via
 
 **When to fix**: before a fund-transaction producer that can retry appends (e.g. a deposit API or Nexus-driven top-up) is wired in.
 **Migration**: extend the spine dedup to key `FundTransaction` on `fund_transaction_id` (as `FillReceived` does on `venue_trade_id`), so a duplicate append is a no-op.
+
+## TD-109: Event Spine hash chain is verified at boot only
+
+**Origin**: WP-Praxis-0005 scope (deferred; lands with the hash-chain slice)
+**Severity**: Low (boot verification runs before order-capable startup; a mid-session mutation is not re-checked until the next restart)
+**Module**: `praxis/infrastructure/event_spine.py` (`verify_chain`)
+
+The hash chain is verified once at boot and fails closed before order-capable startup. A tamper or corruption occurring after boot is undetected until the next restart.
+
+**When to fix**: before the spine backs an integrity guarantee that must hold within a running session, not only across restarts.
+**Migration**: verify the new tip links to the prior hash on every append, and/or run a periodic chain check surfaced as a health signal.
+
+## TD-110: Event Spine legacy prefix is trusted, not attested
+
+**Origin**: WP-Praxis-0005 scope (deferred; lands with the hash-chain slice)
+**Severity**: Low (single operator-controlled host; the chain is tamper-evident from the migration boundary forward)
+**Module**: `praxis/infrastructure/event_spine.py` (`verify_chain`)
+
+The chain begins at the migration boundary; events written before it form an unhashed legacy prefix that verification accepts on trust. A tamper within the prefix is undetectable, and the hashed suffix is only as trustworthy as the host — an attacker with database write access could recompute the entire unanchored suffix.
+
+**When to fix**: before the spine must prove integrity against a host-level adversary or an external auditor.
+**Migration**: externally anchor the chain tip (periodic signed checkpoints to an append-only external store); optionally backfill legacy hashes under an offline, operator-run migration.
+
+## TD-111: SecretStore has no rotation without restart
+
+**Origin**: WP-Praxis-0005 scope (deferred; lands with the SecretStore slice)
+**Severity**: Low (key rotation is an infrequent, operator-scheduled event)
+**Module**: `praxis/infrastructure` (`SecretStore` / `KeyringSecretStore`)
+
+Credentials are resolved eagerly once at boot into frozen `Credentials` objects. Rotating a Binance key requires a process restart to re-resolve; there is no live re-read path.
+
+**When to fix**: before rotation frequency or an incident-response SLA makes a restart-per-rotation unacceptable.
+**Migration**: add a re-resolution path (invalidate + re-`get`), guarded so an in-flight signed request never sees a half-swapped credential.
+
+## TD-112: No first-party keyring provisioning tooling
+
+**Origin**: WP-Praxis-0005 scope (deferred; lands with the SecretStore slice)
+**Severity**: Low (provisioning is a one-time, operator-run setup)
+**Module**: `praxis/infrastructure` (`KeyringSecretStore`)
+
+The runtime `SecretStore` protocol exposes `get` only; writing an account's keyring record is left to the external `keyring` CLI or an ad-hoc script. There is no validated first-party provisioning command, so a malformed record is only caught at boot.
+
+**When to fix**: before onboarding enough accounts that manual keyring entry is error-prone.
+**Migration**: add a provisioning CLI that validates the `{api_key, api_secret}` record shape and writes it under `service=praxis-binance`, `username=account_id`.
+
+## TD-113: Binance permission assertion enforces only withdrawal and spot-trading flags
+
+**Origin**: WP-Praxis-0005 scope (deferred; lands with the permission-assertion slice)
+**Severity**: Low (the two enforced flags cover the primary capital-exfiltration and trade-capability risks)
+**Module**: `praxis/infrastructure/binance_adapter.py` (`query_api_permissions`)
+
+The boot assertion rejects withdrawal-enabled keys and requires spot-and-margin trading. The remaining `apiRestrictions` flags (`ipRestrict`, `permitsUniversalTransfer`, `enableInternalTransfer`, `enableFutures`, `enableMargin`, `enablePortfolioMarginTrading`) are neither parsed nor enforced.
+
+**When to fix**: before a hardened live deployment requires IP-pinning or explicitly forbidding transfer/derivatives permissions on the trading key.
+**Migration**: extend the assertion to reject the additional flags per a documented hardening policy; keep the reject list explicit so it never silently broadens.
+
+## TD-114: Reconnect reconciliation can gate indefinitely under continuous fills
+
+**Origin**: WP-Praxis-0005 scope (deferred; lands with the reconnect slice)
+**Severity**: Low (requires a pathological, sustained fill rate that keeps every backfill page full)
+**Module**: `praxis/trading.py` (`_backfill_account`, `_reconcile_on_reconnect`)
+
+Reconnect backfill paginates until a short page. Under a fill rate that keeps every page at the limit, the per-pass page cap truncates the backfill; `_backfill_account` reports the truncation and `_reconcile_on_reconnect` keeps the account gated (fail-closed, never trades) until a later pass drains the remainder. A sustained fill rate that outpaces the backfill never yields that draining pass.
+
+**When to fix**: before a strategy/venue combination can sustain a fill rate that outpaces the backfill.
+**Migration**: bound total reconcile passes and, on exhaustion, escalate to an operator alert with an explicit degraded-mode decision rather than silent perpetual gating.
+
+## TD-115: WS fill path does not clamp post-terminal overfill
+
+**Origin**: pre-existing (current WS fill application); confirmed during WP-Praxis-0005 scope
+**Severity**: Low (a fill beyond the ordered qty on an already-terminal order is a venue anomaly, not a normal path)
+**Module**: `praxis/core/trading_state.py` (`_update_order_on_fill`)
+
+`_update_order_on_fill` adds each fill's qty to `filled_qty` unconditionally; a fill arriving after the order reached FILLED pushes `filled_qty` past the ordered `qty`. The immediate-fill path clamps overfill (`execution_manager.py:1432`) but the WS/reconcile path does not.
+
+**When to fix**: before a venue or mode can legitimately deliver a late fill on a closed order without it being a data error.
+**Migration**: apply the same overfill clamp used on the immediate-fill path to the WS/reconcile application, or reject-and-alert on a post-terminal fill.
+
+## TD-116: Fill dedup identity is single-venue
+
+**Origin**: pre-existing (single-venue spine); confirmed during WP-Praxis-0005 scope
+**Severity**: Low (one Event Spine binds a single venue today — `binance_spot`)
+**Module**: `praxis/infrastructure/event_spine.py` (`fill_dedup`)
+
+The fill dedup key carries no venue component (`(epoch, account, symbol, venue_trade_id)` after WP-0005). A single spine binds one venue, so venue is implicit; a future multi-venue spine could collide two venues' trade IDs on the same `(account, symbol)`.
+
+**When to fix**: before a single Praxis instance persists fills from more than one venue.
+**Migration**: add a venue component to the dedup identity (and to `FillReceived`); the composite key encoding already leaves room to prefix venue.
+
+## TD-117: Event Spine migrations have no backup or rollback tooling
+
+**Origin**: WP-Praxis-0005 scope (deferred; lands with the migration-mechanism slice)
+**Severity**: Medium (a failed migration on the single prod spine has no first-party recovery beyond a manual file restore)
+**Module**: `praxis/infrastructure/event_spine.py` (`ensure_schema` / `_migrate_to_v3`)
+
+WP-0005 introduces `PRAGMA user_version` migrations that are additive and fail-closed (a failed step does not advance the version and aborts boot). There is no automated pre-migration backup or rollback; recovery from a corrupt or partial migration is a manual restore of the SQLite file.
+
+**When to fix**: before the spine grows large enough, or the deployment cadence high enough, that a manual restore is operationally risky.
+**Migration**: snapshot the spine file (or a SQLite backup-API copy) before applying a migration step, and provide an operator command to roll back to the pre-migration snapshot.
+
+## TD-118: Reconnect backfill skips a fill for a not-yet-known local order and advances past it
+
+**Origin**: WP-Praxis-0005 (Greybeard pre-PR review)
+**Severity**: Low (submission is gated during reconcile, so no order is created mid-pass; the window is a fill whose `OrderSubmitIntent` has not yet reached local state)
+**Module**: `praxis/trading.py` (`_backfill_account`)
+
+`_backfill_account` maps each backfilled trade to a local order by `client_order_id`; a trade whose order is unknown locally is skipped, and the per-`(account, symbol)` cursor still advances past it. For a genuinely external/manual order this is the intended out-of-scope behaviour, but for an order that is only transiently unknown (its intent has not yet been projected) the fill is skipped and never revisited, since the cursor has moved on.
+
+**When to fix**: before the reconnect path can race a still-persisting local order, or before manual/external orders come into scope.
+**Migration**: only advance the cursor past a trade once its order is known, or defer the cursor for unmatched trades and re-query them on a later pass.
+
+## TD-119: `is_order_capable` has no production caller
+
+**Origin**: WP-Praxis-0005 (Greybeard pre-PR review)
+**Severity**: Low (the submission gate is enforced in the per-account writer, not through this query)
+**Module**: `praxis/core/execution_manager.py` (`is_order_capable`)
+
+`ExecutionManager.is_order_capable` reports whether an account is neither reconciling nor poisoned, but the actual gate lives in the writer loop (it stops dequeuing commands). Only tests read the method; no production path consults it before submission.
+
+**When to fix**: when a caller needs a cheap pre-enqueue reject (e.g. the launcher or a fast-path that rejects submits for a poisoned account before they queue), or drop it if none emerges.
+**Migration**: wire it into a pre-submit fast-reject, or remove it and assert the invariant through the writer behaviour only.

@@ -17,6 +17,7 @@ from aiohttp.web import Request
 from praxis.core.domain.enums import OrderSide
 from praxis.core.domain.events import FillReceived, MarkSampled
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.launcher import InstanceConfig, Launcher
 from praxis.trading_config import TradingConfig
@@ -68,7 +69,10 @@ def _launcher(spine: EventSpine, tmp_path: Path) -> Launcher:
     exp_dir = tmp_path / 'experiment'
     exp_dir.mkdir()
     manifest_path = _make_manifest_yaml(tmp_path, exp_dir)
-    config = TradingConfig(epoch_id=1, account_credentials={_ACCOUNT: ('key', 'secret')})
+    config = TradingConfig(
+        epoch_id=1,
+        account_credentials={_ACCOUNT: Credentials(api_key='key', api_secret='secret')},
+    )
     inst = InstanceConfig(
         account_id=_ACCOUNT, manifest_path=manifest_path,
         strategies_base_path=tmp_path, state_dir=tmp_path / 'state',

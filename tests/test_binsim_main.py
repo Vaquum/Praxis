@@ -20,7 +20,7 @@ def test_parses_minimum_required_env_with_defaults() -> None:
 
     config = _parse_env(dict(_BASE_ENV))
 
-    assert config.depth_token == 'token-1'  # noqa: S105 — test fixture, not a real credential
+    assert config.depth_token == 'token-1'
     assert config.state_dir == Path('/var/lib/binsim')
     assert config.host == '0.0.0.0'  # noqa: S104 — bind-all is the documented default
     assert config.port == 8081

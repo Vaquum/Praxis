@@ -59,6 +59,12 @@ class BinanceUserStream:
         on_message (Callable[[dict], Awaitable[None]] | None): Async
             callback invoked with each pushed event payload (the inner
             object of the WS-API `event` envelope)
+        on_disconnect (Callable[[], Awaitable[None]] | None): Async
+            callback invoked when a disconnect is detected (the receive
+            loop returned or raised), before backoff
+        on_reconnect (Callable[[], Awaitable[None]] | None): Async
+            callback invoked after a successful re-subscription (the
+            reconnect edge only, never the initial connection)
         reconnect_base_delay (float): Initial reconnect delay in seconds
         reconnect_max_delay (float): Maximum reconnect delay in seconds
     '''
@@ -68,6 +74,8 @@ class BinanceUserStream:
         adapter: BinanceAdapter,
         account_id: str,
         on_message: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+        on_disconnect: Callable[[], Awaitable[None]] | None = None,
+        on_reconnect: Callable[[], Awaitable[None]] | None = None,
         reconnect_base_delay: float = _DEFAULT_RECONNECT_BASE_DELAY,
         reconnect_max_delay: float = _DEFAULT_RECONNECT_MAX_DELAY,
     ) -> None:
@@ -76,6 +84,8 @@ class BinanceUserStream:
         self._account_id = account_id
         self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._on_message = on_message
+        self._on_disconnect = on_disconnect
+        self._on_reconnect = on_reconnect
         self._reconnect_task: asyncio.Task[None] | None = None
         self._reconnect_base_delay = reconnect_base_delay
         self._reconnect_max_delay = reconnect_max_delay
@@ -161,13 +171,13 @@ class BinanceUserStream:
             msg = f"Unsupported WS-API URL scheme: {ws_api_url!r}"
             raise ValueError(msg)
 
-        api_key, api_secret = self._adapter._get_credentials(self._account_id)
+        credentials = self._adapter._get_credentials(self._account_id)
 
         session = await self._adapter._ensure_session()
         ws = await session.ws_connect(ws_api_url)
 
         try:
-            await self._subscribe(ws, api_key, api_secret)
+            await self._subscribe(ws, credentials.api_key, credentials.api_secret)
         except (aiohttp.ClientError, TimeoutError, VenueError):
             with contextlib.suppress(aiohttp.ClientError):
                 await ws.close()
@@ -310,15 +320,25 @@ class BinanceUserStream:
         Run receive loop with automatic reconnection on disconnect.
 
         Calls _receive_loop() to read frames. When _receive_loop() returns
-        (WebSocket closed or errored), waits with exponential backoff and
-        calls _clean_setup_connection() to reconnect. Resets attempt
-        counter on successful reconnection. Exits cleanly on
-        CancelledError from close().
+        or raises a transport exception (WebSocket closed, errored, or a
+        raw socket exception surfacing from the frame iterator), fires the
+        disconnect callback, waits with exponential backoff, and calls
+        _clean_setup_connection() to reconnect. Fires the reconnect
+        callback after each successful re-subscription (never the initial
+        connection). Resets the attempt counter on success. A raw
+        transport exception is caught so it enters backoff rather than
+        killing the task; lifecycle-callback errors are caught for the
+        same reason. Exits cleanly on CancelledError from close().
         '''
 
         attempts = 0
         while True:
-            await self._receive_loop()
+            try:
+                await self._receive_loop()
+            except Exception:  # noqa: BLE001 - a raw transport error must not kill reconnect
+                _log.exception('receive loop raised for %s; entering backoff', self._account_id)
+
+            await self._fire_lifecycle(self._on_disconnect, 'on_disconnect')
             attempts += 1
             while True:
                 delay = min(
@@ -333,6 +353,7 @@ class BinanceUserStream:
                 try:
                     await self._clean_setup_connection()
                     attempts = 0
+                    await self._fire_lifecycle(self._on_reconnect, 'on_reconnect')
                     break
                 except (VenueError, aiohttp.ClientError, TimeoutError):
                     _log.warning(
@@ -340,6 +361,28 @@ class BinanceUserStream:
                         self._account_id, attempts, exc_info=True,
                     )
                     attempts += 1
+
+    async def _fire_lifecycle(
+        self,
+        callback: Callable[[], Awaitable[None]] | None,
+        name: str,
+    ) -> None:
+
+        '''
+        Invoke a lifecycle callback, catching its errors so they cannot kill reconnect.
+
+        Args:
+            callback (Callable[[], Awaitable[None]] | None): The callback, or None.
+            name (str): Callback name for the error log.
+        '''
+
+        if callback is None:
+            return
+
+        try:
+            await callback()
+        except Exception:  # noqa: BLE001 - a callback error must not kill reconnect
+            _log.exception('%s callback error for %s', name, self._account_id)
 
     async def _receive_loop(self) -> None:
 

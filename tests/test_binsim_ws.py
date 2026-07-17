@@ -24,7 +24,7 @@ from praxis.binsim.server import make_app
 
 
 _URL = 'https://binance-spot-depth20-1000ms.onrender.com/top20'
-_TOKEN = 'test-token'  # noqa: S105 — test fixture, not a real credential
+_TOKEN = 'test-token'
 _THRESHOLD_MS = 5000
 
 _SIGNING_KEY = secrets.token_hex(16)

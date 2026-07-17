@@ -16,6 +16,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.position import Position
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.infrastructure.secret_store import Credentials
 
 __all__ = ['TradingInbound']
 
@@ -57,8 +58,7 @@ class _VenueAccountRegistry(Protocol):
     def register_account(
         self,
         account_id: str,
-        api_key: str,
-        api_secret: str,
+        credentials: Credentials,
     ) -> None: ...
 
     def unregister_account(self, account_id: str) -> None: ...
@@ -74,7 +74,7 @@ class TradingInbound:
     Args:
         execution_manager (_ExecutionInboundGateway): Execution inbound gateway.
         venue_adapter (_VenueAccountRegistry): Venue credential registry.
-        account_credentials (Mapping[str, tuple[str, str]]): Static account
+        account_credentials (Mapping[str, Credentials]): Static account
             credential mapping keyed by account identifier.
     '''
 
@@ -82,7 +82,7 @@ class TradingInbound:
         self,
         execution_manager: _ExecutionInboundGateway,
         venue_adapter: _VenueAccountRegistry,
-        account_credentials: Mapping[str, tuple[str, str]],
+        account_credentials: Mapping[str, Credentials],
     ) -> None:
         '''Store inbound dependencies and account credential configuration.'''
 
@@ -117,12 +117,11 @@ class TradingInbound:
             msg = f"no credentials configured for account_id '{account_id}'"
             raise ValueError(msg)
 
-        api_key, api_secret = credentials
         if self._execution_manager.has_account(account_id):
-            self._venue_adapter.register_account(account_id, api_key, api_secret)
+            self._venue_adapter.register_account(account_id, credentials)
             return
 
-        self._venue_adapter.register_account(account_id, api_key, api_secret)
+        self._venue_adapter.register_account(account_id, credentials)
         try:
             self._execution_manager.register_account(account_id)
         except (ValueError, RuntimeError):

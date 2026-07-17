@@ -6,7 +6,7 @@ import logging
 import queue
 import threading
 from collections import defaultdict
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -36,6 +36,7 @@ from praxis.core.domain.events import (
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.binance_ws import BinanceUserStream
+from praxis.infrastructure.mytrades_backfill import paginate_my_trades, venue_trade_id_int
 from praxis.infrastructure.venue_adapter import NotFoundError, VenueAdapter, VenueError
 from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
@@ -43,6 +44,7 @@ from praxis.trading_inbound import TradingInbound
 __all__ = ['Trading']
 
 _log = logging.getLogger(__name__)
+_BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
 _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.FILLED,
     OrderStatus.CANCELED,
@@ -142,6 +144,8 @@ class Trading:
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
         self._ready_accounts: set[str] = set()
+        self._reconciling_accounts: set[str] = set()
+        self._reconcile_rerun_pending: set[str] = set()
         self._stopping = False
 
     @property
@@ -301,6 +305,7 @@ class Trading:
 
         try:
             await self._event_spine.ensure_schema()
+            await self._event_spine.verify_chain()
 
             all_events = await self._event_spine.read(self._config.epoch_id)
 
@@ -351,15 +356,24 @@ class Trading:
             async def on_message(data: dict[str, Any]) -> None:
                 await self._on_execution_report(account_id, data)
 
+            async def on_disconnect() -> None:
+                self._execution_manager.set_reconciling(account_id, True)
+
+            async def on_reconnect() -> None:
+                await self._reconcile_on_reconnect(account_id)
+
             stream = BinanceUserStream(
                 adapter=adapter,
                 account_id=account_id,
                 on_message=on_message,
+                on_disconnect=on_disconnect,
+                on_reconnect=on_reconnect,
             )
             await stream.initiate_connection()
             self._user_streams[account_id] = stream
-
-        await self._reconcile_account(account_id)
+            await self._reconcile_on_reconnect(account_id)
+        else:
+            await self._reconcile_account(account_id)
 
         if account_ready:
             self._ready_accounts.add(account_id)
@@ -704,6 +718,176 @@ class Trading:
                     order.client_order_id,
                     trade.venue_trade_id,
                 )
+
+    async def _reconcile_on_reconnect(self, account_id: str) -> None:
+        '''
+        Backfill missed fills and reconcile orders, submission-gated.
+
+        Runs at boot (after the stream opens) and on every WS reconnect
+        edge. Holds the account's submission gate while it backfills
+        myTrades from the durable cursor and reconciles open orders, then
+        releases the gate only when the backfill fully drained. A truncated
+        backfill (page cap) or a venue failure leaves the account gated
+        (fail-closed) until a later reconcile drains it or a restart. A
+        reconnect arriving mid-pass schedules exactly one rerun.
+
+        Args:
+            account_id (str): Account identifier.
+        '''
+
+        if account_id in self._reconciling_accounts:
+            self._reconcile_rerun_pending.add(account_id)
+            return
+
+        self._reconciling_accounts.add(account_id)
+        try:
+            while True:
+                self._execution_manager.set_reconciling(account_id, True)
+                try:
+                    complete = await self._backfill_account(account_id)
+                    await self._reconcile_account(account_id)
+                except VenueError as exc:
+                    _log.error(
+                        'reconcile failed; account stays gated (fail closed): %s %s',
+                        account_id,
+                        exc.args[0] if exc.args else str(exc),
+                    )
+                    return
+
+                if not complete:
+                    _log.warning(
+                        'backfill incomplete; account stays gated until a later '
+                        'reconcile drains it: %s',
+                        account_id,
+                    )
+                    return
+
+                if account_id not in self._reconcile_rerun_pending:
+                    self._execution_manager.set_reconciling(account_id, False)
+                    return
+                self._reconcile_rerun_pending.discard(account_id)
+        finally:
+            self._reconciling_accounts.discard(account_id)
+            self._reconcile_rerun_pending.discard(account_id)
+
+    async def _backfill_account(self, account_id: str) -> bool:
+        '''
+        Paginate myTrades from the durable cursor and apply missed fills per symbol.
+
+        For each symbol in the account's universe, backfills from the
+        per-(account, symbol) cursor, mapping each trade to its local order
+        to reconstruct the fill lineage; a trade for an order unknown
+        locally is skipped (out of scope). The cursor advances only when a
+        pass fully drains the stream.
+
+        Args:
+            account_id (str): Account identifier.
+
+        Returns:
+            bool: True when every symbol's myTrades stream fully drained;
+            False when any symbol was truncated (page cap or non-numeric
+            boundary), so backfill is incomplete.
+        '''
+
+        trading_state = self._execution_manager.get_trading_state(account_id)
+        if trading_state is None:
+            return True
+
+        all_complete = True
+        symbols = (
+            set(self._execution_manager.active_symbols(account_id))
+            | self._bootstrap_filter_symbols
+        )
+        for symbol in sorted(symbols):
+            cursor = await self._event_spine.get_reconcile_cursor(account_id, symbol)
+            start_time = (
+                None if cursor is not None
+                else self._clock() - _BACKFILL_BOOTSTRAP_LOOKBACK
+            )
+            trades, complete = await paginate_my_trades(
+                self._venue_adapter,
+                account_id,
+                symbol,
+                from_id=cursor,
+                start_time=start_time,
+            )
+            if not complete:
+                all_complete = False
+
+            max_id: int | None = None
+            max_trade: Any = None
+            for trade in trades:
+                trade_id_num = venue_trade_id_int(trade.venue_trade_id)
+                if trade_id_num is None:
+                    _log.warning(
+                        'skipping fill with non-numeric trade id: %s %s',
+                        account_id,
+                        trade.venue_trade_id,
+                    )
+                    continue
+
+                order = trading_state.orders.get(trade.client_order_id)
+                if order is None:
+                    order = trading_state.closed_orders.get(trade.client_order_id)
+                if order is not None:
+                    await self._apply_backfilled_fill(account_id, trade, order)
+
+                if max_id is None or trade_id_num > max_id:
+                    max_id = trade_id_num
+                    max_trade = trade
+
+            if complete and max_id is not None and max_trade is not None:
+                now = self._clock()
+                await self._event_spine.set_reconcile_cursor(
+                    account_id,
+                    symbol,
+                    last_confirmed_trade_id=max_id,
+                    last_confirmed_ts=max_trade.timestamp.isoformat(),
+                    epoch_id=self._config.epoch_id,
+                    updated_at=now.isoformat(),
+                )
+
+        return all_complete
+
+    async def _apply_backfilled_fill(self, account_id: str, trade: Any, order: Any) -> None:
+        '''
+        Reconstruct a FillReceived from a backfilled trade and its local order.
+
+        Appends through the Event Spine dedup gate and enqueues to the
+        account writer only when the append is new; a duplicate append
+        (already recorded) is silently skipped.
+
+        Args:
+            account_id (str): Account identifier.
+            trade: Venue trade record.
+            order: Local order projection carrying the command lineage.
+        '''
+
+        command_id = order.command_id
+        trade_id = self._execution_manager.trade_id_for_command(command_id)
+        if trade_id is None:
+            return
+
+        fill_event = FillReceived(
+            account_id=account_id,
+            timestamp=trade.timestamp,
+            client_order_id=trade.client_order_id,
+            venue_order_id=trade.venue_order_id,
+            venue_trade_id=trade.venue_trade_id,
+            trade_id=trade_id,
+            command_id=command_id,
+            symbol=trade.symbol,
+            side=trade.side,
+            qty=trade.qty,
+            price=trade.price,
+            fee=trade.fee,
+            fee_asset=trade.fee_asset,
+            is_maker=trade.is_maker,
+        )
+
+        seq = await self._event_spine.append(fill_event, self._config.epoch_id)
+        if seq is not None:
+            self._execution_manager.enqueue_ws_event(account_id, fill_event)
 
     async def _reconcile_terminal(
         self,

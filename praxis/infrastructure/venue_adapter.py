@@ -16,9 +16,11 @@ from typing import Any, Protocol, runtime_checkable
 
 from praxis.core.domain.enums import ExecutionType, OrderSide, OrderStatus, OrderType
 from praxis.core.domain.health_snapshot import HealthSnapshot
+from praxis.infrastructure.secret_store import Credentials
 
 
 __all__ = [
+    'ApiPermissions',
     'AuthenticationError',
     'BalanceEntry',
     'CancelResult',
@@ -479,6 +481,21 @@ class DuplicateClientOrderIdError(VenueError):
         self.args = (message, client_order_id)
 
 
+@dataclass(frozen=True)
+class ApiPermissions:
+
+    '''
+    Trade-relevant subset of a venue API key's permissions.
+
+    Args:
+        enable_withdrawals (bool): Whether the key can withdraw funds.
+        enable_spot_and_margin_trading (bool): Whether the key can trade spot.
+    '''
+
+    enable_withdrawals: bool
+    enable_spot_and_margin_trading: bool
+
+
 @runtime_checkable
 class VenueAdapter(Protocol):
     '''
@@ -492,16 +509,14 @@ class VenueAdapter(Protocol):
     def register_account(
         self,
         account_id: str,
-        api_key: str,
-        api_secret: str,
+        credentials: Credentials,
     ) -> None:
         '''
         Register credentials for an account.
 
         Args:
             account_id (str): Account identifier
-            api_key (str): Venue API key
-            api_secret (str): Venue API secret
+            credentials (Credentials): Resolved venue credentials
         '''
 
         ...
@@ -515,6 +530,19 @@ class VenueAdapter(Protocol):
 
         Raises:
             KeyError: If account_id is not registered by the implementation.
+        '''
+
+        ...
+
+    async def query_api_permissions(self, account_id: str) -> ApiPermissions:
+        '''
+        Query the API key's trade-relevant permission flags for an account.
+
+        Args:
+            account_id (str): Account identifier
+
+        Returns:
+            ApiPermissions: The key's withdrawal and spot-trading flags
         '''
 
         ...
@@ -747,7 +775,10 @@ class VenueAdapter(Protocol):
         account_id: str,
         symbol: str,
         *,
+        from_id: int | None = None,
         start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
     ) -> list[VenueTrade]:
         '''
         Query historical trade records from the venue.
@@ -755,10 +786,16 @@ class VenueAdapter(Protocol):
         Args:
             account_id (str): Account identifier for API key routing
             symbol (str): Trading pair symbol
-            start_time (datetime | None): Return trades after this time, must be timezone-aware
+            from_id (int | None): Return trades with id at or after this cursor.
+                Mutually exclusive with start_time/end_time.
+            start_time (datetime | None): Return trades at or after this time
+                (timezone-aware).
+            end_time (datetime | None): Return trades at or before this time
+                (timezone-aware).
+            limit (int | None): Maximum number of trades to return (venue max 1000).
 
         Returns:
-            list[VenueTrade]: Trade records from the venue
+            list[VenueTrade]: Trade records from the venue, ascending by id
         '''
 
         ...

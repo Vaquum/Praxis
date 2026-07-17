@@ -46,6 +46,7 @@ from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionMa
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.trading_inbound import TradingInbound
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     OrderBookLevel,
     OrderBookSnapshot,
@@ -2279,12 +2280,10 @@ class TestEmitWsOutcome:
 
 class _FakeVenueRegistry:
     def __init__(self) -> None:
-        self.credentials: dict[str, tuple[str, str]] = {}
+        self.credentials: dict[str, Credentials] = {}
 
-    def register_account(
-        self, account_id: str, api_key: str, api_secret: str
-    ) -> None:
-        self.credentials[account_id] = (api_key, api_secret)
+    def register_account(self, account_id: str, credentials: Credentials) -> None:
+        self.credentials[account_id] = credentials
 
     def unregister_account(self, account_id: str) -> None:
         del self.credentials[account_id]
@@ -2303,7 +2302,7 @@ class TestSubmitCommandRealChain:
         inbound = TradingInbound(
             execution_manager=em,
             venue_adapter=_FakeVenueRegistry(),
-            account_credentials={_ACCT: ('key-1', 'secret-1')},
+            account_credentials={_ACCT: Credentials(api_key='key-1', api_secret='secret-1')},
         )
         inbound.register_account(_ACCT)
         try:
@@ -2331,7 +2330,7 @@ class TestSubmitCommandRealChain:
         inbound = TradingInbound(
             execution_manager=em,
             venue_adapter=_FakeVenueRegistry(),
-            account_credentials={_ACCT: ('key-1', 'secret-1')},
+            account_credentials={_ACCT: Credentials(api_key='key-1', api_secret='secret-1')},
         )
         inbound.register_account(_ACCT)
         try:

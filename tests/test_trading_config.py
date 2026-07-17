@@ -11,6 +11,7 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
+from praxis.infrastructure.secret_store import Credentials
 from praxis.trading_config import TradingConfig
 
 
@@ -47,11 +48,17 @@ def test_trading_config_rejects_non_positive_epoch() -> None:
 
 def test_trading_config_rejects_empty_account_id() -> None:
     with pytest.raises(ValueError, match='keys must be non-empty'):
-        TradingConfig(epoch_id=1, account_credentials={'': ('key', 'secret')})
+        TradingConfig(
+            epoch_id=1,
+            account_credentials={'': Credentials(api_key='key', api_secret='secret')},
+        )
 
 
 def test_trading_config_rejects_non_string_account_id() -> None:
-    malformed = cast(MutableMapping[str, tuple[str, str]], {1: ('key', 'secret')})
+    malformed = cast(
+        MutableMapping[str, Credentials],
+        {1: Credentials(api_key='key', api_secret='secret')},
+    )
 
     with pytest.raises(ValueError, match='keys must be non-empty'):
         TradingConfig(epoch_id=1, account_credentials=malformed)
@@ -59,32 +66,41 @@ def test_trading_config_rejects_non_string_account_id() -> None:
 
 def test_trading_config_rejects_whitespace_account_id() -> None:
     with pytest.raises(ValueError, match='keys must be non-empty'):
-        TradingConfig(epoch_id=1, account_credentials={'   ': ('key', 'secret')})
+        TradingConfig(
+            epoch_id=1,
+            account_credentials={'   ': Credentials(api_key='key', api_secret='secret')},
+        )
 
 
 def test_trading_config_rejects_empty_credential_parts() -> None:
-    with pytest.raises(ValueError, match='values must be'):
-        TradingConfig(epoch_id=1, account_credentials={'acc-1': ('', 'secret')})
+    with pytest.raises(ValueError, match='non-empty'):
+        TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='', api_secret='secret')},
+        )
 
 
-def test_trading_config_rejects_malformed_credential_tuple_shape() -> None:
-    malformed = cast(MutableMapping[str, tuple[str, str]], {'acc-1': ('only-key',)})
+def test_trading_config_rejects_non_credentials_value() -> None:
+    malformed = cast(MutableMapping[str, Credentials], {'acc-1': ('key', 'secret')})
 
-    with pytest.raises(ValueError, match='values must be'):
+    with pytest.raises(ValueError, match='must be Credentials'):
         TradingConfig(epoch_id=1, account_credentials=malformed)
 
 
 def test_trading_config_copies_credentials_mapping() -> None:
-    credentials = {'acc-1': ('key', 'secret')}
+    credentials = {'acc-1': Credentials(api_key='key', api_secret='secret')}
     cfg = TradingConfig(epoch_id=1, account_credentials=credentials)
-    credentials['acc-1'] = ('changed', 'changed')
+    credentials['acc-1'] = Credentials(api_key='changed', api_secret='changed')
 
-    assert cfg.account_credentials['acc-1'] == ('key', 'secret')
+    assert cfg.account_credentials['acc-1'] == Credentials(api_key='key', api_secret='secret')
 
 
 def test_trading_config_credential_mapping_is_read_only() -> None:
-    cfg = TradingConfig(epoch_id=1, account_credentials={'acc-1': ('key', 'secret')})
-    mutable = cast(MutableMapping[str, tuple[str, str]], cfg.account_credentials)
+    cfg = TradingConfig(
+        epoch_id=1,
+        account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+    )
+    mutable = cast(MutableMapping[str, Credentials], cfg.account_credentials)
 
     with pytest.raises(TypeError):
-        mutable['acc-2'] = ('x', 'y')
+        mutable['acc-2'] = Credentials(api_key='x', api_secret='y')

@@ -24,6 +24,7 @@ from praxis.core.domain.position import Position
 from praxis.core.domain.events import OperatorHaltRequested, OperatorResumeRequested
 from praxis.infrastructure.alert_sink import AlertSink
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import VenueAdapter
 from praxis.launcher import InstanceConfig, Launcher
 from praxis.trading_config import TradingConfig
@@ -31,7 +32,7 @@ from praxis.trading_config import TradingConfig
 from tests.test_launcher import MockVenueAdapter, _make_manifest_yaml
 
 _ACCOUNT = 'test-acc'
-_TOKEN = 'secret-token'  # noqa: S105 - test bearer token, not a real secret
+_TOKEN = 'secret-token'
 
 
 async def _spine() -> EventSpine:
@@ -59,7 +60,10 @@ def _launcher(spine: EventSpine, tmp_path: Path) -> Launcher:
     exp_dir = tmp_path / 'experiment'
     exp_dir.mkdir()
     manifest_path = _make_manifest_yaml(tmp_path, exp_dir)
-    config = TradingConfig(epoch_id=1, account_credentials={_ACCOUNT: ('key', 'secret')})
+    config = TradingConfig(
+        epoch_id=1,
+        account_credentials={_ACCOUNT: Credentials(api_key='key', api_secret='secret')},
+    )
     inst = InstanceConfig(
         account_id=_ACCOUNT, manifest_path=manifest_path,
         strategies_base_path=tmp_path, state_dir=tmp_path / 'state',
@@ -167,7 +171,7 @@ async def test_wrong_token_is_unauthorized(tmp_path: Path, monkeypatch: pytest.M
     _register_runtime(launcher)
 
     response = await launcher._ops_halt_handler(
-        _request('/ops/halt', token='wrong'),  # noqa: S106 - test bearer token
+        _request('/ops/halt', token='wrong'),
     )
 
     assert response.status == 401
