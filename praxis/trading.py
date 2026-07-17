@@ -305,6 +305,7 @@ class Trading:
 
         try:
             await self._event_spine.ensure_schema()
+            await self._event_spine.verify_chain()
 
             all_events = await self._event_spine.read(self._config.epoch_id)
 

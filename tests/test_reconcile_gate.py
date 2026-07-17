@@ -24,7 +24,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import CommandAccepted, OrderSubmitIntent
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.execution_manager import ExecutionManager
-from praxis.infrastructure.event_spine import EventSpine
+from praxis.infrastructure.event_spine import ChainVerificationError, EventSpine
 from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import (
     OrderBookLevel,
@@ -176,6 +176,22 @@ def _trading(spine: EventSpine) -> Trading:
         account_credentials={_ACCT: Credentials(api_key='k', api_secret='s')},
     )
     return Trading(config=config, event_spine=spine, venue_adapter=MagicMock())
+
+
+@pytest.mark.asyncio
+async def test_start_fails_closed_on_broken_chain(spine: EventSpine) -> None:
+    await spine.append(CommandAccepted(account_id=_ACCT, timestamp=_TS, command_id='c1', trade_id='t1'), _EPOCH)
+    await spine.append(CommandAccepted(account_id=_ACCT, timestamp=_TS, command_id='c2', trade_id='t2'), _EPOCH)
+    await spine._conn.execute('UPDATE events SET payload = ? WHERE event_seq = 2', (b'{}',))
+    await spine._conn.commit()
+
+    trading = _trading(spine)
+
+    with pytest.raises(ChainVerificationError):
+        await trading.start()
+
+    assert trading._started is False
+    assert trading._execution_manager.is_order_capable(_ACCT) is False
 
 
 @pytest.mark.asyncio

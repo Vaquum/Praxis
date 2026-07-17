@@ -2655,7 +2655,6 @@ class Launcher:
         self._db_conn = await aiosqlite.connect(str(self._db_path))
         spine = EventSpine(self._db_conn)
         await spine.ensure_schema()
-        await spine.verify_chain()
 
         _log.info('event spine opened', extra={'db_path': str(self._db_path)})
         return spine
