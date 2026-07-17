@@ -542,21 +542,32 @@ class EventSpine:
             by a venue_trade_id shared across accounts or epochs.
         '''
 
+        msg = (
+            'legacy FillReceived payload is malformed (undecodable, missing, or '
+            'non-string symbol/account_id/venue_trade_id); offline repair '
+            'required before migration'
+        )
         symbols: set[str] = set()
         fill_keys: set[tuple[int, str, str]] = set()
         async with self._conn.execute(_FILL_PAYLOAD_SCAN) as cursor:
             async for epoch_id, payload in cursor:
                 try:
                     record = orjson.loads(payload)
-                    symbols.add(record['symbol'])
-                    fill_keys.add((epoch_id, record['account_id'], record['venue_trade_id']))
+                    symbol = record['symbol']
+                    account_id = record['account_id']
+                    venue_trade_id = record['venue_trade_id']
                 except (orjson.JSONDecodeError, KeyError, TypeError) as exc:
-                    msg = (
-                        'legacy FillReceived payload is malformed (missing or '
-                        'undecodable symbol/account_id/venue_trade_id); offline '
-                        'repair required before migration'
-                    )
                     raise SpineSchemaError(msg) from exc
+
+                if not (
+                    isinstance(symbol, str)
+                    and isinstance(account_id, str)
+                    and isinstance(venue_trade_id, str)
+                ):
+                    raise SpineSchemaError(msg)
+
+                symbols.add(symbol)
+                fill_keys.add((epoch_id, account_id, venue_trade_id))
 
         return symbols, fill_keys
 

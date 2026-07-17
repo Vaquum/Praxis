@@ -595,6 +595,23 @@ async def test_malformed_fill_payload_fails_closed_on_migration() -> None:
 
 
 @pytest.mark.asyncio
+async def test_non_string_fill_field_fails_closed_on_migration() -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+        await spine.append(_fill_symbol('BTCUSDT', 'vt-1'), _EPOCH)
+        await conn.execute(
+            "UPDATE events SET payload = ? WHERE event_type = 'FillReceived'",
+            (orjson.dumps({'symbol': 123, 'account_id': _ACCT, 'venue_trade_id': 'vt-1'}),),
+        )
+        await conn.execute('PRAGMA user_version = 2')
+        await conn.commit()
+
+        with pytest.raises(SpineSchemaError, match='malformed'):
+            await EventSpine(conn).ensure_schema()
+
+
+@pytest.mark.asyncio
 async def test_legacy_symbol_gating_and_dual_read() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         await conn.execute(_LEGACY_SCHEMA)
