@@ -4,26 +4,33 @@
   <br />
 </div>
 <br />
-<div align="center"><strong>Praxis is the event-sourced execution system for turning trading decisions into venue actions, durable execution state, and auditable outcomes.</strong></div>
+<div align="center"><b>Vaquum Praxis turns trading decisions into venue orders, durable execution state, and auditable outcomes.</b></div>
 
 <div align="center">
   <a href="#praxis">Praxis</a> •
   <a href="#what-praxis-is-not">What Praxis Is Not</a> •
   <a href="#capabilities">Capabilities</a> •
-  <a href="#first-verification">First Verification</a> •
+  <a href="#first-run">First Run</a> •
   <a href="#learn-more">Learn More</a>
 </div>
 <br />
+<div align="center">
+  <a href="https://github.com/Vaquum/Praxis/blob/main/docs/README.md"><img src="https://img.shields.io/badge/docs-praxis-blue" alt="Praxis docs" /></a>
+  <a href="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_tests.yml"><img src="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_tests.yml/badge.svg" alt="PR tests" /></a>
+  <a href="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_ruff.yml"><img src="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_ruff.yml/badge.svg" alt="Ruff" /></a>
+  <a href="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_mypy.yml"><img src="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_mypy.yml/badge.svg" alt="Mypy" /></a>
+  <a href="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_codeql.yml"><img src="https://github.com/Vaquum/Praxis/actions/workflows/pr_checks_codeql.yml/badge.svg" alt="CodeQL" /></a>
+</div>
 
 <hr />
 
-# Praxis
+<a id="praxis"></a>
 
-Praxis is the execution system.
+# Praxis — Execution system
 
-Praxis unifies order routing, venue communication, lifecycle management, and recovery around a single Event Spine. Persist-before-send order submission means no trade is ever lost to a crash. Startup replay and reconciliation rebuild state from the durable event log.
+*Event-sourced trade execution system that turns trading decisions into venue orders, durable execution state, and auditable outcomes.*
 
-The current repository is a partial implementation of RFC-4001 ([Praxis issue #1](https://github.com/Vaquum/Praxis/issues/1)). Where the RFC and the code diverge, the code is authoritative.
+Praxis unifies order routing, venue communication, lifecycle management, and recovery around a single append-only Event Spine. Persist-before-send order submission means no trade is ever lost to a crash, and startup replay rebuilds state from the durable event log. The current repository is a partial implementation of RFC-4001 ([Praxis issue #1](https://github.com/Vaquum/Praxis/issues/1)); where the RFC and the code diverge, the code is authoritative.
 
 ## What Praxis Is Not
 
@@ -32,101 +39,120 @@ Praxis is not:
 - the strategy or decision layer
 - a generic multi-venue execution platform
 - the full RFC-4001 system as written
-- the completed Account sub-system / ledger layer
 - a live-trading-hardened production deployment
 
-In the wider Vaquum architecture, Limen produces research outputs, Nexus produces decisions, and Praxis executes and tracks those decisions. The Account sub-system described in the RFC is not yet implemented in this repository.
+In the wider Vaquum architecture, Origo sits upstream as the data layer and Limen as the research engine. Nexus turns research outputs into decisions, Praxis executes and tracks those decisions on the venue, and Veritas sits downstream for oversight.
 
 ## Capabilities
 
+- Append-only SQLite Event Spine with a tamper-evident SHA-256 hash chain
+- Persist-before-send order submission with deterministic client order IDs
 - Event-sourced paper trading on Binance Spot testnet
-- SingleShot execution with market, limit, IOC, stop, stop-limit, take-profit, TP-limit, and OCO order support
+- Support for market, limit, and IOC orders, with stop-loss and take-profit expressed as OCO legs
 - Per-account execution routing with isolated credentials and independent account runtimes
-- Deterministic client order IDs and persist-before-send order submission
 - Durable tracking of fills, open orders, closed orders, and per-trade positions
-- Async trade outcome callbacks for Manager integration
-- Trade abort, cancel, and deadline-expiry handling with terminal outcomes
-- Startup replay, reconciliation, and WebSocket recovery for crash-safe state rebuilds
+- Per-account double-entry ledger with balances and per-trade realized profit and loss
+- Terminal trade outcomes for fills, aborts, cancels, and deadline expiry, delivered through async callbacks for Manager integration
 - Venue filter loading and pre-submission validation against Binance trading rules
-- Walk-the-book slippage estimation with execution and arrival slippage analytics
+- Startup replay, venue reconciliation, and WebSocket recovery for crash-safe state rebuilds
+- Walk-the-book execution and arrival slippage estimation, surfaced per fill in structured logs
+- Binsim in-process Binance simulator and deterministic replay harness for offline runs
 
-## First Verification
+## Roadmap
 
-The fastest first success is to clone the repo, install the package, run the local test suite, and then optionally verify Binance Spot testnet connectivity.
+Two execution gaps are tracked for Q3/26:
 
-1. Clone the repo and enter the project root:
+- Standalone stop, stop-limit, and take-profit submission through the venue adapter ([Praxis issue #171](https://github.com/Vaquum/Praxis/issues/171))
+- Execution and arrival slippage fields on `TradeOutcome` ([Praxis issue #172](https://github.com/Vaquum/Praxis/issues/172))
+
+## First Run
+
+The first runnable path is the local test suite followed by an event-sourced `Trading` boot against a fresh Event Spine.
+
+1. Clone the repo and install the package with dev dependencies:
 
 ```bash
 git clone https://github.com/Vaquum/Praxis.git
 cd Praxis
-```
-
-2. Install the package and dev dependencies:
-
-If you use `uv`:
-
-```bash
 uv pip install -e ".[dev]"
 ```
 
-Run the default test suite with the same toolchain:
+Praxis requires Python `>=3.12` and installs its venue, persistence, and observability dependencies from `pyproject.toml`, including `vaquum-nexus` pinned from GitHub; the package is not published on PyPI. The `dev` extra adds the test toolchain, and `pip install -e ".[dev]"` with `python -m pytest` works equally if `uv` is not available. No venue credentials are needed for the install, the test suite, or the first boot; report security concerns through the Vulnerabilities section below.
+
+1. Run the default test suite:
 
 ```bash
 uv run pytest
 ```
 
-If you do not use `uv`, use `pip` instead:
+1. Boot the event-sourced runtime against a fresh Event Spine, which writes `event_spine.sqlite` to the current directory:
 
 ```bash
-pip install -e ".[dev]"
+uv run python - <<'EOF'
+import asyncio
+
+import aiosqlite
+
+from praxis import Trading, TradingConfig
+from praxis.infrastructure.event_spine import EventSpine
+
+
+async def main() -> None:
+    async with aiosqlite.connect('event_spine.sqlite') as conn:
+        spine = EventSpine(conn)
+        trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+        await trading.start()
+        await trading.stop()
+
+
+asyncio.run(main())
+EOF
 ```
 
-Then run the default test suite:
+1. Optionally verify Binance Spot testnet access with credentials in `.env` or shell exports:
 
 ```bash
-python -m pytest
-```
-
-3. Optionally verify Binance Spot testnet access:
-
-```bash
-# Option A: .env file in repo root (gitignored)
 echo 'BINANCE_TESTNET_API_KEY=your_key' >> .env
 echo 'BINANCE_TESTNET_API_SECRET=your_secret' >> .env
-
-# Option B: shell exports
-export BINANCE_TESTNET_API_KEY='your_key'
-export BINANCE_TESTNET_API_SECRET='your_secret'
-
-# Run testnet checks explicitly with uv
 uv run pytest tests/testnet/ -v -o 'addopts='
-
-# Or, if you used pip instead of uv
-python -m pytest tests/testnet/ -v -o 'addopts='
 ```
 
-That path verifies the current implementation as it exists today: local execution logic by default, then Binance Spot testnet connectivity when credentials and network access are available.
+That path verifies the implementation as it exists today: local execution logic by default, then Binance Spot testnet connectivity when credentials and network access are available. Beyond the first run, `praxis.launcher` boots the full per-account runtime with Nexus decision wiring, and the `praxis.binsim` package serves an in-process Binance-shaped venue for offline paper trading.
 
-## Learn More
+## Risk Boundary
 
-- Start with the docs hub in [docs/README.md](docs/README.md)
-- For contributor-facing docs, start with [docs/Developer/README.md](docs/Developer/README.md)
-- Start with RFC-4001 in [Praxis issue #1](https://github.com/Vaquum/Praxis/issues/1)
-- Review current technical debt in [docs/TechnicalDebt.md](docs/TechnicalDebt.md)
-- Read the runtime entry points in [praxis/trading.py](praxis/trading.py), [praxis/launcher.py](praxis/launcher.py), and [praxis/trading_inbound.py](praxis/trading_inbound.py)
-- Read the execution core in [praxis/core/execution_manager.py](praxis/core/execution_manager.py) and [praxis/core/trading_state.py](praxis/core/trading_state.py)
-- Read persistence and venue integration in [praxis/infrastructure/event_spine.py](praxis/infrastructure/event_spine.py), [praxis/infrastructure/binance_adapter.py](praxis/infrastructure/binance_adapter.py), and [praxis/infrastructure/binance_ws.py](praxis/infrastructure/binance_ws.py)
-- Review integration and testnet expectations in [tests/test_launcher.py](tests/test_launcher.py) and [tests/testnet](tests/testnet)
+Praxis is research software. Paper-trading, simulation, and replay outputs are not investment advice, trading advice, live-execution guarantees, regulatory approval, or a promise of future performance. Past performance is not predictive, and trading digital assets can result in total loss of capital.
+
+## Learn more
+
+- Start with the documentation hub in [docs/README.md](https://github.com/Vaquum/Praxis/blob/main/docs/README.md)
+- See the target design in [RFC-4001](https://github.com/Vaquum/Praxis/issues/1) and known constraints in [TechnicalDebt.md](https://github.com/Vaquum/Praxis/blob/main/docs/TechnicalDebt.md)
+- Start with [Setup-And-Verification.md](https://github.com/Vaquum/Praxis/blob/main/docs/Setup-And-Verification.md) and the runtime walkthroughs in [Trading.md](https://github.com/Vaquum/Praxis/blob/main/docs/Trading.md) and [Trade-Lifecycle.md](https://github.com/Vaquum/Praxis/blob/main/docs/Trade-Lifecycle.md)
+- Use [Event-Spine.md](https://github.com/Vaquum/Praxis/blob/main/docs/Event-Spine.md) and [Trading-State.md](https://github.com/Vaquum/Praxis/blob/main/docs/Trading-State.md) for persistence and projections
+- Use [Execution-Manager.md](https://github.com/Vaquum/Praxis/blob/main/docs/Execution-Manager.md) for the execution core and [Venue-Adapter.md](https://github.com/Vaquum/Praxis/blob/main/docs/Venue-Adapter.md) for venue integration
+- Strengthen recovery understanding with [Recovery-And-Reconciliation.md](https://github.com/Vaquum/Praxis/blob/main/docs/Recovery-And-Reconciliation.md) and [Health.md](https://github.com/Vaquum/Praxis/blob/main/docs/Health.md)
+- Analyze execution quality with [Slippage-And-Order-Book.md](https://github.com/Vaquum/Praxis/blob/main/docs/Slippage-And-Order-Book.md) and [Trade-Outcomes.md](https://github.com/Vaquum/Praxis/blob/main/docs/Trade-Outcomes.md)
+- Simulate the venue offline with [Binsim.md](https://github.com/Vaquum/Praxis/blob/main/docs/Binsim.md) and verify connectivity with [Binance-Spot-Testnet.md](https://github.com/Vaquum/Praxis/blob/main/docs/Binance-Spot-Testnet.md)
+- Read the runtime entry points in [praxis/trading.py](https://github.com/Vaquum/Praxis/blob/main/praxis/trading.py), [praxis/launcher.py](https://github.com/Vaquum/Praxis/blob/main/praxis/launcher.py), and [praxis/trading_inbound.py](https://github.com/Vaquum/Praxis/blob/main/praxis/trading_inbound.py)
+- Contribute through the [Developer docs](https://github.com/Vaquum/Praxis/blob/main/docs/Developer/README.md)
 
 ## Contributing
 
-The clearest way to contribute is to work from the gap between RFC-4001 and the current implementation: unsupported execution modes, broader reconciliation and health workflows, and the missing Account sub-system.
+Contribution starts from the gap between [RFC-4001](https://github.com/Vaquum/Praxis/issues/1) and the current implementation, through [open issues](https://github.com/Vaquum/Praxis/issues) and [docs changes](https://github.com/Vaquum/Praxis/tree/main/docs). Before contributing, read the code first — the current implementation is the source of truth where it conflicts with the RFC — and start with the [Developer docs](https://github.com/Vaquum/Praxis/blob/main/docs/Developer/README.md).
 
-Before making changes, read the code first and treat the current implementation as the source of truth when it conflicts with the RFC.
+## Support
+
+Use [GitHub issues](https://github.com/Vaquum/Praxis/issues) for support requests and scope questions.
 
 ## Vulnerabilities
 
-Report vulnerabilities privately through [GitHub Security Advisories](https://github.com/Vaquum/Praxis/security/advisories/new).
+Report vulnerabilities privately through [GitHub Security Advisories](https://github.com/Vaquum/Praxis/security/advisories/new). Do not report vulnerabilities through public issues.
+
+## Citations
+
+Published work should cite:
+
+Vaquum Praxis [Computer software]. (2026). Retrieved from [GitHub](https://github.com/Vaquum/Praxis).
 
 ## License
 
