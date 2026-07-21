@@ -79,13 +79,13 @@ uv pip install -e ".[dev]"
 
 Praxis requires Python `>=3.12` and installs its venue, persistence, and observability dependencies from `pyproject.toml`, including `vaquum-nexus` pinned from GitHub; the package is not published on PyPI. The `dev` extra adds the test toolchain, and `pip install -e ".[dev]"` with `python -m pytest` works equally if `uv` is not available. No venue credentials are needed for the install, the test suite, or the first boot; report security concerns through the Vulnerabilities section below.
 
-1. Run the default test suite:
+2. Run the default test suite:
 
 ```bash
 uv run pytest
 ```
 
-1. Boot the event-sourced runtime against a fresh Event Spine, which writes `event_spine.sqlite` to the current directory:
+3. Boot the event-sourced runtime against a fresh Event Spine, which writes `event_spine.sqlite` to the current directory:
 
 ```bash
 uv run python - <<'EOF'
@@ -109,7 +109,7 @@ asyncio.run(main())
 EOF
 ```
 
-1. Optionally verify Binance Spot testnet access with credentials in `.env` or shell exports:
+4. Optionally verify Binance Spot testnet access with credentials in `.env` or shell exports:
 
 ```bash
 echo 'BINANCE_TESTNET_API_KEY=your_key' >> .env
