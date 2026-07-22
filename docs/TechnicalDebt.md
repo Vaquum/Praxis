@@ -1069,3 +1069,14 @@ WP-0005 introduces `PRAGMA user_version` migrations that are additive and fail-c
 
 **When to fix**: when a caller needs a cheap pre-enqueue reject (e.g. the launcher or a fast-path that rejects submits for a poisoned account before they queue), or drop it if none emerges.
 **Migration**: wire it into a pre-submit fast-reject, or remove it and assert the invariant through the writer behaviour only.
+
+## TD-120: Scheduled VWAP ships without live volume tracking or participation cap
+
+**Origin**: WP-Praxis-0007 scope decision (Phase 1 VWAP)
+**Severity**: Low (Phase 1 executes a strategy-supplied volume curve with adaptive placement; correct but not volume-adaptive)
+**Module**: Scheduled VWAP mode execution; cross-repo with Nexus market-data forwarding
+
+Scheduled VWAP Phase 1 executes a strategy-supplied static volume-weight curve with adaptive passive/aggressive placement and own-fill-progress catch-up. It does not track realized market volume in real time and enforces no percentage-of-volume (POV) participation cap, because Praxis has no live volume feed — Origo volume lives in the Manager/Nexus layer.
+
+**When to fix**: before VWAP runs on size where market-impact/participation control matters, or when benchmarking execution against market VWAP is required.
+**Migration**: add a Nexus-to-Praxis realized-volume forwarding channel for active VWAP algorithms; Praxis then layers realized-volume schedule tracking (dynamic catch-up) plus a POV cap onto the Phase 1 curve and placement, benchmarked to market VWAP in bps.
