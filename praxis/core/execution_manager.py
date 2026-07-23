@@ -50,6 +50,7 @@ from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.trade_pnl import TradePnL
+from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
@@ -929,7 +930,7 @@ class ExecutionManager:
         qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
-        execution_params: SingleShotParams,
+        execution_params: ExecutionParams,
         timeout: int,
         reference_price: Decimal | None,
         maker_preference: MakerPreference,
@@ -954,7 +955,7 @@ class ExecutionManager:
                 `qty`.
             order_type (OrderType): Order type.
             execution_mode (ExecutionMode): Execution strategy.
-            execution_params (SingleShotParams): Mode-specific parameters.
+            execution_params (ExecutionParams): Mode-specific parameters.
             timeout (int): Execution deadline in seconds.
             reference_price (Decimal | None): Optional reference price.
             maker_preference (MakerPreference): Maker/taker preference.
@@ -1271,6 +1272,8 @@ class ExecutionManager:
                 avg_fill_price=None,
                 reason=reject_reason,
             )
+
+        assert isinstance(cmd.execution_params, SingleShotParams)
 
         estimate = None
         try:

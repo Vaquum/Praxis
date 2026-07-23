@@ -9,6 +9,7 @@ enqueueing.
 from __future__ import annotations
 
 from praxis.core.domain.enums import ExecutionMode, MakerPreference, OrderSide, OrderType
+from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
@@ -30,24 +31,16 @@ _ALLOWED_ORDER_TYPES: dict[ExecutionMode, frozenset[OrderType]] = {
     ExecutionMode.BRACKET: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
-            OrderType.STOP,
-            OrderType.STOP_LIMIT,
         }
     ),
     ExecutionMode.TWAP: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
         }
     ),
     ExecutionMode.SCHEDULED_VWAP: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
         }
     ),
     ExecutionMode.ICEBERG: frozenset(
@@ -58,14 +51,11 @@ _ALLOWED_ORDER_TYPES: dict[ExecutionMode, frozenset[OrderType]] = {
     ExecutionMode.TIME_DCA: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
         }
     ),
     ExecutionMode.LADDER_DCA: frozenset(
         {
             OrderType.LIMIT,
-            OrderType.STOP_LIMIT,
         }
     ),
 }
@@ -204,6 +194,9 @@ def _validate_single_shot_params(cmd: TradeCommand) -> None:
     '''
 
     params = cmd.execution_params
+    if not isinstance(params, SingleShotParams):
+        return
+
     ot = cmd.order_type
 
     if ot in _PRICE_REQUIRED_TYPES and params.price is None:
@@ -295,7 +288,8 @@ def _validate_venue_filters(
         msg = f"qty {cmd.qty} is above lot maximum {filters.lot_max}"
         raise ValueError(msg)
 
-    price = cmd.execution_params.price
+    params = cmd.execution_params
+    price = params.price if isinstance(params, SingleShotParams) else None
 
     if price is not None and cmd.order_type != OrderType.MARKET:
         if price % filters.tick_size != 0:

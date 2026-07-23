@@ -39,7 +39,9 @@ from praxis.core.domain.events import (
 )
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account
+from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
@@ -334,7 +336,9 @@ class TestSubmitCommand:
             **_CMD_KWARGS,
             'execution_mode': ExecutionMode.ICEBERG,
             'order_type': OrderType.MARKET,
-            'execution_params': SingleShotParams(),
+            'execution_params': IcebergParams(
+                display_qty=Decimal('0.1'), limit_price=Decimal('50000'),
+            ),
         }
         with pytest.raises(ValueError, match='ICEBERG does not support'):
             await mgr.submit_command(**bad)
@@ -1499,7 +1503,12 @@ class TestModeDispatch:
             venue_adapter=adapter, on_trade_outcome=callback,
         )
         mgr.register_account(_ACCT)
-        kwargs = {**_CMD_KWARGS, 'execution_mode': ExecutionMode.TWAP}
+        kwargs = {
+            **_CMD_KWARGS,
+            'execution_mode': ExecutionMode.TWAP,
+            'order_type': OrderType.MARKET,
+            'execution_params': TwapParams(num_slices=2, interval_seconds=30),
+        }
         await mgr.submit_command(**kwargs)
 
         await asyncio.sleep(0.3)

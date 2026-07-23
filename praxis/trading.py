@@ -23,7 +23,7 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.core.domain.position import Position
-from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
@@ -1103,7 +1103,7 @@ class Trading:
         qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
-        execution_params: SingleShotParams,
+        execution_params: ExecutionParams,
         timeout: int,
         reference_price: Decimal | None,
         maker_preference: MakerPreference,

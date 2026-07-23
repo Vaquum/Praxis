@@ -87,7 +87,7 @@ from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.command_translator import (
-    build_single_shot_params,
+    build_execution_params,
     translate_execution_mode,
     translate_maker_preference,
     translate_order_side,
@@ -361,13 +361,14 @@ def _build_praxis_outbound(
         command_id: str | None = None,
         **kwargs: Any,
     ) -> str:
+        mode = translate_execution_mode(execution_mode)
         return await trading.submit_command(
             side=translate_order_side(side),
             order_type=translate_order_type(order_type),
-            execution_mode=translate_execution_mode(execution_mode),
+            execution_mode=mode,
             maker_preference=translate_maker_preference(maker_preference),
             stp_mode=translate_stp_mode(stp_mode),
-            execution_params=build_single_shot_params(execution_params),
+            execution_params=build_execution_params(mode, execution_params),
             command_id=command_id,
             **kwargs,
         )
