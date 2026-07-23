@@ -8,9 +8,16 @@ enqueueing.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from praxis.core.domain.enums import ExecutionMode, MakerPreference, OrderSide, OrderType
+from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.domain.twap_params import TwapParams
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
 __all__ = ['validate_trade_command']
@@ -120,11 +127,15 @@ def validate_trade_command(
 
     if cmd.execution_mode == ExecutionMode.SINGLE_SHOT:
         _validate_single_shot_params(cmd)
+    else:
+        _validate_mode_params(cmd)
 
     _validate_maker_preference(cmd)
 
     if filters is not None:
         _validate_venue_filters(cmd, filters)
+        if cmd.execution_mode != ExecutionMode.SINGLE_SHOT:
+            _validate_mode_venue_filters(cmd, filters)
 
 
 def _validate_quote_native_shape(cmd: TradeCommand) -> None:
@@ -299,3 +310,100 @@ def _validate_venue_filters(
         if price * cmd.qty < filters.min_notional:
             msg = f"notional {price * cmd.qty} is below minimum {filters.min_notional}"
             raise ValueError(msg)
+
+
+def _validate_mode_params(cmd: TradeCommand) -> None:
+    '''
+    Validate non-single-shot params against the command shape.
+
+    Multi-slice and multi-level modes size their children from the base
+    command quantity, so a quote-native command has no quantity to divide;
+    Iceberg cannot display more than the total quantity.
+
+    Args:
+        cmd (TradeCommand): Command to validate.
+
+    Raises:
+        ValueError: If the command is quote-native, or the iceberg display
+            quantity exceeds the command quantity.
+    '''
+
+    if cmd.is_quote_native:
+        msg = f'{cmd.execution_mode.value} requires a base qty; quote_qty is not supported'
+        raise ValueError(msg)
+
+    params = cmd.execution_params
+
+    if isinstance(params, IcebergParams):
+        assert cmd.qty is not None
+        if params.display_qty > cmd.qty:
+            msg = f'iceberg display_qty {params.display_qty} exceeds command qty {cmd.qty}'
+            raise ValueError(msg)
+
+
+def _validate_mode_venue_filters(cmd: TradeCommand, filters: SymbolFilters) -> None:
+    '''
+    Validate per-child sizes and prices for non-single-shot modes.
+
+    Checks each slice, tranche, or level against the venue lot minimum,
+    tick size, and minimum notional. Market slices carry no price, so only
+    their quantity is checked.
+
+    Args:
+        cmd (TradeCommand): Command to validate.
+        filters (SymbolFilters): Venue filters for the symbol.
+
+    Raises:
+        ValueError: If any child quantity, price, or notional violates a filter.
+    '''
+
+    assert cmd.qty is not None
+    params = cmd.execution_params
+
+    if isinstance(params, TwapParams):
+        _check_lot_min(cmd.qty / params.num_slices, filters, 'TWAP slice qty')
+
+    elif isinstance(params, TimeDcaParams):
+        _check_lot_min(cmd.qty / params.num_iterations, filters, 'Time DCA slice qty')
+
+    elif isinstance(params, ScheduledVwapParams):
+        for weight in params.volume_weights:
+            _check_lot_min(cmd.qty * weight, filters, 'VWAP slice qty')
+
+    elif isinstance(params, IcebergParams):
+        _check_lot_min(params.display_qty, filters, 'iceberg display_qty')
+        _check_tick(params.limit_price, filters, 'iceberg limit_price')
+        _check_min_notional(params.display_qty * params.limit_price, filters, 'iceberg tranche')
+
+    elif isinstance(params, LadderDcaParams):
+        levels = params.price_levels
+        weights = params.level_weights
+        for index, price in enumerate(levels):
+            level_qty = cmd.qty * weights[index] if weights is not None else cmd.qty / len(levels)
+            _check_lot_min(level_qty, filters, 'ladder level qty')
+            _check_tick(price, filters, 'ladder price level')
+            _check_min_notional(level_qty * price, filters, 'ladder level')
+
+
+def _check_lot_min(qty: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a child quantity is below the venue lot minimum.'''
+
+    if qty < filters.lot_min:
+        msg = f'{label} {qty} is below lot minimum {filters.lot_min}'
+        raise ValueError(msg)
+
+
+def _check_tick(price: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a price is not a multiple of the venue tick size.'''
+
+    if price % filters.tick_size != 0:
+        msg = f'{label} {price} is not a multiple of tick size {filters.tick_size}'
+        raise ValueError(msg)
+
+
+def _check_min_notional(notional: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a child notional is below the venue minimum.'''
+
+    if notional < filters.min_notional:
+        msg = f'{label} notional {notional} is below minimum {filters.min_notional}'
+        raise ValueError(msg)

@@ -1092,24 +1092,13 @@ BRACKET, TWAP, TIME_DCA, and SCHEDULED_VWAP carry no field for an entry LIMIT pr
 **When to fix**: before those modes execute with a non-market entry — a BRACKET LIMIT/STOP entry, LIMIT-priced TWAP/DCA/VWAP slices, or a stop-triggered LADDER_DCA.
 **Migration**: add the missing price fields (a BracketParams entry price / entry stop, a per-slice limit for the slicing modes, a per-level stop trigger for LADDER_DCA), validate them per order_type, then widen `_ALLOWED_ORDER_TYPES`.
 
-## TD-122: Venue-filter validation covers only single-shot prices
-
-**Origin**: WP-Praxis-0007 (per-mode params slice)
-**Severity**: Low (modes do not execute yet; the single-shot path is fully filtered)
-**Module**: `praxis/core/validate_trade_command.py` (`_validate_venue_filters`)
-
-Venue tick-size and min-notional checks read only `SingleShotParams.price`. `IcebergParams.limit_price`, `LadderDcaParams.price_levels`, and any future entry prices are not checked against the symbol's `PRICE_FILTER`/`NOTIONAL`, and cross-field rules (display_qty versus command qty, per-level notional) do not exist.
-
-**When to fix**: with the WP-Praxis-0007 shared parameter-validation work item, before iceberg/ladder execute against the venue.
-**Migration**: extend `_validate_venue_filters` (or a per-mode validator) to check every mode's price fields against venue filters and add the cross-field bounds.
-
-## TD-123: Quote-native slicing semantics undefined for multi-slice modes
+## TD-123: Quote-native slicing intentionally unsupported
 
 **Origin**: WP-Praxis-0007 (per-mode params slice; Codex review)
-**Severity**: Low (multi-slice modes do not execute yet)
-**Module**: `praxis/core/validate_trade_command.py`, the slicing-mode executors (future)
+**Severity**: Low (deliberate limitation, enforced fail-closed)
+**Module**: `praxis/core/validate_trade_command.py` (`_validate_mode_params`)
 
-The MARKET slicing modes (TWAP, TIME_DCA, SCHEDULED_VWAP) accept a quote-native command (`quote_qty` instead of `qty`), but their parameter contracts describe splitting a base command quantity across slices. How a quote spend divides across slices (equal quote per slice, venue-computed base, and so on) is undefined.
+Multi-slice and multi-level modes size their children from the base command quantity, so a quote-native command (`quote_qty` instead of `qty`) has no quantity to divide. `_validate_mode_params` rejects quote-native commands for every non-single-shot mode; quote-native slicing semantics (equal quote per slice, venue-computed base, and so on) are not defined.
 
-**When to fix**: before enabling a slicing mode on quote-native commands.
-**Migration**: define quote-native slicing semantics per mode, or restrict slicing modes to base-`qty` commands in validation until defined.
+**When to fix**: only if a strategy needs quote-native slicing.
+**Migration**: define per-mode quote-native slicing semantics and lift the restriction in `_validate_mode_params`.

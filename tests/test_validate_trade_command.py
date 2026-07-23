@@ -547,3 +547,125 @@ class TestQuoteNativeShape:
             _quote_native_cmd(quote_qty=Decimal('10')),
             filters=_FILTERS,
         )
+
+
+class TestModeParams:
+    def test_non_single_shot_rejects_quote_native(self) -> None:
+        cmd = TradeCommand(
+            command_id='cmd-003',
+            trade_id='trade-003',
+            account_id='acct-001',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=None,
+            quote_qty=Decimal('100'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.TWAP,
+            execution_params=TwapParams(num_slices=2, interval_seconds=30),
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_NOW,
+        )
+        with pytest.raises(ValueError, match='requires a base qty'):
+            validate_trade_command(cmd)
+
+    def test_iceberg_display_cannot_exceed_qty(self) -> None:
+        with pytest.raises(ValueError, match='exceeds command qty'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.ICEBERG,
+                    execution_params=IcebergParams(
+                        display_qty=Decimal('2'), limit_price=Decimal('50000'),
+                    ),
+                    qty=Decimal('1'),
+                ),
+            )
+
+    def test_twap_valid_slices_pass_and_dust_slice_rejected(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.MARKET,
+                execution_mode=ExecutionMode.TWAP,
+                execution_params=TwapParams(num_slices=2, interval_seconds=30),
+                qty=Decimal('0.010'),
+            ),
+            filters=_FILTERS,
+        )
+        with pytest.raises(ValueError, match='TWAP slice qty'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.MARKET,
+                    execution_mode=ExecutionMode.TWAP,
+                    execution_params=TwapParams(num_slices=100, interval_seconds=30),
+                    qty=Decimal('0.010'),
+                ),
+                filters=_FILTERS,
+            )
+
+    def test_vwap_dust_slice_rejected(self) -> None:
+        with pytest.raises(ValueError, match='VWAP slice qty'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.MARKET,
+                    execution_mode=ExecutionMode.SCHEDULED_VWAP,
+                    execution_params=ScheduledVwapParams(
+                        interval_seconds=60,
+                        volume_weights=(Decimal('0.99'), Decimal('0.01')),
+                    ),
+                    qty=Decimal('0.010'),
+                ),
+                filters=_FILTERS,
+            )
+
+    def test_iceberg_venue_filters(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.LIMIT,
+                execution_mode=ExecutionMode.ICEBERG,
+                execution_params=IcebergParams(
+                    display_qty=Decimal('0.010'), limit_price=Decimal('50000.00'),
+                ),
+                qty=Decimal('0.010'),
+            ),
+            filters=_FILTERS,
+        )
+        with pytest.raises(ValueError, match='iceberg limit_price'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.ICEBERG,
+                    execution_params=IcebergParams(
+                        display_qty=Decimal('0.010'), limit_price=Decimal('50000.005'),
+                    ),
+                    qty=Decimal('0.010'),
+                ),
+                filters=_FILTERS,
+            )
+
+    def test_ladder_level_below_notional_rejected(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.LIMIT,
+                execution_mode=ExecutionMode.LADDER_DCA,
+                execution_params=LadderDcaParams(
+                    price_levels=(Decimal('50000.00'), Decimal('49000.00')),
+                ),
+                qty=Decimal('0.002'),
+            ),
+            filters=_FILTERS,
+        )
+        with pytest.raises(ValueError, match='ladder level notional'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.LADDER_DCA,
+                    execution_params=LadderDcaParams(
+                        price_levels=(Decimal('5000.00'), Decimal('4000.00')),
+                    ),
+                    qty=Decimal('0.002'),
+                ),
+                filters=_FILTERS,
+            )
