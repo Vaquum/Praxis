@@ -1080,3 +1080,36 @@ Scheduled VWAP Phase 1 executes a strategy-supplied static volume-weight curve w
 
 **When to fix**: before VWAP runs on size where market-impact/participation control matters, or when benchmarking execution against market VWAP is required.
 **Migration**: add a Nexus-to-Praxis realized-volume forwarding channel for active VWAP algorithms; Praxis then layers realized-volume schedule tracking (dynamic catch-up) plus a POV cap onto the Phase 1 curve and placement, benchmarked to market VWAP in bps.
+
+## TD-121: Non-single-shot entry LIMIT/STOP pricing not modelled
+
+**Origin**: WP-Praxis-0007 (per-mode params slice)
+**Severity**: Low (the mode-order-type allowlist restricts these modes to shapes their params can price, so no unpriced shape can validate)
+**Module**: `praxis/core/domain/bracket_params.py`, `praxis/core/domain/ladder_dca_params.py`, `praxis/core/validate_trade_command.py` (`_ALLOWED_ORDER_TYPES`)
+
+BRACKET, TWAP, TIME_DCA, and SCHEDULED_VWAP carry no field for an entry LIMIT price or entry STOP trigger — those live only on `SingleShotParams`, which these modes do not use — so `_ALLOWED_ORDER_TYPES` restricts them to MARKET. LADDER_DCA carries per-level LIMIT prices (`price_levels`) but no stop trigger, so it is restricted to LIMIT (a STOP_LIMIT ladder would be unrepresentable).
+
+**When to fix**: before those modes execute with a non-market entry — a BRACKET LIMIT/STOP entry, LIMIT-priced TWAP/DCA/VWAP slices, or a stop-triggered LADDER_DCA.
+**Migration**: add the missing price fields (a BracketParams entry price / entry stop, a per-slice limit for the slicing modes, a per-level stop trigger for LADDER_DCA), validate them per order_type, then widen `_ALLOWED_ORDER_TYPES`.
+
+## TD-122: Venue-filter validation covers only single-shot prices
+
+**Origin**: WP-Praxis-0007 (per-mode params slice)
+**Severity**: Low (modes do not execute yet; the single-shot path is fully filtered)
+**Module**: `praxis/core/validate_trade_command.py` (`_validate_venue_filters`)
+
+Venue tick-size and min-notional checks read only `SingleShotParams.price`. `IcebergParams.limit_price`, `LadderDcaParams.price_levels`, and any future entry prices are not checked against the symbol's `PRICE_FILTER`/`NOTIONAL`, and cross-field rules (display_qty versus command qty, per-level notional) do not exist.
+
+**When to fix**: with the WP-Praxis-0007 shared parameter-validation work item, before iceberg/ladder execute against the venue.
+**Migration**: extend `_validate_venue_filters` (or a per-mode validator) to check every mode's price fields against venue filters and add the cross-field bounds.
+
+## TD-123: Quote-native slicing semantics undefined for multi-slice modes
+
+**Origin**: WP-Praxis-0007 (per-mode params slice; Codex review)
+**Severity**: Low (multi-slice modes do not execute yet)
+**Module**: `praxis/core/validate_trade_command.py`, the slicing-mode executors (future)
+
+The MARKET slicing modes (TWAP, TIME_DCA, SCHEDULED_VWAP) accept a quote-native command (`quote_qty` instead of `qty`), but their parameter contracts describe splitting a base command quantity across slices. How a quote spend divides across slices (equal quote per slice, venue-computed base, and so on) is undefined.
+
+**When to fix**: before enabling a slicing mode on quote-native commands.
+**Migration**: define quote-native slicing semantics per mode, or restrict slicing modes to base-`qty` commands in validation until defined.
