@@ -15,6 +15,8 @@ from decimal import Decimal
 
 from praxis.core.domain.enums import OrderStatus
 from praxis.core.domain.events import (
+    SchemeInitialized,
+    SchemeStateChanged,
     CommandAccepted,
     Event,
     FillReceived,
@@ -33,6 +35,7 @@ from praxis.core.domain.events import (
     TradeClosed,
     TradeOutcomeProduced,
 )
+from praxis.core.domain.execution_scheme import ExecutionScheme
 from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 
@@ -46,7 +49,8 @@ _ZERO = Decimal(0)
 class TradingState:
 
     '''
-    Represent in-memory projection of positions and orders from event stream.
+    Represent in-memory projection of positions, orders, and execution
+    schemes from the event stream.
 
     Args:
         account_id (str): Account this projection belongs to.
@@ -62,6 +66,7 @@ class TradingState:
         self.orders: dict[str, Order] = {}
         self.closed_orders: dict[str, Order] = {}
         self.trade_strategy_ids: dict[str, str] = {}
+        self.schemes: dict[str, ExecutionScheme] = {}
         self._positions_lock = threading.Lock()
 
     def snapshot_positions(self) -> dict[tuple[str, str], Position]:
@@ -91,6 +96,14 @@ class TradingState:
         '''
 
         if isinstance(event, CommandAccepted):
+            return
+
+        if isinstance(event, SchemeInitialized):
+            self._on_scheme_initialized(event)
+            return
+
+        if isinstance(event, SchemeStateChanged):
+            self._on_scheme_state_changed(event)
             return
 
         if isinstance(event, OrderSubmitIntent):
@@ -136,6 +149,52 @@ class TradingState:
                 type(event).__name__,
                 self.account_id,
             )
+
+    def _on_scheme_initialized(self, event: SchemeInitialized) -> None:
+
+        '''Create the parent scheme projection from its init event.
+
+        A second init for a command already projected is ignored so a
+        corrupt or replayed duplicate cannot reset progress to defaults.
+        '''
+
+        if event.command_id in self.schemes:
+            _log.warning(
+                'duplicate SchemeInitialized ignored: %s account=%s',
+                event.command_id,
+                self.account_id,
+            )
+            return
+
+        self.schemes[event.command_id] = ExecutionScheme(
+            command_id=event.command_id,
+            trade_id=event.trade_id,
+            execution_mode=event.execution_mode,
+            symbol=event.symbol,
+            side=event.side,
+            total_qty=event.total_qty,
+            slices_total=event.slices_total,
+        )
+
+    def _on_scheme_state_changed(self, event: SchemeStateChanged) -> None:
+
+        '''Apply a progress transition to the parent scheme projection.'''
+
+        scheme = self.schemes.get(event.command_id)
+
+        if scheme is None:
+            _log.warning(
+                'scheme state change for unknown command: %s account=%s',
+                event.command_id,
+                self.account_id,
+            )
+            return
+
+        scheme.cursor = event.cursor
+        scheme.filled_qty = event.filled_qty
+        scheme.active_client_order_ids = event.active_client_order_ids
+        scheme.next_run_at = event.next_run_at
+        scheme.state = event.state
 
     def _get_order(self, event_type: str, client_order_id: str) -> Order | None:
 

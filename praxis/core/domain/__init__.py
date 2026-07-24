@@ -13,6 +13,7 @@ from praxis.core.domain.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
+    SchemeState,
     STPMode,
     TradeStatus,
 )
@@ -27,10 +28,13 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    SchemeInitialized,
+    SchemeStateChanged,
     TradeClosed,
 )
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import PARAMS_FOR_MODE, ExecutionParams
+from praxis.core.domain.execution_scheme import ExecutionScheme
 from praxis.core.domain.fill import Fill
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
@@ -51,6 +55,7 @@ __all__ = [
     'Event',
     'ExecutionMode',
     'ExecutionParams',
+    'ExecutionScheme',
     'Fill',
     'FillReceived',
     'IcebergParams',
@@ -70,6 +75,9 @@ __all__ = [
     'Position',
     'STPMode',
     'ScheduledVwapParams',
+    'SchemeInitialized',
+    'SchemeState',
+    'SchemeStateChanged',
     'SingleShotParams',
     'TimeDcaParams',
     'TradeAbort',

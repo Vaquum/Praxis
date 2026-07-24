@@ -1102,3 +1102,14 @@ Multi-slice and multi-level modes size their children from the base command quan
 
 **When to fix**: only if a strategy needs quote-native slicing.
 **Migration**: define per-mode quote-native slicing semantics and lift the restriction in `_validate_mode_params`.
+
+## TD-124: Scheme producer must land with resume and terminal-outcome emission
+
+**Origin**: WP-Praxis-0007 (scheme-state slice; unstaged review)
+**Severity**: Low (nothing emits `SchemeInitialized` yet, so the constraint is inert today)
+**Module**: `praxis/core/execution_manager.py` (`reconcile_orphan_commands`), the scheme scheduler (future)
+
+Boot recovery excludes a command from orphan cleanup while its scheme is non-terminal (a live scheme to resume). Resume itself is not built — it lands with the scheduler. Two invariants must hold before any code emits `SchemeInitialized`, or a mid-scheme crash strands capital: (1) boot must resume a non-terminal scheme from its replayed state, and (2) a scheme reaching a terminal state must append a terminal `TradeOutcomeProduced` in the same durability unit so the Nexus reservation is released.
+
+**When to fix**: with the scheme scheduler and termination work items, before schemes execute.
+**Migration**: build resume in `_startup_account`, make scheme terminalization emit the parent `TradeOutcomeProduced`, and add a crash-mid-scheme resume test plus a terminal-scheme-releases-reservation test.

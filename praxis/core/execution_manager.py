@@ -27,10 +27,13 @@ from praxis.core.domain.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
+    SchemeState,
     STPMode,
     TradeStatus,
 )
 from praxis.core.domain.events import (
+    SchemeInitialized,
+    SchemeStateChanged,
     CommandAccepted,
     Event,
     FillReceived,
@@ -91,6 +94,11 @@ _TERMINAL_STATUSES = frozenset({
     TradeStatus.CANCELED,
     TradeStatus.REJECTED,
     TradeStatus.EXPIRED,
+})
+_TERMINAL_SCHEME_STATES = frozenset({
+    SchemeState.COMPLETED,
+    SchemeState.CANCELED,
+    SchemeState.FAILED,
 })
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
@@ -556,6 +564,14 @@ class ExecutionManager:
         again leaves an intent without a follow-up will be cleaned up
         on the next boot rather than stranding capital indefinitely.
 
+        A command running a non-terminal multi-slice scheme (a
+        `SchemeInitialized` whose latest `SchemeStateChanged` state is not
+        COMPLETED/CANCELED/FAILED) is never an orphan: it is a live scheme
+        to resume from its replayed state, so it is excluded from both
+        classes. A scheme that reached a terminal state without a terminal
+        `TradeOutcomeProduced` is NOT excluded and falls through to the
+        Class A/B cleanup, so its capital reservation is still released.
+
         Both classes synthesize `TradeOutcome(REJECTED,
         reason='boot_orphan_command')`, written to the spine as
         `TradeOutcomeProduced` and routed through
@@ -578,9 +594,15 @@ class ExecutionManager:
         completed_via_terminal: set[str] = set()
         completed_via_submit: set[str] = set()
 
+        scheme_state: dict[str, SchemeState] = {}
+
         for _seq, event in events:
             if isinstance(event, CommandAccepted):
                 accepted_trade_ids[event.command_id] = event.trade_id
+            elif isinstance(event, SchemeInitialized):
+                scheme_state.setdefault(event.command_id, SchemeState.RUNNING)
+            elif isinstance(event, SchemeStateChanged):
+                scheme_state[event.command_id] = event.state
             elif isinstance(event, OrderSubmitIntent):
                 intent_trade_ids[event.command_id] = event.trade_id
                 intent_clients[event.client_order_id] = event.command_id
@@ -596,14 +618,20 @@ class ExecutionManager:
 
         intent_command_ids = set(intent_trade_ids)
         completed = completed_via_submit | completed_via_terminal
+        live_scheme_ids = {
+            cid for cid, state in scheme_state.items()
+            if state not in _TERMINAL_SCHEME_STATES
+        }
 
         class_a_orphans = [
             cid for cid in accepted_trade_ids
-            if cid not in intent_command_ids and cid not in completed
+            if cid not in intent_command_ids
+            and cid not in completed
+            and cid not in live_scheme_ids
         ]
         class_b_orphans = [
             cid for cid in intent_command_ids
-            if cid not in completed
+            if cid not in completed and cid not in live_scheme_ids
         ]
 
         for command_id in class_a_orphans:

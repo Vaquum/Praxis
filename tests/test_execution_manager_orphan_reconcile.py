@@ -31,15 +31,19 @@ import pytest
 import pytest_asyncio
 
 from praxis.core.domain.enums import (
+    ExecutionMode,
     OrderSide,
     OrderStatus,
     OrderType,
+    SchemeState,
     TradeStatus,
 )
 from praxis.core.domain.events import (
     CommandAccepted,
     OrderSubmitIntent,
     OrderSubmitted,
+    SchemeInitialized,
+    SchemeStateChanged,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -83,6 +87,33 @@ def _command_accepted(
         command_id=command_id,
         trade_id=trade_id,
         strategy_id=strategy_id,
+    )
+
+
+def _scheme_initialized(command_id: str, trade_id: str) -> SchemeInitialized:
+    return SchemeInitialized(
+        account_id=_ACCT,
+        timestamp=_TS,
+        command_id=command_id,
+        trade_id=trade_id,
+        execution_mode=ExecutionMode.TWAP,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        total_qty=Decimal('1'),
+        slices_total=4,
+    )
+
+
+def _scheme_state_changed(command_id: str, state: SchemeState) -> SchemeStateChanged:
+    return SchemeStateChanged(
+        account_id=_ACCT,
+        timestamp=_TS,
+        command_id=command_id,
+        cursor=0,
+        filled_qty=Decimal('0'),
+        active_client_order_ids=(),
+        next_run_at=None,
+        state=state,
     )
 
 
@@ -194,6 +225,102 @@ class TestReconcileOrphanCommands:
 
         callback.assert_not_awaited()
         assert 'cmd-inflight' not in mgr._terminal_commands
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_scheme_command_is_not_orphan(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A command that started a multi-slice scheme is a live
+        scheme to resume, not an orphan — no synthetic rejection.'''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine,
+            epoch_id=_EPOCH,
+            venue_adapter=adapter,
+            on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+
+        events = [
+            (1, _command_accepted('cmd-algo', 'trade-algo')),
+            (2, _scheme_initialized('cmd-algo', 'trade-algo')),
+        ]
+        mgr.replay_events(_ACCT, events)
+
+        await mgr.reconcile_orphan_commands(_ACCT, events)
+
+        callback.assert_not_awaited()
+        assert 'cmd-algo' not in mgr._terminal_commands
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_terminal_scheme_without_outcome_is_reconciled(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A scheme that reached a terminal state without a terminal
+        outcome is not live — it falls through to orphan cleanup so its
+        capital reservation is released.'''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine,
+            epoch_id=_EPOCH,
+            venue_adapter=adapter,
+            on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+
+        events = [
+            (1, _command_accepted('cmd-dead', 'trade-dead')),
+            (2, _scheme_initialized('cmd-dead', 'trade-dead')),
+            (3, _scheme_state_changed('cmd-dead', SchemeState.FAILED)),
+        ]
+        mgr.replay_events(_ACCT, events)
+
+        await mgr.reconcile_orphan_commands(_ACCT, events)
+
+        callback.assert_awaited_once()
+        assert 'cmd-dead' in mgr._terminal_commands
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_live_scheme_with_intent_is_not_orphan(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A non-terminal scheme that already submitted a child intent is
+        live — not a Class-B orphan.'''
+
+        callback = AsyncMock()
+        mgr = ExecutionManager(
+            event_spine=spine,
+            epoch_id=_EPOCH,
+            venue_adapter=adapter,
+            on_trade_outcome=callback,
+        )
+        mgr.register_account(_ACCT)
+
+        events = [
+            (1, _command_accepted('cmd-live', 'trade-live')),
+            (2, _scheme_initialized('cmd-live', 'trade-live')),
+            (3, _order_submit_intent('cmd-live', 'trade-live')),
+        ]
+        mgr.replay_events(_ACCT, events)
+
+        await mgr.reconcile_orphan_commands(_ACCT, events)
+
+        callback.assert_not_awaited()
+        assert 'cmd-live' not in mgr._terminal_commands
 
         await mgr.unregister_account(_ACCT)
 
