@@ -113,13 +113,11 @@ class SchemeState(Enum):
     '''
     Lifecycle state of a multi-slice execution scheme.
 
-    Non-terminal: RUNNING (scheduling and executing children), HELD
-    (paused by a control hold, resumable). Terminal: COMPLETED,
-    CANCELED, FAILED.
+    Non-terminal: RUNNING (scheduling and executing children).
+    Terminal: COMPLETED, CANCELED, FAILED.
     '''
 
     RUNNING = 'RUNNING'
-    HELD = 'HELD'
     COMPLETED = 'COMPLETED'
     CANCELED = 'CANCELED'
     FAILED = 'FAILED'
