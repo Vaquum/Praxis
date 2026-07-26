@@ -41,7 +41,7 @@ from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
@@ -1505,9 +1505,9 @@ class TestModeDispatch:
         mgr.register_account(_ACCT)
         kwargs = {
             **_CMD_KWARGS,
-            'execution_mode': ExecutionMode.TWAP,
+            'execution_mode': ExecutionMode.TIME_DCA,
             'order_type': OrderType.MARKET,
-            'execution_params': TwapParams(num_slices=2, interval_seconds=30),
+            'execution_params': TimeDcaParams(num_iterations=2, interval_seconds=30),
         }
         await mgr.submit_command(**kwargs)
 
@@ -1520,7 +1520,7 @@ class TestModeDispatch:
         assert outcome.status == TradeStatus.REJECTED
         assert outcome.filled_qty == Decimal(0)
         assert outcome.reason is not None
-        assert 'TWAP' in outcome.reason
+        assert 'TIME_DCA' in outcome.reason
         assert 'not yet supported' in outcome.reason
 
         events = await spine.read(_EPOCH, after_seq=0)

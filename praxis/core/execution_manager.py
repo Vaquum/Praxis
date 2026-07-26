@@ -15,6 +15,7 @@ import logging
 import threading
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 
@@ -55,6 +56,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import (
@@ -66,6 +68,7 @@ from praxis.core.generate_client_order_id import (
     generate_client_order_id,
     validate_command_id_for_client_order_id,
 )
+from praxis.core.plan_twap_slices import plan_twap_slices
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
@@ -95,12 +98,8 @@ _TERMINAL_STATUSES = frozenset({
     TradeStatus.REJECTED,
     TradeStatus.EXPIRED,
 })
-_TERMINAL_SCHEME_STATES = frozenset({
-    SchemeState.COMPLETED,
-    SchemeState.CANCELED,
-    SchemeState.FAILED,
-})
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
+_BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
@@ -113,6 +112,34 @@ def _utc_now() -> datetime:
 
 class AccountNotRegisteredError(Exception):
     '''Raised when a command targets an unregistered account_id.'''
+
+
+@dataclass
+class _LiveScheme:
+    '''In-memory scheduler state for a running multi-slice scheme.
+
+    Holds the resolved per-slice plan and the running aggregates that the
+    account coroutine advances between slices. The durable projection of
+    the same progress lives in TradingState.schemes, rebuilt from
+    SchemeInitialized and SchemeStateChanged on replay.
+    '''
+
+    command: TradeCommand
+    slice_qtys: list[Decimal]
+    slices_total: int
+    cursor: int = 0
+    filled_qty: Decimal = _ZERO
+    cumulative_notional: Decimal = _ZERO
+    next_run_at: datetime | None = None
+    state: SchemeState = SchemeState.RUNNING
+
+
+@dataclass(frozen=True)
+class _SliceResult:
+    '''Aggregate fills produced by submitting one child slice.'''
+
+    filled_qty: Decimal
+    cumulative_notional: Decimal
 
 
 class _AccountRuntime:
@@ -147,6 +174,7 @@ class _AccountRuntime:
         self.account_ledger = account_ledger
         self.task: asyncio.Task[None] | None = None
         self.command_to_order: dict[str, str] = {}
+        self.schemes: dict[str, _LiveScheme] = {}
         self.reconciling = False
         self.poisoned = False
 
@@ -564,20 +592,22 @@ class ExecutionManager:
         again leaves an intent without a follow-up will be cleaned up
         on the next boot rather than stranding capital indefinitely.
 
-        A command running a non-terminal multi-slice scheme (a
-        `SchemeInitialized` whose latest `SchemeStateChanged` state is not
-        COMPLETED/CANCELED/FAILED) is never an orphan: it is a live scheme
-        to resume from its replayed state, so it is excluded from both
-        classes. A scheme that reached a terminal state without a terminal
-        `TradeOutcomeProduced` is NOT excluded and falls through to the
-        Class A/B cleanup, so its capital reservation is still released.
+        Class C (incomplete scheme) — any `SchemeInitialized` command
+        without a terminal `TradeOutcomeProduced`. Boot-time resume of a
+        running multi-slice scheme is not yet implemented (TD-124), so a
+        scheme interrupted mid-run cannot be safely resumed: it is
+        terminalized on boot instead — one aggregated CANCELED outcome
+        carrying the fills that did settle (from the child order
+        projections), which releases the parent reservation while
+        preserving the real position. All scheme commands are excluded
+        from Class A/B so the scheme-aware Class C is their sole handler.
 
-        Both classes synthesize `TradeOutcome(REJECTED,
-        reason='boot_orphan_command')`, written to the spine as
-        `TradeOutcomeProduced` and routed through
-        `self._on_trade_outcome` so the launcher's
-        `OutcomeProcessor` releases Nexus's reservation via
-        `order_reject` lookup of the same `command_id`.
+        Class A/B synthesize `TradeOutcome(REJECTED,
+        reason='boot_orphan_command')`; Class C synthesizes
+        `TradeOutcome(CANCELED, reason='boot_incomplete_scheme')`. All are
+        written to the spine as `TradeOutcomeProduced` and routed through
+        `self._on_trade_outcome` so the launcher's `OutcomeProcessor`
+        releases Nexus's reservation via lookup of the same `command_id`.
 
         Args:
             account_id: Account whose events were just replayed.
@@ -594,15 +624,13 @@ class ExecutionManager:
         completed_via_terminal: set[str] = set()
         completed_via_submit: set[str] = set()
 
-        scheme_state: dict[str, SchemeState] = {}
+        scheme_trade_ids: dict[str, str] = {}
 
         for _seq, event in events:
             if isinstance(event, CommandAccepted):
                 accepted_trade_ids[event.command_id] = event.trade_id
             elif isinstance(event, SchemeInitialized):
-                scheme_state.setdefault(event.command_id, SchemeState.RUNNING)
-            elif isinstance(event, SchemeStateChanged):
-                scheme_state[event.command_id] = event.state
+                scheme_trade_ids.setdefault(event.command_id, event.trade_id)
             elif isinstance(event, OrderSubmitIntent):
                 intent_trade_ids[event.command_id] = event.trade_id
                 intent_clients[event.client_order_id] = event.command_id
@@ -618,20 +646,21 @@ class ExecutionManager:
 
         intent_command_ids = set(intent_trade_ids)
         completed = completed_via_submit | completed_via_terminal
-        live_scheme_ids = {
-            cid for cid, state in scheme_state.items()
-            if state not in _TERMINAL_SCHEME_STATES
-        }
+        scheme_command_ids = set(scheme_trade_ids)
 
         class_a_orphans = [
             cid for cid in accepted_trade_ids
             if cid not in intent_command_ids
             and cid not in completed
-            and cid not in live_scheme_ids
+            and cid not in scheme_command_ids
         ]
         class_b_orphans = [
             cid for cid in intent_command_ids
-            if cid not in completed and cid not in live_scheme_ids
+            if cid not in completed and cid not in scheme_command_ids
+        ]
+        class_c_schemes = [
+            cid for cid in scheme_trade_ids
+            if cid not in completed_via_terminal
         ]
 
         for command_id in class_a_orphans:
@@ -646,6 +675,13 @@ class ExecutionManager:
             if trade_id is None:
                 continue
             await self._emit_orphan_rejection(runtime, command_id, trade_id)
+
+        for command_id in class_c_schemes:
+            await self._terminalize_scheme_on_boot(
+                runtime,
+                command_id,
+                scheme_trade_ids[command_id],
+            )
 
     async def _emit_orphan_rejection(
         self,
@@ -688,6 +724,126 @@ class ExecutionManager:
         )
 
         await self._dispatch_outcome_with_retry(outcome, source='orphan')
+
+    def _scheme_fill_totals(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+    ) -> tuple[Decimal, Decimal]:
+        '''Sum filled qty and notional across a scheme's child orders.
+
+        Reads the rebuilt order projections (active and closed) for every
+        child whose `command_id` matches the scheme parent, so the boot
+        terminalization reports the fills that actually settled rather than
+        an in-memory aggregate that a crash discarded.
+        '''
+
+        filled_qty = _ZERO
+        cumulative_notional = _ZERO
+
+        orders = (
+            *runtime.trading_state.orders.values(),
+            *runtime.trading_state.closed_orders.values(),
+        )
+        for order in orders:
+            if order.command_id == command_id:
+                filled_qty += order.filled_qty
+                cumulative_notional += order.cumulative_notional
+
+        return filled_qty, cumulative_notional
+
+    async def _terminalize_scheme_on_boot(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        trade_id: str,
+    ) -> None:
+        '''Terminalize a scheme interrupted mid-run with one CANCELED outcome.
+
+        Boot resume of a running scheme is not yet implemented (TD-124), so
+        a scheme without a terminal outcome is abandoned safely: a terminal
+        `SchemeStateChanged` (CANCELED) plus a single aggregated CANCELED
+        `TradeOutcome` carrying the fills that settled. This releases the
+        parent reservation while leaving the real position in place; the
+        remaining slices never run.
+        '''
+
+        scheme = runtime.trading_state.schemes.get(command_id)
+        if scheme is None:
+            _log.error(
+                'boot scheme terminalize skipped: no projection for '
+                'command_id=%s account=%s',
+                command_id,
+                runtime.account_id,
+            )
+            return
+
+        ts = self._clock()
+        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, command_id)
+        target_qty = scheme.total_qty
+
+        if filled_qty > target_qty:
+            if filled_qty > _ZERO:
+                cumulative_notional = cumulative_notional * target_qty / filled_qty
+            filled_qty = target_qty
+
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        changed = SchemeStateChanged(
+            account_id=runtime.account_id,
+            timestamp=ts,
+            command_id=command_id,
+            cursor=scheme.cursor,
+            filled_qty=filled_qty,
+            active_client_order_ids=(),
+            next_run_at=None,
+            state=SchemeState.CANCELED,
+        )
+        await self._event_spine.append(changed, self._epoch_id)
+        runtime.trading_state.apply(changed)
+
+        produced = TradeOutcomeProduced(
+            account_id=runtime.account_id,
+            timestamp=ts,
+            command_id=command_id,
+            trade_id=trade_id,
+            status=TradeStatus.CANCELED,
+            reason=_BOOT_INCOMPLETE_SCHEME_REASON,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+            target_qty=target_qty,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+        self._terminal_commands.add(command_id)
+
+        outcome = TradeOutcome(
+            command_id=command_id,
+            trade_id=trade_id,
+            account_id=runtime.account_id,
+            status=TradeStatus.CANCELED,
+            target_qty=target_qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=min(scheme.cursor, scheme.slices_total),
+            slices_total=scheme.slices_total,
+            reason=_BOOT_INCOMPLETE_SCHEME_REASON,
+            created_at=ts,
+            cumulative_notional=cumulative_notional,
+        )
+
+        _log.info(
+            'incomplete scheme terminalized at boot: command_id=%s trade_id=%s '
+            'filled=%s account=%s',
+            command_id,
+            trade_id,
+            filled_qty,
+            runtime.account_id,
+        )
+
+        await self._dispatch_outcome_with_retry(outcome, source='boot_scheme')
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
@@ -1176,6 +1332,8 @@ class ExecutionManager:
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
 
+                await self._advance_due_schemes(runtime)
+
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
@@ -1190,7 +1348,10 @@ class ExecutionManager:
                 )
 
                 try:
-                    await self._process_command(runtime, cmd)
+                    if cmd.execution_mode is ExecutionMode.TWAP:
+                        await self._start_twap(runtime, cmd)
+                    else:
+                        await self._process_command(runtime, cmd)
                 except asyncio.CancelledError:
                     raise
                 except Exception:  # noqa: BLE001
@@ -1590,6 +1751,31 @@ class ExecutionManager:
         salvage and for direct venue rejections (round-18 MAJOR-002).
         '''
 
+        await self._append_submit_failed(runtime, cmd, client_order_id, reason)
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.REJECTED,
+            filled_qty=_ZERO,
+            avg_fill_price=None,
+            reason=reason,
+        )
+
+    async def _append_submit_failed(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        reason: str,
+    ) -> None:
+        '''Persist an `OrderSubmitFailed` event and apply it, no outcome.
+
+        The event-only half of a submit failure. Single-shot follows it
+        with a REJECTED `TradeOutcome`; a scheme slice defers the outcome
+        to the scheme's single terminal emission, so it stops here.
+        '''
+
         failed = OrderSubmitFailed(
             account_id=cmd.account_id,
             timestamp=self._clock(),
@@ -1602,14 +1788,6 @@ class ExecutionManager:
             'order submit failed: client_order_id=%s reason=%s',
             client_order_id,
             reason,
-        )
-        return await self._build_outcome(
-            runtime,
-            cmd,
-            TradeStatus.REJECTED,
-            filled_qty=_ZERO,
-            avg_fill_price=None,
-            reason=reason,
         )
 
     async def _rescue_by_client_order_id(
@@ -1693,6 +1871,545 @@ class ExecutionManager:
             immediate_fills=(),
         )
 
+    async def _start_twap(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Begin a TWAP scheme: plan slices, persist init, submit slice 0.
+
+        A pre-submission abort short-circuits to a CANCELED terminal
+        outcome before any child is placed. A planning failure (lot grid
+        too coarse for the requested split) rejects the command. On
+        success `SchemeInitialized` is appended, the live scheduler state
+        is registered, and the first slice is submitted synchronously; the
+        remaining slices fire from `_advance_due_schemes` at their
+        interval.
+        '''
+
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        assert isinstance(cmd.execution_params, TwapParams)
+        slices_total = cmd.execution_params.num_slices
+
+        if abort_reason is not None:
+            _log.info(
+                'twap pre-aborted before first slice: command_id=%s',
+                cmd.command_id,
+            )
+            await self._emit_scheme_terminal(
+                runtime,
+                cmd,
+                status=TradeStatus.CANCELED,
+                filled_qty=_ZERO,
+                cumulative_notional=_ZERO,
+                slices_completed=0,
+                slices_total=slices_total,
+                reason=abort_reason,
+            )
+            return
+
+        assert cmd.qty is not None
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_step = filters.lot_step if filters is not None else None
+
+        try:
+            slice_qtys = plan_twap_slices(cmd.qty, slices_total, lot_step)
+        except ValueError as exc:
+            _log.warning(
+                'twap slice planning failed: command_id=%s reason=%s',
+                cmd.command_id,
+                exc,
+            )
+            await self._emit_scheme_terminal(
+                runtime,
+                cmd,
+                status=TradeStatus.REJECTED,
+                filled_qty=_ZERO,
+                cumulative_notional=_ZERO,
+                slices_completed=0,
+                slices_total=slices_total,
+                reason=f'twap slice planning failed: {exc}',
+            )
+            return
+
+        init = SchemeInitialized(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            execution_mode=cmd.execution_mode,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            slices_total=len(slice_qtys),
+        )
+        await self._event_spine.append(init, self._epoch_id)
+        runtime.trading_state.apply(init)
+
+        scheme = _LiveScheme(
+            command=cmd,
+            slice_qtys=slice_qtys,
+            slices_total=len(slice_qtys),
+        )
+        runtime.schemes[cmd.command_id] = scheme
+
+        _log.info(
+            'twap started: command_id=%s slices=%d interval=%ds',
+            cmd.command_id,
+            scheme.slices_total,
+            cmd.execution_params.interval_seconds,
+        )
+
+        await self._advance_scheme_guarded(runtime, scheme, self._clock())
+
+    async def _advance_due_schemes(self, runtime: _AccountRuntime) -> None:
+        '''Submit the next slice of every scheme whose interval has elapsed.
+
+        Called each account-loop iteration while the account is
+        order-capable. Follow-up slices are timer-driven within the
+        account coroutine (never re-queued as commands), so this is the
+        only path that advances a running scheme after its first slice.
+        '''
+
+        now = self._clock()
+
+        for scheme in list(runtime.schemes.values()):
+            if (
+                scheme.state is not SchemeState.RUNNING
+                or scheme.next_run_at is None
+                or now < scheme.next_run_at
+            ):
+                continue
+
+            await self._advance_scheme_guarded(runtime, scheme, now)
+
+    async def _advance_scheme_guarded(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        now: datetime,
+    ) -> None:
+        '''Advance one scheme, converting any error into a terminal outcome.
+
+        A raw exception from `_advance_scheme` must never leave the scheme
+        RUNNING in `runtime.schemes`: the scheduler would retry the same
+        cursor every poll, and a failure between the venue submit and the
+        durable `SchemeStateChanged` would re-submit the slice (the
+        deterministic client order id makes the venue reject the duplicate,
+        but the spin is still wrong). On error the scheme is finalized
+        FAILED best-effort and removed from the scheduler so it cannot be
+        retried; a boot-time terminalization backstops any append that
+        could not complete here.
+        '''
+
+        try:
+            await self._advance_scheme(runtime, scheme, now)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            command_id = scheme.command.command_id
+            _log.exception(
+                'scheme advance failed; finalizing FAILED: '
+                'command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+            if command_id in runtime.schemes:
+                with contextlib.suppress(Exception):
+                    await self._finalize_scheme(
+                        runtime,
+                        scheme,
+                        status=TradeStatus.REJECTED,
+                        scheme_state=SchemeState.FAILED,
+                        reason='scheme advance error',
+                    )
+                runtime.schemes.pop(command_id, None)
+
+    async def _advance_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        now: datetime,
+    ) -> None:
+        '''Submit the slice at the current cursor and advance the schedule.
+
+        On a slice submit failure the scheme is finalized terminal
+        (REJECTED, scheme FAILED) with the fills gathered so far, so
+        capital is released and the command reaches exactly one terminal
+        outcome. On success the cursor advances; the scheme either
+        schedules its next slice or finalizes FILLED once every slice has
+        been submitted.
+
+        Fill-completeness policy (interim): a slice is only advanced past
+        when its MARKET child fully fills from `immediate_fills`. A child
+        that returns fewer immediate fills than the slice quantity (async
+        or partial venue fill) finalizes the scheme terminal REJECTED with
+        the fills gathered so far — never a false FILLED. Aggregating a
+        child's asynchronous WS fills before advancing lands with the
+        follow-up scheme-fill work (TD-125); until then a slice that does
+        not fully fill immediately terminates the scheme.
+        '''
+
+        index = scheme.cursor
+        slice_qty = scheme.slice_qtys[index]
+        cmd = scheme.command
+
+        result = await self._submit_market_slice(runtime, cmd, index, slice_qty)
+
+        if result is None:
+            await self._finalize_scheme(
+                runtime,
+                scheme,
+                status=TradeStatus.REJECTED,
+                scheme_state=SchemeState.FAILED,
+                reason=f'twap slice {index} failed',
+            )
+            return
+
+        scheme.filled_qty += result.filled_qty
+        scheme.cumulative_notional += result.cumulative_notional
+
+        if result.filled_qty < slice_qty:
+            _log.warning(
+                'twap slice under-filled immediately: command_id=%s slice=%d '
+                'filled=%s slice_qty=%s; finalizing terminal (async fill '
+                'aggregation not yet supported)',
+                cmd.command_id,
+                index,
+                result.filled_qty,
+                slice_qty,
+            )
+            await self._finalize_scheme(
+                runtime,
+                scheme,
+                status=TradeStatus.REJECTED,
+                scheme_state=SchemeState.FAILED,
+                reason=f'twap slice {index} did not fully fill immediately',
+            )
+            return
+
+        scheme.cursor = index + 1
+
+        if scheme.cursor >= scheme.slices_total:
+            await self._finalize_scheme(
+                runtime,
+                scheme,
+                status=TradeStatus.FILLED,
+                scheme_state=SchemeState.COMPLETED,
+                reason=None,
+            )
+            return
+
+        assert isinstance(cmd.execution_params, TwapParams)
+        scheme.next_run_at = now + timedelta(
+            seconds=cmd.execution_params.interval_seconds,
+        )
+
+        changed = SchemeStateChanged(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            cursor=scheme.cursor,
+            filled_qty=scheme.filled_qty,
+            active_client_order_ids=(),
+            next_run_at=scheme.next_run_at,
+            state=SchemeState.RUNNING,
+        )
+        await self._event_spine.append(changed, self._epoch_id)
+        runtime.trading_state.apply(changed)
+
+    async def _submit_market_slice(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        index: int,
+        slice_qty: Decimal,
+    ) -> _SliceResult | None:
+        '''Persist-before-send one MARKET child order for a scheme slice.
+
+        Mirrors the single-shot submit protocol for a single child:
+        `OrderSubmitIntent` before the venue call, `OrderSubmitted` plus
+        one `FillReceived` per immediate fill on success,
+        `OrderSubmitFailed` on a definitive failure. Returns the
+        aggregated fills, or None when the slice could not be placed.
+        '''
+
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode,
+            cmd.command_id,
+            sequence=index,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.MARKET,
+            qty=slice_qty,
+            quote_qty=None,
+            price=None,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.MARKET,
+                slice_qty,
+                price=None,
+                stop_price=None,
+                stop_limit_price=None,
+                client_order_id=client_order_id,
+                quote_qty=None,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                await self._append_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+                return None
+            result = rescued
+            post_venue_ts = self._clock()
+        except VenueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
+            )
+            return None
+        except ValueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+            )
+            return None
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        filled_qty = _ZERO
+        cumulative_notional = _ZERO
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+                filled_qty += fill.qty
+                cumulative_notional += fill.qty * fill.price
+
+        _log.info(
+            'twap slice submitted: command_id=%s slice=%d client_order_id=%s fills=%d',
+            cmd.command_id,
+            index,
+            client_order_id,
+            len(result.immediate_fills),
+        )
+
+        return _SliceResult(
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _finalize_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        *,
+        status: TradeStatus,
+        scheme_state: SchemeState,
+        reason: str | None,
+    ) -> None:
+        '''Emit the terminal scheme transition and the single trade outcome.
+
+        Appends a terminal `SchemeStateChanged`, then the aggregated
+        terminal `TradeOutcome`. Removes the scheme from the live
+        scheduler set so no further slices fire.
+        '''
+
+        cmd = scheme.command
+        scheme.state = scheme_state
+        scheme.next_run_at = None
+        runtime.schemes.pop(cmd.command_id, None)
+
+        changed = SchemeStateChanged(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            cursor=scheme.cursor,
+            filled_qty=scheme.filled_qty,
+            active_client_order_ids=(),
+            next_run_at=None,
+            state=scheme_state,
+        )
+        await self._event_spine.append(changed, self._epoch_id)
+        runtime.trading_state.apply(changed)
+
+        await self._emit_scheme_terminal(
+            runtime,
+            cmd,
+            status=status,
+            filled_qty=scheme.filled_qty,
+            cumulative_notional=scheme.cumulative_notional,
+            slices_completed=scheme.cursor,
+            slices_total=scheme.slices_total,
+            reason=reason,
+        )
+
+    async def _abort_scheme(
+        self,
+        runtime: _AccountRuntime,
+        abort: TradeAbort,
+    ) -> None:
+        '''Abort a running scheme: stop scheduling and finalize CANCELED.
+
+        A `TradeAbort` targeting a live scheme makes it non-schedulable
+        and emits one aggregated CANCELED outcome carrying the fills
+        gathered so far. Under the interim fill-completeness policy every
+        submitted slice has already fully filled (a slice that does not
+        finalizes the scheme), so a live scheme in `runtime.schemes` has
+        no working children to cancel at the venue — the abort only stops
+        future slices. Cancelling still-working children lands with the
+        asynchronous scheme-fill work (TD-125).
+        '''
+
+        scheme = runtime.schemes.get(abort.command_id)
+        if scheme is None:
+            return
+
+        _log.info(
+            'aborting running twap: command_id=%s account_id=%s reason=%s',
+            abort.command_id,
+            runtime.account_id,
+            abort.reason,
+        )
+
+        await self._finalize_scheme(
+            runtime,
+            scheme,
+            status=TradeStatus.CANCELED,
+            scheme_state=SchemeState.CANCELED,
+            reason=abort.reason,
+        )
+
+    async def _emit_scheme_terminal(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        *,
+        status: TradeStatus,
+        filled_qty: Decimal,
+        cumulative_notional: Decimal,
+        slices_completed: int,
+        slices_total: int,
+        reason: str | None,
+    ) -> TradeOutcome:
+        '''Build the aggregated terminal `TradeOutcome` for a scheme command.
+
+        Mirrors `_build_outcome` for a multi-slice parent: clamps an
+        overfill to the command target, records terminal command
+        bookkeeping, closes the position when the aggregated fills reduce
+        it to dust, appends `TradeOutcomeProduced`, and dispatches the
+        single outcome to the Manager callback.
+        '''
+
+        ts = self._clock()
+
+        if cmd.qty is not None and filled_qty > cmd.qty:
+            _log.warning(
+                'scheme overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
+                cmd.command_id,
+                filled_qty,
+                cmd.qty,
+            )
+            if filled_qty > _ZERO:
+                cumulative_notional = cumulative_notional * cmd.qty / filled_qty
+            filled_qty = cmd.qty
+
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        outcome = TradeOutcome(
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            status=status,
+            target_qty=cmd.qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=slices_completed,
+            slices_total=slices_total,
+            reason=reason,
+            created_at=ts,
+            cumulative_notional=cumulative_notional,
+        )
+
+        self._terminal_commands.add(cmd.command_id)
+        self._commands.pop(cmd.command_id, None)
+        self._aborted_commands.pop(cmd.command_id, None)
+
+        if filled_qty > _ZERO and self._closes_position(
+            runtime, cmd.account_id, cmd.trade_id, cmd.side
+        ):
+            closed = TradeClosed(
+                account_id=cmd.account_id,
+                timestamp=ts,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+            )
+            await self._event_spine.append(closed, self._epoch_id)
+            self._project(runtime, closed)
+
+        produced = TradeOutcomeProduced(
+            account_id=cmd.account_id,
+            timestamp=ts,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            status=status,
+            reason=reason,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+            target_qty=cmd.qty,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+
+        await self._dispatch_outcome_with_retry(outcome, source='scheme')
+
+        return outcome
+
     async def _process_abort(
         self,
         runtime: _AccountRuntime,
@@ -1720,6 +2437,10 @@ class ExecutionManager:
                 'abort no-op (command already terminal): command_id=%s',
                 abort.command_id,
             )
+            return None
+
+        if abort.command_id in runtime.schemes:
+            await self._abort_scheme(runtime, abort)
             return None
 
         client_order_id = runtime.command_to_order.get(abort.command_id)
@@ -1903,6 +2624,10 @@ class ExecutionManager:
           `_process_command` path already emitted a terminal — typical
           for MARKET orders that fill immediately, then the WS echo
           arrives later)
+        - The command_id belongs to a live scheme in `runtime.schemes`:
+          a multi-slice parent emits exactly one aggregated terminal
+          outcome from the scheme path, so a per-child WS echo must not
+          synthesize a single-shot outcome for the whole command
         - The originating command or order projection cannot be found
           (defensive — should not happen during normal flow)
         '''
@@ -1920,6 +2645,9 @@ class ExecutionManager:
 
         command_id = order.command_id
         if command_id in self._terminal_commands:
+            return
+
+        if command_id in runtime.schemes:
             return
 
         cmd = self._commands.get(command_id)

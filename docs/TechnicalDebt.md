@@ -1103,13 +1103,24 @@ Multi-slice and multi-level modes size their children from the base command quan
 **When to fix**: only if a strategy needs quote-native slicing.
 **Migration**: define per-mode quote-native slicing semantics and lift the restriction in `_validate_mode_params`.
 
-## TD-124: Scheme producer must land with resume and terminal-outcome emission
+## TD-124: Scheme resume from replayed state not implemented
 
-**Origin**: WP-Praxis-0007 (scheme-state slice; unstaged review)
-**Severity**: Low (nothing emits `SchemeInitialized` yet, so the constraint is inert today)
-**Module**: `praxis/core/execution_manager.py` (`reconcile_orphan_commands`), the scheme scheduler (future)
+**Origin**: WP-Praxis-0007 (TWAP producer slice; unstaged review)
+**Severity**: Medium (TWAP now emits `SchemeInitialized`; a mid-run restart abandons the scheme instead of resuming it)
+**Module**: `praxis/core/execution_manager.py` (`replay_events`, `reconcile_orphan_commands`, the scheme scheduler)
 
-Boot recovery excludes a command from orphan cleanup while its scheme is non-terminal (a live scheme to resume). Resume itself is not built — it lands with the scheduler. Two invariants must hold before any code emits `SchemeInitialized`, or a mid-scheme crash strands capital: (1) boot must resume a non-terminal scheme from its replayed state, and (2) a scheme reaching a terminal state must append a terminal `TradeOutcomeProduced` in the same durability unit so the Nexus reservation is released.
+Boot resume of a running multi-slice scheme is not built. `replay_events` does not rebuild the in-memory `_LiveScheme` from `SchemeInitialized` + latest `SchemeStateChanged`, and `SchemeInitialized` does not persist the mode parameters (e.g. TWAP `interval_seconds`) needed to reconstruct the schedule. Until resume lands, a scheme without a terminal outcome is terminalized on boot (`reconcile_orphan_commands` Class C — one aggregated CANCELED `TradeOutcome` from the child-order projections), which releases the parent reservation and keeps the real position but abandons the remaining slices. This is safe, not correct: a restart mid-TWAP does not complete the order.
 
-**When to fix**: with the scheme scheduler and termination work items, before schemes execute.
-**Migration**: build resume in `_startup_account`, make scheme terminalization emit the parent `TradeOutcomeProduced`, and add a crash-mid-scheme resume test plus a terminal-scheme-releases-reservation test.
+**When to fix**: before live multi-slice trading. Requires persisting resume params (a `params_json` field on `SchemeInitialized`, rebuilt via the per-mode param class), rebuilding `_LiveScheme` on replay with the remaining slices replanned, and re-registering the scheme so the scheduler resumes.
+**Migration**: add durable params to `SchemeInitialized`; rebuild `runtime.schemes` in `replay_events`; drop the Class C terminalization for schemes that can resume; add a crash-mid-scheme resume test.
+
+## TD-125: Scheme child fills counted only from immediate_fills
+
+**Origin**: WP-Praxis-0007 (TWAP producer slice; unstaged review)
+**Severity**: Medium (a MARKET child that does not fully fill synchronously terminates the scheme rather than completing)
+**Module**: `praxis/core/execution_manager.py` (`_submit_market_slice`, `_advance_scheme`, `_emit_ws_outcome`)
+
+A scheme slice aggregates only the fills carried in the venue `submit_order` response (`immediate_fills`). Interim policy: a slice whose child does not fully fill immediately finalizes the scheme terminal (REJECTED) with the fills gathered so far — never a false FILLED — and a child's asynchronous WS `executionReport` fills are dropped from single-shot outcome emission (`_emit_ws_outcome` skips live-scheme commands) but are not yet aggregated into the scheme. This is safe for MARKET orders that return full `immediate_fills` (the current Binance FULL-response path) but wrong for partial or ACK-only responses.
+
+**When to fix**: before a mode with resting children (Iceberg, Ladder) or any venue/config that returns child fills asynchronously.
+**Migration**: track active children per scheme, route their WS fills into the scheme aggregate, and finalize only once every slice is submitted and every child has settled; then advance TWAP on schedule while finalizing on fills.

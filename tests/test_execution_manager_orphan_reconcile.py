@@ -229,13 +229,17 @@ class TestReconcileOrphanCommands:
         await mgr.unregister_account(_ACCT)
 
     @pytest.mark.asyncio
-    async def test_scheme_command_is_not_orphan(
+    async def test_incomplete_scheme_is_terminalized_on_boot(
         self,
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
-        '''A command that started a multi-slice scheme is a live
-        scheme to resume, not an orphan — no synthetic rejection.'''
+        '''A scheme without a terminal outcome is terminalized on boot.
+
+        Boot resume is not yet implemented (TD-124), so an interrupted
+        scheme is abandoned with one aggregated CANCELED outcome that
+        releases its reservation, not left live.
+        '''
 
         callback = AsyncMock()
         mgr = ExecutionManager(
@@ -254,8 +258,13 @@ class TestReconcileOrphanCommands:
 
         await mgr.reconcile_orphan_commands(_ACCT, events)
 
-        callback.assert_not_awaited()
-        assert 'cmd-algo' not in mgr._terminal_commands
+        callback.assert_awaited_once()
+        outcome = callback.call_args[0][0]
+        assert outcome.status is TradeStatus.CANCELED
+        assert outcome.reason == 'boot_incomplete_scheme'
+        assert outcome.filled_qty == Decimal('0')
+        assert 'cmd-algo' in mgr._terminal_commands
+        assert mgr.get_trading_state(_ACCT).schemes['cmd-algo'].state is SchemeState.CANCELED
 
         await mgr.unregister_account(_ACCT)
 
@@ -265,9 +274,8 @@ class TestReconcileOrphanCommands:
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
-        '''A scheme that reached a terminal state without a terminal
-        outcome is not live — it falls through to orphan cleanup so its
-        capital reservation is released.'''
+        '''A scheme at a terminal state but without a terminal outcome is
+        still terminalized on boot so its reservation is released.'''
 
         callback = AsyncMock()
         mgr = ExecutionManager(
@@ -288,18 +296,19 @@ class TestReconcileOrphanCommands:
         await mgr.reconcile_orphan_commands(_ACCT, events)
 
         callback.assert_awaited_once()
+        assert callback.call_args[0][0].status is TradeStatus.CANCELED
         assert 'cmd-dead' in mgr._terminal_commands
 
         await mgr.unregister_account(_ACCT)
 
     @pytest.mark.asyncio
-    async def test_live_scheme_with_intent_is_not_orphan(
+    async def test_scheme_with_terminal_outcome_is_not_reconciled(
         self,
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
-        '''A non-terminal scheme that already submitted a child intent is
-        live — not a Class-B orphan.'''
+        '''A scheme that already emitted a terminal outcome is complete —
+        boot must not synthesize a second outcome for it.'''
 
         callback = AsyncMock()
         mgr = ExecutionManager(
@@ -311,16 +320,16 @@ class TestReconcileOrphanCommands:
         mgr.register_account(_ACCT)
 
         events = [
-            (1, _command_accepted('cmd-live', 'trade-live')),
-            (2, _scheme_initialized('cmd-live', 'trade-live')),
-            (3, _order_submit_intent('cmd-live', 'trade-live')),
+            (1, _command_accepted('cmd-done', 'trade-done')),
+            (2, _scheme_initialized('cmd-done', 'trade-done')),
+            (3, _order_submit_intent('cmd-done', 'trade-done')),
+            (4, _terminal_outcome('cmd-done', 'trade-done')),
         ]
         mgr.replay_events(_ACCT, events)
 
         await mgr.reconcile_orphan_commands(_ACCT, events)
 
         callback.assert_not_awaited()
-        assert 'cmd-live' not in mgr._terminal_commands
 
         await mgr.unregister_account(_ACCT)
 
