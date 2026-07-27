@@ -1,29 +1,30 @@
 '''
-Split a TWAP command quantity into lot-aligned child slices.
+Split a command quantity into lot-aligned, evenly sized child slices.
 
 Divide the total base quantity into num_slices children, each floored to
 the venue lot step so every child clears the LOT_SIZE filter. The final
 slice absorbs the rounding remainder so the plan sums as close to the
-total as the lot grid allows, never above it.
+total as the lot grid allows, never above it. Shared by every scheme mode
+that submits equal children (TWAP, Time DCA).
 '''
 
 from __future__ import annotations
 
 from decimal import Decimal
 
-__all__ = ['plan_twap_slices']
+__all__ = ['plan_even_slices']
 
 _ZERO = Decimal(0)
 _MIN_SLICES = 2
 
 
-def plan_twap_slices(
+def plan_even_slices(
     total_qty: Decimal,
     num_slices: int,
     lot_step: Decimal | None,
 ) -> list[Decimal]:
     '''
-    Compute lot-aligned child quantities for a TWAP command.
+    Compute lot-aligned, evenly sized child quantities for a scheme.
 
     Args:
         total_qty (Decimal): Total base quantity to execute, positive.

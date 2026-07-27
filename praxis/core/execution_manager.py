@@ -56,6 +56,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
@@ -68,7 +69,7 @@ from praxis.core.generate_client_order_id import (
     generate_client_order_id,
     validate_command_id_for_client_order_id,
 )
-from praxis.core.plan_twap_slices import plan_twap_slices
+from praxis.core.plan_even_slices import plan_even_slices
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
@@ -100,6 +101,7 @@ _TERMINAL_STATUSES = frozenset({
 })
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
+_SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
@@ -127,6 +129,7 @@ class _LiveScheme:
     command: TradeCommand
     slice_qtys: list[Decimal]
     slices_total: int
+    interval_seconds: int
     cursor: int = 0
     filled_qty: Decimal = _ZERO
     cumulative_notional: Decimal = _ZERO
@@ -140,6 +143,24 @@ class _SliceResult:
 
     filled_qty: Decimal
     cumulative_notional: Decimal
+
+
+def _even_slice_schedule(params: ExecutionParams) -> tuple[int, int]:
+    '''Return (slice count, interval seconds) for an equal-slice mode.
+
+    TWAP and Time DCA both submit a fixed number of equal MARKET children
+    at a fixed interval; only the parameter names differ. Any other params
+    type is a routing bug — the loop dispatch admits only `_SCHEME_MODES`.
+    '''
+
+    if isinstance(params, TwapParams):
+        return params.num_slices, params.interval_seconds
+
+    if isinstance(params, TimeDcaParams):
+        return params.num_iterations, params.interval_seconds
+
+    msg = f'not an equal-slice params type: {type(params).__name__}'
+    raise TypeError(msg)
 
 
 class _AccountRuntime:
@@ -1348,8 +1369,8 @@ class ExecutionManager:
                 )
 
                 try:
-                    if cmd.execution_mode is ExecutionMode.TWAP:
-                        await self._start_twap(runtime, cmd)
+                    if cmd.execution_mode in _SCHEME_MODES:
+                        await self._start_scheme(runtime, cmd)
                     else:
                         await self._process_command(runtime, cmd)
                 except asyncio.CancelledError:
@@ -1871,29 +1892,29 @@ class ExecutionManager:
             immediate_fills=(),
         )
 
-    async def _start_twap(
+    async def _start_scheme(
         self,
         runtime: _AccountRuntime,
         cmd: TradeCommand,
     ) -> None:
-        '''Begin a TWAP scheme: plan slices, persist init, submit slice 0.
+        '''Begin an equal-slice scheme (TWAP or Time DCA).
 
-        A pre-submission abort short-circuits to a CANCELED terminal
-        outcome before any child is placed. A planning failure (lot grid
-        too coarse for the requested split) rejects the command. On
-        success `SchemeInitialized` is appended, the live scheduler state
-        is registered, and the first slice is submitted synchronously; the
-        remaining slices fire from `_advance_due_schemes` at their
-        interval.
+        Both modes submit `num` equal MARKET children at a fixed interval;
+        they differ only in intent, so they share one producer. A
+        pre-submission abort short-circuits to a CANCELED terminal outcome
+        before any child is placed. A planning failure (lot grid too coarse
+        for the requested split) rejects the command. On success
+        `SchemeInitialized` is appended, the live scheduler state is
+        registered, and the first slice is submitted synchronously; the
+        remaining slices fire from `_advance_due_schemes` at their interval.
         '''
 
+        slices_total, interval_seconds = _even_slice_schedule(cmd.execution_params)
         abort_reason = self._aborted_commands.pop(cmd.command_id, None)
-        assert isinstance(cmd.execution_params, TwapParams)
-        slices_total = cmd.execution_params.num_slices
 
         if abort_reason is not None:
             _log.info(
-                'twap pre-aborted before first slice: command_id=%s',
+                'scheme pre-aborted before first slice: command_id=%s',
                 cmd.command_id,
             )
             await self._emit_scheme_terminal(
@@ -1913,10 +1934,10 @@ class ExecutionManager:
         lot_step = filters.lot_step if filters is not None else None
 
         try:
-            slice_qtys = plan_twap_slices(cmd.qty, slices_total, lot_step)
+            slice_qtys = plan_even_slices(cmd.qty, slices_total, lot_step)
         except ValueError as exc:
             _log.warning(
-                'twap slice planning failed: command_id=%s reason=%s',
+                'scheme slice planning failed: command_id=%s reason=%s',
                 cmd.command_id,
                 exc,
             )
@@ -1928,7 +1949,7 @@ class ExecutionManager:
                 cumulative_notional=_ZERO,
                 slices_completed=0,
                 slices_total=slices_total,
-                reason=f'twap slice planning failed: {exc}',
+                reason=f'scheme slice planning failed: {exc}',
             )
             return
 
@@ -1950,14 +1971,16 @@ class ExecutionManager:
             command=cmd,
             slice_qtys=slice_qtys,
             slices_total=len(slice_qtys),
+            interval_seconds=interval_seconds,
         )
         runtime.schemes[cmd.command_id] = scheme
 
         _log.info(
-            'twap started: command_id=%s slices=%d interval=%ds',
+            'scheme started: command_id=%s mode=%s slices=%d interval=%ds',
             cmd.command_id,
+            cmd.execution_mode.value,
             scheme.slices_total,
-            cmd.execution_params.interval_seconds,
+            interval_seconds,
         )
 
         await self._advance_scheme_guarded(runtime, scheme, self._clock())
@@ -2062,7 +2085,7 @@ class ExecutionManager:
                 scheme,
                 status=TradeStatus.REJECTED,
                 scheme_state=SchemeState.FAILED,
-                reason=f'twap slice {index} failed',
+                reason=f'scheme slice {index} failed',
             )
             return
 
@@ -2071,7 +2094,7 @@ class ExecutionManager:
 
         if result.filled_qty < slice_qty:
             _log.warning(
-                'twap slice under-filled immediately: command_id=%s slice=%d '
+                'scheme slice under-filled immediately: command_id=%s slice=%d '
                 'filled=%s slice_qty=%s; finalizing terminal (async fill '
                 'aggregation not yet supported)',
                 cmd.command_id,
@@ -2084,7 +2107,7 @@ class ExecutionManager:
                 scheme,
                 status=TradeStatus.REJECTED,
                 scheme_state=SchemeState.FAILED,
-                reason=f'twap slice {index} did not fully fill immediately',
+                reason=f'scheme slice {index} did not fully fill immediately',
             )
             return
 
@@ -2100,10 +2123,7 @@ class ExecutionManager:
             )
             return
 
-        assert isinstance(cmd.execution_params, TwapParams)
-        scheme.next_run_at = now + timedelta(
-            seconds=cmd.execution_params.interval_seconds,
-        )
+        scheme.next_run_at = now + timedelta(seconds=scheme.interval_seconds)
 
         changed = SchemeStateChanged(
             account_id=cmd.account_id,
@@ -2230,7 +2250,7 @@ class ExecutionManager:
                 cumulative_notional += fill.qty * fill.price
 
         _log.info(
-            'twap slice submitted: command_id=%s slice=%d client_order_id=%s fills=%d',
+            'scheme slice submitted: command_id=%s slice=%d client_order_id=%s fills=%d',
             cmd.command_id,
             index,
             client_order_id,
@@ -2309,7 +2329,7 @@ class ExecutionManager:
             return
 
         _log.info(
-            'aborting running twap: command_id=%s account_id=%s reason=%s',
+            'aborting running scheme: command_id=%s account_id=%s reason=%s',
             abort.command_id,
             runtime.account_id,
             abort.reason,

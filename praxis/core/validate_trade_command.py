@@ -318,14 +318,16 @@ def _validate_mode_params(cmd: TradeCommand) -> None:
 
     Multi-slice and multi-level modes size their children from the base
     command quantity, so a quote-native command has no quantity to divide;
-    Iceberg cannot display more than the total quantity.
+    Iceberg cannot display more than the total quantity; Time DCA is an
+    accumulation order, so it requires side BUY.
 
     Args:
         cmd (TradeCommand): Command to validate.
 
     Raises:
-        ValueError: If the command is quote-native, or the iceberg display
-            quantity exceeds the command quantity.
+        ValueError: If the command is quote-native, the iceberg display
+            quantity exceeds the command quantity, or a Time DCA command
+            is not a BUY.
     '''
 
     if cmd.is_quote_native:
@@ -333,6 +335,10 @@ def _validate_mode_params(cmd: TradeCommand) -> None:
         raise ValueError(msg)
 
     params = cmd.execution_params
+
+    if isinstance(params, TimeDcaParams) and cmd.side is not OrderSide.BUY:
+        msg = f'Time DCA is an accumulation order and requires side BUY, got {cmd.side.value}'
+        raise ValueError(msg)
 
     if isinstance(params, IcebergParams):
         assert cmd.qty is not None

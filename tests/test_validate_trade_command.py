@@ -57,6 +57,7 @@ def _cmd(
     maker_preference: MakerPreference = MakerPreference.NO_PREFERENCE,
     qty: Decimal = Decimal('0.01'),
     reference_price: Decimal | None = None,
+    side: OrderSide = OrderSide.BUY,
 ) -> TradeCommand:
     if execution_params is None:
         execution_params = _DEFAULT_PARAMS[execution_mode]
@@ -66,7 +67,7 @@ def _cmd(
         trade_id='trade-001',
         account_id='acct-001',
         symbol='BTCUSDT',
-        side=OrderSide.BUY,
+        side=side,
         qty=qty,
         order_type=order_type,
         execution_mode=execution_mode,
@@ -570,6 +571,27 @@ class TestModeParams:
         )
         with pytest.raises(ValueError, match='requires a base qty'):
             validate_trade_command(cmd)
+
+    def test_time_dca_rejects_sell(self) -> None:
+        with pytest.raises(ValueError, match='Time DCA is an accumulation order'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.MARKET,
+                    execution_mode=ExecutionMode.TIME_DCA,
+                    execution_params=TimeDcaParams(num_iterations=2, interval_seconds=30),
+                    side=OrderSide.SELL,
+                ),
+            )
+
+    def test_time_dca_accepts_buy(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.MARKET,
+                execution_mode=ExecutionMode.TIME_DCA,
+                execution_params=TimeDcaParams(num_iterations=2, interval_seconds=30),
+                side=OrderSide.BUY,
+            ),
+        )
 
     def test_iceberg_display_cannot_exceed_qty(self) -> None:
         with pytest.raises(ValueError, match='exceeds command qty'):
