@@ -72,6 +72,7 @@ def adapter() -> AsyncMock:
         status=OrderStatus.OPEN,
         immediate_fills=(),
     )
+    mock.cached_filters.return_value = None
     return mock
 
 
@@ -101,6 +102,7 @@ def _scheme_initialized(command_id: str, trade_id: str) -> SchemeInitialized:
         side=OrderSide.BUY,
         total_qty=Decimal('1'),
         slices_total=4,
+        interval_seconds=10,
     )
 
 
@@ -229,16 +231,16 @@ class TestReconcileOrphanCommands:
         await mgr.unregister_account(_ACCT)
 
     @pytest.mark.asyncio
-    async def test_incomplete_scheme_is_terminalized_on_boot(
+    async def test_running_scheme_is_resumed_on_boot(
         self,
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
-        '''A scheme without a terminal outcome is terminalized on boot.
+        '''A non-terminal scheme is resumed on boot, not terminalized.
 
-        Boot resume is not yet implemented (TD-124), so an interrupted
-        scheme is abandoned with one aggregated CANCELED outcome that
-        releases its reservation, not left live.
+        Replay rebuilds the live scheme into `runtime.schemes` so the
+        account loop continues its remaining slices; orphan cleanup must
+        leave it alone (no synthetic outcome, not marked terminal).
         '''
 
         callback = AsyncMock()
@@ -256,15 +258,14 @@ class TestReconcileOrphanCommands:
         ]
         mgr.replay_events(_ACCT, events)
 
+        assert 'cmd-algo' in mgr._accounts[_ACCT].schemes
+        assert mgr._accounts[_ACCT].schemes['cmd-algo'].state is SchemeState.RUNNING
+
         await mgr.reconcile_orphan_commands(_ACCT, events)
 
-        callback.assert_awaited_once()
-        outcome = callback.call_args[0][0]
-        assert outcome.status is TradeStatus.CANCELED
-        assert outcome.reason == 'boot_incomplete_scheme'
-        assert outcome.filled_qty == Decimal('0')
-        assert 'cmd-algo' in mgr._terminal_commands
-        assert mgr.get_trading_state(_ACCT).schemes['cmd-algo'].state is SchemeState.CANCELED
+        callback.assert_not_awaited()
+        assert 'cmd-algo' not in mgr._terminal_commands
+        assert 'cmd-algo' in mgr._accounts[_ACCT].schemes
 
         await mgr.unregister_account(_ACCT)
 

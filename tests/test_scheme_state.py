@@ -31,6 +31,7 @@ def _init() -> SchemeInitialized:
         side=OrderSide.BUY,
         total_qty=Decimal('1'),
         slices_total=4,
+        interval_seconds=10,
     )
 
 
@@ -64,6 +65,7 @@ def test_scheme_initialized_rejects_non_positive_total() -> None:
             side=OrderSide.BUY,
             total_qty=Decimal('0'),
             slices_total=4,
+            interval_seconds=10,
         )
 
 
@@ -79,6 +81,7 @@ def test_scheme_initialized_rejects_single_shot() -> None:
             side=OrderSide.BUY,
             total_qty=Decimal('1'),
             slices_total=4,
+            interval_seconds=10,
         )
 
 

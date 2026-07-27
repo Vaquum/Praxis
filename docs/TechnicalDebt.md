@@ -1103,16 +1103,15 @@ Multi-slice and multi-level modes size their children from the base command quan
 **When to fix**: only if a strategy needs quote-native slicing.
 **Migration**: define per-mode quote-native slicing semantics and lift the restriction in `_validate_mode_params`.
 
-## TD-124: Scheme resume from replayed state not implemented
+## TD-124: Scheme resume from replayed state not implemented — RESOLVED
 
 **Origin**: WP-Praxis-0007 (TWAP producer slice; unstaged review)
-**Severity**: Medium (TWAP now emits `SchemeInitialized`; a mid-run restart abandons the scheme instead of resuming it)
-**Module**: `praxis/core/execution_manager.py` (`replay_events`, `reconcile_orphan_commands`, the scheme scheduler)
+**Severity**: Medium (TWAP emits `SchemeInitialized`; a mid-run restart previously abandoned the scheme instead of resuming it)
+**Module**: `praxis/core/execution_manager.py` (`replay_events`, `_resume_schemes`, `reconcile_orphan_commands`, the scheme scheduler)
 
-Boot resume of a running multi-slice scheme is not built. `replay_events` does not rebuild the in-memory `_LiveScheme` from `SchemeInitialized` + latest `SchemeStateChanged`, and `SchemeInitialized` does not persist the mode parameters (e.g. TWAP `interval_seconds`) needed to reconstruct the schedule. Until resume lands, a scheme without a terminal outcome is terminalized on boot (`reconcile_orphan_commands` Class C — one aggregated CANCELED `TradeOutcome` from the child-order projections), which releases the parent reservation and keeps the real position but abandons the remaining slices. This is safe, not correct: a restart mid-TWAP does not complete the order.
+Original gap: boot resume of a running multi-slice scheme was not built — `replay_events` did not rebuild the `_LiveScheme`, and `SchemeInitialized` did not persist the interval needed to reconstruct the schedule; an interrupted scheme was terminalized (safe, not correct).
 
-**When to fix**: before live multi-slice trading. Requires persisting resume params (a `params_json` field on `SchemeInitialized`, rebuilt via the per-mode param class), rebuilding `_LiveScheme` on replay with the remaining slices replanned, and re-registering the scheme so the scheduler resumes.
-**Migration**: add durable params to `SchemeInitialized`; rebuild `runtime.schemes` in `replay_events`; drop the Class C terminalization for schemes that can resume; add a crash-mid-scheme resume test.
+**Resolved** in the scheme-resume slice (WP-Praxis-0007). `SchemeInitialized` now carries `interval_seconds`; an equal-slice mode's params are fully determined by `(mode, slices_total, interval_seconds)`, so the transient command is not persisted (`_rebuild_equal_slice_params`). After replay, `_resume_schemes` rebuilds each non-terminal scheme's `_LiveScheme` — params reconstructed, slice plan recomputed from `total_qty`/`slices_total`/`lot_step`, cursor/active-children/next-run restored from the latest `SchemeStateChanged` — and re-registers it in `runtime.schemes`, `_commands`, `_accepted_commands`, `_command_trade_ids`. A scheme with no scheduled next run is kicked to fire immediately; the scheduler also finalizes a resumed scheme whose children all settled during downtime. `reconcile_orphan_commands` Class C now terminalizes only schemes replay did not resume (terminal-state, or a mode/plan that cannot be rebuilt). A resumed child that filled or was cancelled during downtime is repaired by the existing reconnect backfill (missed fills replayed as `FillReceived`, which settle the scheme's active children). Re-submission of a slice whose durable `SchemeStateChanged` did not land before the crash is idempotent via the deterministic client order id (venue rejects the duplicate, the rescue path confirms).
 
 ## TD-125: Scheme child fills counted only from immediate_fills — RESOLVED
 
@@ -1134,3 +1133,17 @@ A scheme finalizes only when every slice is submitted and every child settles. A
 
 **When to fix**: before live multi-slice trading — GO-LIVE BLOCKER. The bounding mechanism is the RFC 5.13 Slice-failure work (`command.timeout` applied to the scheme wall-clock, `slice_failed` appended, PARTIAL reported to Manager, deadline backstop that cancels working children and force-finalizes), tracked as the open "5.13 Slice failure" Foundation item on Praxis #7.
 **Migration**: apply `command.timeout` as a scheme deadline in the scheduler; on expiry cancel active children and finalize terminal EXPIRED with the fills gathered; add a deadline-expiry test.
+
+## TD-127: Scheme resume residuals — non-durable abort and lot-step replan divergence
+
+**Origin**: WP-Praxis-0007 (scheme-resume slice; unstaged review)
+**Severity**: Medium (both are narrow crash / venue-change windows, not the common path)
+**Module**: `praxis/core/execution_manager.py` (`_abort_scheme`, `_resume_schemes`)
+
+Two residual gaps in boot resume:
+
+1. **Non-durable abort.** `TradeAbort` sets `_LiveScheme.pending_terminal` in memory and starts cancelling children, but the intent is not persisted until the terminal `SchemeStateChanged` + `TradeOutcomeProduced` land. A crash after the abort begins but before those events leaves the durable state RUNNING, so `_resume_schemes` resumes the scheme and keeps scheduling — the abort is silently lost. Bounded by the operator re-issuing the abort. Fix: append a durable `trade_abort_applied` (or a non-terminal `SchemeStateChanged` carrying the pending-abort flag) before cancelling, and honour it on resume.
+
+2. **Lot-step replan divergence.** Resume recomputes the slice plan with the venue's *current* `lot_step` (`plan_even_slices(total_qty, slices_total, lot_step)`). If the LOT_SIZE filter changed between init and resume, the remaining (unsubmitted) slice sizes differ from the original plan — already-submitted children are unaffected (durable on the spine), and the aggregate still targets `total_qty`, but the per-slice grid shifts. Fix: persist the original `lot_step` (a single Decimal, `_coerce`-safe) on `SchemeInitialized` and replan against it, so the grid is identical across a restart.
+
+**When to fix**: before live multi-slice trading (with the 5.13 / TD-126 deadline work). Neither corrupts state; both are correctness-precision gaps under specific crash/venue-change timing.

@@ -108,6 +108,7 @@ _TERMINAL_ORDER_STATUSES = frozenset({
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
 _SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
+_MIN_SCHEME_SLICES = 2
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
@@ -158,6 +159,28 @@ def _even_slice_schedule(params: ExecutionParams) -> tuple[int, int]:
         return params.num_iterations, params.interval_seconds
 
     msg = f'not an equal-slice params type: {type(params).__name__}'
+    raise TypeError(msg)
+
+
+def _rebuild_equal_slice_params(
+    mode: ExecutionMode,
+    slices_total: int,
+    interval_seconds: int,
+) -> ExecutionParams:
+    '''Reconstruct an equal-slice mode's params for boot resume.
+
+    An equal-slice scheme's params are fully determined by its slice count
+    and interval, both persisted on `SchemeInitialized`, so the transient
+    command's params need not be stored to resume the schedule.
+    '''
+
+    if mode is ExecutionMode.TWAP:
+        return TwapParams(num_slices=slices_total, interval_seconds=interval_seconds)
+
+    if mode is ExecutionMode.TIME_DCA:
+        return TimeDcaParams(num_iterations=slices_total, interval_seconds=interval_seconds)
+
+    msg = f'not a resumable equal-slice mode: {mode.value}'
     raise TypeError(msg)
 
 
@@ -443,6 +466,12 @@ class ExecutionManager:
 
         self._bridge_legacy_registration(runtime, events)
 
+        scheme_command_ids = {
+            event.command_id
+            for _seq, event in events
+            if isinstance(event, SchemeInitialized)
+        }
+
         for _seq, event in events:
             self._project(runtime, event)
 
@@ -460,7 +489,10 @@ class ExecutionManager:
                 self._command_trade_ids[event.command_id] = event.trade_id
                 runtime.command_to_order[event.command_id] = event.client_order_id
 
-                if event.command_id not in self._terminal_commands:
+                if (
+                    event.command_id not in self._terminal_commands
+                    and event.command_id not in scheme_command_ids
+                ):
                     self._commands[event.command_id] = TradeCommand(
                         command_id=event.command_id,
                         trade_id=event.trade_id,
@@ -482,6 +514,118 @@ class ExecutionManager:
                         stp_mode=STPMode.NONE,
                         created_at=event.timestamp,
                     )
+
+        self._resume_schemes(runtime, events)
+
+    def _resume_schemes(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild live scheme state for non-terminal schemes after replay.
+
+        For every `SchemeInitialized` whose latest `SchemeStateChanged` is
+        still RUNNING and which has no terminal `TradeOutcomeProduced`, the
+        equal-slice params are reconstructed from the persisted mode, slice
+        count, and interval; the slice plan is recomputed; and a
+        `_LiveScheme` is registered in `runtime.schemes` with the replayed
+        cursor, active children, and next-run time so the account loop
+        resumes it. A non-terminal scheme in a mode that cannot yet resume,
+        or one whose plan can no longer be computed, is left for
+        `reconcile_orphan_commands` to terminalize. Terminal-state schemes
+        are not resumed.
+        '''
+
+        inits: dict[str, SchemeInitialized] = {}
+        latest_state: dict[str, SchemeStateChanged] = {}
+        terminal_outcomes: set[str] = set()
+
+        for _seq, event in events:
+            if isinstance(event, SchemeInitialized):
+                inits.setdefault(event.command_id, event)
+            elif isinstance(event, SchemeStateChanged):
+                latest_state[event.command_id] = event
+            elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
+                terminal_outcomes.add(event.command_id)
+
+        for command_id, init in inits.items():
+            if command_id in terminal_outcomes:
+                continue
+
+            state = latest_state.get(command_id)
+            scheme_state = state.state if state is not None else SchemeState.RUNNING
+            if scheme_state is not SchemeState.RUNNING:
+                continue
+
+            if (
+                init.execution_mode not in _SCHEME_MODES
+                or init.slices_total < _MIN_SCHEME_SLICES
+                or init.interval_seconds <= 0
+            ):
+                continue
+
+            filters = self._venue_adapter.cached_filters(init.symbol)
+            lot_step = filters.lot_step if filters is not None else None
+            try:
+                slice_qtys = plan_even_slices(init.total_qty, init.slices_total, lot_step)
+            except ValueError:
+                _log.warning(
+                    'cannot replan scheme on resume; leaving for boot cleanup: '
+                    'command_id=%s',
+                    command_id,
+                )
+                continue
+
+            command = TradeCommand(
+                command_id=command_id,
+                trade_id=init.trade_id,
+                account_id=runtime.account_id,
+                symbol=init.symbol,
+                side=init.side,
+                qty=init.total_qty,
+                order_type=OrderType.MARKET,
+                execution_mode=init.execution_mode,
+                execution_params=_rebuild_equal_slice_params(
+                    init.execution_mode, init.slices_total, init.interval_seconds,
+                ),
+                timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
+                reference_price=None,
+                maker_preference=MakerPreference.NO_PREFERENCE,
+                stp_mode=STPMode.NONE,
+                created_at=init.timestamp,
+            )
+
+            live_children: set[str] = set()
+            if state is not None:
+                for child_id in state.active_client_order_ids:
+                    order = self._scheme_child_order(runtime, child_id)
+                    if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+                        live_children.add(child_id)
+
+            scheme = _LiveScheme(
+                command=command,
+                slice_qtys=slice_qtys,
+                slices_total=init.slices_total,
+                interval_seconds=init.interval_seconds,
+                cursor=state.cursor if state is not None else 0,
+                active_children=live_children,
+                next_run_at=state.next_run_at if state is not None else None,
+            )
+
+            if scheme.cursor < scheme.slices_total and scheme.next_run_at is None:
+                scheme.next_run_at = self._clock()
+
+            runtime.schemes[command_id] = scheme
+            self._commands[command_id] = command
+            self._accepted_commands[command_id] = runtime.account_id
+            self._command_trade_ids[command_id] = init.trade_id
+
+            _log.info(
+                'resumed scheme from replay: command_id=%s cursor=%d active=%d',
+                command_id,
+                scheme.cursor,
+                len(scheme.active_children),
+            )
 
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Apply an event to the account's trading-state and ledger projections.
@@ -611,15 +755,16 @@ class ExecutionManager:
         again leaves an intent without a follow-up will be cleaned up
         on the next boot rather than stranding capital indefinitely.
 
-        Class C (incomplete scheme) — any `SchemeInitialized` command
-        without a terminal `TradeOutcomeProduced`. Boot-time resume of a
-        running multi-slice scheme is not yet implemented (TD-124), so a
-        scheme interrupted mid-run cannot be safely resumed: it is
-        terminalized on boot instead — one aggregated CANCELED outcome
-        carrying the fills that did settle (from the child order
-        projections), which releases the parent reservation while
-        preserving the real position. All scheme commands are excluded
-        from Class A/B so the scheme-aware Class C is their sole handler.
+        Class C (unresumable scheme) — a `SchemeInitialized` command
+        without a terminal `TradeOutcomeProduced` that `replay_events` did
+        not resume into `runtime.schemes` (a terminal-state scheme, or one
+        whose mode or plan cannot be rebuilt). A non-terminal scheme in a
+        resumable mode is resumed by replay and excluded here. An
+        unresumable scheme is terminalized on boot — one aggregated
+        CANCELED outcome carrying the fills that did settle (from the child
+        order projections), which releases the parent reservation while
+        preserving the real position. All scheme commands are excluded from
+        Class A/B so the scheme-aware Class C is their sole handler.
 
         Class A/B synthesize `TradeOutcome(REJECTED,
         reason='boot_orphan_command')`; Class C synthesizes
@@ -680,6 +825,7 @@ class ExecutionManager:
         class_c_schemes = [
             cid for cid in scheme_trade_ids
             if cid not in completed_via_terminal
+            and cid not in runtime.schemes
         ]
 
         for command_id in class_a_orphans:
@@ -777,14 +923,14 @@ class ExecutionManager:
         command_id: str,
         trade_id: str,
     ) -> None:
-        '''Terminalize a scheme interrupted mid-run with one CANCELED outcome.
+        '''Terminalize an unresumable scheme with one CANCELED outcome.
 
-        Boot resume of a running scheme is not yet implemented (TD-124), so
-        a scheme without a terminal outcome is abandoned safely: a terminal
-        `SchemeStateChanged` (CANCELED) plus a single aggregated CANCELED
-        `TradeOutcome` carrying the fills that settled. This releases the
-        parent reservation while leaving the real position in place; the
-        remaining slices never run.
+        Reached only for a scheme `replay_events` could not resume (a
+        terminal-state scheme, or a mode/plan that cannot be rebuilt). The
+        scheme is abandoned safely: a terminal `SchemeStateChanged`
+        (CANCELED) plus a single aggregated CANCELED `TradeOutcome` carrying
+        the fills that settled. This releases the parent reservation while
+        leaving the real position in place; the remaining slices never run.
         '''
 
         scheme = runtime.trading_state.schemes.get(command_id)
@@ -1962,6 +2108,7 @@ class ExecutionManager:
             side=cmd.side,
             total_qty=cmd.qty,
             slices_total=len(slice_qtys),
+            interval_seconds=interval_seconds,
         )
         await self._event_spine.append(init, self._epoch_id)
         runtime.trading_state.apply(init)
@@ -1990,21 +2137,26 @@ class ExecutionManager:
         Called each account-loop iteration while the account is
         order-capable. Follow-up slices are timer-driven within the
         account coroutine (never re-queued as commands), so this is the
-        only path that advances a running scheme after its first slice.
+        only path that advances a running scheme after its first slice. A
+        scheme that is not due for advancement is checked for finalization
+        instead — the backstop that completes a resumed scheme whose
+        children all settled during downtime.
         '''
 
         now = self._clock()
 
         for scheme in list(runtime.schemes.values()):
-            if (
-                scheme.state is not SchemeState.RUNNING
-                or scheme.pending_terminal is not None
-                or scheme.next_run_at is None
-                or now < scheme.next_run_at
-            ):
-                continue
+            due = (
+                scheme.state is SchemeState.RUNNING
+                and scheme.pending_terminal is None
+                and scheme.next_run_at is not None
+                and now >= scheme.next_run_at
+            )
 
-            await self._advance_scheme_guarded(runtime, scheme, now)
+            if due:
+                await self._advance_scheme_guarded(runtime, scheme, now)
+            else:
+                await self._maybe_finalize_scheme(runtime, scheme)
 
     async def _advance_scheme_guarded(
         self,

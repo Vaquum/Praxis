@@ -26,11 +26,20 @@ from praxis.core.domain.enums import (
     STPMode,
     TradeStatus,
 )
-from praxis.core.domain.events import FillReceived, OrderRejected
+from praxis.core.domain.events import (
+    CommandAccepted,
+    FillReceived,
+    OrderRejected,
+    OrderSubmitIntent,
+    OrderSubmitted,
+    SchemeInitialized,
+    SchemeStateChanged,
+)
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.twap_params import TwapParams
 from praxis.core.execution_manager import ExecutionManager
+from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
@@ -629,7 +638,7 @@ async def test_twap_advance_exception_finalizes_failed(
 
 
 @pytest.mark.asyncio
-async def test_twap_boot_terminalizes_incomplete_scheme(
+async def test_twap_resumes_from_replay_and_completes(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
     spine: EventSpine,
     adapter: AsyncMock,
@@ -641,6 +650,7 @@ async def test_twap_boot_terminalizes_incomplete_scheme(
     await asyncio.sleep(0.3)
 
     events = await spine.read(_EPOCH, after_seq=0)
+    await em.unregister_account(_ACCT)
 
     restart_outcomes: list[TradeOutcome] = []
 
@@ -658,11 +668,132 @@ async def test_twap_boot_terminalizes_incomplete_scheme(
     restarted.replay_events(_ACCT, events)
     await restarted.reconcile_orphan_commands(_ACCT, events)
 
+    resumed = restarted._accounts[_ACCT].schemes[command_id]
+    assert len(restart_outcomes) == 0
+    assert resumed.state is SchemeState.RUNNING
+    assert resumed.cursor == 1
+
+    for _ in range(3):
+        await _advance(clock_holder)
+
     assert len(restart_outcomes) == 1
     outcome = restart_outcomes[0]
-    assert outcome.status is TradeStatus.CANCELED
-    assert outcome.reason == 'boot_incomplete_scheme'
-    assert outcome.filled_qty == Decimal('0.25')
-    assert restarted.get_trading_state(_ACCT).schemes[command_id].state is SchemeState.CANCELED
+    assert outcome.status is TradeStatus.FILLED
+    assert outcome.filled_qty == Decimal('1')
+    assert outcome.slices_completed == 4
+    assert restarted.get_trading_state(_ACCT).schemes[command_id].state is SchemeState.COMPLETED
 
     await restarted.unregister_account(_ACCT)
+
+
+def _child_fill(command_id: str, client_order_id: str, qty: Decimal) -> FillReceived:
+    return FillReceived(
+        account_id=_ACCT,
+        timestamp=_T0,
+        client_order_id=client_order_id,
+        venue_order_id=f'v-{client_order_id}',
+        venue_trade_id=f't-{client_order_id}',
+        trade_id=_TRADE,
+        command_id=command_id,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=qty,
+        price=_PRICE,
+        fee=Decimal('0'),
+        fee_asset='USDT',
+        is_maker=False,
+    )
+
+
+def _intent(command_id: str, client_order_id: str, qty: Decimal) -> OrderSubmitIntent:
+    return OrderSubmitIntent(
+        account_id=_ACCT,
+        timestamp=_T0,
+        command_id=command_id,
+        trade_id=_TRADE,
+        client_order_id=client_order_id,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=qty,
+    )
+
+
+@pytest.mark.asyncio
+async def test_twap_resume_prunes_already_filled_active_child_and_finalizes(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    command_id = 'cmd-stale0000000000000000000000000'
+    coid0 = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+    coid1 = generate_client_order_id(ExecutionMode.TWAP, command_id, 1)
+    half = Decimal('0.5')
+
+    events = [
+        (1, CommandAccepted(account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE)),
+        (2, SchemeInitialized(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+            execution_mode=ExecutionMode.TWAP, symbol='BTCUSDT', side=OrderSide.BUY,
+            total_qty=Decimal('1'), slices_total=2, interval_seconds=10,
+        )),
+        (3, _intent(command_id, coid0, half)),
+        (4, OrderSubmitted(account_id=_ACCT, timestamp=_T0, client_order_id=coid0, venue_order_id=f'v-{coid0}')),
+        (5, _child_fill(command_id, coid0, half)),
+        (6, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=half, active_client_order_ids=(), next_run_at=_T0, state=SchemeState.RUNNING,
+        )),
+        (7, _intent(command_id, coid1, half)),
+        (8, OrderSubmitted(account_id=_ACCT, timestamp=_T0, client_order_id=coid1, venue_order_id=f'v-{coid1}')),
+        (9, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=2,
+            filled_qty=half, active_client_order_ids=(coid1,), next_run_at=None, state=SchemeState.RUNNING,
+        )),
+        (10, _child_fill(command_id, coid1, half)),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+    await em.reconcile_orphan_commands(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+    assert resumed.active_children == set()
+
+    await asyncio.sleep(0.3)
+
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome.status is TradeStatus.FILLED
+    assert outcome.filled_qty == Decimal('1')
+    assert command_id not in em._accounts[_ACCT].schemes
+
+
+@pytest.mark.asyncio
+async def test_scheme_missing_interval_is_unresumable_and_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    command_id = 'cmd-noint0000000000000000000000000'
+
+    events = [
+        (1, CommandAccepted(account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE)),
+        (2, SchemeInitialized(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+            execution_mode=ExecutionMode.TWAP, symbol='BTCUSDT', side=OrderSide.BUY,
+            total_qty=Decimal('1'), slices_total=2,
+        )),
+        (3, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(), next_run_at=None, state=SchemeState.RUNNING,
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    assert command_id not in em._accounts[_ACCT].schemes
+
+    await em.reconcile_orphan_commands(_ACCT, events)
+
+    assert len(outcomes) == 1
+    assert outcomes[0].status is TradeStatus.CANCELED

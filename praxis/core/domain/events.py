@@ -477,6 +477,11 @@ class SchemeInitialized(_EventBase):
         side (OrderSide): Order direction.
         total_qty (Decimal): Total base quantity to execute across children.
         slices_total (int): Planned number of children, or 0 when dynamic.
+        interval_seconds (int): Seconds between time-scheduled children, so
+            boot replay can rebuild the schedule without the transient
+            command. Non-negative; 0 for modes that are not time-scheduled.
+            Defaults to 0 so historical events written before this field
+            hydrate cleanly; boot resume treats a 0 interval as unresumable.
     '''
 
     command_id: str
@@ -486,6 +491,7 @@ class SchemeInitialized(_EventBase):
     side: OrderSide
     total_qty: Decimal
     slices_total: int
+    interval_seconds: int = 0
 
     def __post_init__(self) -> None:
 
@@ -510,6 +516,10 @@ class SchemeInitialized(_EventBase):
 
         if self.slices_total < 0:
             msg = f'{name}.slices_total must be non-negative'
+            raise ValueError(msg)
+
+        if self.interval_seconds < 0:
+            msg = f'{name}.interval_seconds must be non-negative'
             raise ValueError(msg)
 
 
