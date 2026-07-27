@@ -1123,16 +1123,15 @@ Original defect: a scheme slice aggregated only the fills carried in the venue `
 
 **Resolved** in the child-fill-aggregation slice (WP-Praxis-0007). Each scheme now tracks its `active_children`; a child settles when its order projection reaches a terminal status; the child's fills — immediate and later WebSocket `executionReport` — aggregate into the parent through the child order projections (`_scheme_fill_totals`, dedup-safe since the spine append gates enqueue). The cursor advances on the interval, but the scheme finalizes FILLED only once every slice is submitted and every child has settled (`_maybe_finalize_scheme`); a `TradeAbort` cancels still-working children and finalizes CANCELED once they drain; a child that reaches a terminal status without fully filling (rejected, expired, cancelled outside the abort flow) fails the scheme REJECTED once siblings drain. A child that never settles still hangs the scheme — see TD-126.
 
-## TD-126: Scheme has no deadline backstop; a never-settling child hangs it — GO-LIVE BLOCKER
+## TD-126: Scheme has no deadline backstop; a never-settling child hangs it — RESOLVED
 
 **Origin**: WP-Praxis-0007 (child-fill-aggregation slice; unstaged review)
 **Severity**: High for live multi-slice (a wedged scheme never emits its terminal outcome, so the Nexus reservation is never released)
-**Module**: `praxis/core/execution_manager.py` (`_maybe_finalize_scheme`, the scheme scheduler)
+**Module**: `praxis/core/execution_manager.py` (`_expire_scheme`, `_advance_due_schemes`)
 
-A scheme finalizes only when every slice is submitted and every child settles. A child that never reaches a terminal order status — a resting order that neither fills nor is cancelled, a missed WebSocket terminal event not repaired by reconcile — leaves the scheme active indefinitely with no terminal `TradeOutcome`. There is no wall-clock deadline that force-terminates a stuck scheme.
+Original gap: a scheme finalized only when every slice was submitted and every child settled, with no wall-clock deadline — a child that never reached a terminal status (a resting order that neither fills nor cancels, a missed WebSocket terminal not repaired by reconcile) hung the scheme forever with no terminal outcome.
 
-**When to fix**: before live multi-slice trading — GO-LIVE BLOCKER. The bounding mechanism is the RFC 5.13 Slice-failure work (`command.timeout` applied to the scheme wall-clock, `slice_failed` appended, PARTIAL reported to Manager, deadline backstop that cancels working children and force-finalizes), tracked as the open "5.13 Slice failure" Foundation item on Praxis #7.
-**Migration**: apply `command.timeout` as a scheme deadline in the scheduler; on expiry cancel active children and finalize terminal EXPIRED with the fills gathered; add a deadline-expiry test.
+**Resolved** in the 5.13 slice-failure slice (WP-Praxis-0007). `SchemeInitialized` persists `timeout_seconds`; each scheme carries an absolute `deadline` (`command.created_at + timeout`, reconstructed on resume from `SchemeInitialized.timestamp + timeout_seconds`). The scheduler checks the deadline every iteration ahead of advancement: a scheme still live at its deadline — a frozen scheme the Manager never acted on, or one stuck on a never-settling child — is force-expired (`_expire_scheme`): working children are cancelled and the single terminal outcome is EXPIRED once they drain. A 0 timeout means no deadline.
 
 ## TD-127: Scheme resume residuals — non-durable abort and lot-step replan divergence
 
@@ -1142,8 +1141,22 @@ A scheme finalizes only when every slice is submitted and every child settles. A
 
 Two residual gaps in boot resume:
 
-1. **Non-durable abort.** `TradeAbort` sets `_LiveScheme.pending_terminal` in memory and starts cancelling children, but the intent is not persisted until the terminal `SchemeStateChanged` + `TradeOutcomeProduced` land. A crash after the abort begins but before those events leaves the durable state RUNNING, so `_resume_schemes` resumes the scheme and keeps scheduling — the abort is silently lost. Bounded by the operator re-issuing the abort. Fix: append a durable `trade_abort_applied` (or a non-terminal `SchemeStateChanged` carrying the pending-abort flag) before cancelling, and honour it on resume.
+1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.frozen`, both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
 
 2. **Lot-step replan divergence.** Resume recomputes the slice plan with the venue's *current* `lot_step` (`plan_even_slices(total_qty, slices_total, lot_step)`). If the LOT_SIZE filter changed between init and resume, the remaining (unsubmitted) slice sizes differ from the original plan — already-submitted children are unaffected (durable on the spine), and the aggregate still targets `total_qty`, but the per-slice grid shifts. Fix: persist the original `lot_step` (a single Decimal, `_coerce`-safe) on `SchemeInitialized` and replan against it, so the grid is identical across a restart.
 
 **When to fix**: before live multi-slice trading (with the 5.13 / TD-126 deadline work). Neither corrupts state; both are correctness-precision gaps under specific crash/venue-change timing.
+
+## TD-128: Scheme Manager control path incomplete — no TradeModify; PARTIAL handling unverified cross-repo
+
+**Origin**: WP-Praxis-0007 (5.13 slice-failure slice; unstaged review)
+**Severity**: Medium (frozen scheme has only two exits until amend lands; cross-repo behaviour unverified)
+**Module**: `praxis/core/execution_manager.py` (`_on_slice_failure`, `submit_abort`); Nexus outcome/capital handling
+
+Two gaps in the RFC 5.13 Manager control path:
+
+1. **No `TradeModify` (amend).** A frozen scheme (slice failed, PARTIAL reported) can only leave the frozen state via `TradeAbort` (→ CANCELED) or its deadline (→ EXPIRED). RFC 5.13 also allows the Manager to `TradeModify` (amend and resume). Amend is not built, so an operator cannot repair-and-continue a frozen scheme; it must abort or wait out the deadline.
+
+2. **PARTIAL outcome handling unverified in Nexus.** The scheme reports a non-terminal `TradeOutcome(PARTIAL)` on a slice failure. Nexus must treat this as progress — keep the capital reservation, not close the trade — and only release/close on the eventual terminal outcome (FILLED/CANCELED/EXPIRED). This is a cross-repo contract that has not been verified against the Nexus outcome/capital path.
+
+**When to fix**: before live multi-slice TWAP/DCA. (1) implement `TradeModify` handling for schemes; (2) verify (with a Nexus-side test) that a PARTIAL scheme outcome does not release capital or close the trade.

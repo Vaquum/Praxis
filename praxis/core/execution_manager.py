@@ -47,6 +47,7 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
     RegisterAccount,
+    SliceFailed,
     TradeClosed,
     TradeOutcomeProduced,
 )
@@ -141,6 +142,8 @@ class _LiveScheme:
     active_children: set[str] = field(default_factory=set)
     pending_terminal: tuple[TradeStatus, SchemeState, str | None] | None = None
     next_run_at: datetime | None = None
+    deadline: datetime | None = None
+    frozen: bool = False
     state: SchemeState = SchemeState.RUNNING
 
 
@@ -539,12 +542,15 @@ class ExecutionManager:
         inits: dict[str, SchemeInitialized] = {}
         latest_state: dict[str, SchemeStateChanged] = {}
         terminal_outcomes: set[str] = set()
+        frozen_ids: set[str] = set()
 
         for _seq, event in events:
             if isinstance(event, SchemeInitialized):
                 inits.setdefault(event.command_id, event)
             elif isinstance(event, SchemeStateChanged):
                 latest_state[event.command_id] = event
+            elif isinstance(event, SliceFailed):
+                frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
 
@@ -602,6 +608,12 @@ class ExecutionManager:
                     if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
                         live_children.add(child_id)
 
+            deadline = (
+                init.timestamp + timedelta(seconds=init.timeout_seconds)
+                if init.timeout_seconds > 0
+                else None
+            )
+
             scheme = _LiveScheme(
                 command=command,
                 slice_qtys=slice_qtys,
@@ -610,9 +622,15 @@ class ExecutionManager:
                 cursor=state.cursor if state is not None else 0,
                 active_children=live_children,
                 next_run_at=state.next_run_at if state is not None else None,
+                deadline=deadline,
+                frozen=command_id in frozen_ids,
             )
 
-            if scheme.cursor < scheme.slices_total and scheme.next_run_at is None:
+            if (
+                not scheme.frozen
+                and scheme.cursor < scheme.slices_total
+                and scheme.next_run_at is None
+            ):
                 scheme.next_run_at = self._clock()
 
             runtime.schemes[command_id] = scheme
@@ -621,10 +639,11 @@ class ExecutionManager:
             self._command_trade_ids[command_id] = init.trade_id
 
             _log.info(
-                'resumed scheme from replay: command_id=%s cursor=%d active=%d',
+                'resumed scheme from replay: command_id=%s cursor=%d active=%d frozen=%s',
                 command_id,
                 scheme.cursor,
                 len(scheme.active_children),
+                scheme.frozen,
             )
 
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
@@ -2109,6 +2128,7 @@ class ExecutionManager:
             total_qty=cmd.qty,
             slices_total=len(slice_qtys),
             interval_seconds=interval_seconds,
+            timeout_seconds=cmd.timeout,
         )
         await self._event_spine.append(init, self._epoch_id)
         runtime.trading_state.apply(init)
@@ -2118,6 +2138,11 @@ class ExecutionManager:
             slice_qtys=slice_qtys,
             slices_total=len(slice_qtys),
             interval_seconds=interval_seconds,
+            deadline=(
+                init.timestamp + timedelta(seconds=cmd.timeout)
+                if cmd.timeout > 0
+                else None
+            ),
         )
         runtime.schemes[cmd.command_id] = scheme
 
@@ -2146,8 +2171,17 @@ class ExecutionManager:
         now = self._clock()
 
         for scheme in list(runtime.schemes.values()):
+            if (
+                scheme.pending_terminal is None
+                and scheme.deadline is not None
+                and now >= scheme.deadline
+            ):
+                await self._expire_scheme(runtime, scheme)
+                continue
+
             due = (
                 scheme.state is SchemeState.RUNNING
+                and not scheme.frozen
                 and scheme.pending_terminal is None
                 and scheme.next_run_at is not None
                 and now >= scheme.next_run_at
@@ -2214,8 +2248,9 @@ class ExecutionManager:
         projections. The cursor advances on the interval, independent of
         fills; the scheme finalizes FILLED only once every slice is
         submitted and every child has settled (see
-        `_maybe_finalize_scheme`). A slice that cannot be placed marks the
-        scheme for terminal FAILED once its live children drain.
+        `_maybe_finalize_scheme`). A slice that cannot be placed freezes the
+        scheme (see `_on_slice_failure`): a PARTIAL outcome is reported and
+        it waits for the Manager or its deadline.
         '''
 
         index = scheme.cursor
@@ -2225,14 +2260,12 @@ class ExecutionManager:
         client_order_id = await self._submit_market_slice(runtime, cmd, index, slice_qty)
 
         if client_order_id is None:
-            scheme.pending_terminal = (
-                TradeStatus.REJECTED,
-                SchemeState.FAILED,
-                f'scheme slice {index} failed',
+            await self._on_slice_failure(
+                runtime,
+                scheme,
+                generate_client_order_id(cmd.execution_mode, cmd.command_id, sequence=index),
+                f'scheme slice {index} submission failed',
             )
-            scheme.next_run_at = None
-            await self._cancel_active_children(runtime, scheme)
-            await self._maybe_finalize_scheme(runtime, scheme)
             return
 
         order = self._scheme_child_order(runtime, client_order_id)
@@ -2419,10 +2452,11 @@ class ExecutionManager:
         '''Finalize the scheme once no child is still working.
 
         Called after every slice advance and every child-settle event. A
-        pending terminal (abort or slice failure) resolves first; otherwise
-        the scheme completes FILLED once every slice has been submitted and
-        every child has fully filled. Does nothing while any child remains
-        active.
+        pending terminal (abort or deadline) resolves first; a frozen scheme
+        (a slice failed, awaiting the Manager) holds without completing;
+        otherwise the scheme completes FILLED once every slice has been
+        submitted and every child has fully filled. Does nothing while any
+        child remains active.
 
         Completion status is FILLED, not PARTIAL: reaching this branch means
         every child settled FILLED (a non-fill terminal child routes to a
@@ -2447,6 +2481,9 @@ class ExecutionManager:
             )
             return
 
+        if scheme.frozen:
+            return
+
         if scheme.cursor >= scheme.slices_total:
             await self._finalize_scheme(
                 runtime,
@@ -2468,12 +2505,10 @@ class ExecutionManager:
         its order is terminal) and finalizes the scheme when the last child
         settles. A child that reaches a terminal status without fully
         filling — rejected, expired, or cancelled outside the parent abort
-        flow — leaves the scheme unable to reach its target, so the scheme
-        is marked for a terminal FAILED outcome, future scheduling stops,
-        and any sibling children are cancelled; the aggregated REJECTED
-        outcome fires once they drain (never a FILLED short of target).
-        Events for non-scheme commands or already-finalized schemes are
-        ignored.
+        flow — is a slice failure: the scheme freezes (see
+        `_on_slice_failure`), reports a PARTIAL outcome, and waits for the
+        Manager or its deadline (never a FILLED short of target). Events for
+        non-scheme commands or already-finalized schemes are ignored.
         '''
 
         if not isinstance(event, (FillReceived, OrderCanceled, OrderExpired, OrderRejected)):
@@ -2490,22 +2525,19 @@ class ExecutionManager:
         if order.status in _TERMINAL_ORDER_STATUSES:
             scheme.active_children.discard(event.client_order_id)
 
-            if order.status is not OrderStatus.FILLED and scheme.pending_terminal is None:
-                _log.warning(
-                    'scheme child terminated without full fill: command_id=%s '
-                    'child=%s status=%s; failing scheme',
-                    order.command_id,
+            if (
+                order.status is not OrderStatus.FILLED
+                and scheme.pending_terminal is None
+                and not scheme.frozen
+            ):
+                await self._on_slice_failure(
+                    runtime,
+                    scheme,
                     event.client_order_id,
-                    order.status.value,
-                )
-                scheme.pending_terminal = (
-                    TradeStatus.REJECTED,
-                    SchemeState.FAILED,
                     f'child {event.client_order_id} terminated '
                     f'{order.status.value} without full fill',
                 )
-                scheme.next_run_at = None
-                await self._cancel_active_children(runtime, scheme)
+                return
 
         await self._maybe_finalize_scheme(runtime, scheme)
 
@@ -2625,6 +2657,132 @@ class ExecutionManager:
             TradeStatus.CANCELED,
             SchemeState.CANCELED,
             abort.reason,
+        )
+        scheme.next_run_at = None
+        await self._cancel_active_children(runtime, scheme)
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _on_slice_failure(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        client_order_id: str,
+        reason: str,
+    ) -> None:
+        '''Freeze a scheme on a slice failure and report a PARTIAL outcome.
+
+        Per RFC 5.13: a slice that cannot be placed or a child that
+        terminates without filling does not fail the whole command. A
+        durable `SliceFailed` is appended, a non-terminal PARTIAL outcome
+        with the fills gathered so far is reported to the Manager, and the
+        scheme is frozen — no further slices are scheduled. It waits for the
+        Manager (`TradeAbort`, or `TradeModify` once amend lands) or for its
+        deadline, both of which drive the single terminal outcome.
+        '''
+
+        cmd = scheme.command
+        _log.warning(
+            'scheme slice failed; freezing to await Manager: command_id=%s reason=%s',
+            cmd.command_id,
+            reason,
+        )
+
+        failed = SliceFailed(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            client_order_id=client_order_id,
+            reason=reason,
+        )
+        await self._event_spine.append(failed, self._epoch_id)
+
+        scheme.frozen = True
+        scheme.next_run_at = None
+
+        await self._emit_scheme_partial(runtime, scheme, reason)
+
+    async def _emit_scheme_partial(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        reason: str | None,
+    ) -> None:
+        '''Report a non-terminal PARTIAL outcome for a frozen scheme.
+
+        Mirrors `_emit_scheme_terminal` but leaves the scheme live: no
+        terminal command bookkeeping, no `TradeClosed`. The aggregated fills
+        so far are derived from the child order projections and clamped to
+        the command target.
+        '''
+
+        cmd = scheme.command
+        ts = self._clock()
+        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
+
+        if cmd.qty is not None and filled_qty > cmd.qty:
+            if filled_qty > _ZERO:
+                cumulative_notional = cumulative_notional * cmd.qty / filled_qty
+            filled_qty = cmd.qty
+
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        outcome = TradeOutcome(
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            status=TradeStatus.PARTIAL,
+            target_qty=cmd.qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=scheme.cursor,
+            slices_total=scheme.slices_total,
+            reason=reason,
+            created_at=ts,
+            cumulative_notional=cumulative_notional,
+        )
+
+        produced = TradeOutcomeProduced(
+            account_id=cmd.account_id,
+            timestamp=ts,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            status=TradeStatus.PARTIAL,
+            reason=reason,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+            target_qty=cmd.qty,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+
+        await self._dispatch_outcome_with_retry(outcome, source='scheme_partial')
+
+    async def _expire_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+    ) -> None:
+        '''Force-terminate a scheme that exceeded its deadline.
+
+        The deadline backstop: a scheme still live at its `command.timeout`
+        wall-clock — a frozen scheme the Manager never acted on, or one
+        stuck on a child that never settles — is expired. Working children
+        are cancelled and the single terminal outcome is EXPIRED once they
+        drain.
+        '''
+
+        _log.warning(
+            'scheme deadline exceeded; expiring: command_id=%s account_id=%s',
+            scheme.command.command_id,
+            runtime.account_id,
+        )
+
+        scheme.pending_terminal = (
+            TradeStatus.EXPIRED,
+            SchemeState.FAILED,
+            'scheme deadline exceeded',
         )
         scheme.next_run_at = None
         await self._cancel_active_children(runtime, scheme)

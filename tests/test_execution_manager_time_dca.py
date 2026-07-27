@@ -42,7 +42,7 @@ _ACCT = 'acc-1'
 _TRADE = 'trade-1'
 _EPOCH = 1
 _PRICE = Decimal('50000')
-_BIG_STEP = timedelta(hours=1)
+_BIG_STEP = timedelta(seconds=60)
 _QTY_ARG_INDEX = 4
 
 

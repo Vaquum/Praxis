@@ -45,6 +45,7 @@ __all__ = [
     'RegisterAccount',
     'SchemeInitialized',
     'SchemeStateChanged',
+    'SliceFailed',
     'TradeClosed',
     'TradeOutcomeProduced',
 ]
@@ -259,6 +260,39 @@ class OrderSubmitFailed(_EventBase):
         super().__post_init__()
 
         name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class SliceFailed(_EventBase):
+
+    '''
+    Represent a scheme slice that could not be placed.
+
+    Appended when a multi-slice scheme's child submission fails
+    definitively (venue rejection, insufficient balance, rate limit after
+    retries). The scheme reports a non-terminal PARTIAL outcome and waits
+    for the Manager (TradeModify / TradeAbort) or its deadline.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Parent scheme identifier.
+        client_order_id (str): Deterministic client order id of the failed slice.
+        reason (str): Failure reason.
+    '''
+
+    command_id: str
+    client_order_id: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'reason', self.reason)
 
@@ -482,6 +516,10 @@ class SchemeInitialized(_EventBase):
             command. Non-negative; 0 for modes that are not time-scheduled.
             Defaults to 0 so historical events written before this field
             hydrate cleanly; boot resume treats a 0 interval as unresumable.
+        timeout_seconds (int): Command deadline in seconds from the scheme's
+            start, persisted so the deadline backstop survives a restart.
+            Non-negative; 0 means no deadline. Defaults to 0 so events
+            written before this field hydrate cleanly.
     '''
 
     command_id: str
@@ -492,6 +530,7 @@ class SchemeInitialized(_EventBase):
     total_qty: Decimal
     slices_total: int
     interval_seconds: int = 0
+    timeout_seconds: int = 0
 
     def __post_init__(self) -> None:
 
@@ -520,6 +559,10 @@ class SchemeInitialized(_EventBase):
 
         if self.interval_seconds < 0:
             msg = f'{name}.interval_seconds must be non-negative'
+            raise ValueError(msg)
+
+        if self.timeout_seconds < 0:
+            msg = f'{name}.timeout_seconds must be non-negative'
             raise ValueError(msg)
 
 
@@ -934,6 +977,7 @@ type Event = (
     | OrderSubmitIntent
     | OrderSubmitted
     | OrderSubmitFailed
+    | SliceFailed
     | OrderQuoteNativeFilled
     | OrderAcked
     | FillReceived
