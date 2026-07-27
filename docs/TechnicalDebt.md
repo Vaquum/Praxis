@@ -1114,13 +1114,23 @@ Boot resume of a running multi-slice scheme is not built. `replay_events` does n
 **When to fix**: before live multi-slice trading. Requires persisting resume params (a `params_json` field on `SchemeInitialized`, rebuilt via the per-mode param class), rebuilding `_LiveScheme` on replay with the remaining slices replanned, and re-registering the scheme so the scheduler resumes.
 **Migration**: add durable params to `SchemeInitialized`; rebuild `runtime.schemes` in `replay_events`; drop the Class C terminalization for schemes that can resume; add a crash-mid-scheme resume test.
 
-## TD-125: Scheme child fills counted only from immediate_fills
+## TD-125: Scheme child fills counted only from immediate_fills — RESOLVED
 
 **Origin**: WP-Praxis-0007 (TWAP producer slice; unstaged review)
-**Severity**: Medium (a MARKET child that does not fully fill synchronously terminates the scheme rather than completing)
-**Module**: `praxis/core/execution_manager.py` (`_submit_market_slice`, `_advance_scheme`, `_emit_ws_outcome`)
+**Severity**: Medium (a MARKET child that does not fully fill synchronously terminated the scheme rather than completing)
+**Module**: `praxis/core/execution_manager.py` (`_submit_market_slice`, `_advance_scheme`, `_on_scheme_child_event`)
 
-A scheme slice aggregates only the fills carried in the venue `submit_order` response (`immediate_fills`). Interim policy: a slice whose child does not fully fill immediately finalizes the scheme terminal (REJECTED) with the fills gathered so far — never a false FILLED — and a child's asynchronous WS `executionReport` fills are dropped from single-shot outcome emission (`_emit_ws_outcome` skips live-scheme commands) but are not yet aggregated into the scheme. This is safe for MARKET orders that return full `immediate_fills` (the current Binance FULL-response path) but wrong for partial or ACK-only responses.
+Original defect: a scheme slice aggregated only the fills carried in the venue `submit_order` response (`immediate_fills`); the interim policy finalized the scheme terminal when a child did not fully fill immediately. Safe for full-response MARKET fills, wrong for partial or ACK-only responses.
 
-**When to fix**: before a mode with resting children (Iceberg, Ladder) or any venue/config that returns child fills asynchronously.
-**Migration**: track active children per scheme, route their WS fills into the scheme aggregate, and finalize only once every slice is submitted and every child has settled; then advance TWAP on schedule while finalizing on fills.
+**Resolved** in the child-fill-aggregation slice (WP-Praxis-0007). Each scheme now tracks its `active_children`; a child settles when its order projection reaches a terminal status; the child's fills — immediate and later WebSocket `executionReport` — aggregate into the parent through the child order projections (`_scheme_fill_totals`, dedup-safe since the spine append gates enqueue). The cursor advances on the interval, but the scheme finalizes FILLED only once every slice is submitted and every child has settled (`_maybe_finalize_scheme`); a `TradeAbort` cancels still-working children and finalizes CANCELED once they drain; a child that reaches a terminal status without fully filling (rejected, expired, cancelled outside the abort flow) fails the scheme REJECTED once siblings drain. A child that never settles still hangs the scheme — see TD-126.
+
+## TD-126: Scheme has no deadline backstop; a never-settling child hangs it — GO-LIVE BLOCKER
+
+**Origin**: WP-Praxis-0007 (child-fill-aggregation slice; unstaged review)
+**Severity**: High for live multi-slice (a wedged scheme never emits its terminal outcome, so the Nexus reservation is never released)
+**Module**: `praxis/core/execution_manager.py` (`_maybe_finalize_scheme`, the scheme scheduler)
+
+A scheme finalizes only when every slice is submitted and every child settles. A child that never reaches a terminal order status — a resting order that neither fills nor is cancelled, a missed WebSocket terminal event not repaired by reconcile — leaves the scheme active indefinitely with no terminal `TradeOutcome`. There is no wall-clock deadline that force-terminates a stuck scheme.
+
+**When to fix**: before live multi-slice trading — GO-LIVE BLOCKER. The bounding mechanism is the RFC 5.13 Slice-failure work (`command.timeout` applied to the scheme wall-clock, `slice_failed` appended, PARTIAL reported to Manager, deadline backstop that cancels working children and force-finalizes), tracked as the open "5.13 Slice failure" Foundation item on Praxis #7.
+**Migration**: apply `command.timeout` as a scheme deadline in the scheduler; on expiry cancel active children and finalize terminal EXPIRED with the fills gathered; add a deadline-expiry test.

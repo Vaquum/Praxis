@@ -26,6 +26,7 @@ from praxis.core.domain.enums import (
     STPMode,
     TradeStatus,
 )
+from praxis.core.domain.events import FillReceived, OrderRejected
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.twap_params import TwapParams
@@ -363,9 +364,10 @@ async def test_twap_planning_failure_rejects_before_any_slice(
 
 
 @pytest.mark.asyncio
-async def test_twap_slice_underfill_finalizes_terminal_not_filled(
+async def test_twap_partial_immediate_fill_completes_via_ws(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
     adapter: AsyncMock,
+    clock_holder: list[datetime],
 ) -> None:
     def _half_fill(*args: Any, client_order_id: str | None = None, **_kwargs: Any) -> SubmitResult:
         qty = args[_QTY_ARG_INDEX]
@@ -374,7 +376,7 @@ async def test_twap_slice_underfill_finalizes_terminal_not_filled(
             status=OrderStatus.PARTIALLY_FILLED,
             immediate_fills=(
                 ImmediateFill(
-                    venue_trade_id=f't-{client_order_id}',
+                    venue_trade_id=f'ti-{client_order_id}',
                     qty=qty / 2,
                     price=_PRICE,
                     fee=Decimal('0'),
@@ -388,13 +390,214 @@ async def test_twap_slice_underfill_finalizes_terminal_not_filled(
 
     em, outcomes = mgr
     em.register_account(_ACCT)
-    command_id = await em.submit_command(**_twap_kwargs())
+    command_id = await em.submit_command(
+        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+    )
+    await asyncio.sleep(0.3)
+
+    runtime_scheme = em._accounts[_ACCT].schemes[command_id]
+    assert len(outcomes) == 0
+    assert len(runtime_scheme.active_children) == 1
+
+    await _advance(clock_holder)
+
+    assert len(outcomes) == 0
+    assert len(runtime_scheme.active_children) == 2
+
+    for client_order_id in sorted(runtime_scheme.active_children):
+        em.enqueue_ws_event(
+            _ACCT,
+            FillReceived(
+                account_id=_ACCT,
+                timestamp=_T0,
+                client_order_id=client_order_id,
+                venue_order_id=f'v-{client_order_id}',
+                venue_trade_id=f'tw-{client_order_id}',
+                trade_id=_TRADE,
+                command_id=command_id,
+                symbol='BTCUSDT',
+                side=OrderSide.BUY,
+                qty=Decimal('0.25'),
+                price=_PRICE,
+                fee=Decimal('0'),
+                fee_asset='USDT',
+                is_maker=False,
+            ),
+        )
+    await asyncio.sleep(0.3)
+
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome.status is TradeStatus.FILLED
+    assert outcome.filled_qty == Decimal('1')
+    assert outcome.avg_fill_price == _PRICE
+
+    scheme = em.get_trading_state(_ACCT).schemes[command_id]
+    assert scheme.state is SchemeState.COMPLETED
+    assert command_id not in em._accounts[_ACCT].schemes
+
+
+@pytest.mark.asyncio
+async def test_twap_async_rejected_child_fails_not_filled(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    adapter: AsyncMock,
+    clock_holder: list[datetime],
+) -> None:
+    calls = {'n': 0}
+
+    def _fill_then_ack(*args: Any, client_order_id: str | None = None, **_kwargs: Any) -> SubmitResult:
+        calls['n'] += 1
+        qty = args[_QTY_ARG_INDEX]
+        if calls['n'] == 1:
+            return SubmitResult(
+                venue_order_id=f'v-{client_order_id}',
+                status=OrderStatus.FILLED,
+                immediate_fills=(
+                    ImmediateFill(
+                        venue_trade_id=f'ti-{client_order_id}',
+                        qty=qty,
+                        price=_PRICE,
+                        fee=Decimal('0'),
+                        fee_asset='USDT',
+                        is_maker=False,
+                    ),
+                ),
+            )
+        return SubmitResult(
+            venue_order_id=f'v-{client_order_id}',
+            status=OrderStatus.OPEN,
+            immediate_fills=(),
+        )
+
+    adapter.submit_order.side_effect = _fill_then_ack
+
+    em, outcomes = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(
+        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+    )
+    await asyncio.sleep(0.3)
+    await _advance(clock_holder)
+
+    runtime_scheme = em._accounts[_ACCT].schemes[command_id]
+    assert len(outcomes) == 0
+    assert len(runtime_scheme.active_children) == 1
+    child = next(iter(runtime_scheme.active_children))
+
+    em.enqueue_ws_event(
+        _ACCT,
+        OrderRejected(
+            account_id=_ACCT,
+            timestamp=_T0,
+            client_order_id=child,
+            venue_order_id=f'v-{child}',
+            reason='insufficient balance',
+        ),
+    )
     await asyncio.sleep(0.3)
 
     assert len(outcomes) == 1
     outcome = outcomes[0]
     assert outcome.status is TradeStatus.REJECTED
-    assert outcome.filled_qty == Decimal('0.125')
+    assert outcome.filled_qty == Decimal('0.5')
+
+    scheme = em.get_trading_state(_ACCT).schemes[command_id]
+    assert scheme.state is SchemeState.FAILED
+    assert command_id not in em._accounts[_ACCT].schemes
+
+
+@pytest.mark.asyncio
+async def test_twap_abort_cancels_live_child_then_finalizes(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    adapter: AsyncMock,
+) -> None:
+    def _half_fill(*args: Any, client_order_id: str | None = None, **_kwargs: Any) -> SubmitResult:
+        qty = args[_QTY_ARG_INDEX]
+        return SubmitResult(
+            venue_order_id=f'v-{client_order_id}',
+            status=OrderStatus.PARTIALLY_FILLED,
+            immediate_fills=(
+                ImmediateFill(
+                    venue_trade_id=f'ti-{client_order_id}',
+                    qty=qty / 2,
+                    price=_PRICE,
+                    fee=Decimal('0'),
+                    fee_asset='USDT',
+                    is_maker=False,
+                ),
+            ),
+        )
+
+    adapter.submit_order.side_effect = _half_fill
+
+    em, outcomes = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(
+        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+    )
+    await asyncio.sleep(0.3)
+
+    assert len(em._accounts[_ACCT].schemes[command_id].active_children) == 1
+
+    em.submit_abort(
+        TradeAbort(
+            command_id=command_id,
+            account_id=_ACCT,
+            reason='operator stop',
+            created_at=_T0,
+        )
+    )
+    await asyncio.sleep(0.3)
+
+    adapter.cancel_order.assert_awaited()
+
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome.status is TradeStatus.CANCELED
+    assert outcome.filled_qty == Decimal('0.25')
+
+    scheme = em.get_trading_state(_ACCT).schemes[command_id]
+    assert scheme.state is SchemeState.CANCELED
+    assert command_id not in em._accounts[_ACCT].schemes
+
+
+@pytest.mark.asyncio
+async def test_twap_slice_submit_failure_cancels_active_child_then_fails(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    adapter: AsyncMock,
+    clock_holder: list[datetime],
+) -> None:
+    calls = {'n': 0}
+
+    def _ack_then_reject(*_args: Any, client_order_id: str | None = None, **_kwargs: Any) -> SubmitResult:
+        calls['n'] += 1
+        if calls['n'] == 1:
+            return SubmitResult(
+                venue_order_id=f'v-{client_order_id}',
+                status=OrderStatus.OPEN,
+                immediate_fills=(),
+            )
+        raise OrderRejectedError(
+            'insufficient balance', venue_code=-1013, reason='insufficient balance'
+        )
+
+    adapter.submit_order.side_effect = _ack_then_reject
+
+    em, outcomes = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(
+        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+    )
+    await asyncio.sleep(0.3)
+
+    assert len(em._accounts[_ACCT].schemes[command_id].active_children) == 1
+
+    await _advance(clock_holder)
+
+    adapter.cancel_order.assert_awaited()
+
+    assert len(outcomes) == 1
+    assert outcomes[0].status is TradeStatus.REJECTED
 
     scheme = em.get_trading_state(_ACCT).schemes[command_id]
     assert scheme.state is SchemeState.FAILED

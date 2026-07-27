@@ -15,7 +15,7 @@ import logging
 import threading
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 
@@ -99,6 +99,12 @@ _TERMINAL_STATUSES = frozenset({
     TradeStatus.REJECTED,
     TradeStatus.EXPIRED,
 })
+_TERMINAL_ORDER_STATUSES = frozenset({
+    OrderStatus.FILLED,
+    OrderStatus.CANCELED,
+    OrderStatus.EXPIRED,
+    OrderStatus.REJECTED,
+})
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
 _SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
@@ -131,18 +137,10 @@ class _LiveScheme:
     slices_total: int
     interval_seconds: int
     cursor: int = 0
-    filled_qty: Decimal = _ZERO
-    cumulative_notional: Decimal = _ZERO
+    active_children: set[str] = field(default_factory=set)
+    pending_terminal: tuple[TradeStatus, SchemeState, str | None] | None = None
     next_run_at: datetime | None = None
     state: SchemeState = SchemeState.RUNNING
-
-
-@dataclass(frozen=True)
-class _SliceResult:
-    '''Aggregate fills produced by submitting one child slice.'''
-
-    filled_qty: Decimal
-    cumulative_notional: Decimal
 
 
 def _even_slice_schedule(params: ExecutionParams) -> tuple[int, int]:
@@ -1320,6 +1318,7 @@ class ExecutionManager:
                         continue
                     try:
                         await self._emit_ws_outcome(runtime, event)
+                        await self._on_scheme_child_event(runtime, event)
                     except asyncio.CancelledError:
                         raise
                     except Exception:  # noqa: BLE001
@@ -1999,6 +1998,7 @@ class ExecutionManager:
         for scheme in list(runtime.schemes.values()):
             if (
                 scheme.state is not SchemeState.RUNNING
+                or scheme.pending_terminal is not None
                 or scheme.next_run_at is None
                 or now < scheme.next_run_at
             ):
@@ -2056,87 +2056,48 @@ class ExecutionManager:
     ) -> None:
         '''Submit the slice at the current cursor and advance the schedule.
 
-        On a slice submit failure the scheme is finalized terminal
-        (REJECTED, scheme FAILED) with the fills gathered so far, so
-        capital is released and the command reaches exactly one terminal
-        outcome. On success the cursor advances; the scheme either
-        schedules its next slice or finalizes FILLED once every slice has
-        been submitted.
-
-        Fill-completeness policy (interim): a slice is only advanced past
-        when its MARKET child fully fills from `immediate_fills`. A child
-        that returns fewer immediate fills than the slice quantity (async
-        or partial venue fill) finalizes the scheme terminal REJECTED with
-        the fills gathered so far — never a false FILLED. Aggregating a
-        child's asynchronous WS fills before advancing lands with the
-        follow-up scheme-fill work (TD-125); until then a slice that does
-        not fully fill immediately terminates the scheme.
+        The child is submitted, then tracked as active until its order
+        reaches a terminal status; its fills — immediate and later
+        WebSocket — aggregate into the parent through the child order
+        projections. The cursor advances on the interval, independent of
+        fills; the scheme finalizes FILLED only once every slice is
+        submitted and every child has settled (see
+        `_maybe_finalize_scheme`). A slice that cannot be placed marks the
+        scheme for terminal FAILED once its live children drain.
         '''
 
         index = scheme.cursor
         slice_qty = scheme.slice_qtys[index]
         cmd = scheme.command
 
-        result = await self._submit_market_slice(runtime, cmd, index, slice_qty)
+        client_order_id = await self._submit_market_slice(runtime, cmd, index, slice_qty)
 
-        if result is None:
-            await self._finalize_scheme(
-                runtime,
-                scheme,
-                status=TradeStatus.REJECTED,
-                scheme_state=SchemeState.FAILED,
-                reason=f'scheme slice {index} failed',
+        if client_order_id is None:
+            scheme.pending_terminal = (
+                TradeStatus.REJECTED,
+                SchemeState.FAILED,
+                f'scheme slice {index} failed',
             )
+            scheme.next_run_at = None
+            await self._cancel_active_children(runtime, scheme)
+            await self._maybe_finalize_scheme(runtime, scheme)
             return
 
-        scheme.filled_qty += result.filled_qty
-        scheme.cumulative_notional += result.cumulative_notional
-
-        if result.filled_qty < slice_qty:
-            _log.warning(
-                'scheme slice under-filled immediately: command_id=%s slice=%d '
-                'filled=%s slice_qty=%s; finalizing terminal (async fill '
-                'aggregation not yet supported)',
-                cmd.command_id,
-                index,
-                result.filled_qty,
-                slice_qty,
-            )
-            await self._finalize_scheme(
-                runtime,
-                scheme,
-                status=TradeStatus.REJECTED,
-                scheme_state=SchemeState.FAILED,
-                reason=f'scheme slice {index} did not fully fill immediately',
-            )
-            return
+        order = self._scheme_child_order(runtime, client_order_id)
+        if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+            scheme.active_children.add(client_order_id)
 
         scheme.cursor = index + 1
 
-        if scheme.cursor >= scheme.slices_total:
-            await self._finalize_scheme(
-                runtime,
-                scheme,
-                status=TradeStatus.FILLED,
-                scheme_state=SchemeState.COMPLETED,
-                reason=None,
-            )
-            return
+        if scheme.cursor < scheme.slices_total:
+            scheme.next_run_at = now + timedelta(seconds=scheme.interval_seconds)
+            await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
+        else:
+            scheme.next_run_at = None
+            if scheme.active_children:
+                await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
 
-        scheme.next_run_at = now + timedelta(seconds=scheme.interval_seconds)
-
-        changed = SchemeStateChanged(
-            account_id=cmd.account_id,
-            timestamp=self._clock(),
-            command_id=cmd.command_id,
-            cursor=scheme.cursor,
-            filled_qty=scheme.filled_qty,
-            active_client_order_ids=(),
-            next_run_at=scheme.next_run_at,
-            state=SchemeState.RUNNING,
-        )
-        await self._event_spine.append(changed, self._epoch_id)
-        runtime.trading_state.apply(changed)
+        await self._maybe_finalize_scheme(runtime, scheme)
 
     async def _submit_market_slice(
         self,
@@ -2144,14 +2105,16 @@ class ExecutionManager:
         cmd: TradeCommand,
         index: int,
         slice_qty: Decimal,
-    ) -> _SliceResult | None:
+    ) -> str | None:
         '''Persist-before-send one MARKET child order for a scheme slice.
 
         Mirrors the single-shot submit protocol for a single child:
         `OrderSubmitIntent` before the venue call, `OrderSubmitted` plus
         one `FillReceived` per immediate fill on success,
-        `OrderSubmitFailed` on a definitive failure. Returns the
-        aggregated fills, or None when the slice could not be placed.
+        `OrderSubmitFailed` on a definitive failure. Returns the child
+        `client_order_id` on success (its fills are applied to the order
+        projection, from which the scheme aggregates), or None when the
+        slice could not be placed.
         '''
 
         client_order_id = generate_client_order_id(
@@ -2224,8 +2187,6 @@ class ExecutionManager:
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
 
-        filled_qty = _ZERO
-        cumulative_notional = _ZERO
         for fill in result.immediate_fills:
             fill_event = FillReceived(
                 account_id=cmd.account_id,
@@ -2246,8 +2207,6 @@ class ExecutionManager:
             seq = await self._event_spine.append(fill_event, self._epoch_id)
             if seq is not None:
                 self._project(runtime, fill_event)
-                filled_qty += fill.qty
-                cumulative_notional += fill.qty * fill.price
 
         _log.info(
             'scheme slice submitted: command_id=%s slice=%d client_order_id=%s fills=%d',
@@ -2257,10 +2216,196 @@ class ExecutionManager:
             len(result.immediate_fills),
         )
 
-        return _SliceResult(
-            filled_qty=filled_qty,
-            cumulative_notional=cumulative_notional,
+        return client_order_id
+
+    def _scheme_child_order(
+        self,
+        runtime: _AccountRuntime,
+        client_order_id: str,
+    ) -> Order | None:
+        '''Return a scheme child's order projection, active or closed.'''
+
+        return (
+            runtime.trading_state.orders.get(client_order_id)
+            or runtime.trading_state.closed_orders.get(client_order_id)
         )
+
+    async def _append_scheme_progress(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        state: SchemeState,
+    ) -> None:
+        '''Append a `SchemeStateChanged` from the current live scheme state.
+
+        Cumulative fill is derived from the child order projections so the
+        durable transition reflects every settled child, immediate or
+        WebSocket, without an in-memory running total a crash could lose.
+        '''
+
+        cmd = scheme.command
+        filled_qty, _ = self._scheme_fill_totals(runtime, cmd.command_id)
+
+        changed = SchemeStateChanged(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            cursor=scheme.cursor,
+            filled_qty=filled_qty,
+            active_client_order_ids=tuple(sorted(scheme.active_children)),
+            next_run_at=scheme.next_run_at,
+            state=state,
+        )
+        await self._event_spine.append(changed, self._epoch_id)
+        runtime.trading_state.apply(changed)
+
+    async def _maybe_finalize_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+    ) -> None:
+        '''Finalize the scheme once no child is still working.
+
+        Called after every slice advance and every child-settle event. A
+        pending terminal (abort or slice failure) resolves first; otherwise
+        the scheme completes FILLED once every slice has been submitted and
+        every child has fully filled. Does nothing while any child remains
+        active.
+
+        Completion status is FILLED, not PARTIAL: reaching this branch means
+        every child settled FILLED (a non-fill terminal child routes to a
+        pending FAILED via `_on_scheme_child_event`), so the only shortfall
+        possible is sub-lot dust from `plan_even_slices` flooring each slice
+        to the lot step — economically negligible and un-tradeable, the same
+        dust a single-shot MARKET order leaves. PARTIAL is not a terminal
+        `TradeStatus`, so it cannot be the outcome of a completed command.
+        '''
+
+        if scheme.active_children:
+            return
+
+        if scheme.pending_terminal is not None:
+            status, scheme_state, reason = scheme.pending_terminal
+            await self._finalize_scheme(
+                runtime,
+                scheme,
+                status=status,
+                scheme_state=scheme_state,
+                reason=reason,
+            )
+            return
+
+        if scheme.cursor >= scheme.slices_total:
+            await self._finalize_scheme(
+                runtime,
+                scheme,
+                status=TradeStatus.FILLED,
+                scheme_state=SchemeState.COMPLETED,
+                reason=None,
+            )
+
+    async def _on_scheme_child_event(
+        self,
+        runtime: _AccountRuntime,
+        event: Event,
+    ) -> None:
+        '''Fold a scheme child's WebSocket fill/terminal event into its parent.
+
+        Fills already updated the child order projection via `_project`;
+        this settles the child (drops it from the scheme's active set once
+        its order is terminal) and finalizes the scheme when the last child
+        settles. A child that reaches a terminal status without fully
+        filling — rejected, expired, or cancelled outside the parent abort
+        flow — leaves the scheme unable to reach its target, so the scheme
+        is marked for a terminal FAILED outcome, future scheduling stops,
+        and any sibling children are cancelled; the aggregated REJECTED
+        outcome fires once they drain (never a FILLED short of target).
+        Events for non-scheme commands or already-finalized schemes are
+        ignored.
+        '''
+
+        if not isinstance(event, (FillReceived, OrderCanceled, OrderExpired, OrderRejected)):
+            return
+
+        order = self._scheme_child_order(runtime, event.client_order_id)
+        if order is None:
+            return
+
+        scheme = runtime.schemes.get(order.command_id)
+        if scheme is None:
+            return
+
+        if order.status in _TERMINAL_ORDER_STATUSES:
+            scheme.active_children.discard(event.client_order_id)
+
+            if order.status is not OrderStatus.FILLED and scheme.pending_terminal is None:
+                _log.warning(
+                    'scheme child terminated without full fill: command_id=%s '
+                    'child=%s status=%s; failing scheme',
+                    order.command_id,
+                    event.client_order_id,
+                    order.status.value,
+                )
+                scheme.pending_terminal = (
+                    TradeStatus.REJECTED,
+                    SchemeState.FAILED,
+                    f'child {event.client_order_id} terminated '
+                    f'{order.status.value} without full fill',
+                )
+                scheme.next_run_at = None
+                await self._cancel_active_children(runtime, scheme)
+
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _cancel_active_children(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+    ) -> None:
+        '''Best-effort cancel every still-working child of a scheme.
+
+        A confirmed cancel appends `OrderCanceled` so the child projection
+        reaches a terminal status and drains from the active set. A market
+        child already filling cannot be cancelled: `NotFoundError` and other
+        venue errors are swallowed, and the child settles through its own
+        fill or expiry event instead.
+        '''
+
+        cmd = scheme.command
+
+        for client_order_id in tuple(scheme.active_children):
+            order = self._scheme_child_order(runtime, client_order_id)
+            if order is None:
+                scheme.active_children.discard(client_order_id)
+                continue
+
+            try:
+                await self._venue_adapter.cancel_order(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=client_order_id,
+                )
+            except NotFoundError:
+                continue
+            except VenueError as exc:
+                _log.warning(
+                    'scheme child cancel failed: command_id=%s child=%s reason=%s',
+                    cmd.command_id,
+                    client_order_id,
+                    exc.args[0] if exc.args else str(exc),
+                )
+                continue
+
+            canceled = OrderCanceled(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=order.venue_order_id,
+                reason='scheme aborted',
+            )
+            await self._event_spine.append(canceled, self._epoch_id)
+            runtime.trading_state.apply(canceled)
+            scheme.active_children.discard(client_order_id)
 
     async def _finalize_scheme(
         self,
@@ -2274,34 +2419,27 @@ class ExecutionManager:
         '''Emit the terminal scheme transition and the single trade outcome.
 
         Appends a terminal `SchemeStateChanged`, then the aggregated
-        terminal `TradeOutcome`. Removes the scheme from the live
-        scheduler set so no further slices fire.
+        terminal `TradeOutcome` (fills derived from the child order
+        projections). Removes the scheme from the live scheduler set so no
+        further slices fire.
         '''
 
         cmd = scheme.command
         scheme.state = scheme_state
         scheme.next_run_at = None
+        scheme.active_children.clear()
         runtime.schemes.pop(cmd.command_id, None)
 
-        changed = SchemeStateChanged(
-            account_id=cmd.account_id,
-            timestamp=self._clock(),
-            command_id=cmd.command_id,
-            cursor=scheme.cursor,
-            filled_qty=scheme.filled_qty,
-            active_client_order_ids=(),
-            next_run_at=None,
-            state=scheme_state,
-        )
-        await self._event_spine.append(changed, self._epoch_id)
-        runtime.trading_state.apply(changed)
+        await self._append_scheme_progress(runtime, scheme, scheme_state)
+
+        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
 
         await self._emit_scheme_terminal(
             runtime,
             cmd,
             status=status,
-            filled_qty=scheme.filled_qty,
-            cumulative_notional=scheme.cumulative_notional,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
             slices_completed=scheme.cursor,
             slices_total=scheme.slices_total,
             reason=reason,
@@ -2312,16 +2450,12 @@ class ExecutionManager:
         runtime: _AccountRuntime,
         abort: TradeAbort,
     ) -> None:
-        '''Abort a running scheme: stop scheduling and finalize CANCELED.
+        '''Abort a running scheme: stop scheduling, cancel children, finalize.
 
-        A `TradeAbort` targeting a live scheme makes it non-schedulable
-        and emits one aggregated CANCELED outcome carrying the fills
-        gathered so far. Under the interim fill-completeness policy every
-        submitted slice has already fully filled (a slice that does not
-        finalizes the scheme), so a live scheme in `runtime.schemes` has
-        no working children to cancel at the venue — the abort only stops
-        future slices. Cancelling still-working children lands with the
-        asynchronous scheme-fill work (TD-125).
+        Marks the scheme for a terminal CANCELED outcome and cancels any
+        still-working child at the venue. The single aggregated CANCELED
+        outcome fires once every child has settled — immediately when none
+        are working, otherwise as the cancels confirm.
         '''
 
         scheme = runtime.schemes.get(abort.command_id)
@@ -2335,13 +2469,14 @@ class ExecutionManager:
             abort.reason,
         )
 
-        await self._finalize_scheme(
-            runtime,
-            scheme,
-            status=TradeStatus.CANCELED,
-            scheme_state=SchemeState.CANCELED,
-            reason=abort.reason,
+        scheme.pending_terminal = (
+            TradeStatus.CANCELED,
+            SchemeState.CANCELED,
+            abort.reason,
         )
+        scheme.next_run_at = None
+        await self._cancel_active_children(runtime, scheme)
+        await self._maybe_finalize_scheme(runtime, scheme)
 
     async def _emit_scheme_terminal(
         self,
