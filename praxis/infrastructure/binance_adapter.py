@@ -37,6 +37,7 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_URL,
 )
 from praxis.infrastructure.secret_store import Credentials
+from praxis.infrastructure.token_bucket import TokenBucket
 from praxis.infrastructure.venue_adapter import (
     ApiPermissions,
     AuthenticationError,
@@ -86,6 +87,8 @@ _LOCAL_FILTER_REJECT_CODE = -1013
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
 _DEFAULT_WEIGHT_LIMIT = 6000
+_VENUE_OP_RATE = 10.0
+_VENUE_OP_CAPACITY = 10.0
 _DEFAULT_ORDER_COUNT_LIMIT = 10
 _RATE_LIMIT_WARN_THRESHOLD = 0.2
 _WEIGHT_INTERVAL_NUM = 1
@@ -232,6 +235,7 @@ class BinanceAdapter:
         self._used_weight: int = 0
         self._weight_updated_at: float = time.monotonic()
         self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
+        self._op_budget = TokenBucket(_VENUE_OP_RATE, _VENUE_OP_CAPACITY)
         self._order_count: dict[str, int] = {}
         self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
         self._prev_headroom_above_threshold: bool = True
@@ -511,6 +515,11 @@ class BinanceAdapter:
 
         for attempt in range(max_attempts):
             try:
+                # One token per actual HTTP attempt: a retry after a 429 or
+                # transient failure charges the budget again, keeping the
+                # limiter honest about real venue load at the cost of slower
+                # recovery under sustained rate limiting.
+                await self._op_budget.acquire()
                 async with build_request() as response:
                     self._update_weight_from_headers(response, account_id)
                     await self._raise_on_error(response)
@@ -1830,6 +1839,7 @@ class BinanceAdapter:
         session = await self._ensure_session()
 
         try:
+            await self._op_budget.acquire()
             async with session.request(
                 'GET',
                 f"{self._base_url}/api/v3/exchangeInfo",
@@ -1917,6 +1927,7 @@ class BinanceAdapter:
         session = await self._ensure_session()
 
         try:
+            await self._op_budget.acquire()
             async with session.request(
                 'GET',
                 f"{self._base_url}/api/v3/depth",

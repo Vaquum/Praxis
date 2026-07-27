@@ -84,7 +84,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueError,
 )
 
-__all__ = ['AccountNotRegisteredError', 'ExecutionManager']
+__all__ = ['AccountNotRegisteredError', 'CommandQueueFullError', 'ExecutionManager']
 
 _log = logging.getLogger(__name__)
 
@@ -110,6 +110,7 @@ _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
 _SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
 _MIN_SCHEME_SLICES = 2
+_COMMAND_QUEUE_MAXSIZE = 1000
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
@@ -122,6 +123,15 @@ def _utc_now() -> datetime:
 
 class AccountNotRegisteredError(Exception):
     '''Raised when a command targets an unregistered account_id.'''
+
+
+class CommandQueueFullError(ValueError):
+    '''Raised when a command is rejected because the account queue is full.
+
+    Subclasses `ValueError` so existing inbound-validation handling still
+    catches it, while letting a caller distinguish a fail-closed capacity
+    rejection from a bad-parameter rejection.
+    '''
 
 
 @dataclass
@@ -193,7 +203,7 @@ class _AccountRuntime:
 
     Args:
         account_id (str): Account identifier.
-        command_queue (asyncio.Queue[TradeCommand]): Unbounded queue for commands.
+        command_queue (asyncio.Queue[TradeCommand]): Bounded queue for commands; a full queue rejects fail-closed at submit.
         priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
         ws_event_queue (asyncio.Queue[Event]): Unbounded queue for WS events.
         trading_state (TradingState): Per-account state projection.
@@ -220,6 +230,7 @@ class _AccountRuntime:
         self.task: asyncio.Task[None] | None = None
         self.command_to_order: dict[str, str] = {}
         self.schemes: dict[str, _LiveScheme] = {}
+        self.queue_reservations = 0
         self.reconciling = False
         self.poisoned = False
 
@@ -370,7 +381,7 @@ class ExecutionManager:
 
         runtime = _AccountRuntime(
             account_id=account_id,
-            command_queue=asyncio.Queue(),
+            command_queue=asyncio.Queue(maxsize=_COMMAND_QUEUE_MAXSIZE),
             priority_queue=asyncio.Queue(),
             ws_event_queue=asyncio.Queue(),
             trading_state=TradingState(account_id),
@@ -1352,6 +1363,9 @@ class ExecutionManager:
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            CommandQueueFullError: If the account's command queue is at
+                capacity; the command is rejected fail-closed before any
+                durable state is written.
             ValueError: If command fails inbound validation, including
                 an empty, too-short, or already-in-use caller-supplied
                 `command_id`.
@@ -1398,23 +1412,56 @@ class ExecutionManager:
 
         validate_trade_command(cmd)
 
-        event = CommandAccepted(
-            account_id=account_id,
-            timestamp=self._clock(),
-            command_id=command_id,
-            trade_id=trade_id,
-            strategy_id=strategy_id,
-        )
-        self._accepted_commands[command_id] = account_id
+        if (
+            runtime.command_queue.qsize() + runtime.queue_reservations
+            >= _COMMAND_QUEUE_MAXSIZE
+        ):
+            _log.warning(
+                'command queue full; rejecting command (fail-closed): '
+                'account_id=%s size=%d',
+                account_id,
+                _COMMAND_QUEUE_MAXSIZE,
+            )
+            msg = (
+                f"command queue for account '{account_id}' is at capacity "
+                f'({_COMMAND_QUEUE_MAXSIZE}); rejecting (fail-closed)'
+            )
+            raise CommandQueueFullError(msg)
 
+        runtime.queue_reservations += 1
         try:
-            await self._event_spine.append(event, self._epoch_id)
-        except BaseException:
-            self._accepted_commands.pop(command_id, None)
-            self._aborted_commands.pop(command_id, None)
-            raise
+            event = CommandAccepted(
+                account_id=account_id,
+                timestamp=self._clock(),
+                command_id=command_id,
+                trade_id=trade_id,
+                strategy_id=strategy_id,
+            )
+            self._accepted_commands[command_id] = account_id
 
-        runtime.command_queue.put_nowait(cmd)
+            try:
+                await self._event_spine.append(event, self._epoch_id)
+            except BaseException:
+                self._accepted_commands.pop(command_id, None)
+                self._aborted_commands.pop(command_id, None)
+                raise
+
+            try:
+                runtime.command_queue.put_nowait(cmd)
+            except asyncio.QueueFull:
+                # Defensive: the reservation guarantees a free slot, so this
+                # is unreachable. If a future reservation bug ever let it
+                # fire, roll back the durable accept rather than stranding it.
+                self._accepted_commands.pop(command_id, None)
+                self._aborted_commands.pop(command_id, None)
+                msg = (
+                    f"command queue for account '{account_id}' is at capacity "
+                    f'({_COMMAND_QUEUE_MAXSIZE}); rejecting (fail-closed)'
+                )
+                raise CommandQueueFullError(msg) from None
+        finally:
+            runtime.queue_reservations -= 1
+
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
 
@@ -1534,7 +1581,10 @@ class ExecutionManager:
 
                 try:
                     if cmd.execution_mode in _SCHEME_MODES:
-                        await self._start_scheme(runtime, cmd)
+                        if self._deadline_exceeded(self._clock(), cmd):
+                            await self._expire_stale_command(runtime, cmd)
+                        else:
+                            await self._start_scheme(runtime, cmd)
                     else:
                         await self._process_command(runtime, cmd)
                 except asyncio.CancelledError:
@@ -1590,6 +1640,38 @@ class ExecutionManager:
         )
 
         return f'estimated slippage {adverse_bps} bps exceeds max {self._max_slippage_bps} bps'
+
+    async def _expire_stale_command(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Expire a scheme command whose deadline passed while it was queued.
+
+        Admission control: a scheme command dequeued after its
+        `created_at + timeout` deadline is expired before `_start_scheme`
+        runs, so a backlog that outlived its commands neither emits a
+        SchemeInitialized nor places any child order. It terminates EXPIRED
+        with no fills. (Single-shot commands retain their own post-submit
+        deadline handling in `_process_command`.)
+        '''
+
+        _log.warning(
+            'command expired at dispatch (deadline passed while queued): '
+            'command_id=%s trade_id=%s account_id=%s',
+            cmd.command_id,
+            cmd.trade_id,
+            runtime.account_id,
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.EXPIRED,
+            filled_qty=_ZERO,
+            avg_fill_price=None,
+            reason='command deadline exceeded before dispatch',
+        )
 
     async def _process_command(  # noqa: PLR0911 - one return per pre-submit rejection reason
         self,
