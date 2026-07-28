@@ -706,11 +706,17 @@ class BinanceAdapter:
 
         if order_type == OrderType.MARKET:
             params['type'] = 'MARKET'
+            if stop_price is not None:
+                msg = 'stop_price is not supported for MARKET orders'
+                raise ValueError(msg)
 
         elif order_type == OrderType.LIMIT:
             params['type'] = 'LIMIT'
             if price is None:
                 msg = 'price is required for LIMIT orders'
+                raise ValueError(msg)
+            if stop_price is not None:
+                msg = 'stop_price is not supported for LIMIT orders'
                 raise ValueError(msg)
             params['price'] = format(price, 'f')
             params['timeInForce'] = time_in_force or 'GTC'
@@ -720,15 +726,58 @@ class BinanceAdapter:
             if price is None:
                 msg = 'price is required for LIMIT_IOC orders'
                 raise ValueError(msg)
+            if stop_price is not None:
+                msg = 'stop_price is not supported for LIMIT_IOC orders'
+                raise ValueError(msg)
             params['price'] = format(price, 'f')
             params['timeInForce'] = 'IOC'
 
+        elif order_type == OrderType.STOP:
+            params['type'] = 'STOP_LOSS'
+            if stop_price is None:
+                msg = 'stop_price is required for STOP orders'
+                raise ValueError(msg)
+            if price is not None:
+                msg = 'price is not supported for STOP orders'
+                raise ValueError(msg)
+            params['stopPrice'] = format(stop_price, 'f')
+
+        elif order_type == OrderType.STOP_LIMIT:
+            params['type'] = 'STOP_LOSS_LIMIT'
+            if price is None:
+                msg = 'price is required for STOP_LIMIT orders'
+                raise ValueError(msg)
+            if stop_price is None:
+                msg = 'stop_price is required for STOP_LIMIT orders'
+                raise ValueError(msg)
+            params['price'] = format(price, 'f')
+            params['stopPrice'] = format(stop_price, 'f')
+            params['timeInForce'] = time_in_force or 'GTC'
+
+        elif order_type == OrderType.TAKE_PROFIT:
+            params['type'] = 'TAKE_PROFIT'
+            if stop_price is None:
+                msg = 'stop_price is required for TAKE_PROFIT orders'
+                raise ValueError(msg)
+            if price is not None:
+                msg = 'price is not supported for TAKE_PROFIT orders'
+                raise ValueError(msg)
+            params['stopPrice'] = format(stop_price, 'f')
+
+        elif order_type == OrderType.TP_LIMIT:
+            params['type'] = 'TAKE_PROFIT_LIMIT'
+            if price is None:
+                msg = 'price is required for TP_LIMIT orders'
+                raise ValueError(msg)
+            if stop_price is None:
+                msg = 'stop_price is required for TP_LIMIT orders'
+                raise ValueError(msg)
+            params['price'] = format(price, 'f')
+            params['stopPrice'] = format(stop_price, 'f')
+            params['timeInForce'] = time_in_force or 'GTC'
+
         else:
             msg = f"Unsupported order type: {order_type}"
-            raise ValueError(msg)
-
-        if stop_price is not None:
-            msg = 'stop_price is not supported for MARKET, LIMIT, or LIMIT_IOC orders'
             raise ValueError(msg)
 
         if client_order_id is not None:
@@ -1020,15 +1069,17 @@ class BinanceAdapter:
         order_type: OrderType,
         qty: Decimal,
         price: Decimal | None,
+        stop_price: Decimal | None = None,
     ) -> None:
 
         '''
         Validate order parameters against cached venue filters.
 
-        Checks quantity step and quantity range for all orders, and price
-        tick and minimum notional only for priced, non-market orders.
-        Logs a warning and returns without validation if filters are not
-        cached for the symbol.
+        Checks quantity step and quantity range for all orders, price tick
+        and minimum notional only for priced, non-market orders, and stop
+        trigger tick alignment for stop / take-profit orders. Logs a
+        warning and returns without validation if filters are not cached
+        for the symbol.
 
         Round-18 MAJOR-007: filter violations raise
         `LocalOrderRejectedError` (a `VenueError` / `OrderRejectedError`
@@ -1086,6 +1137,15 @@ class BinanceAdapter:
                 raise LocalOrderRejectedError(
                     reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
                 )
+
+        if stop_price is not None and stop_price % filters.tick_size != 0:
+            reason = (
+                f"stop price {stop_price} is not a multiple of "
+                f"tick size {filters.tick_size}"
+            )
+            raise LocalOrderRejectedError(
+                reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
+            )
 
 
     def _snap_qty_to_lot_step(self, symbol: str, qty: Decimal) -> Decimal:
@@ -1365,7 +1425,7 @@ class BinanceAdapter:
 
         qty = self._snap_qty_to_lot_step(symbol, qty)
 
-        self._validate_order(symbol, order_type, qty, price)
+        self._validate_order(symbol, order_type, qty, price, stop_price)
 
         if order_type == OrderType.OCO:
             if price is None or stop_price is None:

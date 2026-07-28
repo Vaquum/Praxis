@@ -947,7 +947,106 @@ class TestBuildOrderParams:
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='Unsupported order type'):
             adapter._build_order_params(
-                'BTCUSDT', OrderSide.BUY, OrderType.STOP, Decimal('1.0'),
+                'BTCUSDT', OrderSide.BUY, OrderType.OCO, Decimal('1.0'),
+            )
+
+    def test_stop_builds_stop_loss(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.STOP, Decimal('1.0'),
+            stop_price=Decimal('49000'),
+        )
+        assert params['type'] == 'STOP_LOSS'
+        assert params['stopPrice'] == '49000'
+        assert 'price' not in params
+
+    def test_stop_requires_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for STOP'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP, Decimal('1.0'),
+            )
+
+    def test_stop_limit_builds_stop_loss_limit(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.STOP_LIMIT, Decimal('1.0'),
+            price=Decimal('48500'), stop_price=Decimal('49000'),
+        )
+        assert params['type'] == 'STOP_LOSS_LIMIT'
+        assert params['price'] == '48500'
+        assert params['stopPrice'] == '49000'
+        assert params['timeInForce'] == 'GTC'
+
+    def test_stop_limit_requires_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is required for STOP_LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP_LIMIT, Decimal('1.0'),
+                stop_price=Decimal('49000'),
+            )
+
+    def test_stop_limit_requires_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for STOP_LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP_LIMIT, Decimal('1.0'),
+                price=Decimal('48500'),
+            )
+
+    def test_stop_rejects_spurious_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported for STOP'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP, Decimal('1.0'),
+                price=Decimal('48000'), stop_price=Decimal('49000'),
+            )
+
+    def test_take_profit_rejects_spurious_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported for TAKE_PROFIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.TAKE_PROFIT, Decimal('1.0'),
+                price=Decimal('61000'), stop_price=Decimal('60000'),
+            )
+
+    def test_take_profit_builds_take_profit(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.TAKE_PROFIT, Decimal('1.0'),
+            stop_price=Decimal('60000'),
+        )
+        assert params['type'] == 'TAKE_PROFIT'
+        assert params['stopPrice'] == '60000'
+        assert 'price' not in params
+
+    def test_tp_limit_builds_take_profit_limit(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.TP_LIMIT, Decimal('1.0'),
+            price=Decimal('60500'), stop_price=Decimal('60000'),
+        )
+        assert params['type'] == 'TAKE_PROFIT_LIMIT'
+        assert params['price'] == '60500'
+        assert params['stopPrice'] == '60000'
+        assert params['timeInForce'] == 'GTC'
+
+    def test_tp_limit_requires_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for TP_LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.TP_LIMIT, Decimal('1.0'),
+                price=Decimal('60500'),
             )
 
     def test_stop_price_raises(self) -> None:
@@ -2178,6 +2277,23 @@ class TestValidateOrder:
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
         with pytest.raises(LocalOrderRejectedError, match='not a multiple of tick size'):
             adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('1.0'), Decimal('50000.005'))
+
+    def test_stop_price_not_multiple_of_tick_size_raises(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        with pytest.raises(LocalOrderRejectedError, match=r'stop price .* not a multiple of tick size'):
+            adapter._validate_order(
+                'BTCUSDT', OrderType.STOP, Decimal('1.0'), None, Decimal('49000.005'),
+            )
+
+    def test_valid_stop_trigger_passes(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        adapter._validate_order(
+            'BTCUSDT', OrderType.STOP, Decimal('1.0'), None, Decimal('49000.00'),
+        )
 
     def test_qty_not_multiple_of_lot_step_raises(self) -> None:
 
