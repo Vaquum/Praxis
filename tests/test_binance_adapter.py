@@ -33,6 +33,7 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueError,
     VenueOrder,
+    VenueOrderList,
     VenueTrade,
 )
 
@@ -1813,6 +1814,105 @@ class TestQueryOrder:
             await adapter.query_order(
                 _ACCOUNT_ID, 'BTCUSDT', venue_order_id=_VENUE_ORDER_ID,
             )
+
+
+_BINANCE_ORDER_LIST_RESPONSE = {
+    'orderListId': 27,
+    'contingencyType': 'OCO',
+    'listStatusType': 'EXEC_STARTED',
+    'listOrderStatus': 'EXECUTING',
+    'listClientOrderId': 'SS-cmd0123456789abcdef-000',
+    'transactionTime': 1565245656253,
+    'symbol': 'BTCUSDT',
+    'orders': [
+        {'symbol': 'BTCUSDT', 'orderId': 4, 'clientOrderId': 'leg-a'},
+        {'symbol': 'BTCUSDT', 'orderId': 5, 'clientOrderId': 'leg-b'},
+    ],
+}
+
+
+class TestQueryOrderList:
+
+    def test_parse_venue_order_list(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order_list(_BINANCE_ORDER_LIST_RESPONSE)
+
+        assert isinstance(result, VenueOrderList)
+        assert result.order_list_id == '27'
+        assert result.list_client_order_id == 'SS-cmd0123456789abcdef-000'
+        assert result.list_status_type == 'EXEC_STARTED'
+        assert result.list_order_status == 'EXECUTING'
+        assert len(result.legs) == 2
+        assert result.legs[0].venue_order_id == '4'
+        assert result.legs[0].client_order_id == 'leg-a'
+        assert result.legs[0].symbol == 'BTCUSDT'
+        assert result.legs[1].venue_order_id == '5'
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_by_list_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        result = await adapter.query_order_list(
+            _ACCOUNT_ID, list_client_order_id='SS-cmd0123456789abcdef-000',
+        )
+        assert result.order_list_id == '27'
+        assert len(result.legs) == 2
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_by_order_list_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        result = await adapter.query_order_list(_ACCOUNT_ID, order_list_id='27')
+        assert result.list_client_order_id == 'SS-cmd0123456789abcdef-000'
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_neither_identifier_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='At least one'):
+            await adapter.query_order_list(_ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_not_found_raises(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+        with pytest.raises(NotFoundError):
+            await adapter.query_order_list(_ACCOUNT_ID, order_list_id='27')
+
+    def test_parse_venue_order_list_empty_legs_raises(self) -> None:
+
+        adapter = _make_adapter()
+        data = {**_BINANCE_ORDER_LIST_RESPONSE, 'orders': []}
+        with pytest.raises(VenueError, match='no legs'):
+            adapter._parse_venue_order_list(data)
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_sends_orig_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        await adapter.query_order_list(
+            _ACCOUNT_ID, list_client_order_id='SS-cmd0123456789abcdef-000',
+        )
+        url = adapter._session.request.call_args.args[1]
+        assert '/api/v3/orderList?' in url
+        assert 'origClientOrderId=SS-cmd0123456789abcdef-000' in url
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_sends_order_list_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        await adapter.query_order_list(_ACCOUNT_ID, order_list_id='27')
+        url = adapter._session.request.call_args.args[1]
+        assert 'orderListId=27' in url
 
 
 class TestQueryOpenOrders:

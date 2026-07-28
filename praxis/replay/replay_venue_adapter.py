@@ -39,6 +39,7 @@ from praxis.infrastructure.venue_adapter import (
     SubmitResult,
     SymbolFilters,
     VenueOrder,
+    VenueOrderList,
     VenueTrade,
 )
 
@@ -310,6 +311,20 @@ class ReplayVenueAdapter:
         raise NotFoundError(
             f'unknown order: venue_order_id={venue_order_id} '
             f'client_order_id={client_order_id}'
+        )
+
+    async def query_order_list(
+        self,
+        account_id: str,
+        *,
+        order_list_id: str | None = None,
+        list_client_order_id: str | None = None,
+    ) -> VenueOrderList:
+        '''Replay records no OCO lists; always unknown.'''
+
+        raise NotFoundError(
+            f'replay venue has no order lists: order_list_id={order_list_id} '
+            f'list_client_order_id={list_client_order_id}'
         )
 
     async def query_open_orders(

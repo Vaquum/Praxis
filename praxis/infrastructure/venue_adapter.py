@@ -41,6 +41,8 @@ __all__ = [
     'VenueAdapter',
     'VenueError',
     'VenueOrder',
+    'VenueOrderList',
+    'VenueOrderListLeg',
     'VenueTrade',
 ]
 
@@ -123,6 +125,49 @@ class VenueOrder:
     qty: Decimal
     filled_qty: Decimal
     price: Decimal | None
+
+
+@dataclass(frozen=True)
+class VenueOrderListLeg:
+    '''
+    Represent one constituent order of an OCO list as reported on query.
+
+    Args:
+        venue_order_id (str): Venue-assigned order identifier of the leg.
+        client_order_id (str): Client order identifier of the leg.
+        symbol (str): Trading pair symbol.
+    '''
+
+    venue_order_id: str
+    client_order_id: str
+    symbol: str
+
+
+@dataclass(frozen=True)
+class VenueOrderList:
+    '''
+    Represent the state of an OCO order list as reported by the venue.
+
+    Used by crash recovery to resolve an OCO list by its durable
+    listClientOrderId (the deterministic command id) and map its legs
+    back to the parent command.
+
+    Args:
+        order_list_id (str): Venue-assigned order-list identifier.
+        list_client_order_id (str): Durable list client order id (the
+            deterministic parent command identifier).
+        list_status_type (str): Venue list status type (RESPONSE,
+            EXEC_STARTED, ALL_DONE).
+        list_order_status (str): Venue list order status (EXECUTING,
+            ALL_DONE, REJECT).
+        legs (tuple[VenueOrderListLeg, ...]): The list's constituent orders.
+    '''
+
+    order_list_id: str
+    list_client_order_id: str
+    list_status_type: str
+    list_order_status: str
+    legs: tuple[VenueOrderListLeg, ...]
 
 
 @dataclass(frozen=True)
@@ -730,6 +775,32 @@ class VenueAdapter(Protocol):
 
         Returns:
             VenueOrder: Current order state from the venue
+        '''
+
+        ...
+
+    async def query_order_list(
+        self,
+        account_id: str,
+        *,
+        order_list_id: str | None = None,
+        list_client_order_id: str | None = None,
+    ) -> VenueOrderList:
+        '''
+        Query the current state of an OCO order list on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            order_list_id (str | None): Venue-assigned order-list identifier
+            list_client_order_id (str | None): Durable list client order id
+                (the deterministic parent command identifier)
+
+        Note:
+            At least one of order_list_id or list_client_order_id must be
+            provided.
+
+        Returns:
+            VenueOrderList: Current order-list state from the venue
         '''
 
         ...

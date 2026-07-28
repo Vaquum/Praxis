@@ -59,6 +59,8 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueError,
     VenueOrder,
+    VenueOrderList,
+    VenueOrderListLeg,
     VenueTrade,
 )
 
@@ -987,6 +989,42 @@ class BinanceAdapter:
             price=price,
         )
 
+    def _parse_venue_order_list(self, data: dict[str, Any]) -> VenueOrderList:
+
+        '''
+        Parse a Binance orderList query response into a VenueOrderList.
+
+        Args:
+            data (dict[str, Any]): Binance JSON response body
+
+        Returns:
+            VenueOrderList: Normalised order-list representation
+        '''
+
+        legs = tuple(
+            VenueOrderListLeg(
+                venue_order_id=str(leg['orderId']),
+                client_order_id=str(leg['clientOrderId']),
+                symbol=str(leg['symbol']),
+            )
+            for leg in data.get('orders', [])
+        )
+
+        if not legs:
+            msg = (
+                f"OCO list {data.get('orderListId')} has no legs; "
+                'malformed order-list response'
+            )
+            raise VenueError(msg)
+
+        return VenueOrderList(
+            order_list_id=str(data['orderListId']),
+            list_client_order_id=str(data['listClientOrderId']),
+            list_status_type=str(data['listStatusType']),
+            list_order_status=str(data['listOrderStatus']),
+            legs=legs,
+        )
+
     def _parse_venue_trade(self, data: dict[str, Any]) -> VenueTrade:
 
         '''
@@ -1679,6 +1717,42 @@ class BinanceAdapter:
 
         data = await self._signed_request('GET', '/api/v3/order', params, account_id)
         return self._parse_venue_order(data)
+
+    async def query_order_list(
+        self,
+        account_id: str,
+        *,
+        order_list_id: str | None = None,
+        list_client_order_id: str | None = None,
+    ) -> VenueOrderList:
+
+        '''
+        Query the current state of an OCO order list on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            order_list_id (str | None): Venue-assigned order-list identifier
+            list_client_order_id (str | None): Durable list client order id
+                (the deterministic parent command identifier)
+
+        Returns:
+            VenueOrderList: Current order-list state from the venue
+        '''
+
+        if order_list_id is None and list_client_order_id is None:
+            msg = 'At least one of order_list_id or list_client_order_id must be provided'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {}
+
+        if order_list_id is not None:
+            params['orderListId'] = order_list_id
+
+        if list_client_order_id is not None:
+            params['origClientOrderId'] = list_client_order_id
+
+        data = await self._signed_request('GET', '/api/v3/orderList', params, account_id)
+        return self._parse_venue_order_list(data)
 
     async def query_open_orders(
         self,
