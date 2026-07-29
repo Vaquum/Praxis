@@ -196,18 +196,30 @@ class OrderSubmitted(_EventBase):
         timestamp (datetime): Event time, must be timezone-aware.
         client_order_id (str): Deterministic client order identifier.
         venue_order_id (str): Venue-assigned order identifier.
+        leg_client_order_ids (tuple[str, ...]): For an OCO submission, the
+            venue-assigned client order ids of the list's legs, persisted so
+            replay can map leg fills back to the parent order. Empty for
+            non-OCO orders.
     '''
 
     client_order_id: str
     venue_order_id: str
+    leg_client_order_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
 
         super().__post_init__()
 
+        object.__setattr__(
+            self, 'leg_client_order_ids', tuple(self.leg_client_order_ids),
+        )
+
         name = type(self).__name__
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'venue_order_id', self.venue_order_id)
+
+        for leg_id in self.leg_client_order_ids:
+            _require_str(name, 'leg_client_order_ids entry', leg_id)
 
 
 @dataclass(frozen=True)

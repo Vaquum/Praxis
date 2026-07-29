@@ -1512,6 +1512,57 @@ async def test_on_execution_report_processes_fill(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_on_execution_report_routes_oco_leg_fill_to_parent(
+    spine: EventSpine,
+) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    state = trading._execution_manager._accounts['acc-1'].trading_state
+    state.orders['SS-cmd1-00'] = _make_order()
+    state.oco_leg_parent['leg-a'] = 'SS-cmd1-00'
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='leg-a',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        original_qty=Decimal('1'),
+        original_price=Decimal('50000'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-a',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset='BTC',
+        transaction_time=_CREATED_AT,
+        venue_trade_id='t-ws-a',
+        is_maker=False,
+    )
+
+    mock_adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    mock_adapter.parse_execution_report.return_value = report
+    trading._venue_adapter = cast(VenueAdapter, mock_adapter)
+
+    await trading._on_execution_report('acc-1', {'e': 'executionReport'})
+    await asyncio.sleep(0.15)
+
+    events = await _trading_events(spine)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, FillReceived)
+    assert event.client_order_id == 'SS-cmd1-00'
+    assert event.command_id == 'cmd-1'
+    assert event.venue_trade_id == 't-ws-a'
+    await trading.stop()
+
+
+@pytest.mark.asyncio
 async def test_on_execution_report_skips_terminal_for_closed_order(
     spine: EventSpine,
 ) -> None:

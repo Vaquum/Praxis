@@ -82,6 +82,7 @@ from praxis.infrastructure.venue_adapter import (
     SubmitResult,
     VenueAdapter,
     VenueError,
+    VenueOrderList,
 )
 
 __all__ = ['AccountNotRegisteredError', 'CommandQueueFullError', 'ExecutionManager']
@@ -112,8 +113,41 @@ _SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
 _MIN_SCHEME_SLICES = 2
 _COMMAND_QUEUE_MAXSIZE = 1000
 _OCO_LIST_STATUS_REJECT = 'REJECT'
+_OCO_LIST_STATUS_ALL_DONE = 'ALL_DONE'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
+
+
+def _aggregate_oco_terminal_status(
+    leg_statuses: tuple[OrderStatus, ...],
+) -> OrderStatus:
+    '''Reduce an ALL_DONE OCO list's leg statuses to one order status.
+
+    Mirrors the precedence `_parse_oco_response` applies to a fresh OCO
+    submission: a fill on either leg makes the list FILLED (or
+    PARTIALLY_FILLED), otherwise the terminal state is EXPIRED, REJECTED,
+    or CANCELED in that order.
+
+    Args:
+        leg_statuses (tuple[OrderStatus, ...]): Status of each queried leg.
+
+    Returns:
+        OrderStatus: The resolved list-level terminal status.
+    '''
+
+    if OrderStatus.FILLED in leg_statuses:
+        return OrderStatus.FILLED
+
+    if OrderStatus.PARTIALLY_FILLED in leg_statuses:
+        return OrderStatus.PARTIALLY_FILLED
+
+    if OrderStatus.EXPIRED in leg_statuses:
+        return OrderStatus.EXPIRED
+
+    if OrderStatus.REJECTED in leg_statuses:
+        return OrderStatus.REJECTED
+
+    return OrderStatus.CANCELED
 
 
 def _utc_now() -> datetime:
@@ -1846,6 +1880,7 @@ class ExecutionManager:
             timestamp=post_venue_ts,
             client_order_id=client_order_id,
             venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
         )
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
@@ -2157,10 +2192,13 @@ class ExecutionManager:
         query cannot confirm an OCO, whose durable identity is its
         `listClientOrderId` (the deterministic command id). Queries the
         order list; a REJECT list status or a not-found list means the OCO
-        was not accepted (caller classifies REJECTED), any other status
-        means the list is live and its terminal state resolves through the
-        WS / reconcile path, so `immediate_fills` is empty and the status
-        is OPEN.
+        was not accepted (caller classifies REJECTED). An ALL_DONE list is
+        terminal — its legs are queried to resolve the true terminal status
+        (mirroring the single-order rescue, which passes the venue status
+        through rather than forcing OPEN); an EXECUTING list is still live,
+        so the status is OPEN. In every confirmed case `immediate_fills` is
+        empty because trade-level fills arrive separately via the reconcile
+        path, keyed by the leg client order ids.
         '''
 
         try:
@@ -2198,20 +2236,83 @@ class ExecutionManager:
             )
             return None
 
+        if order_list.list_order_status == _OCO_LIST_STATUS_ALL_DONE:
+            status = await self._resolve_terminal_oco_status(
+                cmd, client_order_id, order_list,
+            )
+        else:
+            status = OrderStatus.OPEN
+
         _log.warning(
-            'oco rescue confirmed live venue list: account_id=%s '
-            'list_client_order_id=%s order_list_id=%s list_status=%s trigger=%s',
+            'oco rescue confirmed venue list: account_id=%s '
+            'list_client_order_id=%s order_list_id=%s list_status=%s '
+            'resolved_status=%s trigger=%s',
             runtime.account_id,
             client_order_id,
             order_list.order_list_id,
             order_list.list_order_status,
+            status.value,
             type(trigger).__name__,
         )
         return SubmitResult(
             venue_order_id=order_list.order_list_id,
-            status=OrderStatus.OPEN,
+            status=status,
             immediate_fills=(),
+            leg_client_order_ids=tuple(
+                leg.client_order_id for leg in order_list.legs
+            ),
         )
+
+    async def _resolve_terminal_oco_status(
+        self,
+        cmd: TradeCommand,
+        client_order_id: str,
+        order_list: VenueOrderList,
+    ) -> OrderStatus:
+        '''Resolve an ALL_DONE OCO list's terminal status from its legs.
+
+        The order-list query carries no per-leg status, so each leg is
+        queried and the results are reduced by
+        `_aggregate_oco_terminal_status`. Trade-level fills are not
+        reconstructed here — they arrive via the reconcile path keyed by
+        the leg client order ids. If any leg query fails the list is
+        treated as live (OPEN) so the reconcile path heals it, rather than
+        risk mis-terminalizing a leg that may have filled.
+
+        Args:
+            cmd (TradeCommand): Original command (carries the account id).
+            client_order_id (str): List client order id (logging context).
+            order_list (VenueOrderList): The confirmed ALL_DONE list.
+
+        Returns:
+            OrderStatus: The resolved terminal status, or OPEN when a leg
+                query fails.
+        '''
+
+        leg_statuses: list[OrderStatus] = []
+        for leg in order_list.legs:
+            try:
+                venue_order = await self._venue_adapter.query_order(
+                    cmd.account_id,
+                    leg.symbol,
+                    client_order_id=leg.client_order_id,
+                )
+            except VenueError as query_exc:
+                _log.exception(
+                    'oco rescue leg query failed: account_id=%s '
+                    'list_client_order_id=%s leg_client_order_id=%s '
+                    'query_error=%s — treating list live',
+                    cmd.account_id,
+                    client_order_id,
+                    leg.client_order_id,
+                    str(query_exc.args[0]) if query_exc.args else str(query_exc),
+                )
+
+                return OrderStatus.OPEN
+
+            leg_statuses.append(venue_order.status)
+
+        return _aggregate_oco_terminal_status(tuple(leg_statuses))
 
     async def _start_scheme(
         self,
@@ -2525,6 +2626,7 @@ class ExecutionManager:
             timestamp=post_venue_ts,
             client_order_id=client_order_id,
             venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
         )
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)

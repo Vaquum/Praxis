@@ -2935,6 +2935,7 @@ class TestParseOcoResponse:
         assert result.venue_order_id == '99999'
         assert result.status == OrderStatus.OPEN
         assert result.immediate_fills == ()
+        assert result.leg_client_order_ids == ('limit-leg', 'stop-leg')
 
     def test_all_done_with_fills(self) -> None:
 

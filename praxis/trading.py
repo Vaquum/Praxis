@@ -965,10 +965,14 @@ class Trading:
             _log.warning('execution report for unknown account: %s', account_id)
             return
 
-        order = trading_state.orders.get(report.client_order_id)
+        parent_client_order_id = trading_state.oco_leg_parent.get(
+            report.client_order_id, report.client_order_id,
+        )
+
+        order = trading_state.orders.get(parent_client_order_id)
         order_is_closed = False
         if order is None:
-            order = trading_state.closed_orders.get(report.client_order_id)
+            order = trading_state.closed_orders.get(parent_client_order_id)
             order_is_closed = order is not None
         if order is None:
             _log.debug(
@@ -1028,7 +1032,7 @@ class Trading:
             return FillReceived(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
                 venue_trade_id=report.venue_trade_id,
                 trade_id=trade_id,
@@ -1046,7 +1050,7 @@ class Trading:
             return OrderCanceled(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
                 reason='canceled via WebSocket',
             )
@@ -1055,7 +1059,7 @@ class Trading:
             return OrderRejected(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
                 reason=report.reject_reason or 'rejected via WebSocket',
             )
@@ -1064,7 +1068,7 @@ class Trading:
             return OrderExpired(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
             )
 

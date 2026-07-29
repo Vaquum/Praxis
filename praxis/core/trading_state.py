@@ -68,6 +68,7 @@ class TradingState:
         self.closed_orders: dict[str, Order] = {}
         self.trade_strategy_ids: dict[str, str] = {}
         self.schemes: dict[str, ExecutionScheme] = {}
+        self.oco_leg_parent: dict[str, str] = {}
         self._positions_lock = threading.Lock()
 
     def snapshot_positions(self) -> dict[tuple[str, str], Position]:
@@ -247,7 +248,12 @@ class TradingState:
 
     def _on_order_submitted(self, event: OrderSubmitted) -> None:
 
-        '''Update order to OPEN with venue identifier.'''
+        '''Update order to OPEN with venue identifier.
+
+        For an OCO submission, records each venue-assigned leg client order
+        id against the parent order so a leg fill (whose client order id the
+        venue assigns) routes back to the parent.
+        '''
 
         order = self._get_order('OrderSubmitted', event.client_order_id)
         if order is None:
@@ -256,6 +262,9 @@ class TradingState:
         order.venue_order_id = event.venue_order_id
         order.status = OrderStatus.OPEN
         order.updated_at = event.timestamp
+
+        for leg_id in event.leg_client_order_ids:
+            self.oco_leg_parent[leg_id] = event.client_order_id
 
     def _on_order_submit_failed(self, event: OrderSubmitFailed) -> None:
 

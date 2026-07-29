@@ -222,6 +222,30 @@ def test_order_submitted_promotes_to_open() -> None:
     assert order.venue_order_id == _VENUE_OID
 
 
+def test_order_submitted_records_oco_leg_parent() -> None:
+
+    state = _state()
+    state.apply(_submit_intent())
+    state.apply(
+        OrderSubmitted(
+            account_id=_ACCT,
+            timestamp=_TS2,
+            client_order_id=_ORDER,
+            venue_order_id=_VENUE_OID,
+            leg_client_order_ids=('leg-a', 'leg-b'),
+        ),
+    )
+    assert state.oco_leg_parent == {'leg-a': _ORDER, 'leg-b': _ORDER}
+
+
+def test_order_submitted_without_legs_leaves_map_empty() -> None:
+
+    state = _state()
+    state.apply(_submit_intent())
+    state.apply(_submitted())
+    assert state.oco_leg_parent == {}
+
+
 def test_order_submit_failed_rejects_and_closes() -> None:
 
     state = _state()

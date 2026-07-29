@@ -29,7 +29,10 @@ from praxis.core.domain.enums import (
     STPMode,
 )
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import (
+    ExecutionManager,
+    _aggregate_oco_terminal_status,
+)
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     OrderBookLevel,
@@ -339,3 +342,179 @@ class TestOcoRescue:
             'OrderSubmitFailed',
             'TradeOutcomeProduced',
         ]
+
+    @pytest.mark.asyncio
+    async def test_oco_timeout_with_all_done_filled_list_records_submitted(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''ALL_DONE list with a filled leg → resolved via leg queries, recorded
+        (not REJECTED); trade-level fills arrive later via reconcile.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.return_value = _venue_order_list(status='ALL_DONE')
+        adapter.query_order.return_value = _venue_order(status=OrderStatus.FILLED)
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitFailed' not in types
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'TradeOutcomeProduced',
+        ]
+        assert adapter.query_order.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_oco_timeout_with_all_done_canceled_list_records_submitted(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''ALL_DONE list with all legs canceled → resolved via leg queries,
+        recorded (not REJECTED); reconcile terminalizes the order.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.return_value = _venue_order_list(status='ALL_DONE')
+        adapter.query_order.return_value = _venue_order(status=OrderStatus.CANCELED)
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitFailed' not in types
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'TradeOutcomeProduced',
+        ]
+        assert adapter.query_order.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_oco_all_done_leg_query_failure_treats_list_live(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''A leg query failure during ALL_DONE resolution keeps the list live
+        (OPEN) so reconcile heals it, rather than mis-terminalizing.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.return_value = _venue_order_list(status='ALL_DONE')
+        adapter.query_order.side_effect = TransientError('venue 5xx')
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitFailed' not in types
+        assert 'OrderSubmitted' in types
+        assert adapter.query_order.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_oco_duplicate_with_live_list_records_submitted(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''Duplicate-id OCO POST but the venue holds the list → rescued via
+        query_order_list, OrderSubmitted, no REJECTED.'''
+
+        adapter.submit_order.side_effect = DuplicateClientOrderIdError(
+            'duplicate clientOrderId', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.return_value = _venue_order_list(status='EXECUTING')
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitFailed' not in types
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'TradeOutcomeProduced',
+        ]
+        adapter.query_order_list.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_oco_rescue_query_failure_falls_back_to_submit_failed(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''Conservative: a transient query_order_list failure classifies the
+        command REJECTED — reconcile heals if the venue held the list.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.side_effect = TransientError('venue 5xx')
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitFailed',
+            'TradeOutcomeProduced',
+        ]
+
+    @pytest.mark.asyncio
+    async def test_oco_rescue_queries_list_by_intent_client_order_id(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''The rescue queries the list by the same deterministic client order
+        id stamped on the intent.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.return_value = _venue_order_list(status='EXECUTING')
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        intent = next(e for _, e in events if type(e).__name__ == 'OrderSubmitIntent')
+        adapter.query_order_list.assert_awaited_once_with(
+            _ACCT, list_client_order_id=intent.client_order_id,
+        )
+
+
+class TestAggregateOcoTerminalStatus:
+
+    def test_fill_on_either_leg_wins(self) -> None:
+        assert _aggregate_oco_terminal_status(
+            (OrderStatus.CANCELED, OrderStatus.FILLED),
+        ) == OrderStatus.FILLED
+
+    def test_partial_outranks_expired_and_canceled(self) -> None:
+        assert _aggregate_oco_terminal_status(
+            (OrderStatus.EXPIRED, OrderStatus.PARTIALLY_FILLED),
+        ) == OrderStatus.PARTIALLY_FILLED
+
+    def test_expired_outranks_canceled(self) -> None:
+        assert _aggregate_oco_terminal_status(
+            (OrderStatus.CANCELED, OrderStatus.EXPIRED),
+        ) == OrderStatus.EXPIRED
+
+    def test_all_canceled_resolves_canceled(self) -> None:
+        assert _aggregate_oco_terminal_status(
+            (OrderStatus.CANCELED, OrderStatus.CANCELED),
+        ) == OrderStatus.CANCELED

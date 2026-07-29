@@ -956,10 +956,17 @@ class BinanceAdapter:
                 msg = f"Unknown Binance OCO list status: '{list_status}'"
                 raise ValueError(msg) from None
 
+        leg_client_order_ids = tuple(
+            str(report['clientOrderId'])
+            for report in data.get('orderReports', [])
+            if 'clientOrderId' in report
+        )
+
         return SubmitResult(
             venue_order_id=str(data['orderListId']),
             status=status,
             immediate_fills=fills,
+            leg_client_order_ids=leg_client_order_ids,
         )
 
     def _parse_venue_order(self, data: dict[str, Any]) -> VenueOrder:

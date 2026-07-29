@@ -1160,3 +1160,13 @@ Two gaps in the RFC 5.13 Manager control path:
 2. **PARTIAL outcome handling unverified in Nexus.** The scheme reports a non-terminal `TradeOutcome(PARTIAL)` on a slice failure. Nexus must treat this as progress — keep the capital reservation, not close the trade — and only release/close on the eventual terminal outcome (FILLED/CANCELED/EXPIRED). This is a cross-repo contract that has not been verified against the Nexus outcome/capital path.
 
 **When to fix**: before live multi-slice TWAP/DCA. (1) implement `TradeModify` handling for schemes; (2) verify (with a Nexus-side test) that a PARTIAL scheme outcome does not release capital or close the trade.
+
+## TD-129: Rescued terminal orders stay OPEN until reconcile
+
+**Origin**: WP-Praxis-0007 (OCO submit-rescue slice; unstaged review)
+**Severity**: Medium (bounded stale window on a rare timeout-rescue path; reconcile repairs)
+**Module**: `praxis/core/execution_manager.py` (`_process_command`, `_rescue_by_client_order_id`, `_rescue_oco_by_list_id`)
+
+When a non-idempotent POST times out (or returns `-2010` duplicate) and the rescue query confirms the order/list *already completed* on the venue, the rescue returns the venue's terminal status but `immediate_fills=()` — the trade-level fills (`venue_trade_id`, price, fee) are only available from `myTrades`, not from `query_order` / `query_order_list`. `_process_command` derives the non-quote `TradeStatus` from `filled_qty` alone and `OrderSubmitted` always records the order OPEN, so a rescued-terminal order is recorded OPEN with a PENDING outcome and no fills. The pre-fill WebSocket `executionReport` already fired during the timeout window and will not re-fire, so the reconcile (`myTrades`) path is the only healer — and for OCO the fills route to the parent via the leg-to-parent map (`oco_leg_parent`). This is uniform across single-order and OCO rescue. The window is bounded by the reconcile cadence, and no state is corrupted; the order/reservation is simply stale until reconcile terminalizes it.
+
+**When to fix**: before live trading at scale. Terminalize a rescued-completed order at rescue time — either backfill its fills from `myTrades` inline, or emit the terminal event (`OrderCanceled` / a fill-less close) for the no-fill ALL_DONE / canceled case — so the order and its reservation resolve immediately rather than waiting for the reconcile pass.

@@ -78,11 +78,15 @@ class SubmitResult:
         venue_order_id (str): Venue-assigned order identifier
         status (OrderStatus): Order status after submission
         immediate_fills (tuple[ImmediateFill, ...]): Fills returned inline with the submission response
+        leg_client_order_ids (tuple[str, ...]): For an OCO submission, the
+            venue-assigned client order ids of the list's legs, so leg fills
+            can be mapped back to the parent command. Empty for non-OCO orders.
     '''
 
     venue_order_id: str
     status: OrderStatus
     immediate_fills: tuple[ImmediateFill, ...]
+    leg_client_order_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
