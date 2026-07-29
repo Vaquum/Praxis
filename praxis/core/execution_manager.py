@@ -111,6 +111,7 @@ _BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
 _SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
 _MIN_SCHEME_SLICES = 2
 _COMMAND_QUEUE_MAXSIZE = 1000
+_OCO_LIST_STATUS_REJECT = 'REJECT'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 
@@ -2097,6 +2098,11 @@ class ExecutionManager:
             actually held the order).
         '''
 
+        if cmd.order_type is OrderType.OCO:
+            return await self._rescue_oco_by_list_id(
+                runtime, cmd, client_order_id, trigger,
+            )
+
         try:
             venue_order = await self._venue_adapter.query_order(
                 cmd.account_id,
@@ -2135,6 +2141,75 @@ class ExecutionManager:
         return SubmitResult(
             venue_order_id=venue_order.venue_order_id,
             status=venue_order.status,
+            immediate_fills=(),
+        )
+
+    async def _rescue_oco_by_list_id(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        trigger: VenueError,
+    ) -> SubmitResult | None:
+        '''Query an OCO list after a non-idempotent OCO POST failure.
+
+        The OCO analogue of `_rescue_by_client_order_id`: a single-order
+        query cannot confirm an OCO, whose durable identity is its
+        `listClientOrderId` (the deterministic command id). Queries the
+        order list; a REJECT list status or a not-found list means the OCO
+        was not accepted (caller classifies REJECTED), any other status
+        means the list is live and its terminal state resolves through the
+        WS / reconcile path, so `immediate_fills` is empty and the status
+        is OPEN.
+        '''
+
+        try:
+            order_list = await self._venue_adapter.query_order_list(
+                cmd.account_id,
+                list_client_order_id=client_order_id,
+            )
+        except NotFoundError:
+            _log.warning(
+                'oco rescue confirmed no venue list: account_id=%s '
+                'list_client_order_id=%s trigger=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+            )
+            return None
+        except VenueError as query_exc:
+            _log.exception(
+                'oco rescue query failed: account_id=%s list_client_order_id=%s '
+                'trigger=%s query_error=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+                str(query_exc.args[0]) if query_exc.args else str(query_exc),
+            )
+            return None
+
+        if order_list.list_order_status == _OCO_LIST_STATUS_REJECT:
+            _log.warning(
+                'oco rescue found rejected list: account_id=%s '
+                'list_client_order_id=%s order_list_id=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                order_list.order_list_id,
+            )
+            return None
+
+        _log.warning(
+            'oco rescue confirmed live venue list: account_id=%s '
+            'list_client_order_id=%s order_list_id=%s list_status=%s trigger=%s',
+            runtime.account_id,
+            client_order_id,
+            order_list.order_list_id,
+            order_list.list_order_status,
+            type(trigger).__name__,
+        )
+        return SubmitResult(
+            venue_order_id=order_list.order_list_id,
+            status=OrderStatus.OPEN,
             immediate_fills=(),
         )
 

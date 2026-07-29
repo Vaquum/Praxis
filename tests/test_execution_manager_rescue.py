@@ -41,6 +41,8 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueAdapter,
     VenueOrder,
+    VenueOrderList,
+    VenueOrderListLeg,
 )
 
 _TS = datetime(2099, 1, 1, tzinfo=UTC)
@@ -76,6 +78,30 @@ def _venue_order(status: OrderStatus = OrderStatus.OPEN) -> VenueOrder:
         qty=Decimal('1'),
         filled_qty=Decimal('0'),
         price=Decimal('50000'),
+    )
+
+
+_OCO_CMD_KWARGS: dict[str, Any] = {
+    **_CMD_KWARGS,
+    'order_type': OrderType.OCO,
+    'execution_params': SingleShotParams(
+        price=Decimal('50000'),
+        stop_price=Decimal('49000'),
+        stop_limit_price=Decimal('48500'),
+    ),
+}
+
+
+def _venue_order_list(status: str = 'EXECUTING') -> VenueOrderList:
+    return VenueOrderList(
+        order_list_id='ol-rescued-1',
+        list_client_order_id='cid',
+        list_status_type='EXEC_STARTED',
+        list_order_status=status,
+        legs=(
+            VenueOrderListLeg(venue_order_id='v-a', client_order_id='leg-a', symbol='BTCUSDT'),
+            VenueOrderListLeg(venue_order_id='v-b', client_order_id='leg-b', symbol='BTCUSDT'),
+        ),
     )
 
 
@@ -223,6 +249,86 @@ class TestRescueOnDuplicateClientOrderId:
 
         mgr.register_account(_ACCT)
         await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitFailed',
+            'TradeOutcomeProduced',
+        ]
+
+
+class TestOcoRescue:
+
+    @pytest.mark.asyncio
+    async def test_oco_timeout_with_live_list_records_submitted(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''OCO POST times out but the venue holds the list → rescued via
+        query_order_list, OrderSubmitted, no REJECTED.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.return_value = _venue_order_list(status='EXECUTING')
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitFailed' not in types
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitted',
+            'TradeOutcomeProduced',
+        ]
+        adapter.query_order_list.assert_awaited_once()
+        adapter.query_order.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_oco_timeout_with_no_list_records_submit_failed(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''OCO POST times out and no such list exists → OrderSubmitFailed + REJECTED.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.side_effect = NotFoundError('no such order list')
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert types == [
+            'CommandAccepted',
+            'OrderSubmitIntent',
+            'OrderSubmitFailed',
+            'TradeOutcomeProduced',
+        ]
+        adapter.query_order_list.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_oco_timeout_with_rejected_list_records_submit_failed(
+        self, mgr: ExecutionManager, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''OCO POST times out and the list is REJECT → OrderSubmitFailed + REJECTED.'''
+
+        adapter.submit_order.side_effect = OrderSubmitTimeoutError(
+            'transport timeout', client_order_id='cid-rescue',
+        )
+        adapter.query_order_list.return_value = _venue_order_list(status='REJECT')
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_OCO_CMD_KWARGS)
         await asyncio.sleep(0.3)
 
         events = await spine.read(_EPOCH, after_seq=0)
