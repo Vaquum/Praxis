@@ -133,6 +133,44 @@ class TestModeOrderTypeAllowed:
             _cmd(order_type=OrderType.MARKET, execution_mode=ExecutionMode.BRACKET),
         )
 
+    def test_bracket_long_rejects_absolute_tp_at_or_below_sl(self) -> None:
+        with pytest.raises(ValueError, match='take_profit_price'):
+            validate_trade_command(
+                _cmd(
+                    execution_mode=ExecutionMode.BRACKET,
+                    side=OrderSide.BUY,
+                    execution_params=BracketParams(
+                        take_profit_price=Decimal('48000'),
+                        stop_loss_price=Decimal('49000'),
+                    ),
+                ),
+            )
+
+    def test_bracket_short_rejects_absolute_tp_at_or_above_sl(self) -> None:
+        with pytest.raises(ValueError, match='take_profit_price'):
+            validate_trade_command(
+                _cmd(
+                    execution_mode=ExecutionMode.BRACKET,
+                    side=OrderSide.SELL,
+                    execution_params=BracketParams(
+                        take_profit_price=Decimal('52000'),
+                        stop_loss_price=Decimal('51000'),
+                    ),
+                ),
+            )
+
+    def test_bracket_offset_legs_skip_ordering_check(self) -> None:
+        validate_trade_command(
+            _cmd(
+                execution_mode=ExecutionMode.BRACKET,
+                side=OrderSide.BUY,
+                execution_params=BracketParams(
+                    take_profit_offset_bps=Decimal('200'),
+                    stop_loss_offset_bps=Decimal('100'),
+                ),
+            ),
+        )
+
     @pytest.mark.parametrize(
         'ot',
         [

@@ -1170,3 +1170,23 @@ Two gaps in the RFC 5.13 Manager control path:
 When a non-idempotent POST times out (or returns `-2010` duplicate) and the rescue query confirms the order/list *already completed* on the venue, the rescue returns the venue's terminal status but `immediate_fills=()` — the trade-level fills (`venue_trade_id`, price, fee) are only available from `myTrades`, not from `query_order` / `query_order_list`. `_process_command` derives the non-quote `TradeStatus` from `filled_qty` alone and `OrderSubmitted` always records the order OPEN, so a rescued-terminal order is recorded OPEN with a PENDING outcome and no fills. The pre-fill WebSocket `executionReport` already fired during the timeout window and will not re-fire, so the reconcile (`myTrades`) path is the only healer — and for OCO the fills route to the parent via the leg-to-parent map (`oco_leg_parent`). This is uniform across single-order and OCO rescue. The window is bounded by the reconcile cadence, and no state is corrupted; the order/reservation is simply stale until reconcile terminalizes it.
 
 **When to fix**: before live trading at scale. Terminalize a rescued-completed order at rescue time — either backfill its fills from `myTrades` inline, or emit the terminal event (`OrderCanceled` / a fill-less close) for the no-fill ALL_DONE / canceled case — so the order and its reservation resolve immediately rather than waiting for the reconcile pass.
+
+## TD-130: A bracket whose protective OCO fails leaves a naked position
+
+**Origin**: WP-Praxis-0007 (6.3 Bracket slice; unstaged review)
+**Severity**: Medium (open risk with no TP/SL until an operator or reconcile intervenes)
+**Module**: `praxis/core/execution_manager.py` (`_place_bracket_protection`)
+
+A bracket fills its MARKET entry, then places the protective OCO. If the OCO submission fails definitively — a venue rejection, or a timeout/duplicate the rescue could not salvage — the entry position is already open and is left **unprotected**: `_place_bracket_protection` appends `OrderSubmitFailed` for the exit and logs the naked position, but does not unwind the entry, retry the OCO, or flatten. The bracket entry outcome is still reported FILLED. Until an operator or a reconcile pass intervenes, the position carries open risk with no stop-loss or take-profit.
+
+**When to fix**: before live bracket trading. Add an explicit unprotected-entry policy — at minimum an alert/runbook signal, and ideally a bounded OCO retry and/or an auto-flatten-or-freeze on definitive protection failure — rather than silently holding a naked position.
+
+## TD-131: Live bracket state is not durable and is not resumed on boot
+
+**Origin**: WP-Praxis-0007 (6.3 Bracket slice; unstaged review)
+**Severity**: Medium (a crash in the entry→protection window leaves a naked position with no automatic repair)
+**Module**: `praxis/core/execution_manager.py` (`_LiveBracket`, `runtime.brackets`, `_process_bracket`, `_on_bracket_event`)
+
+`runtime.brackets` is in-memory only: unlike a scheme (`SchemeInitialized` / `SchemeStateChanged` on the spine, rebuilt by `_resume_schemes`), a bracket has no durable "entry open, awaiting protection" record. If Praxis crashes after the entry is accepted or filled but before the protective OCO succeeds — or while a bracket entry is still PENDING/open — the `_LiveBracket` is lost on restart, so boot does not re-place or resume the protection. The filled entry position is then held unprotected until an operator or a reconcile pass intervenes (same exposure family as TD-130). Partial-entry protection is bounded correctly for the current MARKET-only entry (protection is placed on the entry's terminal event with the final filled quantity; a spot MARKET order never rests, so there is no persistent partially-filled-open window) — but a future non-MARKET / resting bracket entry (TD-121) would reopen that window and needs partial-fill protection reconciliation.
+
+**When to fix**: this is the "bracket crash recovery" work-package item — persist a durable bracket-open marker (a spine event, or a Class-C-style boot repair that detects a filled bracket entry without a live protective OCO) and rebuild `_LiveBracket` on boot to place or resume protection.

@@ -55,6 +55,8 @@ from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.trade_pnl import TradePnL
+from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.time_dca_params import TimeDcaParams
@@ -107,6 +109,12 @@ _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.EXPIRED,
     OrderStatus.REJECTED,
 })
+_TERMINAL_ORDER_TO_TRADE_STATUS = {
+    OrderStatus.FILLED: TradeStatus.FILLED,
+    OrderStatus.CANCELED: TradeStatus.CANCELED,
+    OrderStatus.EXPIRED: TradeStatus.EXPIRED,
+    OrderStatus.REJECTED: TradeStatus.REJECTED,
+}
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
 _SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
@@ -116,6 +124,9 @@ _OCO_LIST_STATUS_REJECT = 'REJECT'
 _OCO_LIST_STATUS_ALL_DONE = 'ALL_DONE'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
+_ONE = Decimal(1)
+_BRACKET_ENTRY_SEQUENCE = 0
+_BRACKET_PROTECTION_SEQUENCE = 1
 
 
 def _aggregate_oco_terminal_status(
@@ -192,6 +203,22 @@ class _LiveScheme:
     state: SchemeState = SchemeState.RUNNING
 
 
+@dataclass
+class _LiveBracket:
+    '''In-memory state for a bracket awaiting or holding its protection.
+
+    A bracket submits a MARKET entry, then a protective OCO once the entry
+    fills. When the entry fills asynchronously (no immediate fill) the
+    account coroutine places the protection from the WebSocket fill via
+    `_on_bracket_event`; `protection_placed` guards against a double
+    placement across the immediate and asynchronous paths.
+    '''
+
+    command: TradeCommand
+    entry_client_order_id: str
+    protection_placed: bool = False
+
+
 def _even_slice_schedule(params: ExecutionParams) -> tuple[int, int]:
     '''Return (slice count, interval seconds) for an equal-slice mode.
 
@@ -265,6 +292,7 @@ class _AccountRuntime:
         self.task: asyncio.Task[None] | None = None
         self.command_to_order: dict[str, str] = {}
         self.schemes: dict[str, _LiveScheme] = {}
+        self.brackets: dict[str, _LiveBracket] = {}
         self.queue_reservations = 0
         self.reconciling = False
         self.poisoned = False
@@ -1566,6 +1594,7 @@ class ExecutionManager:
                     try:
                         await self._emit_ws_outcome(runtime, event)
                         await self._on_scheme_child_event(runtime, event)
+                        await self._on_bracket_event(runtime, event)
                     except asyncio.CancelledError:
                         raise
                     except Exception:  # noqa: BLE001
@@ -1620,6 +1649,8 @@ class ExecutionManager:
                             await self._expire_stale_command(runtime, cmd)
                         else:
                             await self._start_scheme(runtime, cmd)
+                    elif cmd.execution_mode == ExecutionMode.BRACKET:
+                        await self._process_bracket(runtime, cmd)
                     else:
                         await self._process_command(runtime, cmd)
                 except asyncio.CancelledError:
@@ -2040,6 +2071,555 @@ class ExecutionManager:
             reason=reason,
             cumulative_notional=total_notional,
         )
+
+    async def _process_bracket(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> TradeOutcome:
+        '''Execute a bracket: a MARKET entry, then a protective OCO on fill.
+
+        Submits the entry as a single MARKET order (reusing the persist-
+        before-send child protocol). On a filled entry, computes the take-
+        profit and stop-loss legs from BracketParams — absolute prices or
+        basis-point offsets from the entry average fill — and submits a
+        protective OCO on the opposite side for the filled quantity,
+        carrying the deterministic bracket exit command id so the leg that
+        later fills produces the position-closing EXIT outcome. The bracket
+        command's own outcome reports the entry.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            cmd (TradeCommand): Bracket command to execute.
+
+        Returns:
+            TradeOutcome: The entry outcome for this command.
+        '''
+
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        if abort_reason is not None:
+            _log.info(
+                'bracket pre-aborted: command_id=%s trade_id=%s',
+                cmd.command_id,
+                cmd.trade_id,
+            )
+
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                TradeStatus.CANCELED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason=abort_reason,
+            )
+
+        assert isinstance(cmd.execution_params, BracketParams)
+        assert cmd.qty is not None
+
+        entry_client_order_id = await self._submit_market_slice(
+            runtime, cmd, _BRACKET_ENTRY_SEQUENCE, cmd.qty,
+        )
+
+        if entry_client_order_id is None:
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                TradeStatus.REJECTED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason='bracket entry submission failed',
+            )
+
+        runtime.command_to_order[cmd.command_id] = entry_client_order_id
+        bracket = _LiveBracket(command=cmd, entry_client_order_id=entry_client_order_id)
+        runtime.brackets[cmd.command_id] = bracket
+
+        entry_order = self._scheme_child_order(runtime, entry_client_order_id)
+
+        if entry_order is not None and entry_order.status in _TERMINAL_ORDER_STATUSES:
+            return await self._settle_bracket_entry(runtime, bracket, entry_order)
+
+        filled_qty = entry_order.filled_qty if entry_order is not None else _ZERO
+        cumulative_notional = (
+            entry_order.cumulative_notional if entry_order is not None else _ZERO
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.PENDING,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            reason='bracket entry pending',
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _settle_bracket_entry(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        entry_order: Order,
+    ) -> TradeOutcome:
+        '''Place protection for a settled bracket entry and report its outcome.
+
+        Runs on the command path when the entry filled immediately (no
+        WebSocket round trip): places the protective OCO for the filled
+        quantity and reports the entry outcome. A terminal entry with no
+        fill leaves nothing to protect and reports the venue's terminal
+        state.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The bracket being settled.
+            entry_order (Order): The terminal entry order projection.
+
+        Returns:
+            TradeOutcome: The entry outcome for the bracket command.
+        '''
+
+        cmd = bracket.command
+        assert cmd.qty is not None
+        runtime.brackets.pop(cmd.command_id, None)
+
+        filled_qty = entry_order.filled_qty
+        cumulative_notional = entry_order.cumulative_notional
+
+        if filled_qty <= _ZERO:
+            _log.warning(
+                'bracket entry settled without fill; no protection: '
+                'command_id=%s status=%s',
+                cmd.command_id,
+                entry_order.status.value,
+            )
+
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    entry_order.status, TradeStatus.REJECTED,
+                ),
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason='bracket entry unfilled',
+            )
+
+        avg_entry_price = cumulative_notional / filled_qty
+        await self._place_bracket_protection(
+            runtime, bracket, filled_qty, avg_entry_price,
+        )
+
+        status = (
+            TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
+        )
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_entry_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _on_bracket_event(self, runtime: _AccountRuntime, event: Event) -> None:
+        '''Place a bracket's protective OCO once its entry order settles.
+
+        The account coroutine calls this for every WebSocket-driven event.
+        When the event settles a tracked bracket's entry order, the
+        protective OCO is placed for the filled quantity; the entry outcome
+        itself is emitted by `_emit_ws_outcome` on the same event. A terminal
+        entry with no fill leaves nothing to protect.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            event (Event): The WebSocket-driven event to inspect.
+        '''
+
+        if not isinstance(
+            event, FillReceived | OrderCanceled | OrderExpired | OrderRejected,
+        ):
+            return
+
+        order = (
+            runtime.trading_state.orders.get(event.client_order_id)
+            or runtime.trading_state.closed_orders.get(event.client_order_id)
+        )
+        if order is None:
+            return
+
+        bracket = runtime.brackets.get(order.command_id)
+        if bracket is None or order.client_order_id != bracket.entry_client_order_id:
+            return
+
+        if order.status not in _TERMINAL_ORDER_STATUSES:
+            return
+
+        runtime.brackets.pop(order.command_id, None)
+
+        if order.filled_qty <= _ZERO:
+            _log.warning(
+                'bracket entry settled without fill; no protection: '
+                'command_id=%s status=%s',
+                order.command_id,
+                order.status.value,
+            )
+
+            return
+
+        avg_entry_price = order.cumulative_notional / order.filled_qty
+        await self._place_bracket_protection(
+            runtime, bracket, order.filled_qty, avg_entry_price,
+        )
+
+    async def _place_bracket_protection(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        qty: Decimal,
+        avg_entry_price: Decimal,
+    ) -> None:
+        '''Submit the protective OCO for a filled bracket entry.
+
+        The OCO is placed on the side opposite the entry for the filled
+        quantity, with take-profit and stop-loss legs from BracketParams.
+        On success the deterministic exit command id is registered in
+        `_commands` and `_command_trade_ids`, so the leg that later fills is
+        mapped to a trade id (Trading's WebSocket conversion) and emits a
+        position-closing EXIT outcome (`_emit_ws_outcome`) — the identity the
+        Nexus exit registration shares. A timeout or duplicate reuses the
+        single-shot OCO rescue before failing closed; a definitive failure
+        leaves the entry position unprotected (TD-130), logged for repair
+        rather than unwinding the filled entry.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The bracket being protected.
+            qty (Decimal): Filled entry quantity to protect.
+            avg_entry_price (Decimal): Entry average fill price.
+        '''
+
+        if bracket.protection_placed:
+            return
+
+        bracket.protection_placed = True
+        cmd = bracket.command
+
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+        tp_price, sl_stop_price, sl_limit_price = self._bracket_protective_prices(
+            cmd, avg_entry_price,
+        )
+
+        if not self._bracket_legs_valid_for_entry(cmd, tp_price, sl_stop_price, avg_entry_price):
+            _log.error(
+                'bracket protective legs on the wrong side of the entry fill; '
+                'skipping protection (position unprotected): command_id=%s side=%s '
+                'avg_entry=%s tp=%s sl=%s',
+                cmd.command_id,
+                cmd.side.value,
+                avg_entry_price,
+                tp_price,
+                sl_stop_price,
+            )
+
+            return
+
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode,
+            cmd.command_id,
+            sequence=_BRACKET_PROTECTION_SEQUENCE,
+        )
+        exit_cmd = self._bracket_exit_command(
+            cmd, exit_command_id, protective_side, qty,
+            tp_price, sl_stop_price, sl_limit_price,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            order_type=OrderType.OCO,
+            qty=qty,
+            quote_qty=None,
+            price=tp_price,
+            stop_price=sl_stop_price,
+            stop_limit_price=sl_limit_price,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                protective_side,
+                OrderType.OCO,
+                qty,
+                price=tp_price,
+                stop_price=sl_stop_price,
+                stop_limit_price=sl_limit_price,
+                client_order_id=client_order_id,
+            )
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, exit_cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                _log.exception(
+                    'bracket protective OCO failed; entry position unprotected: '
+                    'command_id=%s exit_command_id=%s',
+                    cmd.command_id,
+                    exit_command_id,
+                )
+                await self._append_submit_failed(
+                    runtime, exit_cmd, client_order_id, str(exc.args[0]),
+                )
+
+                return
+
+            result = rescued
+        except VenueError as exc:
+            _log.exception(
+                'bracket protective OCO failed; entry position unprotected: '
+                'command_id=%s exit_command_id=%s reason=%s',
+                cmd.command_id,
+                exit_command_id,
+                str(exc.args[0]) if exc.args else str(exc),
+            )
+            await self._append_submit_failed(
+                runtime,
+                exit_cmd,
+                client_order_id,
+                f'bracket protective OCO failed: {exc}',
+            )
+
+            return
+
+        self._commands[exit_command_id] = exit_cmd
+        self._command_trade_ids[exit_command_id] = cmd.trade_id
+        runtime.command_to_order[exit_command_id] = client_order_id
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        _log.info(
+            'bracket protection placed: command_id=%s exit_command_id=%s '
+            'side=%s qty=%s tp=%s sl=%s venue_order_id=%s',
+            cmd.command_id,
+            exit_command_id,
+            protective_side.value,
+            qty,
+            tp_price,
+            sl_stop_price,
+            result.venue_order_id,
+        )
+
+        oco_order = self._scheme_child_order(runtime, client_order_id)
+        if (
+            oco_order is not None
+            and oco_order.status in _TERMINAL_ORDER_STATUSES
+            and oco_order.filled_qty > _ZERO
+        ):
+            await self._build_outcome(
+                runtime,
+                exit_cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    oco_order.status, TradeStatus.FILLED,
+                ),
+                filled_qty=oco_order.filled_qty,
+                avg_fill_price=oco_order.cumulative_notional / oco_order.filled_qty,
+                reason=None,
+                cumulative_notional=oco_order.cumulative_notional,
+            )
+
+    def _bracket_legs_valid_for_entry(
+        self,
+        cmd: TradeCommand,
+        tp_price: Decimal,
+        sl_stop_price: Decimal,
+        avg_entry_price: Decimal,
+    ) -> bool:
+        '''Whether the protective legs sit on the correct side of the entry.
+
+        A long's take-profit must sit above and its stop-loss below the
+        entry average fill; a short inverts. This re-checks at placement
+        time what intake validation cannot: absolute legs valid at submit
+        (take-profit above stop-loss) can still land on the wrong side of an
+        entry that filled far from the reference — a long take-profit below
+        the fill would be an immediately-marketable, nonsensical OCO.
+
+        Args:
+            cmd (TradeCommand): The bracket command carrying the side.
+            tp_price (Decimal): Resolved take-profit price.
+            sl_stop_price (Decimal): Resolved stop-loss trigger price.
+            avg_entry_price (Decimal): Entry average fill price.
+
+        Returns:
+            bool: True when both legs are on the correct side of the entry.
+        '''
+
+        if cmd.side is OrderSide.BUY:
+            return tp_price > avg_entry_price and sl_stop_price < avg_entry_price
+
+        return tp_price < avg_entry_price and sl_stop_price > avg_entry_price
+
+    def _bracket_exit_command(
+        self,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        qty: Decimal,
+        tp_price: Decimal,
+        sl_stop_price: Decimal,
+        sl_limit_price: Decimal | None,
+    ) -> TradeCommand:
+        '''Build the synthetic command registered for a bracket's protective OCO.
+
+        The protective OCO carries this command's id (`exit_command_id`) so
+        its position-closing fill produces an EXIT outcome via the shared
+        WebSocket-outcome path. It is a lookup-only registration — never
+        enqueued for execution.
+
+        Args:
+            cmd (TradeCommand): The originating bracket command.
+            exit_command_id (str): Deterministic protective-exit command id.
+            protective_side (OrderSide): Side opposite the entry.
+            qty (Decimal): Filled entry quantity being protected.
+            tp_price (Decimal): Take-profit limit price.
+            sl_stop_price (Decimal): Stop-loss trigger price.
+            sl_limit_price (Decimal | None): Stop-loss limit price, if any.
+
+        Returns:
+            TradeCommand: The synthetic protective-exit command.
+        '''
+
+        return TradeCommand(
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            qty=qty,
+            order_type=OrderType.OCO,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(
+                price=tp_price,
+                stop_price=sl_stop_price,
+                stop_limit_price=sl_limit_price,
+            ),
+            timeout=cmd.timeout,
+            reference_price=None,
+            maker_preference=cmd.maker_preference,
+            stp_mode=cmd.stp_mode,
+            created_at=cmd.created_at,
+        )
+
+    def _bracket_protective_prices(
+        self,
+        cmd: TradeCommand,
+        avg_entry_price: Decimal,
+    ) -> tuple[Decimal, Decimal, Decimal | None]:
+        '''Compute the take-profit, stop-loss trigger, and stop-limit prices.
+
+        Take-profit and stop-loss are given as absolute prices or as basis-
+        point offsets from the entry average fill. For a long entry the
+        take-profit sits above and the stop-loss below the entry; the
+        offsets invert for a short. Offset-derived prices are snapped to the
+        venue tick so the OCO legs satisfy the PRICE_FILTER; absolute prices
+        are assumed already on the tick grid.
+
+        Args:
+            cmd (TradeCommand): The bracket command carrying BracketParams.
+            avg_entry_price (Decimal): Entry average fill price.
+
+        Returns:
+            tuple[Decimal, Decimal, Decimal | None]: Take-profit price,
+                stop-loss trigger price, and optional stop-limit price.
+        '''
+
+        params = cmd.execution_params
+        assert isinstance(params, BracketParams)
+
+        profit_direction = _ONE if cmd.side is OrderSide.BUY else -_ONE
+
+        if params.take_profit_price is not None:
+            tp_price = params.take_profit_price
+        else:
+            assert params.take_profit_offset_bps is not None
+            tp_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE + profit_direction * params.take_profit_offset_bps / _BPS_MULTIPLIER),
+            )
+
+        if params.stop_loss_price is not None:
+            sl_stop_price = params.stop_loss_price
+        else:
+            assert params.stop_loss_offset_bps is not None
+            sl_stop_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE - profit_direction * params.stop_loss_offset_bps / _BPS_MULTIPLIER),
+            )
+
+        return tp_price, sl_stop_price, params.stop_loss_limit_price
+
+    def _snap_price(self, symbol: str, price: Decimal) -> Decimal:
+        '''Snap a price down to the symbol's tick grid when filters are cached.
+
+        Args:
+            symbol (str): Trading pair whose PRICE_FILTER tick applies.
+            price (Decimal): Raw price to snap.
+
+        Returns:
+            Decimal: The price floored to a tick multiple, or the raw price
+                when the symbol's filters are not cached.
+        '''
+
+        filters = self._venue_adapter.cached_filters(symbol)
+        if filters is None:
+            return price
+
+        return (price // filters.tick_size) * filters.tick_size
 
     async def _record_submit_failed(
         self,

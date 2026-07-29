@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import ExecutionMode, MakerPreference, OrderSide, OrderType
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
@@ -345,6 +346,45 @@ def _validate_mode_params(cmd: TradeCommand) -> None:
         if params.display_qty > cmd.qty:
             msg = f'iceberg display_qty {params.display_qty} exceeds command qty {cmd.qty}'
             raise ValueError(msg)
+
+    if isinstance(params, BracketParams):
+        _validate_bracket_protective_ordering(cmd, params)
+
+
+def _validate_bracket_protective_ordering(cmd: TradeCommand, params: BracketParams) -> None:
+    '''
+    Reject absolute bracket legs on the wrong side of each other.
+
+    When both the take-profit and stop-loss are given as absolute prices, a
+    long's take-profit must sit above its stop-loss and a short's below;
+    otherwise the protective OCO is nonsensical. Offset legs derive their
+    side from the entry at fill time and are not checked here.
+
+    Args:
+        cmd (TradeCommand): Command carrying the side.
+        params (BracketParams): The bracket parameters.
+
+    Raises:
+        ValueError: If the absolute take-profit and stop-loss are ordered
+            wrongly for the command side.
+    '''
+
+    if params.take_profit_price is None or params.stop_loss_price is None:
+        return
+
+    if cmd.side is OrderSide.BUY and params.take_profit_price <= params.stop_loss_price:
+        msg = (
+            f'bracket long take_profit_price {params.take_profit_price} must exceed '
+            f'stop_loss_price {params.stop_loss_price}'
+        )
+        raise ValueError(msg)
+
+    if cmd.side is OrderSide.SELL and params.take_profit_price >= params.stop_loss_price:
+        msg = (
+            f'bracket short take_profit_price {params.take_profit_price} must be below '
+            f'stop_loss_price {params.stop_loss_price}'
+        )
+        raise ValueError(msg)
 
 
 def _validate_mode_venue_filters(cmd: TradeCommand, filters: SymbolFilters) -> None:
