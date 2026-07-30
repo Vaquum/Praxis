@@ -16,6 +16,7 @@ import pytest_asyncio
 
 from praxis.core.domain.enums import OrderSide, OrderType
 from praxis.core.domain.events import (
+    BracketInitialized,
     CommandAccepted,
     Event,
     FillReceived,
@@ -63,6 +64,16 @@ _ALL_EVENTS: list[Event] = [
     OrderSubmitted(
         account_id=_ACCT, timestamp=_TS,
         client_order_id=_ORDER, venue_order_id=_VORD,
+    ),
+
+    BracketInitialized(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, trade_id=_TRADE, symbol=_SYMBOL,
+        side=OrderSide.BUY, total_qty=Decimal('1.5'),
+        take_profit_offset_bps=Decimal('200'),
+        stop_loss_price=Decimal('48000.50'),
+        stop_loss_limit_price=Decimal('47900.25'),
+        timeout_seconds=300,
     ),
 
     OrderSubmitFailed(

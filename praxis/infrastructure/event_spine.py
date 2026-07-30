@@ -30,6 +30,7 @@ import aiosqlite
 import orjson
 
 from praxis.core.domain.events import (
+    BracketInitialized,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -190,6 +191,7 @@ _EVENT_REGISTRY: dict[str, type] = {
     cls.__name__: cls
     for cls in (
         CommandAccepted,
+        BracketInitialized,
         SchemeInitialized,
         SchemeStateChanged,
         OrderSubmitIntent,

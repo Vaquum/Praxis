@@ -25,6 +25,7 @@ from praxis.core.domain.enums import (
 )
 
 __all__ = [
+    'BracketInitialized',
     'CommandAccepted',
     'Event',
     'FillReceived',
@@ -579,6 +580,71 @@ class SchemeInitialized(_EventBase):
 
 
 @dataclass(frozen=True)
+class BracketInitialized(_EventBase):
+
+    '''
+    Represent the start of a bracket execution.
+
+    Written once when a bracket command begins, before the entry submit, so
+    the identity and protective parameters survive a restart: boot resume
+    reconstructs the bracket to place the protective OCO for a filled-but-
+    unprotected entry, or to re-track an entry still awaiting its fill.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Originating bracket command identifier.
+        trade_id (str): Trade correlation identifier.
+        symbol (str): Trading pair symbol.
+        side (OrderSide): Entry order direction.
+        total_qty (Decimal): Entry base quantity.
+        take_profit_price (Decimal | None): Absolute take-profit price.
+        take_profit_offset_bps (Decimal | None): Take-profit offset in basis
+            points from the entry average fill.
+        stop_loss_price (Decimal | None): Absolute stop-loss trigger price.
+        stop_loss_offset_bps (Decimal | None): Stop-loss offset in basis
+            points from the entry average fill.
+        stop_loss_limit_price (Decimal | None): Stop-loss limit price, or None
+            for a stop-market stop-loss leg.
+        timeout_seconds (int): Command deadline in seconds. Non-negative;
+            0 means no deadline. Defaults to 0.
+    '''
+
+    command_id: str
+    trade_id: str
+    symbol: str
+    side: OrderSide
+    total_qty: Decimal
+    take_profit_price: Decimal | None = None
+    take_profit_offset_bps: Decimal | None = None
+    stop_loss_price: Decimal | None = None
+    stop_loss_offset_bps: Decimal | None = None
+    stop_loss_limit_price: Decimal | None = None
+    timeout_seconds: int = 0
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'trade_id', self.trade_id)
+        _require_str(name, 'symbol', self.symbol)
+
+        if (
+            not isinstance(self.total_qty, Decimal)
+            or not self.total_qty.is_finite()
+            or self.total_qty <= _ZERO
+        ):
+            msg = f'{name}.total_qty must be a positive, finite Decimal'
+            raise ValueError(msg)
+
+        if self.timeout_seconds < 0:
+            msg = f'{name}.timeout_seconds must be non-negative'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class SchemeStateChanged(_EventBase):
 
     '''
@@ -984,6 +1050,7 @@ class OutcomeDeliveryContextRecorded(_EventBase):
 
 type Event = (
     CommandAccepted
+    | BracketInitialized
     | SchemeInitialized
     | SchemeStateChanged
     | OrderSubmitIntent

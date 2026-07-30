@@ -28,7 +28,14 @@ from praxis.core.domain.enums import (
     TradeStatus,
 )
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
-from praxis.core.domain.events import FillReceived
+from praxis.core.domain.events import (
+    BracketInitialized,
+    Event,
+    FillReceived,
+    OrderSubmitFailed,
+    OrderSubmitIntent,
+    OrderSubmitted,
+)
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import ExecutionManager
 from praxis.core.generate_client_order_id import generate_client_order_id
@@ -575,6 +582,280 @@ class TestBracketProtectionGuard:
         await asyncio.sleep(0.3)
 
         assert outcomes[0].status is TradeStatus.FILLED
+        assert not any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in adapter.submit_calls
+        )
+
+        oco_client_order_id = generate_client_order_id(
+            ExecutionMode.BRACKET, outcomes[0].command_id, sequence=1,
+        )
+        rejected = em.get_trading_state(_ACCT).closed_orders[oco_client_order_id]
+        assert rejected.status is OrderStatus.REJECTED
+
+
+_RESUME_COMMAND_ID = '11111111-2222-3333-4444-555555555555'
+
+
+def _bracket_boot_events(
+    *,
+    entry_filled: bool,
+    oco: str | None = None,
+) -> list[tuple[int, Event]]:
+    command_id = _RESUME_COMMAND_ID
+    entry_coid = generate_client_order_id(ExecutionMode.BRACKET, command_id, sequence=0)
+    events: list[Event] = [
+        BracketInitialized(
+            account_id=_ACCT,
+            timestamp=_T0,
+            command_id=command_id,
+            trade_id=_TRADE,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            total_qty=Decimal('1'),
+            take_profit_price=Decimal('55000'),
+            stop_loss_price=Decimal('48000'),
+        ),
+        OrderSubmitIntent(
+            account_id=_ACCT,
+            timestamp=_T0,
+            command_id=command_id,
+            trade_id=_TRADE,
+            client_order_id=entry_coid,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            qty=Decimal('1'),
+        ),
+        OrderSubmitted(
+            account_id=_ACCT,
+            timestamp=_T0,
+            client_order_id=entry_coid,
+            venue_order_id='v-entry',
+        ),
+    ]
+
+    if entry_filled:
+        events.append(
+            _fill(
+                client_order_id=entry_coid,
+                command_id=command_id,
+                side=OrderSide.BUY,
+                qty=Decimal('1'),
+                price=_ENTRY_PRICE,
+                venue_trade_id='t-entry',
+                venue_order_id='v-entry',
+            ),
+        )
+
+    if oco is not None:
+        oco_coid = generate_client_order_id(ExecutionMode.BRACKET, command_id, sequence=1)
+        exit_command_id = bracket_exit_command_id(command_id)
+        events.append(
+            OrderSubmitIntent(
+                account_id=_ACCT,
+                timestamp=_T0,
+                command_id=exit_command_id,
+                trade_id=_TRADE,
+                client_order_id=oco_coid,
+                symbol='BTCUSDT',
+                side=OrderSide.SELL,
+                order_type=OrderType.OCO,
+                qty=Decimal('1'),
+                price=Decimal('55000'),
+                stop_price=Decimal('48000'),
+            ),
+        )
+
+        if oco == 'submitted':
+            events.append(
+                OrderSubmitted(
+                    account_id=_ACCT,
+                    timestamp=_T0,
+                    client_order_id=oco_coid,
+                    venue_order_id='ol-1',
+                    leg_client_order_ids=('leg-tp', 'leg-sl'),
+                ),
+            )
+        elif oco == 'rejected':
+            events.append(
+                OrderSubmitFailed(
+                    account_id=_ACCT,
+                    timestamp=_T0,
+                    client_order_id=oco_coid,
+                    reason='venue rejected OCO',
+                ),
+            )
+
+    return list(enumerate(events, start=1))
+
+
+class TestBracketCrashRecovery:
+
+    @pytest.mark.asyncio
+    async def test_init_event_persisted_on_submit(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        await em.submit_command(**_bracket_kwargs())
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        assert any(isinstance(e, BracketInitialized) for _, e in events)
+
+    @pytest.mark.asyncio
+    async def test_resume_places_protection_for_filled_unprotected_entry(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, outcomes = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True))
+        await asyncio.sleep(0.3)
+
+        oco = _oco_call(adapter)
+        assert oco['args'][_SIDE_ARG_INDEX] is OrderSide.SELL
+        assert oco['args'][_QTY_ARG_INDEX] == Decimal('1')
+        assert bracket_exit_command_id(_RESUME_COMMAND_ID) in em._commands
+
+        entry_outcomes = [o for o in outcomes if o.command_id == _RESUME_COMMAND_ID]
+        assert len(entry_outcomes) == 1
+        assert entry_outcomes[0].status is TradeStatus.FILLED
+        assert entry_outcomes[0].filled_qty == Decimal('1')
+
+    @pytest.mark.asyncio
+    async def test_resume_does_not_re_emit_entry_outcome_when_already_produced(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, outcomes = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em._terminal_commands.add(_RESUME_COMMAND_ID)
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True))
+        await asyncio.sleep(0.3)
+
+        _oco_call(adapter)
+        assert not any(o.command_id == _RESUME_COMMAND_ID for o in outcomes)
+
+    @pytest.mark.asyncio
+    async def test_resume_replaces_unconfirmed_submitting_oco(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True, oco='submitting'))
+        await asyncio.sleep(0.3)
+
+        assert any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in adapter.submit_calls
+        )
+
+    @pytest.mark.asyncio
+    async def test_resume_does_not_retry_rejected_oco(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True, oco='rejected'))
+        await asyncio.sleep(0.3)
+
+        assert not any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in adapter.submit_calls
+        )
+
+    @pytest.mark.asyncio
+    async def test_resume_open_entry_protects_on_later_fill(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=False))
+        await asyncio.sleep(0.3)
+
+        assert not any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in adapter.submit_calls
+        )
+
+        entry_coid = generate_client_order_id(
+            ExecutionMode.BRACKET, _RESUME_COMMAND_ID, sequence=0,
+        )
+        em.enqueue_ws_event(
+            _ACCT,
+            _fill(
+                client_order_id=entry_coid,
+                command_id=_RESUME_COMMAND_ID,
+                side=OrderSide.BUY,
+                qty=Decimal('1'),
+                price=_ENTRY_PRICE,
+                venue_trade_id='t-entry-ws',
+                venue_order_id='v-entry',
+            ),
+        )
+        await asyncio.sleep(0.3)
+
+        oco = _oco_call(adapter)
+        assert oco['args'][_SIDE_ARG_INDEX] is OrderSide.SELL
+
+    @pytest.mark.asyncio
+    async def test_resume_skips_when_protection_already_placed(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True, oco='submitted'))
+        await asyncio.sleep(0.3)
+
+        assert not any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in adapter.submit_calls
+        )
+        assert bracket_exit_command_id(_RESUME_COMMAND_ID) in em._commands
+
+
+class TestBracketResumeDegenerate:
+
+    @pytest.mark.asyncio
+    async def test_resume_skips_malformed_init(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        events = _bracket_boot_events(entry_filled=True)
+        events[0] = (
+            events[0][0],
+            BracketInitialized(
+                account_id=_ACCT,
+                timestamp=_T0,
+                command_id=_RESUME_COMMAND_ID,
+                trade_id=_TRADE,
+                symbol='BTCUSDT',
+                side=OrderSide.BUY,
+                total_qty=Decimal('1'),
+            ),
+        )
+
+        em.replay_events(_ACCT, events)
+        await asyncio.sleep(0.3)
+
+        assert _RESUME_COMMAND_ID not in em._accounts[_ACCT].brackets
         assert not any(
             call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
             for call in adapter.submit_calls

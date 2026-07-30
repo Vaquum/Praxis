@@ -33,6 +33,7 @@ from praxis.core.domain.enums import (
     TradeStatus,
 )
 from praxis.core.domain.events import (
+    BracketInitialized,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -593,6 +594,105 @@ class ExecutionManager:
                     )
 
         self._resume_schemes(runtime, events)
+        self._resume_brackets(runtime, events)
+
+    def _resume_brackets(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild live bracket state for incomplete brackets after replay.
+
+        For each `BracketInitialized` whose protective OCO was not confirmed
+        placed, a `_LiveBracket` is registered so the account loop can place
+        protection: immediately for an already-filled entry
+        (`_place_pending_bracket_protection`), or from `_on_bracket_event`
+        when a still-open entry fills. A protective OCO is treated as
+        confirmed when its order projection exists and is past SUBMITTING
+        (OPEN, filled, canceled, or a REJECTED submit failure); a SUBMITTING
+        projection means the submit was persisted but never venue-confirmed
+        (a crash between the intent and the response), so it is re-placed —
+        the deterministic list client order id makes the retry idempotent via
+        the OCO rescue. A REJECTED protective OCO (venue rejection or a wrong-
+        side-of-fill skip) is a definitive failure and is not retried on boot
+        (TD-130); its filled entry stays unprotected pending operator repair.
+        A malformed init that cannot rebuild valid params is skipped.
+        '''
+
+        inits: dict[str, BracketInitialized] = {}
+        for _seq, event in events:
+            if isinstance(event, BracketInitialized):
+                inits[event.command_id] = event
+
+        for command_id, init in inits.items():
+            entry_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+            )
+            oco_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_PROTECTION_SEQUENCE,
+            )
+
+            oco_order = self._scheme_child_order(runtime, oco_client_order_id)
+            if oco_order is not None and oco_order.status is not OrderStatus.SUBMITTING:
+                continue
+
+            if self._scheme_child_order(runtime, entry_client_order_id) is None:
+                continue
+
+            try:
+                command = self._bracket_command_from_init(init)
+            except ValueError:
+                _log.exception(
+                    'bracket resume skipped: malformed init params: '
+                    'command_id=%s account_id=%s',
+                    command_id,
+                    runtime.account_id,
+                )
+
+                continue
+
+            runtime.brackets[command_id] = _LiveBracket(
+                command=command,
+                entry_client_order_id=entry_client_order_id,
+            )
+            _log.info(
+                'bracket resumed awaiting protection: command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+
+    def _bracket_command_from_init(self, init: BracketInitialized) -> TradeCommand:
+        '''Rebuild a bracket command from its durable init event for resume.
+
+        Args:
+            init (BracketInitialized): The persisted bracket init event.
+
+        Returns:
+            TradeCommand: The reconstructed bracket command.
+        '''
+
+        return TradeCommand(
+            command_id=init.command_id,
+            trade_id=init.trade_id,
+            account_id=init.account_id,
+            symbol=init.symbol,
+            side=init.side,
+            qty=init.total_qty,
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.BRACKET,
+            execution_params=BracketParams(
+                take_profit_price=init.take_profit_price,
+                take_profit_offset_bps=init.take_profit_offset_bps,
+                stop_loss_price=init.stop_loss_price,
+                stop_loss_offset_bps=init.stop_loss_offset_bps,
+                stop_loss_limit_price=init.stop_loss_limit_price,
+            ),
+            timeout=init.timeout_seconds or _REPLAY_COMMAND_TIMEOUT_SECONDS,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=init.timestamp,
+        )
 
     def _resume_schemes(
         self,
@@ -1629,6 +1729,7 @@ class ExecutionManager:
                     continue
 
                 await self._advance_due_schemes(runtime)
+                await self._place_pending_bracket_protection(runtime)
 
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
@@ -2116,6 +2217,25 @@ class ExecutionManager:
         assert isinstance(cmd.execution_params, BracketParams)
         assert cmd.qty is not None
 
+        params = cmd.execution_params
+        init = BracketInitialized(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            take_profit_price=params.take_profit_price,
+            take_profit_offset_bps=params.take_profit_offset_bps,
+            stop_loss_price=params.stop_loss_price,
+            stop_loss_offset_bps=params.stop_loss_offset_bps,
+            stop_loss_limit_price=params.stop_loss_limit_price,
+            timeout_seconds=cmd.timeout,
+        )
+        await self._event_spine.append(init, self._epoch_id)
+        runtime.trading_state.apply(init)
+
         entry_client_order_id = await self._submit_market_slice(
             runtime, cmd, _BRACKET_ENTRY_SEQUENCE, cmd.qty,
         )
@@ -2275,6 +2395,78 @@ class ExecutionManager:
             runtime, bracket, order.filled_qty, avg_entry_price,
         )
 
+    async def _place_pending_bracket_protection(self, runtime: _AccountRuntime) -> None:
+        '''Place protection for a resumed bracket whose entry has settled.
+
+        A bracket rebuilt by `_resume_brackets` whose entry order is already
+        terminal — its fill arrived before the crash, so no live WebSocket
+        event will drive `_on_bracket_event` — has its protective OCO placed
+        here on the next account-loop pass. A resumed bracket whose entry is
+        still open is left for the fill event; a terminal entry with no fill
+        has nothing to protect.
+        '''
+
+        for command_id, bracket in list(runtime.brackets.items()):
+            if bracket.protection_placed:
+                continue
+
+            entry_order = self._scheme_child_order(runtime, bracket.entry_client_order_id)
+            if entry_order is None or entry_order.status not in _TERMINAL_ORDER_STATUSES:
+                continue
+
+            runtime.brackets.pop(command_id, None)
+
+            if entry_order.filled_qty <= _ZERO:
+                continue
+
+            avg_entry_price = entry_order.cumulative_notional / entry_order.filled_qty
+            await self._place_bracket_protection(
+                runtime, bracket, entry_order.filled_qty, avg_entry_price,
+            )
+            await self._recover_bracket_entry_outcome(runtime, bracket, entry_order)
+
+    async def _recover_bracket_entry_outcome(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        entry_order: Order,
+    ) -> None:
+        '''Emit the entry outcome for a resumed bracket whose fill preceded a crash.
+
+        Replay projects a durable entry `FillReceived` into the trading state
+        but does not re-emit its `TradeOutcome`. When boot recovery places
+        protection for an already-filled entry whose entry outcome was never
+        produced (no terminal `TradeOutcomeProduced` was replayed, so the
+        command is not in `_terminal_commands`), emit it now so Nexus receives
+        the entry fill it missed. A bracket whose entry outcome was produced
+        before the crash is already terminal and is skipped.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The resumed bracket.
+            entry_order (Order): The terminal, filled entry order projection.
+        '''
+
+        cmd = bracket.command
+        if cmd.command_id in self._terminal_commands:
+            return
+
+        assert cmd.qty is not None
+        filled_qty = entry_order.filled_qty
+        status = (
+            TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=filled_qty,
+            avg_fill_price=entry_order.cumulative_notional / filled_qty,
+            reason=None,
+            cumulative_notional=entry_order.cumulative_notional,
+        )
+
     async def _place_bracket_protection(
         self,
         runtime: _AccountRuntime,
@@ -2314,21 +2506,6 @@ class ExecutionManager:
         tp_price, sl_stop_price, sl_limit_price = self._bracket_protective_prices(
             cmd, avg_entry_price,
         )
-
-        if not self._bracket_legs_valid_for_entry(cmd, tp_price, sl_stop_price, avg_entry_price):
-            _log.error(
-                'bracket protective legs on the wrong side of the entry fill; '
-                'skipping protection (position unprotected): command_id=%s side=%s '
-                'avg_entry=%s tp=%s sl=%s',
-                cmd.command_id,
-                cmd.side.value,
-                avg_entry_price,
-                tp_price,
-                sl_stop_price,
-            )
-
-            return
-
         exit_command_id = bracket_exit_command_id(cmd.command_id)
         client_order_id = generate_client_order_id(
             cmd.execution_mode,
@@ -2358,6 +2535,26 @@ class ExecutionManager:
         )
         await self._event_spine.append(intent, self._epoch_id)
         runtime.trading_state.apply(intent)
+
+        if not self._bracket_legs_valid_for_entry(cmd, tp_price, sl_stop_price, avg_entry_price):
+            _log.error(
+                'bracket protective legs on the wrong side of the entry fill; '
+                'skipping protection (position unprotected): command_id=%s side=%s '
+                'avg_entry=%s tp=%s sl=%s',
+                cmd.command_id,
+                cmd.side.value,
+                avg_entry_price,
+                tp_price,
+                sl_stop_price,
+            )
+            await self._append_submit_failed(
+                runtime,
+                exit_cmd,
+                client_order_id,
+                'bracket protective legs on the wrong side of the entry fill',
+            )
+
+            return
 
         try:
             result = await self._venue_adapter.submit_order(

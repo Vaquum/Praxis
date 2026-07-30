@@ -1181,12 +1181,14 @@ A bracket fills its MARKET entry, then places the protective OCO. If the OCO sub
 
 **When to fix**: before live bracket trading. Add an explicit unprotected-entry policy — at minimum an alert/runbook signal, and ideally a bounded OCO retry and/or an auto-flatten-or-freeze on definitive protection failure — rather than silently holding a naked position.
 
-## TD-131: Live bracket state is not durable and is not resumed on boot
+## TD-131: Bracket partial-fill protection for a future resting entry — RESOLVED (durability) / deferred (resting entry)
 
 **Origin**: WP-Praxis-0007 (6.3 Bracket slice; unstaged review)
-**Severity**: Medium (a crash in the entry→protection window leaves a naked position with no automatic repair)
-**Module**: `praxis/core/execution_manager.py` (`_LiveBracket`, `runtime.brackets`, `_process_bracket`, `_on_bracket_event`)
+**Severity**: Low (residual applies only to a not-yet-built non-MARKET bracket entry)
+**Module**: `praxis/core/execution_manager.py` (`_resume_brackets`, `_place_pending_bracket_protection`)
 
-`runtime.brackets` is in-memory only: unlike a scheme (`SchemeInitialized` / `SchemeStateChanged` on the spine, rebuilt by `_resume_schemes`), a bracket has no durable "entry open, awaiting protection" record. If Praxis crashes after the entry is accepted or filled but before the protective OCO succeeds — or while a bracket entry is still PENDING/open — the `_LiveBracket` is lost on restart, so boot does not re-place or resume the protection. The filled entry position is then held unprotected until an operator or a reconcile pass intervenes (same exposure family as TD-130). Partial-entry protection is bounded correctly for the current MARKET-only entry (protection is placed on the entry's terminal event with the final filled quantity; a spot MARKET order never rests, so there is no persistent partially-filled-open window) — but a future non-MARKET / resting bracket entry (TD-121) would reopen that window and needs partial-fill protection reconciliation.
+**Resolved (durability / boot resume)**: a `BracketInitialized` event is now appended before the entry submit, carrying the bracket identity and protective parameters. On boot `_resume_brackets` rebuilds `_LiveBracket` for any bracket whose protective OCO was not yet placed (no exit order projection); `_place_pending_bracket_protection` then places protection for an already-filled entry on the next account-loop pass, and `_on_bracket_event` handles a still-open entry that fills post-boot. A bracket whose protective OCO already exists needs no rebuild — the generic `OrderSubmitIntent` replay re-registers its exit lineage. The naked-position window from a crash between entry fill and protection is now closed by automatic boot repair (definitive live-submit failure remains TD-130).
 
-**When to fix**: this is the "bracket crash recovery" work-package item — persist a durable bracket-open marker (a spine event, or a Class-C-style boot repair that detects a filled bracket entry without a live protective OCO) and rebuild `_LiveBracket` on boot to place or resume protection.
+**Deferred**: partial-entry protection is bounded correctly for the current MARKET-only entry (protection is placed on the entry's terminal event with the final filled quantity; a spot MARKET order never rests, so there is no persistent partially-filled-open window). A future non-MARKET / resting bracket entry (TD-121) would reopen that window and needs partial-fill protection reconciliation — place-and-reconcile-or-replace as more fills arrive.
+
+**When to fix**: with the TD-121 non-MARKET bracket entry.

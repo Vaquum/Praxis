@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from praxis.core.domain.enums import OrderStatus
 from praxis.core.domain.events import (
+    BracketInitialized,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -143,7 +144,13 @@ class TradingState:
             )
         elif isinstance(
             event,
-            (OutcomeDeliveryContextRecorded, OutcomeReplayAbandoned, MarkSampled, SliceFailed),
+            (
+                OutcomeDeliveryContextRecorded,
+                OutcomeReplayAbandoned,
+                MarkSampled,
+                SliceFailed,
+                BracketInitialized,
+            ),
         ):
             return
         else:
