@@ -263,6 +263,12 @@ def _coerce(value: Any, target: type) -> Any:
         args = [a for a in get_args(target) if a is not type(None)]
         return _coerce(value, args[0]) if args else value
 
+    if origin in (tuple, list):
+        elem_args = get_args(target)
+        if elem_args and isinstance(value, list):
+            return [_coerce(item, elem_args[0]) for item in value]
+        return value
+
     result = value
     if target is Decimal:
         result = Decimal(str(value))

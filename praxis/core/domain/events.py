@@ -533,6 +533,12 @@ class SchemeInitialized(_EventBase):
             start, persisted so the deadline backstop survives a restart.
             Non-negative; 0 means no deadline. Defaults to 0 so events
             written before this field hydrate cleanly.
+        volume_weights (tuple[Decimal, ...]): Per-slice volume weights for a
+            Scheduled VWAP scheme, persisted so boot resume can replan the
+            weighted slice grid (which slice count and interval alone cannot
+            reconstruct). Empty for equal-slice modes, whose grid is fully
+            determined by slices_total. Defaults to empty so events written
+            before this field hydrate cleanly.
     '''
 
     command_id: str
@@ -544,10 +550,13 @@ class SchemeInitialized(_EventBase):
     slices_total: int
     interval_seconds: int = 0
     timeout_seconds: int = 0
+    volume_weights: tuple[Decimal, ...] = ()
 
     def __post_init__(self) -> None:
 
         super().__post_init__()
+
+        object.__setattr__(self, 'volume_weights', tuple(self.volume_weights))
 
         name = type(self).__name__
         _require_str(name, 'command_id', self.command_id)
@@ -577,6 +586,11 @@ class SchemeInitialized(_EventBase):
         if self.timeout_seconds < 0:
             msg = f'{name}.timeout_seconds must be non-negative'
             raise ValueError(msg)
+
+        for weight in self.volume_weights:
+            if not isinstance(weight, Decimal) or not weight.is_finite() or weight <= _ZERO:
+                msg = f'{name}.volume_weights entries must be positive, finite Decimals'
+                raise ValueError(msg)
 
 
 @dataclass(frozen=True)

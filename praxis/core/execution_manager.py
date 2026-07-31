@@ -59,6 +59,7 @@ from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
+from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.twap_params import TwapParams
@@ -74,6 +75,7 @@ from praxis.core.generate_client_order_id import (
     validate_command_id_for_client_order_id,
 )
 from praxis.core.plan_even_slices import plan_even_slices
+from praxis.core.plan_weighted_slices import plan_weighted_slices
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
@@ -118,7 +120,9 @@ _TERMINAL_ORDER_TO_TRADE_STATUS = {
 }
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
 _BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
-_SCHEME_MODES = frozenset({ExecutionMode.TWAP, ExecutionMode.TIME_DCA})
+_SCHEME_MODES = frozenset(
+    {ExecutionMode.TWAP, ExecutionMode.TIME_DCA, ExecutionMode.SCHEDULED_VWAP},
+)
 _MIN_SCHEME_SLICES = 2
 _COMMAND_QUEUE_MAXSIZE = 1000
 _OCO_LIST_STATUS_REJECT = 'REJECT'
@@ -220,12 +224,13 @@ class _LiveBracket:
     protection_placed: bool = False
 
 
-def _even_slice_schedule(params: ExecutionParams) -> tuple[int, int]:
-    '''Return (slice count, interval seconds) for an equal-slice mode.
+def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
+    '''Return (slice count, interval seconds) for a scheme mode.
 
-    TWAP and Time DCA both submit a fixed number of equal MARKET children
-    at a fixed interval; only the parameter names differ. Any other params
-    type is a routing bug — the loop dispatch admits only `_SCHEME_MODES`.
+    TWAP and Time DCA submit a fixed number of equal MARKET children at a
+    fixed interval; Scheduled VWAP submits one child per volume weight at a
+    fixed interval. Any other params type is a routing bug — the loop
+    dispatch admits only `_SCHEME_MODES`.
     '''
 
     if isinstance(params, TwapParams):
@@ -234,19 +239,43 @@ def _even_slice_schedule(params: ExecutionParams) -> tuple[int, int]:
     if isinstance(params, TimeDcaParams):
         return params.num_iterations, params.interval_seconds
 
-    msg = f'not an equal-slice params type: {type(params).__name__}'
+    if isinstance(params, ScheduledVwapParams):
+        return len(params.volume_weights), params.interval_seconds
+
+    msg = f'not a scheme params type: {type(params).__name__}'
     raise TypeError(msg)
 
 
-def _rebuild_equal_slice_params(
+def _plan_scheme_slices(
+    params: ExecutionParams,
+    total_qty: Decimal,
+    slices_total: int,
+    lot_step: Decimal | None,
+) -> list[Decimal]:
+    '''Compute the child quantities for a scheme mode.
+
+    Equal-slice modes divide the total evenly; Scheduled VWAP splits it
+    across its volume-weight curve. Both floor each child to the lot step.
+    '''
+
+    if isinstance(params, ScheduledVwapParams):
+        return plan_weighted_slices(total_qty, params.volume_weights, lot_step)
+
+    return plan_even_slices(total_qty, slices_total, lot_step)
+
+
+def _rebuild_scheme_params(
     mode: ExecutionMode,
     slices_total: int,
     interval_seconds: int,
+    volume_weights: tuple[Decimal, ...],
 ) -> ExecutionParams:
-    '''Reconstruct an equal-slice mode's params for boot resume.
+    '''Reconstruct a scheme mode's params for boot resume.
 
     An equal-slice scheme's params are fully determined by its slice count
-    and interval, both persisted on `SchemeInitialized`, so the transient
+    and interval; a Scheduled VWAP scheme also needs its persisted volume
+    weights, since the weighted grid cannot be recomputed from the slice
+    count alone. All are persisted on `SchemeInitialized`, so the transient
     command's params need not be stored to resume the schedule.
     '''
 
@@ -256,7 +285,12 @@ def _rebuild_equal_slice_params(
     if mode is ExecutionMode.TIME_DCA:
         return TimeDcaParams(num_iterations=slices_total, interval_seconds=interval_seconds)
 
-    msg = f'not a resumable equal-slice mode: {mode.value}'
+    if mode is ExecutionMode.SCHEDULED_VWAP:
+        return ScheduledVwapParams(
+            interval_seconds=interval_seconds, volume_weights=volume_weights,
+        )
+
+    msg = f'not a resumable scheme mode: {mode.value}'
     raise TypeError(msg)
 
 
@@ -744,14 +778,33 @@ class ExecutionManager:
             ):
                 continue
 
+            if (
+                init.execution_mode is ExecutionMode.SCHEDULED_VWAP
+                and len(init.volume_weights) < _MIN_SCHEME_SLICES
+            ):
+                _log.warning(
+                    'cannot resume VWAP scheme without persisted weights: '
+                    'command_id=%s',
+                    command_id,
+                )
+                continue
+
             filters = self._venue_adapter.cached_filters(init.symbol)
             lot_step = filters.lot_step if filters is not None else None
             try:
-                slice_qtys = plan_even_slices(init.total_qty, init.slices_total, lot_step)
+                rebuilt_params = _rebuild_scheme_params(
+                    init.execution_mode,
+                    init.slices_total,
+                    init.interval_seconds,
+                    init.volume_weights,
+                )
+                slice_qtys = _plan_scheme_slices(
+                    rebuilt_params, init.total_qty, init.slices_total, lot_step,
+                )
             except ValueError:
                 _log.warning(
-                    'cannot replan scheme on resume; leaving for boot cleanup: '
-                    'command_id=%s',
+                    'cannot rebuild or replan scheme on resume; leaving for '
+                    'boot cleanup: command_id=%s',
                     command_id,
                 )
                 continue
@@ -765,9 +818,7 @@ class ExecutionManager:
                 qty=init.total_qty,
                 order_type=OrderType.MARKET,
                 execution_mode=init.execution_mode,
-                execution_params=_rebuild_equal_slice_params(
-                    init.execution_mode, init.slices_total, init.interval_seconds,
-                ),
+                execution_params=rebuilt_params,
                 timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
                 reference_price=None,
                 maker_preference=MakerPreference.NO_PREFERENCE,
@@ -791,7 +842,7 @@ class ExecutionManager:
             scheme = _LiveScheme(
                 command=command,
                 slice_qtys=slice_qtys,
-                slices_total=init.slices_total,
+                slices_total=len(slice_qtys),
                 interval_seconds=init.interval_seconds,
                 cursor=state.cursor if state is not None else 0,
                 active_children=live_children,
@@ -3096,10 +3147,11 @@ class ExecutionManager:
         runtime: _AccountRuntime,
         cmd: TradeCommand,
     ) -> None:
-        '''Begin an equal-slice scheme (TWAP or Time DCA).
+        '''Begin a scheme (TWAP, Time DCA, or Scheduled VWAP).
 
-        Both modes submit `num` equal MARKET children at a fixed interval;
-        they differ only in intent, so they share one producer. A
+        TWAP and Time DCA submit equal MARKET children at a fixed interval;
+        Scheduled VWAP submits one child per volume weight at a fixed
+        interval. All share one producer, differing only in slice sizing. A
         pre-submission abort short-circuits to a CANCELED terminal outcome
         before any child is placed. A planning failure (lot grid too coarse
         for the requested split) rejects the command. On success
@@ -3108,7 +3160,7 @@ class ExecutionManager:
         remaining slices fire from `_advance_due_schemes` at their interval.
         '''
 
-        slices_total, interval_seconds = _even_slice_schedule(cmd.execution_params)
+        slices_total, interval_seconds = _scheme_schedule(cmd.execution_params)
         abort_reason = self._aborted_commands.pop(cmd.command_id, None)
 
         if abort_reason is not None:
@@ -3133,7 +3185,9 @@ class ExecutionManager:
         lot_step = filters.lot_step if filters is not None else None
 
         try:
-            slice_qtys = plan_even_slices(cmd.qty, slices_total, lot_step)
+            slice_qtys = _plan_scheme_slices(
+                cmd.execution_params, cmd.qty, slices_total, lot_step,
+            )
         except ValueError as exc:
             _log.warning(
                 'scheme slice planning failed: command_id=%s reason=%s',
@@ -3164,6 +3218,11 @@ class ExecutionManager:
             slices_total=len(slice_qtys),
             interval_seconds=interval_seconds,
             timeout_seconds=cmd.timeout,
+            volume_weights=(
+                cmd.execution_params.volume_weights
+                if isinstance(cmd.execution_params, ScheduledVwapParams)
+                else ()
+            ),
         )
         await self._event_spine.append(init, self._epoch_id)
         runtime.trading_state.apply(init)

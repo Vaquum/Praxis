@@ -40,7 +40,6 @@ from praxis.core.domain.events import (
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.iceberg_params import IcebergParams
-from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -1505,11 +1504,11 @@ class TestModeDispatch:
         mgr.register_account(_ACCT)
         kwargs = {
             **_CMD_KWARGS,
-            'execution_mode': ExecutionMode.SCHEDULED_VWAP,
-            'order_type': OrderType.MARKET,
-            'execution_params': ScheduledVwapParams(
-                interval_seconds=30,
-                volume_weights=(Decimal('0.5'), Decimal('0.5')),
+            'execution_mode': ExecutionMode.ICEBERG,
+            'order_type': OrderType.LIMIT,
+            'execution_params': IcebergParams(
+                display_qty=Decimal('0.1'),
+                limit_price=Decimal('50000'),
             ),
         }
         await mgr.submit_command(**kwargs)
@@ -1523,7 +1522,7 @@ class TestModeDispatch:
         assert outcome.status == TradeStatus.REJECTED
         assert outcome.filled_qty == Decimal(0)
         assert outcome.reason is not None
-        assert 'SCHEDULED_VWAP' in outcome.reason
+        assert 'ICEBERG' in outcome.reason
         assert 'not yet supported' in outcome.reason
 
         events = await spine.read(_EPOCH, after_seq=0)
