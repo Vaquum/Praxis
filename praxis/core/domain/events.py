@@ -533,12 +533,17 @@ class SchemeInitialized(_EventBase):
             start, persisted so the deadline backstop survives a restart.
             Non-negative; 0 means no deadline. Defaults to 0 so events
             written before this field hydrate cleanly.
-        volume_weights (tuple[Decimal, ...]): Per-slice volume weights for a
-            Scheduled VWAP scheme, persisted so boot resume can replan the
-            weighted slice grid (which slice count and interval alone cannot
-            reconstruct). Empty for equal-slice modes, whose grid is fully
-            determined by slices_total. Defaults to empty so events written
-            before this field hydrate cleanly.
+        volume_weights (tuple[Decimal, ...]): Per-child fractional weights
+            (summing to 1) for a scheme whose children are unequally sized —
+            a Scheduled VWAP volume curve or a Ladder DCA level allocation —
+            persisted so boot resume can reconstruct the grid, which slice
+            count and interval alone cannot. Empty for equal-slice modes.
+            Defaults to empty so events written before this field hydrate
+            cleanly.
+        price_levels (tuple[Decimal, ...]): Per-level resting limit prices
+            for a Ladder DCA scheme, persisted for a faithful rebuild on
+            resume. Empty for modes with no per-child price. Defaults to
+            empty so events written before this field hydrate cleanly.
     '''
 
     command_id: str
@@ -551,12 +556,14 @@ class SchemeInitialized(_EventBase):
     interval_seconds: int = 0
     timeout_seconds: int = 0
     volume_weights: tuple[Decimal, ...] = ()
+    price_levels: tuple[Decimal, ...] = ()
 
     def __post_init__(self) -> None:
 
         super().__post_init__()
 
         object.__setattr__(self, 'volume_weights', tuple(self.volume_weights))
+        object.__setattr__(self, 'price_levels', tuple(self.price_levels))
 
         name = type(self).__name__
         _require_str(name, 'command_id', self.command_id)
@@ -590,6 +597,11 @@ class SchemeInitialized(_EventBase):
         for weight in self.volume_weights:
             if not isinstance(weight, Decimal) or not weight.is_finite() or weight <= _ZERO:
                 msg = f'{name}.volume_weights entries must be positive, finite Decimals'
+                raise ValueError(msg)
+
+        for level in self.price_levels:
+            if not isinstance(level, Decimal) or not level.is_finite() or level <= _ZERO:
+                msg = f'{name}.price_levels entries must be positive, finite Decimals'
                 raise ValueError(msg)
 
 

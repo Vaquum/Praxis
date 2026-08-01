@@ -87,6 +87,17 @@ _ALL_EVENTS: list[Event] = [
         volume_weights=(Decimal('0.5'), Decimal('0.3'), Decimal('0.2')),
     ),
 
+    SchemeInitialized(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, trade_id=_TRADE,
+        execution_mode=ExecutionMode.LADDER_DCA,
+        symbol=_SYMBOL, side=OrderSide.BUY,
+        total_qty=Decimal('1'), slices_total=2,
+        interval_seconds=0, timeout_seconds=300,
+        volume_weights=(Decimal('0.6'), Decimal('0.4')),
+        price_levels=(Decimal('49000.00'), Decimal('48000.00')),
+    ),
+
     OrderSubmitFailed(
         account_id=_ACCT, timestamp=_TS,
         client_order_id=_ORDER, reason='insufficient balance',

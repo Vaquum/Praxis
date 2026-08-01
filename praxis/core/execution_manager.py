@@ -60,6 +60,7 @@ from praxis.core.bracket_exit_command_id import bracket_exit_command_id
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.time_dca_params import TimeDcaParams
@@ -263,6 +264,35 @@ def _plan_scheme_slices(
         return plan_weighted_slices(total_qty, params.volume_weights, lot_step)
 
     return plan_even_slices(total_qty, slices_total, lot_step)
+
+
+def _ladder_levels(
+    params: LadderDcaParams,
+    total_qty: Decimal,
+    lot_step: Decimal | None,
+) -> list[tuple[Decimal, Decimal]]:
+    '''Resolve the (quantity, price) pair for each ladder rung.
+
+    The command quantity is split across the rungs — by `level_weights` when
+    given, otherwise equally — with each rung's quantity floored to the lot
+    step; each rung rests at its explicit `price_levels` entry.
+
+    Args:
+        params (LadderDcaParams): The ladder parameters.
+        total_qty (Decimal): Total base quantity to work across the rungs.
+        lot_step (Decimal | None): Venue LOT_SIZE step, or None when the
+            symbol filters are not cached.
+
+    Returns:
+        list[tuple[Decimal, Decimal]]: One (quantity, price) pair per rung.
+    '''
+
+    if params.level_weights is not None:
+        qtys = plan_weighted_slices(total_qty, params.level_weights, lot_step)
+    else:
+        qtys = plan_even_slices(total_qty, len(params.price_levels), lot_step)
+
+    return list(zip(qtys, params.price_levels, strict=True))
 
 
 def _rebuild_scheme_params(
@@ -629,7 +659,167 @@ class ExecutionManager:
                     )
 
         self._resume_schemes(runtime, events)
+        self._resume_ladders(runtime, events)
         self._resume_brackets(runtime, events)
+
+    def _resume_ladders(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild live ladder state for non-terminal ladders after replay.
+
+        A ladder posts all of its resting LIMIT rungs at start, so resume
+        does not replan or resubmit — it rebuilds the `_LiveScheme` with the
+        replayed cursor and the rungs still working (`active_client_order_ids`
+        whose order is not terminal), leaving `next_run_at` None so the
+        account loop only finalizes it once every rung settles. A ladder with
+        a terminal outcome, a non-RUNNING state, too few persisted levels, or
+        a malformed init is not resumed.
+        '''
+
+        inits: dict[str, SchemeInitialized] = {}
+        latest_state: dict[str, SchemeStateChanged] = {}
+        terminal_outcomes: set[str] = set()
+        frozen_ids: set[str] = set()
+
+        for _seq, event in events:
+            if (
+                isinstance(event, SchemeInitialized)
+                and event.execution_mode is ExecutionMode.LADDER_DCA
+            ):
+                inits.setdefault(event.command_id, event)
+            elif isinstance(event, SchemeStateChanged):
+                latest_state[event.command_id] = event
+            elif isinstance(event, SliceFailed):
+                frozen_ids.add(event.command_id)
+            elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
+                terminal_outcomes.add(event.command_id)
+
+        for command_id, init in inits.items():
+            if command_id in terminal_outcomes:
+                continue
+
+            state = latest_state.get(command_id)
+            scheme_state = state.state if state is not None else SchemeState.RUNNING
+            if scheme_state is not SchemeState.RUNNING:
+                continue
+
+            if len(init.price_levels) < _MIN_SCHEME_SLICES:
+                continue
+
+            try:
+                command = self._ladder_command_from_init(init)
+            except ValueError:
+                _log.exception(
+                    'ladder resume skipped: malformed init: command_id=%s', command_id,
+                )
+                continue
+
+            live_children, posted_count = self._ladder_children_from_projections(
+                runtime, command_id, init.slices_total,
+            )
+
+            deadline = (
+                init.timestamp + timedelta(seconds=init.timeout_seconds)
+                if init.timeout_seconds > 0
+                else None
+            )
+
+            scheme = _LiveScheme(
+                command=command,
+                slice_qtys=[],
+                slices_total=init.slices_total,
+                interval_seconds=0,
+                cursor=posted_count,
+                active_children=live_children,
+                next_run_at=None,
+                deadline=deadline,
+                frozen=command_id in frozen_ids,
+            )
+            runtime.schemes[command_id] = scheme
+            self._commands[command_id] = command
+            self._accepted_commands[command_id] = runtime.account_id
+            self._command_trade_ids[command_id] = init.trade_id
+
+            _log.info(
+                'resumed ladder from replay: command_id=%s active=%d frozen=%s',
+                command_id,
+                len(live_children),
+                scheme.frozen,
+            )
+
+    def _ladder_children_from_projections(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        slices_total: int,
+    ) -> tuple[set[str], int]:
+        '''Reconstruct a ladder's live rungs and posted count from replay.
+
+        The rungs carry deterministic client order ids, so the durable order
+        projections — not a possibly-missing `SchemeStateChanged` — are the
+        source of truth on resume: a rung with an order projection was
+        submitted (counts toward the cursor), and one still non-terminal is
+        active. Deriving from projections means a crash mid-posting (before
+        any progress event) never restores an empty, cursor-complete ladder
+        that would falsely finalize while its posted rungs rest live.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to read projections.
+            command_id (str): The ladder parent command id.
+            slices_total (int): The persisted rung count.
+
+        Returns:
+            tuple[set[str], int]: The still-working rung client order ids and
+                the number of rungs actually posted.
+        '''
+
+        live_children: set[str] = set()
+        posted_count = 0
+        for index in range(slices_total):
+            child_id = generate_client_order_id(
+                ExecutionMode.LADDER_DCA, command_id, sequence=index,
+            )
+            order = self._scheme_child_order(runtime, child_id)
+            if order is None:
+                continue
+
+            posted_count += 1
+            if order.status not in _TERMINAL_ORDER_STATUSES:
+                live_children.add(child_id)
+
+        return live_children, posted_count
+
+    def _ladder_command_from_init(self, init: SchemeInitialized) -> TradeCommand:
+        '''Rebuild a ladder command from its durable init event for resume.
+
+        Args:
+            init (SchemeInitialized): The persisted ladder init event.
+
+        Returns:
+            TradeCommand: The reconstructed ladder command.
+        '''
+
+        return TradeCommand(
+            command_id=init.command_id,
+            trade_id=init.trade_id,
+            account_id=init.account_id,
+            symbol=init.symbol,
+            side=init.side,
+            qty=init.total_qty,
+            order_type=OrderType.LIMIT,
+            execution_mode=ExecutionMode.LADDER_DCA,
+            execution_params=LadderDcaParams(
+                price_levels=init.price_levels,
+                level_weights=tuple(init.volume_weights) or None,
+            ),
+            timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=init.timestamp,
+        )
 
     def _resume_brackets(
         self,
@@ -1806,6 +1996,11 @@ class ExecutionManager:
                         await self._process_bracket(runtime, cmd)
                     elif cmd.execution_mode == ExecutionMode.ICEBERG:
                         await self._process_iceberg(runtime, cmd)
+                    elif cmd.execution_mode == ExecutionMode.LADDER_DCA:
+                        if self._deadline_exceeded(self._clock(), cmd):
+                            await self._expire_stale_command(runtime, cmd)
+                        else:
+                            await self._start_ladder(runtime, cmd)
                     else:
                         await self._process_command(runtime, cmd)
                 except asyncio.CancelledError:
@@ -1934,10 +2129,12 @@ class ExecutionManager:
 
         if cmd.execution_mode != ExecutionMode.SINGLE_SHOT:
             reject_reason = (
-                f"execution mode {cmd.execution_mode.value} is not yet supported"
+                f"execution mode {cmd.execution_mode.value} was misrouted to the "
+                'single-shot path'
             )
-            _log.warning(
-                'unsupported execution mode: command_id=%s mode=%s',
+            _log.error(
+                'misrouted execution mode reached _process_command: '
+                'command_id=%s mode=%s',
                 cmd.command_id,
                 cmd.execution_mode.value,
             )
@@ -3654,6 +3851,229 @@ class ExecutionManager:
             cmd.command_id,
             index,
             client_order_id,
+            len(result.immediate_fills),
+        )
+
+        return client_order_id
+
+    async def _start_ladder(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Begin a Ladder DCA: rest one LIMIT order at every price level.
+
+        Unlike the interval schemes, a ladder posts all of its children at
+        once — a static grid of resting LIMIT orders at explicit prices,
+        each sized from the level allocation. There is no interval schedule
+        (`next_run_at` stays None); the ladder aggregates fills as rungs fill
+        and completes once every rung has settled, reusing the shared scheme
+        child-settle, finalize, abort, and deadline machinery. A pre-abort
+        short-circuits to CANCELED; a planning failure rejects; a rung that
+        cannot be placed freezes the ladder (the placed rungs keep resting)
+        to await the Manager or the deadline.
+        '''
+
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        if abort_reason is not None:
+            _log.info('ladder pre-aborted before first rung: command_id=%s', cmd.command_id)
+            await self._emit_scheme_terminal(
+                runtime, cmd,
+                status=TradeStatus.CANCELED,
+                filled_qty=_ZERO, cumulative_notional=_ZERO,
+                slices_completed=0, slices_total=0, reason=abort_reason,
+            )
+            return
+
+        assert isinstance(cmd.execution_params, LadderDcaParams)
+        assert cmd.qty is not None
+
+        params = cmd.execution_params
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_step = filters.lot_step if filters is not None else None
+
+        try:
+            levels = _ladder_levels(params, cmd.qty, lot_step)
+        except ValueError as exc:
+            _log.warning('ladder planning failed: command_id=%s reason=%s', cmd.command_id, exc)
+            await self._emit_scheme_terminal(
+                runtime, cmd,
+                status=TradeStatus.REJECTED,
+                filled_qty=_ZERO, cumulative_notional=_ZERO,
+                slices_completed=0, slices_total=len(params.price_levels),
+                reason=f'ladder planning failed: {exc}',
+            )
+            return
+
+        init = SchemeInitialized(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            execution_mode=cmd.execution_mode,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            slices_total=len(levels),
+            interval_seconds=0,
+            timeout_seconds=cmd.timeout,
+            volume_weights=params.level_weights or (),
+            price_levels=params.price_levels,
+        )
+        await self._event_spine.append(init, self._epoch_id)
+        runtime.trading_state.apply(init)
+
+        scheme = _LiveScheme(
+            command=cmd,
+            slice_qtys=[qty for qty, _price in levels],
+            slices_total=len(levels),
+            interval_seconds=0,
+            deadline=(
+                init.timestamp + timedelta(seconds=cmd.timeout)
+                if cmd.timeout > 0
+                else None
+            ),
+        )
+        runtime.schemes[cmd.command_id] = scheme
+
+        for index, (qty, price) in enumerate(levels):
+            client_order_id = await self._submit_limit_level(runtime, cmd, index, qty, price)
+
+            if client_order_id is None:
+                await self._on_slice_failure(
+                    runtime,
+                    scheme,
+                    generate_client_order_id(cmd.execution_mode, cmd.command_id, sequence=index),
+                    f'ladder rung {index} submission failed',
+                )
+                return
+
+            order = self._scheme_child_order(runtime, client_order_id)
+            if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+                scheme.active_children.add(client_order_id)
+
+            scheme.cursor = index + 1
+            await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
+
+        _log.info(
+            'ladder started: command_id=%s rungs=%d active=%d',
+            cmd.command_id,
+            scheme.slices_total,
+            len(scheme.active_children),
+        )
+
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _submit_limit_level(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        index: int,
+        level_qty: Decimal,
+        level_price: Decimal,
+    ) -> str | None:
+        '''Persist-before-send one resting LIMIT child for a ladder rung.
+
+        The LIMIT sibling of `_submit_market_slice`: `OrderSubmitIntent`
+        before the venue call, `OrderSubmitted` plus one `FillReceived` per
+        immediate fill on success, `OrderSubmitFailed` on a definitive
+        failure. Returns the rung `client_order_id` on success (usually
+        resting OPEN; its later fills aggregate through the order
+        projection), or None when the rung could not be placed.
+        '''
+
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode, cmd.command_id, sequence=index,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.LIMIT,
+            qty=level_qty,
+            quote_qty=None,
+            price=level_price,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.LIMIT,
+                level_qty,
+                price=level_price,
+                client_order_id=client_order_id,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                await self._append_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+                return None
+            result = rescued
+            post_venue_ts = self._clock()
+        except VenueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
+            )
+            return None
+        except ValueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+            )
+            return None
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        _log.info(
+            'ladder rung submitted: command_id=%s rung=%d client_order_id=%s price=%s fills=%d',
+            cmd.command_id,
+            index,
+            client_order_id,
+            level_price,
             len(result.immediate_fills),
         )
 

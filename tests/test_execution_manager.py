@@ -40,8 +40,9 @@ from praxis.core.domain.events import (
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.iceberg_params import IcebergParams
-from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
@@ -1492,43 +1493,48 @@ class TestProcessAbort:
 
 class TestModeDispatch:
     @pytest.mark.asyncio
-    async def test_unsupported_mode_produces_rejected_outcome(
+    async def test_misrouted_non_single_shot_mode_is_rejected_defensively(
         self,
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
+        '''Every execution mode is routed by the account loop before it can
+        reach `_process_command`; this asserts the defensive backstop that
+        rejects a non-single-shot command that somehow reaches the
+        single-shot path (a routing bug) rather than mis-executing it.'''
+
         callback = AsyncMock()
         mgr = ExecutionManager(
             event_spine=spine, epoch_id=_EPOCH,
             venue_adapter=adapter, on_trade_outcome=callback,
         )
         mgr.register_account(_ACCT)
-        kwargs = {
-            **_CMD_KWARGS,
-            'execution_mode': ExecutionMode.LADDER_DCA,
-            'order_type': OrderType.LIMIT,
-            'execution_params': LadderDcaParams(
-                price_levels=(Decimal('49000'), Decimal('48000')),
-            ),
-        }
-        await mgr.submit_command(**kwargs)
+        runtime = mgr._accounts[_ACCT]
+        cmd = TradeCommand(
+            command_id='cmd-misrouted-0001',
+            trade_id=_TRADE,
+            account_id=_ACCT,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.TWAP,
+            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
 
-        await asyncio.sleep(0.3)
+        outcome = await mgr._process_command(runtime, cmd)
 
         adapter.submit_order.assert_not_awaited()
-
-        callback.assert_awaited_once()
-        outcome: TradeOutcome = callback.call_args[0][0]
         assert outcome.status == TradeStatus.REJECTED
         assert outcome.filled_qty == Decimal(0)
         assert outcome.reason is not None
-        assert 'LADDER_DCA' in outcome.reason
-        assert 'not yet supported' in outcome.reason
-
-        events = await spine.read(_EPOCH, after_seq=0)
-        types = [type(e).__name__ for _, e in events]
-        assert 'TradeOutcomeProduced' in types
-        assert 'OrderSubmitIntent' not in types
+        assert 'TWAP' in outcome.reason
+        assert 'misrouted' in outcome.reason
 
         await mgr.unregister_account(_ACCT)
 
