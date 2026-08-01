@@ -171,6 +171,7 @@ class ReplayVenueAdapter:
         client_order_id: str | None = None,
         time_in_force: str | None = None,
         quote_qty: Decimal | None = None,
+        iceberg_qty: Decimal | None = None,
     ) -> SubmitResult:
         '''Fill a market order fully at the current bar price.'''
 

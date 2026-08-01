@@ -418,6 +418,7 @@ def _validate_mode_venue_filters(cmd: TradeCommand, filters: SymbolFilters) -> N
 
     elif isinstance(params, IcebergParams):
         _check_lot_min(params.display_qty, filters, 'iceberg display_qty')
+        _check_lot_step(params.display_qty, filters, 'iceberg display_qty')
         _check_tick(params.limit_price, filters, 'iceberg limit_price')
         _check_min_notional(params.display_qty * params.limit_price, filters, 'iceberg tranche')
 
@@ -436,6 +437,20 @@ def _check_lot_min(qty: Decimal, filters: SymbolFilters, label: str) -> None:
 
     if qty < filters.lot_min:
         msg = f'{label} {qty} is below lot minimum {filters.lot_min}'
+        raise ValueError(msg)
+
+
+def _check_lot_step(qty: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a quantity is not a multiple of the venue lot step.
+
+    Unlike scheme slices, which the planners floor to the lot step before
+    submission, the iceberg display quantity is sent to the venue verbatim
+    as `icebergQty`, so a non-step value (e.g. 0.1005 on a 0.001 step) is
+    rejected by the venue's LOT_SIZE filter. It must be validated here.
+    '''
+
+    if qty % filters.lot_step != 0:
+        msg = f'{label} {qty} is not a multiple of lot step {filters.lot_step}'
         raise ValueError(msg)
 
 

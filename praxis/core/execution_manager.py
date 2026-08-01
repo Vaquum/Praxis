@@ -59,6 +59,7 @@ from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
+from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.time_dca_params import TimeDcaParams
@@ -1803,6 +1804,8 @@ class ExecutionManager:
                             await self._start_scheme(runtime, cmd)
                     elif cmd.execution_mode == ExecutionMode.BRACKET:
                         await self._process_bracket(runtime, cmd)
+                    elif cmd.execution_mode == ExecutionMode.ICEBERG:
+                        await self._process_iceberg(runtime, cmd)
                     else:
                         await self._process_command(runtime, cmd)
                 except asyncio.CancelledError:
@@ -2868,6 +2871,164 @@ class ExecutionManager:
             return price
 
         return (price // filters.tick_size) * filters.tick_size
+
+    async def _process_iceberg(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> TradeOutcome:
+        '''Submit a native iceberg LIMIT order and report its outcome.
+
+        Iceberg works the command quantity as a single resting LIMIT order
+        carrying Binance's `icebergQty`: the venue shows only `display_qty`
+        at a time and refills it from the hidden reserve, preserving queue
+        priority. Praxis submits one order for the full quantity at
+        `limit_price`; the venue's incremental fills arrive as WebSocket
+        `executionReport`s and drive PARTIAL then FILLED outcomes through the
+        shared WS-outcome path (the command is registered in `_commands` at
+        intake), and a `TradeAbort` cancels the resting order. When
+        `display_qty` equals the total there is no hidden reserve, so a plain
+        LIMIT order is submitted.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            cmd (TradeCommand): Iceberg command to execute.
+
+        Returns:
+            TradeOutcome: The initial outcome (typically PENDING for a
+                resting order; FILLED / PARTIAL if it crosses on entry).
+        '''
+
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        if abort_reason is not None:
+            _log.info(
+                'iceberg pre-aborted: command_id=%s trade_id=%s',
+                cmd.command_id,
+                cmd.trade_id,
+            )
+
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                TradeStatus.CANCELED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason=abort_reason,
+            )
+
+        assert isinstance(cmd.execution_params, IcebergParams)
+        assert cmd.qty is not None
+
+        params = cmd.execution_params
+        iceberg_qty = params.display_qty if params.display_qty < cmd.qty else None
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode, cmd.command_id, sequence=0,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.LIMIT,
+            qty=cmd.qty,
+            quote_qty=None,
+            price=params.limit_price,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+        runtime.command_to_order[cmd.command_id] = client_order_id
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.LIMIT,
+                cmd.qty,
+                price=params.limit_price,
+                client_order_id=client_order_id,
+                iceberg_qty=iceberg_qty,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                return await self._record_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+            result = rescued
+            post_venue_ts = self._clock()
+        except VenueError as exc:
+            return await self._record_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
+            )
+        except ValueError as exc:
+            return await self._record_submit_failed(
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+            )
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        order = runtime.trading_state.orders.get(client_order_id)
+        filled_qty = order.filled_qty if order is not None else _ZERO
+        cumulative_notional = order.cumulative_notional if order is not None else _ZERO
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        if filled_qty >= cmd.qty:
+            status = TradeStatus.FILLED
+        elif filled_qty > _ZERO:
+            status = TradeStatus.PARTIAL
+        else:
+            status = TradeStatus.PENDING
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
 
     async def _record_submit_failed(
         self,

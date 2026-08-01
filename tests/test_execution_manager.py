@@ -40,6 +40,7 @@ from praxis.core.domain.events import (
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -1504,11 +1505,10 @@ class TestModeDispatch:
         mgr.register_account(_ACCT)
         kwargs = {
             **_CMD_KWARGS,
-            'execution_mode': ExecutionMode.ICEBERG,
+            'execution_mode': ExecutionMode.LADDER_DCA,
             'order_type': OrderType.LIMIT,
-            'execution_params': IcebergParams(
-                display_qty=Decimal('0.1'),
-                limit_price=Decimal('50000'),
+            'execution_params': LadderDcaParams(
+                price_levels=(Decimal('49000'), Decimal('48000')),
             ),
         }
         await mgr.submit_command(**kwargs)
@@ -1522,7 +1522,7 @@ class TestModeDispatch:
         assert outcome.status == TradeStatus.REJECTED
         assert outcome.filled_qty == Decimal(0)
         assert outcome.reason is not None
-        assert 'ICEBERG' in outcome.reason
+        assert 'LADDER_DCA' in outcome.reason
         assert 'not yet supported' in outcome.reason
 
         events = await spine.read(_EPOCH, after_seq=0)

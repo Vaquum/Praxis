@@ -907,6 +907,34 @@ class TestBuildOrderParams:
         )
         assert params['timeInForce'] == 'FOK'
 
+    def test_limit_iceberg_sets_iceberg_qty_and_forces_gtc(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.BUY, OrderType.LIMIT, Decimal('1.0'),
+            price=Decimal('50000'), iceberg_qty=Decimal('0.1'), time_in_force='FOK',
+        )
+        assert params['icebergQty'] == '0.1'
+        assert params['timeInForce'] == 'GTC'
+
+    def test_iceberg_qty_not_below_total_rejected(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='below the total quantity'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.LIMIT, Decimal('1.0'),
+                price=Decimal('50000'), iceberg_qty=Decimal('1.0'),
+            )
+
+    def test_iceberg_qty_on_market_rejected(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='only supported for LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.MARKET, Decimal('1.0'),
+                iceberg_qty=Decimal('0.1'),
+            )
+
     def test_limit_ioc_order(self) -> None:
 
         adapter = _make_adapter()

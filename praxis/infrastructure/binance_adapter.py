@@ -680,6 +680,7 @@ class BinanceAdapter:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
         time_in_force: str | None = None,
+        iceberg_qty: Decimal | None = None,
     ) -> dict[str, str]:
 
         '''
@@ -694,6 +695,10 @@ class BinanceAdapter:
             stop_price (Decimal | None): Stop trigger price
             client_order_id (str | None): Client order identifier
             time_in_force (str | None): Time-in-force policy
+            iceberg_qty (Decimal | None): Visible quantity for a native
+                iceberg LIMIT order. The venue shows this much at a time and
+                refills it from the hidden reserve; only valid for a LIMIT
+                order and must be below the total quantity.
 
         Returns:
             dict[str, str]: Binance API query parameters
@@ -705,6 +710,10 @@ class BinanceAdapter:
             'quantity': format(qty, 'f'),
             'newOrderRespType': 'FULL',
         }
+
+        if iceberg_qty is not None and order_type != OrderType.LIMIT:
+            msg = 'iceberg_qty is only supported for LIMIT orders'
+            raise ValueError(msg)
 
         if order_type == OrderType.MARKET:
             params['type'] = 'MARKET'
@@ -722,6 +731,12 @@ class BinanceAdapter:
                 raise ValueError(msg)
             params['price'] = format(price, 'f')
             params['timeInForce'] = time_in_force or 'GTC'
+            if iceberg_qty is not None:
+                if iceberg_qty >= qty:
+                    msg = 'iceberg_qty must be below the total quantity'
+                    raise ValueError(msg)
+                params['icebergQty'] = format(iceberg_qty, 'f')
+                params['timeInForce'] = 'GTC'
 
         elif order_type == OrderType.LIMIT_IOC:
             params['type'] = 'LIMIT'
@@ -1393,6 +1408,7 @@ class BinanceAdapter:
         client_order_id: str | None = None,
         time_in_force: str | None = None,
         quote_qty: Decimal | None = None,
+        iceberg_qty: Decimal | None = None,
     ) -> SubmitResult:
 
         '''
@@ -1413,6 +1429,9 @@ class BinanceAdapter:
             quote_qty (Decimal | None): Quote-asset spend for quote-native
                 MARKET BUY. Sends Binance's `quoteOrderQty` parameter.
                 Mutually exclusive with `qty`; only valid for MARKET BUY.
+            iceberg_qty (Decimal | None): Visible quantity for a native
+                iceberg LIMIT order. Sends Binance's `icebergQty` parameter;
+                only valid for a LIMIT order and must be below `qty`.
 
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
@@ -1497,6 +1516,7 @@ class BinanceAdapter:
             price=price, stop_price=stop_price,
             client_order_id=client_order_id,
             time_in_force=time_in_force,
+            iceberg_qty=iceberg_qty,
         )
         data = await self._post_order(
             '/api/v3/order', params, account_id, client_order_id,

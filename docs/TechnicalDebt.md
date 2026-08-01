@@ -1197,3 +1197,13 @@ A bracket fills its MARKET entry, then places the protective OCO. If the OCO sub
 **Deferred**: partial-entry protection is bounded correctly for the current MARKET-only entry (protection is placed on the entry's terminal event with the final filled quantity; a spot MARKET order never rests, so there is no persistent partially-filled-open window). A future non-MARKET / resting bracket entry (TD-121) would reopen that window and needs partial-fill protection reconciliation — place-and-reconcile-or-replace as more fills arrive.
 
 **When to fix**: with the TD-121 non-MARKET bracket entry.
+
+## TD-132: Iceberg (and single-shot resting LIMIT) has no post-submit deadline sweep
+
+**Origin**: WP-Praxis-0007 (6.x Iceberg slice)
+**Severity**: Low (a resting order rests until filled or aborted; the Manager can abort it)
+**Module**: `praxis/core/execution_manager.py` (`_process_iceberg`, `_process_command`)
+
+Iceberg works the command as a single native-iceberg (`icebergQty`) GTC LIMIT order — the venue shows `display_qty` at a time and refills it, so continuous drawdown top-up is venue-managed (B2). The Praxis side registers the order and drives PARTIAL/FILLED outcomes from the venue's incremental WebSocket fills, and a `TradeAbort` cancels the resting order. Like a single-shot resting GTC LIMIT, however, the command's `timeout` deadline is checked only at submission; there is no periodic sweep that cancels-and-EXPIREs a resting order whose deadline passes while it waits for a fill. A resting iceberg that never fully fills therefore lives until the Manager aborts it. The scheme engine has such a deadline backstop (`_advance_due_schemes`); the single-order resting path does not.
+
+**When to fix**: before resting LIMIT / iceberg orders run unattended with a meaningful deadline. Add a resting-order deadline sweep (mirroring the scheme deadline backstop) that cancels and EXPIREs a non-terminal single-order command past its deadline.

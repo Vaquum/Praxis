@@ -705,6 +705,20 @@ class TestModeParams:
                 filters=_FILTERS,
             )
 
+    def test_iceberg_display_qty_off_lot_step_rejected(self) -> None:
+        with pytest.raises(ValueError, match=r'iceberg display_qty.*lot step'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.ICEBERG,
+                    execution_params=IcebergParams(
+                        display_qty=Decimal('0.1005'), limit_price=Decimal('50000.00'),
+                    ),
+                    qty=Decimal('1'),
+                ),
+                filters=_FILTERS,
+            )
+
     def test_ladder_level_below_notional_rejected(self) -> None:
         validate_trade_command(
             _cmd(

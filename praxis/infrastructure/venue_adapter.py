@@ -678,6 +678,7 @@ class VenueAdapter(Protocol):
         client_order_id: str | None = None,
         time_in_force: str | None = None,
         quote_qty: Decimal | None = None,
+        iceberg_qty: Decimal | None = None,
     ) -> SubmitResult:
         '''
         Submit an order to the venue.
@@ -698,6 +699,10 @@ class VenueAdapter(Protocol):
                 for quote-native MARKET BUY. The venue determines the
                 executed base quantity from live liquidity. Mutually
                 exclusive with `qty`.
+            iceberg_qty (Decimal | None): Visible quantity for a native
+                iceberg LIMIT order. The venue shows this much at a time and
+                refills it from the hidden reserve; only valid for a LIMIT
+                order and must be below `qty`.
 
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
