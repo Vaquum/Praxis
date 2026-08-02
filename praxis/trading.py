@@ -394,10 +394,11 @@ class Trading:
         self._stopping = True
 
         try:
+            in_flight_by_account: dict[str, set[str]] = {}
             for account_id in sorted(self._managed_accounts):
-                for command_id in self._execution_manager.in_flight_command_ids(
-                    account_id,
-                ):
+                command_ids = self._execution_manager.in_flight_command_ids(account_id)
+                in_flight_by_account[account_id] = set(command_ids)
+                for command_id in command_ids:
                     try:
                         self._execution_manager.submit_abort(
                             TradeAbort(
@@ -410,12 +411,19 @@ class Trading:
                     except (AccountNotRegisteredError, ValueError):
                         continue
 
+            # The abort path cancels each in-flight command's orders as the
+            # account loop drains it; this pass only cancels orphan orders —
+            # open orders with no in-flight command (e.g. reconcile-adopted) —
+            # so a tracked order is not cancelled twice.
             for account_id in sorted(self._managed_accounts):
                 try:
                     open_orders = self._execution_manager.get_open_orders(account_id)
                 except AccountNotRegisteredError:
                     continue
+                in_flight = in_flight_by_account.get(account_id, set())
                 for order in open_orders.values():
+                    if order.command_id in in_flight:
+                        continue
                     try:
                         if order.order_type == OrderType.OCO:
                             await self._venue_adapter.cancel_order_list(
