@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'TradeStatus']
+__all__ = ['CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'SchemeState', 'TradeStatus']
 
 
 class OrderSide(Enum):
@@ -106,6 +106,21 @@ class ExecutionMode(Enum):
     ICEBERG = 'ICEBERG'
     TIME_DCA = 'TIME_DCA'
     LADDER_DCA = 'LADDER_DCA'
+
+
+class SchemeState(Enum):
+
+    '''
+    Lifecycle state of a multi-slice execution scheme.
+
+    Non-terminal: RUNNING (scheduling and executing children).
+    Terminal: COMPLETED, CANCELED, FAILED.
+    '''
+
+    RUNNING = 'RUNNING'
+    COMPLETED = 'COMPLETED'
+    CANCELED = 'CANCELED'
+    FAILED = 'FAILED'
 
 
 class MakerPreference(Enum):

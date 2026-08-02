@@ -1314,3 +1314,30 @@
 ### Fix
 
 - Tighten the per-account writer so a projection failure poisons the account (fail-stop) instead of being logged and swallowed, since a durable event that cannot be applied means the in-memory state has diverged and must not keep trading
+
+## v0.94.0 on 2nd of August, 2026
+
+### NOTE
+
+- WP-Praxis-0007 (Execution modes): six strategy-decided execution modes carried on the Nexus Action — Bracket, TWAP, Time DCA, Scheduled VWAP, Iceberg, and Ladder DCA — plus per-mode enablement and shutdown semantics for the live-trading MVP. Mode is decided by the strategy; the engine must support a mode before a strategy emitting it can deploy. TWAP, Time DCA, Scheduled VWAP, and Ladder DCA run on one shared scheme engine (per-child fill aggregation, finalize-on-all-settled, abort, deadline backstop, and boot resume from replay); Bracket and Iceberg have dedicated paths
+- The Bracket mode is cross-repo: Praxis executes the MARKET entry and places the protective OCO, and the launcher (which hosts the Nexus decision loops) pre-registers a deterministic protective-exit context so the OCO's fill reduces the position and releases capital through the standard outcome path. Both ends derive the same exit command id via [`bracket_exit_command_id`](praxis/core/bracket_exit_command_id.py)
+- Two runtime-shape changes on the order-critical path must be validated on the paper host before a tagged release: the shutdown per-mode abort-and-drain in [`Trading.stop`](praxis/trading.py) and the admission-control submission gate plus stale-command expiry in [`ExecutionManager`](praxis/core/execution_manager.py)
+- Deferred debt is recorded in [`docs/TechnicalDebt.md`](docs/TechnicalDebt.md) TD-120 through TD-133: static-curve VWAP without live-volume participation (TD-120), non-MARKET entry pricing (TD-121), a bracket naked position on definitive OCO failure (TD-130), and no post-submit deadline sweep for a resting single-order LIMIT / iceberg (TD-132)
+
+### Add
+
+- Add the shared multi-slice scheme engine: TWAP and Time DCA submit equal MARKET children at a fixed interval via [`plan_even_slices`](praxis/core/plan_even_slices.py); Scheduled VWAP splits the quantity across a strategy-supplied volume curve via [`plan_weighted_slices`](praxis/core/plan_weighted_slices.py). A child settles when its order projection reaches a terminal status; its immediate and WebSocket fills aggregate into the parent, which finalizes FILLED only once every slice is submitted and every child has settled
+- Add slice-failure freeze (RFC 5.13): a slice that cannot be placed appends `SliceFailed`, reports a non-terminal PARTIAL `TradeOutcome`, and freezes the scheme to await the Manager or its deadline; a `SchemeInitialized` deadline backstop terminalizes a scheme whose child never settles
+- Add boot resume for non-terminal schemes: [`SchemeInitialized`](praxis/core/domain/events.py) persists the mode, slice count, interval, timeout, VWAP volume weights, and Ladder price levels, so [`replay_events`](praxis/core/execution_manager.py) rebuilds each running scheme's live state and re-registers it rather than terminalizing it on boot
+- Add Bracket mode: a MARKET entry then, on the entry settling, a protective OCO on the opposite side for the filled quantity, with take-profit / stop-loss as absolute prices or basis-point offsets from the average entry (side-aware, tick-snapped). A `BracketInitialized` event makes the bracket resumable so boot places or re-tracks protection; a protective-leg fill produces a position-closing exit outcome under the deterministic exit command id
+- Add Iceberg mode: work the quantity as a single native-iceberg LIMIT order carrying Binance's `icebergQty`, so the venue shows `display_qty` at a time and refills it from the hidden reserve; incremental WebSocket fills drive PARTIAL then FILLED outcomes
+- Add Ladder DCA mode: post, all at once, one resting LIMIT order per explicit price level, sized from the level allocation (weighted or equal, lot-floored); the ladder aggregates fills on the shared scheme engine and reconstructs its live rungs from durable order projections on resume so a crash mid-posting cannot falsely finalize
+- Add Binance REST support for Stop, Stop-Limit, Take Profit, and TP-Limit order types, OCO order-list status query ([`query_order_list`](praxis/infrastructure/binance_adapter.py)) for crash recovery, and OCO-aware submit rescue that resolves a timed-out or duplicate OCO POST from the venue's order-list state
+- Add admission control: a bounded, fail-closed per-account command queue, stale-command expiry at dispatch, and a shared venue-operation rate budget ([`TokenBucket`](praxis/infrastructure/token_bucket.py)) across submit, cancel, query, and reconcile
+- Add a per-mode capability gate: [`ExecutionManager`](praxis/core/execution_manager.py) rejects a command whose execution mode is not enabled, and [`TradingConfig.enabled_execution_modes`](praxis/trading_config.py) defaults to `{SINGLE_SHOT}` so a mode driven live is off until the deployment enables it via `PRAXIS_ENABLED_EXECUTION_MODES`
+- Add live-only mode classification ([`live_only_modes`](praxis/core/live_only_modes.py)): Bracket, Iceberg, and Ladder DCA rest non-MARKET orders the binsim paper venue cannot simulate, so the launcher refuses enabling them against binsim while still allowing them on Binance testnet
+- Add per-mode shutdown cancel: [`in_flight_command_ids`](praxis/core/execution_manager.py) reports every non-terminal in-flight command — running schemes, brackets awaiting protection, resting single-order commands, and commands still queued — and [`Trading.stop`](praxis/trading.py) aborts each so every mode reaches a terminal CANCELED outcome carrying its cumulative fills before teardown
+
+### Fix
+
+- Ignore ruff `PLR0917` (too many positional arguments), matching the existing suppressions for its Pylint-complexity siblings `PLR0913`/`PLR0912`/`PLR0915`; the CI ruff runner promoted the preview rule to stable and flagged it across pre-existing modules

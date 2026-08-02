@@ -33,6 +33,7 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueError,
     VenueOrder,
+    VenueOrderList,
     VenueTrade,
 )
 
@@ -906,6 +907,34 @@ class TestBuildOrderParams:
         )
         assert params['timeInForce'] == 'FOK'
 
+    def test_limit_iceberg_sets_iceberg_qty_and_forces_gtc(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.BUY, OrderType.LIMIT, Decimal('1.0'),
+            price=Decimal('50000'), iceberg_qty=Decimal('0.1'), time_in_force='FOK',
+        )
+        assert params['icebergQty'] == '0.1'
+        assert params['timeInForce'] == 'GTC'
+
+    def test_iceberg_qty_not_below_total_rejected(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='below the total quantity'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.LIMIT, Decimal('1.0'),
+                price=Decimal('50000'), iceberg_qty=Decimal('1.0'),
+            )
+
+    def test_iceberg_qty_on_market_rejected(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='only supported for LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.MARKET, Decimal('1.0'),
+                iceberg_qty=Decimal('0.1'),
+            )
+
     def test_limit_ioc_order(self) -> None:
 
         adapter = _make_adapter()
@@ -947,7 +976,106 @@ class TestBuildOrderParams:
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='Unsupported order type'):
             adapter._build_order_params(
-                'BTCUSDT', OrderSide.BUY, OrderType.STOP, Decimal('1.0'),
+                'BTCUSDT', OrderSide.BUY, OrderType.OCO, Decimal('1.0'),
+            )
+
+    def test_stop_builds_stop_loss(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.STOP, Decimal('1.0'),
+            stop_price=Decimal('49000'),
+        )
+        assert params['type'] == 'STOP_LOSS'
+        assert params['stopPrice'] == '49000'
+        assert 'price' not in params
+
+    def test_stop_requires_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for STOP'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP, Decimal('1.0'),
+            )
+
+    def test_stop_limit_builds_stop_loss_limit(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.STOP_LIMIT, Decimal('1.0'),
+            price=Decimal('48500'), stop_price=Decimal('49000'),
+        )
+        assert params['type'] == 'STOP_LOSS_LIMIT'
+        assert params['price'] == '48500'
+        assert params['stopPrice'] == '49000'
+        assert params['timeInForce'] == 'GTC'
+
+    def test_stop_limit_requires_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is required for STOP_LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP_LIMIT, Decimal('1.0'),
+                stop_price=Decimal('49000'),
+            )
+
+    def test_stop_limit_requires_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for STOP_LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP_LIMIT, Decimal('1.0'),
+                price=Decimal('48500'),
+            )
+
+    def test_stop_rejects_spurious_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported for STOP'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP, Decimal('1.0'),
+                price=Decimal('48000'), stop_price=Decimal('49000'),
+            )
+
+    def test_take_profit_rejects_spurious_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported for TAKE_PROFIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.TAKE_PROFIT, Decimal('1.0'),
+                price=Decimal('61000'), stop_price=Decimal('60000'),
+            )
+
+    def test_take_profit_builds_take_profit(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.TAKE_PROFIT, Decimal('1.0'),
+            stop_price=Decimal('60000'),
+        )
+        assert params['type'] == 'TAKE_PROFIT'
+        assert params['stopPrice'] == '60000'
+        assert 'price' not in params
+
+    def test_tp_limit_builds_take_profit_limit(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.TP_LIMIT, Decimal('1.0'),
+            price=Decimal('60500'), stop_price=Decimal('60000'),
+        )
+        assert params['type'] == 'TAKE_PROFIT_LIMIT'
+        assert params['price'] == '60500'
+        assert params['stopPrice'] == '60000'
+        assert params['timeInForce'] == 'GTC'
+
+    def test_tp_limit_requires_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for TP_LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.TP_LIMIT, Decimal('1.0'),
+                price=Decimal('60500'),
             )
 
     def test_stop_price_raises(self) -> None:
@@ -1716,6 +1844,105 @@ class TestQueryOrder:
             )
 
 
+_BINANCE_ORDER_LIST_RESPONSE = {
+    'orderListId': 27,
+    'contingencyType': 'OCO',
+    'listStatusType': 'EXEC_STARTED',
+    'listOrderStatus': 'EXECUTING',
+    'listClientOrderId': 'SS-cmd0123456789abcdef-000',
+    'transactionTime': 1565245656253,
+    'symbol': 'BTCUSDT',
+    'orders': [
+        {'symbol': 'BTCUSDT', 'orderId': 4, 'clientOrderId': 'leg-a'},
+        {'symbol': 'BTCUSDT', 'orderId': 5, 'clientOrderId': 'leg-b'},
+    ],
+}
+
+
+class TestQueryOrderList:
+
+    def test_parse_venue_order_list(self) -> None:
+
+        adapter = _make_adapter()
+        result = adapter._parse_venue_order_list(_BINANCE_ORDER_LIST_RESPONSE)
+
+        assert isinstance(result, VenueOrderList)
+        assert result.order_list_id == '27'
+        assert result.list_client_order_id == 'SS-cmd0123456789abcdef-000'
+        assert result.list_status_type == 'EXEC_STARTED'
+        assert result.list_order_status == 'EXECUTING'
+        assert len(result.legs) == 2
+        assert result.legs[0].venue_order_id == '4'
+        assert result.legs[0].client_order_id == 'leg-a'
+        assert result.legs[0].symbol == 'BTCUSDT'
+        assert result.legs[1].venue_order_id == '5'
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_by_list_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        result = await adapter.query_order_list(
+            _ACCOUNT_ID, list_client_order_id='SS-cmd0123456789abcdef-000',
+        )
+        assert result.order_list_id == '27'
+        assert len(result.legs) == 2
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_by_order_list_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        result = await adapter.query_order_list(_ACCOUNT_ID, order_list_id='27')
+        assert result.list_client_order_id == 'SS-cmd0123456789abcdef-000'
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_neither_identifier_raises(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='At least one'):
+            await adapter.query_order_list(_ACCOUNT_ID)
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_not_found_raises(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(400, {
+            'code': _BINANCE_ORDER_NOT_EXIST_CODE,
+            'msg': _BINANCE_ORDER_NOT_EXIST_MSG,
+        }))
+        with pytest.raises(NotFoundError):
+            await adapter.query_order_list(_ACCOUNT_ID, order_list_id='27')
+
+    def test_parse_venue_order_list_empty_legs_raises(self) -> None:
+
+        adapter = _make_adapter()
+        data = {**_BINANCE_ORDER_LIST_RESPONSE, 'orders': []}
+        with pytest.raises(VenueError, match='no legs'):
+            adapter._parse_venue_order_list(data)
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_sends_orig_client_order_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        await adapter.query_order_list(
+            _ACCOUNT_ID, list_client_order_id='SS-cmd0123456789abcdef-000',
+        )
+        url = adapter._session.request.call_args.args[1]
+        assert '/api/v3/orderList?' in url
+        assert 'origClientOrderId=SS-cmd0123456789abcdef-000' in url
+
+    @pytest.mark.asyncio
+    async def test_query_order_list_sends_order_list_id(self) -> None:
+
+        adapter = _make_adapter()
+        _patch_session(adapter, _mock_response(200, _BINANCE_ORDER_LIST_RESPONSE))
+        await adapter.query_order_list(_ACCOUNT_ID, order_list_id='27')
+        url = adapter._session.request.call_args.args[1]
+        assert 'orderListId=27' in url
+
+
 class TestQueryOpenOrders:
 
     @pytest.mark.asyncio
@@ -2178,6 +2405,23 @@ class TestValidateOrder:
         adapter._filters['BTCUSDT'] = _TEST_FILTERS
         with pytest.raises(LocalOrderRejectedError, match='not a multiple of tick size'):
             adapter._validate_order('BTCUSDT', OrderType.LIMIT, Decimal('1.0'), Decimal('50000.005'))
+
+    def test_stop_price_not_multiple_of_tick_size_raises(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        with pytest.raises(LocalOrderRejectedError, match=r'stop price .* not a multiple of tick size'):
+            adapter._validate_order(
+                'BTCUSDT', OrderType.STOP, Decimal('1.0'), None, Decimal('49000.005'),
+            )
+
+    def test_valid_stop_trigger_passes(self) -> None:
+
+        adapter = _make_adapter()
+        adapter._filters['BTCUSDT'] = _TEST_FILTERS
+        adapter._validate_order(
+            'BTCUSDT', OrderType.STOP, Decimal('1.0'), None, Decimal('49000.00'),
+        )
 
     def test_qty_not_multiple_of_lot_step_raises(self) -> None:
 
@@ -2719,6 +2963,7 @@ class TestParseOcoResponse:
         assert result.venue_order_id == '99999'
         assert result.status == OrderStatus.OPEN
         assert result.immediate_fills == ()
+        assert result.leg_client_order_ids == ('limit-leg', 'stop-leg')
 
     def test_all_done_with_fills(self) -> None:
 

@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, UTC
 from decimal import Decimal
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock
 
 import pytest
@@ -39,10 +39,17 @@ from praxis.core.domain.events import (
 )
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account
+from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
+from praxis.core.execution_manager import (
+    AccountNotRegisteredError,
+    ExecutionManager,
+    ExecutionModeNotEnabledError,
+)
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.trading_inbound import TradingInbound
@@ -334,7 +341,9 @@ class TestSubmitCommand:
             **_CMD_KWARGS,
             'execution_mode': ExecutionMode.ICEBERG,
             'order_type': OrderType.MARKET,
-            'execution_params': SingleShotParams(),
+            'execution_params': IcebergParams(
+                display_qty=Decimal('0.1'), limit_price=Decimal('50000'),
+            ),
         }
         with pytest.raises(ValueError, match='ICEBERG does not support'):
             await mgr.submit_command(**bad)
@@ -1488,36 +1497,117 @@ class TestProcessAbort:
 
 class TestModeDispatch:
     @pytest.mark.asyncio
-    async def test_unsupported_mode_produces_rejected_outcome(
+    async def test_misrouted_non_single_shot_mode_is_rejected_defensively(
         self,
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
+        '''Every execution mode is routed by the account loop before it can
+        reach `_process_command`; this asserts the defensive backstop that
+        rejects a non-single-shot command that somehow reaches the
+        single-shot path (a routing bug) rather than mis-executing it.'''
+
         callback = AsyncMock()
         mgr = ExecutionManager(
             event_spine=spine, epoch_id=_EPOCH,
             venue_adapter=adapter, on_trade_outcome=callback,
         )
         mgr.register_account(_ACCT)
-        kwargs = {**_CMD_KWARGS, 'execution_mode': ExecutionMode.TWAP}
-        await mgr.submit_command(**kwargs)
+        runtime = mgr._accounts[_ACCT]
+        cmd = TradeCommand(
+            command_id='cmd-misrouted-0001',
+            trade_id=_TRADE,
+            account_id=_ACCT,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.TWAP,
+            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_TS,
+        )
 
-        await asyncio.sleep(0.3)
+        outcome = await mgr._process_command(runtime, cmd)
 
         adapter.submit_order.assert_not_awaited()
-
-        callback.assert_awaited_once()
-        outcome: TradeOutcome = callback.call_args[0][0]
         assert outcome.status == TradeStatus.REJECTED
         assert outcome.filled_qty == Decimal(0)
         assert outcome.reason is not None
         assert 'TWAP' in outcome.reason
-        assert 'not yet supported' in outcome.reason
+        assert 'misrouted' in outcome.reason
 
-        events = await spine.read(_EPOCH, after_seq=0)
-        types = [type(e).__name__ for _, e in events]
-        assert 'TradeOutcomeProduced' in types
-        assert 'OrderSubmitIntent' not in types
+        await mgr.unregister_account(_ACCT)
+
+
+class TestCapabilityGate:
+    _TWAP_KWARGS: ClassVar[dict[str, Any]] = {
+        **_CMD_KWARGS,
+        'order_type': OrderType.MARKET,
+        'execution_mode': ExecutionMode.TWAP,
+        'execution_params': TwapParams(num_slices=4, interval_seconds=10),
+    }
+
+    @pytest.mark.asyncio
+    async def test_disabled_mode_rejected_when_gate_configured(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+            enabled_modes=frozenset({ExecutionMode.SINGLE_SHOT}),
+        )
+        mgr.register_account(_ACCT)
+
+        with pytest.raises(ExecutionModeNotEnabledError, match='TWAP'):
+            await mgr.submit_command(**self._TWAP_KWARGS)
+
+        adapter.submit_order.assert_not_awaited()
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_no_gate_allows_any_mode(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+
+        command_id = await mgr.submit_command(**self._TWAP_KWARGS)
+        uuid.UUID(command_id)
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_enabled_mode_accepted(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+            enabled_modes=frozenset({ExecutionMode.TWAP}),
+        )
+        mgr.register_account(_ACCT)
+
+        command_id = await mgr.submit_command(**self._TWAP_KWARGS)
+        uuid.UUID(command_id)
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_single_shot_always_enabled(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+            enabled_modes=frozenset({ExecutionMode.TWAP}),
+        )
+        mgr.register_account(_ACCT)
+
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        uuid.UUID(command_id)
 
         await mgr.unregister_account(_ACCT)
 

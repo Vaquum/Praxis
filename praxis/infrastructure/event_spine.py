@@ -30,6 +30,9 @@ import aiosqlite
 import orjson
 
 from praxis.core.domain.events import (
+    BracketInitialized,
+    SchemeInitialized,
+    SchemeStateChanged,
     CommandAccepted,
     Event,
     FillReceived,
@@ -43,6 +46,7 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    SliceFailed,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
@@ -187,9 +191,13 @@ _EVENT_REGISTRY: dict[str, type] = {
     cls.__name__: cls
     for cls in (
         CommandAccepted,
+        BracketInitialized,
+        SchemeInitialized,
+        SchemeStateChanged,
         OrderSubmitIntent,
         OrderSubmitted,
         OrderSubmitFailed,
+        SliceFailed,
         OrderQuoteNativeFilled,
         OrderAcked,
         FillReceived,
@@ -254,6 +262,12 @@ def _coerce(value: Any, target: type) -> Any:
     if origin is Union or origin is types.UnionType:
         args = [a for a in get_args(target) if a is not type(None)]
         return _coerce(value, args[0]) if args else value
+
+    if origin in (tuple, list):
+        elem_args = get_args(target)
+        if elem_args and isinstance(value, list):
+            return [_coerce(item, elem_args[0]) for item in value]
+        return value
 
     result = value
     if target is Decimal:

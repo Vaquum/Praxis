@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vaquum-praxis"
-version = "0.93.0"
+version = "0.94.0"
 description = "Execution system for Vaquum — Trading sub-system + Account sub-system."
 readme = "README.md"
 authors = [
@@ -76,6 +76,7 @@ ignore = [
   "ANN201", # Missing return type annotation for public function
   "D102",   # Missing docstring in public method
   "PLR0913", # Too many arguments in function definition
+  "PLR0917", # Too many positional arguments
   "D107",   # Missing docstring in __init__
   "S101",    # Use of assert detected
   "S113",    # Probable use of requests call without timeout

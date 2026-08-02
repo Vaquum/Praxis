@@ -32,6 +32,7 @@ from enum import Enum
 import pytest
 
 from praxis.command_translator import (
+    build_execution_params,
     build_single_shot_params,
     translate_execution_mode,
     translate_maker_preference,
@@ -39,6 +40,7 @@ from praxis.command_translator import (
     translate_order_type,
     translate_stp_mode,
 )
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
@@ -46,7 +48,10 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.twap_params import TwapParams
 
 
 def test_none_returns_default_single_shot_params() -> None:
@@ -288,3 +293,81 @@ def test_translate_execution_mode_rejects_none() -> None:
 
     with pytest.raises(TypeError, match='must be ExecutionMode'):
         translate_execution_mode(None)
+
+
+def test_build_execution_params_single_shot_delegates() -> None:
+    result = build_execution_params(ExecutionMode.SINGLE_SHOT, {'price': Decimal('100')})
+
+    assert isinstance(result, SingleShotParams)
+    assert result.price == Decimal('100')
+
+
+def test_build_execution_params_twap_from_mapping() -> None:
+    result = build_execution_params(
+        ExecutionMode.TWAP, {'num_slices': 4, 'interval_seconds': 30},
+    )
+
+    assert result == TwapParams(num_slices=4, interval_seconds=30)
+
+
+def test_build_execution_params_passes_through_dataclass() -> None:
+    params = TwapParams(num_slices=3, interval_seconds=15)
+
+    assert build_execution_params(ExecutionMode.TWAP, params) is params
+
+
+def test_build_execution_params_unknown_key_raises() -> None:
+    with pytest.raises(ValueError, match='unsupported keys for TWAP'):
+        build_execution_params(
+            ExecutionMode.TWAP, {'num_slices': 4, 'interval_seconds': 30, 'bad': 1},
+        )
+
+
+def test_build_execution_params_wrong_shape_raises() -> None:
+    with pytest.raises(TypeError, match='must be TwapParams or a Mapping'):
+        build_execution_params(ExecutionMode.TWAP, 'nope')
+
+
+def test_build_execution_params_coerces_list_to_tuple() -> None:
+    result = build_execution_params(
+        ExecutionMode.SCHEDULED_VWAP,
+        {'interval_seconds': 60, 'volume_weights': [Decimal('0.5'), Decimal('0.5')]},
+    )
+
+    assert result.volume_weights == (Decimal('0.5'), Decimal('0.5'))
+
+
+def test_build_execution_params_bracket_from_mapping() -> None:
+    result = build_execution_params(
+        ExecutionMode.BRACKET,
+        {'take_profit_price': Decimal('110'), 'stop_loss_price': Decimal('90')},
+    )
+
+    assert result == BracketParams(
+        take_profit_price=Decimal('110'), stop_loss_price=Decimal('90'),
+    )
+
+
+def test_build_execution_params_iceberg_from_mapping() -> None:
+    result = build_execution_params(
+        ExecutionMode.ICEBERG,
+        {'display_qty': Decimal('0.1'), 'limit_price': Decimal('50000')},
+    )
+
+    assert result == IcebergParams(display_qty=Decimal('0.1'), limit_price=Decimal('50000'))
+
+
+def test_build_execution_params_ladder_coerces_levels_to_tuple() -> None:
+    result = build_execution_params(
+        ExecutionMode.LADDER_DCA, {'price_levels': [Decimal('90'), Decimal('80')]},
+    )
+
+    assert result == LadderDcaParams(price_levels=(Decimal('90'), Decimal('80')))
+
+
+def test_build_execution_params_rejects_non_decimal_value() -> None:
+    with pytest.raises(ValueError, match='positive, finite Decimal'):
+        build_execution_params(
+            ExecutionMode.ICEBERG,
+            {'display_qty': 0.1, 'limit_price': Decimal('50000')},
+        )

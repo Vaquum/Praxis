@@ -37,6 +37,7 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_URL,
 )
 from praxis.infrastructure.secret_store import Credentials
+from praxis.infrastructure.token_bucket import TokenBucket
 from praxis.infrastructure.venue_adapter import (
     ApiPermissions,
     AuthenticationError,
@@ -58,6 +59,8 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueError,
     VenueOrder,
+    VenueOrderList,
+    VenueOrderListLeg,
     VenueTrade,
 )
 
@@ -86,6 +89,8 @@ _LOCAL_FILTER_REJECT_CODE = -1013
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.5
 _DEFAULT_WEIGHT_LIMIT = 6000
+_VENUE_OP_RATE = 10.0
+_VENUE_OP_CAPACITY = 10.0
 _DEFAULT_ORDER_COUNT_LIMIT = 10
 _RATE_LIMIT_WARN_THRESHOLD = 0.2
 _WEIGHT_INTERVAL_NUM = 1
@@ -232,6 +237,7 @@ class BinanceAdapter:
         self._used_weight: int = 0
         self._weight_updated_at: float = time.monotonic()
         self._weight_limit: int = _DEFAULT_WEIGHT_LIMIT
+        self._op_budget = TokenBucket(_VENUE_OP_RATE, _VENUE_OP_CAPACITY)
         self._order_count: dict[str, int] = {}
         self._order_count_limit: int = _DEFAULT_ORDER_COUNT_LIMIT
         self._prev_headroom_above_threshold: bool = True
@@ -511,6 +517,11 @@ class BinanceAdapter:
 
         for attempt in range(max_attempts):
             try:
+                # One token per actual HTTP attempt: a retry after a 429 or
+                # transient failure charges the budget again, keeping the
+                # limiter honest about real venue load at the cost of slower
+                # recovery under sustained rate limiting.
+                await self._op_budget.acquire()
                 async with build_request() as response:
                     self._update_weight_from_headers(response, account_id)
                     await self._raise_on_error(response)
@@ -669,6 +680,7 @@ class BinanceAdapter:
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
         time_in_force: str | None = None,
+        iceberg_qty: Decimal | None = None,
     ) -> dict[str, str]:
 
         '''
@@ -683,6 +695,10 @@ class BinanceAdapter:
             stop_price (Decimal | None): Stop trigger price
             client_order_id (str | None): Client order identifier
             time_in_force (str | None): Time-in-force policy
+            iceberg_qty (Decimal | None): Visible quantity for a native
+                iceberg LIMIT order. The venue shows this much at a time and
+                refills it from the hidden reserve; only valid for a LIMIT
+                order and must be below the total quantity.
 
         Returns:
             dict[str, str]: Binance API query parameters
@@ -695,31 +711,90 @@ class BinanceAdapter:
             'newOrderRespType': 'FULL',
         }
 
+        if iceberg_qty is not None and order_type != OrderType.LIMIT:
+            msg = 'iceberg_qty is only supported for LIMIT orders'
+            raise ValueError(msg)
+
         if order_type == OrderType.MARKET:
             params['type'] = 'MARKET'
+            if stop_price is not None:
+                msg = 'stop_price is not supported for MARKET orders'
+                raise ValueError(msg)
 
         elif order_type == OrderType.LIMIT:
             params['type'] = 'LIMIT'
             if price is None:
                 msg = 'price is required for LIMIT orders'
                 raise ValueError(msg)
+            if stop_price is not None:
+                msg = 'stop_price is not supported for LIMIT orders'
+                raise ValueError(msg)
             params['price'] = format(price, 'f')
             params['timeInForce'] = time_in_force or 'GTC'
+            if iceberg_qty is not None:
+                if iceberg_qty >= qty:
+                    msg = 'iceberg_qty must be below the total quantity'
+                    raise ValueError(msg)
+                params['icebergQty'] = format(iceberg_qty, 'f')
+                params['timeInForce'] = 'GTC'
 
         elif order_type == OrderType.LIMIT_IOC:
             params['type'] = 'LIMIT'
             if price is None:
                 msg = 'price is required for LIMIT_IOC orders'
                 raise ValueError(msg)
+            if stop_price is not None:
+                msg = 'stop_price is not supported for LIMIT_IOC orders'
+                raise ValueError(msg)
             params['price'] = format(price, 'f')
             params['timeInForce'] = 'IOC'
 
+        elif order_type == OrderType.STOP:
+            params['type'] = 'STOP_LOSS'
+            if stop_price is None:
+                msg = 'stop_price is required for STOP orders'
+                raise ValueError(msg)
+            if price is not None:
+                msg = 'price is not supported for STOP orders'
+                raise ValueError(msg)
+            params['stopPrice'] = format(stop_price, 'f')
+
+        elif order_type == OrderType.STOP_LIMIT:
+            params['type'] = 'STOP_LOSS_LIMIT'
+            if price is None:
+                msg = 'price is required for STOP_LIMIT orders'
+                raise ValueError(msg)
+            if stop_price is None:
+                msg = 'stop_price is required for STOP_LIMIT orders'
+                raise ValueError(msg)
+            params['price'] = format(price, 'f')
+            params['stopPrice'] = format(stop_price, 'f')
+            params['timeInForce'] = time_in_force or 'GTC'
+
+        elif order_type == OrderType.TAKE_PROFIT:
+            params['type'] = 'TAKE_PROFIT'
+            if stop_price is None:
+                msg = 'stop_price is required for TAKE_PROFIT orders'
+                raise ValueError(msg)
+            if price is not None:
+                msg = 'price is not supported for TAKE_PROFIT orders'
+                raise ValueError(msg)
+            params['stopPrice'] = format(stop_price, 'f')
+
+        elif order_type == OrderType.TP_LIMIT:
+            params['type'] = 'TAKE_PROFIT_LIMIT'
+            if price is None:
+                msg = 'price is required for TP_LIMIT orders'
+                raise ValueError(msg)
+            if stop_price is None:
+                msg = 'stop_price is required for TP_LIMIT orders'
+                raise ValueError(msg)
+            params['price'] = format(price, 'f')
+            params['stopPrice'] = format(stop_price, 'f')
+            params['timeInForce'] = time_in_force or 'GTC'
+
         else:
             msg = f"Unsupported order type: {order_type}"
-            raise ValueError(msg)
-
-        if stop_price is not None:
-            msg = 'stop_price is not supported for MARKET, LIMIT, or LIMIT_IOC orders'
             raise ValueError(msg)
 
         if client_order_id is not None:
@@ -896,10 +971,17 @@ class BinanceAdapter:
                 msg = f"Unknown Binance OCO list status: '{list_status}'"
                 raise ValueError(msg) from None
 
+        leg_client_order_ids = tuple(
+            str(report['clientOrderId'])
+            for report in data.get('orderReports', [])
+            if 'clientOrderId' in report
+        )
+
         return SubmitResult(
             venue_order_id=str(data['orderListId']),
             status=status,
             immediate_fills=fills,
+            leg_client_order_ids=leg_client_order_ids,
         )
 
     def _parse_venue_order(self, data: dict[str, Any]) -> VenueOrder:
@@ -927,6 +1009,42 @@ class BinanceAdapter:
             qty=Decimal(data['origQty']),
             filled_qty=Decimal(data['executedQty']),
             price=price,
+        )
+
+    def _parse_venue_order_list(self, data: dict[str, Any]) -> VenueOrderList:
+
+        '''
+        Parse a Binance orderList query response into a VenueOrderList.
+
+        Args:
+            data (dict[str, Any]): Binance JSON response body
+
+        Returns:
+            VenueOrderList: Normalised order-list representation
+        '''
+
+        legs = tuple(
+            VenueOrderListLeg(
+                venue_order_id=str(leg['orderId']),
+                client_order_id=str(leg['clientOrderId']),
+                symbol=str(leg['symbol']),
+            )
+            for leg in data.get('orders', [])
+        )
+
+        if not legs:
+            msg = (
+                f"OCO list {data.get('orderListId')} has no legs; "
+                'malformed order-list response'
+            )
+            raise VenueError(msg)
+
+        return VenueOrderList(
+            order_list_id=str(data['orderListId']),
+            list_client_order_id=str(data['listClientOrderId']),
+            list_status_type=str(data['listStatusType']),
+            list_order_status=str(data['listOrderStatus']),
+            legs=legs,
         )
 
     def _parse_venue_trade(self, data: dict[str, Any]) -> VenueTrade:
@@ -1011,15 +1129,17 @@ class BinanceAdapter:
         order_type: OrderType,
         qty: Decimal,
         price: Decimal | None,
+        stop_price: Decimal | None = None,
     ) -> None:
 
         '''
         Validate order parameters against cached venue filters.
 
-        Checks quantity step and quantity range for all orders, and price
-        tick and minimum notional only for priced, non-market orders.
-        Logs a warning and returns without validation if filters are not
-        cached for the symbol.
+        Checks quantity step and quantity range for all orders, price tick
+        and minimum notional only for priced, non-market orders, and stop
+        trigger tick alignment for stop / take-profit orders. Logs a
+        warning and returns without validation if filters are not cached
+        for the symbol.
 
         Round-18 MAJOR-007: filter violations raise
         `LocalOrderRejectedError` (a `VenueError` / `OrderRejectedError`
@@ -1077,6 +1197,15 @@ class BinanceAdapter:
                 raise LocalOrderRejectedError(
                     reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
                 )
+
+        if stop_price is not None and stop_price % filters.tick_size != 0:
+            reason = (
+                f"stop price {stop_price} is not a multiple of "
+                f"tick size {filters.tick_size}"
+            )
+            raise LocalOrderRejectedError(
+                reason, venue_code=_LOCAL_FILTER_REJECT_CODE, reason=reason,
+            )
 
 
     def _snap_qty_to_lot_step(self, symbol: str, qty: Decimal) -> Decimal:
@@ -1279,6 +1408,7 @@ class BinanceAdapter:
         client_order_id: str | None = None,
         time_in_force: str | None = None,
         quote_qty: Decimal | None = None,
+        iceberg_qty: Decimal | None = None,
     ) -> SubmitResult:
 
         '''
@@ -1299,6 +1429,9 @@ class BinanceAdapter:
             quote_qty (Decimal | None): Quote-asset spend for quote-native
                 MARKET BUY. Sends Binance's `quoteOrderQty` parameter.
                 Mutually exclusive with `qty`; only valid for MARKET BUY.
+            iceberg_qty (Decimal | None): Visible quantity for a native
+                iceberg LIMIT order. Sends Binance's `icebergQty` parameter;
+                only valid for a LIMIT order and must be below `qty`.
 
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
@@ -1356,7 +1489,7 @@ class BinanceAdapter:
 
         qty = self._snap_qty_to_lot_step(symbol, qty)
 
-        self._validate_order(symbol, order_type, qty, price)
+        self._validate_order(symbol, order_type, qty, price, stop_price)
 
         if order_type == OrderType.OCO:
             if price is None or stop_price is None:
@@ -1383,6 +1516,7 @@ class BinanceAdapter:
             price=price, stop_price=stop_price,
             client_order_id=client_order_id,
             time_in_force=time_in_force,
+            iceberg_qty=iceberg_qty,
         )
         data = await self._post_order(
             '/api/v3/order', params, account_id, client_order_id,
@@ -1611,6 +1745,42 @@ class BinanceAdapter:
         data = await self._signed_request('GET', '/api/v3/order', params, account_id)
         return self._parse_venue_order(data)
 
+    async def query_order_list(
+        self,
+        account_id: str,
+        *,
+        order_list_id: str | None = None,
+        list_client_order_id: str | None = None,
+    ) -> VenueOrderList:
+
+        '''
+        Query the current state of an OCO order list on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            order_list_id (str | None): Venue-assigned order-list identifier
+            list_client_order_id (str | None): Durable list client order id
+                (the deterministic parent command identifier)
+
+        Returns:
+            VenueOrderList: Current order-list state from the venue
+        '''
+
+        if order_list_id is None and list_client_order_id is None:
+            msg = 'At least one of order_list_id or list_client_order_id must be provided'
+            raise ValueError(msg)
+
+        params: dict[str, str] = {}
+
+        if order_list_id is not None:
+            params['orderListId'] = order_list_id
+
+        if list_client_order_id is not None:
+            params['origClientOrderId'] = list_client_order_id
+
+        data = await self._signed_request('GET', '/api/v3/orderList', params, account_id)
+        return self._parse_venue_order_list(data)
+
     async def query_open_orders(
         self,
         account_id: str,
@@ -1830,6 +2000,7 @@ class BinanceAdapter:
         session = await self._ensure_session()
 
         try:
+            await self._op_budget.acquire()
             async with session.request(
                 'GET',
                 f"{self._base_url}/api/v3/exchangeInfo",
@@ -1917,6 +2088,7 @@ class BinanceAdapter:
         session = await self._ensure_session()
 
         try:
+            await self._op_budget.acquire()
             async with session.request(
                 'GET',
                 f"{self._base_url}/api/v3/depth",

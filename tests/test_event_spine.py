@@ -14,8 +14,9 @@ import aiosqlite
 import pytest
 import pytest_asyncio
 
-from praxis.core.domain.enums import OrderSide, OrderType
+from praxis.core.domain.enums import ExecutionMode, OrderSide, OrderType
 from praxis.core.domain.events import (
+    BracketInitialized,
     CommandAccepted,
     Event,
     FillReceived,
@@ -31,6 +32,7 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
     RegisterAccount,
+    SchemeInitialized,
     TradeClosed,
 )
 from praxis.infrastructure.event_spine import EventSpine
@@ -63,6 +65,37 @@ _ALL_EVENTS: list[Event] = [
     OrderSubmitted(
         account_id=_ACCT, timestamp=_TS,
         client_order_id=_ORDER, venue_order_id=_VORD,
+    ),
+
+    BracketInitialized(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, trade_id=_TRADE, symbol=_SYMBOL,
+        side=OrderSide.BUY, total_qty=Decimal('1.5'),
+        take_profit_offset_bps=Decimal('200'),
+        stop_loss_price=Decimal('48000.50'),
+        stop_loss_limit_price=Decimal('47900.25'),
+        timeout_seconds=300,
+    ),
+
+    SchemeInitialized(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, trade_id=_TRADE,
+        execution_mode=ExecutionMode.SCHEDULED_VWAP,
+        symbol=_SYMBOL, side=OrderSide.BUY,
+        total_qty=Decimal('1.5'), slices_total=3,
+        interval_seconds=10, timeout_seconds=300,
+        volume_weights=(Decimal('0.5'), Decimal('0.3'), Decimal('0.2')),
+    ),
+
+    SchemeInitialized(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, trade_id=_TRADE,
+        execution_mode=ExecutionMode.LADDER_DCA,
+        symbol=_SYMBOL, side=OrderSide.BUY,
+        total_qty=Decimal('1'), slices_total=2,
+        interval_seconds=0, timeout_seconds=300,
+        volume_weights=(Decimal('0.6'), Decimal('0.4')),
+        price_levels=(Decimal('49000.00'), Decimal('48000.00')),
     ),
 
     OrderSubmitFailed(

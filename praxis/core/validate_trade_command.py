@@ -8,8 +8,17 @@ enqueueing.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import ExecutionMode, MakerPreference, OrderSide, OrderType
+from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
+from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.domain.twap_params import TwapParams
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
 __all__ = ['validate_trade_command']
@@ -30,24 +39,16 @@ _ALLOWED_ORDER_TYPES: dict[ExecutionMode, frozenset[OrderType]] = {
     ExecutionMode.BRACKET: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
-            OrderType.STOP,
-            OrderType.STOP_LIMIT,
         }
     ),
     ExecutionMode.TWAP: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
         }
     ),
     ExecutionMode.SCHEDULED_VWAP: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
         }
     ),
     ExecutionMode.ICEBERG: frozenset(
@@ -58,14 +59,11 @@ _ALLOWED_ORDER_TYPES: dict[ExecutionMode, frozenset[OrderType]] = {
     ExecutionMode.TIME_DCA: frozenset(
         {
             OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
         }
     ),
     ExecutionMode.LADDER_DCA: frozenset(
         {
             OrderType.LIMIT,
-            OrderType.STOP_LIMIT,
         }
     ),
 }
@@ -130,11 +128,15 @@ def validate_trade_command(
 
     if cmd.execution_mode == ExecutionMode.SINGLE_SHOT:
         _validate_single_shot_params(cmd)
+    else:
+        _validate_mode_params(cmd)
 
     _validate_maker_preference(cmd)
 
     if filters is not None:
         _validate_venue_filters(cmd, filters)
+        if cmd.execution_mode != ExecutionMode.SINGLE_SHOT:
+            _validate_mode_venue_filters(cmd, filters)
 
 
 def _validate_quote_native_shape(cmd: TradeCommand) -> None:
@@ -204,6 +206,9 @@ def _validate_single_shot_params(cmd: TradeCommand) -> None:
     '''
 
     params = cmd.execution_params
+    if not isinstance(params, SingleShotParams):
+        return
+
     ot = cmd.order_type
 
     if ot in _PRICE_REQUIRED_TYPES and params.price is None:
@@ -295,7 +300,8 @@ def _validate_venue_filters(
         msg = f"qty {cmd.qty} is above lot maximum {filters.lot_max}"
         raise ValueError(msg)
 
-    price = cmd.execution_params.price
+    params = cmd.execution_params
+    price = params.price if isinstance(params, SingleShotParams) else None
 
     if price is not None and cmd.order_type != OrderType.MARKET:
         if price % filters.tick_size != 0:
@@ -305,3 +311,160 @@ def _validate_venue_filters(
         if price * cmd.qty < filters.min_notional:
             msg = f"notional {price * cmd.qty} is below minimum {filters.min_notional}"
             raise ValueError(msg)
+
+
+def _validate_mode_params(cmd: TradeCommand) -> None:
+    '''
+    Validate non-single-shot params against the command shape.
+
+    Multi-slice and multi-level modes size their children from the base
+    command quantity, so a quote-native command has no quantity to divide;
+    Iceberg cannot display more than the total quantity; Time DCA is an
+    accumulation order, so it requires side BUY.
+
+    Args:
+        cmd (TradeCommand): Command to validate.
+
+    Raises:
+        ValueError: If the command is quote-native, the iceberg display
+            quantity exceeds the command quantity, or a Time DCA command
+            is not a BUY.
+    '''
+
+    if cmd.is_quote_native:
+        msg = f'{cmd.execution_mode.value} requires a base qty; quote_qty is not supported'
+        raise ValueError(msg)
+
+    params = cmd.execution_params
+
+    if isinstance(params, TimeDcaParams) and cmd.side is not OrderSide.BUY:
+        msg = f'Time DCA is an accumulation order and requires side BUY, got {cmd.side.value}'
+        raise ValueError(msg)
+
+    if isinstance(params, IcebergParams):
+        assert cmd.qty is not None
+        if params.display_qty > cmd.qty:
+            msg = f'iceberg display_qty {params.display_qty} exceeds command qty {cmd.qty}'
+            raise ValueError(msg)
+
+    if isinstance(params, BracketParams):
+        _validate_bracket_protective_ordering(cmd, params)
+
+
+def _validate_bracket_protective_ordering(cmd: TradeCommand, params: BracketParams) -> None:
+    '''
+    Reject absolute bracket legs on the wrong side of each other.
+
+    When both the take-profit and stop-loss are given as absolute prices, a
+    long's take-profit must sit above its stop-loss and a short's below;
+    otherwise the protective OCO is nonsensical. Offset legs derive their
+    side from the entry at fill time and are not checked here.
+
+    Args:
+        cmd (TradeCommand): Command carrying the side.
+        params (BracketParams): The bracket parameters.
+
+    Raises:
+        ValueError: If the absolute take-profit and stop-loss are ordered
+            wrongly for the command side.
+    '''
+
+    if params.take_profit_price is None or params.stop_loss_price is None:
+        return
+
+    if cmd.side is OrderSide.BUY and params.take_profit_price <= params.stop_loss_price:
+        msg = (
+            f'bracket long take_profit_price {params.take_profit_price} must exceed '
+            f'stop_loss_price {params.stop_loss_price}'
+        )
+        raise ValueError(msg)
+
+    if cmd.side is OrderSide.SELL and params.take_profit_price >= params.stop_loss_price:
+        msg = (
+            f'bracket short take_profit_price {params.take_profit_price} must be below '
+            f'stop_loss_price {params.stop_loss_price}'
+        )
+        raise ValueError(msg)
+
+
+def _validate_mode_venue_filters(cmd: TradeCommand, filters: SymbolFilters) -> None:
+    '''
+    Validate per-child sizes and prices for non-single-shot modes.
+
+    Checks each slice, tranche, or level against the venue lot minimum,
+    tick size, and minimum notional. Market slices carry no price, so only
+    their quantity is checked.
+
+    Args:
+        cmd (TradeCommand): Command to validate.
+        filters (SymbolFilters): Venue filters for the symbol.
+
+    Raises:
+        ValueError: If any child quantity, price, or notional violates a filter.
+    '''
+
+    assert cmd.qty is not None
+    params = cmd.execution_params
+
+    if isinstance(params, TwapParams):
+        _check_lot_min(cmd.qty / params.num_slices, filters, 'TWAP slice qty')
+
+    elif isinstance(params, TimeDcaParams):
+        _check_lot_min(cmd.qty / params.num_iterations, filters, 'Time DCA slice qty')
+
+    elif isinstance(params, ScheduledVwapParams):
+        for weight in params.volume_weights:
+            _check_lot_min(cmd.qty * weight, filters, 'VWAP slice qty')
+
+    elif isinstance(params, IcebergParams):
+        _check_lot_min(params.display_qty, filters, 'iceberg display_qty')
+        _check_lot_step(params.display_qty, filters, 'iceberg display_qty')
+        _check_tick(params.limit_price, filters, 'iceberg limit_price')
+        _check_min_notional(params.display_qty * params.limit_price, filters, 'iceberg tranche')
+
+    elif isinstance(params, LadderDcaParams):
+        levels = params.price_levels
+        weights = params.level_weights
+        for index, price in enumerate(levels):
+            level_qty = cmd.qty * weights[index] if weights is not None else cmd.qty / len(levels)
+            _check_lot_min(level_qty, filters, 'ladder level qty')
+            _check_tick(price, filters, 'ladder price level')
+            _check_min_notional(level_qty * price, filters, 'ladder level')
+
+
+def _check_lot_min(qty: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a child quantity is below the venue lot minimum.'''
+
+    if qty < filters.lot_min:
+        msg = f'{label} {qty} is below lot minimum {filters.lot_min}'
+        raise ValueError(msg)
+
+
+def _check_lot_step(qty: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a quantity is not a multiple of the venue lot step.
+
+    Unlike scheme slices, which the planners floor to the lot step before
+    submission, the iceberg display quantity is sent to the venue verbatim
+    as `icebergQty`, so a non-step value (e.g. 0.1005 on a 0.001 step) is
+    rejected by the venue's LOT_SIZE filter. It must be validated here.
+    '''
+
+    if qty % filters.lot_step != 0:
+        msg = f'{label} {qty} is not a multiple of lot step {filters.lot_step}'
+        raise ValueError(msg)
+
+
+def _check_tick(price: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a price is not a multiple of the venue tick size.'''
+
+    if price % filters.tick_size != 0:
+        msg = f'{label} {price} is not a multiple of tick size {filters.tick_size}'
+        raise ValueError(msg)
+
+
+def _check_min_notional(notional: Decimal, filters: SymbolFilters, label: str) -> None:
+    '''Raise if a child notional is below the venue minimum.'''
+
+    if notional < filters.min_notional:
+        msg = f'{label} notional {notional} is below minimum {filters.min_notional}'
+        raise ValueError(msg)

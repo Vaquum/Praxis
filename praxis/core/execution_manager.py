@@ -15,6 +15,7 @@ import logging
 import threading
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 
@@ -27,10 +28,14 @@ from praxis.core.domain.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
+    SchemeState,
     STPMode,
     TradeStatus,
 )
 from praxis.core.domain.events import (
+    BracketInitialized,
+    SchemeInitialized,
+    SchemeStateChanged,
     CommandAccepted,
     Event,
     FillReceived,
@@ -43,6 +48,7 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
     RegisterAccount,
+    SliceFailed,
     TradeClosed,
     TradeOutcomeProduced,
 )
@@ -50,7 +56,15 @@ from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.trade_pnl import TradePnL
+from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+from praxis.core.domain.bracket_params import BracketParams
+from praxis.core.domain.execution_params import ExecutionParams
+from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.time_dca_params import TimeDcaParams
+from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import (
@@ -62,6 +76,8 @@ from praxis.core.generate_client_order_id import (
     generate_client_order_id,
     validate_command_id_for_client_order_id,
 )
+from praxis.core.plan_even_slices import plan_even_slices
+from praxis.core.plan_weighted_slices import plan_weighted_slices
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
 from praxis.core.validate_trade_command import validate_trade_command
@@ -73,9 +89,15 @@ from praxis.infrastructure.venue_adapter import (
     SubmitResult,
     VenueAdapter,
     VenueError,
+    VenueOrderList,
 )
 
-__all__ = ['AccountNotRegisteredError', 'ExecutionManager']
+__all__ = [
+    'AccountNotRegisteredError',
+    'CommandQueueFullError',
+    'ExecutionManager',
+    'ExecutionModeNotEnabledError',
+]
 
 _log = logging.getLogger(__name__)
 
@@ -91,9 +113,64 @@ _TERMINAL_STATUSES = frozenset({
     TradeStatus.REJECTED,
     TradeStatus.EXPIRED,
 })
+_TERMINAL_ORDER_STATUSES = frozenset({
+    OrderStatus.FILLED,
+    OrderStatus.CANCELED,
+    OrderStatus.EXPIRED,
+    OrderStatus.REJECTED,
+})
+_TERMINAL_ORDER_TO_TRADE_STATUS = {
+    OrderStatus.FILLED: TradeStatus.FILLED,
+    OrderStatus.CANCELED: TradeStatus.CANCELED,
+    OrderStatus.EXPIRED: TradeStatus.EXPIRED,
+    OrderStatus.REJECTED: TradeStatus.REJECTED,
+}
 _BOOT_ORPHAN_REASON = 'boot_orphan_command'
+_BOOT_INCOMPLETE_SCHEME_REASON = 'boot_incomplete_scheme'
+_SCHEME_MODES = frozenset(
+    {ExecutionMode.TWAP, ExecutionMode.TIME_DCA, ExecutionMode.SCHEDULED_VWAP},
+)
+_MIN_SCHEME_SLICES = 2
+_COMMAND_QUEUE_MAXSIZE = 1000
+_OCO_LIST_STATUS_REJECT = 'REJECT'
+_OCO_LIST_STATUS_ALL_DONE = 'ALL_DONE'
 _ORPHAN_SENTINEL_QTY = Decimal(1)
 _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
+_ONE = Decimal(1)
+_BRACKET_ENTRY_SEQUENCE = 0
+_BRACKET_PROTECTION_SEQUENCE = 1
+
+
+def _aggregate_oco_terminal_status(
+    leg_statuses: tuple[OrderStatus, ...],
+) -> OrderStatus:
+    '''Reduce an ALL_DONE OCO list's leg statuses to one order status.
+
+    Mirrors the precedence `_parse_oco_response` applies to a fresh OCO
+    submission: a fill on either leg makes the list FILLED (or
+    PARTIALLY_FILLED), otherwise the terminal state is EXPIRED, REJECTED,
+    or CANCELED in that order.
+
+    Args:
+        leg_statuses (tuple[OrderStatus, ...]): Status of each queried leg.
+
+    Returns:
+        OrderStatus: The resolved list-level terminal status.
+    '''
+
+    if OrderStatus.FILLED in leg_statuses:
+        return OrderStatus.FILLED
+
+    if OrderStatus.PARTIALLY_FILLED in leg_statuses:
+        return OrderStatus.PARTIALLY_FILLED
+
+    if OrderStatus.EXPIRED in leg_statuses:
+        return OrderStatus.EXPIRED
+
+    if OrderStatus.REJECTED in leg_statuses:
+        return OrderStatus.REJECTED
+
+    return OrderStatus.CANCELED
 
 
 def _utc_now() -> datetime:
@@ -106,13 +183,171 @@ class AccountNotRegisteredError(Exception):
     '''Raised when a command targets an unregistered account_id.'''
 
 
+class CommandQueueFullError(ValueError):
+    '''Raised when a command is rejected because the account queue is full.
+
+    Subclasses `ValueError` so existing inbound-validation handling still
+    catches it, while letting a caller distinguish a fail-closed capacity
+    rejection from a bad-parameter rejection.
+    '''
+
+
+class ExecutionModeNotEnabledError(ValueError):
+    '''Raised when a command uses an execution mode not enabled for the host.
+
+    The per-mode capability gate is default-off: only the modes explicitly
+    enabled for this deployment may be driven, so a new mode cannot execute
+    live until it is turned on. Subclasses `ValueError` so existing inbound
+    handling rejects it, while letting a caller distinguish a disabled-mode
+    rejection from a bad-parameter one.
+    '''
+
+
+@dataclass
+class _LiveScheme:
+    '''In-memory scheduler state for a running multi-slice scheme.
+
+    Holds the resolved per-slice plan and the running aggregates that the
+    account coroutine advances between slices. The durable projection of
+    the same progress lives in TradingState.schemes, rebuilt from
+    SchemeInitialized and SchemeStateChanged on replay.
+    '''
+
+    command: TradeCommand
+    slice_qtys: list[Decimal]
+    slices_total: int
+    interval_seconds: int
+    cursor: int = 0
+    active_children: set[str] = field(default_factory=set)
+    pending_terminal: tuple[TradeStatus, SchemeState, str | None] | None = None
+    next_run_at: datetime | None = None
+    deadline: datetime | None = None
+    frozen: bool = False
+    state: SchemeState = SchemeState.RUNNING
+
+
+@dataclass
+class _LiveBracket:
+    '''In-memory state for a bracket awaiting or holding its protection.
+
+    A bracket submits a MARKET entry, then a protective OCO once the entry
+    fills. When the entry fills asynchronously (no immediate fill) the
+    account coroutine places the protection from the WebSocket fill via
+    `_on_bracket_event`; `protection_placed` guards against a double
+    placement across the immediate and asynchronous paths.
+    '''
+
+    command: TradeCommand
+    entry_client_order_id: str
+    protection_placed: bool = False
+
+
+def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
+    '''Return (slice count, interval seconds) for a scheme mode.
+
+    TWAP and Time DCA submit a fixed number of equal MARKET children at a
+    fixed interval; Scheduled VWAP submits one child per volume weight at a
+    fixed interval. Any other params type is a routing bug — the loop
+    dispatch admits only `_SCHEME_MODES`.
+    '''
+
+    if isinstance(params, TwapParams):
+        return params.num_slices, params.interval_seconds
+
+    if isinstance(params, TimeDcaParams):
+        return params.num_iterations, params.interval_seconds
+
+    if isinstance(params, ScheduledVwapParams):
+        return len(params.volume_weights), params.interval_seconds
+
+    msg = f'not a scheme params type: {type(params).__name__}'
+    raise TypeError(msg)
+
+
+def _plan_scheme_slices(
+    params: ExecutionParams,
+    total_qty: Decimal,
+    slices_total: int,
+    lot_step: Decimal | None,
+) -> list[Decimal]:
+    '''Compute the child quantities for a scheme mode.
+
+    Equal-slice modes divide the total evenly; Scheduled VWAP splits it
+    across its volume-weight curve. Both floor each child to the lot step.
+    '''
+
+    if isinstance(params, ScheduledVwapParams):
+        return plan_weighted_slices(total_qty, params.volume_weights, lot_step)
+
+    return plan_even_slices(total_qty, slices_total, lot_step)
+
+
+def _ladder_levels(
+    params: LadderDcaParams,
+    total_qty: Decimal,
+    lot_step: Decimal | None,
+) -> list[tuple[Decimal, Decimal]]:
+    '''Resolve the (quantity, price) pair for each ladder rung.
+
+    The command quantity is split across the rungs — by `level_weights` when
+    given, otherwise equally — with each rung's quantity floored to the lot
+    step; each rung rests at its explicit `price_levels` entry.
+
+    Args:
+        params (LadderDcaParams): The ladder parameters.
+        total_qty (Decimal): Total base quantity to work across the rungs.
+        lot_step (Decimal | None): Venue LOT_SIZE step, or None when the
+            symbol filters are not cached.
+
+    Returns:
+        list[tuple[Decimal, Decimal]]: One (quantity, price) pair per rung.
+    '''
+
+    if params.level_weights is not None:
+        qtys = plan_weighted_slices(total_qty, params.level_weights, lot_step)
+    else:
+        qtys = plan_even_slices(total_qty, len(params.price_levels), lot_step)
+
+    return list(zip(qtys, params.price_levels, strict=True))
+
+
+def _rebuild_scheme_params(
+    mode: ExecutionMode,
+    slices_total: int,
+    interval_seconds: int,
+    volume_weights: tuple[Decimal, ...],
+) -> ExecutionParams:
+    '''Reconstruct a scheme mode's params for boot resume.
+
+    An equal-slice scheme's params are fully determined by its slice count
+    and interval; a Scheduled VWAP scheme also needs its persisted volume
+    weights, since the weighted grid cannot be recomputed from the slice
+    count alone. All are persisted on `SchemeInitialized`, so the transient
+    command's params need not be stored to resume the schedule.
+    '''
+
+    if mode is ExecutionMode.TWAP:
+        return TwapParams(num_slices=slices_total, interval_seconds=interval_seconds)
+
+    if mode is ExecutionMode.TIME_DCA:
+        return TimeDcaParams(num_iterations=slices_total, interval_seconds=interval_seconds)
+
+    if mode is ExecutionMode.SCHEDULED_VWAP:
+        return ScheduledVwapParams(
+            interval_seconds=interval_seconds, volume_weights=volume_weights,
+        )
+
+    msg = f'not a resumable scheme mode: {mode.value}'
+    raise TypeError(msg)
+
+
 class _AccountRuntime:
     '''
     Per-account runtime state owned by ExecutionManager.
 
     Args:
         account_id (str): Account identifier.
-        command_queue (asyncio.Queue[TradeCommand]): Unbounded queue for commands.
+        command_queue (asyncio.Queue[TradeCommand]): Bounded queue for commands; a full queue rejects fail-closed at submit.
         priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
         ws_event_queue (asyncio.Queue[Event]): Unbounded queue for WS events.
         trading_state (TradingState): Per-account state projection.
@@ -138,6 +373,9 @@ class _AccountRuntime:
         self.account_ledger = account_ledger
         self.task: asyncio.Task[None] | None = None
         self.command_to_order: dict[str, str] = {}
+        self.schemes: dict[str, _LiveScheme] = {}
+        self.brackets: dict[str, _LiveBracket] = {}
+        self.queue_reservations = 0
         self.reconciling = False
         self.poisoned = False
 
@@ -167,13 +405,29 @@ class ExecutionManager:
         on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None,
         clock: Callable[[], datetime] = _utc_now,
         max_slippage_bps: Decimal | None = None,
+        enabled_modes: frozenset[ExecutionMode] | None = None,
     ) -> None:
-        '''Store dependencies and initialize empty account registry.'''
+        '''Store dependencies and initialize empty account registry.
+
+        Args:
+            enabled_modes: Execution modes the host may drive, enforced as a
+                per-mode capability gate at submit. None disables the gate
+                (all modes allowed) — the mechanism default; the default-off
+                policy lives at the production wiring (`TradingConfig`
+                defaults to `{SINGLE_SHOT}`), so a mode cannot be driven live
+                until it is explicitly enabled there. When a set is given,
+                SINGLE_SHOT is always included as the baseline.
+        '''
 
         self._event_spine = event_spine
         self._epoch_id = epoch_id
         self._venue_adapter = venue_adapter
         self._max_slippage_bps = max_slippage_bps
+        self._enabled_modes = (
+            None
+            if enabled_modes is None
+            else enabled_modes | {ExecutionMode.SINGLE_SHOT}
+        )
         self._on_trade_outcome = on_trade_outcome
         self._clock = clock
         self._accounts: dict[str, _AccountRuntime] = {}
@@ -288,7 +542,7 @@ class ExecutionManager:
 
         runtime = _AccountRuntime(
             account_id=account_id,
-            command_queue=asyncio.Queue(),
+            command_queue=asyncio.Queue(maxsize=_COMMAND_QUEUE_MAXSIZE),
             priority_queue=asyncio.Queue(),
             ws_event_queue=asyncio.Queue(),
             trading_state=TradingState(account_id),
@@ -361,6 +615,49 @@ class ExecutionManager:
 
         return {k: copy.copy(v) for k, v in runtime.trading_state.orders.items()}
 
+    def in_flight_command_ids(self, account_id: str) -> list[str]:
+        '''Return the non-terminal command ids still working for an account.
+
+        Covers every in-flight execution mode: running schemes and ladders
+        (`runtime.schemes`), brackets awaiting protection (`runtime.brackets`),
+        single-order commands with a live venue order (`command_to_order`),
+        and commands accepted but still awaiting dequeue (`_accepted_commands`)
+        — the last so a graceful shutdown pre-aborts a queued command to a
+        terminal CANCELED outcome instead of tearing down the loop while it
+        waits. Commands already terminal are excluded. A shutdown aborts each
+        of these so every mode reaches a terminal CANCELED outcome carrying
+        its cumulative fills, rather than being torn down with only its venue
+        orders cancelled.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            list[str]: In-flight command ids, empty when the account is
+                unregistered or has none.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return []
+
+        candidates = (
+            set(runtime.schemes)
+            | set(runtime.brackets)
+            | set(runtime.command_to_order)
+            | {
+                command_id
+                for command_id, owner in self._accepted_commands.items()
+                if owner == account_id
+            }
+        )
+
+        return sorted(
+            command_id
+            for command_id in candidates
+            if command_id not in self._terminal_commands
+        )
+
     def replay_events(
         self,
         account_id: str,
@@ -387,6 +684,12 @@ class ExecutionManager:
 
         self._bridge_legacy_registration(runtime, events)
 
+        scheme_command_ids = {
+            event.command_id
+            for _seq, event in events
+            if isinstance(event, SchemeInitialized)
+        }
+
         for _seq, event in events:
             self._project(runtime, event)
 
@@ -404,7 +707,10 @@ class ExecutionManager:
                 self._command_trade_ids[event.command_id] = event.trade_id
                 runtime.command_to_order[event.command_id] = event.client_order_id
 
-                if event.command_id not in self._terminal_commands:
+                if (
+                    event.command_id not in self._terminal_commands
+                    and event.command_id not in scheme_command_ids
+                ):
                     self._commands[event.command_id] = TradeCommand(
                         command_id=event.command_id,
                         trade_id=event.trade_id,
@@ -426,6 +732,410 @@ class ExecutionManager:
                         stp_mode=STPMode.NONE,
                         created_at=event.timestamp,
                     )
+
+        self._resume_schemes(runtime, events)
+        self._resume_ladders(runtime, events)
+        self._resume_brackets(runtime, events)
+
+    def _resume_ladders(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild live ladder state for non-terminal ladders after replay.
+
+        A ladder posts all of its resting LIMIT rungs at start, so resume
+        does not replan or resubmit — it rebuilds the `_LiveScheme` with the
+        replayed cursor and the rungs still working (`active_client_order_ids`
+        whose order is not terminal), leaving `next_run_at` None so the
+        account loop only finalizes it once every rung settles. A ladder with
+        a terminal outcome, a non-RUNNING state, too few persisted levels, or
+        a malformed init is not resumed.
+        '''
+
+        inits: dict[str, SchemeInitialized] = {}
+        latest_state: dict[str, SchemeStateChanged] = {}
+        terminal_outcomes: set[str] = set()
+        frozen_ids: set[str] = set()
+
+        for _seq, event in events:
+            if (
+                isinstance(event, SchemeInitialized)
+                and event.execution_mode is ExecutionMode.LADDER_DCA
+            ):
+                inits.setdefault(event.command_id, event)
+            elif isinstance(event, SchemeStateChanged):
+                latest_state[event.command_id] = event
+            elif isinstance(event, SliceFailed):
+                frozen_ids.add(event.command_id)
+            elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
+                terminal_outcomes.add(event.command_id)
+
+        for command_id, init in inits.items():
+            if command_id in terminal_outcomes:
+                continue
+
+            state = latest_state.get(command_id)
+            scheme_state = state.state if state is not None else SchemeState.RUNNING
+            if scheme_state is not SchemeState.RUNNING:
+                continue
+
+            if len(init.price_levels) < _MIN_SCHEME_SLICES:
+                continue
+
+            try:
+                command = self._ladder_command_from_init(init)
+            except ValueError:
+                _log.exception(
+                    'ladder resume skipped: malformed init: command_id=%s', command_id,
+                )
+                continue
+
+            live_children, posted_count = self._ladder_children_from_projections(
+                runtime, command_id, init.slices_total,
+            )
+
+            deadline = (
+                init.timestamp + timedelta(seconds=init.timeout_seconds)
+                if init.timeout_seconds > 0
+                else None
+            )
+
+            scheme = _LiveScheme(
+                command=command,
+                slice_qtys=[],
+                slices_total=init.slices_total,
+                interval_seconds=0,
+                cursor=posted_count,
+                active_children=live_children,
+                next_run_at=None,
+                deadline=deadline,
+                frozen=command_id in frozen_ids,
+            )
+            runtime.schemes[command_id] = scheme
+            self._commands[command_id] = command
+            self._accepted_commands[command_id] = runtime.account_id
+            self._command_trade_ids[command_id] = init.trade_id
+
+            _log.info(
+                'resumed ladder from replay: command_id=%s active=%d frozen=%s',
+                command_id,
+                len(live_children),
+                scheme.frozen,
+            )
+
+    def _ladder_children_from_projections(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        slices_total: int,
+    ) -> tuple[set[str], int]:
+        '''Reconstruct a ladder's live rungs and posted count from replay.
+
+        The rungs carry deterministic client order ids, so the durable order
+        projections — not a possibly-missing `SchemeStateChanged` — are the
+        source of truth on resume: a rung with an order projection was
+        submitted (counts toward the cursor), and one still non-terminal is
+        active. Deriving from projections means a crash mid-posting (before
+        any progress event) never restores an empty, cursor-complete ladder
+        that would falsely finalize while its posted rungs rest live.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to read projections.
+            command_id (str): The ladder parent command id.
+            slices_total (int): The persisted rung count.
+
+        Returns:
+            tuple[set[str], int]: The still-working rung client order ids and
+                the number of rungs actually posted.
+        '''
+
+        live_children: set[str] = set()
+        posted_count = 0
+        for index in range(slices_total):
+            child_id = generate_client_order_id(
+                ExecutionMode.LADDER_DCA, command_id, sequence=index,
+            )
+            order = self._scheme_child_order(runtime, child_id)
+            if order is None:
+                continue
+
+            posted_count += 1
+            if order.status not in _TERMINAL_ORDER_STATUSES:
+                live_children.add(child_id)
+
+        return live_children, posted_count
+
+    def _ladder_command_from_init(self, init: SchemeInitialized) -> TradeCommand:
+        '''Rebuild a ladder command from its durable init event for resume.
+
+        Args:
+            init (SchemeInitialized): The persisted ladder init event.
+
+        Returns:
+            TradeCommand: The reconstructed ladder command.
+        '''
+
+        return TradeCommand(
+            command_id=init.command_id,
+            trade_id=init.trade_id,
+            account_id=init.account_id,
+            symbol=init.symbol,
+            side=init.side,
+            qty=init.total_qty,
+            order_type=OrderType.LIMIT,
+            execution_mode=ExecutionMode.LADDER_DCA,
+            execution_params=LadderDcaParams(
+                price_levels=init.price_levels,
+                level_weights=tuple(init.volume_weights) or None,
+            ),
+            timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=init.timestamp,
+        )
+
+    def _resume_brackets(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild live bracket state for incomplete brackets after replay.
+
+        For each `BracketInitialized` whose protective OCO was not confirmed
+        placed, a `_LiveBracket` is registered so the account loop can place
+        protection: immediately for an already-filled entry
+        (`_place_pending_bracket_protection`), or from `_on_bracket_event`
+        when a still-open entry fills. A protective OCO is treated as
+        confirmed when its order projection exists and is past SUBMITTING
+        (OPEN, filled, canceled, or a REJECTED submit failure); a SUBMITTING
+        projection means the submit was persisted but never venue-confirmed
+        (a crash between the intent and the response), so it is re-placed —
+        the deterministic list client order id makes the retry idempotent via
+        the OCO rescue. A REJECTED protective OCO (venue rejection or a wrong-
+        side-of-fill skip) is a definitive failure and is not retried on boot
+        (TD-130); its filled entry stays unprotected pending operator repair.
+        A malformed init that cannot rebuild valid params is skipped.
+        '''
+
+        inits: dict[str, BracketInitialized] = {}
+        for _seq, event in events:
+            if isinstance(event, BracketInitialized):
+                inits[event.command_id] = event
+
+        for command_id, init in inits.items():
+            entry_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+            )
+            oco_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_PROTECTION_SEQUENCE,
+            )
+
+            oco_order = self._scheme_child_order(runtime, oco_client_order_id)
+            if oco_order is not None and oco_order.status is not OrderStatus.SUBMITTING:
+                continue
+
+            if self._scheme_child_order(runtime, entry_client_order_id) is None:
+                continue
+
+            try:
+                command = self._bracket_command_from_init(init)
+            except ValueError:
+                _log.exception(
+                    'bracket resume skipped: malformed init params: '
+                    'command_id=%s account_id=%s',
+                    command_id,
+                    runtime.account_id,
+                )
+
+                continue
+
+            runtime.brackets[command_id] = _LiveBracket(
+                command=command,
+                entry_client_order_id=entry_client_order_id,
+            )
+            _log.info(
+                'bracket resumed awaiting protection: command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+
+    def _bracket_command_from_init(self, init: BracketInitialized) -> TradeCommand:
+        '''Rebuild a bracket command from its durable init event for resume.
+
+        Args:
+            init (BracketInitialized): The persisted bracket init event.
+
+        Returns:
+            TradeCommand: The reconstructed bracket command.
+        '''
+
+        return TradeCommand(
+            command_id=init.command_id,
+            trade_id=init.trade_id,
+            account_id=init.account_id,
+            symbol=init.symbol,
+            side=init.side,
+            qty=init.total_qty,
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.BRACKET,
+            execution_params=BracketParams(
+                take_profit_price=init.take_profit_price,
+                take_profit_offset_bps=init.take_profit_offset_bps,
+                stop_loss_price=init.stop_loss_price,
+                stop_loss_offset_bps=init.stop_loss_offset_bps,
+                stop_loss_limit_price=init.stop_loss_limit_price,
+            ),
+            timeout=init.timeout_seconds or _REPLAY_COMMAND_TIMEOUT_SECONDS,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=init.timestamp,
+        )
+
+    def _resume_schemes(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild live scheme state for non-terminal schemes after replay.
+
+        For every `SchemeInitialized` whose latest `SchemeStateChanged` is
+        still RUNNING and which has no terminal `TradeOutcomeProduced`, the
+        equal-slice params are reconstructed from the persisted mode, slice
+        count, and interval; the slice plan is recomputed; and a
+        `_LiveScheme` is registered in `runtime.schemes` with the replayed
+        cursor, active children, and next-run time so the account loop
+        resumes it. A non-terminal scheme in a mode that cannot yet resume,
+        or one whose plan can no longer be computed, is left for
+        `reconcile_orphan_commands` to terminalize. Terminal-state schemes
+        are not resumed.
+        '''
+
+        inits: dict[str, SchemeInitialized] = {}
+        latest_state: dict[str, SchemeStateChanged] = {}
+        terminal_outcomes: set[str] = set()
+        frozen_ids: set[str] = set()
+
+        for _seq, event in events:
+            if isinstance(event, SchemeInitialized):
+                inits.setdefault(event.command_id, event)
+            elif isinstance(event, SchemeStateChanged):
+                latest_state[event.command_id] = event
+            elif isinstance(event, SliceFailed):
+                frozen_ids.add(event.command_id)
+            elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
+                terminal_outcomes.add(event.command_id)
+
+        for command_id, init in inits.items():
+            if command_id in terminal_outcomes:
+                continue
+
+            state = latest_state.get(command_id)
+            scheme_state = state.state if state is not None else SchemeState.RUNNING
+            if scheme_state is not SchemeState.RUNNING:
+                continue
+
+            if (
+                init.execution_mode not in _SCHEME_MODES
+                or init.slices_total < _MIN_SCHEME_SLICES
+                or init.interval_seconds <= 0
+            ):
+                continue
+
+            if (
+                init.execution_mode is ExecutionMode.SCHEDULED_VWAP
+                and len(init.volume_weights) < _MIN_SCHEME_SLICES
+            ):
+                _log.warning(
+                    'cannot resume VWAP scheme without persisted weights: '
+                    'command_id=%s',
+                    command_id,
+                )
+                continue
+
+            filters = self._venue_adapter.cached_filters(init.symbol)
+            lot_step = filters.lot_step if filters is not None else None
+            try:
+                rebuilt_params = _rebuild_scheme_params(
+                    init.execution_mode,
+                    init.slices_total,
+                    init.interval_seconds,
+                    init.volume_weights,
+                )
+                slice_qtys = _plan_scheme_slices(
+                    rebuilt_params, init.total_qty, init.slices_total, lot_step,
+                )
+            except ValueError:
+                _log.warning(
+                    'cannot rebuild or replan scheme on resume; leaving for '
+                    'boot cleanup: command_id=%s',
+                    command_id,
+                )
+                continue
+
+            command = TradeCommand(
+                command_id=command_id,
+                trade_id=init.trade_id,
+                account_id=runtime.account_id,
+                symbol=init.symbol,
+                side=init.side,
+                qty=init.total_qty,
+                order_type=OrderType.MARKET,
+                execution_mode=init.execution_mode,
+                execution_params=rebuilt_params,
+                timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
+                reference_price=None,
+                maker_preference=MakerPreference.NO_PREFERENCE,
+                stp_mode=STPMode.NONE,
+                created_at=init.timestamp,
+            )
+
+            live_children: set[str] = set()
+            if state is not None:
+                for child_id in state.active_client_order_ids:
+                    order = self._scheme_child_order(runtime, child_id)
+                    if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+                        live_children.add(child_id)
+
+            deadline = (
+                init.timestamp + timedelta(seconds=init.timeout_seconds)
+                if init.timeout_seconds > 0
+                else None
+            )
+
+            scheme = _LiveScheme(
+                command=command,
+                slice_qtys=slice_qtys,
+                slices_total=len(slice_qtys),
+                interval_seconds=init.interval_seconds,
+                cursor=state.cursor if state is not None else 0,
+                active_children=live_children,
+                next_run_at=state.next_run_at if state is not None else None,
+                deadline=deadline,
+                frozen=command_id in frozen_ids,
+            )
+
+            if (
+                not scheme.frozen
+                and scheme.cursor < scheme.slices_total
+                and scheme.next_run_at is None
+            ):
+                scheme.next_run_at = self._clock()
+
+            runtime.schemes[command_id] = scheme
+            self._commands[command_id] = command
+            self._accepted_commands[command_id] = runtime.account_id
+            self._command_trade_ids[command_id] = init.trade_id
+
+            _log.info(
+                'resumed scheme from replay: command_id=%s cursor=%d active=%d frozen=%s',
+                command_id,
+                scheme.cursor,
+                len(scheme.active_children),
+                scheme.frozen,
+            )
 
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Apply an event to the account's trading-state and ledger projections.
@@ -555,12 +1265,23 @@ class ExecutionManager:
         again leaves an intent without a follow-up will be cleaned up
         on the next boot rather than stranding capital indefinitely.
 
-        Both classes synthesize `TradeOutcome(REJECTED,
-        reason='boot_orphan_command')`, written to the spine as
-        `TradeOutcomeProduced` and routed through
-        `self._on_trade_outcome` so the launcher's
-        `OutcomeProcessor` releases Nexus's reservation via
-        `order_reject` lookup of the same `command_id`.
+        Class C (unresumable scheme) — a `SchemeInitialized` command
+        without a terminal `TradeOutcomeProduced` that `replay_events` did
+        not resume into `runtime.schemes` (a terminal-state scheme, or one
+        whose mode or plan cannot be rebuilt). A non-terminal scheme in a
+        resumable mode is resumed by replay and excluded here. An
+        unresumable scheme is terminalized on boot — one aggregated
+        CANCELED outcome carrying the fills that did settle (from the child
+        order projections), which releases the parent reservation while
+        preserving the real position. All scheme commands are excluded from
+        Class A/B so the scheme-aware Class C is their sole handler.
+
+        Class A/B synthesize `TradeOutcome(REJECTED,
+        reason='boot_orphan_command')`; Class C synthesizes
+        `TradeOutcome(CANCELED, reason='boot_incomplete_scheme')`. All are
+        written to the spine as `TradeOutcomeProduced` and routed through
+        `self._on_trade_outcome` so the launcher's `OutcomeProcessor`
+        releases Nexus's reservation via lookup of the same `command_id`.
 
         Args:
             account_id: Account whose events were just replayed.
@@ -577,9 +1298,13 @@ class ExecutionManager:
         completed_via_terminal: set[str] = set()
         completed_via_submit: set[str] = set()
 
+        scheme_trade_ids: dict[str, str] = {}
+
         for _seq, event in events:
             if isinstance(event, CommandAccepted):
                 accepted_trade_ids[event.command_id] = event.trade_id
+            elif isinstance(event, SchemeInitialized):
+                scheme_trade_ids.setdefault(event.command_id, event.trade_id)
             elif isinstance(event, OrderSubmitIntent):
                 intent_trade_ids[event.command_id] = event.trade_id
                 intent_clients[event.client_order_id] = event.command_id
@@ -595,14 +1320,22 @@ class ExecutionManager:
 
         intent_command_ids = set(intent_trade_ids)
         completed = completed_via_submit | completed_via_terminal
+        scheme_command_ids = set(scheme_trade_ids)
 
         class_a_orphans = [
             cid for cid in accepted_trade_ids
-            if cid not in intent_command_ids and cid not in completed
+            if cid not in intent_command_ids
+            and cid not in completed
+            and cid not in scheme_command_ids
         ]
         class_b_orphans = [
             cid for cid in intent_command_ids
-            if cid not in completed
+            if cid not in completed and cid not in scheme_command_ids
+        ]
+        class_c_schemes = [
+            cid for cid in scheme_trade_ids
+            if cid not in completed_via_terminal
+            and cid not in runtime.schemes
         ]
 
         for command_id in class_a_orphans:
@@ -617,6 +1350,13 @@ class ExecutionManager:
             if trade_id is None:
                 continue
             await self._emit_orphan_rejection(runtime, command_id, trade_id)
+
+        for command_id in class_c_schemes:
+            await self._terminalize_scheme_on_boot(
+                runtime,
+                command_id,
+                scheme_trade_ids[command_id],
+            )
 
     async def _emit_orphan_rejection(
         self,
@@ -659,6 +1399,126 @@ class ExecutionManager:
         )
 
         await self._dispatch_outcome_with_retry(outcome, source='orphan')
+
+    def _scheme_fill_totals(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+    ) -> tuple[Decimal, Decimal]:
+        '''Sum filled qty and notional across a scheme's child orders.
+
+        Reads the rebuilt order projections (active and closed) for every
+        child whose `command_id` matches the scheme parent, so the boot
+        terminalization reports the fills that actually settled rather than
+        an in-memory aggregate that a crash discarded.
+        '''
+
+        filled_qty = _ZERO
+        cumulative_notional = _ZERO
+
+        orders = (
+            *runtime.trading_state.orders.values(),
+            *runtime.trading_state.closed_orders.values(),
+        )
+        for order in orders:
+            if order.command_id == command_id:
+                filled_qty += order.filled_qty
+                cumulative_notional += order.cumulative_notional
+
+        return filled_qty, cumulative_notional
+
+    async def _terminalize_scheme_on_boot(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        trade_id: str,
+    ) -> None:
+        '''Terminalize an unresumable scheme with one CANCELED outcome.
+
+        Reached only for a scheme `replay_events` could not resume (a
+        terminal-state scheme, or a mode/plan that cannot be rebuilt). The
+        scheme is abandoned safely: a terminal `SchemeStateChanged`
+        (CANCELED) plus a single aggregated CANCELED `TradeOutcome` carrying
+        the fills that settled. This releases the parent reservation while
+        leaving the real position in place; the remaining slices never run.
+        '''
+
+        scheme = runtime.trading_state.schemes.get(command_id)
+        if scheme is None:
+            _log.error(
+                'boot scheme terminalize skipped: no projection for '
+                'command_id=%s account=%s',
+                command_id,
+                runtime.account_id,
+            )
+            return
+
+        ts = self._clock()
+        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, command_id)
+        target_qty = scheme.total_qty
+
+        if filled_qty > target_qty:
+            if filled_qty > _ZERO:
+                cumulative_notional = cumulative_notional * target_qty / filled_qty
+            filled_qty = target_qty
+
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        changed = SchemeStateChanged(
+            account_id=runtime.account_id,
+            timestamp=ts,
+            command_id=command_id,
+            cursor=scheme.cursor,
+            filled_qty=filled_qty,
+            active_client_order_ids=(),
+            next_run_at=None,
+            state=SchemeState.CANCELED,
+        )
+        await self._event_spine.append(changed, self._epoch_id)
+        runtime.trading_state.apply(changed)
+
+        produced = TradeOutcomeProduced(
+            account_id=runtime.account_id,
+            timestamp=ts,
+            command_id=command_id,
+            trade_id=trade_id,
+            status=TradeStatus.CANCELED,
+            reason=_BOOT_INCOMPLETE_SCHEME_REASON,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+            target_qty=target_qty,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+        self._terminal_commands.add(command_id)
+
+        outcome = TradeOutcome(
+            command_id=command_id,
+            trade_id=trade_id,
+            account_id=runtime.account_id,
+            status=TradeStatus.CANCELED,
+            target_qty=target_qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=min(scheme.cursor, scheme.slices_total),
+            slices_total=scheme.slices_total,
+            reason=_BOOT_INCOMPLETE_SCHEME_REASON,
+            created_at=ts,
+            cumulative_notional=cumulative_notional,
+        )
+
+        _log.info(
+            'incomplete scheme terminalized at boot: command_id=%s trade_id=%s '
+            'filled=%s account=%s',
+            command_id,
+            trade_id,
+            filled_qty,
+            runtime.account_id,
+        )
+
+        await self._dispatch_outcome_with_retry(outcome, source='boot_scheme')
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''
@@ -929,7 +1789,7 @@ class ExecutionManager:
         qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
-        execution_params: SingleShotParams,
+        execution_params: ExecutionParams,
         timeout: int,
         reference_price: Decimal | None,
         maker_preference: MakerPreference,
@@ -954,7 +1814,7 @@ class ExecutionManager:
                 `qty`.
             order_type (OrderType): Order type.
             execution_mode (ExecutionMode): Execution strategy.
-            execution_params (SingleShotParams): Mode-specific parameters.
+            execution_params (ExecutionParams): Mode-specific parameters.
             timeout (int): Execution deadline in seconds.
             reference_price (Decimal | None): Optional reference price.
             maker_preference (MakerPreference): Maker/taker preference.
@@ -983,6 +1843,11 @@ class ExecutionManager:
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            CommandQueueFullError: If the account's command queue is at
+                capacity; the command is rejected fail-closed before any
+                durable state is written.
+            ExecutionModeNotEnabledError: If the command's execution mode is
+                not enabled by the per-mode capability gate.
             ValueError: If command fails inbound validation, including
                 an empty, too-short, or already-in-use caller-supplied
                 `command_id`.
@@ -1029,23 +1894,72 @@ class ExecutionManager:
 
         validate_trade_command(cmd)
 
-        event = CommandAccepted(
-            account_id=account_id,
-            timestamp=self._clock(),
-            command_id=command_id,
-            trade_id=trade_id,
-            strategy_id=strategy_id,
-        )
-        self._accepted_commands[command_id] = account_id
+        if (
+            self._enabled_modes is not None
+            and cmd.execution_mode not in self._enabled_modes
+        ):
+            _log.warning(
+                'execution mode not enabled; rejecting command: '
+                'account_id=%s mode=%s',
+                account_id,
+                cmd.execution_mode.value,
+            )
+            msg = (
+                f"execution mode {cmd.execution_mode.value} is not enabled "
+                'for this host'
+            )
+            raise ExecutionModeNotEnabledError(msg)
 
+        if (
+            runtime.command_queue.qsize() + runtime.queue_reservations
+            >= _COMMAND_QUEUE_MAXSIZE
+        ):
+            _log.warning(
+                'command queue full; rejecting command (fail-closed): '
+                'account_id=%s size=%d',
+                account_id,
+                _COMMAND_QUEUE_MAXSIZE,
+            )
+            msg = (
+                f"command queue for account '{account_id}' is at capacity "
+                f'({_COMMAND_QUEUE_MAXSIZE}); rejecting (fail-closed)'
+            )
+            raise CommandQueueFullError(msg)
+
+        runtime.queue_reservations += 1
         try:
-            await self._event_spine.append(event, self._epoch_id)
-        except BaseException:
-            self._accepted_commands.pop(command_id, None)
-            self._aborted_commands.pop(command_id, None)
-            raise
+            event = CommandAccepted(
+                account_id=account_id,
+                timestamp=self._clock(),
+                command_id=command_id,
+                trade_id=trade_id,
+                strategy_id=strategy_id,
+            )
+            self._accepted_commands[command_id] = account_id
 
-        runtime.command_queue.put_nowait(cmd)
+            try:
+                await self._event_spine.append(event, self._epoch_id)
+            except BaseException:
+                self._accepted_commands.pop(command_id, None)
+                self._aborted_commands.pop(command_id, None)
+                raise
+
+            try:
+                runtime.command_queue.put_nowait(cmd)
+            except asyncio.QueueFull:
+                # Defensive: the reservation guarantees a free slot, so this
+                # is unreachable. If a future reservation bug ever let it
+                # fire, roll back the durable accept rather than stranding it.
+                self._accepted_commands.pop(command_id, None)
+                self._aborted_commands.pop(command_id, None)
+                msg = (
+                    f"command queue for account '{account_id}' is at capacity "
+                    f'({_COMMAND_QUEUE_MAXSIZE}); rejecting (fail-closed)'
+                )
+                raise CommandQueueFullError(msg) from None
+        finally:
+            runtime.queue_reservations -= 1
+
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
 
@@ -1114,6 +2028,8 @@ class ExecutionManager:
                         continue
                     try:
                         await self._emit_ws_outcome(runtime, event)
+                        await self._on_scheme_child_event(runtime, event)
+                        await self._on_bracket_event(runtime, event)
                     except asyncio.CancelledError:
                         raise
                     except Exception:  # noqa: BLE001
@@ -1147,6 +2063,9 @@ class ExecutionManager:
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
 
+                await self._advance_due_schemes(runtime)
+                await self._place_pending_bracket_protection(runtime)
+
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
@@ -1161,7 +2080,22 @@ class ExecutionManager:
                 )
 
                 try:
-                    await self._process_command(runtime, cmd)
+                    if cmd.execution_mode in _SCHEME_MODES:
+                        if self._deadline_exceeded(self._clock(), cmd):
+                            await self._expire_stale_command(runtime, cmd)
+                        else:
+                            await self._start_scheme(runtime, cmd)
+                    elif cmd.execution_mode == ExecutionMode.BRACKET:
+                        await self._process_bracket(runtime, cmd)
+                    elif cmd.execution_mode == ExecutionMode.ICEBERG:
+                        await self._process_iceberg(runtime, cmd)
+                    elif cmd.execution_mode == ExecutionMode.LADDER_DCA:
+                        if self._deadline_exceeded(self._clock(), cmd):
+                            await self._expire_stale_command(runtime, cmd)
+                        else:
+                            await self._start_ladder(runtime, cmd)
+                    else:
+                        await self._process_command(runtime, cmd)
                 except asyncio.CancelledError:
                     raise
                 except Exception:  # noqa: BLE001
@@ -1216,6 +2150,38 @@ class ExecutionManager:
 
         return f'estimated slippage {adverse_bps} bps exceeds max {self._max_slippage_bps} bps'
 
+    async def _expire_stale_command(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Expire a scheme command whose deadline passed while it was queued.
+
+        Admission control: a scheme command dequeued after its
+        `created_at + timeout` deadline is expired before `_start_scheme`
+        runs, so a backlog that outlived its commands neither emits a
+        SchemeInitialized nor places any child order. It terminates EXPIRED
+        with no fills. (Single-shot commands retain their own post-submit
+        deadline handling in `_process_command`.)
+        '''
+
+        _log.warning(
+            'command expired at dispatch (deadline passed while queued): '
+            'command_id=%s trade_id=%s account_id=%s',
+            cmd.command_id,
+            cmd.trade_id,
+            runtime.account_id,
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.EXPIRED,
+            filled_qty=_ZERO,
+            avg_fill_price=None,
+            reason='command deadline exceeded before dispatch',
+        )
+
     async def _process_command(  # noqa: PLR0911 - one return per pre-submit rejection reason
         self,
         runtime: _AccountRuntime,
@@ -1256,10 +2222,12 @@ class ExecutionManager:
 
         if cmd.execution_mode != ExecutionMode.SINGLE_SHOT:
             reject_reason = (
-                f"execution mode {cmd.execution_mode.value} is not yet supported"
+                f"execution mode {cmd.execution_mode.value} was misrouted to the "
+                'single-shot path'
             )
-            _log.warning(
-                'unsupported execution mode: command_id=%s mode=%s',
+            _log.error(
+                'misrouted execution mode reached _process_command: '
+                'command_id=%s mode=%s',
                 cmd.command_id,
                 cmd.execution_mode.value,
             )
@@ -1271,6 +2239,8 @@ class ExecutionManager:
                 avg_fill_price=None,
                 reason=reject_reason,
             )
+
+        assert isinstance(cmd.execution_params, SingleShotParams)
 
         estimate = None
         try:
@@ -1386,6 +2356,7 @@ class ExecutionManager:
             timestamp=post_venue_ts,
             client_order_id=client_order_id,
             venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
         )
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
@@ -1546,6 +2517,809 @@ class ExecutionManager:
             cumulative_notional=total_notional,
         )
 
+    async def _process_bracket(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> TradeOutcome:
+        '''Execute a bracket: a MARKET entry, then a protective OCO on fill.
+
+        Submits the entry as a single MARKET order (reusing the persist-
+        before-send child protocol). On a filled entry, computes the take-
+        profit and stop-loss legs from BracketParams — absolute prices or
+        basis-point offsets from the entry average fill — and submits a
+        protective OCO on the opposite side for the filled quantity,
+        carrying the deterministic bracket exit command id so the leg that
+        later fills produces the position-closing EXIT outcome. The bracket
+        command's own outcome reports the entry.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            cmd (TradeCommand): Bracket command to execute.
+
+        Returns:
+            TradeOutcome: The entry outcome for this command.
+        '''
+
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        if abort_reason is not None:
+            _log.info(
+                'bracket pre-aborted: command_id=%s trade_id=%s',
+                cmd.command_id,
+                cmd.trade_id,
+            )
+
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                TradeStatus.CANCELED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason=abort_reason,
+            )
+
+        assert isinstance(cmd.execution_params, BracketParams)
+        assert cmd.qty is not None
+
+        params = cmd.execution_params
+        init = BracketInitialized(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            take_profit_price=params.take_profit_price,
+            take_profit_offset_bps=params.take_profit_offset_bps,
+            stop_loss_price=params.stop_loss_price,
+            stop_loss_offset_bps=params.stop_loss_offset_bps,
+            stop_loss_limit_price=params.stop_loss_limit_price,
+            timeout_seconds=cmd.timeout,
+        )
+        await self._event_spine.append(init, self._epoch_id)
+        runtime.trading_state.apply(init)
+
+        entry_client_order_id = await self._submit_market_slice(
+            runtime, cmd, _BRACKET_ENTRY_SEQUENCE, cmd.qty,
+        )
+
+        if entry_client_order_id is None:
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                TradeStatus.REJECTED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason='bracket entry submission failed',
+            )
+
+        runtime.command_to_order[cmd.command_id] = entry_client_order_id
+        bracket = _LiveBracket(command=cmd, entry_client_order_id=entry_client_order_id)
+        runtime.brackets[cmd.command_id] = bracket
+
+        entry_order = self._scheme_child_order(runtime, entry_client_order_id)
+
+        if entry_order is not None and entry_order.status in _TERMINAL_ORDER_STATUSES:
+            return await self._settle_bracket_entry(runtime, bracket, entry_order)
+
+        filled_qty = entry_order.filled_qty if entry_order is not None else _ZERO
+        cumulative_notional = (
+            entry_order.cumulative_notional if entry_order is not None else _ZERO
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.PENDING,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            reason='bracket entry pending',
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _settle_bracket_entry(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        entry_order: Order,
+    ) -> TradeOutcome:
+        '''Place protection for a settled bracket entry and report its outcome.
+
+        Runs on the command path when the entry filled immediately (no
+        WebSocket round trip): places the protective OCO for the filled
+        quantity and reports the entry outcome. A terminal entry with no
+        fill leaves nothing to protect and reports the venue's terminal
+        state.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The bracket being settled.
+            entry_order (Order): The terminal entry order projection.
+
+        Returns:
+            TradeOutcome: The entry outcome for the bracket command.
+        '''
+
+        cmd = bracket.command
+        assert cmd.qty is not None
+        runtime.brackets.pop(cmd.command_id, None)
+
+        filled_qty = entry_order.filled_qty
+        cumulative_notional = entry_order.cumulative_notional
+
+        if filled_qty <= _ZERO:
+            _log.warning(
+                'bracket entry settled without fill; no protection: '
+                'command_id=%s status=%s',
+                cmd.command_id,
+                entry_order.status.value,
+            )
+
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    entry_order.status, TradeStatus.REJECTED,
+                ),
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason='bracket entry unfilled',
+            )
+
+        avg_entry_price = cumulative_notional / filled_qty
+        await self._place_bracket_protection(
+            runtime, bracket, filled_qty, avg_entry_price,
+        )
+
+        status = (
+            TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
+        )
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_entry_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _on_bracket_event(self, runtime: _AccountRuntime, event: Event) -> None:
+        '''Place a bracket's protective OCO once its entry order settles.
+
+        The account coroutine calls this for every WebSocket-driven event.
+        When the event settles a tracked bracket's entry order, the
+        protective OCO is placed for the filled quantity; the entry outcome
+        itself is emitted by `_emit_ws_outcome` on the same event. A terminal
+        entry with no fill leaves nothing to protect.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            event (Event): The WebSocket-driven event to inspect.
+        '''
+
+        if not isinstance(
+            event, FillReceived | OrderCanceled | OrderExpired | OrderRejected,
+        ):
+            return
+
+        order = (
+            runtime.trading_state.orders.get(event.client_order_id)
+            or runtime.trading_state.closed_orders.get(event.client_order_id)
+        )
+        if order is None:
+            return
+
+        bracket = runtime.brackets.get(order.command_id)
+        if bracket is None or order.client_order_id != bracket.entry_client_order_id:
+            return
+
+        if order.status not in _TERMINAL_ORDER_STATUSES:
+            return
+
+        runtime.brackets.pop(order.command_id, None)
+
+        if order.filled_qty <= _ZERO:
+            _log.warning(
+                'bracket entry settled without fill; no protection: '
+                'command_id=%s status=%s',
+                order.command_id,
+                order.status.value,
+            )
+
+            return
+
+        avg_entry_price = order.cumulative_notional / order.filled_qty
+        await self._place_bracket_protection(
+            runtime, bracket, order.filled_qty, avg_entry_price,
+        )
+
+    async def _place_pending_bracket_protection(self, runtime: _AccountRuntime) -> None:
+        '''Place protection for a resumed bracket whose entry has settled.
+
+        A bracket rebuilt by `_resume_brackets` whose entry order is already
+        terminal — its fill arrived before the crash, so no live WebSocket
+        event will drive `_on_bracket_event` — has its protective OCO placed
+        here on the next account-loop pass. A resumed bracket whose entry is
+        still open is left for the fill event; a terminal entry with no fill
+        has nothing to protect.
+        '''
+
+        for command_id, bracket in list(runtime.brackets.items()):
+            if bracket.protection_placed:
+                continue
+
+            entry_order = self._scheme_child_order(runtime, bracket.entry_client_order_id)
+            if entry_order is None or entry_order.status not in _TERMINAL_ORDER_STATUSES:
+                continue
+
+            runtime.brackets.pop(command_id, None)
+
+            if entry_order.filled_qty <= _ZERO:
+                continue
+
+            avg_entry_price = entry_order.cumulative_notional / entry_order.filled_qty
+            await self._place_bracket_protection(
+                runtime, bracket, entry_order.filled_qty, avg_entry_price,
+            )
+            await self._recover_bracket_entry_outcome(runtime, bracket, entry_order)
+
+    async def _recover_bracket_entry_outcome(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        entry_order: Order,
+    ) -> None:
+        '''Emit the entry outcome for a resumed bracket whose fill preceded a crash.
+
+        Replay projects a durable entry `FillReceived` into the trading state
+        but does not re-emit its `TradeOutcome`. When boot recovery places
+        protection for an already-filled entry whose entry outcome was never
+        produced (no terminal `TradeOutcomeProduced` was replayed, so the
+        command is not in `_terminal_commands`), emit it now so Nexus receives
+        the entry fill it missed. A bracket whose entry outcome was produced
+        before the crash is already terminal and is skipped.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The resumed bracket.
+            entry_order (Order): The terminal, filled entry order projection.
+        '''
+
+        cmd = bracket.command
+        if cmd.command_id in self._terminal_commands:
+            return
+
+        assert cmd.qty is not None
+        filled_qty = entry_order.filled_qty
+        status = (
+            TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=filled_qty,
+            avg_fill_price=entry_order.cumulative_notional / filled_qty,
+            reason=None,
+            cumulative_notional=entry_order.cumulative_notional,
+        )
+
+    async def _place_bracket_protection(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        qty: Decimal,
+        avg_entry_price: Decimal,
+    ) -> None:
+        '''Submit the protective OCO for a filled bracket entry.
+
+        The OCO is placed on the side opposite the entry for the filled
+        quantity, with take-profit and stop-loss legs from BracketParams.
+        On success the deterministic exit command id is registered in
+        `_commands` and `_command_trade_ids`, so the leg that later fills is
+        mapped to a trade id (Trading's WebSocket conversion) and emits a
+        position-closing EXIT outcome (`_emit_ws_outcome`) — the identity the
+        Nexus exit registration shares. A timeout or duplicate reuses the
+        single-shot OCO rescue before failing closed; a definitive failure
+        leaves the entry position unprotected (TD-130), logged for repair
+        rather than unwinding the filled entry.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The bracket being protected.
+            qty (Decimal): Filled entry quantity to protect.
+            avg_entry_price (Decimal): Entry average fill price.
+        '''
+
+        if bracket.protection_placed:
+            return
+
+        bracket.protection_placed = True
+        cmd = bracket.command
+
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+        tp_price, sl_stop_price, sl_limit_price = self._bracket_protective_prices(
+            cmd, avg_entry_price,
+        )
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode,
+            cmd.command_id,
+            sequence=_BRACKET_PROTECTION_SEQUENCE,
+        )
+        exit_cmd = self._bracket_exit_command(
+            cmd, exit_command_id, protective_side, qty,
+            tp_price, sl_stop_price, sl_limit_price,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            order_type=OrderType.OCO,
+            qty=qty,
+            quote_qty=None,
+            price=tp_price,
+            stop_price=sl_stop_price,
+            stop_limit_price=sl_limit_price,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        if not self._bracket_legs_valid_for_entry(cmd, tp_price, sl_stop_price, avg_entry_price):
+            _log.error(
+                'bracket protective legs on the wrong side of the entry fill; '
+                'skipping protection (position unprotected): command_id=%s side=%s '
+                'avg_entry=%s tp=%s sl=%s',
+                cmd.command_id,
+                cmd.side.value,
+                avg_entry_price,
+                tp_price,
+                sl_stop_price,
+            )
+            await self._append_submit_failed(
+                runtime,
+                exit_cmd,
+                client_order_id,
+                'bracket protective legs on the wrong side of the entry fill',
+            )
+
+            return
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                protective_side,
+                OrderType.OCO,
+                qty,
+                price=tp_price,
+                stop_price=sl_stop_price,
+                stop_limit_price=sl_limit_price,
+                client_order_id=client_order_id,
+            )
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, exit_cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                _log.exception(
+                    'bracket protective OCO failed; entry position unprotected: '
+                    'command_id=%s exit_command_id=%s',
+                    cmd.command_id,
+                    exit_command_id,
+                )
+                await self._append_submit_failed(
+                    runtime, exit_cmd, client_order_id, str(exc.args[0]),
+                )
+
+                return
+
+            result = rescued
+        except VenueError as exc:
+            _log.exception(
+                'bracket protective OCO failed; entry position unprotected: '
+                'command_id=%s exit_command_id=%s reason=%s',
+                cmd.command_id,
+                exit_command_id,
+                str(exc.args[0]) if exc.args else str(exc),
+            )
+            await self._append_submit_failed(
+                runtime,
+                exit_cmd,
+                client_order_id,
+                f'bracket protective OCO failed: {exc}',
+            )
+
+            return
+
+        self._commands[exit_command_id] = exit_cmd
+        self._command_trade_ids[exit_command_id] = cmd.trade_id
+        runtime.command_to_order[exit_command_id] = client_order_id
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        _log.info(
+            'bracket protection placed: command_id=%s exit_command_id=%s '
+            'side=%s qty=%s tp=%s sl=%s venue_order_id=%s',
+            cmd.command_id,
+            exit_command_id,
+            protective_side.value,
+            qty,
+            tp_price,
+            sl_stop_price,
+            result.venue_order_id,
+        )
+
+        oco_order = self._scheme_child_order(runtime, client_order_id)
+        if (
+            oco_order is not None
+            and oco_order.status in _TERMINAL_ORDER_STATUSES
+            and oco_order.filled_qty > _ZERO
+        ):
+            await self._build_outcome(
+                runtime,
+                exit_cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    oco_order.status, TradeStatus.FILLED,
+                ),
+                filled_qty=oco_order.filled_qty,
+                avg_fill_price=oco_order.cumulative_notional / oco_order.filled_qty,
+                reason=None,
+                cumulative_notional=oco_order.cumulative_notional,
+            )
+
+    def _bracket_legs_valid_for_entry(
+        self,
+        cmd: TradeCommand,
+        tp_price: Decimal,
+        sl_stop_price: Decimal,
+        avg_entry_price: Decimal,
+    ) -> bool:
+        '''Whether the protective legs sit on the correct side of the entry.
+
+        A long's take-profit must sit above and its stop-loss below the
+        entry average fill; a short inverts. This re-checks at placement
+        time what intake validation cannot: absolute legs valid at submit
+        (take-profit above stop-loss) can still land on the wrong side of an
+        entry that filled far from the reference — a long take-profit below
+        the fill would be an immediately-marketable, nonsensical OCO.
+
+        Args:
+            cmd (TradeCommand): The bracket command carrying the side.
+            tp_price (Decimal): Resolved take-profit price.
+            sl_stop_price (Decimal): Resolved stop-loss trigger price.
+            avg_entry_price (Decimal): Entry average fill price.
+
+        Returns:
+            bool: True when both legs are on the correct side of the entry.
+        '''
+
+        if cmd.side is OrderSide.BUY:
+            return tp_price > avg_entry_price and sl_stop_price < avg_entry_price
+
+        return tp_price < avg_entry_price and sl_stop_price > avg_entry_price
+
+    def _bracket_exit_command(
+        self,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        qty: Decimal,
+        tp_price: Decimal,
+        sl_stop_price: Decimal,
+        sl_limit_price: Decimal | None,
+    ) -> TradeCommand:
+        '''Build the synthetic command registered for a bracket's protective OCO.
+
+        The protective OCO carries this command's id (`exit_command_id`) so
+        its position-closing fill produces an EXIT outcome via the shared
+        WebSocket-outcome path. It is a lookup-only registration — never
+        enqueued for execution.
+
+        Args:
+            cmd (TradeCommand): The originating bracket command.
+            exit_command_id (str): Deterministic protective-exit command id.
+            protective_side (OrderSide): Side opposite the entry.
+            qty (Decimal): Filled entry quantity being protected.
+            tp_price (Decimal): Take-profit limit price.
+            sl_stop_price (Decimal): Stop-loss trigger price.
+            sl_limit_price (Decimal | None): Stop-loss limit price, if any.
+
+        Returns:
+            TradeCommand: The synthetic protective-exit command.
+        '''
+
+        return TradeCommand(
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            qty=qty,
+            order_type=OrderType.OCO,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(
+                price=tp_price,
+                stop_price=sl_stop_price,
+                stop_limit_price=sl_limit_price,
+            ),
+            timeout=cmd.timeout,
+            reference_price=None,
+            maker_preference=cmd.maker_preference,
+            stp_mode=cmd.stp_mode,
+            created_at=cmd.created_at,
+        )
+
+    def _bracket_protective_prices(
+        self,
+        cmd: TradeCommand,
+        avg_entry_price: Decimal,
+    ) -> tuple[Decimal, Decimal, Decimal | None]:
+        '''Compute the take-profit, stop-loss trigger, and stop-limit prices.
+
+        Take-profit and stop-loss are given as absolute prices or as basis-
+        point offsets from the entry average fill. For a long entry the
+        take-profit sits above and the stop-loss below the entry; the
+        offsets invert for a short. Offset-derived prices are snapped to the
+        venue tick so the OCO legs satisfy the PRICE_FILTER; absolute prices
+        are assumed already on the tick grid.
+
+        Args:
+            cmd (TradeCommand): The bracket command carrying BracketParams.
+            avg_entry_price (Decimal): Entry average fill price.
+
+        Returns:
+            tuple[Decimal, Decimal, Decimal | None]: Take-profit price,
+                stop-loss trigger price, and optional stop-limit price.
+        '''
+
+        params = cmd.execution_params
+        assert isinstance(params, BracketParams)
+
+        profit_direction = _ONE if cmd.side is OrderSide.BUY else -_ONE
+
+        if params.take_profit_price is not None:
+            tp_price = params.take_profit_price
+        else:
+            assert params.take_profit_offset_bps is not None
+            tp_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE + profit_direction * params.take_profit_offset_bps / _BPS_MULTIPLIER),
+            )
+
+        if params.stop_loss_price is not None:
+            sl_stop_price = params.stop_loss_price
+        else:
+            assert params.stop_loss_offset_bps is not None
+            sl_stop_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE - profit_direction * params.stop_loss_offset_bps / _BPS_MULTIPLIER),
+            )
+
+        return tp_price, sl_stop_price, params.stop_loss_limit_price
+
+    def _snap_price(self, symbol: str, price: Decimal) -> Decimal:
+        '''Snap a price down to the symbol's tick grid when filters are cached.
+
+        Args:
+            symbol (str): Trading pair whose PRICE_FILTER tick applies.
+            price (Decimal): Raw price to snap.
+
+        Returns:
+            Decimal: The price floored to a tick multiple, or the raw price
+                when the symbol's filters are not cached.
+        '''
+
+        filters = self._venue_adapter.cached_filters(symbol)
+        if filters is None:
+            return price
+
+        return (price // filters.tick_size) * filters.tick_size
+
+    async def _process_iceberg(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> TradeOutcome:
+        '''Submit a native iceberg LIMIT order and report its outcome.
+
+        Iceberg works the command quantity as a single resting LIMIT order
+        carrying Binance's `icebergQty`: the venue shows only `display_qty`
+        at a time and refills it from the hidden reserve, preserving queue
+        priority. Praxis submits one order for the full quantity at
+        `limit_price`; the venue's incremental fills arrive as WebSocket
+        `executionReport`s and drive PARTIAL then FILLED outcomes through the
+        shared WS-outcome path (the command is registered in `_commands` at
+        intake), and a `TradeAbort` cancels the resting order. When
+        `display_qty` equals the total there is no hidden reserve, so a plain
+        LIMIT order is submitted.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            cmd (TradeCommand): Iceberg command to execute.
+
+        Returns:
+            TradeOutcome: The initial outcome (typically PENDING for a
+                resting order; FILLED / PARTIAL if it crosses on entry).
+        '''
+
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        if abort_reason is not None:
+            _log.info(
+                'iceberg pre-aborted: command_id=%s trade_id=%s',
+                cmd.command_id,
+                cmd.trade_id,
+            )
+
+            return await self._build_outcome(
+                runtime,
+                cmd,
+                TradeStatus.CANCELED,
+                filled_qty=_ZERO,
+                avg_fill_price=None,
+                reason=abort_reason,
+            )
+
+        assert isinstance(cmd.execution_params, IcebergParams)
+        assert cmd.qty is not None
+
+        params = cmd.execution_params
+        iceberg_qty = params.display_qty if params.display_qty < cmd.qty else None
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode, cmd.command_id, sequence=0,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.LIMIT,
+            qty=cmd.qty,
+            quote_qty=None,
+            price=params.limit_price,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+        runtime.command_to_order[cmd.command_id] = client_order_id
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.LIMIT,
+                cmd.qty,
+                price=params.limit_price,
+                client_order_id=client_order_id,
+                iceberg_qty=iceberg_qty,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                return await self._record_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+            result = rescued
+            post_venue_ts = self._clock()
+        except VenueError as exc:
+            return await self._record_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
+            )
+        except ValueError as exc:
+            return await self._record_submit_failed(
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+            )
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        order = runtime.trading_state.orders.get(client_order_id)
+        filled_qty = order.filled_qty if order is not None else _ZERO
+        cumulative_notional = order.cumulative_notional if order is not None else _ZERO
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        if filled_qty >= cmd.qty:
+            status = TradeStatus.FILLED
+        elif filled_qty > _ZERO:
+            status = TradeStatus.PARTIAL
+        else:
+            status = TradeStatus.PENDING
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
     async def _record_submit_failed(
         self,
         runtime: _AccountRuntime,
@@ -1557,6 +3331,31 @@ class ExecutionManager:
 
         Shared sink for submit failures that the rescue path could not
         salvage and for direct venue rejections (round-18 MAJOR-002).
+        '''
+
+        await self._append_submit_failed(runtime, cmd, client_order_id, reason)
+
+        return await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.REJECTED,
+            filled_qty=_ZERO,
+            avg_fill_price=None,
+            reason=reason,
+        )
+
+    async def _append_submit_failed(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        reason: str,
+    ) -> None:
+        '''Persist an `OrderSubmitFailed` event and apply it, no outcome.
+
+        The event-only half of a submit failure. Single-shot follows it
+        with a REJECTED `TradeOutcome`; a scheme slice defers the outcome
+        to the scheme's single terminal emission, so it stops here.
         '''
 
         failed = OrderSubmitFailed(
@@ -1571,14 +3370,6 @@ class ExecutionManager:
             'order submit failed: client_order_id=%s reason=%s',
             client_order_id,
             reason,
-        )
-        return await self._build_outcome(
-            runtime,
-            cmd,
-            TradeStatus.REJECTED,
-            filled_qty=_ZERO,
-            avg_fill_price=None,
-            reason=reason,
         )
 
     async def _rescue_by_client_order_id(
@@ -1621,6 +3412,11 @@ class ExecutionManager:
             actually held the order).
         '''
 
+        if cmd.order_type is OrderType.OCO:
+            return await self._rescue_oco_by_list_id(
+                runtime, cmd, client_order_id, trigger,
+            )
+
         try:
             venue_order = await self._venue_adapter.query_order(
                 cmd.account_id,
@@ -1662,6 +3458,1192 @@ class ExecutionManager:
             immediate_fills=(),
         )
 
+    async def _rescue_oco_by_list_id(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        client_order_id: str,
+        trigger: VenueError,
+    ) -> SubmitResult | None:
+        '''Query an OCO list after a non-idempotent OCO POST failure.
+
+        The OCO analogue of `_rescue_by_client_order_id`: a single-order
+        query cannot confirm an OCO, whose durable identity is its
+        `listClientOrderId` (the deterministic command id). Queries the
+        order list; a REJECT list status or a not-found list means the OCO
+        was not accepted (caller classifies REJECTED). An ALL_DONE list is
+        terminal — its legs are queried to resolve the true terminal status
+        (mirroring the single-order rescue, which passes the venue status
+        through rather than forcing OPEN); an EXECUTING list is still live,
+        so the status is OPEN. In every confirmed case `immediate_fills` is
+        empty because trade-level fills arrive separately via the reconcile
+        path, keyed by the leg client order ids.
+        '''
+
+        try:
+            order_list = await self._venue_adapter.query_order_list(
+                cmd.account_id,
+                list_client_order_id=client_order_id,
+            )
+        except NotFoundError:
+            _log.warning(
+                'oco rescue confirmed no venue list: account_id=%s '
+                'list_client_order_id=%s trigger=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+            )
+            return None
+        except VenueError as query_exc:
+            _log.exception(
+                'oco rescue query failed: account_id=%s list_client_order_id=%s '
+                'trigger=%s query_error=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                type(trigger).__name__,
+                str(query_exc.args[0]) if query_exc.args else str(query_exc),
+            )
+            return None
+
+        if order_list.list_order_status == _OCO_LIST_STATUS_REJECT:
+            _log.warning(
+                'oco rescue found rejected list: account_id=%s '
+                'list_client_order_id=%s order_list_id=%s — classifying REJECTED',
+                runtime.account_id,
+                client_order_id,
+                order_list.order_list_id,
+            )
+            return None
+
+        if order_list.list_order_status == _OCO_LIST_STATUS_ALL_DONE:
+            status = await self._resolve_terminal_oco_status(
+                cmd, client_order_id, order_list,
+            )
+        else:
+            status = OrderStatus.OPEN
+
+        _log.warning(
+            'oco rescue confirmed venue list: account_id=%s '
+            'list_client_order_id=%s order_list_id=%s list_status=%s '
+            'resolved_status=%s trigger=%s',
+            runtime.account_id,
+            client_order_id,
+            order_list.order_list_id,
+            order_list.list_order_status,
+            status.value,
+            type(trigger).__name__,
+        )
+        return SubmitResult(
+            venue_order_id=order_list.order_list_id,
+            status=status,
+            immediate_fills=(),
+            leg_client_order_ids=tuple(
+                leg.client_order_id for leg in order_list.legs
+            ),
+        )
+
+    async def _resolve_terminal_oco_status(
+        self,
+        cmd: TradeCommand,
+        client_order_id: str,
+        order_list: VenueOrderList,
+    ) -> OrderStatus:
+        '''Resolve an ALL_DONE OCO list's terminal status from its legs.
+
+        The order-list query carries no per-leg status, so each leg is
+        queried and the results are reduced by
+        `_aggregate_oco_terminal_status`. Trade-level fills are not
+        reconstructed here — they arrive via the reconcile path keyed by
+        the leg client order ids. If any leg query fails the list is
+        treated as live (OPEN) so the reconcile path heals it, rather than
+        risk mis-terminalizing a leg that may have filled.
+
+        Args:
+            cmd (TradeCommand): Original command (carries the account id).
+            client_order_id (str): List client order id (logging context).
+            order_list (VenueOrderList): The confirmed ALL_DONE list.
+
+        Returns:
+            OrderStatus: The resolved terminal status, or OPEN when a leg
+                query fails.
+        '''
+
+        leg_statuses: list[OrderStatus] = []
+        for leg in order_list.legs:
+            try:
+                venue_order = await self._venue_adapter.query_order(
+                    cmd.account_id,
+                    leg.symbol,
+                    client_order_id=leg.client_order_id,
+                )
+            except VenueError as query_exc:
+                _log.exception(
+                    'oco rescue leg query failed: account_id=%s '
+                    'list_client_order_id=%s leg_client_order_id=%s '
+                    'query_error=%s — treating list live',
+                    cmd.account_id,
+                    client_order_id,
+                    leg.client_order_id,
+                    str(query_exc.args[0]) if query_exc.args else str(query_exc),
+                )
+
+                return OrderStatus.OPEN
+
+            leg_statuses.append(venue_order.status)
+
+        return _aggregate_oco_terminal_status(tuple(leg_statuses))
+
+    async def _start_scheme(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Begin a scheme (TWAP, Time DCA, or Scheduled VWAP).
+
+        TWAP and Time DCA submit equal MARKET children at a fixed interval;
+        Scheduled VWAP submits one child per volume weight at a fixed
+        interval. All share one producer, differing only in slice sizing. A
+        pre-submission abort short-circuits to a CANCELED terminal outcome
+        before any child is placed. A planning failure (lot grid too coarse
+        for the requested split) rejects the command. On success
+        `SchemeInitialized` is appended, the live scheduler state is
+        registered, and the first slice is submitted synchronously; the
+        remaining slices fire from `_advance_due_schemes` at their interval.
+        '''
+
+        slices_total, interval_seconds = _scheme_schedule(cmd.execution_params)
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+
+        if abort_reason is not None:
+            _log.info(
+                'scheme pre-aborted before first slice: command_id=%s',
+                cmd.command_id,
+            )
+            await self._emit_scheme_terminal(
+                runtime,
+                cmd,
+                status=TradeStatus.CANCELED,
+                filled_qty=_ZERO,
+                cumulative_notional=_ZERO,
+                slices_completed=0,
+                slices_total=slices_total,
+                reason=abort_reason,
+            )
+            return
+
+        assert cmd.qty is not None
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_step = filters.lot_step if filters is not None else None
+
+        try:
+            slice_qtys = _plan_scheme_slices(
+                cmd.execution_params, cmd.qty, slices_total, lot_step,
+            )
+        except ValueError as exc:
+            _log.warning(
+                'scheme slice planning failed: command_id=%s reason=%s',
+                cmd.command_id,
+                exc,
+            )
+            await self._emit_scheme_terminal(
+                runtime,
+                cmd,
+                status=TradeStatus.REJECTED,
+                filled_qty=_ZERO,
+                cumulative_notional=_ZERO,
+                slices_completed=0,
+                slices_total=slices_total,
+                reason=f'scheme slice planning failed: {exc}',
+            )
+            return
+
+        init = SchemeInitialized(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            execution_mode=cmd.execution_mode,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            slices_total=len(slice_qtys),
+            interval_seconds=interval_seconds,
+            timeout_seconds=cmd.timeout,
+            volume_weights=(
+                cmd.execution_params.volume_weights
+                if isinstance(cmd.execution_params, ScheduledVwapParams)
+                else ()
+            ),
+        )
+        await self._event_spine.append(init, self._epoch_id)
+        runtime.trading_state.apply(init)
+
+        scheme = _LiveScheme(
+            command=cmd,
+            slice_qtys=slice_qtys,
+            slices_total=len(slice_qtys),
+            interval_seconds=interval_seconds,
+            deadline=(
+                init.timestamp + timedelta(seconds=cmd.timeout)
+                if cmd.timeout > 0
+                else None
+            ),
+        )
+        runtime.schemes[cmd.command_id] = scheme
+
+        _log.info(
+            'scheme started: command_id=%s mode=%s slices=%d interval=%ds',
+            cmd.command_id,
+            cmd.execution_mode.value,
+            scheme.slices_total,
+            interval_seconds,
+        )
+
+        await self._advance_scheme_guarded(runtime, scheme, self._clock())
+
+    async def _advance_due_schemes(self, runtime: _AccountRuntime) -> None:
+        '''Submit the next slice of every scheme whose interval has elapsed.
+
+        Called each account-loop iteration while the account is
+        order-capable. Follow-up slices are timer-driven within the
+        account coroutine (never re-queued as commands), so this is the
+        only path that advances a running scheme after its first slice. A
+        scheme that is not due for advancement is checked for finalization
+        instead — the backstop that completes a resumed scheme whose
+        children all settled during downtime.
+        '''
+
+        now = self._clock()
+
+        for scheme in list(runtime.schemes.values()):
+            if (
+                scheme.pending_terminal is None
+                and scheme.deadline is not None
+                and now >= scheme.deadline
+            ):
+                await self._expire_scheme(runtime, scheme)
+                continue
+
+            due = (
+                scheme.state is SchemeState.RUNNING
+                and not scheme.frozen
+                and scheme.pending_terminal is None
+                and scheme.next_run_at is not None
+                and now >= scheme.next_run_at
+            )
+
+            if due:
+                await self._advance_scheme_guarded(runtime, scheme, now)
+            else:
+                await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _advance_scheme_guarded(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        now: datetime,
+    ) -> None:
+        '''Advance one scheme, converting any error into a terminal outcome.
+
+        A raw exception from `_advance_scheme` must never leave the scheme
+        RUNNING in `runtime.schemes`: the scheduler would retry the same
+        cursor every poll, and a failure between the venue submit and the
+        durable `SchemeStateChanged` would re-submit the slice (the
+        deterministic client order id makes the venue reject the duplicate,
+        but the spin is still wrong). On error the scheme is finalized
+        FAILED best-effort and removed from the scheduler so it cannot be
+        retried; a boot-time terminalization backstops any append that
+        could not complete here.
+        '''
+
+        try:
+            await self._advance_scheme(runtime, scheme, now)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            command_id = scheme.command.command_id
+            _log.exception(
+                'scheme advance failed; finalizing FAILED: '
+                'command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+            if command_id in runtime.schemes:
+                with contextlib.suppress(Exception):
+                    await self._finalize_scheme(
+                        runtime,
+                        scheme,
+                        status=TradeStatus.REJECTED,
+                        scheme_state=SchemeState.FAILED,
+                        reason='scheme advance error',
+                    )
+                runtime.schemes.pop(command_id, None)
+
+    async def _advance_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        now: datetime,
+    ) -> None:
+        '''Submit the slice at the current cursor and advance the schedule.
+
+        The child is submitted, then tracked as active until its order
+        reaches a terminal status; its fills — immediate and later
+        WebSocket — aggregate into the parent through the child order
+        projections. The cursor advances on the interval, independent of
+        fills; the scheme finalizes FILLED only once every slice is
+        submitted and every child has settled (see
+        `_maybe_finalize_scheme`). A slice that cannot be placed freezes the
+        scheme (see `_on_slice_failure`): a PARTIAL outcome is reported and
+        it waits for the Manager or its deadline.
+        '''
+
+        index = scheme.cursor
+        slice_qty = scheme.slice_qtys[index]
+        cmd = scheme.command
+
+        client_order_id = await self._submit_market_slice(runtime, cmd, index, slice_qty)
+
+        if client_order_id is None:
+            await self._on_slice_failure(
+                runtime,
+                scheme,
+                generate_client_order_id(cmd.execution_mode, cmd.command_id, sequence=index),
+                f'scheme slice {index} submission failed',
+            )
+            return
+
+        order = self._scheme_child_order(runtime, client_order_id)
+        if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+            scheme.active_children.add(client_order_id)
+
+        scheme.cursor = index + 1
+
+        if scheme.cursor < scheme.slices_total:
+            scheme.next_run_at = now + timedelta(seconds=scheme.interval_seconds)
+            await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
+        else:
+            scheme.next_run_at = None
+            if scheme.active_children:
+                await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
+
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _submit_market_slice(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        index: int,
+        slice_qty: Decimal,
+    ) -> str | None:
+        '''Persist-before-send one MARKET child order for a scheme slice.
+
+        Mirrors the single-shot submit protocol for a single child:
+        `OrderSubmitIntent` before the venue call, `OrderSubmitted` plus
+        one `FillReceived` per immediate fill on success,
+        `OrderSubmitFailed` on a definitive failure. Returns the child
+        `client_order_id` on success (its fills are applied to the order
+        projection, from which the scheme aggregates), or None when the
+        slice could not be placed.
+        '''
+
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode,
+            cmd.command_id,
+            sequence=index,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.MARKET,
+            qty=slice_qty,
+            quote_qty=None,
+            price=None,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.MARKET,
+                slice_qty,
+                price=None,
+                stop_price=None,
+                stop_limit_price=None,
+                client_order_id=client_order_id,
+                quote_qty=None,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                await self._append_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+                return None
+            result = rescued
+            post_venue_ts = self._clock()
+        except VenueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
+            )
+            return None
+        except ValueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+            )
+            return None
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        _log.info(
+            'scheme slice submitted: command_id=%s slice=%d client_order_id=%s fills=%d',
+            cmd.command_id,
+            index,
+            client_order_id,
+            len(result.immediate_fills),
+        )
+
+        return client_order_id
+
+    async def _start_ladder(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Begin a Ladder DCA: rest one LIMIT order at every price level.
+
+        Unlike the interval schemes, a ladder posts all of its children at
+        once — a static grid of resting LIMIT orders at explicit prices,
+        each sized from the level allocation. There is no interval schedule
+        (`next_run_at` stays None); the ladder aggregates fills as rungs fill
+        and completes once every rung has settled, reusing the shared scheme
+        child-settle, finalize, abort, and deadline machinery. A pre-abort
+        short-circuits to CANCELED; a planning failure rejects; a rung that
+        cannot be placed freezes the ladder (the placed rungs keep resting)
+        to await the Manager or the deadline.
+        '''
+
+        abort_reason = self._aborted_commands.pop(cmd.command_id, None)
+        if abort_reason is not None:
+            _log.info('ladder pre-aborted before first rung: command_id=%s', cmd.command_id)
+            await self._emit_scheme_terminal(
+                runtime, cmd,
+                status=TradeStatus.CANCELED,
+                filled_qty=_ZERO, cumulative_notional=_ZERO,
+                slices_completed=0, slices_total=0, reason=abort_reason,
+            )
+            return
+
+        assert isinstance(cmd.execution_params, LadderDcaParams)
+        assert cmd.qty is not None
+
+        params = cmd.execution_params
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_step = filters.lot_step if filters is not None else None
+
+        try:
+            levels = _ladder_levels(params, cmd.qty, lot_step)
+        except ValueError as exc:
+            _log.warning('ladder planning failed: command_id=%s reason=%s', cmd.command_id, exc)
+            await self._emit_scheme_terminal(
+                runtime, cmd,
+                status=TradeStatus.REJECTED,
+                filled_qty=_ZERO, cumulative_notional=_ZERO,
+                slices_completed=0, slices_total=len(params.price_levels),
+                reason=f'ladder planning failed: {exc}',
+            )
+            return
+
+        init = SchemeInitialized(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            execution_mode=cmd.execution_mode,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            slices_total=len(levels),
+            interval_seconds=0,
+            timeout_seconds=cmd.timeout,
+            volume_weights=params.level_weights or (),
+            price_levels=params.price_levels,
+        )
+        await self._event_spine.append(init, self._epoch_id)
+        runtime.trading_state.apply(init)
+
+        scheme = _LiveScheme(
+            command=cmd,
+            slice_qtys=[qty for qty, _price in levels],
+            slices_total=len(levels),
+            interval_seconds=0,
+            deadline=(
+                init.timestamp + timedelta(seconds=cmd.timeout)
+                if cmd.timeout > 0
+                else None
+            ),
+        )
+        runtime.schemes[cmd.command_id] = scheme
+
+        for index, (qty, price) in enumerate(levels):
+            client_order_id = await self._submit_limit_level(runtime, cmd, index, qty, price)
+
+            if client_order_id is None:
+                await self._on_slice_failure(
+                    runtime,
+                    scheme,
+                    generate_client_order_id(cmd.execution_mode, cmd.command_id, sequence=index),
+                    f'ladder rung {index} submission failed',
+                )
+                return
+
+            order = self._scheme_child_order(runtime, client_order_id)
+            if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+                scheme.active_children.add(client_order_id)
+
+            scheme.cursor = index + 1
+            await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
+
+        _log.info(
+            'ladder started: command_id=%s rungs=%d active=%d',
+            cmd.command_id,
+            scheme.slices_total,
+            len(scheme.active_children),
+        )
+
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _submit_limit_level(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        index: int,
+        level_qty: Decimal,
+        level_price: Decimal,
+    ) -> str | None:
+        '''Persist-before-send one resting LIMIT child for a ladder rung.
+
+        The LIMIT sibling of `_submit_market_slice`: `OrderSubmitIntent`
+        before the venue call, `OrderSubmitted` plus one `FillReceived` per
+        immediate fill on success, `OrderSubmitFailed` on a definitive
+        failure. Returns the rung `client_order_id` on success (usually
+        resting OPEN; its later fills aggregate through the order
+        projection), or None when the rung could not be placed.
+        '''
+
+        client_order_id = generate_client_order_id(
+            cmd.execution_mode, cmd.command_id, sequence=index,
+        )
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.LIMIT,
+            qty=level_qty,
+            quote_qty=None,
+            price=level_price,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.LIMIT,
+                level_qty,
+                price=level_price,
+                client_order_id=client_order_id,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                await self._append_submit_failed(
+                    runtime, cmd, client_order_id, str(exc.args[0]),
+                )
+                return None
+            result = rescued
+            post_venue_ts = self._clock()
+        except VenueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, str(exc.args[0]),
+            )
+            return None
+        except ValueError as exc:
+            await self._append_submit_failed(
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+            )
+            return None
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        _log.info(
+            'ladder rung submitted: command_id=%s rung=%d client_order_id=%s price=%s fills=%d',
+            cmd.command_id,
+            index,
+            client_order_id,
+            level_price,
+            len(result.immediate_fills),
+        )
+
+        return client_order_id
+
+    def _scheme_child_order(
+        self,
+        runtime: _AccountRuntime,
+        client_order_id: str,
+    ) -> Order | None:
+        '''Return a scheme child's order projection, active or closed.'''
+
+        return (
+            runtime.trading_state.orders.get(client_order_id)
+            or runtime.trading_state.closed_orders.get(client_order_id)
+        )
+
+    async def _append_scheme_progress(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        state: SchemeState,
+    ) -> None:
+        '''Append a `SchemeStateChanged` from the current live scheme state.
+
+        Cumulative fill is derived from the child order projections so the
+        durable transition reflects every settled child, immediate or
+        WebSocket, without an in-memory running total a crash could lose.
+        '''
+
+        cmd = scheme.command
+        filled_qty, _ = self._scheme_fill_totals(runtime, cmd.command_id)
+
+        changed = SchemeStateChanged(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            cursor=scheme.cursor,
+            filled_qty=filled_qty,
+            active_client_order_ids=tuple(sorted(scheme.active_children)),
+            next_run_at=scheme.next_run_at,
+            state=state,
+        )
+        await self._event_spine.append(changed, self._epoch_id)
+        runtime.trading_state.apply(changed)
+
+    async def _maybe_finalize_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+    ) -> None:
+        '''Finalize the scheme once no child is still working.
+
+        Called after every slice advance and every child-settle event. A
+        pending terminal (abort or deadline) resolves first; a frozen scheme
+        (a slice failed, awaiting the Manager) holds without completing;
+        otherwise the scheme completes FILLED once every slice has been
+        submitted and every child has fully filled. Does nothing while any
+        child remains active.
+
+        Completion status is FILLED, not PARTIAL: reaching this branch means
+        every child settled FILLED (a non-fill terminal child routes to a
+        pending FAILED via `_on_scheme_child_event`), so the only shortfall
+        possible is sub-lot dust from `plan_even_slices` flooring each slice
+        to the lot step — economically negligible and un-tradeable, the same
+        dust a single-shot MARKET order leaves. PARTIAL is not a terminal
+        `TradeStatus`, so it cannot be the outcome of a completed command.
+        '''
+
+        if scheme.active_children:
+            return
+
+        if scheme.pending_terminal is not None:
+            status, scheme_state, reason = scheme.pending_terminal
+            await self._finalize_scheme(
+                runtime,
+                scheme,
+                status=status,
+                scheme_state=scheme_state,
+                reason=reason,
+            )
+            return
+
+        if scheme.frozen:
+            return
+
+        if scheme.cursor >= scheme.slices_total:
+            await self._finalize_scheme(
+                runtime,
+                scheme,
+                status=TradeStatus.FILLED,
+                scheme_state=SchemeState.COMPLETED,
+                reason=None,
+            )
+
+    async def _on_scheme_child_event(
+        self,
+        runtime: _AccountRuntime,
+        event: Event,
+    ) -> None:
+        '''Fold a scheme child's WebSocket fill/terminal event into its parent.
+
+        Fills already updated the child order projection via `_project`;
+        this settles the child (drops it from the scheme's active set once
+        its order is terminal) and finalizes the scheme when the last child
+        settles. A child that reaches a terminal status without fully
+        filling — rejected, expired, or cancelled outside the parent abort
+        flow — is a slice failure: the scheme freezes (see
+        `_on_slice_failure`), reports a PARTIAL outcome, and waits for the
+        Manager or its deadline (never a FILLED short of target). Events for
+        non-scheme commands or already-finalized schemes are ignored.
+        '''
+
+        if not isinstance(event, (FillReceived, OrderCanceled, OrderExpired, OrderRejected)):
+            return
+
+        order = self._scheme_child_order(runtime, event.client_order_id)
+        if order is None:
+            return
+
+        scheme = runtime.schemes.get(order.command_id)
+        if scheme is None:
+            return
+
+        if order.status in _TERMINAL_ORDER_STATUSES:
+            scheme.active_children.discard(event.client_order_id)
+
+            if (
+                order.status is not OrderStatus.FILLED
+                and scheme.pending_terminal is None
+                and not scheme.frozen
+            ):
+                await self._on_slice_failure(
+                    runtime,
+                    scheme,
+                    event.client_order_id,
+                    f'child {event.client_order_id} terminated '
+                    f'{order.status.value} without full fill',
+                )
+                return
+
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _cancel_active_children(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+    ) -> None:
+        '''Best-effort cancel every still-working child of a scheme.
+
+        A confirmed cancel appends `OrderCanceled` so the child projection
+        reaches a terminal status and drains from the active set. A market
+        child already filling cannot be cancelled: `NotFoundError` and other
+        venue errors are swallowed, and the child settles through its own
+        fill or expiry event instead.
+        '''
+
+        cmd = scheme.command
+
+        for client_order_id in tuple(scheme.active_children):
+            order = self._scheme_child_order(runtime, client_order_id)
+            if order is None:
+                scheme.active_children.discard(client_order_id)
+                continue
+
+            try:
+                await self._venue_adapter.cancel_order(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=client_order_id,
+                )
+            except NotFoundError:
+                continue
+            except VenueError as exc:
+                _log.warning(
+                    'scheme child cancel failed: command_id=%s child=%s reason=%s',
+                    cmd.command_id,
+                    client_order_id,
+                    exc.args[0] if exc.args else str(exc),
+                )
+                continue
+
+            canceled = OrderCanceled(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=order.venue_order_id,
+                reason='scheme aborted',
+            )
+            await self._event_spine.append(canceled, self._epoch_id)
+            runtime.trading_state.apply(canceled)
+            scheme.active_children.discard(client_order_id)
+
+    async def _finalize_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        *,
+        status: TradeStatus,
+        scheme_state: SchemeState,
+        reason: str | None,
+    ) -> None:
+        '''Emit the terminal scheme transition and the single trade outcome.
+
+        Appends a terminal `SchemeStateChanged`, then the aggregated
+        terminal `TradeOutcome` (fills derived from the child order
+        projections). Removes the scheme from the live scheduler set so no
+        further slices fire.
+        '''
+
+        cmd = scheme.command
+        scheme.state = scheme_state
+        scheme.next_run_at = None
+        scheme.active_children.clear()
+        runtime.schemes.pop(cmd.command_id, None)
+
+        await self._append_scheme_progress(runtime, scheme, scheme_state)
+
+        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
+
+        await self._emit_scheme_terminal(
+            runtime,
+            cmd,
+            status=status,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+            slices_completed=scheme.cursor,
+            slices_total=scheme.slices_total,
+            reason=reason,
+        )
+
+    async def _abort_scheme(
+        self,
+        runtime: _AccountRuntime,
+        abort: TradeAbort,
+    ) -> None:
+        '''Abort a running scheme: stop scheduling, cancel children, finalize.
+
+        Marks the scheme for a terminal CANCELED outcome and cancels any
+        still-working child at the venue. The single aggregated CANCELED
+        outcome fires once every child has settled — immediately when none
+        are working, otherwise as the cancels confirm.
+        '''
+
+        scheme = runtime.schemes.get(abort.command_id)
+        if scheme is None:
+            return
+
+        _log.info(
+            'aborting running scheme: command_id=%s account_id=%s reason=%s',
+            abort.command_id,
+            runtime.account_id,
+            abort.reason,
+        )
+
+        scheme.pending_terminal = (
+            TradeStatus.CANCELED,
+            SchemeState.CANCELED,
+            abort.reason,
+        )
+        scheme.next_run_at = None
+        await self._cancel_active_children(runtime, scheme)
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _on_slice_failure(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        client_order_id: str,
+        reason: str,
+    ) -> None:
+        '''Freeze a scheme on a slice failure and report a PARTIAL outcome.
+
+        Per RFC 5.13: a slice that cannot be placed or a child that
+        terminates without filling does not fail the whole command. A
+        durable `SliceFailed` is appended, a non-terminal PARTIAL outcome
+        with the fills gathered so far is reported to the Manager, and the
+        scheme is frozen — no further slices are scheduled. It waits for the
+        Manager (`TradeAbort`, or `TradeModify` once amend lands) or for its
+        deadline, both of which drive the single terminal outcome.
+        '''
+
+        cmd = scheme.command
+        _log.warning(
+            'scheme slice failed; freezing to await Manager: command_id=%s reason=%s',
+            cmd.command_id,
+            reason,
+        )
+
+        failed = SliceFailed(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            client_order_id=client_order_id,
+            reason=reason,
+        )
+        await self._event_spine.append(failed, self._epoch_id)
+
+        scheme.frozen = True
+        scheme.next_run_at = None
+
+        await self._emit_scheme_partial(runtime, scheme, reason)
+
+    async def _emit_scheme_partial(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        reason: str | None,
+    ) -> None:
+        '''Report a non-terminal PARTIAL outcome for a frozen scheme.
+
+        Mirrors `_emit_scheme_terminal` but leaves the scheme live: no
+        terminal command bookkeeping, no `TradeClosed`. The aggregated fills
+        so far are derived from the child order projections and clamped to
+        the command target.
+        '''
+
+        cmd = scheme.command
+        ts = self._clock()
+        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
+
+        if cmd.qty is not None and filled_qty > cmd.qty:
+            if filled_qty > _ZERO:
+                cumulative_notional = cumulative_notional * cmd.qty / filled_qty
+            filled_qty = cmd.qty
+
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        outcome = TradeOutcome(
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            status=TradeStatus.PARTIAL,
+            target_qty=cmd.qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=scheme.cursor,
+            slices_total=scheme.slices_total,
+            reason=reason,
+            created_at=ts,
+            cumulative_notional=cumulative_notional,
+        )
+
+        produced = TradeOutcomeProduced(
+            account_id=cmd.account_id,
+            timestamp=ts,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            status=TradeStatus.PARTIAL,
+            reason=reason,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+            target_qty=cmd.qty,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+
+        await self._dispatch_outcome_with_retry(outcome, source='scheme_partial')
+
+    async def _expire_scheme(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+    ) -> None:
+        '''Force-terminate a scheme that exceeded its deadline.
+
+        The deadline backstop: a scheme still live at its `command.timeout`
+        wall-clock — a frozen scheme the Manager never acted on, or one
+        stuck on a child that never settles — is expired. Working children
+        are cancelled and the single terminal outcome is EXPIRED once they
+        drain.
+        '''
+
+        _log.warning(
+            'scheme deadline exceeded; expiring: command_id=%s account_id=%s',
+            scheme.command.command_id,
+            runtime.account_id,
+        )
+
+        scheme.pending_terminal = (
+            TradeStatus.EXPIRED,
+            SchemeState.FAILED,
+            'scheme deadline exceeded',
+        )
+        scheme.next_run_at = None
+        await self._cancel_active_children(runtime, scheme)
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _emit_scheme_terminal(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        *,
+        status: TradeStatus,
+        filled_qty: Decimal,
+        cumulative_notional: Decimal,
+        slices_completed: int,
+        slices_total: int,
+        reason: str | None,
+    ) -> TradeOutcome:
+        '''Build the aggregated terminal `TradeOutcome` for a scheme command.
+
+        Mirrors `_build_outcome` for a multi-slice parent: clamps an
+        overfill to the command target, records terminal command
+        bookkeeping, closes the position when the aggregated fills reduce
+        it to dust, appends `TradeOutcomeProduced`, and dispatches the
+        single outcome to the Manager callback.
+        '''
+
+        ts = self._clock()
+
+        if cmd.qty is not None and filled_qty > cmd.qty:
+            _log.warning(
+                'scheme overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
+                cmd.command_id,
+                filled_qty,
+                cmd.qty,
+            )
+            if filled_qty > _ZERO:
+                cumulative_notional = cumulative_notional * cmd.qty / filled_qty
+            filled_qty = cmd.qty
+
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        outcome = TradeOutcome(
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            status=status,
+            target_qty=cmd.qty,
+            filled_qty=filled_qty,
+            avg_fill_price=avg_fill_price,
+            slices_completed=slices_completed,
+            slices_total=slices_total,
+            reason=reason,
+            created_at=ts,
+            cumulative_notional=cumulative_notional,
+        )
+
+        self._terminal_commands.add(cmd.command_id)
+        self._commands.pop(cmd.command_id, None)
+        self._aborted_commands.pop(cmd.command_id, None)
+
+        if filled_qty > _ZERO and self._closes_position(
+            runtime, cmd.account_id, cmd.trade_id, cmd.side
+        ):
+            closed = TradeClosed(
+                account_id=cmd.account_id,
+                timestamp=ts,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+            )
+            await self._event_spine.append(closed, self._epoch_id)
+            self._project(runtime, closed)
+
+        produced = TradeOutcomeProduced(
+            account_id=cmd.account_id,
+            timestamp=ts,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            status=status,
+            reason=reason,
+            filled_qty=filled_qty,
+            cumulative_notional=cumulative_notional,
+            target_qty=cmd.qty,
+        )
+        await self._event_spine.append(produced, self._epoch_id)
+        runtime.trading_state.apply(produced)
+
+        await self._dispatch_outcome_with_retry(outcome, source='scheme')
+
+        return outcome
+
     async def _process_abort(
         self,
         runtime: _AccountRuntime,
@@ -1689,6 +4671,10 @@ class ExecutionManager:
                 'abort no-op (command already terminal): command_id=%s',
                 abort.command_id,
             )
+            return None
+
+        if abort.command_id in runtime.schemes:
+            await self._abort_scheme(runtime, abort)
             return None
 
         client_order_id = runtime.command_to_order.get(abort.command_id)
@@ -1872,6 +4858,10 @@ class ExecutionManager:
           `_process_command` path already emitted a terminal — typical
           for MARKET orders that fill immediately, then the WS echo
           arrives later)
+        - The command_id belongs to a live scheme in `runtime.schemes`:
+          a multi-slice parent emits exactly one aggregated terminal
+          outcome from the scheme path, so a per-child WS echo must not
+          synthesize a single-shot outcome for the whole command
         - The originating command or order projection cannot be found
           (defensive — should not happen during normal flow)
         '''
@@ -1889,6 +4879,9 @@ class ExecutionManager:
 
         command_id = order.command_id
         if command_id in self._terminal_commands:
+            return
+
+        if command_id in runtime.schemes:
             return
 
         cmd = self._commands.get(command_id)

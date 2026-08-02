@@ -36,7 +36,9 @@ from nexus.infrastructure.praxis_connector.trade_command_type import TradeComman
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.strategy.action import Action, ActionType
 
+from praxis.core.bracket_exit_command_id import bracket_exit_command_id
 from praxis.launcher import (
+    _cleanup_bracket_exit_registration,
     _make_pre_register,
     _PreRegisterWiring,
     _UnknownSubmission,
@@ -190,6 +192,192 @@ def test_enter_registers_before_handoff() -> None:
     assert cmd.command_id in controller._orders
     assert cmd.command_id in state.positions
     handle.mark_submitted(cmd.command_id)
+
+
+def _bracket_enter_action(command_id: str = 'cmd-0000000000000001') -> Action:
+    return Action(
+        action_type=ActionType.ENTER,
+        direction=OrderSide.BUY,
+        size=Decimal('0.01'),
+        execution_mode=ExecutionMode.BRACKET,
+        order_type=OrderType.MARKET,
+        deadline=60,
+        reference_price=Decimal('50000'),
+        command_id=command_id,
+    )
+
+
+def test_bracket_enter_pre_registers_protective_exit_context() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = _bracket_enter_action()
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+    contexts: dict[str, OrderContext] = {}
+    persisted: list[OrderContext] = []
+    wiring = _wiring(
+        state, controller, pending, contexts,
+        append_delivery_context=lambda _acct, ctx: persisted.append(ctx),
+    )
+
+    handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    exit_id = bracket_exit_command_id(cmd.command_id)
+    assert exit_id in contexts
+    assert wiring.command_strategy_ids[exit_id] == 'strat_a'
+
+    exit_context = contexts[exit_id]
+    assert exit_context.is_entry is False
+    assert exit_context.side is OrderSide.SELL
+    assert exit_context.trade_id == cmd.command_id
+    assert exit_context.order_size == Decimal('0.01')
+    assert exit_context.intended_full_close is True
+
+    assert any(c.command_id == exit_id for c in persisted)
+    handle.mark_submitted(cmd.command_id)
+
+
+def test_bracket_short_entry_registers_buy_protective_exit() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = Action(
+        action_type=ActionType.ENTER,
+        direction=OrderSide.SELL,
+        size=Decimal('0.01'),
+        execution_mode=ExecutionMode.BRACKET,
+        order_type=OrderType.MARKET,
+        deadline=60,
+        reference_price=Decimal('50000'),
+        command_id=cmd.command_id,
+    )
+    ctx = ValidationRequestContext(
+        command_id=cmd.command_id,
+        strategy_id='strat_a',
+        action=ValidationAction.ENTER,
+        order_side=OrderSide.SELL,
+        order_size=Decimal('0.01'),
+        order_notional=Decimal('500'),
+        estimated_fees=Decimal('0.5'),
+        symbol='BTCUSDT',
+        strategy_budget=Decimal('100000'),
+        state=state,
+        config=_config(),
+    )
+    pending = {cmd.command_id: (action, 'strat_a', ctx)}
+    contexts: dict[str, OrderContext] = {}
+    wiring = _wiring(state, controller, pending, contexts)
+
+    _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    exit_context = contexts[bracket_exit_command_id(cmd.command_id)]
+    assert exit_context.side is OrderSide.BUY
+    assert exit_context.is_entry is False
+
+
+def test_cleanup_bracket_exit_registration_pops_derived_id() -> None:
+    entry_id = 'cmd-0000000000000001'
+    exit_id = bracket_exit_command_id(entry_id)
+    contexts: dict[str, OrderContext] = {
+        exit_id: OrderContext(
+            command_id=exit_id,
+            strategy_id='strat_a',
+            trade_id=entry_id,
+            side=OrderSide.SELL,
+            order_size=Decimal('0.01'),
+            order_notional=Decimal('500'),
+            estimated_fees=Decimal('0.5'),
+            is_entry=False,
+            intended_full_close=True,
+        ),
+    }
+    strategy_ids = {exit_id: 'strat_a'}
+
+    _cleanup_bracket_exit_registration(
+        contexts, strategy_ids, threading.Lock(), entry_id,
+    )
+
+    assert exit_id not in contexts
+    assert exit_id not in strategy_ids
+
+
+def test_cleanup_bracket_exit_registration_is_noop_for_non_bracket() -> None:
+    contexts: dict[str, OrderContext] = {}
+    strategy_ids: dict[str, str] = {}
+
+    _cleanup_bracket_exit_registration(
+        contexts, strategy_ids, threading.Lock(), 'cmd-0000000000000009',
+    )
+
+    assert contexts == {}
+    assert strategy_ids == {}
+
+
+def test_process_nexus_outcome_terminal_branch_cleans_bracket_exit() -> None:
+    '''The launcher's `_process_nexus_outcome` terminal branch must call
+    `_cleanup_bracket_exit_registration` so a bracket entry that closes
+    without leaving an open position drops its pre-registered exit id
+    instead of leaking one registry entry per failed bracket.
+    '''
+
+    import praxis.launcher
+
+    src = inspect.getsource(praxis.launcher)
+    tree = ast.parse(src)
+
+    found = False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        if node.name != '_process_nexus_outcome':
+            continue
+        for call in ast.walk(node):
+            if not isinstance(call, ast.Call):
+                continue
+            func = call.func
+            if (
+                isinstance(func, ast.Name)
+                and func.id == '_cleanup_bracket_exit_registration'
+            ):
+                found = True
+
+    assert found, (
+        '_process_nexus_outcome must call '
+        '_cleanup_bracket_exit_registration in its terminal cleanup branch'
+    )
+
+
+def test_non_bracket_enter_registers_no_exit_context() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = _enter_action()
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+    contexts: dict[str, OrderContext] = {}
+    wiring = _wiring(state, controller, pending, contexts)
+
+    _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    assert bracket_exit_command_id(cmd.command_id) not in contexts
+
+
+def test_bracket_rollback_removes_exit_registration() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = _bracket_enter_action()
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+    contexts: dict[str, OrderContext] = {}
+    wiring = _wiring(state, controller, pending, contexts)
+
+    handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
+    exit_id = bracket_exit_command_id(cmd.command_id)
+    assert exit_id in contexts
+
+    handle.rollback(RuntimeError('send failed'))
+
+    assert exit_id not in contexts
+    assert exit_id not in wiring.command_strategy_ids
 
 
 def test_send_order_failure_raises_and_leaves_no_registration() -> None:

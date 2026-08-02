@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
@@ -16,32 +17,57 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.execution_params import ExecutionParams
+from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.domain.twap_params import TwapParams
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
 _NOW = datetime.now(UTC)
+
+_DEFAULT_PARAMS: dict[ExecutionMode, ExecutionParams] = {
+    ExecutionMode.SINGLE_SHOT: SingleShotParams(),
+    ExecutionMode.BRACKET: BracketParams(
+        take_profit_price=Decimal('60000'), stop_loss_price=Decimal('40000'),
+    ),
+    ExecutionMode.TWAP: TwapParams(num_slices=2, interval_seconds=30),
+    ExecutionMode.SCHEDULED_VWAP: ScheduledVwapParams(
+        interval_seconds=60, volume_weights=(Decimal('0.5'), Decimal('0.5')),
+    ),
+    ExecutionMode.TIME_DCA: TimeDcaParams(num_iterations=2, interval_seconds=30),
+    ExecutionMode.ICEBERG: IcebergParams(
+        display_qty=Decimal('0.001'), limit_price=Decimal('50000'),
+    ),
+    ExecutionMode.LADDER_DCA: LadderDcaParams(
+        price_levels=(Decimal('49000'), Decimal('48000')),
+    ),
+}
 
 
 def _cmd(
     *,
     order_type: OrderType = OrderType.MARKET,
     execution_mode: ExecutionMode = ExecutionMode.SINGLE_SHOT,
-    execution_params: SingleShotParams | None = None,
+    execution_params: ExecutionParams | None = None,
     maker_preference: MakerPreference = MakerPreference.NO_PREFERENCE,
     qty: Decimal = Decimal('0.01'),
     reference_price: Decimal | None = None,
+    side: OrderSide = OrderSide.BUY,
 ) -> TradeCommand:
     if execution_params is None:
-        execution_params = SingleShotParams()
+        execution_params = _DEFAULT_PARAMS[execution_mode]
 
     return TradeCommand(
         command_id='cmd-001',
         trade_id='trade-001',
         account_id='acct-001',
         symbol='BTCUSDT',
-        side=OrderSide.BUY,
+        side=side,
         qty=qty,
         order_type=order_type,
         execution_mode=execution_mode,
@@ -102,37 +128,56 @@ class TestModeOrderTypeAllowed:
             )
         validate_trade_command(_cmd(order_type=ot, execution_params=params))
 
-    @pytest.mark.parametrize(
-        'ot',
-        [
-            OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
-            OrderType.STOP,
-            OrderType.STOP_LIMIT,
-        ],
-    )
-    def test_bracket_accepts_allowed_types(self, ot: OrderType) -> None:
-        params = SingleShotParams()
-        if ot in {OrderType.LIMIT, OrderType.LIMIT_IOC}:
-            params = SingleShotParams(price=Decimal('50000'))
-        elif ot == OrderType.STOP:
-            params = SingleShotParams(stop_price=Decimal('49000'))
-        elif ot == OrderType.STOP_LIMIT:
-            params = SingleShotParams(
-                price=Decimal('50000'), stop_price=Decimal('49000')
+    def test_bracket_accepts_market_entry(self) -> None:
+        validate_trade_command(
+            _cmd(order_type=OrderType.MARKET, execution_mode=ExecutionMode.BRACKET),
+        )
+
+    def test_bracket_long_rejects_absolute_tp_at_or_below_sl(self) -> None:
+        with pytest.raises(ValueError, match='take_profit_price'):
+            validate_trade_command(
+                _cmd(
+                    execution_mode=ExecutionMode.BRACKET,
+                    side=OrderSide.BUY,
+                    execution_params=BracketParams(
+                        take_profit_price=Decimal('48000'),
+                        stop_loss_price=Decimal('49000'),
+                    ),
+                ),
             )
+
+    def test_bracket_short_rejects_absolute_tp_at_or_above_sl(self) -> None:
+        with pytest.raises(ValueError, match='take_profit_price'):
+            validate_trade_command(
+                _cmd(
+                    execution_mode=ExecutionMode.BRACKET,
+                    side=OrderSide.SELL,
+                    execution_params=BracketParams(
+                        take_profit_price=Decimal('52000'),
+                        stop_loss_price=Decimal('51000'),
+                    ),
+                ),
+            )
+
+    def test_bracket_offset_legs_skip_ordering_check(self) -> None:
         validate_trade_command(
             _cmd(
-                order_type=ot,
                 execution_mode=ExecutionMode.BRACKET,
-                execution_params=params,
+                side=OrderSide.BUY,
+                execution_params=BracketParams(
+                    take_profit_offset_bps=Decimal('200'),
+                    stop_loss_offset_bps=Decimal('100'),
+                ),
             ),
         )
 
     @pytest.mark.parametrize(
         'ot',
         [
+            OrderType.LIMIT,
+            OrderType.LIMIT_IOC,
+            OrderType.STOP,
+            OrderType.STOP_LIMIT,
             OrderType.TAKE_PROFIT,
             OrderType.TP_LIMIT,
             OrderType.OCO,
@@ -152,20 +197,8 @@ class TestModeOrderTypeAllowed:
             ExecutionMode.TIME_DCA,
         ],
     )
-    @pytest.mark.parametrize(
-        'ot',
-        [
-            OrderType.MARKET,
-            OrderType.LIMIT,
-            OrderType.LIMIT_IOC,
-        ],
-    )
-    def test_slicing_modes_accept_market_limit_ioc(
-        self,
-        mode: ExecutionMode,
-        ot: OrderType,
-    ) -> None:
-        validate_trade_command(_cmd(order_type=ot, execution_mode=mode))
+    def test_slicing_modes_accept_market(self, mode: ExecutionMode) -> None:
+        validate_trade_command(_cmd(order_type=OrderType.MARKET, execution_mode=mode))
 
     @pytest.mark.parametrize(
         'mode',
@@ -178,6 +211,8 @@ class TestModeOrderTypeAllowed:
     @pytest.mark.parametrize(
         'ot',
         [
+            OrderType.LIMIT,
+            OrderType.LIMIT_IOC,
             OrderType.STOP,
             OrderType.STOP_LIMIT,
             OrderType.TAKE_PROFIT,
@@ -185,7 +220,7 @@ class TestModeOrderTypeAllowed:
             OrderType.OCO,
         ],
     )
-    def test_slicing_modes_reject_stop_and_composite(
+    def test_slicing_modes_reject_non_market(
         self,
         mode: ExecutionMode,
         ot: OrderType,
@@ -216,10 +251,9 @@ class TestModeOrderTypeAllowed:
                 _cmd(order_type=ot, execution_mode=ExecutionMode.ICEBERG)
             )
 
-    @pytest.mark.parametrize('ot', [OrderType.LIMIT, OrderType.STOP_LIMIT])
-    def test_ladder_dca_accepts_limit_and_stop_limit(self, ot: OrderType) -> None:
+    def test_ladder_dca_accepts_limit(self) -> None:
         validate_trade_command(
-            _cmd(order_type=ot, execution_mode=ExecutionMode.LADDER_DCA),
+            _cmd(order_type=OrderType.LIMIT, execution_mode=ExecutionMode.LADDER_DCA),
         )
 
     @pytest.mark.parametrize(
@@ -228,6 +262,7 @@ class TestModeOrderTypeAllowed:
             OrderType.MARKET,
             OrderType.LIMIT_IOC,
             OrderType.STOP,
+            OrderType.STOP_LIMIT,
             OrderType.TAKE_PROFIT,
             OrderType.TP_LIMIT,
             OrderType.OCO,
@@ -551,3 +586,160 @@ class TestQuoteNativeShape:
             _quote_native_cmd(quote_qty=Decimal('10')),
             filters=_FILTERS,
         )
+
+
+class TestModeParams:
+    def test_non_single_shot_rejects_quote_native(self) -> None:
+        cmd = TradeCommand(
+            command_id='cmd-003',
+            trade_id='trade-003',
+            account_id='acct-001',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=None,
+            quote_qty=Decimal('100'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.TWAP,
+            execution_params=TwapParams(num_slices=2, interval_seconds=30),
+            timeout=60,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_NOW,
+        )
+        with pytest.raises(ValueError, match='requires a base qty'):
+            validate_trade_command(cmd)
+
+    def test_time_dca_rejects_sell(self) -> None:
+        with pytest.raises(ValueError, match='Time DCA is an accumulation order'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.MARKET,
+                    execution_mode=ExecutionMode.TIME_DCA,
+                    execution_params=TimeDcaParams(num_iterations=2, interval_seconds=30),
+                    side=OrderSide.SELL,
+                ),
+            )
+
+    def test_time_dca_accepts_buy(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.MARKET,
+                execution_mode=ExecutionMode.TIME_DCA,
+                execution_params=TimeDcaParams(num_iterations=2, interval_seconds=30),
+                side=OrderSide.BUY,
+            ),
+        )
+
+    def test_iceberg_display_cannot_exceed_qty(self) -> None:
+        with pytest.raises(ValueError, match='exceeds command qty'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.ICEBERG,
+                    execution_params=IcebergParams(
+                        display_qty=Decimal('2'), limit_price=Decimal('50000'),
+                    ),
+                    qty=Decimal('1'),
+                ),
+            )
+
+    def test_twap_valid_slices_pass_and_dust_slice_rejected(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.MARKET,
+                execution_mode=ExecutionMode.TWAP,
+                execution_params=TwapParams(num_slices=2, interval_seconds=30),
+                qty=Decimal('0.010'),
+            ),
+            filters=_FILTERS,
+        )
+        with pytest.raises(ValueError, match='TWAP slice qty'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.MARKET,
+                    execution_mode=ExecutionMode.TWAP,
+                    execution_params=TwapParams(num_slices=100, interval_seconds=30),
+                    qty=Decimal('0.010'),
+                ),
+                filters=_FILTERS,
+            )
+
+    def test_vwap_dust_slice_rejected(self) -> None:
+        with pytest.raises(ValueError, match='VWAP slice qty'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.MARKET,
+                    execution_mode=ExecutionMode.SCHEDULED_VWAP,
+                    execution_params=ScheduledVwapParams(
+                        interval_seconds=60,
+                        volume_weights=(Decimal('0.99'), Decimal('0.01')),
+                    ),
+                    qty=Decimal('0.010'),
+                ),
+                filters=_FILTERS,
+            )
+
+    def test_iceberg_venue_filters(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.LIMIT,
+                execution_mode=ExecutionMode.ICEBERG,
+                execution_params=IcebergParams(
+                    display_qty=Decimal('0.010'), limit_price=Decimal('50000.00'),
+                ),
+                qty=Decimal('0.010'),
+            ),
+            filters=_FILTERS,
+        )
+        with pytest.raises(ValueError, match='iceberg limit_price'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.ICEBERG,
+                    execution_params=IcebergParams(
+                        display_qty=Decimal('0.010'), limit_price=Decimal('50000.005'),
+                    ),
+                    qty=Decimal('0.010'),
+                ),
+                filters=_FILTERS,
+            )
+
+    def test_iceberg_display_qty_off_lot_step_rejected(self) -> None:
+        with pytest.raises(ValueError, match=r'iceberg display_qty.*lot step'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.ICEBERG,
+                    execution_params=IcebergParams(
+                        display_qty=Decimal('0.1005'), limit_price=Decimal('50000.00'),
+                    ),
+                    qty=Decimal('1'),
+                ),
+                filters=_FILTERS,
+            )
+
+    def test_ladder_level_below_notional_rejected(self) -> None:
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.LIMIT,
+                execution_mode=ExecutionMode.LADDER_DCA,
+                execution_params=LadderDcaParams(
+                    price_levels=(Decimal('50000.00'), Decimal('49000.00')),
+                ),
+                qty=Decimal('0.002'),
+            ),
+            filters=_FILTERS,
+        )
+        with pytest.raises(ValueError, match='ladder level notional'):
+            validate_trade_command(
+                _cmd(
+                    order_type=OrderType.LIMIT,
+                    execution_mode=ExecutionMode.LADDER_DCA,
+                    execution_params=LadderDcaParams(
+                        price_levels=(Decimal('5000.00'), Decimal('4000.00')),
+                    ),
+                    qty=Decimal('0.002'),
+                ),
+                filters=_FILTERS,
+            )

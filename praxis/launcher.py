@@ -32,6 +32,7 @@ from aiohttp import ClientSession, ClientTimeout, web
 
 from nexus.core.capital_controller.capital_controller import CapitalController
 from nexus.core.domain.enums import OperationalMode, OrderSide
+from nexus.core.domain.order_types import ExecutionMode as NexusExecutionMode
 from nexus.core.domain.instance_state import InstanceState
 from nexus.core.domain.position import Position
 from nexus.core.health_evaluator import HealthEvaluator, HealthThresholds
@@ -87,7 +88,7 @@ from nexus.strategy.runner import StrategyRunner
 from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.command_translator import (
-    build_single_shot_params,
+    build_execution_params,
     translate_execution_mode,
     translate_maker_preference,
     translate_order_side,
@@ -101,6 +102,8 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode as _PraxisSTPMode,
 )
+from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+from praxis.core.live_only_modes import is_live_only
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
@@ -161,6 +164,7 @@ _TRADE_MODE_PAPER = 'paper'
 _TRADE_MODE_LIVE = 'live'
 _TRADE_MODES = (_TRADE_MODE_PAPER, _TRADE_MODE_LIVE)
 _SECRETS_FILE_ENV = 'PRAXIS_SECRETS_FILE'
+_ENABLED_MODES_ENV = 'PRAXIS_ENABLED_EXECUTION_MODES'
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
@@ -361,13 +365,14 @@ def _build_praxis_outbound(
         command_id: str | None = None,
         **kwargs: Any,
     ) -> str:
+        mode = translate_execution_mode(execution_mode)
         return await trading.submit_command(
             side=translate_order_side(side),
             order_type=translate_order_type(order_type),
-            execution_mode=translate_execution_mode(execution_mode),
+            execution_mode=mode,
             maker_preference=translate_maker_preference(maker_preference),
             stp_mode=translate_stp_mode(stp_mode),
-            execution_params=build_single_shot_params(execution_params),
+            execution_params=build_execution_params(mode, execution_params),
             command_id=command_id,
             **kwargs,
         )
@@ -628,6 +633,68 @@ def _env_positive_int(name: str) -> int | None:
         raise ValueError(msg)
 
     return value
+
+
+def _parse_enabled_modes(
+    env: dict[str, str],
+    venue_is_binsim: bool,
+) -> frozenset[ExecutionMode]:
+    '''Parse the enabled-execution-modes deployment allow-list from the env.
+
+    `PRAXIS_ENABLED_EXECUTION_MODES` is a comma-separated list of
+    `ExecutionMode` names (e.g. `TWAP,BRACKET`). Unset or empty leaves the
+    default-off gate ({SINGLE_SHOT}); SINGLE_SHOT is always enabled. An
+    unrecognised name is a deployment misconfiguration and fails fast. When
+    the selected venue is binsim (the MARKET-only paper simulator) a
+    live-only mode — one resting non-MARKET orders binsim cannot simulate —
+    is refused up front rather than surfacing a confusing venue reject at
+    execution. Paper on Binance testnet is a real venue that supports these
+    order types, so the restriction is keyed on binsim selection, not on
+    paper trade mode.
+
+    Args:
+        env: Process environment mapping.
+        venue_is_binsim: Whether the resolved venue is the binsim simulator.
+
+    Returns:
+        frozenset[ExecutionMode]: The modes to enable, always including
+            SINGLE_SHOT.
+
+    Raises:
+        ValueError: An entry is not a known ExecutionMode name, or a
+            live-only mode is enabled against the binsim venue.
+    '''
+
+    raw = env.get(_ENABLED_MODES_ENV, '').strip()
+    if not raw:
+        return frozenset({ExecutionMode.SINGLE_SHOT})
+
+    modes: set[ExecutionMode] = {ExecutionMode.SINGLE_SHOT}
+    for token in raw.split(','):
+        name = token.strip()
+        if not name:
+            continue
+
+        try:
+            mode = ExecutionMode(name)
+        except ValueError as exc:
+            valid = ', '.join(m.value for m in ExecutionMode)
+            msg = (
+                f'{_ENABLED_MODES_ENV} has unknown execution mode {name!r}; '
+                f'valid modes: {valid}'
+            )
+            raise ValueError(msg) from exc
+
+        if venue_is_binsim and is_live_only(mode):
+            msg = (
+                f'{_ENABLED_MODES_ENV} enables live-only mode {mode.value} '
+                'against the binsim venue, which simulates MARKET orders only'
+            )
+            raise ValueError(msg)
+
+        modes.add(mode)
+
+    return frozenset(modes)
 
 
 async def _post_alert_webhook(url: str, payload: dict[str, Any]) -> None:
@@ -1268,6 +1335,91 @@ def _build_order_context(
         return None
 
 
+def _register_bracket_exit(
+    wiring: _PreRegisterWiring,
+    cmd: NexusTradeCommand,
+    entry_context: OrderContext,
+    strategy_id: str,
+) -> str:
+    '''Durably pre-register the protective-exit `OrderContext` for a bracket.
+
+    A BRACKET entry's protective OCO fills, on the Praxis side, under the
+    deterministic exit command id (`bracket_exit_command_id`). Registering an
+    `is_entry=False` `OrderContext` for that id — against the same position
+    trade id, on the side opposite the entry, for the entry quantity — lets
+    the eventual protective fill reduce the position and release capital
+    through the standard `OutcomeProcessor` exit path. Registration mirrors
+    the entry exactly (durable `append_delivery_context` plus the in-memory
+    `command_contexts` / `command_strategy_ids` registries under the registry
+    lock), so the exit context inherits the entry context's crash recovery.
+
+    The exit `order_size` is the entry's planned size. This is exact for the
+    current MARKET-only bracket entry, which fully fills before protection is
+    placed; a future resting / partially-filling bracket entry (TD-131) must
+    instead size the exit from the realised entry fill.
+
+    Args:
+        wiring (_PreRegisterWiring): Per-account registries to insert into.
+        cmd (NexusTradeCommand): The bracket entry command.
+        entry_context (OrderContext): The just-registered entry context.
+        strategy_id (str): Owning strategy identifier.
+
+    Returns:
+        str: The registered protective-exit command id.
+    '''
+
+    exit_command_id = bracket_exit_command_id(cmd.command_id)
+    protective_side = (
+        OrderSide.SELL if entry_context.side is OrderSide.BUY else OrderSide.BUY
+    )
+    exit_context = OrderContext(
+        command_id=exit_command_id,
+        strategy_id=strategy_id,
+        trade_id=entry_context.trade_id,
+        side=protective_side,
+        order_size=entry_context.order_size,
+        order_notional=entry_context.order_notional,
+        estimated_fees=entry_context.estimated_fees,
+        is_entry=False,
+        intended_full_close=True,
+    )
+    wiring.append_delivery_context(cmd.account_id, exit_context)
+    with wiring.command_registry_lock:
+        wiring.command_strategy_ids[exit_command_id] = strategy_id
+        wiring.command_contexts[exit_command_id] = exit_context
+
+    return exit_command_id
+
+
+def _cleanup_bracket_exit_registration(
+    command_contexts: dict[str, OrderContext],
+    command_strategy_ids: dict[str, str],
+    command_registry_lock: threading.Lock,
+    entry_command_id: str,
+) -> None:
+    '''Drop a bracket's pre-registered protective-exit registration.
+
+    A bracket entry that terminates without leaving an open position
+    (rejected, unfilled, or filled-then-flat) never places a protective
+    OCO, so the protective-exit context pre-registered by
+    `_register_bracket_exit` receives no outcome and would otherwise leak
+    one entry per failed bracket in both registries. Popping the derived
+    exit id is a no-op for a non-bracket entry, whose derived id was never
+    registered.
+
+    Args:
+        command_contexts (dict[str, OrderContext]): OrderContext registry.
+        command_strategy_ids (dict[str, str]): strategy-id registry.
+        command_registry_lock (threading.Lock): guards both registries.
+        entry_command_id (str): The terminated bracket entry command id.
+    '''
+
+    exit_command_id = bracket_exit_command_id(entry_command_id)
+    with command_registry_lock:
+        command_contexts.pop(exit_command_id, None)
+        command_strategy_ids.pop(exit_command_id, None)
+
+
 def _order_context_from_recorded(event: OutcomeDeliveryContextRecorded) -> OrderContext:
     '''Rebuild the Nexus delivery `OrderContext` from its spine record.
 
@@ -1556,6 +1708,7 @@ class _PreRegisteredSubmission:
     order_notional: Decimal | None
     now: Callable[[], datetime]
     rollback_position: Callable[[], None] | None = None
+    bracket_exit_command_id: str | None = None
 
     def mark_submitted(self, _command_id: str) -> None:
         '''Confirm acceptance; registration already stands, nothing to do.'''
@@ -1607,6 +1760,9 @@ class _PreRegisteredSubmission:
             if self.context_registered:
                 self.command_contexts.pop(self.command_id, None)
             self.unknown_submissions.pop(self.command_id, None)
+            if self.bracket_exit_command_id is not None:
+                self.command_strategy_ids.pop(self.bracket_exit_command_id, None)
+                self.command_contexts.pop(self.bracket_exit_command_id, None)
 
         _log.warning(
             'pre-registered submission rolled back',
@@ -1700,6 +1856,7 @@ def _make_pre_register(
 
         rollback_position: Callable[[], None] | None = None
         forced_trade_id: str | None = None
+        bracket_exit_id: str | None = None
 
         # Once `send_order` consumed the reservation into a capital order,
         # every step below must be exception-safe: if one raises,
@@ -1768,6 +1925,14 @@ def _make_pre_register(
                 wiring.append_delivery_context(cmd.account_id, order_context)
                 with wiring.command_registry_lock:
                     wiring.command_contexts[cmd.command_id] = order_context
+
+                if (
+                    action.action_type == ActionType.ENTER
+                    and action.execution_mode is NexusExecutionMode.BRACKET
+                ):
+                    bracket_exit_id = _register_bracket_exit(
+                        wiring, cmd, order_context, strategy_id,
+                    )
         except BaseException:
             # BaseException, not Exception: a CancelledError after
             # `send_order` must still run the capital-recovery cleanup, or
@@ -1783,6 +1948,9 @@ def _make_pre_register(
             with wiring.command_registry_lock:
                 wiring.command_strategy_ids.pop(cmd.command_id, None)
                 wiring.command_contexts.pop(cmd.command_id, None)
+                if bracket_exit_id is not None:
+                    wiring.command_strategy_ids.pop(bracket_exit_id, None)
+                    wiring.command_contexts.pop(bracket_exit_id, None)
             raise
 
         return _PreRegisteredSubmission(
@@ -1801,6 +1969,7 @@ def _make_pre_register(
             order_notional=cmd.notional,
             now=wiring.now,
             rollback_position=rollback_position,
+            bracket_exit_command_id=bracket_exit_id,
         )
 
     return pre_register
@@ -3854,6 +4023,7 @@ class Launcher:
                     command_contexts.pop(outcome.command_id, None)
                     command_strategy_ids.pop(outcome.command_id, None)
                     unknown_submissions.pop(outcome.command_id, None)
+                entry_closed_without_position = False
                 if (
                     order_context.is_entry
                     and order_context.trade_id is not None
@@ -3862,6 +4032,14 @@ class Launcher:
                         pos = state.positions.get(order_context.trade_id)
                         if pos is not None and pos.size == _ZERO:
                             del state.positions[order_context.trade_id]
+                            entry_closed_without_position = True
+                if entry_closed_without_position:
+                    _cleanup_bracket_exit_registration(
+                        command_contexts,
+                        command_strategy_ids,
+                        command_registry_lock,
+                        outcome.command_id,
+                    )
 
             with command_registry_lock:
                 sync_persist_pending = outcome.command_id in wiring.unpersisted_commands
@@ -4396,6 +4574,13 @@ def main() -> None:
         venue_ws_api_url=venue_ws_api_url,
         account_credentials=account_credentials,
         shutdown_timeout=float(env.get('SHUTDOWN_TIMEOUT', _DEFAULT_SHUTDOWN_TIMEOUT)),
+        enabled_execution_modes=_parse_enabled_modes(
+            env,
+            venue_is_binsim=(
+                trade_mode == _TRADE_MODE_PAPER
+                and bool(env.get('BINSIM_URL', '').strip())
+            ),
+        ),
     )
 
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')

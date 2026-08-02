@@ -23,7 +23,7 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.core.domain.position import Position
-from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
@@ -131,6 +131,7 @@ class Trading:
             on_trade_outcome=config.on_trade_outcome,
             clock=clock,
             max_slippage_bps=max_slippage_bps,
+            enabled_modes=config.enabled_execution_modes,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,
@@ -393,12 +394,40 @@ class Trading:
         self._stopping = True
 
         try:
+            in_flight_by_account: dict[str, set[str]] = {}
+            for account_id in sorted(self._managed_accounts):
+                command_ids = self._execution_manager.in_flight_command_ids(account_id)
+                in_flight_by_account[account_id] = set(command_ids)
+                for command_id in command_ids:
+                    try:
+                        self._execution_manager.submit_abort(
+                            TradeAbort(
+                                command_id=command_id,
+                                account_id=account_id,
+                                reason='shutdown',
+                                created_at=self._clock(),
+                            ),
+                        )
+                    except (AccountNotRegisteredError, ValueError):
+                        # The abort did not enqueue, so this command's orders
+                        # will not be cancelled by the abort path; drop it
+                        # from the skip set so the orphan pass cancels them.
+                        in_flight_by_account[account_id].discard(command_id)
+                        continue
+
+            # The abort path cancels each in-flight command's orders as the
+            # account loop drains it; this pass only cancels orphan orders —
+            # open orders with no in-flight command (e.g. reconcile-adopted) —
+            # so a tracked order is not cancelled twice.
             for account_id in sorted(self._managed_accounts):
                 try:
                     open_orders = self._execution_manager.get_open_orders(account_id)
                 except AccountNotRegisteredError:
                     continue
+                in_flight = in_flight_by_account.get(account_id, set())
                 for order in open_orders.values():
+                    if order.command_id in in_flight:
+                        continue
                     try:
                         if order.order_type == OrderType.OCO:
                             await self._venue_adapter.cancel_order_list(
@@ -433,12 +462,15 @@ class Trading:
                             break
                     except AccountNotRegisteredError:
                         continue
+                    if self._execution_manager.in_flight_command_ids(account_id):
+                        has_open = True
+                        break
                 if not has_open:
                     break
                 remaining = deadline - loop.time()
                 await asyncio.sleep(min(poll_interval, max(0.0, remaining)))
             else:
-                _log.warning('shutdown timeout: orders may still be open')
+                _log.warning('shutdown timeout: orders or modes may still be open')
 
             for account_id, stream in list(self._user_streams.items()):
                 try:
@@ -965,10 +997,14 @@ class Trading:
             _log.warning('execution report for unknown account: %s', account_id)
             return
 
-        order = trading_state.orders.get(report.client_order_id)
+        parent_client_order_id = trading_state.oco_leg_parent.get(
+            report.client_order_id, report.client_order_id,
+        )
+
+        order = trading_state.orders.get(parent_client_order_id)
         order_is_closed = False
         if order is None:
-            order = trading_state.closed_orders.get(report.client_order_id)
+            order = trading_state.closed_orders.get(parent_client_order_id)
             order_is_closed = order is not None
         if order is None:
             _log.debug(
@@ -1028,7 +1064,7 @@ class Trading:
             return FillReceived(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
                 venue_trade_id=report.venue_trade_id,
                 trade_id=trade_id,
@@ -1046,7 +1082,7 @@ class Trading:
             return OrderCanceled(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
                 reason='canceled via WebSocket',
             )
@@ -1055,7 +1091,7 @@ class Trading:
             return OrderRejected(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
                 reason=report.reject_reason or 'rejected via WebSocket',
             )
@@ -1064,7 +1100,7 @@ class Trading:
             return OrderExpired(
                 account_id=account_id,
                 timestamp=ts,
-                client_order_id=report.client_order_id,
+                client_order_id=order.client_order_id,
                 venue_order_id=report.venue_order_id,
             )
 
@@ -1103,7 +1139,7 @@ class Trading:
         qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
-        execution_params: SingleShotParams,
+        execution_params: ExecutionParams,
         timeout: int,
         reference_price: Decimal | None,
         maker_preference: MakerPreference,

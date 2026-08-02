@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from praxis.core.domain.enums import ExecutionMode
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.binance_urls import (
     TESTNET_REST_URL,
@@ -32,6 +33,11 @@ class TradingConfig:
             Optional async callback invoked by execution outcomes.
         shutdown_timeout (float): Seconds to wait for orders to reach terminal
             state during shutdown. Default: 30.0.
+        enabled_execution_modes (frozenset[ExecutionMode]): Execution modes the
+            host may drive. Default-off: only SINGLE_SHOT is enabled unless a
+            mode is explicitly added, so a new mode cannot be driven live until
+            it is turned on for the deployment. SINGLE_SHOT is always unioned in
+            at construction, so the stored set always includes it.
     '''
 
     epoch_id: int
@@ -41,6 +47,9 @@ class TradingConfig:
     account_credentials: Mapping[str, Credentials] = field(default_factory=dict)
     on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None
     shutdown_timeout: float = 30.0
+    enabled_execution_modes: frozenset[ExecutionMode] = field(
+        default_factory=lambda: frozenset({ExecutionMode.SINGLE_SHOT}),
+    )
 
     def __post_init__(self) -> None:
         '''Validate runtime configuration invariants.'''
@@ -86,4 +95,15 @@ class TradingConfig:
             self,
             'account_credentials',
             MappingProxyType(credentials_copy),
+        )
+
+        for mode in self.enabled_execution_modes:
+            if not isinstance(mode, ExecutionMode):
+                msg = 'TradingConfig.enabled_execution_modes entries must be ExecutionMode'
+                raise ValueError(msg)
+
+        object.__setattr__(
+            self,
+            'enabled_execution_modes',
+            frozenset(self.enabled_execution_modes) | {ExecutionMode.SINGLE_SHOT},
         )

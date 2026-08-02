@@ -14,7 +14,7 @@ from praxis.core.domain.enums import (
     STPMode,
 )
 from praxis.core.domain.position import Position
-from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.infrastructure.secret_store import Credentials
 
@@ -38,7 +38,7 @@ class _ExecutionInboundGateway(Protocol):
         qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
-        execution_params: SingleShotParams,
+        execution_params: ExecutionParams,
         timeout: int,
         reference_price: Decimal | None,
         maker_preference: MakerPreference,
@@ -162,7 +162,7 @@ class TradingInbound:
         qty: Decimal | None,
         order_type: OrderType,
         execution_mode: ExecutionMode,
-        execution_params: SingleShotParams,
+        execution_params: ExecutionParams,
         timeout: int,
         reference_price: Decimal | None,
         maker_preference: MakerPreference,
@@ -187,7 +187,7 @@ class TradingInbound:
                 `qty`.
             order_type (OrderType): Order type.
             execution_mode (ExecutionMode): Execution strategy.
-            execution_params (SingleShotParams): Mode-specific parameters.
+            execution_params (ExecutionParams): Mode-specific parameters.
             timeout (int): Execution deadline in seconds.
             reference_price (Decimal | None): Optional reference price.
             maker_preference (MakerPreference): Maker/taker preference.

@@ -41,6 +41,8 @@ __all__ = [
     'VenueAdapter',
     'VenueError',
     'VenueOrder',
+    'VenueOrderList',
+    'VenueOrderListLeg',
     'VenueTrade',
 ]
 
@@ -76,11 +78,15 @@ class SubmitResult:
         venue_order_id (str): Venue-assigned order identifier
         status (OrderStatus): Order status after submission
         immediate_fills (tuple[ImmediateFill, ...]): Fills returned inline with the submission response
+        leg_client_order_ids (tuple[str, ...]): For an OCO submission, the
+            venue-assigned client order ids of the list's legs, so leg fills
+            can be mapped back to the parent command. Empty for non-OCO orders.
     '''
 
     venue_order_id: str
     status: OrderStatus
     immediate_fills: tuple[ImmediateFill, ...]
+    leg_client_order_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -123,6 +129,49 @@ class VenueOrder:
     qty: Decimal
     filled_qty: Decimal
     price: Decimal | None
+
+
+@dataclass(frozen=True)
+class VenueOrderListLeg:
+    '''
+    Represent one constituent order of an OCO list as reported on query.
+
+    Args:
+        venue_order_id (str): Venue-assigned order identifier of the leg.
+        client_order_id (str): Client order identifier of the leg.
+        symbol (str): Trading pair symbol.
+    '''
+
+    venue_order_id: str
+    client_order_id: str
+    symbol: str
+
+
+@dataclass(frozen=True)
+class VenueOrderList:
+    '''
+    Represent the state of an OCO order list as reported by the venue.
+
+    Used by crash recovery to resolve an OCO list by its durable
+    listClientOrderId (the deterministic command id) and map its legs
+    back to the parent command.
+
+    Args:
+        order_list_id (str): Venue-assigned order-list identifier.
+        list_client_order_id (str): Durable list client order id (the
+            deterministic parent command identifier).
+        list_status_type (str): Venue list status type (RESPONSE,
+            EXEC_STARTED, ALL_DONE).
+        list_order_status (str): Venue list order status (EXECUTING,
+            ALL_DONE, REJECT).
+        legs (tuple[VenueOrderListLeg, ...]): The list's constituent orders.
+    '''
+
+    order_list_id: str
+    list_client_order_id: str
+    list_status_type: str
+    list_order_status: str
+    legs: tuple[VenueOrderListLeg, ...]
 
 
 @dataclass(frozen=True)
@@ -629,6 +678,7 @@ class VenueAdapter(Protocol):
         client_order_id: str | None = None,
         time_in_force: str | None = None,
         quote_qty: Decimal | None = None,
+        iceberg_qty: Decimal | None = None,
     ) -> SubmitResult:
         '''
         Submit an order to the venue.
@@ -649,6 +699,10 @@ class VenueAdapter(Protocol):
                 for quote-native MARKET BUY. The venue determines the
                 executed base quantity from live liquidity. Mutually
                 exclusive with `qty`.
+            iceberg_qty (Decimal | None): Visible quantity for a native
+                iceberg LIMIT order. The venue shows this much at a time and
+                refills it from the hidden reserve; only valid for a LIMIT
+                order and must be below `qty`.
 
         Returns:
             SubmitResult: Venue response with order ID, status, and immediate fills
@@ -730,6 +784,32 @@ class VenueAdapter(Protocol):
 
         Returns:
             VenueOrder: Current order state from the venue
+        '''
+
+        ...
+
+    async def query_order_list(
+        self,
+        account_id: str,
+        *,
+        order_list_id: str | None = None,
+        list_client_order_id: str | None = None,
+    ) -> VenueOrderList:
+        '''
+        Query the current state of an OCO order list on the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            order_list_id (str | None): Venue-assigned order-list identifier
+            list_client_order_id (str | None): Durable list client order id
+                (the deterministic parent command identifier)
+
+        Note:
+            At least one of order_list_id or list_client_order_id must be
+            provided.
+
+        Returns:
+            VenueOrderList: Current order-list state from the venue
         '''
 
         ...

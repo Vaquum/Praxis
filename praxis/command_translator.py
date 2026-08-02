@@ -26,6 +26,14 @@ invariants see their own type. `STPMode` is the one enum where the
 two sides do not share value strings (Nexus uses `CANCEL_*`, Praxis
 uses `EXPIRE_*`); `_STP_MODE_VALUE_MAP` records the semantic
 equivalence so the translation does not silently drop the value.
+
+`build_execution_params` extends this to every execution mode: it dispatches
+on the mode to the matching per-mode params dataclass (`SingleShotParams`,
+`TwapParams`, `BracketParams`, and the rest), rejecting keys outside the
+mode's field set and coercing list payloads to the tuples the dataclasses
+expect. SINGLE_SHOT keeps `build_single_shot_params` — it alone accepts an
+omitted (`None`) payload and type-checks Decimals directly; the other modes
+self-validate in their dataclass `__post_init__`.
 '''
 
 from __future__ import annotations
@@ -33,7 +41,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
@@ -41,9 +51,16 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.execution_params import ExecutionParams
+from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.time_dca_params import TimeDcaParams
+from praxis.core.domain.twap_params import TwapParams
 
 __all__ = [
+    'build_execution_params',
     'build_single_shot_params',
     'translate_execution_mode',
     'translate_maker_preference',
@@ -51,6 +68,19 @@ __all__ = [
     'translate_order_type',
     'translate_stp_mode',
 ]
+
+_BRACKET_KEYS = frozenset({
+    'take_profit_price',
+    'take_profit_offset_bps',
+    'stop_loss_price',
+    'stop_loss_offset_bps',
+    'stop_loss_limit_price',
+})
+_TWAP_KEYS = frozenset({'num_slices', 'interval_seconds'})
+_TIME_DCA_KEYS = frozenset({'num_iterations', 'interval_seconds'})
+_SCHEDULED_VWAP_KEYS = frozenset({'interval_seconds', 'volume_weights'})
+_ICEBERG_KEYS = frozenset({'display_qty', 'limit_price'})
+_LADDER_DCA_KEYS = frozenset({'price_levels', 'level_weights'})
 
 _ALLOWED_KEYS = frozenset({'price', 'stop_price', 'stop_limit_price'})
 
@@ -146,7 +176,7 @@ def translate_stp_mode(value: object) -> STPMode:
 
 
 def build_single_shot_params(
-    value: SingleShotParams | Mapping[str, object] | None,
+    value: object,
 ) -> SingleShotParams:
 
     '''Coerce a Nexus `execution_params` payload into `SingleShotParams`.
@@ -205,3 +235,109 @@ def build_single_shot_params(
         kwargs[key] = raw
 
     return SingleShotParams(**kwargs)
+
+
+def _build_from_mapping[P](
+    cls: type[P],
+    value: object,
+    mode_label: str,
+    allowed_keys: frozenset[str],
+    tuple_keys: frozenset[str] = frozenset(),
+) -> P:
+
+    '''Build a per-mode params dataclass from a Nexus `execution_params` mapping.
+
+    Args:
+        cls: The target params dataclass.
+        value: The `execution_params` payload — a `cls` instance (passed
+            through) or a `Mapping` of its field names.
+        mode_label: Execution-mode name for error messages.
+        allowed_keys: Field names accepted for this mode.
+        tuple_keys: Field names whose list payloads are coerced to tuples.
+
+    Returns:
+        A validated `cls` instance.
+
+    Raises:
+        TypeError: If `value` is neither a `cls` instance nor a `Mapping`.
+        ValueError: If the mapping carries a key outside `allowed_keys`, or
+            if the dataclass rejects the values.
+    '''
+
+    if isinstance(value, cls):
+        return value
+
+    if not isinstance(value, Mapping):
+        msg = (
+            f'execution_params for {mode_label} must be {cls.__name__} or a '
+            f'Mapping, got {type(value).__name__}'
+        )
+        raise TypeError(msg)
+
+    unknown = set(value.keys()) - allowed_keys
+    if unknown:
+        msg = (
+            f'execution_params has unsupported keys for {mode_label}: '
+            f'{sorted(unknown)} (allowed: {sorted(allowed_keys)})'
+        )
+        raise ValueError(msg)
+
+    kwargs: dict[str, Any] = {}
+    for key, raw in value.items():
+        kwargs[key] = tuple(raw) if key in tuple_keys and isinstance(raw, list) else raw
+
+    return cls(**kwargs)
+
+
+def build_execution_params(  # noqa: PLR0911 - one return per execution mode
+    mode: ExecutionMode,
+    value: object,
+) -> ExecutionParams:
+
+    '''Coerce a Nexus `execution_params` payload into the mode's params type.
+
+    Dispatches on `mode` to the matching params dataclass, validating the
+    payload's keys and values. A dataclass instance passes through; a
+    `Mapping` is built into the dataclass; any other shape fails closed.
+
+    Args:
+        mode: The command's execution mode.
+        value: The `execution_params` payload from a Nexus `TradeCommand`.
+
+    Returns:
+        The validated per-mode params object.
+
+    Raises:
+        TypeError: If the payload shape does not match the mode.
+        ValueError: If a key is unsupported or a value is rejected.
+    '''
+
+    if mode is ExecutionMode.SINGLE_SHOT:
+        return build_single_shot_params(value)
+
+    if mode is ExecutionMode.BRACKET:
+        return _build_from_mapping(BracketParams, value, 'BRACKET', _BRACKET_KEYS)
+
+    if mode is ExecutionMode.TWAP:
+        return _build_from_mapping(TwapParams, value, 'TWAP', _TWAP_KEYS)
+
+    if mode is ExecutionMode.TIME_DCA:
+        return _build_from_mapping(TimeDcaParams, value, 'TIME_DCA', _TIME_DCA_KEYS)
+
+    if mode is ExecutionMode.SCHEDULED_VWAP:
+        return _build_from_mapping(
+            ScheduledVwapParams, value, 'SCHEDULED_VWAP', _SCHEDULED_VWAP_KEYS,
+            frozenset({'volume_weights'}),
+        )
+
+    if mode is ExecutionMode.ICEBERG:
+        return _build_from_mapping(IcebergParams, value, 'ICEBERG', _ICEBERG_KEYS)
+
+    if mode is ExecutionMode.LADDER_DCA:
+        return _build_from_mapping(
+            LadderDcaParams, value, 'LADDER_DCA', _LADDER_DCA_KEYS,
+            frozenset({'price_levels', 'level_weights'}),
+        )
+
+    msg = f'no execution_params builder for mode {mode.value}'
+    raise ValueError(msg)

@@ -14,9 +14,18 @@ from datetime import datetime
 from decimal import Decimal
 
 from praxis.core.domain._require_str import _require_str
-from praxis.core.domain.enums import CostBasisMethod, FundDirection, OrderSide, OrderType, TradeStatus
+from praxis.core.domain.enums import (
+    CostBasisMethod,
+    ExecutionMode,
+    FundDirection,
+    OrderSide,
+    OrderType,
+    SchemeState,
+    TradeStatus,
+)
 
 __all__ = [
+    'BracketInitialized',
     'CommandAccepted',
     'Event',
     'FillReceived',
@@ -35,6 +44,9 @@ __all__ = [
     'OutcomeDeliveryContextRecorded',
     'OutcomeReplayAbandoned',
     'RegisterAccount',
+    'SchemeInitialized',
+    'SchemeStateChanged',
+    'SliceFailed',
     'TradeClosed',
     'TradeOutcomeProduced',
 ]
@@ -185,18 +197,30 @@ class OrderSubmitted(_EventBase):
         timestamp (datetime): Event time, must be timezone-aware.
         client_order_id (str): Deterministic client order identifier.
         venue_order_id (str): Venue-assigned order identifier.
+        leg_client_order_ids (tuple[str, ...]): For an OCO submission, the
+            venue-assigned client order ids of the list's legs, persisted so
+            replay can map leg fills back to the parent order. Empty for
+            non-OCO orders.
     '''
 
     client_order_id: str
     venue_order_id: str
+    leg_client_order_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
 
         super().__post_init__()
 
+        object.__setattr__(
+            self, 'leg_client_order_ids', tuple(self.leg_client_order_ids),
+        )
+
         name = type(self).__name__
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'venue_order_id', self.venue_order_id)
+
+        for leg_id in self.leg_client_order_ids:
+            _require_str(name, 'leg_client_order_ids entry', leg_id)
 
 
 @dataclass(frozen=True)
@@ -249,6 +273,39 @@ class OrderSubmitFailed(_EventBase):
         super().__post_init__()
 
         name = type(self).__name__
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class SliceFailed(_EventBase):
+
+    '''
+    Represent a scheme slice that could not be placed.
+
+    Appended when a multi-slice scheme's child submission fails
+    definitively (venue rejection, insufficient balance, rate limit after
+    retries). The scheme reports a non-terminal PARTIAL outcome and waits
+    for the Manager (TradeModify / TradeAbort) or its deadline.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Parent scheme identifier.
+        client_order_id (str): Deterministic client order id of the failed slice.
+        reason (str): Failure reason.
+    '''
+
+    command_id: str
+    client_order_id: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'reason', self.reason)
 
@@ -444,6 +501,232 @@ class TradeClosed(_EventBase):
         name = type(self).__name__
         _require_str(name, 'trade_id', self.trade_id)
         _require_str(name, 'command_id', self.command_id)
+
+
+@dataclass(frozen=True)
+class SchemeInitialized(_EventBase):
+
+    '''
+    Represent the start of a multi-slice execution scheme.
+
+    Written once when a non-single-shot command begins execution. Records
+    the immutable identity and totals needed to recognise and resume the
+    scheme from the Event Spine after a restart. Mutable progress is
+    recorded by SchemeStateChanged.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Originating TradeCommand identifier, the scheme parent id.
+        trade_id (str): Trade correlation identifier.
+        execution_mode (ExecutionMode): The scheme's execution mode.
+        symbol (str): Trading pair symbol.
+        side (OrderSide): Order direction.
+        total_qty (Decimal): Total base quantity to execute across children.
+        slices_total (int): Planned number of children, or 0 when dynamic.
+        interval_seconds (int): Seconds between time-scheduled children, so
+            boot replay can rebuild the schedule without the transient
+            command. Non-negative; 0 for modes that are not time-scheduled.
+            Defaults to 0 so historical events written before this field
+            hydrate cleanly; boot resume treats a 0 interval as unresumable.
+        timeout_seconds (int): Command deadline in seconds from the scheme's
+            start, persisted so the deadline backstop survives a restart.
+            Non-negative; 0 means no deadline. Defaults to 0 so events
+            written before this field hydrate cleanly.
+        volume_weights (tuple[Decimal, ...]): Per-child fractional weights
+            (summing to 1) for a scheme whose children are unequally sized —
+            a Scheduled VWAP volume curve or a Ladder DCA level allocation —
+            persisted so boot resume can reconstruct the grid, which slice
+            count and interval alone cannot. Empty for equal-slice modes.
+            Defaults to empty so events written before this field hydrate
+            cleanly.
+        price_levels (tuple[Decimal, ...]): Per-level resting limit prices
+            for a Ladder DCA scheme, persisted for a faithful rebuild on
+            resume. Empty for modes with no per-child price. Defaults to
+            empty so events written before this field hydrate cleanly.
+    '''
+
+    command_id: str
+    trade_id: str
+    execution_mode: ExecutionMode
+    symbol: str
+    side: OrderSide
+    total_qty: Decimal
+    slices_total: int
+    interval_seconds: int = 0
+    timeout_seconds: int = 0
+    volume_weights: tuple[Decimal, ...] = ()
+    price_levels: tuple[Decimal, ...] = ()
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        object.__setattr__(self, 'volume_weights', tuple(self.volume_weights))
+        object.__setattr__(self, 'price_levels', tuple(self.price_levels))
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'trade_id', self.trade_id)
+        _require_str(name, 'symbol', self.symbol)
+
+        if self.execution_mode is ExecutionMode.SINGLE_SHOT:
+            msg = f'{name}.execution_mode must not be SINGLE_SHOT'
+            raise ValueError(msg)
+
+        if (
+            not isinstance(self.total_qty, Decimal)
+            or not self.total_qty.is_finite()
+            or self.total_qty <= _ZERO
+        ):
+            msg = f'{name}.total_qty must be a positive, finite Decimal'
+            raise ValueError(msg)
+
+        if self.slices_total < 0:
+            msg = f'{name}.slices_total must be non-negative'
+            raise ValueError(msg)
+
+        if self.interval_seconds < 0:
+            msg = f'{name}.interval_seconds must be non-negative'
+            raise ValueError(msg)
+
+        if self.timeout_seconds < 0:
+            msg = f'{name}.timeout_seconds must be non-negative'
+            raise ValueError(msg)
+
+        for weight in self.volume_weights:
+            if not isinstance(weight, Decimal) or not weight.is_finite() or weight <= _ZERO:
+                msg = f'{name}.volume_weights entries must be positive, finite Decimals'
+                raise ValueError(msg)
+
+        for level in self.price_levels:
+            if not isinstance(level, Decimal) or not level.is_finite() or level <= _ZERO:
+                msg = f'{name}.price_levels entries must be positive, finite Decimals'
+                raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class BracketInitialized(_EventBase):
+
+    '''
+    Represent the start of a bracket execution.
+
+    Written once when a bracket command begins, before the entry submit, so
+    the identity and protective parameters survive a restart: boot resume
+    reconstructs the bracket to place the protective OCO for a filled-but-
+    unprotected entry, or to re-track an entry still awaiting its fill.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Originating bracket command identifier.
+        trade_id (str): Trade correlation identifier.
+        symbol (str): Trading pair symbol.
+        side (OrderSide): Entry order direction.
+        total_qty (Decimal): Entry base quantity.
+        take_profit_price (Decimal | None): Absolute take-profit price.
+        take_profit_offset_bps (Decimal | None): Take-profit offset in basis
+            points from the entry average fill.
+        stop_loss_price (Decimal | None): Absolute stop-loss trigger price.
+        stop_loss_offset_bps (Decimal | None): Stop-loss offset in basis
+            points from the entry average fill.
+        stop_loss_limit_price (Decimal | None): Stop-loss limit price, or None
+            for a stop-market stop-loss leg.
+        timeout_seconds (int): Command deadline in seconds. Non-negative;
+            0 means no deadline. Defaults to 0.
+    '''
+
+    command_id: str
+    trade_id: str
+    symbol: str
+    side: OrderSide
+    total_qty: Decimal
+    take_profit_price: Decimal | None = None
+    take_profit_offset_bps: Decimal | None = None
+    stop_loss_price: Decimal | None = None
+    stop_loss_offset_bps: Decimal | None = None
+    stop_loss_limit_price: Decimal | None = None
+    timeout_seconds: int = 0
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'trade_id', self.trade_id)
+        _require_str(name, 'symbol', self.symbol)
+
+        if (
+            not isinstance(self.total_qty, Decimal)
+            or not self.total_qty.is_finite()
+            or self.total_qty <= _ZERO
+        ):
+            msg = f'{name}.total_qty must be a positive, finite Decimal'
+            raise ValueError(msg)
+
+        if self.timeout_seconds < 0:
+            msg = f'{name}.timeout_seconds must be non-negative'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class SchemeStateChanged(_EventBase):
+
+    '''
+    Represent a durable progress transition of a multi-slice scheme.
+
+    Appended after each state transition (child submitted or filled,
+    schedule advanced, hold, resume, terminal) so replay reconstructs the
+    exact scheduler position on restart.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Parent scheme identifier.
+        cursor (int): Next child index (slice, iteration, or level).
+        filled_qty (Decimal): Cumulative filled base quantity.
+        active_client_order_ids (tuple[str, ...]): Child orders currently working.
+        next_run_at (datetime | None): When the next child is due, None when unscheduled.
+        state (SchemeState): Lifecycle state of the scheme.
+    '''
+
+    command_id: str
+    cursor: int
+    filled_qty: Decimal
+    active_client_order_ids: tuple[str, ...]
+    next_run_at: datetime | None
+    state: SchemeState
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        object.__setattr__(self, 'active_client_order_ids', tuple(self.active_client_order_ids))
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+
+        if self.cursor < 0:
+            msg = f'{name}.cursor must be non-negative'
+            raise ValueError(msg)
+
+        if (
+            not isinstance(self.filled_qty, Decimal)
+            or not self.filled_qty.is_finite()
+            or self.filled_qty < _ZERO
+        ):
+            msg = f'{name}.filled_qty must be a non-negative, finite Decimal'
+            raise ValueError(msg)
+
+        if self.next_run_at is not None and (
+            self.next_run_at.tzinfo is None or self.next_run_at.utcoffset() is None
+        ):
+            msg = f'{name}.next_run_at must be timezone-aware'
+            raise ValueError(msg)
+
+        for client_order_id in self.active_client_order_ids:
+            _require_str(name, 'active_client_order_ids entry', client_order_id)
 
 
 @dataclass(frozen=True)
@@ -793,9 +1076,13 @@ class OutcomeDeliveryContextRecorded(_EventBase):
 
 type Event = (
     CommandAccepted
+    | BracketInitialized
+    | SchemeInitialized
+    | SchemeStateChanged
     | OrderSubmitIntent
     | OrderSubmitted
     | OrderSubmitFailed
+    | SliceFailed
     | OrderQuoteNativeFilled
     | OrderAcked
     | FillReceived

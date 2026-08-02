@@ -19,7 +19,7 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
-from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.execution_params import PARAMS_FOR_MODE, ExecutionParams
 
 __all__ = ['TradeCommand']
 
@@ -46,7 +46,7 @@ class TradeCommand:
             Mutually exclusive with `qty`.
         order_type (OrderType): Order type.
         execution_mode (ExecutionMode): Execution strategy.
-        execution_params (SingleShotParams): Execution parameters for single-shot mode.
+        execution_params (ExecutionParams): Mode-specific execution parameters.
         timeout (int): Execution deadline in seconds, must be positive.
         reference_price (Decimal | None): Optional reference price from Manager, must be positive if set.
         maker_preference (MakerPreference): Maker/taker preference.
@@ -62,7 +62,7 @@ class TradeCommand:
     qty: Decimal | None
     order_type: OrderType
     execution_mode: ExecutionMode
-    execution_params: SingleShotParams
+    execution_params: ExecutionParams
     timeout: int
     reference_price: Decimal | None
     maker_preference: MakerPreference
@@ -115,9 +115,10 @@ class TradeCommand:
             msg = 'TradeCommand.created_at must be timezone-aware'
             raise ValueError(msg)
 
-        if (
-            self.execution_mode is ExecutionMode.SINGLE_SHOT
-            and not isinstance(self.execution_params, SingleShotParams)
-        ):
-            msg = 'execution_params must be SingleShotParams for SINGLE_SHOT mode'
+        expected = PARAMS_FOR_MODE.get(self.execution_mode)
+        if expected is not None and not isinstance(self.execution_params, expected):
+            msg = (
+                f'execution_params must be {expected.__name__} for '
+                f'{self.execution_mode.value} mode'
+            )
             raise TypeError(msg)

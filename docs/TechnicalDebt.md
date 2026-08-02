@@ -1069,3 +1069,151 @@ WP-0005 introduces `PRAGMA user_version` migrations that are additive and fail-c
 
 **When to fix**: when a caller needs a cheap pre-enqueue reject (e.g. the launcher or a fast-path that rejects submits for a poisoned account before they queue), or drop it if none emerges.
 **Migration**: wire it into a pre-submit fast-reject, or remove it and assert the invariant through the writer behaviour only.
+
+## TD-120: Scheduled VWAP ships as a static weighted schedule — no adaptive placement, volume tracking, or participation cap
+
+**Origin**: WP-Praxis-0007 scope decision (VWAP Part A)
+**Severity**: Low (Part A places a strategy-supplied volume curve faithfully; correct but not volume-adaptive)
+**Module**: `praxis/core/execution_manager.py` Scheduled VWAP (shared scheme engine, `plan_weighted_slices`); cross-repo with Nexus market-data forwarding
+
+Scheduled VWAP Part A submits one equal-timing MARKET child per strategy-supplied volume weight (`plan_weighted_slices`), on the same scheme engine as TWAP / Time DCA — a static weighted schedule. It deliberately does NOT implement the checkbox's "adaptive placement + own-progress catch-up", for two reasons grounded in the architecture:
+
+- **No adaptive/participation placement**: Praxis has no live volume feed — market volume lives in the decision layer (Nexus + Furnace data), by design (`ScheduledVwapParams` docstring: "Praxis does not source live volume"). Real POV participation and a participation cap need that feed; the strategy instead bakes the volume forecast into the weight curve it supplies.
+- **Own-progress catch-up is moot for MARKET slices**: a MARKET child fills fully, so there is no fill shortfall to catch up on; the only non-fill path is a slice failure, already handled by the 5.13 freeze/PARTIAL flow. Catch-up becomes meaningful only once slices can rest (LIMIT), which is the TD-121 non-MARKET work.
+
+So Part A is the faithful-scheduled-placement half; the adaptive half is deferred here.
+
+**When to fix**: before VWAP runs on size where market-impact/participation control matters, or when benchmarking execution against market VWAP is required.
+**Migration**: add a Nexus-to-Praxis realized-volume forwarding channel for active VWAP algorithms; Praxis then layers realized-volume schedule tracking plus a POV cap onto the weighted curve. Own-progress catch-up additionally requires resting LIMIT slices (TD-121).
+
+## TD-121: Non-single-shot entry LIMIT/STOP pricing not modelled
+
+**Origin**: WP-Praxis-0007 (per-mode params slice)
+**Severity**: Low (the mode-order-type allowlist restricts these modes to shapes their params can price, so no unpriced shape can validate)
+**Module**: `praxis/core/domain/bracket_params.py`, `praxis/core/domain/ladder_dca_params.py`, `praxis/core/validate_trade_command.py` (`_ALLOWED_ORDER_TYPES`)
+
+BRACKET, TWAP, TIME_DCA, and SCHEDULED_VWAP carry no field for an entry LIMIT price or entry STOP trigger — those live only on `SingleShotParams`, which these modes do not use — so `_ALLOWED_ORDER_TYPES` restricts them to MARKET. LADDER_DCA carries per-level LIMIT prices (`price_levels`) but no stop trigger, so it is restricted to LIMIT (a STOP_LIMIT ladder would be unrepresentable).
+
+**When to fix**: before those modes execute with a non-market entry — a BRACKET LIMIT/STOP entry, LIMIT-priced TWAP/DCA/VWAP slices, or a stop-triggered LADDER_DCA.
+**Migration**: add the missing price fields (a BracketParams entry price / entry stop, a per-slice limit for the slicing modes, a per-level stop trigger for LADDER_DCA), validate them per order_type, then widen `_ALLOWED_ORDER_TYPES`.
+
+## TD-123: Quote-native slicing intentionally unsupported
+
+**Origin**: WP-Praxis-0007 (per-mode params slice; Codex review)
+**Severity**: Low (deliberate limitation, enforced fail-closed)
+**Module**: `praxis/core/validate_trade_command.py` (`_validate_mode_params`)
+
+Multi-slice and multi-level modes size their children from the base command quantity, so a quote-native command (`quote_qty` instead of `qty`) has no quantity to divide. `_validate_mode_params` rejects quote-native commands for every non-single-shot mode; quote-native slicing semantics (equal quote per slice, venue-computed base, and so on) are not defined.
+
+**When to fix**: only if a strategy needs quote-native slicing.
+**Migration**: define per-mode quote-native slicing semantics and lift the restriction in `_validate_mode_params`.
+
+## TD-124: Scheme resume from replayed state not implemented — RESOLVED
+
+**Origin**: WP-Praxis-0007 (TWAP producer slice; unstaged review)
+**Severity**: Medium (TWAP emits `SchemeInitialized`; a mid-run restart previously abandoned the scheme instead of resuming it)
+**Module**: `praxis/core/execution_manager.py` (`replay_events`, `_resume_schemes`, `reconcile_orphan_commands`, the scheme scheduler)
+
+Original gap: boot resume of a running multi-slice scheme was not built — `replay_events` did not rebuild the `_LiveScheme`, and `SchemeInitialized` did not persist the interval needed to reconstruct the schedule; an interrupted scheme was terminalized (safe, not correct).
+
+**Resolved** in the scheme-resume slice (WP-Praxis-0007). `SchemeInitialized` now carries `interval_seconds`; an equal-slice mode's params are fully determined by `(mode, slices_total, interval_seconds)`, so the transient command is not persisted (`_rebuild_equal_slice_params`). After replay, `_resume_schemes` rebuilds each non-terminal scheme's `_LiveScheme` — params reconstructed, slice plan recomputed from `total_qty`/`slices_total`/`lot_step`, cursor/active-children/next-run restored from the latest `SchemeStateChanged` — and re-registers it in `runtime.schemes`, `_commands`, `_accepted_commands`, `_command_trade_ids`. A scheme with no scheduled next run is kicked to fire immediately; the scheduler also finalizes a resumed scheme whose children all settled during downtime. `reconcile_orphan_commands` Class C now terminalizes only schemes replay did not resume (terminal-state, or a mode/plan that cannot be rebuilt). A resumed child that filled or was cancelled during downtime is repaired by the existing reconnect backfill (missed fills replayed as `FillReceived`, which settle the scheme's active children). Re-submission of a slice whose durable `SchemeStateChanged` did not land before the crash is idempotent via the deterministic client order id (venue rejects the duplicate, the rescue path confirms).
+
+## TD-125: Scheme child fills counted only from immediate_fills — RESOLVED
+
+**Origin**: WP-Praxis-0007 (TWAP producer slice; unstaged review)
+**Severity**: Medium (a MARKET child that does not fully fill synchronously terminated the scheme rather than completing)
+**Module**: `praxis/core/execution_manager.py` (`_submit_market_slice`, `_advance_scheme`, `_on_scheme_child_event`)
+
+Original defect: a scheme slice aggregated only the fills carried in the venue `submit_order` response (`immediate_fills`); the interim policy finalized the scheme terminal when a child did not fully fill immediately. Safe for full-response MARKET fills, wrong for partial or ACK-only responses.
+
+**Resolved** in the child-fill-aggregation slice (WP-Praxis-0007). Each scheme now tracks its `active_children`; a child settles when its order projection reaches a terminal status; the child's fills — immediate and later WebSocket `executionReport` — aggregate into the parent through the child order projections (`_scheme_fill_totals`, dedup-safe since the spine append gates enqueue). The cursor advances on the interval, but the scheme finalizes FILLED only once every slice is submitted and every child has settled (`_maybe_finalize_scheme`); a `TradeAbort` cancels still-working children and finalizes CANCELED once they drain; a child that reaches a terminal status without fully filling (rejected, expired, cancelled outside the abort flow) fails the scheme REJECTED once siblings drain. A child that never settles still hangs the scheme — see TD-126.
+
+## TD-126: Scheme has no deadline backstop; a never-settling child hangs it — RESOLVED
+
+**Origin**: WP-Praxis-0007 (child-fill-aggregation slice; unstaged review)
+**Severity**: High for live multi-slice (a wedged scheme never emits its terminal outcome, so the Nexus reservation is never released)
+**Module**: `praxis/core/execution_manager.py` (`_expire_scheme`, `_advance_due_schemes`)
+
+Original gap: a scheme finalized only when every slice was submitted and every child settled, with no wall-clock deadline — a child that never reached a terminal status (a resting order that neither fills nor cancels, a missed WebSocket terminal not repaired by reconcile) hung the scheme forever with no terminal outcome.
+
+**Resolved** in the 5.13 slice-failure slice (WP-Praxis-0007). `SchemeInitialized` persists `timeout_seconds`; each scheme carries an absolute `deadline` (`command.created_at + timeout`, reconstructed on resume from `SchemeInitialized.timestamp + timeout_seconds`). The scheduler checks the deadline every iteration ahead of advancement: a scheme still live at its deadline — a frozen scheme the Manager never acted on, or one stuck on a never-settling child — is force-expired (`_expire_scheme`): working children are cancelled and the single terminal outcome is EXPIRED once they drain. A 0 timeout means no deadline.
+
+## TD-127: Scheme resume residuals — non-durable abort and lot-step replan divergence
+
+**Origin**: WP-Praxis-0007 (scheme-resume slice; unstaged review)
+**Severity**: Medium (both are narrow crash / venue-change windows, not the common path)
+**Module**: `praxis/core/execution_manager.py` (`_abort_scheme`, `_resume_schemes`)
+
+Two residual gaps in boot resume:
+
+1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.frozen`, both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
+
+2. **Lot-step replan divergence.** Resume recomputes the slice plan with the venue's *current* `lot_step` (`plan_even_slices(total_qty, slices_total, lot_step)`). If the LOT_SIZE filter changed between init and resume, the remaining (unsubmitted) slice sizes differ from the original plan — already-submitted children are unaffected (durable on the spine), and the aggregate still targets `total_qty`, but the per-slice grid shifts. Fix: persist the original `lot_step` (a single Decimal, `_coerce`-safe) on `SchemeInitialized` and replan against it, so the grid is identical across a restart.
+
+**When to fix**: before live multi-slice trading (with the 5.13 / TD-126 deadline work). Neither corrupts state; both are correctness-precision gaps under specific crash/venue-change timing.
+
+## TD-128: Scheme Manager control path incomplete — no TradeModify; PARTIAL handling unverified cross-repo
+
+**Origin**: WP-Praxis-0007 (5.13 slice-failure slice; unstaged review)
+**Severity**: Medium (frozen scheme has only two exits until amend lands; cross-repo behaviour unverified)
+**Module**: `praxis/core/execution_manager.py` (`_on_slice_failure`, `submit_abort`); Nexus outcome/capital handling
+
+Two gaps in the RFC 5.13 Manager control path:
+
+1. **No `TradeModify` (amend).** A frozen scheme (slice failed, PARTIAL reported) can only leave the frozen state via `TradeAbort` (→ CANCELED) or its deadline (→ EXPIRED). RFC 5.13 also allows the Manager to `TradeModify` (amend and resume). Amend is not built, so an operator cannot repair-and-continue a frozen scheme; it must abort or wait out the deadline.
+
+2. **PARTIAL outcome handling unverified in Nexus.** The scheme reports a non-terminal `TradeOutcome(PARTIAL)` on a slice failure. Nexus must treat this as progress — keep the capital reservation, not close the trade — and only release/close on the eventual terminal outcome (FILLED/CANCELED/EXPIRED). This is a cross-repo contract that has not been verified against the Nexus outcome/capital path.
+
+**When to fix**: before live multi-slice TWAP/DCA. (1) implement `TradeModify` handling for schemes; (2) verify (with a Nexus-side test) that a PARTIAL scheme outcome does not release capital or close the trade.
+
+## TD-129: Rescued terminal orders stay OPEN until reconcile
+
+**Origin**: WP-Praxis-0007 (OCO submit-rescue slice; unstaged review)
+**Severity**: Medium (bounded stale window on a rare timeout-rescue path; reconcile repairs)
+**Module**: `praxis/core/execution_manager.py` (`_process_command`, `_rescue_by_client_order_id`, `_rescue_oco_by_list_id`)
+
+When a non-idempotent POST times out (or returns `-2010` duplicate) and the rescue query confirms the order/list *already completed* on the venue, the rescue returns the venue's terminal status but `immediate_fills=()` — the trade-level fills (`venue_trade_id`, price, fee) are only available from `myTrades`, not from `query_order` / `query_order_list`. `_process_command` derives the non-quote `TradeStatus` from `filled_qty` alone and `OrderSubmitted` always records the order OPEN, so a rescued-terminal order is recorded OPEN with a PENDING outcome and no fills. The pre-fill WebSocket `executionReport` already fired during the timeout window and will not re-fire, so the reconcile (`myTrades`) path is the only healer — and for OCO the fills route to the parent via the leg-to-parent map (`oco_leg_parent`). This is uniform across single-order and OCO rescue. The window is bounded by the reconcile cadence, and no state is corrupted; the order/reservation is simply stale until reconcile terminalizes it.
+
+**When to fix**: before live trading at scale. Terminalize a rescued-completed order at rescue time — either backfill its fills from `myTrades` inline, or emit the terminal event (`OrderCanceled` / a fill-less close) for the no-fill ALL_DONE / canceled case — so the order and its reservation resolve immediately rather than waiting for the reconcile pass.
+
+## TD-130: A bracket whose protective OCO fails leaves a naked position
+
+**Origin**: WP-Praxis-0007 (6.3 Bracket slice; unstaged review)
+**Severity**: Medium (open risk with no TP/SL until an operator or reconcile intervenes)
+**Module**: `praxis/core/execution_manager.py` (`_place_bracket_protection`)
+
+A bracket fills its MARKET entry, then places the protective OCO. If the OCO submission fails definitively — a venue rejection, or a timeout/duplicate the rescue could not salvage — the entry position is already open and is left **unprotected**: `_place_bracket_protection` appends `OrderSubmitFailed` for the exit and logs the naked position, but does not unwind the entry, retry the OCO, or flatten. The bracket entry outcome is still reported FILLED. Until an operator or a reconcile pass intervenes, the position carries open risk with no stop-loss or take-profit.
+
+**When to fix**: before live bracket trading. Add an explicit unprotected-entry policy — at minimum an alert/runbook signal, and ideally a bounded OCO retry and/or an auto-flatten-or-freeze on definitive protection failure — rather than silently holding a naked position.
+
+## TD-131: Bracket partial-fill protection for a future resting entry — RESOLVED (durability) / deferred (resting entry)
+
+**Origin**: WP-Praxis-0007 (6.3 Bracket slice; unstaged review)
+**Severity**: Low (residual applies only to a not-yet-built non-MARKET bracket entry)
+**Module**: `praxis/core/execution_manager.py` (`_resume_brackets`, `_place_pending_bracket_protection`)
+
+**Resolved (durability / boot resume)**: a `BracketInitialized` event is now appended before the entry submit, carrying the bracket identity and protective parameters. On boot `_resume_brackets` rebuilds `_LiveBracket` for any bracket whose protective OCO was not yet placed (no exit order projection); `_place_pending_bracket_protection` then places protection for an already-filled entry on the next account-loop pass, and `_on_bracket_event` handles a still-open entry that fills post-boot. A bracket whose protective OCO already exists needs no rebuild — the generic `OrderSubmitIntent` replay re-registers its exit lineage. The naked-position window from a crash between entry fill and protection is now closed by automatic boot repair (definitive live-submit failure remains TD-130).
+
+**Deferred**: partial-entry protection is bounded correctly for the current MARKET-only entry (protection is placed on the entry's terminal event with the final filled quantity; a spot MARKET order never rests, so there is no persistent partially-filled-open window). A future non-MARKET / resting bracket entry (TD-121) would reopen that window and needs partial-fill protection reconciliation — place-and-reconcile-or-replace as more fills arrive.
+
+**When to fix**: with the TD-121 non-MARKET bracket entry.
+
+## TD-132: Iceberg (and single-shot resting LIMIT) has no post-submit deadline sweep
+
+**Origin**: WP-Praxis-0007 (6.x Iceberg slice)
+**Severity**: Low (a resting order rests until filled or aborted; the Manager can abort it)
+**Module**: `praxis/core/execution_manager.py` (`_process_iceberg`, `_process_command`)
+
+Iceberg works the command as a single native-iceberg (`icebergQty`) GTC LIMIT order — the venue shows `display_qty` at a time and refills it, so continuous drawdown top-up is venue-managed (B2). The Praxis side registers the order and drives PARTIAL/FILLED outcomes from the venue's incremental WebSocket fills, and a `TradeAbort` cancels the resting order. Like a single-shot resting GTC LIMIT, however, the command's `timeout` deadline is checked only at submission; there is no periodic sweep that cancels-and-EXPIREs a resting order whose deadline passes while it waits for a fill. A resting iceberg that never fully fills therefore lives until the Manager aborts it. The scheme engine has such a deadline backstop (`_advance_due_schemes`); the single-order resting path does not.
+
+**When to fix**: before resting LIMIT / iceberg orders run unattended with a meaningful deadline. Add a resting-order deadline sweep (mirroring the scheme deadline backstop) that cancels and EXPIREs a non-terminal single-order command past its deadline.
+
+## TD-133: SINGLE_SHOT LIMIT/OCO against binsim is not gated up front
+
+**Origin**: WP-Praxis-0007 (live-vs-paper classification slice)
+**Severity**: Low (a paper single-shot LIMIT/OCO is rejected by the venue, not mis-executed)
+**Module**: `praxis/core/live_only_modes.py`, `praxis/launcher.py` (`_parse_enabled_modes`)
+
+The live-only classification is mode-level: BRACKET, ICEBERG, and LADDER_DCA are refused against the binsim venue (MARKET-only) at deploy. SINGLE_SHOT stays enabled because it is usually MARKET, but a SINGLE_SHOT command carrying a LIMIT / OCO order type still cannot run against binsim — it is caught by binsim's own MARKET-only rejection at execution rather than gated up front. This is the deliberate order-type edge left to venue self-protection (option (i) of the scoping decision): the mode-level gate handles the whole-mode-live-only cases, and binsim rejects a stray non-MARKET single-shot with a clear venue error.
+
+**When to fix**: if paper (binsim) operators rely on SINGLE_SHOT LIMIT/OCO. Add an order-type-aware paper check (reject a non-MARKET single-shot against binsim at intake) so the failure is a fast, clear configuration error rather than a venue reject.

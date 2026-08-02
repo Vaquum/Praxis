@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import functools
 import queue
 from collections.abc import Sequence
@@ -41,7 +42,12 @@ from praxis.core.domain.events import (
     TradeOutcomeProduced,
 )
 from praxis.core.account_ledger import CostBasisMethod
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.domain.twap_params import TwapParams
+from praxis.core.execution_manager import (
+    AccountNotRegisteredError,
+    ExecutionManager,
+    ExecutionModeNotEnabledError,
+)
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.binance_urls import (
     TESTNET_REST_URL,
@@ -912,6 +918,43 @@ async def test_trading_shutdown_rejects_aborts(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_trading_shutdown_aborts_in_flight_commands(spine: EventSpine) -> None:
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    em = trading._execution_manager
+    runtime = em._accounts['acc-1']
+    runtime.command_to_order['cmd-mapped'] = 'coid-1'
+    em._accepted_commands['cmd-queued'] = 'acc-1'
+
+    aborted: list[str] = []
+    real_submit_abort = em.submit_abort
+
+    def _spy(abort: TradeAbort) -> None:
+        aborted.append(abort.command_id)
+        with contextlib.suppress(ValueError, AccountNotRegisteredError):
+            real_submit_abort(abort)
+
+    em.submit_abort = _spy  # type: ignore[method-assign]
+
+    await trading.stop()
+
+    assert sorted(aborted) == ['cmd-mapped', 'cmd-queued']
+
+
+@pytest.mark.asyncio
 async def test_trading_shutdown_cancels_open_orders(spine: EventSpine) -> None:
     from praxis.core.domain.order import Order
 
@@ -948,6 +991,55 @@ async def test_trading_shutdown_cancels_open_orders(spine: EventSpine) -> None:
         updated_at=_CREATED_AT,
     )
     trading._execution_manager._accounts['acc-1'].trading_state.orders['coid-1'] = fake_order
+
+    await trading.stop()
+
+    assert ('acc-1', 'coid-1') in adapter.cancel_calls
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_cancels_order_when_abort_submission_fails(
+    spine: EventSpine,
+) -> None:
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    runtime = trading._execution_manager._accounts['acc-1']
+    # 'cmd-1' is mapped to an order so it is reported in-flight, but it is
+    # not an accepted command, so submit_abort raises ValueError. The order
+    # must still be cancelled by the orphan pass, not skipped.
+    runtime.command_to_order['cmd-1'] = 'coid-1'
+    runtime.trading_state.orders['coid-1'] = Order(
+        client_order_id='coid-1',
+        venue_order_id='venue-1',
+        account_id='acc-1',
+        command_id='cmd-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        cumulative_notional=Decimal('0'),
+        price=Decimal('50000'),
+        stop_price=None,
+        status=OrderStatus.OPEN,
+        created_at=_CREATED_AT,
+        updated_at=_CREATED_AT,
+    )
 
     await trading.stop()
 
@@ -1508,6 +1600,57 @@ async def test_on_execution_report_processes_fill(spine: EventSpine) -> None:
 
     state = trading._execution_manager._accounts['acc-1'].trading_state
     assert ('trade-1', 'acc-1') in state.positions
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_execution_report_routes_oco_leg_fill_to_parent(
+    spine: EventSpine,
+) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    state = trading._execution_manager._accounts['acc-1'].trading_state
+    state.orders['SS-cmd1-00'] = _make_order()
+    state.oco_leg_parent['leg-a'] = 'SS-cmd1-00'
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    report = ExecutionReport(
+        event_time=_CREATED_AT,
+        symbol='BTCUSDT',
+        client_order_id='leg-a',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        original_qty=Decimal('1'),
+        original_price=Decimal('50000'),
+        execution_type=ExecutionType.TRADE,
+        order_status=OrderStatus.FILLED,
+        reject_reason='NONE',
+        venue_order_id='v-a',
+        last_filled_qty=Decimal('1'),
+        last_filled_price=Decimal('50000'),
+        cumulative_filled_qty=Decimal('1'),
+        commission=Decimal('0.001'),
+        commission_asset='BTC',
+        transaction_time=_CREATED_AT,
+        venue_trade_id='t-ws-a',
+        is_maker=False,
+    )
+
+    mock_adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    mock_adapter.parse_execution_report.return_value = report
+    trading._venue_adapter = cast(VenueAdapter, mock_adapter)
+
+    await trading._on_execution_report('acc-1', {'e': 'executionReport'})
+    await asyncio.sleep(0.15)
+
+    events = await _trading_events(spine)
+    assert len(events) == 1
+    _, event = events[0]
+    assert isinstance(event, FillReceived)
+    assert event.client_order_id == 'SS-cmd1-00'
+    assert event.command_id == 'cmd-1'
+    assert event.venue_trade_id == 't-ws-a'
     await trading.stop()
 
 
@@ -2546,5 +2689,68 @@ async def test_start_registers_account_with_only_non_booking_history(spine: Even
 
     ledger = trading.execution_manager._accounts['acc-1'].account_ledger
     assert ledger.cost_basis_method is CostBasisMethod.FIFO
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_default_config_gates_non_single_shot_mode(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    em = trading._execution_manager
+
+    with pytest.raises(ExecutionModeNotEnabledError, match='TWAP'):
+        await em.submit_command(
+            trade_id='trade-1',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.TWAP,
+            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_CREATED_AT,
+        )
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_config_enables_named_mode(spine: EventSpine) -> None:
+    adapter = _ReconVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+            enabled_execution_modes=frozenset({ExecutionMode.TWAP}),
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    await trading.start()
+    em = trading._execution_manager
+
+    command_id = await em.submit_command(
+        trade_id='trade-1',
+        account_id='acc-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        order_type=OrderType.MARKET,
+        execution_mode=ExecutionMode.TWAP,
+        execution_params=TwapParams(num_slices=4, interval_seconds=10),
+        timeout=300,
+        reference_price=None,
+        maker_preference=MakerPreference.NO_PREFERENCE,
+        stp_mode=STPMode.NONE,
+        created_at=_CREATED_AT,
+    )
+    assert isinstance(command_id, str)
 
     await trading.stop()
