@@ -41,7 +41,11 @@ from praxis.core.domain.events import (
     TradeOutcomeProduced,
 )
 from praxis.core.account_ledger import CostBasisMethod
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.domain.twap_params import TwapParams
+from praxis.core.execution_manager import (
+    ExecutionManager,
+    ExecutionModeNotEnabledError,
+)
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.binance_urls import (
     TESTNET_REST_URL,
@@ -2597,5 +2601,68 @@ async def test_start_registers_account_with_only_non_booking_history(spine: Even
 
     ledger = trading.execution_manager._accounts['acc-1'].account_ledger
     assert ledger.cost_basis_method is CostBasisMethod.FIFO
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_default_config_gates_non_single_shot_mode(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    em = trading._execution_manager
+
+    with pytest.raises(ExecutionModeNotEnabledError, match='TWAP'):
+        await em.submit_command(
+            trade_id='trade-1',
+            account_id='acc-1',
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('1'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.TWAP,
+            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=_CREATED_AT,
+        )
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_config_enables_named_mode(spine: EventSpine) -> None:
+    adapter = _ReconVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+            enabled_execution_modes=frozenset({ExecutionMode.TWAP}),
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    await trading.start()
+    em = trading._execution_manager
+
+    command_id = await em.submit_command(
+        trade_id='trade-1',
+        account_id='acc-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        order_type=OrderType.MARKET,
+        execution_mode=ExecutionMode.TWAP,
+        execution_params=TwapParams(num_slices=4, interval_seconds=10),
+        timeout=300,
+        reference_price=None,
+        maker_preference=MakerPreference.NO_PREFERENCE,
+        stp_mode=STPMode.NONE,
+        created_at=_CREATED_AT,
+    )
+    assert isinstance(command_id, str)
 
     await trading.stop()

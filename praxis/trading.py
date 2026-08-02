@@ -131,6 +131,7 @@ class Trading:
             on_trade_outcome=config.on_trade_outcome,
             clock=clock,
             max_slippage_bps=max_slippage_bps,
+            enabled_modes=config.enabled_execution_modes,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,

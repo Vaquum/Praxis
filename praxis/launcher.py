@@ -163,6 +163,7 @@ _TRADE_MODE_PAPER = 'paper'
 _TRADE_MODE_LIVE = 'live'
 _TRADE_MODES = (_TRADE_MODE_PAPER, _TRADE_MODE_LIVE)
 _SECRETS_FILE_ENV = 'PRAXIS_SECRETS_FILE'
+_ENABLED_MODES_ENV = 'PRAXIS_ENABLED_EXECUTION_MODES'
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
@@ -631,6 +632,48 @@ def _env_positive_int(name: str) -> int | None:
         raise ValueError(msg)
 
     return value
+
+
+def _parse_enabled_modes(env: dict[str, str]) -> frozenset[ExecutionMode]:
+    '''Parse the enabled-execution-modes deployment allow-list from the env.
+
+    `PRAXIS_ENABLED_EXECUTION_MODES` is a comma-separated list of
+    `ExecutionMode` names (e.g. `TWAP,BRACKET`). Unset or empty leaves the
+    default-off gate ({SINGLE_SHOT}); SINGLE_SHOT is always enabled. An
+    unrecognised name is a deployment misconfiguration and fails fast.
+
+    Args:
+        env: Process environment mapping.
+
+    Returns:
+        frozenset[ExecutionMode]: The modes to enable, always including
+            SINGLE_SHOT.
+
+    Raises:
+        ValueError: An entry is not a known ExecutionMode name.
+    '''
+
+    raw = env.get(_ENABLED_MODES_ENV, '').strip()
+    if not raw:
+        return frozenset({ExecutionMode.SINGLE_SHOT})
+
+    modes: set[ExecutionMode] = {ExecutionMode.SINGLE_SHOT}
+    for token in raw.split(','):
+        name = token.strip()
+        if not name:
+            continue
+
+        try:
+            modes.add(ExecutionMode(name))
+        except ValueError as exc:
+            valid = ', '.join(mode.value for mode in ExecutionMode)
+            msg = (
+                f'{_ENABLED_MODES_ENV} has unknown execution mode {name!r}; '
+                f'valid modes: {valid}'
+            )
+            raise ValueError(msg) from exc
+
+    return frozenset(modes)
 
 
 async def _post_alert_webhook(url: str, payload: dict[str, Any]) -> None:
@@ -4510,6 +4553,7 @@ def main() -> None:
         venue_ws_api_url=venue_ws_api_url,
         account_credentials=account_credentials,
         shutdown_timeout=float(env.get('SHUTDOWN_TIMEOUT', _DEFAULT_SHUTDOWN_TIMEOUT)),
+        enabled_execution_modes=_parse_enabled_modes(env),
     )
 
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')

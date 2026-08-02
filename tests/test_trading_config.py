@@ -11,6 +11,7 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
+from praxis.core.domain.enums import ExecutionMode
 from praxis.infrastructure.secret_store import Credentials
 from praxis.trading_config import TradingConfig
 
@@ -24,6 +25,24 @@ def test_trading_config_defaults() -> None:
     assert cfg.account_credentials == {}
     assert isinstance(cfg.account_credentials, MappingProxyType)
     assert cfg.on_trade_outcome is None
+    assert cfg.enabled_execution_modes == frozenset({ExecutionMode.SINGLE_SHOT})
+
+
+def test_trading_config_enabled_modes_are_frozen() -> None:
+    cfg = TradingConfig(
+        epoch_id=1,
+        enabled_execution_modes=frozenset(
+            {ExecutionMode.SINGLE_SHOT, ExecutionMode.TWAP},
+        ),
+    )
+
+    assert ExecutionMode.TWAP in cfg.enabled_execution_modes
+    assert isinstance(cfg.enabled_execution_modes, frozenset)
+
+
+def test_trading_config_rejects_non_execution_mode_entry() -> None:
+    with pytest.raises(ValueError, match='enabled_execution_modes'):
+        TradingConfig(epoch_id=1, enabled_execution_modes=frozenset({'TWAP'}))  # type: ignore[arg-type]
 
 
 def test_trading_config_rejects_empty_venue_rest_url() -> None:

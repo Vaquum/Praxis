@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, UTC
 from decimal import Decimal
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock
 
 import pytest
@@ -45,7 +45,11 @@ from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
+from praxis.core.execution_manager import (
+    AccountNotRegisteredError,
+    ExecutionManager,
+    ExecutionModeNotEnabledError,
+)
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.trading_inbound import TradingInbound
@@ -1535,6 +1539,75 @@ class TestModeDispatch:
         assert outcome.reason is not None
         assert 'TWAP' in outcome.reason
         assert 'misrouted' in outcome.reason
+
+        await mgr.unregister_account(_ACCT)
+
+
+class TestCapabilityGate:
+    _TWAP_KWARGS: ClassVar[dict[str, Any]] = {
+        **_CMD_KWARGS,
+        'order_type': OrderType.MARKET,
+        'execution_mode': ExecutionMode.TWAP,
+        'execution_params': TwapParams(num_slices=4, interval_seconds=10),
+    }
+
+    @pytest.mark.asyncio
+    async def test_disabled_mode_rejected_when_gate_configured(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+            enabled_modes=frozenset({ExecutionMode.SINGLE_SHOT}),
+        )
+        mgr.register_account(_ACCT)
+
+        with pytest.raises(ExecutionModeNotEnabledError, match='TWAP'):
+            await mgr.submit_command(**self._TWAP_KWARGS)
+
+        adapter.submit_order.assert_not_awaited()
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_no_gate_allows_any_mode(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+
+        command_id = await mgr.submit_command(**self._TWAP_KWARGS)
+        uuid.UUID(command_id)
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_enabled_mode_accepted(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+            enabled_modes=frozenset({ExecutionMode.TWAP}),
+        )
+        mgr.register_account(_ACCT)
+
+        command_id = await mgr.submit_command(**self._TWAP_KWARGS)
+        uuid.UUID(command_id)
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_single_shot_always_enabled(
+        self, spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+            enabled_modes=frozenset({ExecutionMode.TWAP}),
+        )
+        mgr.register_account(_ACCT)
+
+        command_id = await mgr.submit_command(**_CMD_KWARGS)
+        uuid.UUID(command_id)
 
         await mgr.unregister_account(_ACCT)
 

@@ -92,7 +92,12 @@ from praxis.infrastructure.venue_adapter import (
     VenueOrderList,
 )
 
-__all__ = ['AccountNotRegisteredError', 'CommandQueueFullError', 'ExecutionManager']
+__all__ = [
+    'AccountNotRegisteredError',
+    'CommandQueueFullError',
+    'ExecutionManager',
+    'ExecutionModeNotEnabledError',
+]
 
 _log = logging.getLogger(__name__)
 
@@ -184,6 +189,17 @@ class CommandQueueFullError(ValueError):
     Subclasses `ValueError` so existing inbound-validation handling still
     catches it, while letting a caller distinguish a fail-closed capacity
     rejection from a bad-parameter rejection.
+    '''
+
+
+class ExecutionModeNotEnabledError(ValueError):
+    '''Raised when a command uses an execution mode not enabled for the host.
+
+    The per-mode capability gate is default-off: only the modes explicitly
+    enabled for this deployment may be driven, so a new mode cannot execute
+    live until it is turned on. Subclasses `ValueError` so existing inbound
+    handling rejects it, while letting a caller distinguish a disabled-mode
+    rejection from a bad-parameter one.
     '''
 
 
@@ -389,13 +405,29 @@ class ExecutionManager:
         on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None,
         clock: Callable[[], datetime] = _utc_now,
         max_slippage_bps: Decimal | None = None,
+        enabled_modes: frozenset[ExecutionMode] | None = None,
     ) -> None:
-        '''Store dependencies and initialize empty account registry.'''
+        '''Store dependencies and initialize empty account registry.
+
+        Args:
+            enabled_modes: Execution modes the host may drive, enforced as a
+                per-mode capability gate at submit. None disables the gate
+                (all modes allowed) — the mechanism default; the default-off
+                policy lives at the production wiring (`TradingConfig`
+                defaults to `{SINGLE_SHOT}`), so a mode cannot be driven live
+                until it is explicitly enabled there. When a set is given,
+                SINGLE_SHOT is always included as the baseline.
+        '''
 
         self._event_spine = event_spine
         self._epoch_id = epoch_id
         self._venue_adapter = venue_adapter
         self._max_slippage_bps = max_slippage_bps
+        self._enabled_modes = (
+            None
+            if enabled_modes is None
+            else enabled_modes | {ExecutionMode.SINGLE_SHOT}
+        )
         self._on_trade_outcome = on_trade_outcome
         self._clock = clock
         self._accounts: dict[str, _AccountRuntime] = {}
@@ -1771,6 +1803,8 @@ class ExecutionManager:
             CommandQueueFullError: If the account's command queue is at
                 capacity; the command is rejected fail-closed before any
                 durable state is written.
+            ExecutionModeNotEnabledError: If the command's execution mode is
+                not enabled by the per-mode capability gate.
             ValueError: If command fails inbound validation, including
                 an empty, too-short, or already-in-use caller-supplied
                 `command_id`.
@@ -1816,6 +1850,22 @@ class ExecutionManager:
         )
 
         validate_trade_command(cmd)
+
+        if (
+            self._enabled_modes is not None
+            and cmd.execution_mode not in self._enabled_modes
+        ):
+            _log.warning(
+                'execution mode not enabled; rejecting command: '
+                'account_id=%s mode=%s',
+                account_id,
+                cmd.execution_mode.value,
+            )
+            msg = (
+                f"execution mode {cmd.execution_mode.value} is not enabled "
+                'for this host'
+            )
+            raise ExecutionModeNotEnabledError(msg)
 
         if (
             runtime.command_queue.qsize() + runtime.queue_reservations
