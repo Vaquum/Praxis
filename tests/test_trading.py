@@ -998,6 +998,55 @@ async def test_trading_shutdown_cancels_open_orders(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_trading_shutdown_cancels_order_when_abort_submission_fails(
+    spine: EventSpine,
+) -> None:
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    runtime = trading._execution_manager._accounts['acc-1']
+    # 'cmd-1' is mapped to an order so it is reported in-flight, but it is
+    # not an accepted command, so submit_abort raises ValueError. The order
+    # must still be cancelled by the orphan pass, not skipped.
+    runtime.command_to_order['cmd-1'] = 'coid-1'
+    runtime.trading_state.orders['coid-1'] = Order(
+        client_order_id='coid-1',
+        venue_order_id='venue-1',
+        account_id='acc-1',
+        command_id='cmd-1',
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        cumulative_notional=Decimal('0'),
+        price=Decimal('50000'),
+        stop_price=None,
+        status=OrderStatus.OPEN,
+        created_at=_CREATED_AT,
+        updated_at=_CREATED_AT,
+    )
+
+    await trading.stop()
+
+    assert ('acc-1', 'coid-1') in adapter.cancel_calls
+
+
+@pytest.mark.asyncio
 async def test_trading_shutdown_cancels_oco_orders_via_cancel_order_list(
     spine: EventSpine,
 ) -> None:

@@ -70,6 +70,7 @@ class TradingState:
         self.trade_strategy_ids: dict[str, str] = {}
         self.schemes: dict[str, ExecutionScheme] = {}
         self.oco_leg_parent: dict[str, str] = {}
+        self.oco_parent_legs: dict[str, tuple[str, ...]] = {}
         self._positions_lock = threading.Lock()
 
     def snapshot_positions(self) -> dict[tuple[str, str], Position]:
@@ -273,6 +274,9 @@ class TradingState:
         for leg_id in event.leg_client_order_ids:
             self.oco_leg_parent[leg_id] = event.client_order_id
 
+        if event.leg_client_order_ids:
+            self.oco_parent_legs[event.client_order_id] = event.leg_client_order_ids
+
     def _on_order_submit_failed(self, event: OrderSubmitFailed) -> None:
 
         '''Update order to REJECTED and close it.'''
@@ -470,3 +474,7 @@ class TradingState:
             return
 
         self.closed_orders[client_order_id] = order
+
+        legs = self.oco_parent_legs.pop(client_order_id, ())
+        for leg_id in legs:
+            self.oco_leg_parent.pop(leg_id, None)

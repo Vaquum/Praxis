@@ -409,6 +409,10 @@ class Trading:
                             ),
                         )
                     except (AccountNotRegisteredError, ValueError):
+                        # The abort did not enqueue, so this command's orders
+                        # will not be cancelled by the abort path; drop it
+                        # from the skip set so the orphan pass cancels them.
+                        in_flight_by_account[account_id].discard(command_id)
                         continue
 
             # The abort path cancels each in-flight command's orders as the
