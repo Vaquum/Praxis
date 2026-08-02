@@ -395,6 +395,22 @@ class Trading:
 
         try:
             for account_id in sorted(self._managed_accounts):
+                for command_id in self._execution_manager.in_flight_command_ids(
+                    account_id,
+                ):
+                    try:
+                        self._execution_manager.submit_abort(
+                            TradeAbort(
+                                command_id=command_id,
+                                account_id=account_id,
+                                reason='shutdown',
+                                created_at=self._clock(),
+                            ),
+                        )
+                    except (AccountNotRegisteredError, ValueError):
+                        continue
+
+            for account_id in sorted(self._managed_accounts):
                 try:
                     open_orders = self._execution_manager.get_open_orders(account_id)
                 except AccountNotRegisteredError:
@@ -434,12 +450,15 @@ class Trading:
                             break
                     except AccountNotRegisteredError:
                         continue
+                    if self._execution_manager.in_flight_command_ids(account_id):
+                        has_open = True
+                        break
                 if not has_open:
                     break
                 remaining = deadline - loop.time()
                 await asyncio.sleep(min(poll_interval, max(0.0, remaining)))
             else:
-                _log.warning('shutdown timeout: orders may still be open')
+                _log.warning('shutdown timeout: orders or modes may still be open')
 
             for account_id, stream in list(self._user_streams.items()):
                 try:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import functools
 import queue
 from collections.abc import Sequence
@@ -43,6 +44,7 @@ from praxis.core.domain.events import (
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.twap_params import TwapParams
 from praxis.core.execution_manager import (
+    AccountNotRegisteredError,
     ExecutionManager,
     ExecutionModeNotEnabledError,
 )
@@ -913,6 +915,43 @@ async def test_trading_shutdown_rejects_aborts(spine: EventSpine) -> None:
 
     trading._stopping = False
     await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_aborts_in_flight_commands(spine: EventSpine) -> None:
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    em = trading._execution_manager
+    runtime = em._accounts['acc-1']
+    runtime.command_to_order['cmd-mapped'] = 'coid-1'
+    em._accepted_commands['cmd-queued'] = 'acc-1'
+
+    aborted: list[str] = []
+    real_submit_abort = em.submit_abort
+
+    def _spy(abort: TradeAbort) -> None:
+        aborted.append(abort.command_id)
+        with contextlib.suppress(ValueError, AccountNotRegisteredError):
+            real_submit_abort(abort)
+
+    em.submit_abort = _spy  # type: ignore[method-assign]
+
+    await trading.stop()
+
+    assert sorted(aborted) == ['cmd-mapped', 'cmd-queued']
 
 
 @pytest.mark.asyncio

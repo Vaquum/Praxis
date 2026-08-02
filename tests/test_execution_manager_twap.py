@@ -176,6 +176,63 @@ async def test_twap_runs_all_slices_and_produces_one_filled_outcome(
 
 
 @pytest.mark.asyncio
+async def test_in_flight_command_ids_tracks_then_clears_scheme(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    clock_holder: list[datetime],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    assert em.in_flight_command_ids(_ACCT) == [command_id]
+
+    for _ in range(3):
+        await _advance(clock_holder)
+
+    assert em.in_flight_command_ids(_ACCT) == []
+
+
+@pytest.mark.asyncio
+async def test_in_flight_command_ids_includes_accepted_queued_command(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    em._accepted_commands['cmd-queued'] = _ACCT
+
+    assert 'cmd-queued' in em.in_flight_command_ids(_ACCT)
+
+    em._terminal_commands.add('cmd-queued')
+
+    assert 'cmd-queued' not in em.in_flight_command_ids(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_abort_terminalizes_scheme_with_cumulative_fills(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    for cid in em.in_flight_command_ids(_ACCT):
+        em.submit_abort(
+            TradeAbort(
+                command_id=cid, account_id=_ACCT, reason='shutdown', created_at=_T0,
+            ),
+        )
+    await asyncio.sleep(0.3)
+
+    assert len(outcomes) == 1
+    assert outcomes[0].status is TradeStatus.CANCELED
+    assert outcomes[0].command_id == command_id
+    assert outcomes[0].filled_qty == Decimal('0.25')
+    assert em.in_flight_command_ids(_ACCT) == []
+
+
+@pytest.mark.asyncio
 async def test_twap_emits_expected_spine_sequence(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
     spine: EventSpine,

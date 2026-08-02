@@ -615,6 +615,49 @@ class ExecutionManager:
 
         return {k: copy.copy(v) for k, v in runtime.trading_state.orders.items()}
 
+    def in_flight_command_ids(self, account_id: str) -> list[str]:
+        '''Return the non-terminal command ids still working for an account.
+
+        Covers every in-flight execution mode: running schemes and ladders
+        (`runtime.schemes`), brackets awaiting protection (`runtime.brackets`),
+        single-order commands with a live venue order (`command_to_order`),
+        and commands accepted but still awaiting dequeue (`_accepted_commands`)
+        — the last so a graceful shutdown pre-aborts a queued command to a
+        terminal CANCELED outcome instead of tearing down the loop while it
+        waits. Commands already terminal are excluded. A shutdown aborts each
+        of these so every mode reaches a terminal CANCELED outcome carrying
+        its cumulative fills, rather than being torn down with only its venue
+        orders cancelled.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            list[str]: In-flight command ids, empty when the account is
+                unregistered or has none.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return []
+
+        candidates = (
+            set(runtime.schemes)
+            | set(runtime.brackets)
+            | set(runtime.command_to_order)
+            | {
+                command_id
+                for command_id, owner in self._accepted_commands.items()
+                if owner == account_id
+            }
+        )
+
+        return sorted(
+            command_id
+            for command_id in candidates
+            if command_id not in self._terminal_commands
+        )
+
     def replay_events(
         self,
         account_id: str,
