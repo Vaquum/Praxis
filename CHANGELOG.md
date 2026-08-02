@@ -1337,3 +1337,7 @@
 - Add a per-mode capability gate: [`ExecutionManager`](praxis/core/execution_manager.py) rejects a command whose execution mode is not enabled, and [`TradingConfig.enabled_execution_modes`](praxis/trading_config.py) defaults to `{SINGLE_SHOT}` so a mode driven live is off until the deployment enables it via `PRAXIS_ENABLED_EXECUTION_MODES`
 - Add live-only mode classification ([`live_only_modes`](praxis/core/live_only_modes.py)): Bracket, Iceberg, and Ladder DCA rest non-MARKET orders the binsim paper venue cannot simulate, so the launcher refuses enabling them against binsim while still allowing them on Binance testnet
 - Add per-mode shutdown cancel: [`in_flight_command_ids`](praxis/core/execution_manager.py) reports every non-terminal in-flight command — running schemes, brackets awaiting protection, resting single-order commands, and commands still queued — and [`Trading.stop`](praxis/trading.py) aborts each so every mode reaches a terminal CANCELED outcome carrying its cumulative fills before teardown
+
+### Fix
+
+- Ignore ruff `PLR0917` (too many positional arguments), matching the existing suppressions for its Pylint-complexity siblings `PLR0913`/`PLR0912`/`PLR0915`; the CI ruff runner promoted the preview rule to stable and flagged it across pre-existing modules
