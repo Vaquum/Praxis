@@ -146,18 +146,21 @@ class TestResolveTradeModeBinsim:
 class TestParseEnabledModes:
 
     def test_unset_defaults_to_single_shot_only(self) -> None:
-        modes = _parse_enabled_modes({})
+        modes = _parse_enabled_modes({}, venue_is_binsim=False)
 
         assert modes == frozenset({ExecutionMode.SINGLE_SHOT})
 
     def test_empty_defaults_to_single_shot_only(self) -> None:
-        modes = _parse_enabled_modes({'PRAXIS_ENABLED_EXECUTION_MODES': '  '})
+        modes = _parse_enabled_modes(
+            {'PRAXIS_ENABLED_EXECUTION_MODES': '  '}, venue_is_binsim=False,
+        )
 
         assert modes == frozenset({ExecutionMode.SINGLE_SHOT})
 
     def test_named_modes_are_enabled_with_single_shot(self) -> None:
         modes = _parse_enabled_modes(
             {'PRAXIS_ENABLED_EXECUTION_MODES': 'TWAP, BRACKET'},
+            venue_is_binsim=False,
         )
 
         assert modes == frozenset({
@@ -168,4 +171,30 @@ class TestParseEnabledModes:
 
     def test_unknown_mode_rejected(self) -> None:
         with pytest.raises(ValueError, match='unknown execution mode'):
-            _parse_enabled_modes({'PRAXIS_ENABLED_EXECUTION_MODES': 'TWAP,NOPE'})
+            _parse_enabled_modes(
+                {'PRAXIS_ENABLED_EXECUTION_MODES': 'TWAP,NOPE'},
+                venue_is_binsim=False,
+            )
+
+    def test_binsim_rejects_live_only_mode(self) -> None:
+        with pytest.raises(ValueError, match='live-only mode BRACKET'):
+            _parse_enabled_modes(
+                {'PRAXIS_ENABLED_EXECUTION_MODES': 'BRACKET'},
+                venue_is_binsim=True,
+            )
+
+    def test_binsim_allows_paper_safe_mode(self) -> None:
+        modes = _parse_enabled_modes(
+            {'PRAXIS_ENABLED_EXECUTION_MODES': 'TWAP'}, venue_is_binsim=True,
+        )
+
+        assert modes == frozenset({ExecutionMode.SINGLE_SHOT, ExecutionMode.TWAP})
+
+    def test_testnet_paper_allows_live_only_mode(self) -> None:
+        modes = _parse_enabled_modes(
+            {'PRAXIS_ENABLED_EXECUTION_MODES': 'BRACKET'}, venue_is_binsim=False,
+        )
+
+        assert modes == frozenset({
+            ExecutionMode.SINGLE_SHOT, ExecutionMode.BRACKET,
+        })

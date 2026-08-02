@@ -103,6 +103,7 @@ from praxis.core.domain.enums import (
     STPMode as _PraxisSTPMode,
 )
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+from praxis.core.live_only_modes import is_live_only
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.events import (
@@ -634,23 +635,34 @@ def _env_positive_int(name: str) -> int | None:
     return value
 
 
-def _parse_enabled_modes(env: dict[str, str]) -> frozenset[ExecutionMode]:
+def _parse_enabled_modes(
+    env: dict[str, str],
+    venue_is_binsim: bool,
+) -> frozenset[ExecutionMode]:
     '''Parse the enabled-execution-modes deployment allow-list from the env.
 
     `PRAXIS_ENABLED_EXECUTION_MODES` is a comma-separated list of
     `ExecutionMode` names (e.g. `TWAP,BRACKET`). Unset or empty leaves the
     default-off gate ({SINGLE_SHOT}); SINGLE_SHOT is always enabled. An
-    unrecognised name is a deployment misconfiguration and fails fast.
+    unrecognised name is a deployment misconfiguration and fails fast. When
+    the selected venue is binsim (the MARKET-only paper simulator) a
+    live-only mode — one resting non-MARKET orders binsim cannot simulate —
+    is refused up front rather than surfacing a confusing venue reject at
+    execution. Paper on Binance testnet is a real venue that supports these
+    order types, so the restriction is keyed on binsim selection, not on
+    paper trade mode.
 
     Args:
         env: Process environment mapping.
+        venue_is_binsim: Whether the resolved venue is the binsim simulator.
 
     Returns:
         frozenset[ExecutionMode]: The modes to enable, always including
             SINGLE_SHOT.
 
     Raises:
-        ValueError: An entry is not a known ExecutionMode name.
+        ValueError: An entry is not a known ExecutionMode name, or a
+            live-only mode is enabled against the binsim venue.
     '''
 
     raw = env.get(_ENABLED_MODES_ENV, '').strip()
@@ -664,14 +676,23 @@ def _parse_enabled_modes(env: dict[str, str]) -> frozenset[ExecutionMode]:
             continue
 
         try:
-            modes.add(ExecutionMode(name))
+            mode = ExecutionMode(name)
         except ValueError as exc:
-            valid = ', '.join(mode.value for mode in ExecutionMode)
+            valid = ', '.join(m.value for m in ExecutionMode)
             msg = (
                 f'{_ENABLED_MODES_ENV} has unknown execution mode {name!r}; '
                 f'valid modes: {valid}'
             )
             raise ValueError(msg) from exc
+
+        if venue_is_binsim and is_live_only(mode):
+            msg = (
+                f'{_ENABLED_MODES_ENV} enables live-only mode {mode.value} '
+                'against the binsim venue, which simulates MARKET orders only'
+            )
+            raise ValueError(msg)
+
+        modes.add(mode)
 
     return frozenset(modes)
 
@@ -4553,7 +4574,13 @@ def main() -> None:
         venue_ws_api_url=venue_ws_api_url,
         account_credentials=account_credentials,
         shutdown_timeout=float(env.get('SHUTDOWN_TIMEOUT', _DEFAULT_SHUTDOWN_TIMEOUT)),
-        enabled_execution_modes=_parse_enabled_modes(env),
+        enabled_execution_modes=_parse_enabled_modes(
+            env,
+            venue_is_binsim=(
+                trade_mode == _TRADE_MODE_PAPER
+                and bool(env.get('BINSIM_URL', '').strip())
+            ),
+        ),
     )
 
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')

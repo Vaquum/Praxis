@@ -1207,3 +1207,13 @@ A bracket fills its MARKET entry, then places the protective OCO. If the OCO sub
 Iceberg works the command as a single native-iceberg (`icebergQty`) GTC LIMIT order — the venue shows `display_qty` at a time and refills it, so continuous drawdown top-up is venue-managed (B2). The Praxis side registers the order and drives PARTIAL/FILLED outcomes from the venue's incremental WebSocket fills, and a `TradeAbort` cancels the resting order. Like a single-shot resting GTC LIMIT, however, the command's `timeout` deadline is checked only at submission; there is no periodic sweep that cancels-and-EXPIREs a resting order whose deadline passes while it waits for a fill. A resting iceberg that never fully fills therefore lives until the Manager aborts it. The scheme engine has such a deadline backstop (`_advance_due_schemes`); the single-order resting path does not.
 
 **When to fix**: before resting LIMIT / iceberg orders run unattended with a meaningful deadline. Add a resting-order deadline sweep (mirroring the scheme deadline backstop) that cancels and EXPIREs a non-terminal single-order command past its deadline.
+
+## TD-133: SINGLE_SHOT LIMIT/OCO against binsim is not gated up front
+
+**Origin**: WP-Praxis-0007 (live-vs-paper classification slice)
+**Severity**: Low (a paper single-shot LIMIT/OCO is rejected by the venue, not mis-executed)
+**Module**: `praxis/core/live_only_modes.py`, `praxis/launcher.py` (`_parse_enabled_modes`)
+
+The live-only classification is mode-level: BRACKET, ICEBERG, and LADDER_DCA are refused against the binsim venue (MARKET-only) at deploy. SINGLE_SHOT stays enabled because it is usually MARKET, but a SINGLE_SHOT command carrying a LIMIT / OCO order type still cannot run against binsim — it is caught by binsim's own MARKET-only rejection at execution rather than gated up front. This is the deliberate order-type edge left to venue self-protection (option (i) of the scoping decision): the mode-level gate handles the whole-mode-live-only cases, and binsim rejects a stray non-MARKET single-shot with a clear venue error.
+
+**When to fix**: if paper (binsim) operators rely on SINGLE_SHOT LIMIT/OCO. Add an order-type-aware paper check (reject a non-MARKET single-shot against binsim at intake) so the failure is a fast, clear configuration error rather than a venue reject.
