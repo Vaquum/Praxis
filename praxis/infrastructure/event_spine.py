@@ -31,6 +31,7 @@ import orjson
 
 from praxis.core.domain.events import (
     BracketInitialized,
+    OrderAmendInitiated,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -192,6 +193,7 @@ _EVENT_REGISTRY: dict[str, type] = {
     for cls in (
         CommandAccepted,
         BracketInitialized,
+        OrderAmendInitiated,
         SchemeInitialized,
         SchemeStateChanged,
         OrderSubmitIntent,

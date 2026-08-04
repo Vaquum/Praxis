@@ -41,6 +41,9 @@ def validate_trade_modify(
             the amend parameters do not match the command's execution mode.
     '''
 
+    if modify.command_id in terminal_command_ids:
+        return False
+
     command = commands.get(modify.command_id)
 
     if command is None:

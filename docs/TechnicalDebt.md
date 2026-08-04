@@ -1217,3 +1217,17 @@ Iceberg works the command as a single native-iceberg (`icebergQty`) GTC LIMIT or
 The live-only classification is mode-level: BRACKET, ICEBERG, and LADDER_DCA are refused against the binsim venue (MARKET-only) at deploy. SINGLE_SHOT stays enabled because it is usually MARKET, but a SINGLE_SHOT command carrying a LIMIT / OCO order type still cannot run against binsim — it is caught by binsim's own MARKET-only rejection at execution rather than gated up front. This is the deliberate order-type edge left to venue self-protection (option (i) of the scoping decision): the mode-level gate handles the whole-mode-live-only cases, and binsim rejects a stray non-MARKET single-shot with a clear venue error.
 
 **When to fix**: if paper (binsim) operators rely on SINGLE_SHOT LIMIT/OCO. Add an order-type-aware paper check (reject a non-MARKET single-shot against binsim at intake) so the failure is a fast, clear configuration error rather than a venue reject.
+
+## TD-134: Order-price amend is cancel-query-place, not atomic; crash mid-amend does not re-place
+
+**Origin**: WP-Praxis-0009 (8.6* order-price amend, single resting order)
+**Severity**: Low (fail-closed — no over-order and no double exposure; a crash recovers to a safe state)
+**Module**: `praxis/core/execution_manager.py` (`_process_modify`, `_cancel_and_query`, `_place_amend_replacement`)
+
+A single-order amend cancels the resting order, queries the venue for the authoritative filled quantity, and places a replacement for the unfilled remainder. It is fail-closed: an ambiguous cancel or query (or an order still live at the venue) aborts the amend without cancelling locally or placing, so the original order stays live and there is never a still-live original plus a replacement. Two gaps remain:
+
+1. **Non-atomic window.** Between the confirmed cancel and the replacement placement the order is briefly off the book. For a passive single LIMIT this is a liquidity gap, not a risk. Binance Spot has no race-free amend primitive (`cancelReplace` creates a fresh order and can partially succeed), so this is inherent to the venue; a future refinement could use `cancelReplace` with `STOP_ON_FAILURE` plus reconciliation to shorten the window.
+
+2. **Crash mid-amend does not complete the re-price.** `OrderAmendInitiated` is durable and boot rebuilds the amend sequence from it, but a crash between the cancel and the placement is not repaired by re-placing the remainder — it recovers to a safe state through the existing reconcile (the order rests at the old price if never cancelled, or terminalizes if it was). Completing the re-price across a crash needs a boot-time amend-repair pass that reads the un-completed `OrderAmendInitiated`, queries the old order, and places the remainder.
+
+**When to fix**: before order-price amend runs unattended with a meaningful re-price SLA. Add the boot amend-repair pass (2) and, if the window matters, the `cancelReplace`-based path (1).

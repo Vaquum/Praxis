@@ -34,6 +34,7 @@ __all__ = [
     'OperatorHaltRequested',
     'OperatorResumeRequested',
     'OrderAcked',
+    'OrderAmendInitiated',
     'OrderCanceled',
     'OrderExpired',
     'OrderRejected',
@@ -671,6 +672,75 @@ class BracketInitialized(_EventBase):
 
 
 @dataclass(frozen=True)
+class OrderAmendInitiated(_EventBase):
+
+    '''
+    Represent the start of an order-price amend, before the cancel.
+
+    Written once when a TradeModify begins amending a resting single order,
+    before the cancel, so the amend is durably recorded. On boot the amend
+    sequence is rebuilt from these events so a later amend cannot reuse a
+    replacement client order id. Carrying the resolved replacement shape
+    (old and new client ids, price, display, and the original total) keeps a
+    future crash-repair that completes the re-price self-contained without
+    the transient command.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Command whose resting order is amended.
+        trade_id (str): Trade correlation identifier.
+        symbol (str): Trading pair symbol.
+        side (OrderSide): Order direction, unchanged by the amend.
+        total_qty (Decimal): Original command quantity; the replacement
+            works the unfilled remainder of this.
+        old_client_order_id (str): Resting order being cancelled.
+        new_client_order_id (str): Replacement order to place.
+        price (Decimal): Resolved limit price for the replacement.
+        display_qty (Decimal | None): Resolved iceberg display quantity, or
+            None for a plain limit replacement.
+    '''
+
+    command_id: str
+    trade_id: str
+    symbol: str
+    side: OrderSide
+    total_qty: Decimal
+    old_client_order_id: str
+    new_client_order_id: str
+    price: Decimal
+    display_qty: Decimal | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        for field in (
+            'command_id',
+            'trade_id',
+            'symbol',
+            'old_client_order_id',
+            'new_client_order_id',
+        ):
+            _require_str(name, field, getattr(self, field))
+
+        for field in ('total_qty', 'price'):
+            value = getattr(self, field)
+            if not isinstance(value, Decimal) or not value.is_finite() or value <= _ZERO:
+                msg = f'{name}.{field} must be a positive, finite Decimal'
+                raise ValueError(msg)
+
+        if self.display_qty is not None and (
+            not isinstance(self.display_qty, Decimal)
+            or not self.display_qty.is_finite()
+            or self.display_qty <= _ZERO
+        ):
+            msg = f'{name}.display_qty must be a positive, finite Decimal'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class SchemeStateChanged(_EventBase):
 
     '''
@@ -1077,6 +1147,7 @@ class OutcomeDeliveryContextRecorded(_EventBase):
 type Event = (
     CommandAccepted
     | BracketInitialized
+    | OrderAmendInitiated
     | SchemeInitialized
     | SchemeStateChanged
     | OrderSubmitIntent

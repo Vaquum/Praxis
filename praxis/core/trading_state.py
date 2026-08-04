@@ -16,6 +16,7 @@ from decimal import Decimal
 from praxis.core.domain.enums import OrderStatus
 from praxis.core.domain.events import (
     BracketInitialized,
+    OrderAmendInitiated,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -151,6 +152,7 @@ class TradingState:
                 MarkSampled,
                 SliceFailed,
                 BracketInitialized,
+                OrderAmendInitiated,
             ),
         ):
             return

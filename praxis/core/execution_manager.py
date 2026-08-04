@@ -34,6 +34,7 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.events import (
     BracketInitialized,
+    OrderAmendInitiated,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -66,6 +67,9 @@ from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
+from praxis.core.domain.iceberg_modify import IcebergModify
+from praxis.core.domain.single_shot_modify import SingleShotModify
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import (
     SlippageEstimate,
@@ -80,6 +84,7 @@ from praxis.core.plan_even_slices import plan_even_slices
 from praxis.core.plan_weighted_slices import plan_weighted_slices
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
+from praxis.core.validate_trade_modify import validate_trade_modify
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
@@ -89,6 +94,7 @@ from praxis.infrastructure.venue_adapter import (
     SubmitResult,
     VenueAdapter,
     VenueError,
+    VenueOrder,
     VenueOrderList,
 )
 
@@ -348,7 +354,7 @@ class _AccountRuntime:
     Args:
         account_id (str): Account identifier.
         command_queue (asyncio.Queue[TradeCommand]): Bounded queue for commands; a full queue rejects fail-closed at submit.
-        priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
+        priority_queue (asyncio.Queue[TradeAbort | TradeModify]): Unbounded queue for aborts and amends.
         ws_event_queue (asyncio.Queue[Event]): Unbounded queue for WS events.
         trading_state (TradingState): Per-account state projection.
         account_ledger (AccountLedger): Per-account double-entry projection.
@@ -358,7 +364,7 @@ class _AccountRuntime:
         self,
         account_id: str,
         command_queue: asyncio.Queue[TradeCommand],
-        priority_queue: asyncio.Queue[TradeAbort],
+        priority_queue: asyncio.Queue[TradeAbort | TradeModify],
         ws_event_queue: asyncio.Queue[Event],
         trading_state: TradingState,
         account_ledger: AccountLedger,
@@ -375,6 +381,7 @@ class _AccountRuntime:
         self.command_to_order: dict[str, str] = {}
         self.schemes: dict[str, _LiveScheme] = {}
         self.brackets: dict[str, _LiveBracket] = {}
+        self.amend_counts: dict[str, int] = {}
         self.queue_reservations = 0
         self.reconciling = False
         self.poisoned = False
@@ -702,6 +709,11 @@ class ExecutionManager:
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
                 self._commands.pop(event.command_id, None)
+
+            if isinstance(event, OrderAmendInitiated):
+                runtime.amend_counts[event.command_id] = (
+                    runtime.amend_counts.get(event.command_id, 0) + 1
+                )
 
             if isinstance(event, OrderSubmitIntent):
                 self._command_trade_ids[event.command_id] = event.trade_id
@@ -1400,17 +1412,18 @@ class ExecutionManager:
 
         await self._dispatch_outcome_with_retry(outcome, source='orphan')
 
-    def _scheme_fill_totals(
+    def _command_fill_totals(
         self,
         runtime: _AccountRuntime,
         command_id: str,
     ) -> tuple[Decimal, Decimal]:
-        '''Sum filled qty and notional across a scheme's child orders.
+        '''Sum filled qty and notional across every order for a command.
 
-        Reads the rebuilt order projections (active and closed) for every
-        child whose `command_id` matches the scheme parent, so the boot
-        terminalization reports the fills that actually settled rather than
-        an in-memory aggregate that a crash discarded.
+        Reads the order projections (active and closed) for every order whose
+        `command_id` matches — a scheme's children, or a single command's
+        original and amend-replacement orders — so fills settled across
+        multiple orders aggregate to the command total rather than an
+        in-memory running sum that a crash discarded.
         '''
 
         filled_qty = _ZERO
@@ -1454,7 +1467,7 @@ class ExecutionManager:
             return
 
         ts = self._clock()
-        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, command_id)
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, command_id)
         target_qty = scheme.total_qty
 
         if filled_qty > target_qty:
@@ -1695,6 +1708,44 @@ class ExecutionManager:
             'abort enqueued: command_id=%s account_id=%s',
             abort.command_id,
             abort.account_id,
+        )
+
+    def submit_modify(self, modify: TradeModify) -> None:
+        '''
+        Validate and enqueue a TradeModify to the priority queue.
+
+        Args:
+            modify (TradeModify): Amend instruction targeting a command.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+            ValueError: If command_id is unknown, account_id mismatches, or
+                the amend parameters do not match the command's mode.
+        '''
+
+        runtime = self._accounts.get(modify.account_id)
+        if runtime is None:
+            msg = f"account_id '{modify.account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        should_enqueue = validate_trade_modify(
+            modify,
+            self._commands,
+            self._terminal_commands,
+        )
+
+        if not should_enqueue:
+            _log.info(
+                'modify no-op (command already terminal): command_id=%s',
+                modify.command_id,
+            )
+            return
+
+        runtime.priority_queue.put_nowait(modify)
+        _log.info(
+            'modify enqueued: command_id=%s account_id=%s',
+            modify.command_id,
+            modify.account_id,
         )
 
     def enqueue_ws_event(self, account_id: str, event: Event) -> None:
@@ -2041,21 +2092,26 @@ class ExecutionManager:
                         )
 
                 while not runtime.priority_queue.empty():
-                    abort = runtime.priority_queue.get_nowait()
+                    control = runtime.priority_queue.get_nowait()
                     _log.info(
-                        'abort received: command_id=%s account_id=%s',
-                        abort.command_id,
+                        'priority control received: type=%s command_id=%s account_id=%s',
+                        type(control).__name__,
+                        control.command_id,
                         runtime.account_id,
                     )
                     try:
-                        await self._process_abort(runtime, abort)
+                        if isinstance(control, TradeModify):
+                            await self._process_modify(runtime, control)
+                        else:
+                            await self._process_abort(runtime, control)
                     except asyncio.CancelledError:
                         raise
                     except Exception:  # noqa: BLE001
                         _log.exception(
-                            'unhandled exception while processing abort: '
-                            'command_id=%s account_id=%s',
-                            abort.command_id,
+                            'unhandled exception while processing priority control: '
+                            'type=%s command_id=%s account_id=%s',
+                            type(control).__name__,
+                            control.command_id,
                             runtime.account_id,
                         )
 
@@ -4198,7 +4254,7 @@ class ExecutionManager:
         '''
 
         cmd = scheme.command
-        filled_qty, _ = self._scheme_fill_totals(runtime, cmd.command_id)
+        filled_qty, _ = self._command_fill_totals(runtime, cmd.command_id)
 
         changed = SchemeStateChanged(
             account_id=cmd.account_id,
@@ -4385,7 +4441,7 @@ class ExecutionManager:
 
         await self._append_scheme_progress(runtime, scheme, scheme_state)
 
-        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, cmd.command_id)
 
         await self._emit_scheme_terminal(
             runtime,
@@ -4486,7 +4542,7 @@ class ExecutionManager:
 
         cmd = scheme.command
         ts = self._clock()
-        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, cmd.command_id)
 
         if cmd.qty is not None and filled_qty > cmd.qty:
             if filled_qty > _ZERO:
@@ -4757,6 +4813,414 @@ class ExecutionManager:
             reason=reason,
         )
 
+    async def _process_modify(  # noqa: PLR0911
+        self,
+        runtime: _AccountRuntime,
+        modify: TradeModify,
+    ) -> None:
+        '''Apply an order-price amend to a resting single order.
+
+        Cancel-then-query-then-place: the resting order is cancelled, the
+        venue is queried for the authoritative filled quantity, and a
+        replacement is placed for the unfilled remainder at the amended
+        price. Deriving the remainder from the venue's post-cancel truth —
+        not a stale local snapshot — means a fill racing the cancel can
+        never make the replacement over-order. A durable
+        `OrderAmendInitiated` is written before the cancel; on boot the amend
+        sequence is rebuilt from it so a later amend cannot reuse a client
+        order id, and a crash mid-amend recovers to a safe state through the
+        existing boot reconcile (the order rests at the old price if never
+        cancelled, or terminalizes if it was) — completing the re-price
+        across a crash is a follow-up. Fills carry across the superseded and
+        replacement orders through `_command_fill_totals`, so the command's
+        outcome stays correct; in the rare case where a fill lands on the
+        old order between the query and the replacement, that fill is still
+        captured in the projection (its WebSocket report applies as usual)
+        and the outcome reconverges on the next fill, with position and
+        ledger always exact.
+
+        Only single resting-order modes (SingleShot LIMIT, Iceberg) are
+        amended here; other modes are rejected pending their own slices.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            modify (TradeModify): Amend instruction targeting a command.
+        '''
+
+        command_id = modify.command_id
+
+        if command_id in self._terminal_commands:
+            _log.info('modify no-op (command terminal): command_id=%s', command_id)
+            return
+
+        cmd = self._commands.get(command_id)
+        if cmd is None:
+            _log.warning('modify for unknown command: command_id=%s', command_id)
+            return
+
+        if not isinstance(modify.modify_params, (SingleShotModify, IcebergModify)):
+            _log.warning(
+                'modify rejected: amend not yet supported for mode %s command_id=%s',
+                cmd.execution_mode.value,
+                command_id,
+            )
+            return
+
+        if isinstance(modify.modify_params, SingleShotModify) and (
+            modify.modify_params.stop_price is not None
+            or modify.modify_params.stop_limit_price is not None
+        ):
+            _log.warning(
+                'modify rejected: stop-field amend not supported '
+                '(limit price only): command_id=%s',
+                command_id,
+            )
+            return
+
+        old_client_order_id = runtime.command_to_order.get(command_id)
+        order = (
+            runtime.trading_state.orders.get(old_client_order_id)
+            if old_client_order_id
+            else None
+        )
+        if order is None or order.order_type is not OrderType.LIMIT:
+            _log.warning(
+                'modify rejected: no resting LIMIT order for command_id=%s', command_id,
+            )
+            return
+
+        assert old_client_order_id is not None
+        assert cmd.qty is not None
+        new_price, new_display = self._resolve_amend(cmd, modify.modify_params)
+        if new_price is None:
+            _log.warning(
+                'modify rejected: no limit price to amend command_id=%s', command_id,
+            )
+            return
+
+        amend_seq = runtime.amend_counts.get(command_id, 0) + 1
+        new_client_order_id = generate_client_order_id(
+            cmd.execution_mode, command_id, sequence=amend_seq,
+        )
+
+        amend_event = OrderAmendInitiated(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=command_id,
+            trade_id=cmd.trade_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            old_client_order_id=old_client_order_id,
+            new_client_order_id=new_client_order_id,
+            price=new_price,
+            display_qty=new_display,
+        )
+        await self._event_spine.append(amend_event, self._epoch_id)
+        runtime.amend_counts[command_id] = amend_seq
+
+        venue_order = await self._cancel_and_query(cmd, old_client_order_id)
+        if venue_order is None:
+            _log.warning(
+                'modify aborted: order state unconfirmed, leaving order live: '
+                'command_id=%s',
+                command_id,
+            )
+            return
+
+        if venue_order.status not in _TERMINAL_ORDER_STATUSES:
+            _log.warning(
+                'modify aborted: order still live at venue, not replacing: '
+                'command_id=%s status=%s',
+                command_id,
+                venue_order.status.value,
+            )
+            return
+
+        if venue_order.status is OrderStatus.FILLED:
+            # The order filled at the venue rather than cancelling; leave it
+            # open locally so its pending fills settle to the command total.
+            await self._emit_amend_outcome(runtime, cmd)
+            return
+
+        # The order cancelled (terminal, not filled); terminalize it locally
+        # before deciding whether the remainder can be re-placed.
+        canceled = OrderCanceled(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=old_client_order_id,
+            venue_order_id=order.venue_order_id,
+            reason='amend',
+        )
+        await self._event_spine.append(canceled, self._epoch_id)
+        runtime.trading_state.apply(canceled)
+
+        remainder = cmd.qty - venue_order.filled_qty
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_min = filters.lot_min if filters is not None else _ZERO
+
+        if remainder <= _ZERO or remainder < lot_min:
+            # Only sub-lot dust remains after the cancel; it cannot be
+            # re-placed, so the command completes on the fills so far — the
+            # same dust shortfall a scheme reports FILLED.
+            await self._emit_amend_terminal(runtime, cmd)
+            return
+
+        await self._place_amend_replacement(
+            runtime, cmd, new_client_order_id, new_price, new_display, remainder,
+        )
+
+    def _resolve_amend(
+        self,
+        cmd: TradeCommand,
+        params: SingleShotModify | IcebergModify,
+    ) -> tuple[Decimal | None, Decimal | None]:
+        '''Resolve the replacement's absolute price and display quantity.
+
+        Absolute amend values override the original; unset fields keep the
+        command's original value. Returns (price, display_qty), with
+        display_qty None for a plain limit replacement.
+        '''
+
+        if isinstance(params, IcebergModify):
+            assert isinstance(cmd.execution_params, IcebergParams)
+            price = (
+                params.limit_price
+                if params.limit_price is not None
+                else cmd.execution_params.limit_price
+            )
+            display = (
+                params.display_qty
+                if params.display_qty is not None
+                else cmd.execution_params.display_qty
+            )
+            return price, display
+
+        assert isinstance(cmd.execution_params, SingleShotParams)
+        resolved_price = (
+            params.price if params.price is not None else cmd.execution_params.price
+        )
+        return resolved_price, None
+
+    async def _cancel_and_query(
+        self,
+        cmd: TradeCommand,
+        client_order_id: str,
+    ) -> VenueOrder | None:
+        '''Cancel the resting order and return its authoritative venue state.
+
+        Fail-closed: a cancel that errors (the order may still be live) or a
+        query that errors (the order state cannot be confirmed) returns None,
+        and the caller must abort the amend without cancelling locally or
+        placing a replacement — otherwise a still-live original plus a
+        replacement could double the exposure. A `NotFoundError` on cancel
+        means the order is already gone, resolved by the query. The cancel
+        response carries no filled quantity, so the venue is queried for the
+        authoritative filled and terminal status the replacement is sized
+        against.
+        '''
+
+        try:
+            await self._venue_adapter.cancel_order(
+                cmd.account_id, cmd.symbol, client_order_id=client_order_id,
+            )
+        except NotFoundError:
+            pass
+        except VenueError as exc:
+            _log.warning(
+                'amend aborted: cancel failed, order may still be live: '
+                'command_id=%s reason=%s',
+                cmd.command_id,
+                exc.args[0] if exc.args else exc,
+            )
+            return None
+
+        try:
+            return await self._venue_adapter.query_order(
+                cmd.account_id, cmd.symbol, client_order_id=client_order_id,
+            )
+        except (NotFoundError, VenueError) as exc:
+            _log.warning(
+                'amend aborted: order state could not be confirmed: '
+                'command_id=%s reason=%s',
+                cmd.command_id,
+                exc.args[0] if exc.args else exc,
+            )
+            return None
+
+    async def _place_amend_replacement(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        new_client_order_id: str,
+        price: Decimal,
+        display_qty: Decimal | None,
+        remainder: Decimal,
+    ) -> None:
+        '''Place the amend's replacement LIMIT order for the remainder.
+
+        Persist-before-send: `OrderSubmitIntent` then the venue call, with the
+        same timeout / duplicate rescue as the initial submit. On success the
+        command's live order becomes the replacement; the outcome is emitted
+        from the command-total fills so the superseded order's fills carry
+        forward. A submit failure leaves the durable `OrderAmendInitiated`
+        for boot repair and reports the fills so far.
+        '''
+
+        iceberg_qty = display_qty if display_qty is not None and display_qty < remainder else None
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=new_client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.LIMIT,
+            qty=remainder,
+            quote_qty=None,
+            price=price,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+        runtime.command_to_order[cmd.command_id] = new_client_order_id
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.LIMIT,
+                remainder,
+                price=price,
+                client_order_id=new_client_order_id,
+                iceberg_qty=iceberg_qty,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, new_client_order_id, exc,
+            )
+            if rescued is None:
+                await self._append_submit_failed(
+                    runtime, cmd, new_client_order_id, str(exc.args[0]),
+                )
+                await self._emit_amend_outcome(runtime, cmd)
+                return
+            result = rescued
+            post_venue_ts = self._clock()
+        except (VenueError, ValueError) as exc:
+            await self._append_submit_failed(
+                runtime, cmd, new_client_order_id, str(exc.args[0]),
+            )
+            await self._emit_amend_outcome(runtime, cmd)
+            return
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=new_client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=new_client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        await self._emit_amend_outcome(runtime, cmd)
+
+    async def _emit_amend_outcome(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Emit an outcome for an amended command from its aggregate fills.
+
+        Status is derived from the command-total filled across the superseded
+        and replacement orders: FILLED once the target is reached, PARTIAL
+        while some quantity has filled, otherwise PENDING for the resting
+        replacement.
+        '''
+
+        assert cmd.qty is not None
+        filled_qty, cumulative_notional = self._command_fill_totals(
+            runtime, cmd.command_id,
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        if filled_qty >= cmd.qty:
+            status = TradeStatus.FILLED
+        elif filled_qty > _ZERO:
+            status = TradeStatus.PARTIAL
+        else:
+            status = TradeStatus.PENDING
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=min(filled_qty, cmd.qty),
+            avg_fill_price=avg_fill_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _emit_amend_terminal(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Terminalize an amended command that cancelled with only dust left.
+
+        The resting order was cancelled and the unfilled remainder is sub-lot
+        dust that cannot be re-placed, so the command completes FILLED on the
+        fills so far — the same economically-negligible shortfall a scheme
+        reports FILLED — rather than resting non-terminal forever.
+        '''
+
+        assert cmd.qty is not None
+        filled_qty, cumulative_notional = self._command_fill_totals(
+            runtime, cmd.command_id,
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.FILLED,
+            filled_qty=min(filled_qty, cmd.qty),
+            avg_fill_price=avg_fill_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
     async def _build_abort_outcome(
         self,
         runtime: _AccountRuntime,
@@ -4888,13 +5352,17 @@ class ExecutionManager:
         if cmd is None:
             return
 
+        if runtime.command_to_order.get(command_id) != client_order_id:
+            return
+
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, command_id)
+
         avg_fill_price: Decimal | None = (
-            order.cumulative_notional / order.filled_qty
-            if order.filled_qty > _ZERO else None
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
         )
 
-        emitted_filled_qty = order.filled_qty
-        emitted_cumulative_notional = order.cumulative_notional
+        emitted_filled_qty = filled_qty
+        emitted_cumulative_notional = cumulative_notional
         if not cmd.is_quote_native:
             assert cmd.qty is not None
             if emitted_filled_qty > cmd.qty:
@@ -4911,10 +5379,12 @@ class ExecutionManager:
                 emitted_filled_qty = cmd.qty
 
         if isinstance(event, FillReceived):
-            status = (
-                TradeStatus.FILLED
-                if order.status == OrderStatus.FILLED else TradeStatus.PARTIAL
+            fully_filled = (
+                emitted_filled_qty >= cmd.qty
+                if not cmd.is_quote_native and cmd.qty is not None
+                else order.status == OrderStatus.FILLED
             )
+            status = TradeStatus.FILLED if fully_filled else TradeStatus.PARTIAL
             reason: str | None = None
 
         elif isinstance(event, OrderCanceled):
