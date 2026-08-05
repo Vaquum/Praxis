@@ -1231,3 +1231,15 @@ A single-order amend cancels the resting order, queries the venue for the author
 2. **Crash mid-amend does not complete the re-price.** `OrderAmendInitiated` is durable and boot rebuilds the amend sequence from it, but a crash between the cancel and the placement is not repaired by re-placing the remainder — it recovers to a safe state through the existing reconcile (the order rests at the old price if never cancelled, or terminalizes if it was). Completing the re-price across a crash needs a boot-time amend-repair pass that reads the un-completed `OrderAmendInitiated`, queries the old order, and places the remainder.
 
 **When to fix**: before order-price amend runs unattended with a meaningful re-price SLA. Add the boot amend-repair pass (2) and, if the window matters, the `cancelReplace`-based path (1).
+
+## TD-135: Scheme-plan amend is in-memory only; a restart replays the original schedule
+
+**Origin**: WP-Praxis-0009 (8.6* scheme-plan amend)
+**Severity**: Low (safe — the scheme still works the remaining quantity; only the amended cadence/count is lost on restart)
+**Module**: `praxis/core/execution_manager.py` (`_process_scheme_modify`, `_resume_schemes`)
+
+A TWAP / Time DCA / Scheduled VWAP amend updates the running `_LiveScheme` (remaining slice quantities, slice count, interval, next-run) in place and appends a `SchemeStateChanged`, but the amended plan itself is not persisted: `_resume_schemes` re-plans from the original `SchemeInitialized` (its slice count, interval, and weights). So after a restart a mid-flight amended scheme reverts to its original schedule — it still works the remaining quantity (no over-order, no lost fills), but the amended cadence/count is gone.
+
+A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-curve-to-remaining-slices normalization is ambiguous (the fired slices used the old curve), so `_process_scheme_modify` rejects a `ScheduledVwapModify.volume_weights` amend and accepts interval-only for VWAP.
+
+**When to fix**: before an amended schedule must survive a restart, or a strategy needs to re-shape a VWAP curve mid-flight. Persist the amended plan (a `SchemeAmended` event carrying the new slice quantities and interval) and apply the latest one in `_resume_schemes`; define and implement the VWAP remaining-curve semantics.

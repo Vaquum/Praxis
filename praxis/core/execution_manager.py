@@ -70,6 +70,9 @@ from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.single_shot_modify import SingleShotModify
+from praxis.core.domain.twap_modify import TwapModify
+from praxis.core.domain.time_dca_modify import TimeDcaModify
+from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import (
     SlippageEstimate,
@@ -4839,8 +4842,10 @@ class ExecutionManager:
         and the outcome reconverges on the next fill, with position and
         ledger always exact.
 
-        Only single resting-order modes (SingleShot LIMIT, Iceberg) are
-        amended here; other modes are rejected pending their own slices.
+        A running scheme (TWAP / Time DCA / Scheduled VWAP) is routed to
+        `_process_scheme_modify`; single resting-order modes (SingleShot
+        LIMIT, Iceberg) are amended here; other modes are rejected pending
+        their own slices.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -4856,6 +4861,21 @@ class ExecutionManager:
         cmd = self._commands.get(command_id)
         if cmd is None:
             _log.warning('modify for unknown command: command_id=%s', command_id)
+            return
+
+        scheme = runtime.schemes.get(command_id)
+        if scheme is not None:
+            if isinstance(
+                modify.modify_params,
+                (TwapModify, TimeDcaModify, ScheduledVwapModify),
+            ):
+                await self._process_scheme_modify(runtime, scheme, modify)
+            else:
+                _log.warning(
+                    'modify rejected: amend not yet supported for mode %s command_id=%s',
+                    cmd.execution_mode.value,
+                    command_id,
+                )
             return
 
         if not isinstance(modify.modify_params, (SingleShotModify, IcebergModify)):
@@ -4969,6 +4989,131 @@ class ExecutionManager:
         await self._place_amend_replacement(
             runtime, cmd, new_client_order_id, new_price, new_display, remainder,
         )
+
+    async def _process_scheme_modify(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        modify: TradeModify,
+    ) -> None:
+        '''Amend a running scheme's remaining schedule in place.
+
+        TWAP / Time DCA / Scheduled VWAP fire MARKET slices at an interval and
+        rest no orders, so an amend needs no venue cancel-replace: the
+        remaining unfilled quantity is re-planned across the remaining slices
+        and the cadence rescheduled. A new slice count (TWAP / Time DCA)
+        re-plans the not-yet-fired slices for the remaining quantity; a new
+        interval reschedules the next slice. Any successful amend resets the
+        cadence clock: the next slice fires a full (new) interval from now,
+        not from the previous slice. A new total at or below the fired cursor
+        is rejected (a scheme is stopped with a TradeAbort, not by shrinking
+        it below what has already fired). A successful amend clears
+        a freeze, resuming a scheme frozen by a slice failure. The amend is
+        applied in memory only — a restart replays the original schedule
+        (TD-135) — and a Scheduled VWAP weight-curve amend is not yet
+        supported.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            scheme (_LiveScheme): The running scheme to amend.
+            modify (TradeModify): Amend instruction with a scheme ModifyParams.
+        '''
+
+        cmd = scheme.command
+        params = modify.modify_params
+        assert cmd.qty is not None
+        assert isinstance(params, (TwapModify, TimeDcaModify, ScheduledVwapModify))
+
+        if isinstance(params, ScheduledVwapModify) and params.volume_weights is not None:
+            _log.warning(
+                'modify rejected: Scheduled VWAP weight amend not yet supported: '
+                'command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        current_total = scheme.slices_total
+        current_interval = scheme.interval_seconds
+        new_total, new_interval = self._resolve_scheme_amend(
+            params, current_total, current_interval,
+        )
+
+        filled_qty, _ = self._command_fill_totals(runtime, cmd.command_id)
+        remaining_qty = cmd.qty - filled_qty
+        remaining_slices = new_total - scheme.cursor
+
+        if remaining_qty <= _ZERO:
+            _log.info(
+                'scheme amend no-op (already filled): command_id=%s', cmd.command_id,
+            )
+            return
+
+        if remaining_slices <= 0:
+            _log.warning(
+                'modify rejected: new slice total %d is not beyond the fired '
+                'cursor %d; abort to stop a scheme: command_id=%s',
+                new_total,
+                scheme.cursor,
+                cmd.command_id,
+            )
+            return
+
+        if new_total != current_total:
+            filters = self._venue_adapter.cached_filters(cmd.symbol)
+            lot_step = filters.lot_step if filters is not None else None
+            try:
+                remaining_qtys = plan_even_slices(remaining_qty, remaining_slices, lot_step)
+            except ValueError as exc:
+                _log.warning(
+                    'scheme amend replan failed; leaving schedule unchanged: '
+                    'command_id=%s reason=%s',
+                    cmd.command_id,
+                    exc,
+                )
+                return
+
+            scheme.slice_qtys = scheme.slice_qtys[:scheme.cursor] + remaining_qtys
+            scheme.slices_total = new_total
+
+        scheme.interval_seconds = new_interval
+        scheme.frozen = False
+        scheme.next_run_at = self._clock() + timedelta(seconds=new_interval)
+        await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
+
+    def _resolve_scheme_amend(
+        self,
+        params: TwapModify | TimeDcaModify | ScheduledVwapModify,
+        current_total: int,
+        current_interval: int,
+    ) -> tuple[int, int]:
+        '''Resolve a scheme amend's absolute new slice total and interval.
+
+        An unset field keeps the running scheme's current live value, so
+        sequential partial amends compose rather than reverting to the
+        original command. Scheduled VWAP carries no slice-count field (its
+        count is its weight-curve length, which this slice does not amend),
+        so its total is unchanged.
+        '''
+
+        interval = (
+            params.interval_seconds
+            if params.interval_seconds is not None
+            else current_interval
+        )
+
+        if isinstance(params, TwapModify):
+            total = params.num_slices if params.num_slices is not None else current_total
+            return total, interval
+
+        if isinstance(params, TimeDcaModify):
+            total = (
+                params.num_iterations
+                if params.num_iterations is not None
+                else current_total
+            )
+            return total, interval
+
+        return current_total, interval
 
     def _resolve_amend(
         self,
