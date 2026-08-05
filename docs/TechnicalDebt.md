@@ -1243,3 +1243,13 @@ A TWAP / Time DCA / Scheduled VWAP amend updates the running `_LiveScheme` (rema
 A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-curve-to-remaining-slices normalization is ambiguous (the fired slices used the old curve), so `_process_scheme_modify` rejects a `ScheduledVwapModify.volume_weights` amend and accepts interval-only for VWAP.
 
 **When to fix**: before an amended schedule must survive a restart, or a strategy needs to re-shape a VWAP curve mid-flight. Persist the amended plan (a `SchemeAmended` event carrying the new slice quantities and interval) and apply the latest one in `_resume_schemes`; define and implement the VWAP remaining-curve semantics.
+
+## TD-136: TradeModify has no Nexus→Praxis production bridge
+
+**Origin**: WP-Praxis-0009 (8.6* inbound facade)
+**Severity**: Low (the Praxis amend API is complete and tested; only the cross-repo ingress is missing)
+**Module**: `praxis/launcher.py` (`_build_praxis_outbound`), Nexus outbound (`PraxisOutbound`), Nexus action translation
+
+`Trading.submit_modify` → `TradingInbound.submit_modify` → `ExecutionManager.submit_modify` is wired and reachable (proven by `test_trading_submit_modify_reaches_execution`), but nothing feeds it from a live Nexus Manager. The launcher's `_build_praxis_outbound` installs `submit_abort_fn` only; the installed `PraxisOutbound` exposes `send_abort` but no `send_modify` / `submit_modify_fn`, and Nexus's `AMEND_ORDER` action currently forbids `execution_params`, so a `ModifyParams` payload cannot cross. So a live `ActionType.MODIFY` cannot reach the execution manager end to end.
+
+**When to fix**: to drive amends from a strategy. Needs, cross-repo: a Nexus `PraxisOutbound.send_modify` + a modify-params translator (allow amend params on the amend action), and a launcher `_build_praxis_outbound` adapter that binds `submit_modify_fn` to `Trading.submit_modify` and translates the Nexus action into a `TradeModify`. Add a round-trip test mirroring the abort path (PT.5.1).

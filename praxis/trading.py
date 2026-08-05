@@ -25,6 +25,7 @@ from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.core.domain.position import Position
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
     Event,
@@ -1183,6 +1184,15 @@ class Trading:
         self._require_account_ready(abort.account_id)
         self._inbound.submit_abort(abort)
 
+    def submit_modify(self, modify: TradeModify) -> None:
+        '''Submit trade amend through inbound facade.'''
+
+        if self._stopping:
+            msg = 'Trading is shutting down, new modifies rejected'
+            raise RuntimeError(msg)
+        self._require_account_ready(modify.account_id)
+        self._inbound.submit_modify(modify)
+
     async def quiesce(self, account_id: str) -> None:
         '''Wait until an account's queued commands are fully processed.
 
@@ -1205,8 +1215,8 @@ class Trading:
         asyncio.run_coroutine_threadsafe(trading.get_health_snapshot(...),
         trading.loop) without blocking the loop.
 
-        Unlike submit_command and submit_abort, this does not require the
-        account to be ready: health is intentionally pollable across the
+        Unlike submit_command, submit_abort, and submit_modify, this does not
+        require the account to be ready: health is intentionally pollable across the
         whole lifecycle (the underlying adapter returns a default zeroed
         snapshot for unknown accounts) so a Manager can observe degradation
         before the account is fully wired.

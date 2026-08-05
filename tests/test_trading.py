@@ -43,6 +43,8 @@ from praxis.core.domain.events import (
 )
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.iceberg_modify import IcebergModify
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.execution_manager import (
     AccountNotRegisteredError,
     ExecutionManager,
@@ -236,6 +238,9 @@ class _FakeInbound:
     def submit_abort(self, abort: TradeAbort) -> None:
         self.calls.append(('submit_abort', abort))
 
+    def submit_modify(self, modify: object) -> None:
+        self.calls.append(('submit_modify', modify))
+
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         self.calls.append(('pull_positions', account_id))
         return {
@@ -387,6 +392,17 @@ async def test_trading_requires_start_before_facade_operations(
                 account_id='acc-1',
                 command_id='cmd-1',
                 reason='cancel',
+                created_at=_CREATED_AT,
+            )
+        )
+
+    with pytest.raises(RuntimeError, match=r'Trading\.start'):
+        trading.submit_modify(
+            TradeModify(
+                account_id='acc-1',
+                command_id='cmd-1',
+                reason='reprice',
+                modify_params=IcebergModify(limit_price=Decimal('49000')),
                 created_at=_CREATED_AT,
             )
         )
@@ -2753,4 +2769,67 @@ async def test_trading_config_enables_named_mode(spine: EventSpine) -> None:
     )
     assert isinstance(command_id, str)
 
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_submit_modify_routes_to_inbound(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+    fake_inbound = _FakeInbound()
+    trading._inbound = cast(TradingInbound, fake_inbound)
+    trading._ready_accounts.add('acc-1')
+
+    modify = TradeModify(
+        account_id='acc-1',
+        command_id='cmd-1',
+        reason='reprice',
+        modify_params=IcebergModify(limit_price=Decimal('49000')),
+        created_at=_CREATED_AT,
+    )
+    trading.submit_modify(modify)
+
+    assert ('submit_modify', modify) in fake_inbound.calls
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_submit_modify_reaches_execution(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    trading._ready_accounts.add('acc-1')
+
+    with pytest.raises(ValueError, match='unknown command_id'):
+        trading.submit_modify(
+            TradeModify(
+                account_id='acc-1',
+                command_id='no-such-command',
+                reason='reprice',
+                modify_params=IcebergModify(limit_price=Decimal('49000')),
+                created_at=_CREATED_AT,
+            )
+        )
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_rejects_modifies(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+    trading._ready_accounts.add('acc-1')
+    trading._stopping = True
+
+    with pytest.raises(RuntimeError, match='shutting down'):
+        trading.submit_modify(
+            TradeModify(
+                account_id='acc-1',
+                command_id='cmd-1',
+                reason='reprice',
+                modify_params=IcebergModify(limit_price=Decimal('49000')),
+                created_at=_CREATED_AT,
+            )
+        )
+
+    trading._stopping = False
     await trading.stop()
