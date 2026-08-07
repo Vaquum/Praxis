@@ -51,16 +51,25 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.bracket_modify import BracketModify
 from praxis.core.domain.execution_params import ExecutionParams
+from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.modify_params import ModifyParams
+from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
+from praxis.core.domain.single_shot_modify import SingleShotModify
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.domain.time_dca_modify import TimeDcaModify
 from praxis.core.domain.time_dca_params import TimeDcaParams
+from praxis.core.domain.twap_modify import TwapModify
 from praxis.core.domain.twap_params import TwapParams
 
 __all__ = [
     'build_execution_params',
+    'build_modify_params',
     'build_single_shot_params',
     'translate_execution_mode',
     'translate_maker_preference',
@@ -83,6 +92,24 @@ _ICEBERG_KEYS = frozenset({'display_qty', 'limit_price'})
 _LADDER_DCA_KEYS = frozenset({'price_levels', 'level_weights'})
 
 _ALLOWED_KEYS = frozenset({'price', 'stop_price', 'stop_limit_price'})
+
+_MODIFY_FOR_MODE: dict[
+    ExecutionMode, tuple[type[ModifyParams], str, frozenset[str], frozenset[str]]
+] = {
+    ExecutionMode.SINGLE_SHOT: (SingleShotModify, 'SINGLE_SHOT', _ALLOWED_KEYS, frozenset()),
+    ExecutionMode.BRACKET: (BracketModify, 'BRACKET', _BRACKET_KEYS, frozenset()),
+    ExecutionMode.TWAP: (TwapModify, 'TWAP', _TWAP_KEYS, frozenset()),
+    ExecutionMode.TIME_DCA: (TimeDcaModify, 'TIME_DCA', _TIME_DCA_KEYS, frozenset()),
+    ExecutionMode.SCHEDULED_VWAP: (
+        ScheduledVwapModify, 'SCHEDULED_VWAP', _SCHEDULED_VWAP_KEYS,
+        frozenset({'volume_weights'}),
+    ),
+    ExecutionMode.ICEBERG: (IcebergModify, 'ICEBERG', _ICEBERG_KEYS, frozenset()),
+    ExecutionMode.LADDER_DCA: (
+        LadderDcaModify, 'LADDER_DCA', _LADDER_DCA_KEYS,
+        frozenset({'price_levels', 'level_weights'}),
+    ),
+}
 
 _STP_MODE_VALUE_MAP: dict[str, str] = {
     'CANCEL_MAKER': 'EXPIRE_MAKER',
@@ -243,17 +270,20 @@ def _build_from_mapping[P](
     mode_label: str,
     allowed_keys: frozenset[str],
     tuple_keys: frozenset[str] = frozenset(),
+    payload_label: str = 'execution_params',
 ) -> P:
 
-    '''Build a per-mode params dataclass from a Nexus `execution_params` mapping.
+    '''Build a per-mode params dataclass from a Nexus payload mapping.
 
     Args:
         cls: The target params dataclass.
-        value: The `execution_params` payload — a `cls` instance (passed
-            through) or a `Mapping` of its field names.
+        value: The payload — a `cls` instance (passed through) or a
+            `Mapping` of its field names.
         mode_label: Execution-mode name for error messages.
         allowed_keys: Field names accepted for this mode.
         tuple_keys: Field names whose list payloads are coerced to tuples.
+        payload_label: Payload field name for error messages
+            (`execution_params` or `modify_params`).
 
     Returns:
         A validated `cls` instance.
@@ -269,7 +299,7 @@ def _build_from_mapping[P](
 
     if not isinstance(value, Mapping):
         msg = (
-            f'execution_params for {mode_label} must be {cls.__name__} or a '
+            f'{payload_label} for {mode_label} must be {cls.__name__} or a '
             f'Mapping, got {type(value).__name__}'
         )
         raise TypeError(msg)
@@ -277,7 +307,7 @@ def _build_from_mapping[P](
     unknown = set(value.keys()) - allowed_keys
     if unknown:
         msg = (
-            f'execution_params has unsupported keys for {mode_label}: '
+            f'{payload_label} has unsupported keys for {mode_label}: '
             f'{sorted(unknown)} (allowed: {sorted(allowed_keys)})'
         )
         raise ValueError(msg)
@@ -341,3 +371,37 @@ def build_execution_params(  # noqa: PLR0911 - one return per execution mode
 
     msg = f'no execution_params builder for mode {mode.value}'
     raise ValueError(msg)
+
+
+def build_modify_params(mode: ExecutionMode, value: object) -> ModifyParams:
+
+    '''Coerce a Nexus `modify_params` payload into the mode's amend type.
+
+    Dispatches on `mode` to the matching `*Modify` dataclass, validating the
+    payload's keys and values. A dataclass instance passes through; a
+    `Mapping` is built into the dataclass; any other shape fails closed.
+    Every amend field is optional, but the dataclass rejects an all-None
+    (empty) amend in its `__post_init__`.
+
+    Args:
+        mode: The target command's execution mode.
+        value: The `modify_params` payload from a Nexus MODIFY action.
+
+    Returns:
+        The validated per-mode amend object.
+
+    Raises:
+        TypeError: If the payload shape does not match the mode.
+        ValueError: If a key is unsupported, a value is rejected, or the
+            mode has no amend builder.
+    '''
+
+    entry = _MODIFY_FOR_MODE.get(mode)
+    if entry is None:
+        msg = f'no modify_params builder for mode {mode.value}'
+        raise ValueError(msg)
+
+    cls, label, allowed_keys, tuple_keys = entry
+    return _build_from_mapping(
+        cls, value, label, allowed_keys, tuple_keys, payload_label='modify_params',
+    )
