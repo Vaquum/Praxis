@@ -41,6 +41,7 @@ from praxis.core.domain.events import (
     Event,
     FillReceived,
     FundTransaction,
+    ReconciliationMismatch,
     OrderCanceled,
     OrderExpired,
     OrderQuoteNativeFilled,
@@ -1156,14 +1157,19 @@ class ExecutionManager:
         '''Apply an event to the account's trading-state and ledger projections.
 
         `RegisterAccount` and `FundTransaction` book into the ledger only;
-        `FillReceived` and `TradeClosed` book into both; every other event
-        advances the trading state alone. The ledger is a secondary
+        `FillReceived` and `TradeClosed` book into both; `ReconciliationMismatch`
+        is an alert that books nowhere and advances no projection; every other
+        event advances the trading state alone. The ledger is a secondary
         projection, so a projection failure is logged and never propagated
         into the trading path.
         '''
 
         if isinstance(event, RegisterAccount | FundTransaction):
             self._project_to_ledger(runtime, event)
+
+            return
+
+        if isinstance(event, ReconciliationMismatch):
 
             return
 

@@ -708,3 +708,24 @@ def test_snapshot_positions_excludes_ws_closed_position() -> None:
 
     snapshot = state.snapshot_positions()
     assert snapshot == {}
+
+
+def test_apply_reconciliation_mismatch_is_noop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from praxis.core.domain.events import ReconciliationMismatch
+
+    state = _state()
+    with caplog.at_level(logging.WARNING):
+        state.apply(
+            ReconciliationMismatch(
+                account_id=_ACCT,
+                timestamp=_TS,
+                reconciliation_mismatch_id='recon-1',
+                asset='USDT',
+                expected=Decimal('1000'),
+                actual=Decimal('995'),
+            ),
+        )
+
+    assert 'unhandled event type' not in caplog.text

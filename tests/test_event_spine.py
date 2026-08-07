@@ -23,6 +23,7 @@ from praxis.core.domain.events import (
     FillReceived,
     FundTransaction,
     MarkSampled,
+    ReconciliationMismatch,
     OrderAcked,
     OrderCanceled,
     OrderExpired,
@@ -159,6 +160,11 @@ _ALL_EVENTS: list[Event] = [
     FundTransaction(
         account_id=_ACCT, timestamp=_TS,
         fund_transaction_id='fund-1', amount=Decimal('1000'), direction='DEPOSIT',
+    ),
+    ReconciliationMismatch(
+        account_id=_ACCT, timestamp=_TS,
+        reconciliation_mismatch_id='recon-1', asset='USDT',
+        expected=Decimal('1000'), actual=Decimal('995.5'),
     ),
     OperatorHaltRequested(
         account_id=_ACCT, timestamp=_TS, reason='manual stop',

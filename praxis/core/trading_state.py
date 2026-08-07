@@ -34,6 +34,7 @@ from praxis.core.domain.events import (
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
+    ReconciliationMismatch,
     SliceFailed,
     TradeClosed,
     TradeOutcomeProduced,
@@ -153,6 +154,7 @@ class TradingState:
                 SliceFailed,
                 BracketInitialized,
                 OrderAmendInitiated,
+                ReconciliationMismatch,
             ),
         ):
             return

@@ -44,6 +44,7 @@ __all__ = [
     'OutcomeAcked',
     'OutcomeDeliveryContextRecorded',
     'OutcomeReplayAbandoned',
+    'ReconciliationMismatch',
     'RegisterAccount',
     'SchemeInitialized',
     'SchemeStateChanged',
@@ -891,6 +892,52 @@ class FundTransaction(_EventBase):
 
 
 @dataclass(frozen=True)
+class ReconciliationMismatch(_EventBase):
+
+    '''
+    Represent a per-asset balance discrepancy found reconciling against the venue.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        reconciliation_mismatch_id (str): Stable unique identifier for the mismatch.
+        asset (str): Asset whose balance mismatched (e.g. 'USDT', 'BTC').
+        expected (Decimal): Praxis-projected balance for the asset, must be finite.
+        actual (Decimal): Venue-reported balance for the asset, must be finite.
+    '''
+
+    reconciliation_mismatch_id: str
+    asset: str
+    expected: Decimal
+    actual: Decimal
+
+    @property
+    def delta(self) -> Decimal:
+
+        '''Return the venue-reported minus Praxis-projected balance difference.'''
+
+        return self.actual - self.expected
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'reconciliation_mismatch_id', self.reconciliation_mismatch_id)
+        _require_str(name, 'asset', self.asset)
+
+        for field_name in ('expected', 'actual'):
+            value = getattr(self, field_name)
+            if not isinstance(value, Decimal) or not value.is_finite():
+                msg = f'{name}.{field_name} must be a finite Decimal'
+                raise ValueError(msg)
+
+        if self.expected == self.actual:
+            msg = f'{name} requires expected != actual (a mismatch has a non-zero delta)'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class OperatorHaltRequested(_EventBase):
 
     '''
@@ -1168,6 +1215,7 @@ type Event = (
     | MarkSampled
     | RegisterAccount
     | FundTransaction
+    | ReconciliationMismatch
     | OperatorHaltRequested
     | OperatorResumeRequested
 )
