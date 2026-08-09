@@ -185,6 +185,11 @@ _FILL = FillReceived(
     fee_asset='USDT', is_maker=True,
 )
 
+_FUND = FundTransaction(
+    account_id=_ACCT, timestamp=_TS,
+    fund_transaction_id='fund-1', amount=Decimal('1000'), direction='DEPOSIT',
+)
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -366,6 +371,47 @@ async def test_fill_dedup_same_trade_id_different_accounts(spine: EventSpine) ->
     assert isinstance(seq_b, int)
     events = await spine.read(epoch_id=_EPOCH)
     assert len(events) == 2
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_duplicate_returns_none(spine: EventSpine) -> None:
+
+    await spine.append(_FUND, epoch_id=_EPOCH)
+    result = await spine.append(_FUND, epoch_id=_EPOCH)
+    assert result is None
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 1
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_different_ids_both_append(spine: EventSpine) -> None:
+
+    fund_b = replace(_FUND, fund_transaction_id='fund-2')
+    seq_a = await spine.append(_FUND, epoch_id=_EPOCH)
+    seq_b = await spine.append(fund_b, epoch_id=_EPOCH)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+    assert len(await spine.read(epoch_id=_EPOCH)) == 2
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_same_id_different_epochs(spine: EventSpine) -> None:
+
+    seq_a = await spine.append(_FUND, epoch_id=1)
+    seq_b = await spine.append(_FUND, epoch_id=2)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_same_id_different_accounts(spine: EventSpine) -> None:
+
+    fund_b = replace(_FUND, account_id='acc-2')
+    seq_a = await spine.append(_FUND, epoch_id=_EPOCH)
+    seq_b = await spine.append(fund_b, epoch_id=_EPOCH)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+    assert len(await spine.read(epoch_id=_EPOCH)) == 2
 
 
 @pytest.mark.asyncio

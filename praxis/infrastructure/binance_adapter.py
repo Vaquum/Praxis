@@ -58,6 +58,7 @@ from praxis.infrastructure.venue_adapter import (
     SymbolFilters,
     TransientError,
     VenueError,
+    VenueFundTransaction,
     VenueOrder,
     VenueOrderList,
     VenueOrderListLeg,
@@ -83,6 +84,9 @@ _HTTP_TOO_MANY = 429
 _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
+_DEPOSIT_SUCCESS_STATUS = 1
+_WITHDRAWAL_COMPLETED_STATUS = 6
+_WITHDRAWAL_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
 _DUPLICATE_CLIENT_ORDER_ID_CODE = -2010
 _LOCAL_FILTER_REJECT_CODE = -1013
@@ -1889,6 +1893,103 @@ class BinanceAdapter:
         data = await self._signed_request('GET', '/api/v3/myTrades', params, account_id)
 
         return [self._parse_venue_trade(entry) for entry in data]
+
+    async def query_fund_transactions(
+        self,
+        account_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> list[VenueFundTransaction]:
+
+        '''
+        Query completed deposit and withdrawal records from the venue.
+
+        Calls the signed SAPI deposit- and withdrawal-history endpoints and
+        keeps only settled transactions (deposit status 1 = success,
+        withdrawal status 6 = completed) so a pending movement is never
+        booked. The SAPI endpoints are not served by the spot testnet, so
+        this is only meaningful against the live venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            start_time (datetime | None): Return transactions at or after this
+                time, must be timezone-aware
+            end_time (datetime | None): Return transactions at or before this
+                time, must be timezone-aware
+
+        Returns:
+            list[VenueFundTransaction]: Settled deposits and withdrawals,
+                ascending by timestamp
+
+        Note:
+            Returns an empty list under binsim: the simulator does not serve
+            the SAPI fund-history routes and no real funds move against it.
+        '''
+
+        if _binsim_enabled():
+            return []
+
+        _require_aware(start_time, 'start_time')
+        _require_aware(end_time, 'end_time')
+
+        params: dict[str, str] = {}
+
+        if start_time is not None:
+            params['startTime'] = str(int(start_time.timestamp() * _MS_PER_SECOND))
+
+        if end_time is not None:
+            params['endTime'] = str(int(end_time.timestamp() * _MS_PER_SECOND))
+
+        deposits = await self._signed_request(
+            'GET', '/sapi/v1/capital/deposit/hisrec', params, account_id,
+        )
+        withdrawals = await self._signed_request(
+            'GET', '/sapi/v1/capital/withdraw/history', params, account_id,
+        )
+
+        transactions = [
+            self._parse_deposit(entry)
+            for entry in deposits
+            if int(entry['status']) == _DEPOSIT_SUCCESS_STATUS
+        ] + [
+            self._parse_withdrawal(entry)
+            for entry in withdrawals
+            if int(entry['status']) == _WITHDRAWAL_COMPLETED_STATUS
+        ]
+
+        return sorted(transactions, key=lambda transaction: transaction.timestamp)
+
+    def _parse_deposit(self, entry: dict[str, Any]) -> VenueFundTransaction:
+
+        '''Map a SAPI deposit-history record to a `VenueFundTransaction`.'''
+
+        return VenueFundTransaction(
+            fund_transaction_id=str(entry['id']),
+            asset=entry['coin'],
+            amount=Decimal(str(entry['amount'])),
+            direction='DEPOSIT',
+            timestamp=datetime.fromtimestamp(
+                int(entry['insertTime']) / _MS_PER_SECOND, tz=UTC,
+            ),
+        )
+
+    def _parse_withdrawal(self, entry: dict[str, Any]) -> VenueFundTransaction:
+
+        '''Map a SAPI withdrawal-history record to a `VenueFundTransaction`.
+
+        Binance reports `applyTime` as a UTC `'%Y-%m-%d %H:%M:%S'` string.
+        '''
+
+        return VenueFundTransaction(
+            fund_transaction_id=str(entry['id']),
+            asset=entry['coin'],
+            amount=Decimal(str(entry['amount'])),
+            direction='WITHDRAWAL',
+            timestamp=datetime.strptime(
+                entry['applyTime'], _WITHDRAWAL_TIME_FORMAT,
+            ).replace(tzinfo=UTC),
+        )
 
     async def query_api_permissions(self, account_id: str) -> ApiPermissions:
 

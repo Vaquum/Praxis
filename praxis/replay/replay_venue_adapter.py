@@ -38,6 +38,7 @@ from praxis.infrastructure.venue_adapter import (
     OrderRejectedError,
     SubmitResult,
     SymbolFilters,
+    VenueFundTransaction,
     VenueOrder,
     VenueOrderList,
     VenueTrade,
@@ -389,6 +390,17 @@ class ReplayVenueAdapter:
             trades = trades[:limit]
 
         return trades
+
+    async def query_fund_transactions(
+        self,
+        account_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> list[VenueFundTransaction]:
+        '''Return no fund transactions; a replay run models no deposits or withdrawals.'''
+
+        return []
 
     async def get_exchange_info(self, symbol: str) -> SymbolFilters:
         '''Return cached filters for a symbol, or raise if unknown.'''

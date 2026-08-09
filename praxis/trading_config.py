@@ -33,6 +33,8 @@ class TradingConfig:
             Optional async callback invoked by execution outcomes.
         shutdown_timeout (float): Seconds to wait for orders to reach terminal
             state during shutdown. Default: 30.0.
+        reconcile_interval_seconds (float): Seconds between background
+            reconciliation cycles (fund-transaction polling). Default: 60.0.
         enabled_execution_modes (frozenset[ExecutionMode]): Execution modes the
             host may drive. Default-off: only SINGLE_SHOT is enabled unless a
             mode is explicitly added, so a new mode cannot be driven live until
@@ -47,6 +49,7 @@ class TradingConfig:
     account_credentials: Mapping[str, Credentials] = field(default_factory=dict)
     on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None
     shutdown_timeout: float = 30.0
+    reconcile_interval_seconds: float = 60.0
     enabled_execution_modes: frozenset[ExecutionMode] = field(
         default_factory=lambda: frozenset({ExecutionMode.SINGLE_SHOT}),
     )

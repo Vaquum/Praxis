@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import logging
 import queue
@@ -30,6 +31,7 @@ from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
     Event,
     FillReceived,
+    FundTransaction,
     OrderCanceled,
     OrderExpired,
     OrderRejected,
@@ -46,6 +48,7 @@ __all__ = ['Trading']
 
 _log = logging.getLogger(__name__)
 _BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
+_QUOTE_ASSET = 'USDT'
 _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.FILLED,
     OrderStatus.CANCELED,
@@ -148,6 +151,8 @@ class Trading:
         self._ready_accounts: set[str] = set()
         self._reconciling_accounts: set[str] = set()
         self._reconcile_rerun_pending: set[str] = set()
+        self._fund_reconcile_cursor: dict[str, datetime] = {}
+        self._reconcile_task: asyncio.Task[None] | None = None
         self._stopping = False
 
     @property
@@ -324,6 +329,7 @@ class Trading:
             await self._cleanup_partial_startup()
             raise
 
+        self._reconcile_task = asyncio.create_task(self._reconciliation_loop())
         self._started = True
 
     async def _startup_account(
@@ -393,6 +399,12 @@ class Trading:
             return
 
         self._stopping = True
+
+        if self._reconcile_task is not None:
+            self._reconcile_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._reconcile_task
+            self._reconcile_task = None
 
         try:
             in_flight_by_account: dict[str, set[str]] = {}
@@ -751,6 +763,97 @@ class Trading:
                     order.client_order_id,
                     trade.venue_trade_id,
                 )
+
+    async def _reconcile_fund_transactions(self, account_id: str) -> None:
+        '''
+        Detect quote-asset deposits/withdrawals and record them for the account.
+
+        The Reconciliation Engine role: poll the venue for settled fund
+        transactions since the last-seen cursor, and for each new quote-asset
+        (USDT) transaction append a `FundTransaction` to the spine and hand it
+        to the account coroutine to project into the ledger. As with fill
+        reconciliation the spine deduplicates on `fund_transaction_id`, so a
+        re-detected transaction is a silent no-op and the cursor is only an
+        efficiency bound, not the durability guarantee. Base-asset movements
+        are not modelled by `FundTransaction`; they surface instead as a
+        balance mismatch in the balance-reconciliation pass.
+
+        Args:
+            account_id (str): Account identifier to reconcile.
+        '''
+
+        since = self._fund_reconcile_cursor.get(account_id)
+
+        try:
+            transactions = await self._venue_adapter.query_fund_transactions(
+                account_id, start_time=since,
+            )
+        except VenueError as exc:
+            _log.warning(
+                'failed to query fund transactions for reconciliation: %s',
+                exc.args[0] if exc.args else str(exc),
+            )
+            return
+
+        for transaction in transactions:
+            if transaction.asset != _QUOTE_ASSET:
+                continue
+
+            fund = FundTransaction(
+                account_id=account_id,
+                timestamp=transaction.timestamp,
+                fund_transaction_id=transaction.fund_transaction_id,
+                amount=transaction.amount,
+                direction=transaction.direction,
+            )
+
+            seq = await self._event_spine.append(fund, self._config.epoch_id)
+            if seq is not None:
+                self._execution_manager.enqueue_ws_event(account_id, fund)
+                _log.info(
+                    'reconciled fund transaction: %s %s %s',
+                    transaction.direction,
+                    transaction.amount,
+                    transaction.fund_transaction_id,
+                )
+
+        if transactions:
+            self._fund_reconcile_cursor[account_id] = max(
+                transaction.timestamp for transaction in transactions
+            )
+
+    async def _reconciliation_loop(self) -> None:
+        '''
+        Run the detector-style reconciliation passes periodically, off the
+        critical path.
+
+        Sleeps `reconcile_interval_seconds` between cycles, then polls each
+        ready account for fund transactions. A per-account failure is logged
+        and never propagated, so one account's venue error cannot stop the
+        loop or affect another account. Started by `start` and cancelled by
+        `stop`; because it runs as its own background task, a slow venue call
+        delays only the next cycle and never blocks account startup or order
+        reconciliation.
+        '''
+
+        while not self._stopping:
+            try:
+                await asyncio.sleep(self._config.reconcile_interval_seconds)
+            except asyncio.CancelledError:
+                return
+
+            for account_id in sorted(self._ready_accounts):
+                if self._stopping:
+                    return
+
+                try:
+                    await self._reconcile_fund_transactions(account_id)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001 - a detector must not stop the loop
+                    _log.exception(
+                        'reconciliation cycle failed for account: %s', account_id,
+                    )
 
     async def _reconcile_on_reconnect(self, account_id: str) -> None:
         '''
