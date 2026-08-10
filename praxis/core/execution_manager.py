@@ -1584,6 +1584,51 @@ class ExecutionManager:
 
         return runtime.account_ledger.read_balances()
 
+    def get_asset_balances(self, account_id: str) -> dict[str, Decimal]:
+        '''
+        Return the account's raw per-asset balances for venue reconciliation.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[str, Decimal]: Raw held balance keyed by asset symbol.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return runtime.account_ledger.read_asset_balances()
+
+    def has_pending_ws_events(self, account_id: str) -> bool:
+        '''
+        Return whether the account has events queued but not yet projected.
+
+        WS fills and reconciliation events (including fund transactions) are
+        appended to the spine and then queued for the account coroutine to
+        project. Until that queue drains, the ledger projection lags the
+        spine, so a balance comparison against the venue would be stale. A
+        True result means the projection is not yet caught up.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            bool: True when events await projection; False when the account is
+                unregistered or fully drained.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return False
+
+        return not runtime.ws_event_queue.empty()
+
     def get_account_trade_pnls(self, account_id: str) -> dict[str, TradePnL]:
         '''
         Return a detached snapshot of per-trade realized P&L for an account.

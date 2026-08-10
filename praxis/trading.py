@@ -35,6 +35,7 @@ from praxis.core.domain.events import (
     OrderCanceled,
     OrderExpired,
     OrderRejected,
+    ReconciliationMismatch,
 )
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
@@ -49,6 +50,11 @@ __all__ = ['Trading']
 _log = logging.getLogger(__name__)
 _BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
 _QUOTE_ASSET = 'USDT'
+_ZERO = Decimal(0)
+_BALANCE_TOLERANCE: dict[str, Decimal] = {
+    'USDT': Decimal('0.01'),
+    'BTC': Decimal('0.00000001'),
+}
 _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.FILLED,
     OrderStatus.CANCELED,
@@ -152,6 +158,7 @@ class Trading:
         self._reconciling_accounts: set[str] = set()
         self._reconcile_rerun_pending: set[str] = set()
         self._fund_reconcile_cursor: dict[str, datetime] = {}
+        self._balance_mismatch_seen: dict[tuple[str, str], Decimal] = {}
         self._reconcile_task: asyncio.Task[None] | None = None
         self._stopping = False
 
@@ -822,18 +829,91 @@ class Trading:
                 transaction.timestamp for transaction in transactions
             )
 
+    async def _reconcile_balances(self, account_id: str) -> None:
+        '''
+        Compare the account's projected per-asset balances against the venue.
+
+        The Reconciliation Engine role: read the ledger's raw per-asset
+        balances (the projection derived from fills and fund transactions) and
+        the venue's reported balances (`free + locked`, since locked funds are
+        still held), and for each asset that diverges beyond its tolerance
+        append a `ReconciliationMismatch` to the spine. A mismatch indicates a
+        missed or double-counted fill and is never silently dropped. The same
+        divergence is reported once until it changes or clears, so a persistent
+        mismatch does not append an event every cycle; the seen-marker is set
+        only after a durable append, so a transient spine failure retries next
+        cycle rather than silently suppressing the alert. Base-asset (BTC) raw
+        quantity is summed from the ledger's cost-basis lots; the venue reports
+        it directly.
+
+        The pass is skipped while events are queued for projection: the ledger
+        lags the spine until the account coroutine drains its queue, so a
+        just-detected deposit or an unprojected fill would otherwise read as a
+        false mismatch. The next cycle, once caught up, reconciles cleanly.
+
+        Args:
+            account_id (str): Account identifier to reconcile.
+        '''
+
+        if self._execution_manager.has_pending_ws_events(account_id):
+            return
+
+        expected_balances = self._execution_manager.get_asset_balances(account_id)
+
+        try:
+            entries = await self._venue_adapter.query_balance(
+                account_id, frozenset(expected_balances),
+            )
+        except VenueError as exc:
+            _log.warning(
+                'failed to query balances for reconciliation: %s',
+                exc.args[0] if exc.args else str(exc),
+            )
+            return
+
+        venue_totals = {entry.asset: entry.free + entry.locked for entry in entries}
+
+        for asset, expected in expected_balances.items():
+            actual = venue_totals.get(asset, _ZERO)
+            delta = actual - expected
+            key = (account_id, asset)
+
+            if abs(delta) <= _BALANCE_TOLERANCE.get(asset, _ZERO):
+                self._balance_mismatch_seen.pop(key, None)
+                continue
+
+            if self._balance_mismatch_seen.get(key) == delta:
+                continue
+
+            now = self._clock()
+            mismatch = ReconciliationMismatch(
+                account_id=account_id,
+                timestamp=now,
+                reconciliation_mismatch_id=f'balance-{account_id}-{asset}-{now.isoformat()}',
+                asset=asset,
+                expected=expected,
+                actual=actual,
+            )
+
+            await self._event_spine.append(mismatch, self._config.epoch_id)
+            self._balance_mismatch_seen[key] = delta
+            _log.warning(
+                'balance mismatch: account=%s asset=%s expected=%s actual=%s',
+                account_id, asset, expected, actual,
+            )
+
     async def _reconciliation_loop(self) -> None:
         '''
         Run the detector-style reconciliation passes periodically, off the
         critical path.
 
-        Sleeps `reconcile_interval_seconds` between cycles, then polls each
-        ready account for fund transactions. A per-account failure is logged
-        and never propagated, so one account's venue error cannot stop the
-        loop or affect another account. Started by `start` and cancelled by
-        `stop`; because it runs as its own background task, a slow venue call
-        delays only the next cycle and never blocks account startup or order
-        reconciliation.
+        Sleeps `reconcile_interval_seconds` between cycles, then for each ready
+        account polls fund transactions and reconciles balances against the
+        venue. A per-account failure is logged and never propagated, so one
+        account's venue error cannot stop the loop or affect another account.
+        Started by `start` and cancelled by `stop`; because it runs as its own
+        background task, a slow venue call delays only the next cycle and never
+        blocks account startup or order reconciliation.
         '''
 
         while not self._stopping:
@@ -848,6 +928,7 @@ class Trading:
 
                 try:
                     await self._reconcile_fund_transactions(account_id)
+                    await self._reconcile_balances(account_id)
                 except asyncio.CancelledError:
                     raise
                 except Exception:  # noqa: BLE001 - a detector must not stop the loop

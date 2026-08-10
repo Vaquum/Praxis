@@ -469,3 +469,30 @@ def test_fill_for_unsupported_symbol_raises():
 
     with pytest.raises(NotImplementedError, match='the ledger books only BTCUSDT'):
         ledger.apply(_fill(OrderSide.BUY, '1', '100', '0', symbol='ETHUSDT'))
+
+
+def test_read_asset_balances_after_buy() -> None:
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.1'))
+
+    balances = ledger.read_asset_balances()
+
+    assert balances['USDT'] == Decimal('-100.1')
+    assert balances['BTC'] == Decimal('1')
+
+
+def test_read_asset_balances_after_round_trip() -> None:
+    ledger = _ledger()
+    ledger.apply(_fill(OrderSide.BUY, '1', '100', '0.1'))
+    ledger.apply(_fill(OrderSide.SELL, '1', '110', '0.11'))
+
+    balances = ledger.read_asset_balances()
+
+    assert balances['BTC'] == Decimal('0')
+    assert balances['USDT'] == Decimal('9.79')
+
+
+def test_read_asset_balances_fresh_ledger_is_zero() -> None:
+    ledger = _ledger()
+
+    assert ledger.read_asset_balances() == {'USDT': Decimal('0'), 'BTC': Decimal('0')}
