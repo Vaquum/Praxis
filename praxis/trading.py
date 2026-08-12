@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
+from praxis.core.generate_client_order_id import praxis_command_fragment
 from praxis.core.domain.enums import (
     ExecutionMode,
     ExecutionType,
@@ -619,10 +620,17 @@ class Trading:
         user stream opens, so an orphan is cancelled before the stream
         could deliver — and `_on_execution_report` silently drop — its
         fill report. The sweep queries the venue's open orders for every
-        managed symbol; any open order whose `client_order_id` is unknown
-        locally is cancelled — never adopted, because Praxis cannot
-        reconstruct its `command_id` / `trade_id` / Nexus capital lineage
-        from a venue order alone — with a high-severity log. An OCO leg is
+        managed symbol; an open order that is unknown locally yet embeds
+        the command fragment (`praxis_command_fragment`) of a command
+        this account has accepted (`owned_command_fragments`) is a
+        self-inflicted orphan and is cancelled — never adopted, because
+        Praxis cannot reconstruct its `trade_id` / Nexus capital lineage
+        from a venue order alone — with a high-severity log. The accepted
+        command set is the authoritative ownership signal: an order whose
+        id merely imitates the minting shape but ties to no accepted
+        command, and an order placed manually or by another system, are
+        both foreign — Praxis does not manage what it did not create, so
+        they are left untouched and do not gate readiness. An OCO leg is
         cancelled via `cancel_order_list`, since the venue rejects
         single-leg OCO cancellation (mirroring `stop`).
 
@@ -643,6 +651,7 @@ class Trading:
             return True
 
         known = set(trading_state.orders) | set(trading_state.closed_orders)
+        owned_fragments = self._execution_manager.owned_command_fragments(account_id)
         symbols = (
             set(self._execution_manager.active_symbols(account_id))
             | self._bootstrap_filter_symbols
@@ -664,6 +673,16 @@ class Trading:
 
             for venue_order in venue_orders:
                 if venue_order.client_order_id in known:
+                    continue
+
+                fragment = praxis_command_fragment(venue_order.client_order_id)
+                if fragment is None or fragment not in owned_fragments:
+                    _log.info(
+                        'foreign venue open order left untouched (no Praxis '
+                        'lineage): symbol=%s client_order_id=%s',
+                        symbol,
+                        venue_order.client_order_id,
+                    )
                     continue
 
                 _log.error(
@@ -836,15 +855,21 @@ class Trading:
         The Reconciliation Engine role: read the ledger's raw per-asset
         balances (the projection derived from fills and fund transactions) and
         the venue's reported balances (`free + locked`, since locked funds are
-        still held), and for each asset that diverges beyond its tolerance
-        append a `ReconciliationMismatch` to the spine. A mismatch indicates a
-        missed or double-counted fill and is never silently dropped. The same
-        divergence is reported once until it changes or clears, so a persistent
-        mismatch does not append an event every cycle; the seen-marker is set
-        only after a durable append, so a transient spine failure retries next
-        cycle rather than silently suppressing the alert. Base-asset (BTC) raw
-        quantity is summed from the ledger's cost-basis lots; the venue reports
-        it directly.
+        still held), and append a `ReconciliationMismatch` to the spine for any
+        asset where the venue holds LESS than the ledger expects beyond its
+        tolerance. Only a shortfall is a mismatch: Praxis's own funds are
+        missing or a fill was double-counted, and it is never silently dropped.
+        An excess (the venue holds more than the ledger expects) is untracked
+        capital Praxis never created — a manual deposit or another system's
+        position on a commingled asset — which Praxis does not manage and does
+        not flag; the trade backfill on reconnect, not this floor check, is the
+        path that catches a missed Praxis buy fill. The same divergence is
+        reported once until it changes or clears, so a persistent mismatch does
+        not append an event every cycle; the seen-marker is set only after a
+        durable append, so a transient spine failure retries next cycle rather
+        than silently suppressing the alert. Base-asset (BTC) raw quantity is
+        summed from the ledger's cost-basis lots; the venue reports it
+        directly.
 
         The pass is skipped while events are queued for projection: the ledger
         lags the spine until the account coroutine drains its queue, so a
@@ -878,7 +903,7 @@ class Trading:
             delta = actual - expected
             key = (account_id, asset)
 
-            if abs(delta) <= _BALANCE_TOLERANCE.get(asset, _ZERO):
+            if delta >= -_BALANCE_TOLERANCE.get(asset, _ZERO):
                 self._balance_mismatch_seen.pop(key, None)
                 continue
 

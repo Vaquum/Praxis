@@ -81,6 +81,7 @@ from praxis.core.estimate_slippage import (
     estimate_slippage_for_quote,
 )
 from praxis.core.generate_client_order_id import (
+    command_id_fragment,
     generate_client_order_id,
     validate_command_id_for_client_order_id,
 )
@@ -625,6 +626,38 @@ class ExecutionManager:
             raise AccountNotRegisteredError(msg)
 
         return {k: copy.copy(v) for k, v in runtime.trading_state.orders.items()}
+
+    def owned_command_fragments(self, account_id: str) -> set[str]:
+        '''Return the command fragments this account has ever accepted.
+
+        Each fragment is the client-order-id slice a command produces via
+        `command_id_fragment`. A venue open order is Praxis-owned only if
+        its embedded fragment (`praxis_command_fragment`) is in this set:
+        the account's accepted commands are the authoritative record of
+        what Praxis created, so an order shaped like a Praxis id but tied
+        to no accepted command is foreign and left untouched. The set
+        retains terminalized commands, since a command reconciled at boot
+        can still have a live venue order that must be cancelled.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            set[str]: The account's accepted command fragments.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        if account_id not in self._accounts:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return {
+            command_id_fragment(command_id)
+            for command_id, owner in self._accepted_commands.items()
+            if owner == account_id
+        }
 
     def in_flight_command_ids(self, account_id: str) -> list[str]:
         '''Return the non-terminal command ids still working for an account.

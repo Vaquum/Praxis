@@ -11,7 +11,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from praxis.core.domain.events import FundTransaction, ReconciliationMismatch
+from praxis.core.account_ledger import AccountLedger
+from praxis.core.domain.enums import OrderSide
+from praxis.core.domain.events import (
+    FillReceived,
+    FundTransaction,
+    ReconciliationMismatch,
+    RegisterAccount,
+)
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
@@ -118,8 +125,50 @@ async def _mismatches_on_spine(spine: EventSpine) -> list[ReconciliationMismatch
     return [event for _seq, event in events if isinstance(event, ReconciliationMismatch)]
 
 
+def _ledger(trading: Trading) -> AccountLedger:
+    ledger = trading.execution_manager._accounts[_ACCT].account_ledger
+    ledger.apply(RegisterAccount(account_id=_ACCT, timestamp=_TS))
+
+    return ledger
+
+
+def _seed_usdt(trading: Trading, amount: Decimal) -> None:
+    _ledger(trading).apply(FundTransaction(
+        account_id=_ACCT, timestamp=_TS, fund_transaction_id='seed',
+        amount=amount, direction='DEPOSIT',
+    ))
+
+
+def _seed_btc(trading: Trading, qty: Decimal) -> None:
+    _ledger(trading).apply(FillReceived(
+        account_id=_ACCT, timestamp=_TS, client_order_id='SS-seed',
+        venue_order_id='v-seed', venue_trade_id='vt-seed',
+        trade_id='trade-seed', command_id='cmd-seed',
+        symbol='BTCUSDT', side=OrderSide.BUY, qty=qty, price=Decimal('50000'),
+        fee=Decimal('0'), fee_asset='USDT', is_maker=True,
+    ))
+
+
 @pytest.mark.asyncio
-async def test_balance_mismatch_emits_reconciliation_mismatch(spine: EventSpine) -> None:
+async def test_balance_shortfall_emits_reconciliation_mismatch(spine: EventSpine) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_balance.return_value = [
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
+    ]
+    trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('100'))
+
+    await trading._reconcile_balances(_ACCT)
+
+    mismatches = await _mismatches_on_spine(spine)
+    assert len(mismatches) == 1
+    assert mismatches[0].asset == 'USDT'
+    assert mismatches[0].expected == Decimal('100')
+    assert mismatches[0].actual == Decimal('0')
+
+
+@pytest.mark.asyncio
+async def test_balance_excess_is_ignored_as_untracked(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
         BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
@@ -128,20 +177,17 @@ async def test_balance_mismatch_emits_reconciliation_mismatch(spine: EventSpine)
 
     await trading._reconcile_balances(_ACCT)
 
-    mismatches = await _mismatches_on_spine(spine)
-    assert len(mismatches) == 1
-    assert mismatches[0].asset == 'USDT'
-    assert mismatches[0].expected == Decimal('0')
-    assert mismatches[0].actual == Decimal('100')
+    assert await _mismatches_on_spine(spine) == []
 
 
 @pytest.mark.asyncio
 async def test_balance_within_tolerance_no_mismatch(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('0.005'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('99.996'), locked=Decimal('0')),
     ]
     trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('100'))
 
     await trading._reconcile_balances(_ACCT)
 
@@ -152,23 +198,25 @@ async def test_balance_within_tolerance_no_mismatch(spine: EventSpine) -> None:
 async def test_balance_uses_free_plus_locked(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('40'), locked=Decimal('60')),
+        BalanceEntry(asset='USDT', free=Decimal('30'), locked=Decimal('60')),
     ]
     trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('100'))
 
     await trading._reconcile_balances(_ACCT)
 
     mismatches = await _mismatches_on_spine(spine)
-    assert mismatches[0].actual == Decimal('100')
+    assert mismatches[0].actual == Decimal('90')
 
 
 @pytest.mark.asyncio
-async def test_balance_mismatch_suppressed_when_unchanged(spine: EventSpine) -> None:
+async def test_balance_shortfall_suppressed_when_unchanged(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
     ]
     trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('100'))
 
     await trading._reconcile_balances(_ACCT)
     await trading._reconcile_balances(_ACCT)
@@ -188,26 +236,30 @@ async def test_balance_venue_error_swallowed(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_balance_btc_mismatch(spine: EventSpine) -> None:
+async def test_balance_btc_shortfall(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
         BalanceEntry(asset='BTC', free=Decimal('0.5'), locked=Decimal('0')),
     ]
     trading = _trading(spine, adapter)
+    _seed_btc(trading, Decimal('1'))
 
     await trading._reconcile_balances(_ACCT)
 
     mismatches = await _mismatches_on_spine(spine)
-    assert [(m.asset, m.actual) for m in mismatches] == [('BTC', Decimal('0.5'))]
+    assert [(m.asset, m.expected, m.actual) for m in mismatches] == [
+        ('BTC', Decimal('1'), Decimal('0.5')),
+    ]
 
 
 @pytest.mark.asyncio
 async def test_balance_skipped_while_projection_pending(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
     ]
     trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('100'))
     trading.execution_manager.enqueue_ws_event(
         _ACCT,
         FundTransaction(
@@ -222,12 +274,13 @@ async def test_balance_skipped_while_projection_pending(spine: EventSpine) -> No
 
 
 @pytest.mark.asyncio
-async def test_balance_mismatch_retried_after_failed_append(spine: EventSpine) -> None:
+async def test_balance_shortfall_retried_after_failed_append(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
     ]
     trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('100'))
 
     real_append = trading._event_spine.append
     calls = {'n': 0}
@@ -255,10 +308,11 @@ async def test_balance_mismatch_reemits_on_delta_change(spine: EventSpine) -> No
         BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
     ]
     trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('200'))
 
     await trading._reconcile_balances(_ACCT)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('150'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('50'), locked=Decimal('0')),
     ]
     await trading._reconcile_balances(_ACCT)
 
@@ -269,17 +323,18 @@ async def test_balance_mismatch_reemits_on_delta_change(spine: EventSpine) -> No
 async def test_balance_mismatch_clears_then_reappears(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
     ]
     trading = _trading(spine, adapter)
+    _seed_usdt(trading, Decimal('100'))
 
     await trading._reconcile_balances(_ACCT)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
     ]
     await trading._reconcile_balances(_ACCT)
     adapter.query_balance.return_value = [
-        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
     ]
     await trading._reconcile_balances(_ACCT)
 

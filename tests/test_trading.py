@@ -2559,7 +2559,7 @@ class _SweepVenueAdapter(_InjectedVenueAdapter):
 def _orphan_order() -> VenueOrder:
     return VenueOrder(
         venue_order_id='v-orphan',
-        client_order_id='SS-orphan0000000-000',
+        client_order_id='SS-orphan0000000000-000',
         status=OrderStatus.OPEN,
         symbol='BTCUSDT',
         side=OrderSide.BUY,
@@ -2582,19 +2582,28 @@ def _sweep_trading(adapter: _SweepVenueAdapter, spine: EventSpine) -> Trading:
     )
 
 
+async def _accept_command(spine: EventSpine, command_id: str) -> None:
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=_CREATED_AT,
+        command_id=command_id, trade_id=f'trade-{command_id}',
+    ), 1)
+
+
 @pytest.mark.asyncio
 async def test_boot_sweep_cancels_orphan_and_marks_account_ready(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphan0000000000')
     adapter = _SweepVenueAdapter([_orphan_order()])
     trading = _sweep_trading(adapter, spine)
 
     await trading.start()
 
-    assert adapter.cancelled == ['SS-orphan0000000-000']
+    assert adapter.cancelled == ['SS-orphan0000000000-000']
     assert 'acc-1' in trading._ready_accounts
 
 
 @pytest.mark.asyncio
 async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphan0000000000')
     adapter = _SweepVenueAdapter([_orphan_order()], cancel_fails=True)
     trading = _sweep_trading(adapter, spine)
 
@@ -2606,9 +2615,10 @@ async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSp
 
 @pytest.mark.asyncio
 async def test_boot_sweep_cancels_orphan_oco_via_cancel_order_list(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphanoco0000000')
     oco_orphan = VenueOrder(
         venue_order_id='v-orphan-oco',
-        client_order_id='SS-orphanoco00000-000',
+        client_order_id='SS-orphanoco0000000-000',
         status=OrderStatus.OPEN,
         symbol='BTCUSDT',
         side=OrderSide.SELL,
@@ -2623,12 +2633,61 @@ async def test_boot_sweep_cancels_orphan_oco_via_cancel_order_list(spine: EventS
     await trading.start()
 
     assert adapter.cancelled == []
-    assert adapter.cancelled_lists == ['SS-orphanoco00000-000']
+    assert adapter.cancelled_lists == ['SS-orphanoco0000000-000']
+    assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_leaves_foreign_open_order_untouched(spine: EventSpine) -> None:
+    foreign = VenueOrder(
+        venue_order_id='v-foreign',
+        client_order_id='web_manual_order_1',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+    adapter = _SweepVenueAdapter([foreign])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert adapter.cancelled_lists == []
+    assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_leaves_praxis_shaped_order_with_no_owned_command(
+    spine: EventSpine,
+) -> None:
+    spoof = VenueOrder(
+        venue_order_id='v-spoof',
+        client_order_id='SS-1111111111111111-000',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+    adapter = _SweepVenueAdapter([spoof])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert adapter.cancelled_lists == []
     assert 'acc-1' in trading._ready_accounts
 
 
 @pytest.mark.asyncio
 async def test_boot_sweep_query_failure_leaves_account_not_ready(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphan0000000000')
     adapter = _SweepVenueAdapter([_orphan_order()], query_fails=True)
     trading = _sweep_trading(adapter, spine)
 

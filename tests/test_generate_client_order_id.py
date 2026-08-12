@@ -7,10 +7,59 @@ from __future__ import annotations
 import pytest
 
 from praxis.core.domain.enums import ExecutionMode
-from praxis.core.generate_client_order_id import generate_client_order_id
+from praxis.core.generate_client_order_id import (
+    command_id_fragment,
+    generate_client_order_id,
+    praxis_command_fragment,
+)
 
 _UUID = '550e8400-e29b-41d4-a716-446655440000'
 _HEX16 = '550e8400e29b41d4'
+
+
+class TestCommandIdFragment:
+    def test_strips_hyphens_and_truncates(self) -> None:
+        assert command_id_fragment(_UUID) == _HEX16
+
+    def test_non_hex_fragment_preserved(self) -> None:
+        assert command_id_fragment('nexus_1234567890abcdef') == 'nexus_1234567890'
+
+
+class TestPraxisCommandFragment:
+    @pytest.mark.parametrize('mode', list(ExecutionMode))
+    def test_extracts_fragment_from_own_ids(self, mode: ExecutionMode) -> None:
+        assert praxis_command_fragment(
+            generate_client_order_id(mode, _UUID, 7),
+        ) == _HEX16
+
+    def test_extracts_fragment_with_retry(self) -> None:
+        assert praxis_command_fragment(
+            generate_client_order_id(ExecutionMode.TWAP, _UUID, 7, retry=3),
+        ) == _HEX16
+
+    def test_non_hex_command_fragment_round_trips(self) -> None:
+        command_id = 'nexus_1234567890abcdef'
+        client_order_id = generate_client_order_id(
+            ExecutionMode.SINGLE_SHOT, command_id, 0,
+        )
+
+        assert praxis_command_fragment(client_order_id) == command_id_fragment(
+            command_id,
+        )
+
+    @pytest.mark.parametrize(
+        'foreign',
+        [
+            'web_manual_order_1',
+            'x-ABC123',
+            '123456789',
+            'SS-tooShort-00',
+            'ZZ-550e8400e29b41d4-000',
+            '',
+        ],
+    )
+    def test_returns_none_for_foreign_ids(self, foreign: str) -> None:
+        assert praxis_command_fragment(foreign) is None
 
 
 class TestModePrefix:
