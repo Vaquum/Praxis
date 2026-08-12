@@ -20,7 +20,7 @@ from nexus.instance_config import InstanceConfig as NexusInstanceConfig
 from nexus.strategy.action import Action, ActionType
 
 from praxis.infrastructure.venue_adapter import CommandQuantization
-from praxis.launcher import _build_validation_context
+from praxis.launcher import _build_validation_context, _build_validation_pipeline
 
 
 def _nexus_config() -> NexusInstanceConfig:
@@ -99,7 +99,12 @@ def _exit_action(
 
 
 def _modify_action() -> Action:
-    return Action(action_type=ActionType.MODIFY, command_id='cmd_modify')
+    return Action(
+        action_type=ActionType.MODIFY,
+        command_id='cmd_modify',
+        execution_mode=ExecutionMode.TWAP,
+        modify_params={'num_slices': 6},
+    )
 
 
 def _abort_action() -> Action:
@@ -304,7 +309,7 @@ class TestExitContext:
 
 class TestModifyAndAbort:
 
-    def test_modify_returns_none_and_logs_warning(self) -> None:
+    def test_modify_builds_validation_context(self) -> None:
         ctx = _build_validation_context(
             _modify_action(),
             'strat_a',
@@ -315,7 +320,53 @@ class TestModifyAndAbort:
             fallback_price_provider=_no_fallback,
         )
 
-        assert ctx is None
+        assert ctx is not None
+        assert ctx.action is ValidationAction.MODIFY
+        assert ctx.command_id == 'cmd_modify'
+
+    def test_modify_context_passes_intake_pipeline(self) -> None:
+        action = _modify_action()
+        ctx = _build_validation_context(
+            action,
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+        pipeline = _build_validation_pipeline(
+            _nexus_config(),
+            _capital_controller(),
+            modifiable_command_ids_provider=lambda: {action.command_id},
+        )
+
+        assert ctx is not None
+        decision = pipeline.validate(ctx)
+
+        assert decision.allowed
+
+    def test_modify_rejected_when_command_not_modifiable(self) -> None:
+        action = _modify_action()
+        ctx = _build_validation_context(
+            action,
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+        pipeline = _build_validation_pipeline(
+            _nexus_config(),
+            _capital_controller(),
+            modifiable_command_ids_provider=set,
+        )
+
+        assert ctx is not None
+        decision = pipeline.validate(ctx)
+
+        assert not decision.allowed
 
     def test_abort_returns_none(self) -> None:
         ctx = _build_validation_context(
