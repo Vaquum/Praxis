@@ -70,6 +70,36 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _wrap_event_callback[E](
+    cb: Callable[[E], None] | Callable[[E], Awaitable[None]] | None,
+) -> Callable[[E], Awaitable[None]]:
+    '''Adapt a sync-or-async event callback into an always-async adapter.
+
+    Mirrors `set_on_trade_outcome`'s adapter: the returned coroutine
+    awaits the result when it is awaitable and treats it as a plain
+    return otherwise, covering coroutine functions, sync callables,
+    `AsyncMock`, and `functools.partial` wrappers. A `None` callback
+    yields a no-op adapter so callers can fire unconditionally.
+
+    Args:
+        cb: The sync or async callback, or `None` for a no-op.
+
+    Returns:
+        An async adapter that never raises on a `None` callback.
+    '''
+
+    async def _adapter(event: E) -> None:
+        if cb is None:
+            return
+
+        result = cb(event)
+
+        if inspect.isawaitable(result):
+            await result
+
+    return _adapter
+
+
 class Trading:
     '''
     Main trading composition root for MMVP wiring.
@@ -120,6 +150,10 @@ class Trading:
         '''
 
         self._config = config
+        self._on_fund_transaction = _wrap_event_callback(config.on_fund_transaction)
+        self._on_reconciliation_mismatch = _wrap_event_callback(
+            config.on_reconciliation_mismatch,
+        )
         self._event_spine = event_spine
         self._clock = clock
         self._bootstrap_filter_symbols = frozenset(bootstrap_filter_symbols)
@@ -309,6 +343,67 @@ class Trading:
                 await result
 
         self._execution_manager.set_on_trade_outcome(_async_adapter)
+
+    def set_on_fund_transaction(
+        self,
+        cb: Callable[[FundTransaction], None]
+        | Callable[[FundTransaction], Awaitable[None]]
+        | None,
+    ) -> None:
+        '''Install the on_fund_transaction callback after construction.
+
+        The launcher wires this to a per-account dispatcher that only
+        exists once its Nexus runtimes are built, so it cannot be
+        referenced by the frozen `TradingConfig`. Called before
+        `start()`, alongside `set_on_trade_outcome`.
+
+        Args:
+            cb: Sync `(FundTransaction) -> None`, async equivalent, any
+                callable returning an awaitable, or `None` to clear.
+
+        Raises:
+            RuntimeError: If called once `start()` has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_fund_transaction must not be called once '
+                'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
+        self._on_fund_transaction = _wrap_event_callback(cb)
+
+    def set_on_reconciliation_mismatch(
+        self,
+        cb: Callable[[ReconciliationMismatch], None]
+        | Callable[[ReconciliationMismatch], Awaitable[None]]
+        | None,
+    ) -> None:
+        '''Install the on_reconciliation_mismatch callback after construction.
+
+        The launcher wires this to a per-account dispatcher that only
+        exists once its Nexus runtimes are built, so it cannot be
+        referenced by the frozen `TradingConfig`. Called before
+        `start()`, alongside `set_on_trade_outcome`.
+
+        Args:
+            cb: Sync `(ReconciliationMismatch) -> None`, async
+                equivalent, any callable returning an awaitable, or
+                `None` to clear.
+
+        Raises:
+            RuntimeError: If called once `start()` has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_reconciliation_mismatch must not be called once '
+                'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
+        self._on_reconciliation_mismatch = _wrap_event_callback(cb)
 
     async def start(self) -> None:
         '''Initialize runtime and execute per-account startup sequence.'''
@@ -821,6 +916,8 @@ class Trading:
             )
             return
 
+        all_delivered = True
+
         for transaction in transactions:
             if transaction.asset != _QUOTE_ASSET:
                 continue
@@ -843,7 +940,18 @@ class Trading:
                     transaction.fund_transaction_id,
                 )
 
-        if transactions:
+            try:
+                await self._on_fund_transaction(fund)
+            except Exception:  # noqa: BLE001 - hold the cursor to retry delivery next cycle
+                _log.exception(
+                    'failed to deliver fund transaction to Nexus; will retry '
+                    'next cycle: %s',
+                    fund.fund_transaction_id,
+                )
+                all_delivered = False
+                break
+
+        if transactions and all_delivered:
             self._fund_reconcile_cursor[account_id] = max(
                 transaction.timestamp for transaction in transactions
             )
@@ -921,11 +1029,22 @@ class Trading:
             )
 
             await self._event_spine.append(mismatch, self._config.epoch_id)
-            self._balance_mismatch_seen[key] = delta
             _log.warning(
                 'balance mismatch: account=%s asset=%s expected=%s actual=%s',
                 account_id, asset, expected, actual,
             )
+
+            try:
+                await self._on_reconciliation_mismatch(mismatch)
+            except Exception:  # noqa: BLE001 - leave unseen to retry delivery next cycle
+                _log.exception(
+                    'failed to deliver reconciliation mismatch to Nexus; '
+                    'will retry next cycle: account=%s asset=%s',
+                    account_id, asset,
+                )
+                continue
+
+            self._balance_mismatch_seen[key] = delta
 
     async def _reconciliation_loop(self) -> None:
         '''

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from praxis.core.domain.enums import ExecutionMode
+from praxis.core.domain.events import FundTransaction, ReconciliationMismatch
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.binance_urls import (
     TESTNET_REST_URL,
@@ -31,6 +32,15 @@ class TradingConfig:
             to resolved venue Credentials.
         on_trade_outcome (Callable[[TradeOutcome], Awaitable[None]] | None):
             Optional async callback invoked by execution outcomes.
+        on_fund_transaction (Callable[[FundTransaction], Awaitable[None]] | None):
+            Optional callback invoked by the reconciliation engine after a
+            fund transaction is durably appended to the Event Spine. The
+            launcher wires it to push the transaction to Nexus.
+        on_reconciliation_mismatch
+            (Callable[[ReconciliationMismatch], Awaitable[None]] | None):
+            Optional callback invoked by the reconciliation engine after a
+            per-asset balance mismatch is appended to the Event Spine. The
+            launcher wires it to push the mismatch to Nexus.
         shutdown_timeout (float): Seconds to wait for orders to reach terminal
             state during shutdown. Default: 30.0.
         reconcile_interval_seconds (float): Seconds between background
@@ -48,6 +58,16 @@ class TradingConfig:
     venue_ws_api_url: str = TESTNET_WS_API_URL
     account_credentials: Mapping[str, Credentials] = field(default_factory=dict)
     on_trade_outcome: Callable[[TradeOutcome], Awaitable[None]] | None = None
+    on_fund_transaction: (
+        Callable[[FundTransaction], None]
+        | Callable[[FundTransaction], Awaitable[None]]
+        | None
+    ) = None
+    on_reconciliation_mismatch: (
+        Callable[[ReconciliationMismatch], None]
+        | Callable[[ReconciliationMismatch], Awaitable[None]]
+        | None
+    ) = None
     shutdown_timeout: float = 30.0
     reconcile_interval_seconds: float = 60.0
     enabled_execution_modes: frozenset[ExecutionMode] = field(

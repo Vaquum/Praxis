@@ -78,6 +78,7 @@ from nexus.infrastructure.praxis_connector.trade_outcome import (
 )
 from nexus.infrastructure.state_store import StateSnapshotLocks, StateStore
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
+from nexus.reconciler.reconciliation_handler import ReconciliationHandler
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
 from nexus.strategy.action import Action, ActionType
@@ -110,12 +111,14 @@ from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.events import (
     Event,
+    FundTransaction,
     MarkSampled,
     OperatorHaltRequested,
     OperatorResumeRequested,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
+    ReconciliationMismatch,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -130,6 +133,10 @@ from praxis.infrastructure.binance_urls import (
 from praxis.arrow_price_store import ArrowPriceStore
 from praxis.paper.mark_sampler import MarkSampler
 from praxis.paper.paper_report import build_paper_report
+from praxis.reconciliation_translate import (
+    translate_fund_transaction,
+    translate_reconciliation_mismatch,
+)
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
@@ -248,6 +255,17 @@ def _mark_sample_interval_seconds() -> int:
 
 _ZERO = Decimal('0')
 _MODIFY_INTAKE_SENTINEL_SIZE = Decimal('1')
+
+
+class _NexusRuntimeNotReadyError(RuntimeError):
+    '''Raised when a reconciliation event arrives before its account's runtime.
+
+    A recon event fired before the target account's Nexus runtime is
+    registered must not be silently dropped: the raise propagates to the
+    Trading reconciliation loop, which holds the event undelivered (leaves
+    the balance-mismatch seen-marker unset / the fund cursor un-advanced)
+    so the next cycle retries once the runtime exists.
+    '''
 _HUNDRED = Decimal('100')
 
 _ACTION_TYPE_TO_VALIDATION_ACTION = {
@@ -2452,6 +2470,7 @@ class _NexusRuntime:
     mtm_loop: MtmLoop
     unknown_submission_monitor: _UnknownSubmissionMonitor
     outcome_processor: OutcomeProcessor
+    reconciliation_handler: ReconciliationHandler
     process_outcome: Callable[[NexusTradeOutcome], None]
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -2776,6 +2795,41 @@ class Launcher:
                 await user_cb(outcome)
 
             self._trading.set_on_trade_outcome(_composed)
+
+        def _route_fund_transaction(praxis_fund: FundTransaction) -> None:
+            with self._nexus_runtimes_lock:
+                runtime = self._nexus_runtimes.get(praxis_fund.account_id)
+
+            if runtime is None:
+                msg = (
+                    f'no nexus runtime for account {praxis_fund.account_id!r}; '
+                    'fund transaction not delivered'
+                )
+                raise _NexusRuntimeNotReadyError(msg)
+
+            runtime.outcome_processor.process_fund_transaction(
+                translate_fund_transaction(praxis_fund),
+            )
+
+        def _route_reconciliation_mismatch(
+            praxis_mismatch: ReconciliationMismatch,
+        ) -> None:
+            with self._nexus_runtimes_lock:
+                runtime = self._nexus_runtimes.get(praxis_mismatch.account_id)
+
+            if runtime is None:
+                msg = (
+                    f'no nexus runtime for account {praxis_mismatch.account_id!r}; '
+                    'reconciliation mismatch not delivered'
+                )
+                raise _NexusRuntimeNotReadyError(msg)
+
+            runtime.reconciliation_handler.process_reconciliation_mismatch(
+                translate_reconciliation_mismatch(praxis_mismatch),
+            )
+
+        self._trading.set_on_fund_transaction(_route_fund_transaction)
+        self._trading.set_on_reconciliation_mismatch(_route_reconciliation_mismatch)
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
@@ -3827,6 +3881,9 @@ class Launcher:
             on_halt=self._build_mode_halt_alert(inst.account_id),
         )
         mode_controller.reconcile()
+        reconciliation_handler = ReconciliationHandler(
+            mode_controller, manifest.reconciliation_mismatch_response,
+        )
         state_store.attach_snapshot_locks(
             _build_state_snapshot_locks(state, positions_lock, capital_controller),
         )
@@ -4341,6 +4398,7 @@ class Launcher:
             mtm_loop=mtm_loop,
             unknown_submission_monitor=unknown_submission_monitor,
             outcome_processor=outcome_processor,
+            reconciliation_handler=reconciliation_handler,
             process_outcome=process_outcome,
             positions_lock=positions_lock,
         )

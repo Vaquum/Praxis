@@ -46,9 +46,19 @@ def _vft(
     )
 
 
-def _trading(spine: EventSpine, adapter: AsyncMock) -> Trading:
+def _trading(
+    spine: EventSpine,
+    adapter: AsyncMock,
+    *,
+    on_fund_transaction: AsyncMock | None = None,
+    on_reconciliation_mismatch: AsyncMock | None = None,
+) -> Trading:
     trading = Trading(
-        config=TradingConfig(epoch_id=1),
+        config=TradingConfig(
+            epoch_id=1,
+            on_fund_transaction=on_fund_transaction,
+            on_reconciliation_mismatch=on_reconciliation_mismatch,
+        ),
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
     )
@@ -339,6 +349,126 @@ async def test_balance_mismatch_clears_then_reappears(spine: EventSpine) -> None
     await trading._reconcile_balances(_ACCT)
 
     assert len(await _mismatches_on_spine(spine)) == 2
+
+
+@pytest.mark.asyncio
+async def test_on_fund_transaction_fires_after_successful_append(spine: EventSpine) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_fund_transactions.return_value = [_vft('dep-1')]
+    cb = AsyncMock()
+    trading = _trading(spine, adapter, on_fund_transaction=cb)
+
+    await trading._reconcile_fund_transactions(_ACCT)
+
+    assert cb.await_count == 1
+    fired = cb.await_args.args[0]
+    assert isinstance(fired, FundTransaction)
+    assert fired.fund_transaction_id == 'dep-1'
+
+
+@pytest.mark.asyncio
+async def test_on_fund_transaction_not_fired_without_quote_transaction(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_fund_transactions.return_value = [_vft('btc-dep', asset='BTC')]
+    cb = AsyncMock()
+    trading = _trading(spine, adapter, on_fund_transaction=cb)
+
+    await trading._reconcile_fund_transactions(_ACCT)
+
+    assert cb.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_on_fund_transaction_refires_on_redelivery_for_retry(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_fund_transactions.return_value = [_vft('dep-1')]
+    cb = AsyncMock()
+    trading = _trading(spine, adapter, on_fund_transaction=cb)
+
+    await trading._reconcile_fund_transactions(_ACCT)
+    await trading._reconcile_fund_transactions(_ACCT)
+
+    assert cb.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_fund_cursor_held_when_delivery_fails_then_retries(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_fund_transactions.return_value = [_vft('dep-1')]
+    cb = AsyncMock(side_effect=[RuntimeError('no runtime'), None])
+    trading = _trading(spine, adapter, on_fund_transaction=cb)
+
+    await trading._reconcile_fund_transactions(_ACCT)
+    assert _ACCT not in trading._fund_reconcile_cursor
+
+    await trading._reconcile_fund_transactions(_ACCT)
+    assert trading._fund_reconcile_cursor[_ACCT] == _TS
+    assert cb.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_mismatch_not_seen_when_delivery_fails_then_retries(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_balance.return_value = [
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
+    ]
+    cb = AsyncMock(side_effect=[RuntimeError('no runtime'), None])
+    trading = _trading(spine, adapter, on_reconciliation_mismatch=cb)
+    _seed_usdt(trading, Decimal('100'))
+
+    await trading._reconcile_balances(_ACCT)
+    assert (_ACCT, 'USDT') not in trading._balance_mismatch_seen
+
+    await trading._reconcile_balances(_ACCT)
+    assert (_ACCT, 'USDT') in trading._balance_mismatch_seen
+    assert cb.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_on_reconciliation_mismatch_fires_after_shortfall(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_balance.return_value = [
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
+    ]
+    cb = AsyncMock()
+    trading = _trading(spine, adapter, on_reconciliation_mismatch=cb)
+    _seed_usdt(trading, Decimal('100'))
+
+    await trading._reconcile_balances(_ACCT)
+
+    assert cb.await_count == 1
+    fired = cb.await_args.args[0]
+    assert isinstance(fired, ReconciliationMismatch)
+    assert fired.asset == 'USDT'
+    assert fired.expected == Decimal('100')
+    assert fired.actual == Decimal('0')
+
+
+@pytest.mark.asyncio
+async def test_on_reconciliation_mismatch_not_fired_without_shortfall(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_balance.return_value = [
+        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
+    ]
+    cb = AsyncMock()
+    trading = _trading(spine, adapter, on_reconciliation_mismatch=cb)
+    _seed_usdt(trading, Decimal('100'))
+
+    await trading._reconcile_balances(_ACCT)
+
+    assert cb.await_count == 0
 
 
 @pytest.mark.asyncio
