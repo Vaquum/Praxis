@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'SchemeState', 'TradeStatus']
+__all__ = ['BracketProtectionStatus', 'CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'SchemeState', 'TradeStatus']
 
 
 class OrderSide(Enum):
@@ -157,3 +157,24 @@ class TradeStatus(Enum):
     CANCELED = 'CANCELED'
     REJECTED = 'REJECTED'
     EXPIRED = 'EXPIRED'
+
+
+class BracketProtectionStatus(Enum):
+
+    '''
+    Per-bracket protective-OCO amend state.
+
+    Tracks a single bracket's protective OCO through a durable, versioned
+    amend: from ACTIVE, an amend moves through AMEND_REQUESTED,
+    CANCEL_CONFIRMED, and REPLACE_SUBMITTED back to ACTIVE. STATE_UNKNOWN
+    marks an ambiguous cancel/replace outcome pending reconciliation. FAILED
+    is the durable protection-failed marker meaning no valid protection is
+    live for the bracket, distinct from the account operational mode.
+    '''
+
+    ACTIVE = 'ACTIVE'
+    AMEND_REQUESTED = 'AMEND_REQUESTED'
+    CANCEL_CONFIRMED = 'CANCEL_CONFIRMED'
+    STATE_UNKNOWN = 'STATE_UNKNOWN'
+    REPLACE_SUBMITTED = 'REPLACE_SUBMITTED'
+    FAILED = 'FAILED'

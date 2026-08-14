@@ -3,8 +3,9 @@ Event type dataclasses for the Praxis Trading sub-system.
 
 Represent domain events consumed by TradingState.apply(). Each event
 is an immutable fact produced by the execution pipeline and projected
-onto in-memory state. Only event types needed for position and order
-tracking are defined here; later WPs add remaining types.
+onto in-memory state or consumed by other projections. Covers position
+and order tracking, scheme and bracket lifecycle, reconciliation, and
+the bracket protective-OCO amend state machine.
 '''
 
 from __future__ import annotations
@@ -44,6 +45,12 @@ __all__ = [
     'OutcomeAcked',
     'OutcomeDeliveryContextRecorded',
     'OutcomeReplayAbandoned',
+    'ProtectionActive',
+    'ProtectionAmendRequested',
+    'ProtectionCancelConfirmed',
+    'ProtectionFailed',
+    'ProtectionReplaceSubmitted',
+    'ProtectionStateUnknown',
     'ReconciliationMismatch',
     'RegisterAccount',
     'SchemeInitialized',
@@ -54,8 +61,24 @@ __all__ = [
 ]
 
 _ZERO = Decimal(0)
+_MIN_PROTECTION_VERSION = 1
 _COST_BASIS_METHOD_VALUES = frozenset(method.value for method in CostBasisMethod)
 _FUND_DIRECTION_VALUES = frozenset(direction.value for direction in FundDirection)
+
+
+def _require_protection_version(cls: str, value: int) -> None:
+
+    '''
+    Validate that a protective-OCO revision is an int at or above the minimum.
+
+    Args:
+        cls (str): Class name for error context.
+        value (int): Protective-OCO revision to validate.
+    '''
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < _MIN_PROTECTION_VERSION:
+        msg = f'{cls}.protection_version must be an int >= {_MIN_PROTECTION_VERSION}'
+        raise ValueError(msg)
 
 
 @dataclass(frozen=True)
@@ -673,6 +696,241 @@ class BracketInitialized(_EventBase):
 
 
 @dataclass(frozen=True)
+class ProtectionAmendRequested(_EventBase):
+
+    '''
+    Represent the intent to amend a bracket's protective OCO, before the
+    venue cancel.
+
+    Persisted first in the protective-OCO amend sequence and carries the
+    complete, resolved replacement OCO — both legs as absolute prices, not a
+    partial patch — so recovery is self-contained: if the process dies
+    between this durable write and the venue cancel/replace, boot re-places
+    exactly these legs without re-deriving offsets from the entry fill. A
+    partial amend (e.g. take-profit only) is merged against the bracket's
+    current protection into a full two-leg snapshot before this event is
+    written.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Amend attempt identifier, starting at 1 and
+            incremented on every `ProtectionAmendRequested` — including a
+            retry after a `ProtectionFailed` — so each attempt (and its
+            `new_list_client_order_id`) is uniquely addressable on replay. It
+            is not a count of successful amends.
+        new_list_client_order_id (str): Client list order id of the
+            replacement OCO to place. Must differ from
+            `old_list_client_order_id`.
+        old_list_client_order_id (str): Client list order id of the resting
+            OCO to cancel.
+        take_profit_price (Decimal): Resolved absolute take-profit price of
+            the replacement OCO.
+        stop_loss_price (Decimal): Resolved absolute stop-loss trigger price
+            of the replacement OCO.
+        stop_loss_limit_price (Decimal | None): Resolved stop-loss limit
+            price, or None for a stop-market stop-loss leg.
+    '''
+
+    command_id: str
+    protection_version: int
+    new_list_client_order_id: str
+    old_list_client_order_id: str
+    take_profit_price: Decimal
+    stop_loss_price: Decimal
+    stop_loss_limit_price: Decimal | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'new_list_client_order_id', self.new_list_client_order_id)
+        _require_str(name, 'old_list_client_order_id', self.old_list_client_order_id)
+
+        _require_protection_version(name, self.protection_version)
+
+        if self.new_list_client_order_id == self.old_list_client_order_id:
+            msg = f'{name} new and old list client order ids must differ'
+            raise ValueError(msg)
+
+        for field in ('take_profit_price', 'stop_loss_price', 'stop_loss_limit_price'):
+            value = getattr(self, field)
+            optional = field == 'stop_loss_limit_price'
+            if optional and value is None:
+                continue
+
+            if not isinstance(value, Decimal) or not value.is_finite() or value <= _ZERO:
+                msg = f'{name}.{field} must be a positive, finite Decimal'
+                raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class ProtectionCancelConfirmed(_EventBase):
+
+    '''
+    Represent confirmation that the old protective OCO was cancelled.
+
+    Written once the venue confirms the resting OCO named by the amend has
+    been cancelled, so replay knows no stale protection remains before the
+    replacement is placed.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision this
+            cancellation belongs to.
+    '''
+
+    command_id: str
+    protection_version: int
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
+class ProtectionStateUnknown(_EventBase):
+
+    '''
+    Represent an ambiguous protective-OCO cancel/replace outcome.
+
+    Written when the venue response to a cancel or replace is inconclusive
+    (timeout or 5xx), so the amend halts in a known-unknown state pending
+    reconciliation rather than assuming success or failure.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision this
+            ambiguity belongs to.
+        reason (str): Human-readable description of the ambiguity.
+    '''
+
+    command_id: str
+    protection_version: int
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
+class ProtectionReplaceSubmitted(_EventBase):
+
+    '''
+    Represent submission of the replacement protective OCO, before the venue
+    place.
+
+    Persisted before the replacement OCO is placed so the replacement's list
+    identity is durable and a restart mid-place cannot lose or duplicate it.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision this
+            replacement belongs to.
+        new_list_client_order_id (str): Client list order id of the
+            replacement OCO being placed.
+    '''
+
+    command_id: str
+    protection_version: int
+    new_list_client_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'new_list_client_order_id', self.new_list_client_order_id)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
+class ProtectionActive(_EventBase):
+
+    '''
+    Represent confirmation that the replacement protective OCO is live.
+
+    Written when the venue confirms the replacement OCO is resting, marking
+    the amend complete for its revision.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision now live.
+        new_list_client_order_id (str): Client list order id of the live
+            replacement OCO.
+    '''
+
+    command_id: str
+    protection_version: int
+    new_list_client_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'new_list_client_order_id', self.new_list_client_order_id)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
+class ProtectionFailed(_EventBase):
+
+    '''
+    Represent that no valid protective OCO is live and remediation is needed.
+
+    Written when the amend cannot leave a live protective OCO in place, the
+    durable protection-failed marker distinct from any account operational
+    mode: the position is exposed until an operator or reconciliation pass
+    restores protection.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO failed.
+        protection_version (int): Monotonic protective-OCO revision that
+            failed.
+        reason (str): Human-readable description of the failure.
+    '''
+
+    command_id: str
+    protection_version: int
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
 class OrderAmendInitiated(_EventBase):
 
     '''
@@ -1218,4 +1476,10 @@ type Event = (
     | ReconciliationMismatch
     | OperatorHaltRequested
     | OperatorResumeRequested
+    | ProtectionAmendRequested
+    | ProtectionCancelConfirmed
+    | ProtectionStateUnknown
+    | ProtectionReplaceSubmitted
+    | ProtectionActive
+    | ProtectionFailed
 )

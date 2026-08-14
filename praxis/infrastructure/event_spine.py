@@ -54,6 +54,12 @@ from praxis.core.domain.events import (
     OutcomeReplayAbandoned,
     OperatorHaltRequested,
     OperatorResumeRequested,
+    ProtectionActive,
+    ProtectionAmendRequested,
+    ProtectionCancelConfirmed,
+    ProtectionFailed,
+    ProtectionReplaceSubmitted,
+    ProtectionStateUnknown,
     RegisterAccount,
     TradeClosed,
     TradeOutcomeProduced,
@@ -231,6 +237,12 @@ _EVENT_REGISTRY: dict[str, type] = {
         ReconciliationMismatch,
         OperatorHaltRequested,
         OperatorResumeRequested,
+        ProtectionAmendRequested,
+        ProtectionCancelConfirmed,
+        ProtectionStateUnknown,
+        ProtectionReplaceSubmitted,
+        ProtectionActive,
+        ProtectionFailed,
     )
 }
 

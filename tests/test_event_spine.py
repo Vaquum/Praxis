@@ -23,6 +23,12 @@ from praxis.core.domain.events import (
     FillReceived,
     FundTransaction,
     MarkSampled,
+    ProtectionActive,
+    ProtectionAmendRequested,
+    ProtectionCancelConfirmed,
+    ProtectionFailed,
+    ProtectionReplaceSubmitted,
+    ProtectionStateUnknown,
     ReconciliationMismatch,
     OrderAcked,
     OrderCanceled,
@@ -171,6 +177,32 @@ _ALL_EVENTS: list[Event] = [
     ),
     OperatorResumeRequested(
         account_id=_ACCT, timestamp=_TS, reason='cleared',
+    ),
+    ProtectionAmendRequested(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, protection_version=1,
+        new_list_client_order_id='px-new-1', old_list_client_order_id='px-old-1',
+        take_profit_price=Decimal('52000.50'), stop_loss_price=Decimal('48000.00'),
+        stop_loss_limit_price=Decimal('47900.25'),
+    ),
+    ProtectionCancelConfirmed(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+    ),
+    ProtectionStateUnknown(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        reason='venue timeout',
+    ),
+    ProtectionReplaceSubmitted(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        new_list_client_order_id='px-new-1',
+    ),
+    ProtectionActive(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        new_list_client_order_id='px-new-1',
+    ),
+    ProtectionFailed(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        reason='replace rejected',
     ),
 
 ]
