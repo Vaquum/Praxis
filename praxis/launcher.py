@@ -31,6 +31,9 @@ import aiosqlite
 from aiohttp import ClientSession, ClientTimeout, web
 
 from nexus.core.capital_controller.capital_controller import CapitalController
+from nexus.core.domain.bracket_protection_failure_response import (
+    BracketProtectionFailureResponse,
+)
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.order_types import ExecutionMode as NexusExecutionMode
 from nexus.core.domain.instance_state import InstanceState
@@ -98,7 +101,6 @@ from praxis.command_translator import (
     translate_stp_mode,
 )
 from praxis.core.domain.enums import (
-    BracketProtectionFailureResponse,
     ExecutionMode,
     MakerPreference,
     OrderSide as _PraxisOrderSide,
@@ -175,7 +177,6 @@ _TRADE_MODE_LIVE = 'live'
 _TRADE_MODES = (_TRADE_MODE_PAPER, _TRADE_MODE_LIVE)
 _SECRETS_FILE_ENV = 'PRAXIS_SECRETS_FILE'
 _ENABLED_MODES_ENV = 'PRAXIS_ENABLED_EXECUTION_MODES'
-_BRACKET_PROTECTION_FAILURE_RESPONSE_ENV = 'PRAXIS_BRACKET_PROTECTION_FAILURE_RESPONSE'
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
@@ -739,41 +740,6 @@ def _parse_enabled_modes(
         modes.add(mode)
 
     return frozenset(modes)
-
-
-def _parse_bracket_protection_failure_response(
-    env: dict[str, str],
-) -> BracketProtectionFailureResponse:
-    '''Parse the bracket protection-failure response policy from the env.
-
-    `PRAXIS_BRACKET_PROTECTION_FAILURE_RESPONSE` selects how the account
-    reacts when a bracket protective-OCO amend leaves the position naked.
-    Unset or empty keeps the fail-safe default (FLATTEN_THEN_HALT); an
-    unrecognised value is a deployment misconfiguration and fails fast.
-
-    Args:
-        env: Process environment mapping.
-
-    Returns:
-        BracketProtectionFailureResponse: The configured response policy.
-
-    Raises:
-        ValueError: The value is not a known BracketProtectionFailureResponse.
-    '''
-
-    raw = env.get(_BRACKET_PROTECTION_FAILURE_RESPONSE_ENV, '').strip()
-    if not raw:
-        return BracketProtectionFailureResponse.FLATTEN_THEN_HALT
-
-    try:
-        return BracketProtectionFailureResponse(raw)
-    except ValueError as exc:
-        valid = ', '.join(r.value for r in BracketProtectionFailureResponse)
-        msg = (
-            f'{_BRACKET_PROTECTION_FAILURE_RESPONSE_ENV} has unknown value '
-            f'{raw!r}; valid values: {valid}'
-        )
-        raise ValueError(msg) from exc
 
 
 async def _post_alert_webhook(url: str, payload: dict[str, Any]) -> None:
@@ -4633,11 +4599,17 @@ def main() -> None:
     instances: list[InstanceConfig] = []
     seen_account_ids: dict[str, Path] = {}
     seen_suffixes: dict[str, str] = {}
+    bracket_protection_failure_response: dict[
+        str, BracketProtectionFailureResponse
+    ] = {}
 
     for manifest_path in manifest_paths:
         manifest = load_manifest(manifest_path)
         account_id = manifest.account_id
         _require_safe_account_id(account_id, manifest_path)
+        bracket_protection_failure_response[account_id] = (
+            manifest.bracket_protection_failure_response
+        )
         suffix = _account_id_to_env_suffix(account_id)
 
         if account_id in seen_account_ids:
@@ -4722,9 +4694,7 @@ def main() -> None:
                 and bool(env.get('BINSIM_URL', '').strip())
             ),
         ),
-        bracket_protection_failure_response=(
-            _parse_bracket_protection_failure_response(env)
-        ),
+        bracket_protection_failure_response=bracket_protection_failure_response,
     )
 
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')

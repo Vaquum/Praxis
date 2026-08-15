@@ -11,7 +11,11 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
-from praxis.core.domain.enums import BracketProtectionFailureResponse, ExecutionMode
+from nexus.core.domain.bracket_protection_failure_response import (
+    BracketProtectionFailureResponse,
+)
+
+from praxis.core.domain.enums import ExecutionMode
 from praxis.infrastructure.secret_store import Credentials
 from praxis.trading_config import TradingConfig
 
@@ -26,29 +30,115 @@ def test_trading_config_defaults() -> None:
     assert isinstance(cfg.account_credentials, MappingProxyType)
     assert cfg.on_trade_outcome is None
     assert cfg.enabled_execution_modes == frozenset({ExecutionMode.SINGLE_SHOT})
-    assert (
-        cfg.bracket_protection_failure_response
-        is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
-    )
+    assert cfg.bracket_protection_failure_response == {}
+    assert isinstance(cfg.bracket_protection_failure_response, MappingProxyType)
 
 
-def test_trading_config_accepts_reduce_only_protection_response() -> None:
+def test_trading_config_accepts_per_account_protection_response() -> None:
     cfg = TradingConfig(
         epoch_id=1,
-        bracket_protection_failure_response=(
-            BracketProtectionFailureResponse.REDUCE_ONLY
-        ),
+        bracket_protection_failure_response={
+            'acct-1': BracketProtectionFailureResponse.REDUCE_ONLY,
+        },
     )
 
     assert (
-        cfg.bracket_protection_failure_response
+        cfg.bracket_protection_failure_response['acct-1']
         is BracketProtectionFailureResponse.REDUCE_ONLY
     )
+    assert isinstance(cfg.bracket_protection_failure_response, MappingProxyType)
 
 
 def test_trading_config_rejects_non_enum_protection_response() -> None:
     with pytest.raises(ValueError, match='bracket_protection_failure_response'):
-        TradingConfig(epoch_id=1, bracket_protection_failure_response='FLATTEN')  # type: ignore[arg-type]
+        TradingConfig(
+            epoch_id=1,
+            bracket_protection_failure_response={'acct-1': 'FLATTEN'},  # type: ignore[dict-item]
+        )
+
+
+def test_trading_config_rejects_empty_protection_response_key() -> None:
+    with pytest.raises(ValueError, match='bracket_protection_failure_response keys'):
+        TradingConfig(
+            epoch_id=1,
+            bracket_protection_failure_response={
+                '': BracketProtectionFailureResponse.REDUCE_ONLY,
+            },
+        )
+
+
+def test_trading_config_rejects_whitespace_protection_response_key() -> None:
+    with pytest.raises(ValueError, match='bracket_protection_failure_response keys'):
+        TradingConfig(
+            epoch_id=1,
+            bracket_protection_failure_response={
+                '   ': BracketProtectionFailureResponse.REDUCE_ONLY,
+            },
+        )
+
+
+def test_trading_config_copies_protection_response_mapping() -> None:
+    responses = {'acct-1': BracketProtectionFailureResponse.REDUCE_ONLY}
+    cfg = TradingConfig(epoch_id=1, bracket_protection_failure_response=responses)
+    responses['acct-1'] = BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+
+    assert (
+        cfg.bracket_protection_failure_response['acct-1']
+        is BracketProtectionFailureResponse.REDUCE_ONLY
+    )
+
+
+def test_trading_config_protection_response_mapping_is_read_only() -> None:
+    cfg = TradingConfig(
+        epoch_id=1,
+        bracket_protection_failure_response={
+            'acct-1': BracketProtectionFailureResponse.REDUCE_ONLY,
+        },
+    )
+    mutable = cast(
+        MutableMapping[str, BracketProtectionFailureResponse],
+        cfg.bracket_protection_failure_response,
+    )
+
+    with pytest.raises(TypeError):
+        mutable['acct-2'] = BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+
+
+def test_response_for_returns_configured_account_policy() -> None:
+    cfg = TradingConfig(
+        epoch_id=1,
+        bracket_protection_failure_response={
+            'acct-1': BracketProtectionFailureResponse.REDUCE_ONLY,
+        },
+    )
+
+    assert (
+        cfg.response_for('acct-1')
+        is BracketProtectionFailureResponse.REDUCE_ONLY
+    )
+
+
+def test_response_for_absent_account_falls_back_to_flatten_then_halt() -> None:
+    cfg = TradingConfig(
+        epoch_id=1,
+        bracket_protection_failure_response={
+            'acct-1': BracketProtectionFailureResponse.REDUCE_ONLY,
+        },
+    )
+
+    assert (
+        cfg.response_for('acct-unknown')
+        is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+    )
+
+
+def test_response_for_empty_config_falls_back_to_flatten_then_halt() -> None:
+    cfg = TradingConfig(epoch_id=1)
+
+    assert (
+        cfg.response_for('acct-1')
+        is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+    )
 
 
 def test_trading_config_enabled_modes_are_frozen() -> None:

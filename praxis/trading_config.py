@@ -4,7 +4,11 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from praxis.core.domain.enums import BracketProtectionFailureResponse, ExecutionMode
+from nexus.core.domain.bracket_protection_failure_response import (
+    BracketProtectionFailureResponse,
+)
+
+from praxis.core.domain.enums import ExecutionMode
 from praxis.core.domain.events import FundTransaction, ReconciliationMismatch
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.binance_urls import (
@@ -15,6 +19,10 @@ from praxis.infrastructure.binance_urls import (
 from praxis.infrastructure.secret_store import Credentials
 
 __all__ = ['TradingConfig']
+
+_DEFAULT_BRACKET_PROTECTION_FAILURE_RESPONSE = (
+    BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+)
 
 
 @dataclass(frozen=True)
@@ -50,10 +58,13 @@ class TradingConfig:
             mode is explicitly added, so a new mode cannot be driven live until
             it is turned on for the deployment. SINGLE_SHOT is always unioned in
             at construction, so the stored set always includes it.
-        bracket_protection_failure_response (BracketProtectionFailureResponse):
-            How the account reacts when a bracket protective-OCO amend leaves
-            the position naked. Default FLATTEN_THEN_HALT (fail-safe);
-            REDUCE_ONLY is a supervised override.
+        bracket_protection_failure_response
+            (Mapping[str, BracketProtectionFailureResponse]): Per-account
+            policy for how each account reacts when a bracket protective-OCO
+            amend leaves the position naked, sourced from each account's
+            manifest. An account absent from the mapping falls back to
+            FLATTEN_THEN_HALT (fail-safe); REDUCE_ONLY is a supervised
+            override.
     '''
 
     epoch_id: int
@@ -77,9 +88,9 @@ class TradingConfig:
     enabled_execution_modes: frozenset[ExecutionMode] = field(
         default_factory=lambda: frozenset({ExecutionMode.SINGLE_SHOT}),
     )
-    bracket_protection_failure_response: BracketProtectionFailureResponse = (
-        BracketProtectionFailureResponse.FLATTEN_THEN_HALT
-    )
+    bracket_protection_failure_response: Mapping[
+        str, BracketProtectionFailureResponse
+    ] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         '''Validate runtime configuration invariants.'''
@@ -138,11 +149,46 @@ class TradingConfig:
             frozenset(self.enabled_execution_modes) | {ExecutionMode.SINGLE_SHOT},
         )
 
-        if not isinstance(
-            self.bracket_protection_failure_response, BracketProtectionFailureResponse,
-        ):
-            msg = (
-                'TradingConfig.bracket_protection_failure_response must be a '
-                'BracketProtectionFailureResponse'
-            )
-            raise ValueError(msg)
+        response_copy = dict(self.bracket_protection_failure_response)
+        for account_id, response in response_copy.items():
+            if not isinstance(account_id, str) or not account_id.strip():
+                msg = (
+                    'TradingConfig.bracket_protection_failure_response keys must '
+                    'be non-empty strings'
+                )
+                raise ValueError(msg)
+
+            if not isinstance(response, BracketProtectionFailureResponse):
+                msg = (
+                    'TradingConfig.bracket_protection_failure_response values '
+                    'must be BracketProtectionFailureResponse'
+                )
+                raise ValueError(msg)
+
+        object.__setattr__(
+            self,
+            'bracket_protection_failure_response',
+            MappingProxyType(response_copy),
+        )
+
+    def response_for(
+        self, account_id: str,
+    ) -> BracketProtectionFailureResponse:
+        '''Return the bracket protection failure response for an account.
+
+        An account absent from the configured mapping resolves to the
+        fail-safe FLATTEN_THEN_HALT, so a replay or a config built without
+        per-account policy yields the safe default rather than raising a
+        KeyError.
+
+        Args:
+            account_id (str): Trading account identifier.
+
+        Returns:
+            BracketProtectionFailureResponse: The configured per-account
+                policy, or FLATTEN_THEN_HALT when the account is absent.
+        '''
+
+        return self.bracket_protection_failure_response.get(
+            account_id, _DEFAULT_BRACKET_PROTECTION_FAILURE_RESPONSE,
+        )
