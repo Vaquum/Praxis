@@ -22,6 +22,7 @@ from decimal import Decimal
 from praxis.core.account_ledger import AccountLedger
 from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.enums import (
+    BracketProtectionStatus,
     CostBasisMethod,
     ExecutionMode,
     MakerPreference,
@@ -35,6 +36,12 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import (
     BracketInitialized,
     OrderAmendInitiated,
+    ProtectionActive,
+    ProtectionAmendRequested,
+    ProtectionCancelConfirmed,
+    ProtectionFailed,
+    ProtectionReplaceSubmitted,
+    ProtectionStateUnknown,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -59,6 +66,7 @@ from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+from praxis.core.domain.bracket_modify import BracketModify
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.iceberg_params import IcebergParams
@@ -246,11 +254,26 @@ class _LiveBracket:
     account coroutine places the protection from the WebSocket fill via
     `_on_bracket_event`; `protection_placed` guards against a double
     placement across the immediate and asynchronous paths.
+
+    Once the protective OCO is live the bracket is retained as the durable
+    anchor for a protective-OCO amend: `protection_client_order_id` names the
+    resting OCO, `protection_version` counts amend attempts (0 for the
+    original placement), `protection_status` tracks the amend state machine,
+    and the resolved legs (`current_tp_price`, `current_sl_stop_price`,
+    `current_sl_limit_price`) are the snapshot a partial amend merges against.
+    `avg_entry_price` is the entry average fill an offset amend resolves from.
     '''
 
     command: TradeCommand
     entry_client_order_id: str
     protection_placed: bool = False
+    protection_client_order_id: str | None = None
+    protection_version: int = 0
+    protection_status: BracketProtectionStatus = BracketProtectionStatus.ACTIVE
+    avg_entry_price: Decimal | None = None
+    current_tp_price: Decimal | None = None
+    current_sl_stop_price: Decimal | None = None
+    current_sl_limit_price: Decimal | None = None
 
 
 def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
@@ -701,6 +724,44 @@ class ExecutionManager:
             for command_id in candidates
             if command_id not in self._terminal_commands
         )
+
+    def modifiable_command_ids(self, account_id: str) -> list[str]:
+        '''Return the command ids a strategy MODIFY may target.
+
+        The Nexus INTAKE stage gates a MODIFY against this set (via the
+        launcher provider). It is the non-terminal in-flight set with two
+        bracket adjustments: a bracket whose entry has terminalized but whose
+        protective OCO is still ACTIVE is amendable, so its entry id is added
+        even though it is terminal; and each bracket's protective-OCO exit
+        command (`bracket_exit_command_id`) is removed, so its OCO list id
+        cannot be amended as if it were a single order. `in_flight_command_ids`
+        stays the shutdown-abort set and is not widened by this.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            list[str]: Amendable command ids, empty when unregistered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return []
+
+        exit_ids = {
+            bracket_exit_command_id(entry_id) for entry_id in runtime.brackets
+        }
+        amendable = set(self.in_flight_command_ids(account_id)) - exit_ids
+
+        for entry_id, bracket in runtime.brackets.items():
+            if (
+                bracket.protection_placed
+                and bracket.protection_client_order_id is not None
+                and bracket.protection_status is BracketProtectionStatus.ACTIVE
+            ):
+                amendable.add(entry_id)
+
+        return sorted(amendable)
 
     def replay_events(
         self,
@@ -1815,10 +1876,19 @@ class ExecutionManager:
             msg = f"account_id '{modify.account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
+        bracket_commands = {
+            entry_id: bracket.command
+            for entry_id, bracket in runtime.brackets.items()
+            if bracket.protection_placed
+            and bracket.protection_client_order_id is not None
+            and bracket.protection_status is BracketProtectionStatus.ACTIVE
+        }
+
         should_enqueue = validate_trade_modify(
             modify,
             self._commands,
             self._terminal_commands,
+            bracket_commands,
         )
 
         if not should_enqueue:
@@ -3103,6 +3173,14 @@ class ExecutionManager:
         )
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
+
+        bracket.protection_client_order_id = client_order_id
+        bracket.avg_entry_price = avg_entry_price
+        bracket.current_tp_price = tp_price
+        bracket.current_sl_stop_price = sl_stop_price
+        bracket.current_sl_limit_price = sl_limit_price
+        bracket.protection_status = BracketProtectionStatus.ACTIVE
+        runtime.brackets[cmd.command_id] = bracket
 
         for fill in result.immediate_fills:
             fill_event = FillReceived(
@@ -4938,6 +5016,12 @@ class ExecutionManager:
 
         command_id = modify.command_id
 
+        if isinstance(modify.modify_params, BracketModify):
+            await self._process_bracket_modify(
+                runtime, command_id, modify.modify_params,
+            )
+            return
+
         if command_id in self._terminal_commands:
             _log.info('modify no-op (command terminal): command_id=%s', command_id)
             return
@@ -5073,6 +5157,487 @@ class ExecutionManager:
         await self._place_amend_replacement(
             runtime, cmd, new_client_order_id, new_price, new_display, remainder,
         )
+
+    async def _process_bracket_modify(  # noqa: PLR0911
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        params: BracketModify,
+    ) -> None:
+        '''Amend a live bracket's protective OCO by cancel-then-replace.
+
+        Drives the durable `Protection*` state machine: the partial
+        `BracketModify` is merged against the bracket's current legs into a
+        full two-leg snapshot, `ProtectionAmendRequested` is persisted before
+        the venue cancel, the resting OCO is cancelled, the remaining exposure
+        is reconciled from venue truth (entry filled minus the cancelled OCO's
+        filled), and a replacement OCO is placed for that remainder. Each
+        spine append precedes the venue action it authorizes
+        (persist-before-cancel, persist-before-place). Success ends in
+        `ProtectionActive` with the bracket re-pointed at the new list; an
+        ambiguous cancel halts in `ProtectionStateUnknown` for reconciliation;
+        a definitive replace failure lands in `ProtectionFailed`. The response
+        to a failed protection (flatten / reduce-only) is handled elsewhere.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            command_id (str): Bracket command whose protective OCO is amended.
+            params (BracketModify): Partial amend of the protective legs.
+        '''
+
+        bracket = runtime.brackets.get(command_id)
+        if bracket is None:
+            _log.warning(
+                'bracket modify rejected: no live bracket for command_id=%s',
+                command_id,
+            )
+            return
+
+        if not bracket.protection_placed or bracket.protection_client_order_id is None:
+            _log.warning(
+                'bracket modify rejected: no live protective OCO for command_id=%s',
+                command_id,
+            )
+            return
+
+        if bracket.protection_status is not BracketProtectionStatus.ACTIVE:
+            _log.warning(
+                'bracket modify rejected: protection not ACTIVE (status=%s) '
+                'command_id=%s',
+                bracket.protection_status.value,
+                command_id,
+            )
+            return
+
+        if bracket.avg_entry_price is None:
+            _log.warning(
+                'bracket modify rejected: no entry reference for command_id=%s',
+                command_id,
+            )
+            return
+
+        cmd = bracket.command
+        resolved = self._resolve_bracket_amend(bracket, params)
+        if resolved is None:
+            _log.warning(
+                'bracket modify rejected: amended legs invalid for entry '
+                'command_id=%s',
+                command_id,
+            )
+            return
+
+        tp_price, sl_stop_price, sl_limit_price = resolved
+        old_list_client_order_id = bracket.protection_client_order_id
+        new_version = bracket.protection_version + 1
+        new_list_client_order_id = generate_client_order_id(
+            cmd.execution_mode,
+            cmd.command_id,
+            sequence=_BRACKET_PROTECTION_SEQUENCE,
+            retry=new_version,
+        )
+
+        requested = ProtectionAmendRequested(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+            new_list_client_order_id=new_list_client_order_id,
+            old_list_client_order_id=old_list_client_order_id,
+            take_profit_price=tp_price,
+            stop_loss_price=sl_stop_price,
+            stop_loss_limit_price=sl_limit_price,
+        )
+        await self._event_spine.append(requested, self._epoch_id)
+        bracket.protection_version = new_version
+        bracket.protection_status = BracketProtectionStatus.AMEND_REQUESTED
+
+        try:
+            cancel_result = await self._venue_adapter.cancel_order_list(
+                cmd.account_id, cmd.symbol, client_order_id=old_list_client_order_id,
+            )
+        except VenueError as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
+            await self._append_protection_state_unknown(cmd, new_version, reason)
+            bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            _log.warning(
+                'bracket protective cancel ambiguous; halting amend for '
+                'reconcile: command_id=%s version=%d reason=%s',
+                cmd.command_id,
+                new_version,
+                reason,
+            )
+            return
+
+        cancel_confirmed = ProtectionCancelConfirmed(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+        )
+        await self._event_spine.append(cancel_confirmed, self._epoch_id)
+        bracket.protection_status = BracketProtectionStatus.CANCEL_CONFIRMED
+
+        canceled = OrderCanceled(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=old_list_client_order_id,
+            venue_order_id=cancel_result.venue_order_id,
+            reason='bracket protection amended',
+        )
+        await self._event_spine.append(canceled, self._epoch_id)
+        runtime.trading_state.apply(canceled)
+
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+
+        try:
+            oco_filled = await self._cancelled_oco_filled_qty(
+                cmd, old_list_client_order_id,
+            )
+        except VenueError as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
+            await self._append_protection_state_unknown(cmd, new_version, reason)
+            bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            _log.warning(
+                'bracket protective reconcile query failed; halting amend for '
+                'reconcile rather than sizing a replacement from stale local '
+                'fills: command_id=%s version=%d reason=%s',
+                cmd.command_id,
+                new_version,
+                reason,
+            )
+            return
+
+        remaining = entry_filled - oco_filled
+
+        if remaining <= _ZERO:
+            runtime.brackets.pop(cmd.command_id, None)
+            _log.info(
+                'bracket protective amend: position closed by a protective '
+                'fill, no replacement placed: command_id=%s version=%d',
+                cmd.command_id,
+                new_version,
+            )
+            return
+
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_min = filters.lot_min if filters is not None else _ZERO
+        min_notional = filters.min_notional if filters is not None else _ZERO
+
+        if remaining < lot_min or remaining * tp_price < min_notional:
+            runtime.brackets.pop(cmd.command_id, None)
+            _log.info(
+                'bracket protective amend: remaining below tradable minimums '
+                'after reconcile, position treated as closed dust, no '
+                'replacement placed: command_id=%s version=%d remaining=%s',
+                cmd.command_id,
+                new_version,
+                remaining,
+            )
+            return
+
+        replace_submitted = ProtectionReplaceSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+            new_list_client_order_id=new_list_client_order_id,
+        )
+        await self._event_spine.append(replace_submitted, self._epoch_id)
+        bracket.protection_status = BracketProtectionStatus.REPLACE_SUBMITTED
+
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=new_list_client_order_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            order_type=OrderType.OCO,
+            qty=remaining,
+            quote_qty=None,
+            price=tp_price,
+            stop_price=sl_stop_price,
+            stop_limit_price=sl_limit_price,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                protective_side,
+                OrderType.OCO,
+                remaining,
+                price=tp_price,
+                stop_price=sl_stop_price,
+                stop_limit_price=sl_limit_price,
+                client_order_id=new_list_client_order_id,
+            )
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError, VenueError) as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
+
+            try:
+                order_list = await self._replacement_oco_is_live(
+                    cmd, new_list_client_order_id,
+                )
+            except VenueError:
+                await self._append_protection_state_unknown(cmd, new_version, reason)
+                bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+                _log.warning(
+                    'bracket protective replacement unconfirmable after venue '
+                    'error; halting amend for reconcile: command_id=%s '
+                    'version=%d reason=%s',
+                    cmd.command_id,
+                    new_version,
+                    reason,
+                )
+                return
+
+            if order_list is None:
+                await self._append_protection_failed(cmd, new_version, reason)
+                bracket.protection_status = BracketProtectionStatus.FAILED
+                _log.warning(
+                    'bracket protective replacement rejected by venue; '
+                    'protection failed: command_id=%s version=%d reason=%s',
+                    cmd.command_id,
+                    new_version,
+                    reason,
+                )
+                return
+
+            submitted = OrderSubmitted(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=new_list_client_order_id,
+                venue_order_id=order_list.order_list_id,
+                leg_client_order_ids=tuple(
+                    leg.client_order_id for leg in order_list.legs
+                ),
+            )
+        else:
+            submitted = OrderSubmitted(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=new_list_client_order_id,
+                venue_order_id=result.venue_order_id,
+                leg_client_order_ids=result.leg_client_order_ids,
+            )
+
+        runtime.command_to_order[exit_command_id] = new_list_client_order_id
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        active = ProtectionActive(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+            new_list_client_order_id=new_list_client_order_id,
+        )
+        await self._event_spine.append(active, self._epoch_id)
+        bracket.protection_client_order_id = new_list_client_order_id
+        bracket.current_tp_price = tp_price
+        bracket.current_sl_stop_price = sl_stop_price
+        bracket.current_sl_limit_price = sl_limit_price
+        bracket.protection_status = BracketProtectionStatus.ACTIVE
+
+        _log.info(
+            'bracket protection amended: command_id=%s version=%d qty=%s '
+            'tp=%s sl=%s new_list=%s',
+            cmd.command_id,
+            new_version,
+            remaining,
+            tp_price,
+            sl_stop_price,
+            new_list_client_order_id,
+        )
+
+    def _resolve_bracket_amend(
+        self,
+        bracket: _LiveBracket,
+        params: BracketModify,
+    ) -> tuple[Decimal, Decimal, Decimal | None] | None:
+        '''Merge a partial bracket amend into a full, validated leg snapshot.
+
+        A leg the amend sets is resolved — an absolute price used as-is, a
+        basis-point offset resolved side-aware from the entry average fill and
+        snapped to the venue tick; a leg the amend leaves unset keeps the
+        bracket's current value. The merged legs are validated on the correct
+        side of the entry, mirroring initial placement.
+
+        Args:
+            bracket (_LiveBracket): The bracket holding current legs and the
+                entry reference.
+            params (BracketModify): Partial amend of the protective legs.
+
+        Returns:
+            tuple[Decimal, Decimal, Decimal | None] | None: The resolved
+                take-profit, stop-loss trigger, and optional stop-limit
+                prices, or None when the merged legs are invalid.
+        '''
+
+        cmd = bracket.command
+        assert bracket.avg_entry_price is not None
+        avg_entry_price = bracket.avg_entry_price
+        profit_direction = _ONE if cmd.side is OrderSide.BUY else -_ONE
+
+        tp_price: Decimal | None
+        sl_stop_price: Decimal | None
+        sl_limit_price: Decimal | None
+
+        if params.take_profit_price is not None:
+            tp_price = self._snap_price(cmd.symbol, params.take_profit_price)
+        elif params.take_profit_offset_bps is not None:
+            tp_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE + profit_direction * params.take_profit_offset_bps / _BPS_MULTIPLIER),
+            )
+        else:
+            tp_price = bracket.current_tp_price
+
+        if params.stop_loss_price is not None:
+            sl_stop_price = self._snap_price(cmd.symbol, params.stop_loss_price)
+        elif params.stop_loss_offset_bps is not None:
+            sl_stop_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE - profit_direction * params.stop_loss_offset_bps / _BPS_MULTIPLIER),
+            )
+        else:
+            sl_stop_price = bracket.current_sl_stop_price
+
+        if params.stop_loss_limit_price is not None:
+            sl_limit_price = self._snap_price(cmd.symbol, params.stop_loss_limit_price)
+        else:
+            sl_limit_price = bracket.current_sl_limit_price
+
+        if tp_price is None or sl_stop_price is None:
+            return None
+
+        if not self._bracket_legs_valid_for_entry(
+            cmd, tp_price, sl_stop_price, avg_entry_price,
+        ):
+            return None
+
+        return tp_price, sl_stop_price, sl_limit_price
+
+    async def _cancelled_oco_filled_qty(
+        self,
+        cmd: TradeCommand,
+        list_client_order_id: str,
+    ) -> Decimal:
+        '''Return the authoritative filled quantity of a cancelled protective OCO.
+
+        The venue's OCO list query carries only leg identities, not a filled
+        quantity, so each leg is queried and its filled quantity summed — a
+        one-sided protective OCO fills at most one leg. A query failure leaves
+        the cancelled OCO's fill unresolved and raises `VenueError`: the caller
+        must halt the amend for reconciliation rather than size a replacement
+        from a stale local projection that could under-count a missed fill and
+        over-size the replacement.
+
+        Args:
+            cmd (TradeCommand): Bracket command carrying account and symbol.
+            list_client_order_id (str): Cancelled OCO's list client order id.
+
+        Returns:
+            Decimal: The cancelled OCO's authoritative filled quantity.
+
+        Raises:
+            VenueError: When the venue query cannot be completed.
+        '''
+
+        order_list = await self._venue_adapter.query_order_list(
+            cmd.account_id, list_client_order_id=list_client_order_id,
+        )
+
+        filled = _ZERO
+        for leg in order_list.legs:
+            leg_order = await self._venue_adapter.query_order(
+                cmd.account_id, cmd.symbol, client_order_id=leg.client_order_id,
+            )
+            filled += leg_order.filled_qty
+
+        return filled
+
+    async def _replacement_oco_is_live(
+        self,
+        cmd: TradeCommand,
+        list_client_order_id: str,
+    ) -> VenueOrderList | None:
+        '''Return an ambiguously-submitted replacement OCO if it is resting.
+
+        After an ambiguous submit (timeout, duplicate client id, or a generic
+        venue error once the old OCO is already cancelled) the venue is queried
+        for the replacement list rather than blindly failing: a list present
+        and not rejected is a confirmed idempotent success and is returned so
+        its venue identities can be tracked; a list the venue confirms REJECT
+        returns None. A query that cannot be completed raises `VenueError` so
+        the caller halts for reconciliation (unknown) rather than treating an
+        unconfirmable replacement as rejected.
+
+        Args:
+            cmd (TradeCommand): Bracket command carrying the account.
+            list_client_order_id (str): Replacement OCO's list client order id.
+
+        Returns:
+            VenueOrderList | None: The resting replacement list, or None when
+                the venue confirms the list is rejected.
+
+        Raises:
+            VenueError: When the venue query cannot be completed.
+        '''
+
+        order_list = await self._venue_adapter.query_order_list(
+            cmd.account_id, list_client_order_id=list_client_order_id,
+        )
+
+        if order_list.list_order_status == _OCO_LIST_STATUS_REJECT:
+            return None
+
+        return order_list
+
+    async def _append_protection_state_unknown(
+        self,
+        cmd: TradeCommand,
+        protection_version: int,
+        reason: str,
+    ) -> None:
+        '''Persist a `ProtectionStateUnknown` for an ambiguous amend outcome.'''
+
+        event = ProtectionStateUnknown(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=protection_version,
+            reason=reason,
+        )
+        await self._event_spine.append(event, self._epoch_id)
+
+    async def _append_protection_failed(
+        self,
+        cmd: TradeCommand,
+        protection_version: int,
+        reason: str,
+    ) -> None:
+        '''Persist a `ProtectionFailed` marking no live protective OCO.'''
+
+        event = ProtectionFailed(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=protection_version,
+            reason=reason,
+        )
+        await self._event_spine.append(event, self._epoch_id)
 
     async def _process_scheme_modify(
         self,

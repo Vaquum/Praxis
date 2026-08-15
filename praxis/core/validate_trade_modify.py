@@ -1,9 +1,11 @@
 '''
 Inbound validation for TradeModify at acceptance time.
 
-Validate command_id is known, account_id matches, the amend parameters
-match the target command's execution mode, and the command is not already
-terminal before enqueueing.
+Validate command_id is known, account_id matches, and the amend parameters
+match the target command's execution mode before enqueueing. A terminal
+command is normally a no-op, with one exception: a bracket whose entry has
+filled (terminal) but whose protective OCO is still live and amendable is
+resolved through `bracket_commands` and admitted.
 '''
 
 from __future__ import annotations
@@ -68,9 +70,18 @@ def validate_trade_modify(
     modify: TradeModify,
     commands: dict[str, TradeCommand],
     terminal_command_ids: AbstractSet[str],
+    bracket_commands: dict[str, TradeCommand] | None = None,
 ) -> bool:
     '''
     Validate a TradeModify at acceptance time before enqueueing.
+
+    A terminal command is normally a no-op — its execution is done. The one
+    exception is a bracket whose entry has filled (terminal) but whose
+    protective OCO is still live and amendable: `bracket_commands` maps such
+    entry command ids to their bracket `TradeCommand`, so an amend addressed
+    to the entry id resolves to the live protection instead of being dropped.
+    The entry is gone from `commands` (popped on its terminal outcome), so
+    the bracket command is the sole source for the mode / account check.
 
     Args:
         modify (TradeModify): Amend instruction to validate.
@@ -79,10 +90,13 @@ def validate_trade_modify(
             execution mode being amended.
         terminal_command_ids (AbstractSet[str]): Set of command_ids that
             have reached a terminal state.
+        bracket_commands (dict[str, TradeCommand] | None): Entry command ids
+            whose bracket protection is live and amendable, mapped to the
+            bracket command. A terminal entry present here is amendable.
 
     Returns:
         bool: True if the amend should be enqueued, False if the target
-            command is already terminal (no-op).
+            command is terminal with no live amendable protection (no-op).
 
     Raises:
         ValueError: If command_id is unknown, account_id does not match, the
@@ -91,13 +105,17 @@ def validate_trade_modify(
     '''
 
     if modify.command_id in terminal_command_ids:
-        return False
+        command = (bracket_commands or {}).get(modify.command_id)
 
-    command = commands.get(modify.command_id)
+        if command is None:
+            return False
 
-    if command is None:
-        msg = f"unknown command_id '{modify.command_id}'"
-        raise ValueError(msg)
+    else:
+        command = commands.get(modify.command_id)
+
+        if command is None:
+            msg = f"unknown command_id '{modify.command_id}'"
+            raise ValueError(msg)
 
     if modify.account_id != command.account_id:
         msg = (
@@ -123,4 +141,4 @@ def validate_trade_modify(
         )
         raise ValueError(msg)
 
-    return modify.command_id not in terminal_command_ids
+    return True

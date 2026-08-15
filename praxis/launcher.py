@@ -3899,7 +3899,7 @@ class Launcher:
             ),
             price_snapshot_provider=self._build_price_snapshot_provider(),
             modifiable_command_ids_provider=lambda: set(
-                execution_manager.in_flight_command_ids(inst.account_id)
+                execution_manager.modifiable_command_ids(inst.account_id)
             ),
             clock=self._clock,
         )

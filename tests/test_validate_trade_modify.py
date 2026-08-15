@@ -16,6 +16,8 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.bracket_modify import BracketModify
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_modify import LadderDcaModify
@@ -238,3 +240,67 @@ class TestExposureCeiling:
                 commands,
                 set(),
             )
+
+
+def _bracket_command() -> TradeCommand:
+    return TradeCommand(
+        command_id=_CMD,
+        trade_id='trade-1',
+        account_id=_ACCT,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        order_type=OrderType.MARKET,
+        execution_mode=ExecutionMode.BRACKET,
+        execution_params=BracketParams(
+            take_profit_price=Decimal('55000'),
+            stop_loss_price=Decimal('48000'),
+        ),
+        timeout=3600,
+        reference_price=None,
+        maker_preference=MakerPreference.NO_PREFERENCE,
+        stp_mode=STPMode.NONE,
+        created_at=_TS,
+    )
+
+
+class TestBracketCommandsBranch:
+
+    def test_terminal_entry_with_live_bracket_and_bracket_modify_enqueues(
+        self,
+    ) -> None:
+        result = validate_trade_modify(
+            _modify(
+                modify_params=BracketModify(take_profit_price=Decimal('56000')),
+            ),
+            {},
+            {_CMD},
+            {_CMD: _bracket_command()},
+        )
+
+        assert result is True
+
+    def test_terminal_entry_with_live_bracket_and_mode_mismatch_raises(
+        self,
+    ) -> None:
+        with pytest.raises(ValueError, match='does not match execution mode'):
+            validate_trade_modify(
+                _modify(
+                    modify_params=SingleShotModify(price=Decimal('56000')),
+                ),
+                {},
+                {_CMD},
+                {_CMD: _bracket_command()},
+            )
+
+    def test_terminal_entry_without_bracket_is_noop(self) -> None:
+        result = validate_trade_modify(
+            _modify(
+                modify_params=BracketModify(take_profit_price=Decimal('56000')),
+            ),
+            {},
+            {_CMD},
+            {},
+        )
+
+        assert result is False
