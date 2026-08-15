@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['BracketProtectionStatus', 'CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'SchemeState', 'TradeStatus']
+__all__ = ['BracketProtectionFailureResponse', 'BracketProtectionStatus', 'CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'SchemeState', 'TradeStatus']
 
 
 class OrderSide(Enum):
@@ -178,3 +178,22 @@ class BracketProtectionStatus(Enum):
     STATE_UNKNOWN = 'STATE_UNKNOWN'
     REPLACE_SUBMITTED = 'REPLACE_SUBMITTED'
     FAILED = 'FAILED'
+
+
+class BracketProtectionFailureResponse(Enum):
+
+    '''
+    Per-account response when a bracket protective-OCO amend leaves the
+    position unprotected.
+
+    Chosen after protection cannot be confirmed within the amend's deadline
+    and the position is naked. FLATTEN_THEN_HALT is the fail-safe default:
+    market-flatten the reconciled remaining position, then halt the account.
+    REDUCE_ONLY is an explicit override for a supervised account that has
+    accepted temporary naked inventory — block new entries and alert, but
+    leave the position open. A plain halt is not an option: it stops the
+    engine without addressing the unprotected inventory.
+    '''
+
+    FLATTEN_THEN_HALT = 'FLATTEN_THEN_HALT'
+    REDUCE_ONLY = 'REDUCE_ONLY'

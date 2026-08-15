@@ -21,8 +21,12 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
-from praxis.core.domain.enums import ExecutionMode
-from praxis.launcher import _parse_enabled_modes, _resolve_trade_mode
+from praxis.core.domain.enums import BracketProtectionFailureResponse, ExecutionMode
+from praxis.launcher import (
+    _parse_bracket_protection_failure_response,
+    _parse_enabled_modes,
+    _resolve_trade_mode,
+)
 
 
 class TestResolveTradeMode:
@@ -198,3 +202,31 @@ class TestParseEnabledModes:
         assert modes == frozenset({
             ExecutionMode.SINGLE_SHOT, ExecutionMode.BRACKET,
         })
+
+
+class TestParseBracketProtectionFailureResponse:
+
+    def test_unset_defaults_to_flatten_then_halt(self) -> None:
+        response = _parse_bracket_protection_failure_response({})
+
+        assert response is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+
+    def test_empty_defaults_to_flatten_then_halt(self) -> None:
+        response = _parse_bracket_protection_failure_response(
+            {'PRAXIS_BRACKET_PROTECTION_FAILURE_RESPONSE': '  '},
+        )
+
+        assert response is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+
+    def test_reduce_only_override(self) -> None:
+        response = _parse_bracket_protection_failure_response(
+            {'PRAXIS_BRACKET_PROTECTION_FAILURE_RESPONSE': 'REDUCE_ONLY'},
+        )
+
+        assert response is BracketProtectionFailureResponse.REDUCE_ONLY
+
+    def test_unknown_value_rejected(self) -> None:
+        with pytest.raises(ValueError, match='unknown value'):
+            _parse_bracket_protection_failure_response(
+                {'PRAXIS_BRACKET_PROTECTION_FAILURE_RESPONSE': 'NOPE'},
+            )

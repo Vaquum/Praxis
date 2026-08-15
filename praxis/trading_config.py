@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from praxis.core.domain.enums import ExecutionMode
+from praxis.core.domain.enums import BracketProtectionFailureResponse, ExecutionMode
 from praxis.core.domain.events import FundTransaction, ReconciliationMismatch
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.infrastructure.binance_urls import (
@@ -50,6 +50,10 @@ class TradingConfig:
             mode is explicitly added, so a new mode cannot be driven live until
             it is turned on for the deployment. SINGLE_SHOT is always unioned in
             at construction, so the stored set always includes it.
+        bracket_protection_failure_response (BracketProtectionFailureResponse):
+            How the account reacts when a bracket protective-OCO amend leaves
+            the position naked. Default FLATTEN_THEN_HALT (fail-safe);
+            REDUCE_ONLY is a supervised override.
     '''
 
     epoch_id: int
@@ -72,6 +76,9 @@ class TradingConfig:
     reconcile_interval_seconds: float = 60.0
     enabled_execution_modes: frozenset[ExecutionMode] = field(
         default_factory=lambda: frozenset({ExecutionMode.SINGLE_SHOT}),
+    )
+    bracket_protection_failure_response: BracketProtectionFailureResponse = (
+        BracketProtectionFailureResponse.FLATTEN_THEN_HALT
     )
 
     def __post_init__(self) -> None:
@@ -130,3 +137,12 @@ class TradingConfig:
             'enabled_execution_modes',
             frozenset(self.enabled_execution_modes) | {ExecutionMode.SINGLE_SHOT},
         )
+
+        if not isinstance(
+            self.bracket_protection_failure_response, BracketProtectionFailureResponse,
+        ):
+            msg = (
+                'TradingConfig.bracket_protection_failure_response must be a '
+                'BracketProtectionFailureResponse'
+            )
+            raise ValueError(msg)

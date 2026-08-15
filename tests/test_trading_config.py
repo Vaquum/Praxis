@@ -11,7 +11,7 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_API_URL,
     TESTNET_WS_URL,
 )
-from praxis.core.domain.enums import ExecutionMode
+from praxis.core.domain.enums import BracketProtectionFailureResponse, ExecutionMode
 from praxis.infrastructure.secret_store import Credentials
 from praxis.trading_config import TradingConfig
 
@@ -26,6 +26,29 @@ def test_trading_config_defaults() -> None:
     assert isinstance(cfg.account_credentials, MappingProxyType)
     assert cfg.on_trade_outcome is None
     assert cfg.enabled_execution_modes == frozenset({ExecutionMode.SINGLE_SHOT})
+    assert (
+        cfg.bracket_protection_failure_response
+        is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+    )
+
+
+def test_trading_config_accepts_reduce_only_protection_response() -> None:
+    cfg = TradingConfig(
+        epoch_id=1,
+        bracket_protection_failure_response=(
+            BracketProtectionFailureResponse.REDUCE_ONLY
+        ),
+    )
+
+    assert (
+        cfg.bracket_protection_failure_response
+        is BracketProtectionFailureResponse.REDUCE_ONLY
+    )
+
+
+def test_trading_config_rejects_non_enum_protection_response() -> None:
+    with pytest.raises(ValueError, match='bracket_protection_failure_response'):
+        TradingConfig(epoch_id=1, bracket_protection_failure_response='FLATTEN')  # type: ignore[arg-type]
 
 
 def test_trading_config_enabled_modes_are_frozen() -> None:
