@@ -40,6 +40,7 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
     RegisterAccount,
+    SchemeFrozen,
     SchemeInitialized,
     TradeClosed,
 )
@@ -112,6 +113,11 @@ _ALL_EVENTS: list[Event] = [
         interval_seconds=0, timeout_seconds=300,
         volume_weights=(Decimal('0.6'), Decimal('0.4')),
         price_levels=(Decimal('49000.00'), Decimal('48000.00')),
+    ),
+
+    SchemeFrozen(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, reason='protection lost',
     ),
 
     OrderSubmitFailed(

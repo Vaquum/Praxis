@@ -17,6 +17,7 @@ from praxis.core.domain.enums import OrderStatus
 from praxis.core.domain.events import (
     BracketInitialized,
     OrderAmendInitiated,
+    SchemeFrozen,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -158,6 +159,7 @@ class TradingState:
                 OutcomeReplayAbandoned,
                 MarkSampled,
                 SliceFailed,
+                SchemeFrozen,
                 BracketInitialized,
                 OrderAmendInitiated,
                 ReconciliationMismatch,

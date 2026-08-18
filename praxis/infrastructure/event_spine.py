@@ -32,6 +32,7 @@ import orjson
 from praxis.core.domain.events import (
     BracketInitialized,
     OrderAmendInitiated,
+    SchemeFrozen,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -216,6 +217,7 @@ _EVENT_REGISTRY: dict[str, type] = {
         OrderAmendInitiated,
         SchemeInitialized,
         SchemeStateChanged,
+        SchemeFrozen,
         OrderSubmitIntent,
         OrderSubmitted,
         OrderSubmitFailed,

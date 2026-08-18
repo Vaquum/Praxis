@@ -42,6 +42,7 @@ from praxis.core.domain.events import (
     ProtectionFailed,
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
+    SchemeFrozen,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -876,7 +877,7 @@ class ExecutionManager:
                 inits.setdefault(event.command_id, event)
             elif isinstance(event, SchemeStateChanged):
                 latest_state[event.command_id] = event
-            elif isinstance(event, SliceFailed):
+            elif isinstance(event, (SliceFailed, SchemeFrozen)):
                 frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
@@ -1133,7 +1134,7 @@ class ExecutionManager:
                 inits.setdefault(event.command_id, event)
             elif isinstance(event, SchemeStateChanged):
                 latest_state[event.command_id] = event
-            elif isinstance(event, SliceFailed):
+            elif isinstance(event, (SliceFailed, SchemeFrozen)):
                 frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
@@ -4651,6 +4652,49 @@ class ExecutionManager:
         scheme.next_run_at = None
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _freeze_account_schemes(
+        self,
+        runtime: _AccountRuntime,
+        reason: str,
+    ) -> list[str]:
+        '''Durably freeze every live scheme on the account against new slices.
+
+        Appends a `SchemeFrozen` for each running, non-terminal scheme and
+        freezes it in memory so `_advance_due_schemes` fires no further
+        slice. The durable event lands the scheme in the replay freeze set,
+        so a restart resumes it frozen instead of re-arming its timer — the
+        naked-protection interlock that stops schemes buying while a bracket
+        is unprotected, across restarts. Idempotent: an already-frozen or
+        terminalizing scheme is skipped.
+
+        Args:
+            runtime (_AccountRuntime): Account whose schemes to freeze.
+            reason (str): Freeze reason recorded on each event.
+
+        Returns:
+            list[str]: Command ids newly frozen by this call.
+        '''
+
+        frozen: list[str] = []
+
+        for command_id, scheme in runtime.schemes.items():
+            if scheme.frozen or scheme.pending_terminal is not None:
+                continue
+
+            event = SchemeFrozen(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=command_id,
+                reason=reason,
+            )
+            await self._event_spine.append(event, self._epoch_id)
+
+            scheme.frozen = True
+            scheme.next_run_at = None
+            frozen.append(command_id)
+
+        return frozen
 
     async def _on_slice_failure(
         self,

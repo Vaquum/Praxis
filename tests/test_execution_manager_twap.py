@@ -32,6 +32,7 @@ from praxis.core.domain.events import (
     OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
+    SchemeFrozen,
     SchemeInitialized,
     SchemeStateChanged,
     SliceFailed,
@@ -947,3 +948,126 @@ async def test_twap_resume_stays_frozen_after_slice_failure(
     assert outcomes[0].status is TradeStatus.CANCELED
     assert outcomes[0].filled_qty == Decimal('0.5')
     assert command_id not in em._accounts[_ACCT].schemes
+
+
+@pytest.mark.asyncio
+async def test_freeze_account_schemes_stops_slices_and_persists(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    spine: EventSpine,
+    adapter: AsyncMock,
+    clock_holder: list[datetime],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    runtime = em._accounts[_ACCT]
+    scheme = runtime.schemes[command_id]
+    submits_before = adapter.submit_order.await_count
+
+    frozen = await em._freeze_account_schemes(runtime, 'protection lost')
+
+    assert frozen == [command_id]
+    assert scheme.frozen is True
+    assert scheme.next_run_at is None
+
+    events = await spine.read(_EPOCH, after_seq=0)
+    frozen_events = [e for _seq, e in events if isinstance(e, SchemeFrozen)]
+    assert len(frozen_events) == 1
+    assert frozen_events[0].command_id == command_id
+    assert frozen_events[0].reason == 'protection lost'
+
+    for _ in range(3):
+        await _advance(clock_holder)
+
+    assert adapter.submit_order.await_count == submits_before
+    assert len(outcomes) == 0
+
+
+@pytest.mark.asyncio
+async def test_freeze_account_schemes_is_idempotent(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    spine: EventSpine,
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    runtime = em._accounts[_ACCT]
+
+    first = await em._freeze_account_schemes(runtime, 'protection lost')
+    second = await em._freeze_account_schemes(runtime, 'protection lost again')
+
+    assert first == [command_id]
+    assert second == []
+
+    events = await spine.read(_EPOCH, after_seq=0)
+    assert len([e for _seq, e in events if isinstance(e, SchemeFrozen)]) == 1
+
+
+@pytest.mark.asyncio
+async def test_frozen_scheme_resumes_frozen_from_replay(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    spine: EventSpine,
+    adapter: AsyncMock,
+    clock_holder: list[datetime],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    await em._freeze_account_schemes(em._accounts[_ACCT], 'protection lost')
+    events = await spine.read(_EPOCH, after_seq=0)
+    await em.unregister_account(_ACCT)
+
+    restart_outcomes: list[TradeOutcome] = []
+
+    async def _capture(outcome: TradeOutcome) -> None:
+        restart_outcomes.append(outcome)
+
+    restarted = ExecutionManager(
+        event_spine=spine,
+        epoch_id=_EPOCH,
+        venue_adapter=adapter,
+        on_trade_outcome=_capture,
+        clock=lambda: clock_holder[0],
+    )
+    restarted.register_account(_ACCT)
+    restarted.replay_events(_ACCT, events)
+
+    resumed = restarted._accounts[_ACCT].schemes[command_id]
+    assert resumed.frozen is True
+
+    submits_before = adapter.submit_order.await_count
+    for _ in range(3):
+        await _advance(clock_holder)
+
+    assert adapter.submit_order.await_count == submits_before
+    assert len(restart_outcomes) == 0
+
+    await restarted.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_freeze_account_schemes_freezes_many_and_skips_pending_terminal(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    first = await em.submit_command(**_twap_kwargs())
+    second = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    runtime = em._accounts[_ACCT]
+    runtime.schemes[second].pending_terminal = (
+        TradeStatus.CANCELED, SchemeState.CANCELED, 'already terminalizing',
+    )
+
+    frozen = await em._freeze_account_schemes(runtime, 'protection lost')
+
+    assert frozen == [first]
+    assert runtime.schemes[first].frozen is True
+    assert runtime.schemes[second].frozen is False

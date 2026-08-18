@@ -53,6 +53,7 @@ __all__ = [
     'ProtectionStateUnknown',
     'ReconciliationMismatch',
     'RegisterAccount',
+    'SchemeFrozen',
     'SchemeInitialized',
     'SchemeStateChanged',
     'SliceFailed',
@@ -332,6 +333,38 @@ class SliceFailed(_EventBase):
         name = type(self).__name__
         _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class SchemeFrozen(_EventBase):
+
+    '''
+    Represent a running scheme durably frozen against firing further slices.
+
+    Appended when a naked-protection remediation freezes an account's live
+    schemes: no further slices are scheduled, and on replay the scheme
+    resumes frozen rather than re-arming its timer, so a restart cannot
+    resurrect the buying. Distinct from SliceFailed, which reports a
+    per-slice failure with a PARTIAL outcome; a freeze reports no outcome
+    and names no slice.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Frozen scheme identifier.
+        reason (str): Freeze reason.
+    '''
+
+    command_id: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'reason', self.reason)
 
 
@@ -1455,6 +1488,7 @@ type Event = (
     | OrderAmendInitiated
     | SchemeInitialized
     | SchemeStateChanged
+    | SchemeFrozen
     | OrderSubmitIntent
     | OrderSubmitted
     | OrderSubmitFailed
