@@ -30,6 +30,7 @@ from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
+    BracketInitialized,
     Event,
     FillReceived,
     FundTransaction,
@@ -177,6 +178,7 @@ class Trading:
             clock=clock,
             max_slippage_bps=max_slippage_bps,
             enabled_modes=config.enabled_execution_modes,
+            protection_failure_response=config.response_for,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,
@@ -456,8 +458,17 @@ class Trading:
 
         symbols = set(self._execution_manager.active_symbols(account_id))
         symbols |= self._bootstrap_filter_symbols
+        symbols |= {
+            event.symbol
+            for _seq, event in account_events
+            if isinstance(event, BracketInitialized)
+        }
         if symbols:
             await self._venue_adapter.load_filters(sorted(symbols))
+
+        await self._execution_manager.recover_incomplete_flattens(
+            account_id, account_events,
+        )
 
         account_ready = await self._sweep_orphan_venue_orders(account_id)
 

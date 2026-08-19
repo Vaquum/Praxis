@@ -38,6 +38,7 @@ from praxis.core.domain.events import (
     OperatorHaltRequested,
     OperatorResumeRequested,
     OrderSubmitIntent,
+    FlattenInitiated,
     OrderSubmitted,
     RegisterAccount,
     SchemeFrozen,
@@ -118,6 +119,12 @@ _ALL_EVENTS: list[Event] = [
     SchemeFrozen(
         account_id=_ACCT, timestamp=_TS,
         command_id=_CMD, reason='protection lost',
+    ),
+
+    FlattenInitiated(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, protection_version=1,
+        qty=Decimal('0.5'), client_order_id='flat-coid',
     ),
 
     OrderSubmitFailed(

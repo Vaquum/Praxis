@@ -38,6 +38,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FlattenInitiated,
     FundTransaction,
     MarkSampled,
     ReconciliationMismatch,
@@ -245,6 +246,7 @@ _EVENT_REGISTRY: dict[str, type] = {
         ProtectionReplaceSubmitted,
         ProtectionActive,
         ProtectionFailed,
+        FlattenInitiated,
     )
 }
 

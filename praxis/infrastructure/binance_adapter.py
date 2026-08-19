@@ -2155,6 +2155,8 @@ class BinanceAdapter:
                 lot_min=Decimal(filters['LOT_SIZE']['minQty']),
                 lot_max=Decimal(filters['LOT_SIZE']['maxQty']),
                 min_notional=Decimal(filters['NOTIONAL']['minNotional']),
+                base_asset=str(symbol_info.get('baseAsset', '')),
+                quote_asset=str(symbol_info.get('quoteAsset', '')),
             )
         except (KeyError, ArithmeticError) as exc:
             msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"

@@ -23,6 +23,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FlattenInitiated,
     MarkSampled,
     OrderAcked,
     OrderCanceled,
@@ -169,6 +170,7 @@ class TradingState:
                 ProtectionReplaceSubmitted,
                 ProtectionActive,
                 ProtectionFailed,
+                FlattenInitiated,
             ),
         ):
             return

@@ -48,6 +48,7 @@ from praxis.core.domain.events import (
     CommandAccepted,
     Event,
     FillReceived,
+    FlattenInitiated,
     FundTransaction,
     ReconciliationMismatch,
     OrderCanceled,
@@ -62,6 +63,10 @@ from praxis.core.domain.events import (
     TradeClosed,
     TradeOutcomeProduced,
 )
+from nexus.core.domain.bracket_protection_failure_response import (
+    BracketProtectionFailureResponse,
+)
+
 from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -159,6 +164,7 @@ _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 _ONE = Decimal(1)
 _BRACKET_ENTRY_SEQUENCE = 0
 _BRACKET_PROTECTION_SEQUENCE = 1
+_BRACKET_FLATTEN_SEQUENCE = 999
 
 
 def _aggregate_oco_terminal_status(
@@ -443,6 +449,9 @@ class ExecutionManager:
         clock: Callable[[], datetime] = _utc_now,
         max_slippage_bps: Decimal | None = None,
         enabled_modes: frozenset[ExecutionMode] | None = None,
+        protection_failure_response: (
+            Callable[[str], BracketProtectionFailureResponse] | None
+        ) = None,
     ) -> None:
         '''Store dependencies and initialize empty account registry.
 
@@ -467,6 +476,7 @@ class ExecutionManager:
         )
         self._on_trade_outcome = on_trade_outcome
         self._clock = clock
+        self._protection_failure_response = protection_failure_response
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
@@ -4710,6 +4720,596 @@ class ExecutionManager:
 
         return frozen
 
+    def _protection_response_for(
+        self, account_id: str,
+    ) -> BracketProtectionFailureResponse:
+        '''Resolve the account's bracket-protection failure response.
+
+        Defaults to the fail-safe FLATTEN_THEN_HALT when no per-account
+        resolver was wired, so an unconfigured deployment flattens rather
+        than leaving a naked position.
+        '''
+
+        if self._protection_failure_response is None:
+            return BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+
+        return self._protection_failure_response(account_id)
+
+    async def _free_asset_balance(self, account_id: str, asset: str) -> Decimal:
+        '''Return the venue free balance of an asset, or zero if absent.'''
+
+        entries = await self._venue_adapter.query_balance(
+            account_id, frozenset({asset}),
+        )
+        for entry in entries:
+            if entry.asset == asset:
+                return entry.free
+
+        return _ZERO
+
+    async def _oco_has_live_leg(
+        self, cmd: TradeCommand, list_client_order_id: str,
+    ) -> bool:
+        '''Whether any leg of a protective OCO is still live or partly filled.
+
+        A second MARKET against a stop-limit that is still executing is a short
+        on spot (no reduceOnly), so the flatten must not run while any leg of
+        the cancelled OCO is non-terminal. A query failure is treated as live
+        (fail-closed): the caller stays STATE_UNKNOWN rather than flatten blind.
+        '''
+
+        try:
+            order_list = await self._venue_adapter.query_order_list(
+                cmd.account_id, list_client_order_id=list_client_order_id,
+            )
+            for leg in order_list.legs:
+                leg_order = await self._venue_adapter.query_order(
+                    cmd.account_id, cmd.symbol, client_order_id=leg.client_order_id,
+                )
+                if leg_order.status not in _TERMINAL_ORDER_STATUSES:
+                    return True
+        except NotFoundError:
+            return False
+        except VenueError:
+            _log.exception(
+                'flatten live-leg guard query failed; treating as live: '
+                'command_id=%s',
+                cmd.command_id,
+            )
+            return True
+
+        return False
+
+    async def _flatten_bracket_remainder(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        protection_version: int,
+        reason: str,
+        remainder: Decimal,
+        oco_list_client_order_id: str | None = None,
+    ) -> None:
+        '''Market-close the reconciled remainder of an unprotected bracket.
+
+        The naked position left when a protective-OCO amend fails is closed
+        with a MARKET order on the protective side, sized as the caller's
+        venue-reconciled remainder capped by the fresh free balance of the cap
+        asset (base for a SELL flatten, quote for a BUY) and lot-snapped down —
+        never the raw balance, which would dump unrelated account inventory. A
+        remainder below the lot or notional minimum, or no free cap asset, is
+        left for a halt-and-alert rather than a dust order or an oversell.
+        Before submitting, any still-live protective leg aborts the flatten
+        (STATE_UNKNOWN): a second MARKET against an executing stop is a short.
+        The `FlattenInitiated` intent is persisted before the venue submit, so
+        a crash replays it and the deterministic client id is queried before
+        any resubmission. The flatten submits under the bracket exit command
+        id, so its fill produces the position-closing EXIT outcome. Runs on the
+        account loop (single writer); the free balance is read immediately
+        before submit and never cached across flattens.
+
+        Args:
+            runtime (_AccountRuntime): Account whose bracket to flatten.
+            bracket (_LiveBracket): The unprotected bracket.
+            protection_version (int): Protective-OCO revision that failed.
+            reason (str): Human-readable trigger for the flatten.
+            remainder (Decimal): Venue-reconciled remaining position to close
+                (entry filled minus the cancelled OCO's venue-truth fills).
+            oco_list_client_order_id (str | None): Cancelled OCO list id to
+                re-check for a live leg immediately before flattening; None
+                skips the guard.
+        '''
+
+        cmd = bracket.command
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        cap_asset = (
+            filters.base_asset if protective_side is OrderSide.SELL
+            else filters.quote_asset
+        ) if filters is not None else ''
+        if filters is None or not cap_asset:
+            _log.error(
+                'cannot flatten bracket without symbol filters and the cap asset; '
+                'position left unprotected for halt: command_id=%s reason=%s',
+                cmd.command_id,
+                reason,
+            )
+            return
+
+        if (
+            oco_list_client_order_id is not None
+            and await self._oco_has_live_leg(cmd, oco_list_client_order_id)
+        ):
+            _log.warning(
+                'flatten aborted; a protective leg is still live or partially '
+                'filled, staying STATE_UNKNOWN: command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        entry_filled, entry_notional = self._command_fill_totals(runtime, cmd.command_id)
+
+        if remainder <= _ZERO or entry_filled <= _ZERO:
+            _log.info(
+                'flatten no-op; bracket remainder already closed: command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        avg_entry_price = entry_notional / entry_filled
+        free = await self._free_asset_balance(cmd.account_id, cap_asset)
+
+        if protective_side is OrderSide.SELL:
+            cap = free
+        else:
+            cap = free / avg_entry_price if avg_entry_price > _ZERO else _ZERO
+
+        qty = (min(remainder, cap) // filters.lot_step) * filters.lot_step
+
+        if qty < remainder:
+            _log.warning(
+                'flatten capped below remainder by free %s balance; shortfall: '
+                'command_id=%s remainder=%s free=%s qty=%s',
+                cap_asset,
+                cmd.command_id,
+                remainder,
+                free,
+                qty,
+            )
+
+        notional = qty * avg_entry_price
+        if qty < filters.lot_min or notional < filters.min_notional:
+            _log.error(
+                'flatten remainder below lot or notional minimum; position left '
+                'unprotected for halt: command_id=%s qty=%s notional=%s',
+                cmd.command_id,
+                qty,
+                notional,
+            )
+            return
+
+        client_order_id = generate_client_order_id(
+            ExecutionMode.BRACKET, cmd.command_id, sequence=_BRACKET_FLATTEN_SEQUENCE,
+        )
+
+        flatten = FlattenInitiated(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=protection_version,
+            qty=qty,
+            client_order_id=client_order_id,
+        )
+        await self._event_spine.append(flatten, self._epoch_id)
+
+        await self._submit_flatten_order(
+            runtime, cmd, exit_command_id, protective_side, qty, client_order_id,
+        )
+
+    def _flatten_exit_command(
+        self,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        qty: Decimal,
+    ) -> TradeCommand:
+        '''Build the MARKET exit command the flatten order settles under.'''
+
+        return TradeCommand(
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            qty=qty,
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(),
+            timeout=cmd.timeout,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=self._clock(),
+        )
+
+    async def _submit_flatten_order(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        qty: Decimal,
+        client_order_id: str,
+    ) -> None:
+        '''Submit and project the MARKET flatten order under the exit id.'''
+
+        exit_cmd = self._flatten_exit_command(
+            cmd, exit_command_id, protective_side, qty,
+        )
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            order_type=OrderType.MARKET,
+            qty=qty,
+            quote_qty=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                protective_side,
+                OrderType.MARKET,
+                qty,
+                client_order_id=client_order_id,
+            )
+        except VenueError as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, exit_cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                _log.exception(
+                    'flatten submit unconfirmable; position may be naked: '
+                    'command_id=%s client_order_id=%s',
+                    cmd.command_id,
+                    client_order_id,
+                )
+                await self._append_submit_failed(
+                    runtime,
+                    exit_cmd,
+                    client_order_id,
+                    str(exc.args[0]) if exc.args else str(exc),
+                )
+
+                return
+
+            result = rescued
+
+        self._commands[exit_command_id] = exit_cmd
+        self._command_trade_ids[exit_command_id] = cmd.trade_id
+        runtime.command_to_order[exit_command_id] = client_order_id
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        _log.info(
+            'bracket flatten submitted: command_id=%s exit_command_id=%s side=%s '
+            'qty=%s venue_order_id=%s',
+            cmd.command_id,
+            exit_command_id,
+            protective_side.value,
+            qty,
+            result.venue_order_id,
+        )
+
+        flat_order = self._scheme_child_order(runtime, client_order_id)
+        if (
+            flat_order is not None
+            and flat_order.status in _TERMINAL_ORDER_STATUSES
+            and flat_order.filled_qty > _ZERO
+        ):
+            await self._build_outcome(
+                runtime,
+                exit_cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    flat_order.status, TradeStatus.FILLED,
+                ),
+                filled_qty=flat_order.filled_qty,
+                avg_fill_price=flat_order.cumulative_notional / flat_order.filled_qty,
+                reason=None,
+                cumulative_notional=flat_order.cumulative_notional,
+            )
+
+    async def recover_incomplete_flattens(
+        self,
+        account_id: str,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Reconcile or re-attempt the flatten for a failed-protection bracket.
+
+        Keyed on `ProtectionFailed` (the durable naked marker), not on
+        `FlattenInitiated`, so a crash after recording the failure but before
+        the flatten intent still retries — the flatten is required whenever
+        the account policy is FLATTEN_THEN_HALT. The flatten client id is
+        deterministic, so for each failed bracket whose flatten order has not
+        settled filled the venue is queried by that id: a filled order is
+        reconciled from its trades (never resubmitted), a still-working order
+        is left in place, and a never-reached or terminal-unfilled order is
+        re-flattened against a freshly re-capped free balance under the same
+        client id.
+
+        Args:
+            account_id (str): Account whose events were just replayed.
+            events (list[tuple[int, Event]]): The replayed event sequence.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        if (
+            self._protection_response_for(account_id)
+            is not BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+        ):
+            return
+
+        inits: dict[str, BracketInitialized] = {}
+        failed: dict[str, ProtectionFailed] = {}
+        for _seq, event in events:
+            if isinstance(event, BracketInitialized):
+                inits[event.command_id] = event
+            elif isinstance(event, ProtectionFailed):
+                failed[event.command_id] = event
+
+        for command_id, protection_failed in failed.items():
+            flatten_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_FLATTEN_SEQUENCE,
+            )
+            order = self._scheme_child_order(runtime, flatten_client_order_id)
+            if (
+                order is not None
+                and order.status in _TERMINAL_ORDER_STATUSES
+                and order.filled_qty > _ZERO
+            ):
+                continue
+
+            init = inits.get(command_id)
+            if init is None:
+                _log.error(
+                    'flatten recovery skipped; no bracket init: command_id=%s '
+                    'account_id=%s',
+                    command_id,
+                    account_id,
+                )
+
+                continue
+
+            cmd = self._bracket_command_from_init(init)
+            exit_command_id = bracket_exit_command_id(command_id)
+            protective_side = (
+                OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+            )
+
+            try:
+                venue_order = await self._venue_adapter.query_order(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=flatten_client_order_id,
+                )
+            except NotFoundError:
+                venue_order = None
+            except VenueError:
+                _log.exception(
+                    'flatten recovery query failed; left for later reconcile: '
+                    'command_id=%s',
+                    command_id,
+                )
+
+                continue
+
+            if venue_order is not None and venue_order.filled_qty > _ZERO:
+                await self._reconcile_flatten_fills(
+                    runtime,
+                    cmd,
+                    exit_command_id,
+                    protective_side,
+                    flatten_client_order_id,
+                    venue_order,
+                )
+
+                continue
+
+            if (
+                venue_order is not None
+                and venue_order.status not in _TERMINAL_ORDER_STATUSES
+            ):
+                _log.info(
+                    'flatten recovery: order still working, left in place: '
+                    'command_id=%s',
+                    command_id,
+                )
+
+                continue
+
+            await self._boot_reflatten(
+                runtime, cmd, command_id, protection_failed.protection_version,
+            )
+
+    async def _reconcile_flatten_fills(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        client_order_id: str,
+        venue_order: VenueOrder,
+    ) -> None:
+        '''Project a flatten that filled at the venue but was not recorded.
+
+        Only projects when the local flatten order carries no fills yet: the
+        fill projection sums quantities rather than deduplicating by trade id,
+        so re-projecting an order that already recorded fills would double
+        count. A partially-recorded order is left for the live WS reconcile.
+        '''
+
+        existing = self._scheme_child_order(runtime, client_order_id)
+        if existing is not None and existing.filled_qty > _ZERO:
+            _log.warning(
+                'flatten recovery: order already carries fills, leaving for live '
+                'reconcile: command_id=%s',
+                cmd.command_id,
+            )
+
+            return
+
+        exit_cmd = self._flatten_exit_command(
+            cmd, exit_command_id, protective_side, venue_order.qty,
+        )
+        self._commands[exit_command_id] = exit_cmd
+        self._command_trade_ids[exit_command_id] = cmd.trade_id
+        runtime.command_to_order[exit_command_id] = client_order_id
+
+        if existing is None:
+            intent = OrderSubmitIntent(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                command_id=exit_command_id,
+                trade_id=cmd.trade_id,
+                client_order_id=client_order_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                order_type=OrderType.MARKET,
+                qty=venue_order.qty,
+                quote_qty=None,
+            )
+            await self._event_spine.append(intent, self._epoch_id)
+            runtime.trading_state.apply(intent)
+
+            submitted = OrderSubmitted(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=venue_order.venue_order_id,
+                leg_client_order_ids=(),
+            )
+            await self._event_spine.append(submitted, self._epoch_id)
+            runtime.trading_state.apply(submitted)
+
+        trades = await self._venue_adapter.query_trades(cmd.account_id, cmd.symbol)
+        for trade in trades:
+            if trade.client_order_id != client_order_id:
+                continue
+
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=venue_order.venue_order_id,
+                venue_trade_id=trade.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=trade.qty,
+                price=trade.price,
+                fee=trade.fee,
+                fee_asset=trade.fee_asset,
+                is_maker=trade.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        flat_order = self._scheme_child_order(runtime, client_order_id)
+        if flat_order is not None and flat_order.filled_qty > _ZERO:
+            await self._build_outcome(
+                runtime,
+                exit_cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    flat_order.status, TradeStatus.FILLED,
+                ),
+                filled_qty=flat_order.filled_qty,
+                avg_fill_price=flat_order.cumulative_notional / flat_order.filled_qty,
+                reason=None,
+                cumulative_notional=flat_order.cumulative_notional,
+            )
+
+        _log.info(
+            'flatten recovery reconciled venue fills: command_id=%s '
+            'exit_command_id=%s filled=%s',
+            cmd.command_id,
+            exit_command_id,
+            venue_order.filled_qty,
+        )
+
+    async def _boot_reflatten(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        command_id: str,
+        protection_version: int,
+    ) -> None:
+        '''Re-attempt a flatten that never reached the venue after a restart.'''
+
+        entry_client_order_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+        )
+        bracket = _LiveBracket(
+            command=cmd, entry_client_order_id=entry_client_order_id,
+        )
+        exit_command_id = bracket_exit_command_id(command_id)
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
+        remainder = entry_filled - exit_filled
+        _log.warning(
+            'flatten recovery: re-attempting flatten never confirmed at venue: '
+            'command_id=%s',
+            command_id,
+        )
+        await self._flatten_bracket_remainder(
+            runtime, bracket, protection_version, 'boot flatten recovery',
+            remainder,
+        )
+
     async def _on_slice_failure(
         self,
         runtime: _AccountRuntime,
@@ -5474,6 +6074,16 @@ class ExecutionManager:
                     new_version,
                     reason,
                 )
+
+                if (
+                    self._protection_response_for(cmd.account_id)
+                    is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+                ):
+                    await self._flatten_bracket_remainder(
+                        runtime, bracket, new_version, reason,
+                        remaining, old_list_client_order_id,
+                    )
+
                 return
 
             submitted = OrderSubmitted(

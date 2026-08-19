@@ -281,6 +281,12 @@ class SymbolFilters:
         lot_min (Decimal): Minimum order quantity
         lot_max (Decimal): Maximum order quantity
         min_notional (Decimal): Minimum order value (price * qty)
+        base_asset (str): Base asset of the pair (e.g. 'BTC' for BTCUSDT),
+            used to query the free base balance when flattening a long. Empty
+            when the venue did not report it.
+        quote_asset (str): Quote asset of the pair (e.g. 'USDT' for BTCUSDT),
+            used to query the free quote balance when flattening a short (a
+            BUY flatten). Empty when the venue did not report it.
     '''
 
     symbol: str
@@ -289,6 +295,8 @@ class SymbolFilters:
     lot_min: Decimal
     lot_max: Decimal
     min_notional: Decimal
+    base_asset: str = ''
+    quote_asset: str = ''
 
 
 @dataclass(frozen=True)

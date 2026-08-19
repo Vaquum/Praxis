@@ -30,6 +30,7 @@ __all__ = [
     'CommandAccepted',
     'Event',
     'FillReceived',
+    'FlattenInitiated',
     'FundTransaction',
     'MarkSampled',
     'OperatorHaltRequested',
@@ -964,6 +965,50 @@ class ProtectionFailed(_EventBase):
 
 
 @dataclass(frozen=True)
+class FlattenInitiated(_EventBase):
+
+    '''
+    Represent the intent to market-close a naked bracket remainder.
+
+    Written before the MARKET flatten order is submitted to the venue, so a
+    crash mid-flatten replays the intent: on restart the deterministic
+    `client_order_id` is queried before any resubmission, and a live or
+    filled flatten is not sent twice. The quantity is the intent-time
+    reconciled remainder (recomputed and re-capped by free balance at send),
+    not a promise that it is still exact.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose remainder is being flattened.
+        protection_version (int): Protective-OCO revision whose failure
+            triggered the flatten.
+        qty (Decimal): Intent-time flatten quantity, a finite positive base
+            amount.
+        client_order_id (str): Deterministic client order id of the flatten
+            MARKET order.
+    '''
+
+    command_id: str
+    protection_version: int
+    qty: Decimal
+    client_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_protection_version(name, self.protection_version)
+
+        if not isinstance(self.qty, Decimal) or not self.qty.is_finite() or self.qty <= _ZERO:
+            msg = f'{name}.qty must be a finite positive Decimal'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class OrderAmendInitiated(_EventBase):
 
     '''
@@ -1516,4 +1561,5 @@ type Event = (
     | ProtectionReplaceSubmitted
     | ProtectionActive
     | ProtectionFailed
+    | FlattenInitiated
 )

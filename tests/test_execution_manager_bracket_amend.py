@@ -23,6 +23,10 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 
+from nexus.core.domain.bracket_protection_failure_response import (
+    BracketProtectionFailureResponse,
+)
+
 from praxis.core.domain.bracket_modify import BracketModify
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
@@ -45,6 +49,7 @@ from praxis.core.domain.events import (
     ProtectionFailed,
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
+    FlattenInitiated,
     SchemeFrozen,
     SchemeInitialized,
 )
@@ -57,9 +62,12 @@ from praxis.core.execution_manager import ExecutionManager, _LiveScheme
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
+    BalanceEntry,
     CancelResult,
     DuplicateClientOrderIdError,
     ImmediateFill,
+    NotFoundError,
+    VenueTrade,
     SubmitResult,
     SymbolFilters,
     TransientError,
@@ -115,6 +123,7 @@ def _filters() -> SymbolFilters:
         lot_min=Decimal('0.00001'),
         lot_max=Decimal('100'),
         min_notional=Decimal('10'),
+        base_asset='BTC',
     )
 
 
@@ -262,6 +271,36 @@ def _modify(command_id: str, **params: Any) -> TradeModify:
         modify_params=BracketModify(**params),
         created_at=_T0,
     )
+
+
+async def _truncate_after_flatten(
+    spine: EventSpine,
+) -> list[tuple[int, Any]]:
+    '''Return events up to and including FlattenInitiated (crash before submit).'''
+
+    rows = await spine.read(epoch_id=_EPOCH)
+    truncated: list[tuple[int, Any]] = []
+    for seq, event in rows:
+        truncated.append((seq, event))
+        if isinstance(event, FlattenInitiated):
+            break
+
+    return truncated
+
+
+async def _truncate_after_protection_failed(
+    spine: EventSpine,
+) -> list[tuple[int, Any]]:
+    '''Return events up to and including ProtectionFailed (crash before intent).'''
+
+    rows = await spine.read(epoch_id=_EPOCH)
+    truncated: list[tuple[int, Any]] = []
+    for seq, event in rows:
+        truncated.append((seq, event))
+        if isinstance(event, ProtectionFailed):
+            break
+
+    return truncated
 
 
 def _twap_scheme_init(command_id: str) -> SchemeInitialized:
@@ -587,6 +626,260 @@ class TestBracketAmendReplaceFails:
 
         bracket = runtime.brackets[command_id]
         assert bracket.protection_status is BracketProtectionStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_flatten_then_halt_market_sells_remainder_on_failure(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'),
+            new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
+
+        assert runtime.brackets[command_id].protection_status is BracketProtectionStatus.FAILED
+
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        rows = await spine.read(epoch_id=_EPOCH)
+        flattens = [e for _s, e in rows if isinstance(e, FlattenInitiated)]
+        assert len(flattens) == 1
+        assert flattens[0].qty == Decimal('1')
+        assert flattens[0].client_order_id == flatten_id
+
+        market_sells = [
+            c for c in adapter.submit_calls
+            if c['args'][3] is OrderType.MARKET
+            and c['args'][2] is OrderSide.SELL
+            and c['kwargs'].get('client_order_id') == flatten_id
+        ]
+        assert len(market_sells) == 1
+        assert market_sells[0]['args'][4] == Decimal('1')
+
+    @pytest.mark.asyncio
+    async def test_flatten_aborts_when_a_protective_leg_is_live(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        adapter.query_order.side_effect = None
+        adapter.query_order.return_value = VenueOrder(
+            venue_order_id='v-leg', client_order_id='leg', status=OrderStatus.PARTIALLY_FILLED,
+            symbol='BTCUSDT', side=OrderSide.SELL, order_type=OrderType.LIMIT,
+            qty=Decimal('1'), filled_qty=Decimal('0'), price=Decimal('56000'),
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+        assert not any(
+            c['args'][3] is OrderType.MARKET and c['args'][2] is OrderSide.SELL
+            for c in adapter.submit_calls
+        )
+
+    @pytest.mark.asyncio
+    async def test_flatten_skips_dust_remainder(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('0'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+        assert not any(
+            c['args'][3] is OrderType.MARKET and c['args'][2] is OrderSide.SELL
+            for c in adapter.submit_calls
+        )
+
+    @pytest.mark.asyncio
+    async def test_reduce_only_does_not_flatten_on_failure(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'),
+            new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        em._protection_failure_response = (
+            lambda _account_id: BracketProtectionFailureResponse.REDUCE_ONLY
+        )
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
+
+        assert runtime.brackets[command_id].protection_status is BracketProtectionStatus.FAILED
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+
+    @pytest.mark.asyncio
+    async def test_flatten_recovery_reflattens_when_never_submitted(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        truncated = await _truncate_after_flatten(spine)
+        await em.unregister_account(_ACCT)
+
+        recover_adapter = _make_adapter()
+        recover_adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        recover_adapter.query_order.side_effect = NotFoundError('no such order')
+        em2, _ = mgr_factory(recover_adapter)
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, truncated)
+        await em2.recover_incomplete_flattens(_ACCT, truncated)
+
+        market_sells = [
+            c for c in recover_adapter.submit_calls
+            if c['args'][3] is OrderType.MARKET
+            and c['args'][2] is OrderSide.SELL
+            and c['kwargs'].get('client_order_id') == flatten_id
+        ]
+        assert len(market_sells) == 1
+        assert market_sells[0]['args'][4] == Decimal('1')
+
+        await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_flatten_recovery_reflattens_when_intent_never_persisted(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        truncated = await _truncate_after_protection_failed(spine)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in truncated)
+        await em.unregister_account(_ACCT)
+
+        recover_adapter = _make_adapter()
+        recover_adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        recover_adapter.query_order.side_effect = NotFoundError('no such order')
+        em2, _ = mgr_factory(recover_adapter)
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, truncated)
+        await em2.recover_incomplete_flattens(_ACCT, truncated)
+
+        market_sells = [
+            c for c in recover_adapter.submit_calls
+            if c['args'][3] is OrderType.MARKET
+            and c['args'][2] is OrderSide.SELL
+            and c['kwargs'].get('client_order_id') == flatten_id
+        ]
+        assert len(market_sells) == 1
+        assert market_sells[0]['args'][4] == Decimal('1')
+
+        await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_flatten_recovery_reconciles_venue_fills(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        truncated = await _truncate_after_flatten(spine)
+        await em.unregister_account(_ACCT)
+
+        recover_adapter = _make_adapter()
+        recover_adapter.query_order.side_effect = None
+        recover_adapter.query_order.return_value = VenueOrder(
+            venue_order_id='v-flat', client_order_id=flatten_id,
+            status=OrderStatus.FILLED, symbol='BTCUSDT', side=OrderSide.SELL,
+            order_type=OrderType.MARKET, qty=Decimal('1'), filled_qty=Decimal('1'),
+            price=None,
+        )
+        recover_adapter.query_trades = AsyncMock(return_value=[
+            VenueTrade(
+                venue_trade_id='t-flat', venue_order_id='v-flat',
+                client_order_id=flatten_id, symbol='BTCUSDT', side=OrderSide.SELL,
+                qty=Decimal('1'), price=Decimal('49000'), fee=Decimal('0'),
+                fee_asset='USDT', is_maker=False, timestamp=_T0,
+            ),
+        ])
+        em2, _ = mgr_factory(recover_adapter)
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, truncated)
+        await em2.recover_incomplete_flattens(_ACCT, truncated)
+
+        assert not any(
+            c['args'][3] is OrderType.MARKET
+            and c['kwargs'].get('client_order_id') == flatten_id
+            for c in recover_adapter.submit_calls
+        )
+        flat_order = em2._scheme_child_order(em2._accounts[_ACCT], flatten_id)
+        assert flat_order is not None
+        assert flat_order.filled_qty == Decimal('1')
+
+        await em2.unregister_account(_ACCT)
 
     @pytest.mark.asyncio
     async def test_protection_failure_freezes_account_schemes(
