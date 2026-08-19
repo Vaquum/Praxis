@@ -5459,11 +5459,17 @@ class ExecutionManager:
                 return
 
             if order_list is None:
+                await self._freeze_account_schemes(
+                    runtime,
+                    f'bracket protection failed: command_id={cmd.command_id} '
+                    f'version={new_version}',
+                )
                 await self._append_protection_failed(cmd, new_version, reason)
                 bracket.protection_status = BracketProtectionStatus.FAILED
                 _log.warning(
                     'bracket protective replacement rejected by venue; '
-                    'protection failed: command_id=%s version=%d reason=%s',
+                    'account schemes frozen then protection failed: command_id=%s '
+                    'version=%d reason=%s',
                     cmd.command_id,
                     new_version,
                     reason,

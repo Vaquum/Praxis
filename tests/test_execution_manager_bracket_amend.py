@@ -45,11 +45,15 @@ from praxis.core.domain.events import (
     ProtectionFailed,
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
+    SchemeFrozen,
+    SchemeInitialized,
 )
+from praxis.core.domain.trade_command import TradeCommand
+from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _LiveScheme
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
@@ -257,6 +261,32 @@ def _modify(command_id: str, **params: Any) -> TradeModify:
         reason='amend protection',
         modify_params=BracketModify(**params),
         created_at=_T0,
+    )
+
+
+def _twap_scheme_init(command_id: str) -> SchemeInitialized:
+    return SchemeInitialized(
+        account_id=_ACCT, timestamp=_T0, command_id=command_id,
+        trade_id='twap-trade', execution_mode=ExecutionMode.TWAP,
+        symbol='BTCUSDT', side=OrderSide.BUY, total_qty=Decimal('1'),
+        slices_total=4, interval_seconds=10, timeout_seconds=3600,
+        volume_weights=(),
+    )
+
+
+def _inject_twap_scheme(runtime: Any, command_id: str) -> None:
+    cmd = TradeCommand(
+        command_id=command_id, trade_id='twap-trade', account_id=_ACCT,
+        symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
+        order_type=OrderType.MARKET, execution_mode=ExecutionMode.TWAP,
+        execution_params=TwapParams(num_slices=4, interval_seconds=10),
+        timeout=3600, reference_price=None,
+        maker_preference=MakerPreference.NO_PREFERENCE, stp_mode=STPMode.NONE,
+        created_at=_T0,
+    )
+    runtime.schemes[command_id] = _LiveScheme(
+        command=cmd, slice_qtys=[Decimal('0.25')] * 4, slices_total=4,
+        interval_seconds=10, cursor=1, next_run_at=None,
     )
 
 
@@ -557,6 +587,64 @@ class TestBracketAmendReplaceFails:
 
         bracket = runtime.brackets[command_id]
         assert bracket.protection_status is BracketProtectionStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_protection_failure_freezes_account_schemes(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'),
+            new_list_status='REJECT',
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+        _inject_twap_scheme(runtime, 'twap-1')
+
+        await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
+
+        assert runtime.brackets[command_id].protection_status is BracketProtectionStatus.FAILED
+        assert runtime.schemes['twap-1'].frozen is True
+        assert runtime.schemes['twap-1'].protection_frozen is True
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        frozen = [(seq, e) for seq, e in rows if isinstance(e, SchemeFrozen)]
+        assert len(frozen) == 1
+        assert frozen[0][1].command_id == 'twap-1'
+
+        failed_seq = next(seq for seq, e in rows if isinstance(e, ProtectionFailed))
+        assert frozen[0][0] < failed_seq
+
+    @pytest.mark.asyncio
+    async def test_scheme_freeze_survives_crash_before_failure_record(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, _ = mgr_factory(_make_adapter())
+        em.register_account(_ACCT)
+        runtime = em._accounts[_ACCT]
+
+        await spine.append(_twap_scheme_init('twap-1'), _EPOCH)
+        _inject_twap_scheme(runtime, 'twap-1')
+
+        await em._freeze_account_schemes(runtime, 'bracket protection failed')
+        await em.unregister_account(_ACCT)
+
+        events = await spine.read(epoch_id=_EPOCH)
+        assert any(isinstance(e, SchemeFrozen) for _s, e in events)
+        assert not any(isinstance(e, ProtectionFailed) for _s, e in events)
+
+        restarted = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=_make_adapter(),
+            on_trade_outcome=None, clock=lambda: _T0,
+        )
+        restarted.register_account(_ACCT)
+        restarted.replay_events(_ACCT, events)
+
+        resumed = restarted._accounts[_ACCT].schemes['twap-1']
+        assert resumed.frozen is True
+        assert resumed.protection_frozen is True
+
+        await restarted.unregister_account(_ACCT)
 
 
 class TestBracketAmendIdempotentPlace:
