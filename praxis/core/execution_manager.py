@@ -243,6 +243,7 @@ class _LiveScheme:
     next_run_at: datetime | None = None
     deadline: datetime | None = None
     frozen: bool = False
+    protection_frozen: bool = False
     state: SchemeState = SchemeState.RUNNING
 
 
@@ -868,6 +869,7 @@ class ExecutionManager:
         latest_state: dict[str, SchemeStateChanged] = {}
         terminal_outcomes: set[str] = set()
         frozen_ids: set[str] = set()
+        protection_frozen_ids: set[str] = set()
 
         for _seq, event in events:
             if (
@@ -877,8 +879,11 @@ class ExecutionManager:
                 inits.setdefault(event.command_id, event)
             elif isinstance(event, SchemeStateChanged):
                 latest_state[event.command_id] = event
-            elif isinstance(event, (SliceFailed, SchemeFrozen)):
+            elif isinstance(event, SliceFailed):
                 frozen_ids.add(event.command_id)
+            elif isinstance(event, SchemeFrozen):
+                frozen_ids.add(event.command_id)
+                protection_frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
 
@@ -922,6 +927,7 @@ class ExecutionManager:
                 next_run_at=None,
                 deadline=deadline,
                 frozen=command_id in frozen_ids,
+                protection_frozen=command_id in protection_frozen_ids,
             )
             runtime.schemes[command_id] = scheme
             self._commands[command_id] = command
@@ -1128,14 +1134,18 @@ class ExecutionManager:
         latest_state: dict[str, SchemeStateChanged] = {}
         terminal_outcomes: set[str] = set()
         frozen_ids: set[str] = set()
+        protection_frozen_ids: set[str] = set()
 
         for _seq, event in events:
             if isinstance(event, SchemeInitialized):
                 inits.setdefault(event.command_id, event)
             elif isinstance(event, SchemeStateChanged):
                 latest_state[event.command_id] = event
-            elif isinstance(event, (SliceFailed, SchemeFrozen)):
+            elif isinstance(event, SliceFailed):
                 frozen_ids.add(event.command_id)
+            elif isinstance(event, SchemeFrozen):
+                frozen_ids.add(event.command_id)
+                protection_frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
 
@@ -1226,6 +1236,7 @@ class ExecutionManager:
                 next_run_at=state.next_run_at if state is not None else None,
                 deadline=deadline,
                 frozen=command_id in frozen_ids,
+                protection_frozen=command_id in protection_frozen_ids,
             )
 
             if (
@@ -4665,8 +4676,10 @@ class ExecutionManager:
         slice. The durable event lands the scheme in the replay freeze set,
         so a restart resumes it frozen instead of re-arming its timer — the
         naked-protection interlock that stops schemes buying while a bracket
-        is unprotected, across restarts. Idempotent: an already-frozen or
-        terminalizing scheme is skipped.
+        is unprotected, across restarts. A scheme frozen only by a slice
+        failure (amend-resumable) is upgraded to protection-frozen so an
+        amend cannot resume it during the remediation. Idempotent: an
+        already-protection-frozen or terminalizing scheme is skipped.
 
         Args:
             runtime (_AccountRuntime): Account whose schemes to freeze.
@@ -4679,7 +4692,7 @@ class ExecutionManager:
         frozen: list[str] = []
 
         for command_id, scheme in runtime.schemes.items():
-            if scheme.frozen or scheme.pending_terminal is not None:
+            if scheme.protection_frozen or scheme.pending_terminal is not None:
                 continue
 
             event = SchemeFrozen(
@@ -4691,6 +4704,7 @@ class ExecutionManager:
             await self._event_spine.append(event, self._epoch_id)
 
             scheme.frozen = True
+            scheme.protection_frozen = True
             scheme.next_run_at = None
             frozen.append(command_id)
 
@@ -5701,10 +5715,11 @@ class ExecutionManager:
         not from the previous slice. A new total at or below the fired cursor
         is rejected (a scheme is stopped with a TradeAbort, not by shrinking
         it below what has already fired). A successful amend clears
-        a freeze, resuming a scheme frozen by a slice failure. The amend is
-        applied in memory only — a restart replays the original schedule
-        (TD-135) — and a Scheduled VWAP weight-curve amend is not yet
-        supported.
+        a freeze, resuming a scheme frozen by a slice failure — but a scheme
+        frozen by a protection remediation is not resumable by an amend and
+        the modify is rejected. The amend is applied in memory only — a
+        restart replays the original schedule (TD-135) — and a Scheduled
+        VWAP weight-curve amend is not yet supported.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -5716,6 +5731,14 @@ class ExecutionManager:
         params = modify.modify_params
         assert cmd.qty is not None
         assert isinstance(params, (TwapModify, TimeDcaModify, ScheduledVwapModify))
+
+        if scheme.protection_frozen:
+            _log.warning(
+                'modify rejected: scheme is frozen by a protection remediation '
+                'and cannot be resumed by an amend: command_id=%s',
+                cmd.command_id,
+            )
+            return
 
         if isinstance(params, ScheduledVwapModify) and params.volume_weights is not None:
             _log.warning(
