@@ -81,6 +81,12 @@ from nexus.infrastructure.praxis_connector.trade_outcome import (
 )
 from nexus.infrastructure.state_store import StateSnapshotLocks, StateStore
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
+from nexus.infrastructure.praxis_connector.protection_remediation import (
+    ProtectionRemediation,
+)
+from nexus.reconciler.protection_remediation_handler import (
+    ProtectionRemediationHandler,
+)
 from nexus.reconciler.reconciliation_handler import ReconciliationHandler
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
@@ -2474,6 +2480,7 @@ class _NexusRuntime:
     unknown_submission_monitor: _UnknownSubmissionMonitor
     outcome_processor: OutcomeProcessor
     reconciliation_handler: ReconciliationHandler
+    protection_remediation_handler: ProtectionRemediationHandler
     process_outcome: Callable[[NexusTradeOutcome], None]
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -2831,8 +2838,26 @@ class Launcher:
                 translate_reconciliation_mismatch(praxis_mismatch),
             )
 
+        def _route_protection_remediation(
+            remediation: ProtectionRemediation,
+        ) -> None:
+            with self._nexus_runtimes_lock:
+                runtime = self._nexus_runtimes.get(remediation.account_id)
+
+            if runtime is None:
+                msg = (
+                    f'no nexus runtime for account {remediation.account_id!r}; '
+                    'protection remediation not delivered'
+                )
+                raise _NexusRuntimeNotReadyError(msg)
+
+            runtime.protection_remediation_handler.process_protection_remediation(
+                remediation,
+            )
+
         self._trading.set_on_fund_transaction(_route_fund_transaction)
         self._trading.set_on_reconciliation_mismatch(_route_reconciliation_mismatch)
+        self._trading.set_on_protection_remediation(_route_protection_remediation)
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
@@ -3887,6 +3912,9 @@ class Launcher:
         reconciliation_handler = ReconciliationHandler(
             mode_controller, manifest.reconciliation_mismatch_response,
         )
+        protection_remediation_handler = ProtectionRemediationHandler(
+            mode_controller, manifest.bracket_protection_failure_response,
+        )
         state_store.attach_snapshot_locks(
             _build_state_snapshot_locks(state, positions_lock, capital_controller),
         )
@@ -4402,6 +4430,7 @@ class Launcher:
             unknown_submission_monitor=unknown_submission_monitor,
             outcome_processor=outcome_processor,
             reconciliation_handler=reconciliation_handler,
+            protection_remediation_handler=protection_remediation_handler,
             process_outcome=process_outcome,
             positions_lock=positions_lock,
         )

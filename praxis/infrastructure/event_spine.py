@@ -32,6 +32,7 @@ import orjson
 from praxis.core.domain.events import (
     BracketInitialized,
     OrderAmendInitiated,
+    ProtectionRemediationDelivered,
     SchemeFrozen,
     SchemeInitialized,
     SchemeStateChanged,
@@ -247,6 +248,7 @@ _EVENT_REGISTRY: dict[str, type] = {
         ProtectionActive,
         ProtectionFailed,
         FlattenInitiated,
+        ProtectionRemediationDelivered,
     )
 }
 

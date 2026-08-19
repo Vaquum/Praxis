@@ -40,6 +40,7 @@ from praxis.core.domain.events import (
     ProtectionAmendRequested,
     ProtectionCancelConfirmed,
     ProtectionFailed,
+    ProtectionRemediationDelivered,
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
     ReconciliationMismatch,
@@ -171,6 +172,7 @@ class TradingState:
                 ProtectionActive,
                 ProtectionFailed,
                 FlattenInitiated,
+                ProtectionRemediationDelivered,
             ),
         ):
             return

@@ -40,6 +40,7 @@ from praxis.core.domain.events import (
     ProtectionAmendRequested,
     ProtectionCancelConfirmed,
     ProtectionFailed,
+    ProtectionRemediationDelivered,
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
     SchemeFrozen,
@@ -65,6 +66,9 @@ from praxis.core.domain.events import (
 )
 from nexus.core.domain.bracket_protection_failure_response import (
     BracketProtectionFailureResponse,
+)
+from nexus.infrastructure.praxis_connector.protection_remediation import (
+    ProtectionRemediation,
 )
 
 from praxis.core.domain.order import Order
@@ -452,6 +456,9 @@ class ExecutionManager:
         protection_failure_response: (
             Callable[[str], BracketProtectionFailureResponse] | None
         ) = None,
+        on_protection_remediation: (
+            Callable[[ProtectionRemediation], Awaitable[None]] | None
+        ) = None,
     ) -> None:
         '''Store dependencies and initialize empty account registry.
 
@@ -477,6 +484,8 @@ class ExecutionManager:
         self._on_trade_outcome = on_trade_outcome
         self._clock = clock
         self._protection_failure_response = protection_failure_response
+        self._on_protection_remediation = on_protection_remediation
+        self._pending_remediations: dict[str, ProtectionRemediation] = {}
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
@@ -508,6 +517,20 @@ class ExecutionManager:
         '''
 
         self._on_trade_outcome = cb
+
+    def set_on_protection_remediation(
+        self,
+        cb: Callable[[ProtectionRemediation], Awaitable[None]] | None,
+    ) -> None:
+        '''Replace the on_protection_remediation callback.
+
+        Used by `Trading.set_on_protection_remediation` so the launcher can
+        wire the per-account Nexus delivery closure after `Trading()` is
+        constructed. Must accept a `ProtectionRemediation` and return an
+        awaitable.
+        '''
+
+        self._on_protection_remediation = cb
 
     async def _dispatch_outcome_with_retry(
         self,
@@ -4747,6 +4770,98 @@ class ExecutionManager:
 
         return _ZERO
 
+    def _record_protection_remediation(
+        self,
+        account_id: str,
+        command_id: str,
+        protection_version: int,
+        reason: str,
+    ) -> None:
+        '''Record a protection remediation for durable delivery to Nexus.
+
+        Kept in memory keyed by command id and delivered (idempotently) by
+        `drain_protection_remediations` on the reconcile cycle: the Nexus hold
+        is sticky, so re-delivery after a restart is a no-op. Applies to both
+        policies — Nexus's handler decides HALT vs REDUCE_ONLY.
+        '''
+
+        self._pending_remediations[command_id] = ProtectionRemediation(
+            account_id=account_id,
+            timestamp=self._clock().astimezone(UTC),
+            protection_remediation_id=f'protection-{command_id}-{protection_version}',
+            command_id=command_id,
+            protection_version=protection_version,
+            reason=reason,
+        )
+
+    def seed_protection_remediations(
+        self,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Re-seed pending remediations from replayed `ProtectionFailed` events.
+
+        A failed bracket's Nexus hold must be delivered after a restart, and a
+        failed bracket is not resumed into `runtime.brackets`, so the pending
+        set is rebuilt from the durable failure markers — except commands
+        already recorded delivered by a `ProtectionRemediationDelivered`. The
+        Nexus hold is sticky and operator-cleared, so re-delivering an
+        already-delivered remediation would re-apply a hold an operator may
+        have since lifted; the delivered marker prevents that.
+        '''
+
+        delivered: set[str] = {
+            event.command_id
+            for _seq, event in events
+            if isinstance(event, ProtectionRemediationDelivered)
+        }
+
+        for _seq, event in events:
+            if isinstance(event, ProtectionFailed) and event.command_id not in delivered:
+                self._record_protection_remediation(
+                    event.account_id,
+                    event.command_id,
+                    event.protection_version,
+                    event.reason,
+                )
+
+    async def drain_protection_remediations(self, account_id: str) -> None:
+        '''Deliver pending protection remediations for an account to Nexus.
+
+        Mirrors the reconciliation-mismatch delivery: each pending remediation
+        is delivered through the injected callback, dropped from the pending
+        set on success, and left to retry on the next cycle on any failure
+        (including the Nexus runtime not being ready yet).
+        '''
+
+        if self._on_protection_remediation is None:
+            return
+
+        pending = [
+            (command_id, remediation)
+            for command_id, remediation in self._pending_remediations.items()
+            if remediation.account_id == account_id
+        ]
+        for command_id, remediation in pending:
+            try:
+                await self._on_protection_remediation(remediation)
+            except Exception:  # noqa: BLE001 - leave pending to retry next cycle
+                _log.exception(
+                    'failed to deliver protection remediation to Nexus; will '
+                    'retry next cycle: command_id=%s',
+                    command_id,
+                )
+
+                continue
+
+            delivered = ProtectionRemediationDelivered(
+                account_id=remediation.account_id,
+                timestamp=self._clock(),
+                command_id=command_id,
+                protection_remediation_id=remediation.protection_remediation_id,
+            )
+            await self._event_spine.append(delivered, self._epoch_id)
+            self._pending_remediations.pop(command_id, None)
+
     async def _oco_has_live_leg(
         self, cmd: TradeCommand, list_client_order_id: str,
     ) -> bool:
@@ -6066,6 +6181,9 @@ class ExecutionManager:
                 )
                 await self._append_protection_failed(cmd, new_version, reason)
                 bracket.protection_status = BracketProtectionStatus.FAILED
+                self._record_protection_remediation(
+                    cmd.account_id, cmd.command_id, new_version, reason,
+                )
                 _log.warning(
                     'bracket protective replacement rejected by venue; '
                     'account schemes frozen then protection failed: command_id=%s '
@@ -6083,6 +6201,8 @@ class ExecutionManager:
                         runtime, bracket, new_version, reason,
                         remaining, old_list_client_order_id,
                     )
+
+                await self.drain_protection_remediations(cmd.account_id)
 
                 return
 

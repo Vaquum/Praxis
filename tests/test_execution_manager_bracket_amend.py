@@ -49,6 +49,7 @@ from praxis.core.domain.events import (
     ProtectionFailed,
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
+    ProtectionRemediationDelivered,
     FlattenInitiated,
     SchemeFrozen,
     SchemeInitialized,
@@ -878,6 +879,142 @@ class TestBracketAmendReplaceFails:
         flat_order = em2._scheme_child_order(em2._accounts[_ACCT], flatten_id)
         assert flat_order is not None
         assert flat_order.filled_qty == Decimal('1')
+
+        await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_failed_protection_records_and_drains_remediation(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        delivered: list[Any] = []
+
+        async def _capture(remediation: Any) -> None:
+            delivered.append(remediation)
+
+        em.set_on_protection_remediation(_capture)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        assert len(delivered) == 1
+        assert delivered[0].command_id == command_id
+        assert delivered[0].account_id == _ACCT
+
+        await em.drain_protection_remediations(_ACCT)
+        assert len(delivered) == 1
+
+    @pytest.mark.asyncio
+    async def test_remediation_delivery_retries_on_failure(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        calls = {'n': 0}
+
+        async def _flaky(_remediation: Any) -> None:
+            calls['n'] += 1
+            if calls['n'] == 1:
+                msg = 'nexus not ready'
+                raise RuntimeError(msg)
+
+        em.set_on_protection_remediation(_flaky)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        await em.drain_protection_remediations(_ACCT)
+        await em.drain_protection_remediations(_ACCT)
+
+        assert calls['n'] == 2
+
+    @pytest.mark.asyncio
+    async def test_seed_protection_remediations_redelivers_after_restart(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+        events = await spine.read(epoch_id=_EPOCH)
+        await em.unregister_account(_ACCT)
+
+        em2, _ = mgr_factory(_make_adapter())
+        delivered: list[Any] = []
+
+        async def _capture(remediation: Any) -> None:
+            delivered.append(remediation)
+
+        em2.set_on_protection_remediation(_capture)
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, events)
+        em2.seed_protection_remediations(events)
+        await em2.drain_protection_remediations(_ACCT)
+
+        assert len(delivered) == 1
+        assert delivered[0].command_id == command_id
+
+        await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_delivered_remediation_not_redelivered_after_restart(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+
+        async def _ok(_remediation: Any) -> None:
+            return
+
+        em.set_on_protection_remediation(_ok)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+        events = await spine.read(epoch_id=_EPOCH)
+        assert any(
+            isinstance(e, ProtectionRemediationDelivered) for _s, e in events
+        )
+        await em.unregister_account(_ACCT)
+
+        em2, _ = mgr_factory(_make_adapter())
+        delivered: list[Any] = []
+
+        async def _capture(remediation: Any) -> None:
+            delivered.append(remediation)
+
+        em2.set_on_protection_remediation(_capture)
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, events)
+        em2.seed_protection_remediations(events)
+        await em2.drain_protection_remediations(_ACCT)
+
+        assert delivered == []
 
         await em2.unregister_account(_ACCT)
 

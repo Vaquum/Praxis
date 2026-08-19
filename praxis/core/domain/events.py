@@ -50,6 +50,7 @@ __all__ = [
     'ProtectionAmendRequested',
     'ProtectionCancelConfirmed',
     'ProtectionFailed',
+    'ProtectionRemediationDelivered',
     'ProtectionReplaceSubmitted',
     'ProtectionStateUnknown',
     'ReconciliationMismatch',
@@ -1009,6 +1010,37 @@ class FlattenInitiated(_EventBase):
 
 
 @dataclass(frozen=True)
+class ProtectionRemediationDelivered(_EventBase):
+
+    '''
+    Represent a protection remediation durably delivered to Nexus.
+
+    Written after the account's Nexus `ProtectionRemediationHandler` has
+    accepted the remediation, so a restart does not re-push a remediation an
+    operator may since have cleared: the Nexus hold is sticky and
+    operator-lifted, and re-pushing would re-apply it. Boot seeding skips a
+    command whose remediation is already recorded delivered.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose remediation was delivered.
+        protection_remediation_id (str): Stable id of the delivered remediation.
+    '''
+
+    command_id: str
+    protection_remediation_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'protection_remediation_id', self.protection_remediation_id)
+
+
+@dataclass(frozen=True)
 class OrderAmendInitiated(_EventBase):
 
     '''
@@ -1562,4 +1594,5 @@ type Event = (
     | ProtectionActive
     | ProtectionFailed
     | FlattenInitiated
+    | ProtectionRemediationDelivered
 )

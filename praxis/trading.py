@@ -12,6 +12,10 @@ from decimal import Decimal
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
+from nexus.infrastructure.praxis_connector.protection_remediation import (
+    ProtectionRemediation,
+)
+
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
 from praxis.core.generate_client_order_id import praxis_command_fragment
 from praxis.core.domain.enums import (
@@ -179,6 +183,7 @@ class Trading:
             max_slippage_bps=max_slippage_bps,
             enabled_modes=config.enabled_execution_modes,
             protection_failure_response=config.response_for,
+            on_protection_remediation=config.on_protection_remediation,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,
@@ -407,6 +412,38 @@ class Trading:
 
         self._on_reconciliation_mismatch = _wrap_event_callback(cb)
 
+    def set_on_protection_remediation(
+        self,
+        cb: Callable[[ProtectionRemediation], None]
+        | Callable[[ProtectionRemediation], Awaitable[None]]
+        | None,
+    ) -> None:
+        '''Install the on_protection_remediation callback after construction.
+
+        The launcher wires this to a per-account dispatcher that pushes a
+        bracket-protection remediation to the account's Nexus runtime, which
+        only exists once built, so it cannot be referenced by the frozen
+        `TradingConfig`. Called before `start()`, alongside the other setters.
+
+        Args:
+            cb: Sync `(ProtectionRemediation) -> None`, async equivalent, any
+                callable returning an awaitable, or `None` to clear.
+
+        Raises:
+            RuntimeError: If called once `start()` has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_protection_remediation must not be called once '
+                'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
+        self._execution_manager.set_on_protection_remediation(
+            _wrap_event_callback(cb),
+        )
+
     async def start(self) -> None:
         '''Initialize runtime and execute per-account startup sequence.'''
 
@@ -469,6 +506,7 @@ class Trading:
         await self._execution_manager.recover_incomplete_flattens(
             account_id, account_events,
         )
+        self._execution_manager.seed_protection_remediations(account_events)
 
         account_ready = await self._sweep_orphan_venue_orders(account_id)
 
@@ -1084,6 +1122,9 @@ class Trading:
                 try:
                     await self._reconcile_fund_transactions(account_id)
                     await self._reconcile_balances(account_id)
+                    await self._execution_manager.drain_protection_remediations(
+                        account_id,
+                    )
                 except asyncio.CancelledError:
                     raise
                 except Exception:  # noqa: BLE001 - a detector must not stop the loop

@@ -7,6 +7,9 @@ from types import MappingProxyType
 from nexus.core.domain.bracket_protection_failure_response import (
     BracketProtectionFailureResponse,
 )
+from nexus.infrastructure.praxis_connector.protection_remediation import (
+    ProtectionRemediation,
+)
 
 from praxis.core.domain.enums import ExecutionMode
 from praxis.core.domain.events import FundTransaction, ReconciliationMismatch
@@ -49,6 +52,12 @@ class TradingConfig:
             Optional callback invoked by the reconciliation engine after a
             per-asset balance mismatch is appended to the Event Spine. The
             launcher wires it to push the mismatch to Nexus.
+        on_protection_remediation
+            (Callable[[ProtectionRemediation], Awaitable[None]] | None):
+            Optional callback invoked to deliver a bracket-protection
+            remediation to Nexus after a protective-OCO failure. The launcher
+            wires it to the account's ProtectionRemediationHandler so Nexus
+            applies the durable HALT / REDUCE_ONLY hold.
         shutdown_timeout (float): Seconds to wait for orders to reach terminal
             state during shutdown. Default: 30.0.
         reconcile_interval_seconds (float): Seconds between background
@@ -82,6 +91,9 @@ class TradingConfig:
         Callable[[ReconciliationMismatch], None]
         | Callable[[ReconciliationMismatch], Awaitable[None]]
         | None
+    ) = None
+    on_protection_remediation: (
+        Callable[[ProtectionRemediation], Awaitable[None]] | None
     ) = None
     shutdown_timeout: float = 30.0
     reconcile_interval_seconds: float = 60.0
