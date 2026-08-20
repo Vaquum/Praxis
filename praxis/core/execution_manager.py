@@ -169,6 +169,7 @@ _ONE = Decimal(1)
 _BRACKET_ENTRY_SEQUENCE = 0
 _BRACKET_PROTECTION_SEQUENCE = 1
 _BRACKET_FLATTEN_SEQUENCE = 999
+_BRACKET_FIRST_PROTECTION_VERSION = 1
 
 
 def _aggregate_oco_terminal_status(
@@ -1069,18 +1070,27 @@ class ExecutionManager:
         projection means the submit was persisted but never venue-confirmed
         (a crash between the intent and the response), so it is re-placed —
         the deterministic list client order id makes the retry idempotent via
-        the OCO rescue. A REJECTED protective OCO (venue rejection or a wrong-
-        side-of-fill skip) is a definitive failure and is not retried on boot
-        (TD-130); its filled entry stays unprotected pending operator repair.
-        A malformed init that cannot rebuild valid params is skipped.
+        the OCO rescue. A bracket that carries a durable `ProtectionFailed` was
+        already remediated inline (freeze, flatten, hold) and is not re-placed —
+        even if the process crashed before the exit's `OrderSubmitFailed` left
+        the OCO projection SUBMITTING — because `recover_incomplete_flattens`
+        finishes the flatten from that same marker. A malformed init that cannot
+        rebuild valid params is skipped.
         '''
 
         inits: dict[str, BracketInitialized] = {}
+        remediated: set[str] = set()
         for _seq, event in events:
             if isinstance(event, BracketInitialized):
                 inits[event.command_id] = event
 
+            elif isinstance(event, ProtectionFailed):
+                remediated.add(event.command_id)
+
         for command_id, init in inits.items():
+            if command_id in remediated:
+                continue
+
             entry_client_order_id = generate_client_order_id(
                 ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
             )
@@ -2983,13 +2993,15 @@ class ExecutionManager:
         bracket: _LiveBracket,
         entry_order: Order,
     ) -> TradeOutcome:
-        '''Place protection for a settled bracket entry and report its outcome.
+        '''Report a settled bracket entry outcome, then place its protection.
 
         Runs on the command path when the entry filled immediately (no
-        WebSocket round trip): places the protective OCO for the filled
-        quantity and reports the entry outcome. A terminal entry with no
-        fill leaves nothing to protect and reports the venue's terminal
-        state.
+        WebSocket round trip). The entry outcome is delivered before the
+        protective OCO is placed, mirroring the WebSocket path: a definitive
+        protection failure remediates by flattening, whose exit outcome must
+        not reach Nexus before the entry it closes has been recorded. A
+        terminal entry with no fill leaves nothing to protect and reports the
+        venue's terminal state.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -3027,15 +3039,12 @@ class ExecutionManager:
             )
 
         avg_entry_price = cumulative_notional / filled_qty
-        await self._place_bracket_protection(
-            runtime, bracket, filled_qty, avg_entry_price,
-        )
 
         status = (
             TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
         )
 
-        return await self._build_outcome(
+        outcome = await self._build_outcome(
             runtime,
             cmd,
             status,
@@ -3044,6 +3053,12 @@ class ExecutionManager:
             reason=None,
             cumulative_notional=cumulative_notional,
         )
+
+        await self._place_bracket_protection(
+            runtime, bracket, filled_qty, avg_entry_price,
+        )
+
+        return outcome
 
     async def _on_bracket_event(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Place a bracket's protective OCO once its entry order settles.
@@ -3184,8 +3199,9 @@ class ExecutionManager:
         position-closing EXIT outcome (`_emit_ws_outcome`) — the identity the
         Nexus exit registration shares. A timeout or duplicate reuses the
         single-shot OCO rescue before failing closed; a definitive failure
-        leaves the entry position unprotected (TD-130), logged for repair
-        rather than unwinding the filled entry.
+        (wrong-side legs, an unsalvageable timeout/duplicate, or a venue error)
+        routes the naked entry through the shared remediation — freeze, flatten,
+        Nexus hold — rather than leaving it unprotected.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -3239,7 +3255,7 @@ class ExecutionManager:
         if not self._bracket_legs_valid_for_entry(cmd, tp_price, sl_stop_price, avg_entry_price):
             _log.error(
                 'bracket protective legs on the wrong side of the entry fill; '
-                'skipping protection (position unprotected): command_id=%s side=%s '
+                'remediating naked entry: command_id=%s side=%s '
                 'avg_entry=%s tp=%s sl=%s',
                 cmd.command_id,
                 cmd.side.value,
@@ -3247,11 +3263,10 @@ class ExecutionManager:
                 tp_price,
                 sl_stop_price,
             )
-            await self._append_submit_failed(
-                runtime,
-                exit_cmd,
-                client_order_id,
+            await self._remediate_failed_initial_protection(
+                runtime, bracket, exit_cmd, client_order_id, qty,
                 'bracket protective legs on the wrong side of the entry fill',
+                None,
             )
 
             return
@@ -3274,13 +3289,15 @@ class ExecutionManager:
             )
             if rescued is None:
                 _log.exception(
-                    'bracket protective OCO failed; entry position unprotected: '
+                    'bracket protective OCO failed; remediating naked entry: '
                     'command_id=%s exit_command_id=%s',
                     cmd.command_id,
                     exit_command_id,
                 )
-                await self._append_submit_failed(
-                    runtime, exit_cmd, client_order_id, str(exc.args[0]),
+                await self._remediate_failed_initial_protection(
+                    runtime, bracket, exit_cmd, client_order_id, qty,
+                    f'bracket protective OCO submit failed: {exc.args[0]}',
+                    client_order_id,
                 )
 
                 return
@@ -3288,17 +3305,16 @@ class ExecutionManager:
             result = rescued
         except VenueError as exc:
             _log.exception(
-                'bracket protective OCO failed; entry position unprotected: '
+                'bracket protective OCO failed; remediating naked entry: '
                 'command_id=%s exit_command_id=%s reason=%s',
                 cmd.command_id,
                 exit_command_id,
                 str(exc.args[0]) if exc.args else str(exc),
             )
-            await self._append_submit_failed(
-                runtime,
-                exit_cmd,
-                client_order_id,
+            await self._remediate_failed_initial_protection(
+                runtime, bracket, exit_cmd, client_order_id, qty,
                 f'bracket protective OCO failed: {exc}',
+                client_order_id,
             )
 
             return
@@ -5017,6 +5033,43 @@ class ExecutionManager:
             )
 
         await self.drain_protection_remediations(cmd.account_id)
+
+    async def _remediate_failed_initial_protection(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        exit_cmd: TradeCommand,
+        client_order_id: str,
+        qty: Decimal,
+        reason: str,
+        oco_list_client_order_id: str | None,
+    ) -> None:
+        '''Remediate a bracket whose initial protective OCO failed (TD-130).
+
+        The whole filled entry is naked, so the bracket is tracked FAILED and
+        routed through the shared naked-protection remediation (freeze, flatten,
+        hold) instead of being left unprotected with only a log. The durable
+        `ProtectionFailed` is appended (inside the remediation) before the
+        exit's `OrderSubmitFailed`, so a crash between the two still leaves the
+        crash-durable marker that boot flatten recovery keys on. The failure is
+        recorded against the first protective revision, since the original
+        placement (version 0) never rested a protective OCO.
+
+        `oco_list_client_order_id` is the protective OCO's list id when the OCO
+        may have reached the venue (an unsalvageable timeout or a venue error),
+        so the flatten re-checks the venue for a live leg before selling; it is
+        None only when the OCO was never POSTed (wrong-side legs), where a
+        second sell is impossible and the guard is safely skipped.
+        '''
+
+        version = max(bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION)
+        runtime.brackets[bracket.command.command_id] = bracket
+        await self._remediate_naked_bracket(
+            runtime, bracket, version, reason, qty, oco_list_client_order_id,
+        )
+        await self._append_submit_failed(
+            runtime, exit_cmd, client_order_id, reason,
+        )
 
     async def _working_protective_oco(
         self, cmd: TradeCommand, list_client_order_id: str,

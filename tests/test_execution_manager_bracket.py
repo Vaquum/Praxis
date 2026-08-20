@@ -19,6 +19,7 @@ import pytest_asyncio
 
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
+    BracketProtectionStatus,
     ExecutionMode,
     MakerPreference,
     OrderSide,
@@ -35,13 +36,16 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    ProtectionFailed,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import ExecutionManager
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
+    BalanceEntry,
     ImmediateFill,
+    NotFoundError,
     OrderSubmitTimeoutError,
     SubmitResult,
     SymbolFilters,
@@ -143,7 +147,7 @@ def _make_adapter(
         fills = (
             (
                 ImmediateFill(
-                    venue_trade_id='t-entry',
+                    venue_trade_id=f't-entry-{len(calls)}',
                     qty=qty,
                     price=_ENTRY_PRICE,
                     fee=Decimal('0'),
@@ -367,6 +371,99 @@ class TestBracketDegenerate:
 
         assert outcomes[0].status is TradeStatus.FILLED
         assert outcomes[0].filled_qty == Decimal('1')
+
+    @pytest.mark.asyncio
+    async def test_protective_oco_failure_remediates_naked_entry(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        filters = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('100'),
+            min_notional=Decimal('10'),
+            base_asset='BTC',
+            quote_asset='USDT',
+        )
+        adapter = _make_adapter(oco_error=TransientError('oco 5xx'), filters=filters)
+        adapter.query_order_list.side_effect = NotFoundError('no such list')
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, outcomes = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        command_id = await em.submit_command(**_bracket_kwargs())
+        await asyncio.sleep(0.3)
+
+        exit_command_id = bracket_exit_command_id(command_id)
+
+        entry_idx = next(
+            i for i, o in enumerate(outcomes) if o.command_id == command_id
+        )
+        exit_idx = next(
+            i for i, o in enumerate(outcomes) if o.command_id == exit_command_id
+        )
+        assert entry_idx < exit_idx
+        assert outcomes[entry_idx].status is TradeStatus.FILLED
+
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        assert any(
+            c['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.MARKET
+            and c['kwargs'].get('client_order_id') == flatten_id
+            for c in adapter.submit_calls
+        )
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        assert any(isinstance(e, ProtectionFailed) for _s, e in events)
+
+        bracket = em._accounts[_ACCT].brackets[command_id]
+        assert bracket.protection_status is BracketProtectionStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_remediated_initial_failure_not_replaced_on_boot(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        filters = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('100'),
+            min_notional=Decimal('10'),
+            base_asset='BTC',
+            quote_asset='USDT',
+        )
+        adapter = _make_adapter(oco_error=TransientError('oco 5xx'), filters=filters)
+        adapter.query_order_list.side_effect = NotFoundError('no such list')
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        command_id = await em.submit_command(**_bracket_kwargs())
+        await asyncio.sleep(0.3)
+
+        rows = await spine.read(_EPOCH, after_seq=0)
+        truncated: list[tuple[int, Any]] = []
+        for seq, event in rows:
+            truncated.append((seq, event))
+            if isinstance(event, ProtectionFailed):
+                break
+
+        await em.unregister_account(_ACCT)
+
+        em2, _ = mgr_factory(_make_adapter(filters=filters))
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, truncated)
+
+        assert command_id not in em2._accounts[_ACCT].brackets
+
+        await em2.unregister_account(_ACCT)
 
 
 def _fill(

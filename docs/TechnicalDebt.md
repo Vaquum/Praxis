@@ -1176,15 +1176,17 @@ When a non-idempotent POST times out (or returns `-2010` duplicate) and the resc
 
 **When to fix**: before live trading at scale. Terminalize a rescued-completed order at rescue time — either backfill its fills from `myTrades` inline, or emit the terminal event (`OrderCanceled` / a fill-less close) for the no-fill ALL_DONE / canceled case — so the order and its reservation resolve immediately rather than waiting for the reconcile pass.
 
-## TD-130: A bracket whose protective OCO fails leaves a naked position
+## TD-130: A bracket whose protective OCO fails leaves a naked position — RESOLVED
 
 **Origin**: WP-Praxis-0007 (6.3 Bracket slice; unstaged review)
 **Severity**: Medium (open risk with no TP/SL until an operator or reconcile intervenes)
 **Module**: `praxis/core/execution_manager.py` (`_place_bracket_protection`)
 
-A bracket fills its MARKET entry, then places the protective OCO. If the OCO submission fails definitively — a venue rejection, or a timeout/duplicate the rescue could not salvage — the entry position is already open and is left **unprotected**: `_place_bracket_protection` appends `OrderSubmitFailed` for the exit and logs the naked position, but does not unwind the entry, retry the OCO, or flatten. The bracket entry outcome is still reported FILLED. Until an operator or a reconcile pass intervenes, the position carries open risk with no stop-loss or take-profit.
+A bracket fills its MARKET entry, then places the protective OCO. If the OCO submission fails definitively — a venue rejection, or a timeout/duplicate the rescue could not salvage — the entry position is already open and was left **unprotected**: `_place_bracket_protection` appended `OrderSubmitFailed` for the exit and logged the naked position, but did not unwind the entry, retry the OCO, or flatten. The bracket entry outcome is still reported FILLED.
 
-**When to fix**: before live bracket trading. Add an explicit unprotected-entry policy — at minimum an alert/runbook signal, and ideally a bounded OCO retry and/or an auto-flatten-or-freeze on definitive protection failure — rather than silently holding a naked position.
+**Resolved**: every definitive initial-placement failure (wrong-side legs, an unsalvageable timeout/duplicate, or a venue error) now routes the naked entry through the shared naked-protection remediation via `_remediate_failed_initial_protection` — the bracket is tracked FAILED, the account's schemes are frozen, the position is flattened for a FLATTEN_THEN_HALT account, and the durable `ProtectionFailed` marker delivers the Nexus hold and drives `recover_incomplete_flattens` on boot. The remediation runs on the account writer (the same path as the amend-failure and STATE_UNKNOWN-watchdog remediations), so a naked entry is no longer silently held pending operator repair.
+
+Three ordering and safety guarantees make it correct: (1) on the immediate-fill path `_settle_bracket_entry` now delivers the entry FILLED outcome *before* placing protection, so a remediation flatten's EXIT can never reach Nexus before the ENTER it closes; (2) when the OCO may have reached the venue (an unsalvageable timeout or a venue error), the flatten re-checks the venue for a live leg before selling — the guard is skipped only for wrong-side legs, which are never POSTed — so a still-live OCO is never doubled by a second market sell; (3) the durable `ProtectionFailed` is appended before the exit's `OrderSubmitFailed`, and `_resume_brackets` skips any command carrying a `ProtectionFailed`, so a crash mid-remediation resumes into flatten recovery rather than re-placing protection on an already-remediated bracket.
 
 ## TD-131: Bracket partial-fill protection for a future resting entry — RESOLVED (durability) / deferred (resting entry)
 
