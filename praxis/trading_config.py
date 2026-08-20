@@ -62,6 +62,10 @@ class TradingConfig:
             state during shutdown. Default: 30.0.
         reconcile_interval_seconds (float): Seconds between background
             reconciliation cycles (fund-transaction polling). Default: 60.0.
+        bracket_protection_restore_deadline_seconds (float): Seconds a bracket
+            may remain STATE_UNKNOWN — protection neither confirmed live nor
+            confirmed naked — before the watchdog treats it as naked and
+            remediates. Default: 300.0.
         enabled_execution_modes (frozenset[ExecutionMode]): Execution modes the
             host may drive. Default-off: only SINGLE_SHOT is enabled unless a
             mode is explicitly added, so a new mode cannot be driven live until
@@ -97,6 +101,7 @@ class TradingConfig:
     ) = None
     shutdown_timeout: float = 30.0
     reconcile_interval_seconds: float = 60.0
+    bracket_protection_restore_deadline_seconds: float = 300.0
     enabled_execution_modes: frozenset[ExecutionMode] = field(
         default_factory=lambda: frozenset({ExecutionMode.SINGLE_SHOT}),
     )
@@ -125,6 +130,13 @@ class TradingConfig:
 
         if self.shutdown_timeout <= 0:
             msg = 'TradingConfig.shutdown_timeout must be positive'
+            raise ValueError(msg)
+
+        if self.bracket_protection_restore_deadline_seconds <= 0:
+            msg = (
+                'TradingConfig.bracket_protection_restore_deadline_seconds '
+                'must be positive'
+            )
             raise ValueError(msg)
 
         credentials_copy = dict(self.account_credentials)

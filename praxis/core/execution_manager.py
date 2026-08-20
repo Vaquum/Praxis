@@ -286,6 +286,8 @@ class _LiveBracket:
     current_tp_price: Decimal | None = None
     current_sl_stop_price: Decimal | None = None
     current_sl_limit_price: Decimal | None = None
+    unknown_since: datetime | None = None
+    pending_replacement_client_order_id: str | None = None
 
 
 def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
@@ -425,6 +427,7 @@ class _AccountRuntime:
         self.queue_reservations = 0
         self.reconciling = False
         self.poisoned = False
+        self.protection_scan_requested = False
 
 
 class ExecutionManager:
@@ -459,6 +462,7 @@ class ExecutionManager:
         on_protection_remediation: (
             Callable[[ProtectionRemediation], Awaitable[None]] | None
         ) = None,
+        restore_deadline_seconds: float = 300.0,
     ) -> None:
         '''Store dependencies and initialize empty account registry.
 
@@ -485,6 +489,7 @@ class ExecutionManager:
         self._clock = clock
         self._protection_failure_response = protection_failure_response
         self._on_protection_remediation = on_protection_remediation
+        self._restore_deadline_seconds = restore_deadline_seconds
         self._pending_remediations: dict[str, ProtectionRemediation] = {}
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
@@ -881,6 +886,7 @@ class ExecutionManager:
         self._resume_schemes(runtime, events)
         self._resume_ladders(runtime, events)
         self._resume_brackets(runtime, events)
+        self._resume_unknown_protection(runtime, events)
 
     def _resume_ladders(
         self,
@@ -1107,6 +1113,75 @@ class ExecutionManager:
             )
             _log.info(
                 'bracket resumed awaiting protection: command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+
+    def _resume_unknown_protection(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild STATE_UNKNOWN brackets from durable ProtectionStateUnknown.
+
+        A protective-OCO amend that halted STATE_UNKNOWN carries its candidate
+        list ids and timestamp on the durable event, but its live status lived
+        only in memory; after a restart `_resume_brackets` skips it because the
+        pre-amend OCO is already terminal, so the watchdog would have nothing to
+        resolve. The latest unresolved `ProtectionStateUnknown` per command —
+        one not followed by a `ProtectionActive` or `ProtectionFailed` — rebuilds
+        the bracket in STATE_UNKNOWN with its candidate ids and deadline clock so
+        the watchdog can resolve it exactly as before the restart.
+        '''
+
+        inits: dict[str, BracketInitialized] = {}
+        unknowns: dict[str, ProtectionStateUnknown] = {}
+        for _seq, event in events:
+            if isinstance(event, BracketInitialized):
+                inits[event.command_id] = event
+
+            elif isinstance(event, ProtectionStateUnknown):
+                unknowns[event.command_id] = event
+
+            elif isinstance(event, (ProtectionActive, ProtectionFailed)):
+                unknowns.pop(event.command_id, None)
+
+        for command_id, unknown in unknowns.items():
+            if command_id in runtime.brackets:
+                continue
+
+            init = inits.get(command_id)
+            if init is None:
+                continue
+
+            try:
+                command = self._bracket_command_from_init(init)
+            except ValueError:
+                _log.exception(
+                    'bracket STATE_UNKNOWN resume skipped: malformed init '
+                    'params: command_id=%s account_id=%s',
+                    command_id,
+                    runtime.account_id,
+                )
+
+                continue
+
+            entry_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+            )
+            runtime.brackets[command_id] = _LiveBracket(
+                command=command,
+                entry_client_order_id=entry_client_order_id,
+                protection_placed=True,
+                protection_status=BracketProtectionStatus.STATE_UNKNOWN,
+                protection_version=unknown.protection_version,
+                protection_client_order_id=unknown.old_list_client_order_id,
+                pending_replacement_client_order_id=unknown.new_list_client_order_id,
+                unknown_since=unknown.timestamp,
+            )
+            _log.info(
+                'bracket protection resumed STATE_UNKNOWN for watchdog: '
+                'command_id=%s account_id=%s',
                 command_id,
                 runtime.account_id,
             )
@@ -2010,6 +2085,25 @@ class ExecutionManager:
 
         runtime.reconciling = reconciling
 
+    def request_protection_scan(self, account_id: str) -> None:
+        '''Request the account writer run the protection watchdog next cycle.
+
+        Sets a flag the account loop consumes so the STATE_UNKNOWN watchdog and
+        the remediation drain execute on the single account writer rather than
+        racing it from the reconcile task. The reconcile task calls this on its
+        cadence; an unknown or reconciling account simply runs it on a later
+        cycle.
+
+        Args:
+            account_id (str): Account identifier.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        runtime.protection_scan_requested = True
+
     def is_order_capable(self, account_id: str) -> bool:
 
         '''
@@ -2323,6 +2417,10 @@ class ExecutionManager:
 
                 await self._advance_due_schemes(runtime)
                 await self._place_pending_bracket_protection(runtime)
+
+                if runtime.protection_scan_requested:
+                    runtime.protection_scan_requested = False
+                    await self._run_protection_scan(runtime)
 
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
@@ -4862,6 +4960,311 @@ class ExecutionManager:
             await self._event_spine.append(delivered, self._epoch_id)
             self._pending_remediations.pop(command_id, None)
 
+    async def _remediate_naked_bracket(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        version: int,
+        reason: str,
+        remainder: Decimal,
+        oco_list_client_order_id: str | None,
+    ) -> None:
+        '''Apply the naked-protection remediation: freeze, record, flatten, hold.
+
+        Freezes the account's schemes against adding exposure, records the
+        durable `ProtectionFailed` marker, flattens the remainder when the
+        account policy is FLATTEN_THEN_HALT, and delivers the Nexus hold
+        immediately (retried on the reconcile cycle). Shared by the definitive
+        amend-failure path and the STATE_UNKNOWN watchdog once a bracket is
+        confirmed naked.
+
+        Args:
+            runtime (_AccountRuntime): Account whose bracket is naked.
+            bracket (_LiveBracket): The unprotected bracket.
+            version (int): Protective-OCO revision that failed.
+            reason (str): Human-readable trigger.
+            remainder (Decimal): Venue-reconciled remaining position.
+            oco_list_client_order_id (str | None): Cancelled OCO list id for the
+                flatten's live-leg guard, or None.
+        '''
+
+        cmd = bracket.command
+        await self._freeze_account_schemes(
+            runtime,
+            f'bracket protection failed: command_id={cmd.command_id} '
+            f'version={version}',
+        )
+        await self._append_protection_failed(cmd, version, reason)
+        bracket.protection_status = BracketProtectionStatus.FAILED
+        self._record_protection_remediation(
+            cmd.account_id, cmd.command_id, version, reason,
+        )
+        _log.warning(
+            'bracket protection failed; account schemes frozen: command_id=%s '
+            'version=%d reason=%s',
+            cmd.command_id,
+            version,
+            reason,
+        )
+
+        if (
+            self._protection_response_for(cmd.account_id)
+            is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+        ):
+            await self._flatten_bracket_remainder(
+                runtime, bracket, version, reason,
+                remainder, oco_list_client_order_id,
+            )
+
+        await self.drain_protection_remediations(cmd.account_id)
+
+    async def _working_protective_oco(
+        self, cmd: TradeCommand, list_client_order_id: str,
+    ) -> VenueOrderList | None:
+        '''Return a protective OCO list only while it is still working.
+
+        A list the venue reports REJECT or ALL_DONE (cancelled or a leg filled),
+        or that the venue no longer knows (NotFound), is no longer protecting
+        and returns None; a working list is returned so its legs can be
+        re-tracked. Raises `VenueError` when the query cannot be completed, so
+        the caller stays STATE_UNKNOWN rather than act on an unconfirmed state.
+        '''
+
+        try:
+            order_list = await self._venue_adapter.query_order_list(
+                cmd.account_id, list_client_order_id=list_client_order_id,
+            )
+        except NotFoundError:
+            return None
+
+        if order_list.list_order_status in (
+            _OCO_LIST_STATUS_REJECT, _OCO_LIST_STATUS_ALL_DONE,
+        ):
+            return None
+
+        return order_list
+
+    async def _reactivate_protection(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        client_order_id: str,
+        order_list: VenueOrderList,
+    ) -> None:
+        '''Re-track a protective OCO the watchdog confirmed still working.
+
+        Re-tracking only succeeds when the trading state already carries the
+        order (its OrderSubmitIntent was persisted when the OCO was submitted
+        and replays on boot). A submitted event for an unknown order would
+        no-op in the trading state and strand leg-fill routing, so an absent
+        order leaves the bracket STATE_UNKNOWN for the next cycle instead.
+        '''
+
+        cmd = bracket.command
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+
+        if runtime.trading_state.orders.get(client_order_id) is None:
+            _log.warning(
+                'bracket protection re-track skipped: order absent from trading '
+                'state; command_id=%s client_order_id=%s',
+                cmd.command_id,
+                client_order_id,
+            )
+            return
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=client_order_id,
+            venue_order_id=order_list.order_list_id,
+            leg_client_order_ids=tuple(
+                leg.client_order_id for leg in order_list.legs
+            ),
+        )
+        runtime.command_to_order[exit_command_id] = client_order_id
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        active = ProtectionActive(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=bracket.protection_version,
+            new_list_client_order_id=client_order_id,
+        )
+        await self._event_spine.append(active, self._epoch_id)
+        bracket.protection_client_order_id = client_order_id
+        bracket.protection_status = BracketProtectionStatus.ACTIVE
+        bracket.unknown_since = None
+        bracket.pending_replacement_client_order_id = None
+        _log.info(
+            'bracket protection re-confirmed working by watchdog: command_id=%s '
+            'client_order_id=%s',
+            cmd.command_id,
+            client_order_id,
+        )
+
+    async def _run_protection_scan(self, runtime: _AccountRuntime) -> None:
+        '''Run the STATE_UNKNOWN watchdog and remediation drain on the writer.
+
+        Requested by the off-critical-path reconcile task via
+        `request_protection_scan` and executed here so the watchdog's writes —
+        re-track, scheme freeze, flatten submit — run on the single account
+        writer rather than racing it from the reconcile task. A failure is
+        logged and swallowed so a venue error cannot stop the account loop.
+        '''
+
+        try:
+            await self.resolve_unknown_protection(runtime.account_id)
+            await self.drain_protection_remediations(runtime.account_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            _log.exception(
+                'protection scan failed: account_id=%s', runtime.account_id,
+            )
+
+    async def resolve_unknown_protection(self, account_id: str) -> None:
+        '''Resolve brackets stuck in STATE_UNKNOWN on the account writer.
+
+        A protective-OCO amend that could not confirm its venue outcome leaves
+        the bracket STATE_UNKNOWN. Each cycle the venue is re-queried:
+
+        - a still-working OCO (the ambiguity resolved in favour of protection)
+          is re-tracked ACTIVE;
+        - every candidate the venue confirms terminal is resolved by remaining
+          quantity now: a filled protective leg (remainder <= 0) closed the
+          position, so the bracket is simply dropped; a genuine naked remainder
+          (> 0) is remediated at once (freeze, flatten, hold);
+        - a query that cannot be completed leaves the bracket STATE_UNKNOWN and,
+          only once the restore deadline elapses without ever confirming the
+          venue state, is remediated fail-safe on the local projection.
+
+        Confirmed outcomes act immediately; the deadline gates only the
+        unconfirmable case, so a routine take-profit fill never freezes schemes
+        or halts the account.
+
+        Args:
+            account_id (str): Account whose brackets to resolve.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for _command_id, bracket in list(runtime.brackets.items()):
+            if bracket.protection_status is not BracketProtectionStatus.STATE_UNKNOWN:
+                continue
+
+            cmd = bracket.command
+            candidates = [
+                candidate
+                for candidate in (
+                    bracket.pending_replacement_client_order_id,
+                    bracket.protection_client_order_id,
+                )
+                if candidate is not None
+            ]
+
+            working: tuple[str, VenueOrderList] | None = None
+            query_failed = False
+            for candidate in candidates:
+                try:
+                    order_list = await self._working_protective_oco(cmd, candidate)
+                except VenueError:
+                    query_failed = True
+                    continue
+
+                if order_list is not None:
+                    working = (candidate, order_list)
+                    break
+
+            if working is not None:
+                await self._reactivate_protection(
+                    runtime, bracket, working[0], working[1],
+                )
+                continue
+
+            if query_failed:
+                await self._remediate_unconfirmable_bracket(runtime, bracket)
+                continue
+
+            await self._resolve_confirmed_terminal_bracket(runtime, bracket)
+
+    async def _resolve_confirmed_terminal_bracket(
+        self, runtime: _AccountRuntime, bracket: _LiveBracket,
+    ) -> None:
+        '''Resolve a STATE_UNKNOWN bracket whose OCO the venue confirms terminal.
+
+        The venue confirmed no candidate list is working, so the outcome turns
+        on venue-truth remaining quantity: a protective leg that filled closes
+        the position (remainder <= 0) and the bracket is dropped without a
+        halt; a positive remainder is genuinely naked and is remediated now.
+        '''
+
+        cmd = bracket.command
+        old_list_client_order_id = bracket.protection_client_order_id
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        oco_filled = _ZERO
+        if old_list_client_order_id is not None:
+            try:
+                oco_filled = await self._cancelled_oco_filled_qty(
+                    cmd, old_list_client_order_id,
+                )
+            except VenueError:
+                return
+
+        remainder = entry_filled - oco_filled
+        if remainder <= _ZERO:
+            runtime.brackets.pop(cmd.command_id, None)
+            _log.info(
+                'bracket protection resolved: position closed by a protective '
+                'fill; command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        await self._remediate_naked_bracket(
+            runtime,
+            bracket,
+            bracket.protection_version,
+            'protection confirmed terminal and position naked',
+            remainder,
+            old_list_client_order_id,
+        )
+
+    async def _remediate_unconfirmable_bracket(
+        self, runtime: _AccountRuntime, bracket: _LiveBracket,
+    ) -> None:
+        '''Fail-safe remediate a bracket whose venue state stays unconfirmable.
+
+        A candidate query kept failing, so the venue truth is unknown. The
+        bracket holds STATE_UNKNOWN until the restore deadline elapses; only
+        then, still unable to confirm, is it remediated on the local fill
+        projection (the flatten free-caps the sized quantity).
+        '''
+
+        if bracket.unknown_since is None:
+            return
+
+        elapsed = (self._clock() - bracket.unknown_since).total_seconds()
+        if elapsed < self._restore_deadline_seconds:
+            return
+
+        cmd = bracket.command
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        if entry_filled <= _ZERO:
+            return
+
+        await self._remediate_naked_bracket(
+            runtime,
+            bracket,
+            bracket.protection_version,
+            'protection unconfirmable past restore deadline',
+            entry_filled,
+            bracket.protection_client_order_id,
+        )
+
     async def _oco_has_live_leg(
         self, cmd: TradeCommand, list_client_order_id: str,
     ) -> bool:
@@ -6030,8 +6433,12 @@ class ExecutionManager:
             )
         except VenueError as exc:
             reason = str(exc.args[0]) if exc.args else str(exc)
-            await self._append_protection_state_unknown(cmd, new_version, reason)
+            await self._append_protection_state_unknown(
+                cmd, new_version, reason,
+                old_list_client_order_id=old_list_client_order_id,
+            )
             bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            bracket.unknown_since = self._clock()
             _log.warning(
                 'bracket protective cancel ambiguous; halting amend for '
                 'reconcile: command_id=%s version=%d reason=%s',
@@ -6068,8 +6475,12 @@ class ExecutionManager:
             )
         except VenueError as exc:
             reason = str(exc.args[0]) if exc.args else str(exc)
-            await self._append_protection_state_unknown(cmd, new_version, reason)
+            await self._append_protection_state_unknown(
+                cmd, new_version, reason,
+                old_list_client_order_id=old_list_client_order_id,
+            )
             bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            bracket.unknown_since = self._clock()
             _log.warning(
                 'bracket protective reconcile query failed; halting amend for '
                 'reconcile rather than sizing a replacement from stale local '
@@ -6161,8 +6572,14 @@ class ExecutionManager:
                     cmd, new_list_client_order_id,
                 )
             except VenueError:
-                await self._append_protection_state_unknown(cmd, new_version, reason)
+                await self._append_protection_state_unknown(
+                    cmd, new_version, reason,
+                    old_list_client_order_id=old_list_client_order_id,
+                    new_list_client_order_id=new_list_client_order_id,
+                )
                 bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+                bracket.unknown_since = self._clock()
+                bracket.pending_replacement_client_order_id = new_list_client_order_id
                 _log.warning(
                     'bracket protective replacement unconfirmable after venue '
                     'error; halting amend for reconcile: command_id=%s '
@@ -6174,35 +6591,10 @@ class ExecutionManager:
                 return
 
             if order_list is None:
-                await self._freeze_account_schemes(
-                    runtime,
-                    f'bracket protection failed: command_id={cmd.command_id} '
-                    f'version={new_version}',
+                await self._remediate_naked_bracket(
+                    runtime, bracket, new_version, reason,
+                    remaining, old_list_client_order_id,
                 )
-                await self._append_protection_failed(cmd, new_version, reason)
-                bracket.protection_status = BracketProtectionStatus.FAILED
-                self._record_protection_remediation(
-                    cmd.account_id, cmd.command_id, new_version, reason,
-                )
-                _log.warning(
-                    'bracket protective replacement rejected by venue; '
-                    'account schemes frozen then protection failed: command_id=%s '
-                    'version=%d reason=%s',
-                    cmd.command_id,
-                    new_version,
-                    reason,
-                )
-
-                if (
-                    self._protection_response_for(cmd.account_id)
-                    is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
-                ):
-                    await self._flatten_bracket_remainder(
-                        runtime, bracket, new_version, reason,
-                        remaining, old_list_client_order_id,
-                    )
-
-                await self.drain_protection_remediations(cmd.account_id)
 
                 return
 
@@ -6404,8 +6796,15 @@ class ExecutionManager:
         cmd: TradeCommand,
         protection_version: int,
         reason: str,
+        old_list_client_order_id: str | None = None,
+        new_list_client_order_id: str | None = None,
     ) -> None:
-        '''Persist a `ProtectionStateUnknown` for an ambiguous amend outcome.'''
+        '''Persist a `ProtectionStateUnknown` for an ambiguous amend outcome.
+
+        The candidate list client order ids are carried on the event so the
+        watchdog can rebuild the bracket and re-query them after a restart,
+        where they would otherwise survive only in memory.
+        '''
 
         event = ProtectionStateUnknown(
             account_id=cmd.account_id,
@@ -6413,6 +6812,8 @@ class ExecutionManager:
             command_id=cmd.command_id,
             protection_version=protection_version,
             reason=reason,
+            old_list_client_order_id=old_list_client_order_id,
+            new_list_client_order_id=new_list_client_order_id,
         )
         await self._event_spine.append(event, self._epoch_id)
 

@@ -184,6 +184,7 @@ class Trading:
             enabled_modes=config.enabled_execution_modes,
             protection_failure_response=config.response_for,
             on_protection_remediation=config.on_protection_remediation,
+            restore_deadline_seconds=config.bracket_protection_restore_deadline_seconds,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,
@@ -1122,9 +1123,7 @@ class Trading:
                 try:
                     await self._reconcile_fund_transactions(account_id)
                     await self._reconcile_balances(account_id)
-                    await self._execution_manager.drain_protection_remediations(
-                        account_id,
-                    )
+                    self._execution_manager.request_protection_scan(account_id)
                 except asyncio.CancelledError:
                     raise
                 except Exception:  # noqa: BLE001 - a detector must not stop the loop

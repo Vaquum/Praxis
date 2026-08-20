@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
@@ -1075,6 +1075,193 @@ class TestBracketAmendReplaceFails:
         assert resumed.protection_frozen is True
 
         await restarted.unregister_account(_ACCT)
+
+
+class TestBracketProtectionWatchdog:
+
+    @staticmethod
+    def _order_list(status: str) -> VenueOrderList:
+        return VenueOrderList(
+            order_list_id='ol-w', list_client_order_id='list-x',
+            list_status_type='EXEC_STARTED', list_order_status=status,
+            legs=(
+                VenueOrderListLeg(
+                    venue_order_id='v-tp', client_order_id=_LEG_TP, symbol='BTCUSDT',
+                ),
+                VenueOrderListLeg(
+                    venue_order_id='v-sl', client_order_id=_LEG_SL, symbol='BTCUSDT',
+                ),
+            ),
+        )
+
+    async def _unknown_bracket(
+        self, mgr_factory: Any, leg_filled: dict[str, Any] | None = None,
+    ) -> Any:
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'),
+            replacement_query_error=TransientError('venue 5xx'),
+            leg_filled=leg_filled,
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+        await em._process_modify(
+            runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+        assert (
+            runtime.brackets[command_id].protection_status
+            is BracketProtectionStatus.STATE_UNKNOWN
+        )
+        return em, adapter, command_id, runtime
+
+    @pytest.mark.asyncio
+    async def test_watchdog_reactivates_when_protection_working(
+        self, mgr_factory: Any,
+    ) -> None:
+        em, adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+
+        adapter.query_order_list.side_effect = None
+        adapter.query_order_list.return_value = self._order_list('EXECUTING')
+
+        await em.resolve_unknown_protection(_ACCT)
+
+        assert (
+            runtime.brackets[command_id].protection_status
+            is BracketProtectionStatus.ACTIVE
+        )
+        assert runtime.brackets[command_id].unknown_since is None
+
+    @pytest.mark.asyncio
+    async def test_watchdog_remediates_when_confirmed_naked(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+
+        adapter.query_order_list.side_effect = None
+        adapter.query_order_list.return_value = self._order_list('ALL_DONE')
+
+        await em.resolve_unknown_protection(_ACCT)
+
+        assert (
+            runtime.brackets[command_id].protection_status
+            is BracketProtectionStatus.FAILED
+        )
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert any(isinstance(e, FlattenInitiated) for _s, e in rows)
+
+    @pytest.mark.asyncio
+    async def test_watchdog_closes_bracket_when_protective_leg_filled(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+
+        adapter.query_order_list.side_effect = None
+        adapter.query_order_list.return_value = self._order_list('ALL_DONE')
+
+        def _tp_filled(*_args: Any, **kwargs: Any) -> VenueOrder:
+            coid = kwargs['client_order_id']
+            leg_filled = coid == _LEG_TP
+            return VenueOrder(
+                venue_order_id=f'v-{coid}', client_order_id=coid,
+                status=OrderStatus.FILLED if leg_filled else OrderStatus.CANCELED,
+                symbol='BTCUSDT', side=OrderSide.SELL, order_type=OrderType.LIMIT,
+                qty=Decimal('1'),
+                filled_qty=Decimal('1') if leg_filled else Decimal('0'),
+                price=_TP_PRICE,
+            )
+
+        adapter.query_order.side_effect = _tp_filled
+
+        await em.resolve_unknown_protection(_ACCT)
+
+        assert command_id not in runtime.brackets
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+        assert not any(isinstance(e, ProtectionFailed) for _s, e in rows)
+        assert not any(isinstance(e, SchemeFrozen) for _s, e in rows)
+
+    @pytest.mark.asyncio
+    async def test_watchdog_holds_while_unconfirmable_before_deadline(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, _adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+
+        runtime.brackets[command_id].unknown_since = _T0
+
+        await em.resolve_unknown_protection(_ACCT)
+
+        assert (
+            runtime.brackets[command_id].protection_status
+            is BracketProtectionStatus.STATE_UNKNOWN
+        )
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+
+    @pytest.mark.asyncio
+    async def test_watchdog_remediates_unconfirmable_past_deadline(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, _adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+
+        runtime.brackets[command_id].unknown_since = _T0 - timedelta(seconds=400)
+
+        await em.resolve_unknown_protection(_ACCT)
+
+        assert (
+            runtime.brackets[command_id].protection_status
+            is BracketProtectionStatus.FAILED
+        )
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert any(isinstance(e, ProtectionFailed) for _s, e in rows)
+
+    @pytest.mark.asyncio
+    async def test_request_protection_scan_runs_on_writer(
+        self, mgr_factory: Any,
+    ) -> None:
+        em, adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+
+        adapter.query_order_list.side_effect = None
+        adapter.query_order_list.return_value = self._order_list('EXECUTING')
+
+        em.request_protection_scan(_ACCT)
+        assert runtime.protection_scan_requested is True
+
+        runtime.protection_scan_requested = False
+        await em._run_protection_scan(runtime)
+
+        assert (
+            runtime.brackets[command_id].protection_status
+            is BracketProtectionStatus.ACTIVE
+        )
+
+    @pytest.mark.asyncio
+    async def test_unknown_protection_survives_restart(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, _adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+        pre = runtime.brackets[command_id]
+        old_list_id = pre.protection_client_order_id
+        new_list_id = pre.pending_replacement_client_order_id
+        assert old_list_id is not None
+        assert new_list_id is not None
+
+        events = await spine.read(epoch_id=_EPOCH)
+        await em.unregister_account(_ACCT)
+
+        em2, _ = mgr_factory(_make_adapter())
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, events)
+
+        resumed = em2._accounts[_ACCT].brackets[command_id]
+        assert resumed.protection_status is BracketProtectionStatus.STATE_UNKNOWN
+        assert resumed.protection_client_order_id == old_list_id
+        assert resumed.pending_replacement_client_order_id == new_list_id
+        assert resumed.unknown_since == _T0
+
+        await em2.unregister_account(_ACCT)
 
 
 class TestBracketAmendIdempotentPlace:

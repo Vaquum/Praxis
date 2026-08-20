@@ -849,11 +849,20 @@ class ProtectionStateUnknown(_EventBase):
         protection_version (int): Monotonic protective-OCO revision this
             ambiguity belongs to.
         reason (str): Human-readable description of the ambiguity.
+        old_list_client_order_id (str | None): Pre-amend protective OCO list
+            client order id, retained so the watchdog can re-query it after a
+            restart. None when the amend never reached a known prior list.
+        new_list_client_order_id (str | None): Replacement protective OCO list
+            client order id when a replacement was submitted, retained so the
+            watchdog can re-query it after a restart. None when no replacement
+            was submitted.
     '''
 
     command_id: str
     protection_version: int
     reason: str
+    old_list_client_order_id: str | None = None
+    new_list_client_order_id: str | None = None
 
     def __post_init__(self) -> None:
 
@@ -863,6 +872,16 @@ class ProtectionStateUnknown(_EventBase):
         _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'reason', self.reason)
         _require_protection_version(name, self.protection_version)
+
+        if self.old_list_client_order_id is not None:
+            _require_str(
+                name, 'old_list_client_order_id', self.old_list_client_order_id,
+            )
+
+        if self.new_list_client_order_id is not None:
+            _require_str(
+                name, 'new_list_client_order_id', self.new_list_client_order_id,
+            )
 
 
 @dataclass(frozen=True)
