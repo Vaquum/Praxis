@@ -1255,3 +1255,15 @@ A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-
 `Trading.submit_modify` → `TradingInbound.submit_modify` → `ExecutionManager.submit_modify` is wired and reachable (proven by `test_trading_submit_modify_reaches_execution`), but nothing feeds it from a live Nexus Manager. The launcher's `_build_praxis_outbound` installs `submit_abort_fn` only; the installed `PraxisOutbound` exposes `send_abort` but no `send_modify` / `submit_modify_fn`, and Nexus's `AMEND_ORDER` action currently forbids `execution_params`, so a `ModifyParams` payload cannot cross. So a live `ActionType.MODIFY` cannot reach the execution manager end to end.
 
 **When to fix**: to drive amends from a strategy. Needs, cross-repo: a Nexus `PraxisOutbound.send_modify` + a modify-params translator (allow amend params on the amend action), and a launcher `_build_praxis_outbound` adapter that binds `submit_modify_fn` to `Trading.submit_modify` and translates the Nexus action into a `TradeModify`. Add a round-trip test mirroring the abort path (PT.5.1).
+
+---
+
+## TD-137: Reconcile-tick watchdogs share one try block
+
+**Origin**: WP-Praxis-0009 (ladder-amend crash-safety; pre-PR review)
+**Severity**: Low (each watchdog self-heals on the next reconcile tick)
+**Module**: `praxis/core/execution_manager.py` (`_run_protection_scan`)
+
+`_run_protection_scan` awaits `resolve_unknown_protection`, `drain_protection_remediations`, and `resolve_ladder_amends` under a single `try`. A venue error thrown by the first skips the remaining two for that tick, so a stuck protection resolve delays a ladder-amend resolution (and vice versa) by one reconcile interval. No state is lost — the next tick re-drives whichever was skipped — but the scans are independent and should not gate each other.
+
+**When to fix**: when either watchdog becomes latency-sensitive. Wrap each scan in its own try/except (log and continue) so one failing scan cannot defer the others.
