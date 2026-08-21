@@ -264,6 +264,28 @@ class _LiveScheme:
     state: SchemeState = SchemeState.RUNNING
     amend_generation: int = 0
     amend_phase: str | None = None
+    amend_context: _LadderAmendContext | None = None
+
+
+@dataclass
+class _LadderAmendContext:
+    '''In-flight ladder-amend state a halt or a restart resumes from.
+
+    Carries the generation being retired and placed, the old grid's rung count
+    (how many rungs to retire), the target grid (to plan the remainder), and
+    the fixed replacement plan once known. Set when an amend begins and
+    rebuilt on boot from the durable amend events, so the shared driver can
+    finish a CANCELLING or PLACING amend identically whether it stalled live
+    or crashed mid-flight.
+    '''
+
+    old_generation: int
+    new_generation: int
+    old_slices_total: int
+    price_levels: tuple[Decimal, ...]
+    level_weights: tuple[Decimal, ...]
+    planned: list[tuple[int, Decimal, Decimal]] | None = None
+    cancel_committed: bool = False
 
 
 @dataclass
@@ -918,6 +940,12 @@ class ExecutionManager:
         terminal_outcomes: set[str] = set()
         frozen_ids: set[str] = set()
         protection_frozen_ids: set[str] = set()
+        completed: dict[str, tuple[int, LadderDcaParams, int]] = {}
+        inflight: dict[
+            str, tuple[LadderAmendInitiated, LadderAmendPlanned | None, str]
+        ] = {}
+        initiated_by_gen: dict[tuple[str, int], LadderAmendInitiated] = {}
+        planned_by_gen: dict[tuple[str, int], LadderAmendPlanned] = {}
 
         for _seq, event in events:
             if (
@@ -934,6 +962,37 @@ class ExecutionManager:
                 protection_frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
+            elif isinstance(event, LadderAmendInitiated):
+                initiated_by_gen[(event.command_id, event.generation)] = event
+                inflight[event.command_id] = (event, None, 'CANCELLING')
+            elif isinstance(event, LadderAmendPlanned):
+                planned_by_gen[(event.command_id, event.generation)] = event
+                pending = inflight.get(event.command_id)
+                if pending is not None:
+                    inflight[event.command_id] = (pending[0], event, 'PLACING')
+            elif isinstance(event, LadderAmendStateUnknown):
+                pending = inflight.get(event.command_id)
+                if pending is not None:
+                    inflight[event.command_id] = (pending[0], pending[1], event.phase)
+            elif isinstance(event, LadderAmendCompleted):
+                init_e = initiated_by_gen.get((event.command_id, event.generation))
+                planned_e = planned_by_gen.get((event.command_id, event.generation))
+                grid_size = len(planned_e.sequences) if planned_e is not None else 0
+                grid_params = (
+                    LadderDcaParams(
+                        price_levels=init_e.price_levels,
+                        level_weights=init_e.level_weights or None,
+                    )
+                    if init_e is not None
+                    else None
+                )
+                if grid_params is not None:
+                    completed[event.command_id] = (
+                        event.generation, grid_params, grid_size,
+                    )
+                inflight.pop(event.command_id, None)
+            elif isinstance(event, LadderAmendAborted):
+                inflight.pop(event.command_id, None)
 
         for command_id, init in inits.items():
             if command_id in terminal_outcomes:
@@ -955,45 +1014,139 @@ class ExecutionManager:
                 )
                 continue
 
-            live_children, posted_count = self._ladder_children_from_projections(
-                runtime, command_id, init.slices_total,
-            )
-
             deadline = (
                 init.timestamp + timedelta(seconds=init.timeout_seconds)
                 if init.timeout_seconds > 0
                 else None
             )
 
-            scheme = _LiveScheme(
-                command=command,
-                slice_qtys=[],
-                slices_total=init.slices_total,
-                interval_seconds=0,
-                cursor=posted_count,
-                active_children=live_children,
-                next_run_at=None,
-                deadline=deadline,
-                frozen=command_id in frozen_ids,
-                protection_frozen=command_id in protection_frozen_ids,
-            )
+            pending = inflight.get(command_id)
+            if pending is not None:
+                _gen, baseline_params, _grid = completed.get(
+                    command_id, (0, command.execution_params, init.slices_total),
+                )
+                assert isinstance(baseline_params, LadderDcaParams)
+                scheme = self._resume_inflight_ladder_amend(
+                    runtime, command_id,
+                    replace(command, execution_params=baseline_params),
+                    deadline, pending,
+                    command_id in frozen_ids, command_id in protection_frozen_ids,
+                )
+            else:
+                generation, params, grid_size = completed.get(
+                    command_id, (0, command.execution_params, init.slices_total),
+                )
+                assert isinstance(params, LadderDcaParams)
+                live_children, posted_count = self._ladder_children_from_projections(
+                    runtime, command_id, grid_size, generation,
+                )
+                scheme = _LiveScheme(
+                    command=replace(command, execution_params=params),
+                    slice_qtys=[],
+                    slices_total=grid_size,
+                    interval_seconds=0,
+                    cursor=posted_count,
+                    active_children=live_children,
+                    next_run_at=None,
+                    deadline=deadline,
+                    frozen=command_id in frozen_ids,
+                    protection_frozen=command_id in protection_frozen_ids,
+                    amend_generation=generation,
+                )
+
             runtime.schemes[command_id] = scheme
-            self._commands[command_id] = command
+            self._commands[command_id] = scheme.command
             self._accepted_commands[command_id] = runtime.account_id
             self._command_trade_ids[command_id] = init.trade_id
 
             _log.info(
-                'resumed ladder from replay: command_id=%s active=%d frozen=%s',
+                'resumed ladder from replay: command_id=%s active=%d frozen=%s '
+                'generation=%d amend_phase=%s',
                 command_id,
-                len(live_children),
+                len(scheme.active_children),
                 scheme.frozen,
+                scheme.amend_generation,
+                scheme.amend_phase,
             )
+
+    def _resume_inflight_ladder_amend(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        command: TradeCommand,
+        deadline: datetime | None,
+        pending: tuple[LadderAmendInitiated, LadderAmendPlanned | None, str],
+        frozen: bool,
+        protection_frozen: bool,
+    ) -> _LiveScheme:
+        '''Rebuild a ladder whose amend was in flight at the crash.
+
+        The old-generation rungs still resting and any new-generation rungs
+        already placed are gathered as active children, and the amend context
+        (target grid, generation, and the fixed plan when reached) is rebuilt
+        from the durable events. The scheme resumes with its `amend_phase` set
+        so the reconcile watchdog re-drives it — retiring the rest of the old
+        grid and placing the new — exactly as the live driver would have.
+        '''
+
+        initiated, planned_event, phase = pending
+        old_generation = initiated.generation - 1
+
+        planned = (
+            [
+                (sequence, price, qty)
+                for sequence, price, qty in zip(
+                    planned_event.sequences,
+                    planned_event.prices,
+                    planned_event.qtys,
+                    strict=True,
+                )
+            ]
+            if planned_event is not None
+            else None
+        )
+        context = _LadderAmendContext(
+            old_generation=old_generation,
+            new_generation=initiated.generation,
+            old_slices_total=initiated.old_slices_total,
+            price_levels=initiated.price_levels,
+            level_weights=initiated.level_weights,
+            planned=planned,
+            cancel_committed=True,
+        )
+
+        old_live, _old_posted = self._ladder_children_from_projections(
+            runtime, command_id, initiated.old_slices_total, old_generation,
+        )
+        new_live: set[str] = set()
+        if planned_event is not None and planned_event.sequences:
+            new_grid_size = max(planned_event.sequences) + 1
+            new_live, _new_posted = self._ladder_children_from_projections(
+                runtime, command_id, new_grid_size, initiated.generation,
+            )
+
+        return _LiveScheme(
+            command=command,
+            slice_qtys=[],
+            slices_total=initiated.old_slices_total,
+            interval_seconds=0,
+            cursor=initiated.old_slices_total,
+            active_children=old_live | new_live,
+            next_run_at=None,
+            deadline=deadline,
+            frozen=frozen,
+            protection_frozen=protection_frozen,
+            amend_generation=old_generation,
+            amend_phase=phase,
+            amend_context=context,
+        )
 
     def _ladder_children_from_projections(
         self,
         runtime: _AccountRuntime,
         command_id: str,
         slices_total: int,
+        generation: int = 0,
     ) -> tuple[set[str], int]:
         '''Reconstruct a ladder's live rungs and posted count from replay.
 
@@ -1009,6 +1162,8 @@ class ExecutionManager:
             runtime (_AccountRuntime): Per-account state to read projections.
             command_id (str): The ladder parent command id.
             slices_total (int): The persisted rung count.
+            generation (int): Amend generation whose rung ids (retry=generation)
+                to scan; 0 is the original grid.
 
         Returns:
             tuple[set[str], int]: The still-working rung client order ids and
@@ -1019,7 +1174,7 @@ class ExecutionManager:
         posted_count = 0
         for index in range(slices_total):
             child_id = generate_client_order_id(
-                ExecutionMode.LADDER_DCA, command_id, sequence=index,
+                ExecutionMode.LADDER_DCA, command_id, sequence=index, retry=generation,
             )
             order = self._scheme_child_order(runtime, child_id)
             if order is None:
@@ -4106,6 +4261,7 @@ class ExecutionManager:
         for scheme in list(runtime.schemes.values()):
             if (
                 scheme.pending_terminal is None
+                and scheme.amend_phase is None
                 and scheme.deadline is not None
                 and now >= scheme.deadline
             ):
@@ -4693,6 +4849,9 @@ class ExecutionManager:
         if order.status in _TERMINAL_ORDER_STATUSES:
             scheme.active_children.discard(event.client_order_id)
 
+            if scheme.amend_phase is not None:
+                return
+
             if (
                 order.status is not OrderStatus.FILLED
                 and scheme.pending_terminal is None
@@ -5177,24 +5336,49 @@ class ExecutionManager:
         )
 
     async def _run_protection_scan(self, runtime: _AccountRuntime) -> None:
-        '''Run the STATE_UNKNOWN watchdog and remediation drain on the writer.
+        '''Run the reconcile-tick watchdogs and drains on the account writer.
 
         Requested by the off-critical-path reconcile task via
-        `request_protection_scan` and executed here so the watchdog's writes —
-        re-track, scheme freeze, flatten submit — run on the single account
-        writer rather than racing it from the reconcile task. A failure is
-        logged and swallowed so a venue error cannot stop the account loop.
+        `request_protection_scan` and executed here so the watchdogs' writes —
+        protection re-track, scheme freeze, flatten submit, and ladder-amend
+        cancel/place — run on the single account writer rather than racing it
+        from the reconcile task. A failure is logged and swallowed so a venue
+        error cannot stop the account loop.
         '''
 
         try:
             await self.resolve_unknown_protection(runtime.account_id)
             await self.drain_protection_remediations(runtime.account_id)
+            await self.resolve_ladder_amends(runtime.account_id)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001
             _log.exception(
                 'protection scan failed: account_id=%s', runtime.account_id,
             )
+
+    async def resolve_ladder_amends(self, account_id: str) -> None:
+        '''Advance any stalled or crash-resumed ladder amend on the writer.
+
+        A live amend that could not confirm a cancel or a placement, or one
+        rebuilt mid-flight on boot, holds with `amend_phase` set and its
+        context retained. Each reconcile tick re-drives it — retrying the
+        fail-closed cancels or the missing placements idempotently — until it
+        completes or halts again on a still-unconfirmable venue.
+
+        Args:
+            account_id (str): Account whose ladder amends to advance.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for scheme in list(runtime.schemes.values()):
+            if scheme.amend_phase is None or scheme.amend_context is None:
+                continue
+
+            await self._drive_ladder_amend(runtime, scheme)
 
     async def resolve_unknown_protection(self, account_id: str) -> None:
         '''Resolve brackets stuck in STATE_UNKNOWN on the account writer.
@@ -6472,7 +6656,7 @@ class ExecutionManager:
             else current.level_weights
         )
         try:
-            new_params = LadderDcaParams(
+            LadderDcaParams(
                 price_levels=new_price_levels, level_weights=new_weights,
             )
         except ValueError as exc:
@@ -6499,36 +6683,84 @@ class ExecutionManager:
         )
         await self._event_spine.append(initiated, self._epoch_id)
         scheme.amend_phase = 'CANCELLING'
-
-        total_filled = await self._retire_ladder_generation(
-            runtime, cmd, scheme, old_generation, scheme.slices_total, new_generation,
+        scheme.amend_context = _LadderAmendContext(
+            old_generation=old_generation,
+            new_generation=new_generation,
+            old_slices_total=scheme.slices_total,
+            price_levels=new_price_levels,
+            level_weights=new_weights or (),
         )
-        if total_filled is None:
+
+        await self._drive_ladder_amend(runtime, scheme)
+
+    async def _drive_ladder_amend(
+        self, runtime: _AccountRuntime, scheme: _LiveScheme,
+    ) -> None:
+        '''Advance an in-flight ladder amend from its current phase to done.
+
+        Shared by the live driver, the reconcile watchdog, and boot resume, so
+        an amend finishes identically whether it just started, stalled in
+        STATE_UNKNOWN, or crashed mid-flight. CANCELLING retires and confirms
+        every old rung, then fixes and persists the replacement plan; PLACING
+        places the planned rungs. Each step is idempotent — already-terminal
+        old rungs and already-resting new rungs are adopted — so re-driving
+        never double-cancels or double-places.
+        '''
+
+        cmd = scheme.command
+        ctx = scheme.amend_context
+        if ctx is None:
             return
 
-        assert cmd.qty is not None
-        remainder = cmd.qty - total_filled
-        planned = self._plan_ladder_amend(cmd, new_params, remainder)
-
-        if not planned:
-            await self._complete_ladder_amend(runtime, cmd, scheme, new_generation, new_params)
-            return
-
-        planned_event = LadderAmendPlanned(
-            account_id=cmd.account_id,
-            timestamp=self._clock(),
-            command_id=command_id,
-            generation=new_generation,
-            sequences=tuple(index for index, _price, _qty in planned),
-            prices=tuple(price for _index, price, _qty in planned),
-            qtys=tuple(qty for _index, _price, qty in planned),
+        new_params = LadderDcaParams(
+            price_levels=ctx.price_levels,
+            level_weights=ctx.level_weights or None,
         )
-        await self._event_spine.append(planned_event, self._epoch_id)
-        scheme.amend_phase = 'PLACING'
 
-        await self._place_ladder_generation(
-            runtime, cmd, scheme, new_generation, planned, new_params,
-        )
+        if scheme.amend_phase == 'CANCELLING':
+            total_filled = await self._retire_ladder_generation(
+                runtime, cmd, scheme,
+                ctx.old_generation, ctx.old_slices_total, ctx.new_generation,
+            )
+            if total_filled is None:
+                return
+
+            assert cmd.qty is not None
+            remainder = cmd.qty - total_filled
+            planned = self._plan_ladder_amend(cmd, new_params, remainder)
+
+            if not planned:
+                await self._complete_ladder_amend(
+                    runtime, cmd, scheme, ctx.new_generation, new_params,
+                )
+                return
+
+            planned_event = LadderAmendPlanned(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                command_id=cmd.command_id,
+                generation=ctx.new_generation,
+                sequences=tuple(index for index, _price, _qty in planned),
+                prices=tuple(price for _index, price, _qty in planned),
+                qtys=tuple(qty for _index, _price, qty in planned),
+            )
+            await self._event_spine.append(planned_event, self._epoch_id)
+            ctx.planned = planned
+            scheme.amend_phase = 'PLACING'
+
+        if scheme.amend_phase == 'PLACING':
+            if scheme.protection_frozen:
+                _log.info(
+                    'ladder amend placement held: protection frozen, no new '
+                    'rungs placed: command_id=%s',
+                    cmd.command_id,
+                )
+                return
+
+            assert ctx.planned is not None
+            await self._place_ladder_generation(
+                runtime, cmd, scheme, ctx.new_generation, ctx.planned, new_params,
+            )
 
     def _plan_ladder_amend(
         self,
@@ -6574,39 +6806,67 @@ class ExecutionManager:
     ) -> Decimal | None:
         '''Cancel and venue-confirm every old-generation rung terminal.
 
-        Returns the venue-truth total filled across the old grid once every
-        rung is positively terminal. Fail-closed: a cancel or query that
-        cannot confirm, or a rung still live after cancel, halts the amend —
-        cleanly aborted (old grid untouched) if no rung was cancelled yet, or
-        `LadderAmendStateUnknown` (CANCELLING) for the watchdog once at least
-        one rung is already retired. Returns None in every halt case.
+        Returns the venue-truth total filled across the old grid — read from
+        the active and closed order projections, so a rung filled before the
+        amend or cancelled on an earlier retry still counts — once every rung
+        is positively terminal. The cancel and the confirming query run
+        separately: a cancel that the venue never accepted (its own error)
+        leaves the rung live and the old grid intact, so the amend may still
+        cleanly abort; any failure once a cancel has been committed to the
+        venue is `LadderAmendStateUnknown` for the watchdog, never an abort,
+        because the venue may already have retired the rung. Returns None in
+        every halt case.
         '''
 
+        ctx = scheme.amend_context
         total_filled = _ZERO
-        cancels_succeeded = 0
         for index in range(old_slices_total):
             rung_id = generate_client_order_id(
                 ExecutionMode.LADDER_DCA, cmd.command_id,
                 sequence=index, retry=old_generation,
             )
-            order = runtime.trading_state.orders.get(rung_id)
+            order = self._scheme_child_order(runtime, rung_id)
             if order is None:
                 continue
 
             if order.status in _TERMINAL_ORDER_STATUSES:
+                if order.status is OrderStatus.CANCELED and ctx is not None:
+                    ctx.cancel_committed = True
+
                 total_filled += order.filled_qty
                 scheme.active_children.discard(rung_id)
                 continue
 
-            venue_order = await self._cancel_and_query(cmd, rung_id)
-            if venue_order is None or venue_order.status not in _TERMINAL_ORDER_STATUSES:
-                reason = (
-                    'rung cancel/query unconfirmable' if venue_order is None
-                    else 'rung still live after cancel'
+            try:
+                await self._venue_adapter.cancel_order(
+                    cmd.account_id, cmd.symbol, client_order_id=rung_id,
                 )
+            except NotFoundError:
+                pass
+            except VenueError:
+                await self._halt_ladder_amend(
+                    cmd, scheme, new_generation, 'CANCELLING', 'rung cancel failed',
+                )
+                return None
+
+            if ctx is not None:
+                ctx.cancel_committed = True
+
+            try:
+                venue_order = await self._venue_adapter.query_order(
+                    cmd.account_id, cmd.symbol, client_order_id=rung_id,
+                )
+            except (NotFoundError, VenueError):
                 await self._halt_ladder_amend(
                     cmd, scheme, new_generation, 'CANCELLING',
-                    reason, cancels_succeeded,
+                    'rung query unconfirmable after cancel',
+                )
+                return None
+
+            if venue_order.status not in _TERMINAL_ORDER_STATUSES:
+                await self._halt_ladder_amend(
+                    cmd, scheme, new_generation, 'CANCELLING',
+                    'rung still live after cancel',
                 )
                 return None
 
@@ -6621,7 +6881,6 @@ class ExecutionManager:
             runtime.trading_state.apply(canceled)
             total_filled += venue_order.filled_qty
             scheme.active_children.discard(rung_id)
-            cancels_succeeded += 1
 
         return total_filled
 
@@ -6632,18 +6891,21 @@ class ExecutionManager:
         generation: int,
         phase: str,
         reason: str,
-        cancels_succeeded: int,
     ) -> None:
         '''Abort a torn-free amend or hold an unconfirmable one for the watchdog.
 
-        With zero rungs cancelled the old grid is intact, so the amend aborts
-        cleanly (durable `LadderAmendAborted`) and the ladder resumes running.
-        Once any rung is retired the old grid cannot be restored, so the amend
-        holds in `LadderAmendStateUnknown` with its phase for the reconcile
-        watchdog to finish.
+        The amend may abort cleanly (durable `LadderAmendAborted`, ladder
+        resumes running) only while no cancel has ever been committed to the
+        venue — a decision that must hold across watchdog retries and a restart,
+        so it reads the context's `cancel_committed` (set the moment a cancel is
+        sent, and true for any resumed amend) rather than a per-drive count that
+        resets each retry. Once a cancel is committed the venue may already have
+        retired a rung, so the amend holds in `LadderAmendStateUnknown` with its
+        phase for the reconcile watchdog to finish.
         '''
 
-        if cancels_succeeded == 0:
+        committed = scheme.amend_context is not None and scheme.amend_context.cancel_committed
+        if not committed:
             aborted = LadderAmendAborted(
                 account_id=cmd.account_id,
                 timestamp=self._clock(),
@@ -6653,6 +6915,7 @@ class ExecutionManager:
             )
             await self._event_spine.append(aborted, self._epoch_id)
             scheme.amend_phase = None
+            scheme.amend_context = None
             _log.warning(
                 'ladder amend aborted, old grid intact: command_id=%s reason=%s',
                 cmd.command_id,
@@ -6702,7 +6965,7 @@ class ExecutionManager:
                 ExecutionMode.LADDER_DCA, cmd.command_id,
                 sequence=index, retry=generation,
             )
-            existing = runtime.trading_state.orders.get(rung_id)
+            existing = self._scheme_child_order(runtime, rung_id)
             if existing is not None:
                 if existing.status not in _TERMINAL_ORDER_STATUSES:
                     new_active.add(rung_id)
@@ -6715,7 +6978,7 @@ class ExecutionManager:
             if client_order_id is None:
                 await self._halt_ladder_amend(
                     cmd, scheme, generation, 'PLACING',
-                    f'ladder amend rung {index} placement failed', 1,
+                    f'ladder amend rung {index} placement failed',
                 )
                 return
 
@@ -6759,6 +7022,7 @@ class ExecutionManager:
         self._commands[cmd.command_id] = new_command
         scheme.amend_generation = generation
         scheme.amend_phase = None
+        scheme.amend_context = None
 
         _log.info(
             'ladder amend complete: command_id=%s generation=%d rungs=%d',
