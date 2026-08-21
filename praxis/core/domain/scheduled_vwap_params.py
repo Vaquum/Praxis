@@ -39,7 +39,11 @@ class ScheduledVwapParams:
 
         '''Validate invariants at construction time.'''
 
-        if not isinstance(self.interval_seconds, int) or self.interval_seconds <= 0:
+        if (
+            isinstance(self.interval_seconds, bool)
+            or not isinstance(self.interval_seconds, int)
+            or self.interval_seconds <= 0
+        ):
             msg = 'ScheduledVwapParams.interval_seconds must be a positive int'
             raise ValueError(msg)
 

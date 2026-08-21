@@ -344,7 +344,30 @@ class TestLadderAmend:
         assert placed_total == Decimal('0.6')
 
     @pytest.mark.asyncio
-    async def test_amend_aborts_clean_when_first_cancel_fails(
+    async def test_second_amend_retains_prior_generation_fills(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        em.enqueue_ws_event(_ACCT, _rung_fill(command_id, 0, Decimal('0.6'), _LEVELS[0]))
+        await asyncio.sleep(0.2)
+
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        placed_before = adapter.submit_order.await_count
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEWER_LEVELS))
+
+        new_calls = adapter.submit_order.call_args_list[placed_before:]
+        placed_total = sum(c.args[_QTY_ARG_INDEX] for c in new_calls)
+        assert placed_total == Decimal('0.4')
+
+    @pytest.mark.asyncio
+    async def test_unconfirmed_first_cancel_holds_state_unknown(
         self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
         spine: EventSpine,
     ) -> None:
@@ -361,11 +384,12 @@ class TestLadderAmend:
 
         assert adapter.submit_order.await_count == placed_before
         scheme = runtime.schemes[command_id]
-        assert scheme.amend_phase is None
-        assert scheme.amend_generation == 0
+        assert scheme.amend_phase == 'CANCELLING'
+        assert scheme.amend_context is not None
 
         events = [e for _s, e in await spine.read(_EPOCH, after_seq=0)]
-        assert any(type(e).__name__ == 'LadderAmendAborted' for e in events)
+        assert not any(type(e).__name__ == 'LadderAmendAborted' for e in events)
+        assert any(isinstance(e, LadderAmendStateUnknown) for e in events)
 
 
 def _restart(

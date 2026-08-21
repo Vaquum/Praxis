@@ -33,10 +33,18 @@ class TwapParams:
 
         '''Validate invariants at construction time.'''
 
-        if not isinstance(self.num_slices, int) or self.num_slices < _MIN_SLICES:
+        if (
+            isinstance(self.num_slices, bool)
+            or not isinstance(self.num_slices, int)
+            or self.num_slices < _MIN_SLICES
+        ):
             msg = f'TwapParams.num_slices must be an int at least {_MIN_SLICES}'
             raise ValueError(msg)
 
-        if not isinstance(self.interval_seconds, int) or self.interval_seconds <= 0:
+        if (
+            isinstance(self.interval_seconds, bool)
+            or not isinstance(self.interval_seconds, int)
+            or self.interval_seconds <= 0
+        ):
             msg = 'TwapParams.interval_seconds must be a positive int'
             raise ValueError(msg)

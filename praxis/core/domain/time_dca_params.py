@@ -33,10 +33,18 @@ class TimeDcaParams:
 
         '''Validate invariants at construction time.'''
 
-        if not isinstance(self.num_iterations, int) or self.num_iterations < _MIN_ITERATIONS:
+        if (
+            isinstance(self.num_iterations, bool)
+            or not isinstance(self.num_iterations, int)
+            or self.num_iterations < _MIN_ITERATIONS
+        ):
             msg = f'TimeDcaParams.num_iterations must be an int at least {_MIN_ITERATIONS}'
             raise ValueError(msg)
 
-        if not isinstance(self.interval_seconds, int) or self.interval_seconds <= 0:
+        if (
+            isinstance(self.interval_seconds, bool)
+            or not isinstance(self.interval_seconds, int)
+            or self.interval_seconds <= 0
+        ):
             msg = 'TimeDcaParams.interval_seconds must be a positive int'
             raise ValueError(msg)

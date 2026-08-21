@@ -1978,13 +1978,16 @@ class BinanceAdapter:
 
         '''Map a SAPI withdrawal-history record to a `VenueFundTransaction`.
 
-        Binance reports `applyTime` as a UTC `'%Y-%m-%d %H:%M:%S'` string.
+        Binance reports `applyTime` as a UTC `'%Y-%m-%d %H:%M:%S'` string, and
+        reports `transactionFee` separately from `amount` though both reduce the
+        venue balance, so the debit is their sum — recording only `amount`
+        understates the ledger by the fee and fabricates a balance shortfall.
         '''
 
         return VenueFundTransaction(
             fund_transaction_id=str(entry['id']),
             asset=entry['coin'],
-            amount=Decimal(str(entry['amount'])),
+            amount=Decimal(str(entry['amount'])) + Decimal(str(entry['transactionFee'])),
             direction='WITHDRAWAL',
             timestamp=datetime.strptime(
                 entry['applyTime'], _WITHDRAWAL_TIME_FORMAT,

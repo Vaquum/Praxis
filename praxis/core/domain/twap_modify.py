@@ -39,13 +39,17 @@ class TwapModify:
             raise ValueError(msg)
 
         if self.num_slices is not None and (
-            not isinstance(self.num_slices, int) or self.num_slices < _MIN_SLICES
+            isinstance(self.num_slices, bool)
+            or not isinstance(self.num_slices, int)
+            or self.num_slices < _MIN_SLICES
         ):
             msg = f'TwapModify.num_slices must be an int at least {_MIN_SLICES}'
             raise ValueError(msg)
 
         if self.interval_seconds is not None and (
-            not isinstance(self.interval_seconds, int) or self.interval_seconds <= 0
+            isinstance(self.interval_seconds, bool)
+            or not isinstance(self.interval_seconds, int)
+            or self.interval_seconds <= 0
         ):
             msg = 'TwapModify.interval_seconds must be a positive int'
             raise ValueError(msg)

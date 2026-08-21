@@ -225,7 +225,7 @@ class TestExposureCeiling:
             set(),
         ) is True
 
-    def test_ladder_buy_different_rung_count_rejected(self) -> None:
+    def test_ladder_buy_higher_weighted_commitment_rejected(self) -> None:
         commands = {_CMD: _ladder_command()}
 
         with pytest.raises(ValueError, match='raises buy-side quote exposure'):
@@ -233,13 +233,55 @@ class TestExposureCeiling:
                 _modify(
                     modify_params=LadderDcaModify(
                         price_levels=(
-                            Decimal('49000'), Decimal('48000'), Decimal('47000'),
+                            Decimal('60000'), Decimal('59000'), Decimal('58000'),
                         ),
                     ),
                 ),
                 commands,
                 set(),
             )
+
+    def test_ladder_buy_lower_weighted_commitment_allowed(self) -> None:
+        commands = {_CMD: _ladder_command()}
+
+        assert validate_trade_modify(
+            _modify(
+                modify_params=LadderDcaModify(
+                    price_levels=(
+                        Decimal('49000'), Decimal('48000'), Decimal('47000'),
+                    ),
+                ),
+            ),
+            commands,
+            set(),
+        ) is True
+
+    def test_ladder_buy_weight_only_amend_raising_commitment_rejected(self) -> None:
+        commands = {_CMD: _ladder_command()}
+
+        with pytest.raises(ValueError, match='raises buy-side quote exposure'):
+            validate_trade_modify(
+                _modify(
+                    modify_params=LadderDcaModify(
+                        level_weights=(Decimal('0.9'), Decimal('0.1')),
+                    ),
+                ),
+                commands,
+                set(),
+            )
+
+    def test_ladder_buy_weight_only_amend_lowering_commitment_allowed(self) -> None:
+        commands = {_CMD: _ladder_command()}
+
+        assert validate_trade_modify(
+            _modify(
+                modify_params=LadderDcaModify(
+                    level_weights=(Decimal('0.1'), Decimal('0.9')),
+                ),
+            ),
+            commands,
+            set(),
+        ) is True
 
 
 def _bracket_command() -> TradeCommand:

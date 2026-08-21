@@ -62,7 +62,9 @@ class ScheduledVwapModify:
                 raise ValueError(msg)
 
         if self.interval_seconds is not None and (
-            not isinstance(self.interval_seconds, int) or self.interval_seconds <= 0
+            isinstance(self.interval_seconds, bool)
+            or not isinstance(self.interval_seconds, int)
+            or self.interval_seconds <= 0
         ):
             msg = 'ScheduledVwapModify.interval_seconds must be a positive int'
             raise ValueError(msg)

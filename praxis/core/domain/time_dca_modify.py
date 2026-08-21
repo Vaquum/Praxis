@@ -41,13 +41,17 @@ class TimeDcaModify:
             raise ValueError(msg)
 
         if self.num_iterations is not None and (
-            not isinstance(self.num_iterations, int) or self.num_iterations < _MIN_ITERATIONS
+            isinstance(self.num_iterations, bool)
+            or not isinstance(self.num_iterations, int)
+            or self.num_iterations < _MIN_ITERATIONS
         ):
             msg = f'TimeDcaModify.num_iterations must be an int at least {_MIN_ITERATIONS}'
             raise ValueError(msg)
 
         if self.interval_seconds is not None and (
-            not isinstance(self.interval_seconds, int) or self.interval_seconds <= 0
+            isinstance(self.interval_seconds, bool)
+            or not isinstance(self.interval_seconds, int)
+            or self.interval_seconds <= 0
         ):
             msg = 'TimeDcaModify.interval_seconds must be a positive int'
             raise ValueError(msg)

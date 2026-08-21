@@ -446,3 +446,58 @@ class TestSingleShotAmend:
         await asyncio.sleep(0.3)
 
         adapter.cancel_order.assert_not_awaited()
+
+
+class TestSequentialAmendCompose:
+
+    @pytest.mark.asyncio
+    async def test_display_amend_keeps_prior_price_amend(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        command_id = await _rest_iceberg(em, adapter)
+
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        adapter.submit_order.reset_mock()
+        em.submit_modify(_modify(command_id, display_qty=Decimal('0.2')))
+        await asyncio.sleep(0.3)
+
+        call = adapter.submit_order.call_args
+        assert call.kwargs[_PRICE_KW] == _NEW_PRICE
+
+    @pytest.mark.asyncio
+    async def test_second_amend_retains_superseded_order_fills(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        command_id = await _rest_iceberg(em, adapter)
+
+        old_coid = generate_client_order_id(
+            ExecutionMode.ICEBERG, command_id, sequence=0,
+        )
+        em.enqueue_ws_event(
+            _ACCT, _ws_fill(command_id, old_coid, Decimal('0.3'), _OLD_PRICE),
+        )
+        await asyncio.sleep(0.2)
+
+        adapter.query_order.return_value = _venue_order(Decimal('0.3'))
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        new_coid = generate_client_order_id(
+            ExecutionMode.ICEBERG, command_id, sequence=1,
+        )
+        em.enqueue_ws_event(
+            _ACCT, _ws_fill(command_id, new_coid, Decimal('0.2'), _NEW_PRICE),
+        )
+        await asyncio.sleep(0.2)
+
+        adapter.submit_order.reset_mock()
+        adapter.query_order.return_value = _venue_order(Decimal('0.2'))
+        em.submit_modify(_modify(command_id, limit_price=Decimal('48000')))
+        await asyncio.sleep(0.3)
+
+        call = adapter.submit_order.call_args
+        assert call.args[_QTY_ARG_INDEX] == Decimal('0.5')

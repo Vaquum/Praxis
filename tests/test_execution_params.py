@@ -167,3 +167,27 @@ def test_trade_command_accepts_matching_params() -> None:
 def test_trade_command_rejects_mismatched_params() -> None:
     with pytest.raises(TypeError, match='TwapParams'):
         _command(ExecutionMode.TWAP, SingleShotParams(), OrderType.MARKET)
+
+
+def test_twap_params_reject_bool_fields() -> None:
+    with pytest.raises(ValueError, match='interval_seconds'):
+        TwapParams(num_slices=4, interval_seconds=True)
+
+    with pytest.raises(ValueError, match='num_slices'):
+        TwapParams(num_slices=True, interval_seconds=30)
+
+
+def test_time_dca_params_reject_bool_fields() -> None:
+    with pytest.raises(ValueError, match='interval_seconds'):
+        TimeDcaParams(num_iterations=4, interval_seconds=True)
+
+    with pytest.raises(ValueError, match='num_iterations'):
+        TimeDcaParams(num_iterations=True, interval_seconds=30)
+
+
+def test_scheduled_vwap_params_reject_bool_interval() -> None:
+    with pytest.raises(ValueError, match='interval_seconds'):
+        ScheduledVwapParams(
+            interval_seconds=True,
+            volume_weights=(Decimal('0.2'), Decimal('0.3'), Decimal('0.5')),
+        )

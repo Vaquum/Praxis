@@ -107,3 +107,26 @@ class TestRegistry:
         assert MODIFY_PARAMS_FOR_MODE[ExecutionMode.ICEBERG] is IcebergModify
         assert MODIFY_PARAMS_FOR_MODE[ExecutionMode.TWAP] is TwapModify
         assert MODIFY_PARAMS_FOR_MODE[ExecutionMode.BRACKET] is BracketModify
+
+
+class TestBoolRejectedAsInt:
+
+    def test_twap_interval_rejects_bool(self) -> None:
+        with pytest.raises(ValueError, match='interval_seconds'):
+            TwapModify(interval_seconds=True)
+
+    def test_twap_num_slices_rejects_bool(self) -> None:
+        with pytest.raises(ValueError, match='num_slices'):
+            TwapModify(num_slices=True)
+
+    def test_time_dca_interval_rejects_bool(self) -> None:
+        with pytest.raises(ValueError, match='interval_seconds'):
+            TimeDcaModify(interval_seconds=True)
+
+    def test_time_dca_iterations_rejects_bool(self) -> None:
+        with pytest.raises(ValueError, match='num_iterations'):
+            TimeDcaModify(num_iterations=True)
+
+    def test_scheduled_vwap_interval_rejects_bool(self) -> None:
+        with pytest.raises(ValueError, match='interval_seconds'):
+            ScheduledVwapModify(interval_seconds=True)

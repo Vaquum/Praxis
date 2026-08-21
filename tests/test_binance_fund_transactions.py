@@ -21,9 +21,9 @@ _DEPOSITS: list[dict[str, Any]] = [
      'insertTime': 1700000100000, 'status': 0},
 ]
 _WITHDRAWALS: list[dict[str, Any]] = [
-    {'id': 'wd-1', 'coin': 'USDT', 'amount': '200',
+    {'id': 'wd-1', 'coin': 'USDT', 'amount': '200', 'transactionFee': '1.5',
      'applyTime': '2023-11-14 22:14:00', 'status': 6},
-    {'id': 'wd-2', 'coin': 'USDT', 'amount': '10',
+    {'id': 'wd-2', 'coin': 'USDT', 'amount': '10', 'transactionFee': '0.5',
      'applyTime': '2023-11-14 22:20:00', 'status': 3},
 ]
 
@@ -60,7 +60,7 @@ class TestQueryFundTransactions:
 
         withdrawal = result[1]
         assert withdrawal.direction == 'WITHDRAWAL'
-        assert withdrawal.amount == Decimal('200')
+        assert withdrawal.amount == Decimal('201.5')
         assert withdrawal.timestamp == datetime(2023, 11, 14, 22, 14, tzinfo=UTC)
 
     @pytest.mark.asyncio

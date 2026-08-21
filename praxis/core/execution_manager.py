@@ -883,6 +883,16 @@ class ExecutionManager:
                 runtime.amend_counts[event.command_id] = (
                     runtime.amend_counts.get(event.command_id, 0) + 1
                 )
+                amended = self._commands.get(event.command_id)
+                if amended is not None and isinstance(
+                    amended.execution_params, (IcebergParams, SingleShotParams),
+                ):
+                    self._commands[event.command_id] = replace(
+                        amended,
+                        execution_params=self._amended_order_params(
+                            amended, event.price, event.display_qty,
+                        ),
+                    )
 
             if isinstance(event, OrderSubmitIntent):
                 self._command_trade_ids[event.command_id] = event.trade_id
@@ -5459,18 +5469,33 @@ class ExecutionManager:
         '''
 
         cmd = bracket.command
-        old_list_client_order_id = bracket.protection_client_order_id
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
-        oco_filled = _ZERO
-        if old_list_client_order_id is not None:
+        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+
+        candidates = [
+            candidate
+            for candidate in (
+                bracket.protection_client_order_id,
+                bracket.pending_replacement_client_order_id,
+            )
+            if candidate is not None
+        ]
+        exit_venue = _ZERO
+        candidate_projected = _ZERO
+        for candidate in candidates:
             try:
-                oco_filled = await self._cancelled_oco_filled_qty(
-                    cmd, old_list_client_order_id,
-                )
+                exit_venue += await self._cancelled_oco_filled_qty(cmd, candidate)
+            except NotFoundError:
+                pass
             except VenueError:
                 return
 
-        remainder = entry_filled - oco_filled
+            candidate_order = self._scheme_child_order(runtime, candidate)
+            if candidate_order is not None:
+                candidate_projected += candidate_order.filled_qty
+
+        remainder = entry_filled - (exit_projected - candidate_projected + exit_venue)
         if remainder <= _ZERO:
             runtime.brackets.pop(cmd.command_id, None)
             _log.info(
@@ -5486,7 +5511,7 @@ class ExecutionManager:
             bracket.protection_version,
             'protection confirmed terminal and position naked',
             remainder,
-            old_list_client_order_id,
+            bracket.protection_client_order_id,
         )
 
     async def _remediate_unconfirmable_bracket(
@@ -5508,8 +5533,11 @@ class ExecutionManager:
             return
 
         cmd = bracket.command
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
-        if entry_filled <= _ZERO:
+        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+        remainder = entry_filled - exit_projected
+        if remainder <= _ZERO:
             return
 
         await self._remediate_naked_bracket(
@@ -5517,7 +5545,7 @@ class ExecutionManager:
             bracket,
             bracket.protection_version,
             'protection unconfirmable past restore deadline',
-            entry_filled,
+            remainder,
             bracket.protection_client_order_id,
         )
 
@@ -6577,7 +6605,8 @@ class ExecutionManager:
         await self._event_spine.append(canceled, self._epoch_id)
         runtime.trading_state.apply(canceled)
 
-        remainder = cmd.qty - venue_order.filled_qty
+        command_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        remainder = cmd.qty - (command_filled - order.filled_qty + venue_order.filled_qty)
         filters = self._venue_adapter.cached_filters(cmd.symbol)
         lot_min = filters.lot_min if filters is not None else _ZERO
 
@@ -6718,15 +6747,17 @@ class ExecutionManager:
         )
 
         if scheme.amend_phase == 'CANCELLING':
-            total_filled = await self._retire_ladder_generation(
+            retired = await self._retire_ladder_generation(
                 runtime, cmd, scheme,
                 ctx.old_generation, ctx.old_slices_total, ctx.new_generation,
             )
-            if total_filled is None:
+            if retired is None:
                 return
 
+            venue_filled, projected_filled = retired
             assert cmd.qty is not None
-            remainder = cmd.qty - total_filled
+            command_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+            remainder = cmd.qty - (command_filled - projected_filled + venue_filled)
             planned = self._plan_ladder_amend(cmd, new_params, remainder)
 
             if not planned:
@@ -6803,23 +6834,25 @@ class ExecutionManager:
         old_generation: int,
         old_slices_total: int,
         new_generation: int,
-    ) -> Decimal | None:
+    ) -> tuple[Decimal, Decimal] | None:
         '''Cancel and venue-confirm every old-generation rung terminal.
 
-        Returns the venue-truth total filled across the old grid — read from
-        the active and closed order projections, so a rung filled before the
-        amend or cancelled on an earlier retry still counts — once every rung
-        is positively terminal. The cancel and the confirming query run
-        separately: a cancel that the venue never accepted (its own error)
-        leaves the rung live and the old grid intact, so the amend may still
-        cleanly abort; any failure once a cancel has been committed to the
-        venue is `LadderAmendStateUnknown` for the watchdog, never an abort,
-        because the venue may already have retired the rung. Returns None in
-        every halt case.
+        Returns `(venue_filled, projected_filled)` for the old grid once every
+        rung is positively terminal: `venue_filled` sums each rung's
+        authoritative venue quantity (queried after cancel, or the projection
+        for a rung already terminal), and `projected_filled` sums the same
+        rungs' local projections. The caller replaces the retiring generation's
+        projected fills inside the command total with `venue_filled`, so the
+        remainder stays exact across repeated amends. `cancel_committed` is set
+        the moment a cancel is sent — a sent-but-unconfirmed cancel may already
+        have retired the rung — so any failure after that point is
+        `LadderAmendStateUnknown` for the watchdog, never a clean abort.
+        Returns None in every halt case.
         '''
 
         ctx = scheme.amend_context
         total_filled = _ZERO
+        projected_filled = _ZERO
         for index in range(old_slices_total):
             rung_id = generate_client_order_id(
                 ExecutionMode.LADDER_DCA, cmd.command_id,
@@ -6829,6 +6862,8 @@ class ExecutionManager:
             if order is None:
                 continue
 
+            projected_filled += order.filled_qty
+
             if order.status in _TERMINAL_ORDER_STATUSES:
                 if order.status is OrderStatus.CANCELED and ctx is not None:
                     ctx.cancel_committed = True
@@ -6836,6 +6871,9 @@ class ExecutionManager:
                 total_filled += order.filled_qty
                 scheme.active_children.discard(rung_id)
                 continue
+
+            if ctx is not None:
+                ctx.cancel_committed = True
 
             try:
                 await self._venue_adapter.cancel_order(
@@ -6848,9 +6886,6 @@ class ExecutionManager:
                     cmd, scheme, new_generation, 'CANCELLING', 'rung cancel failed',
                 )
                 return None
-
-            if ctx is not None:
-                ctx.cancel_committed = True
 
             try:
                 venue_order = await self._venue_adapter.query_order(
@@ -6882,7 +6917,7 @@ class ExecutionManager:
             total_filled += venue_order.filled_qty
             scheme.active_children.discard(rung_id)
 
-        return total_filled
+        return total_filled, projected_filled
 
     async def _halt_ladder_amend(
         self,
@@ -7189,7 +7224,11 @@ class ExecutionManager:
             )
             return
 
-        remaining = entry_filled - oco_filled
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+        old_oco_order = self._scheme_child_order(runtime, old_list_client_order_id)
+        old_oco_projected = old_oco_order.filled_qty if old_oco_order is not None else _ZERO
+        remaining = entry_filled - (exit_projected - old_oco_projected + oco_filled)
 
         if remaining <= _ZERO:
             runtime.brackets.pop(cmd.command_id, None)
@@ -7698,6 +7737,29 @@ class ExecutionManager:
         )
         return resolved_price, None
 
+    def _amended_order_params(
+        self,
+        cmd: TradeCommand,
+        price: Decimal,
+        display_qty: Decimal | None,
+    ) -> ExecutionParams:
+        '''Return the command's execution params with the amend's values applied.
+
+        Adopting the resolved price and display after a successful amend keeps
+        `cmd.execution_params` the current effective order, so a later amend
+        that leaves a field unset resolves it from the latest values rather
+        than reverting to the original command.
+        '''
+
+        if isinstance(cmd.execution_params, IcebergParams):
+            assert display_qty is not None
+            return replace(
+                cmd.execution_params, limit_price=price, display_qty=display_qty,
+            )
+
+        assert isinstance(cmd.execution_params, SingleShotParams)
+        return replace(cmd.execution_params, price=price)
+
     async def _cancel_and_query(
         self,
         cmd: TradeCommand,
@@ -7824,6 +7886,10 @@ class ExecutionManager:
         )
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
+
+        self._commands[cmd.command_id] = replace(
+            cmd, execution_params=self._amended_order_params(cmd, price, display_qty),
+        )
 
         for fill in result.immediate_fills:
             fill_event = FillReceived(
