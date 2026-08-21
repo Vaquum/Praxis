@@ -29,12 +29,17 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import (
     Event,
     FillReceived,
+    LadderAmendCompleted,
+    LadderAmendInitiated,
+    LadderAmendPlanned,
     OrderSubmitIntent,
     OrderSubmitted,
     SchemeInitialized,
 )
+from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.core.execution_manager import ExecutionManager
@@ -42,7 +47,9 @@ from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     SubmitResult,
     SymbolFilters,
+    TransientError,
     VenueAdapter,
+    VenueOrder,
 )
 
 _T0 = datetime(2099, 1, 1, tzinfo=UTC)
@@ -240,6 +247,119 @@ class TestLadderLifecycle:
 
         assert adapter.cancel_order.await_count == 2
         assert outcomes[-1].status is TradeStatus.CANCELED
+
+
+def _modify(command_id: str, **params: Any) -> TradeModify:
+    return TradeModify(
+        command_id=command_id,
+        account_id=_ACCT,
+        reason='amend',
+        modify_params=LadderDcaModify(**params),
+        created_at=_T0,
+    )
+
+
+def _canceled_rung(filled_qty: Decimal) -> VenueOrder:
+    return VenueOrder(
+        venue_order_id='v-x',
+        client_order_id='x',
+        status=OrderStatus.CANCELED,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('0.6'),
+        filled_qty=filled_qty,
+        price=Decimal('49000'),
+    )
+
+
+_NEW_LEVELS = (Decimal('47000'), Decimal('46000'))
+
+
+class TestLadderAmend:
+
+    @pytest.mark.asyncio
+    async def test_amend_reprices_grid_cancels_old_places_new(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+        spine: EventSpine,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+        placed_before = adapter.submit_order.await_count
+
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        assert adapter.cancel_order.await_count == 2
+
+        new_calls = adapter.submit_order.call_args_list[placed_before:]
+        assert [c.kwargs['price'] for c in new_calls] == list(_NEW_LEVELS)
+        assert [c.args[_QTY_ARG_INDEX] for c in new_calls] == [Decimal('0.6'), Decimal('0.4')]
+        expected_ids = [
+            generate_client_order_id(
+                ExecutionMode.LADDER_DCA, command_id, sequence=index, retry=1,
+            )
+            for index in range(2)
+        ]
+        assert [c.kwargs['client_order_id'] for c in new_calls] == expected_ids
+
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_generation == 1
+        assert scheme.amend_phase is None
+        assert scheme.slices_total == 2
+        assert scheme.active_children == set(expected_ids)
+
+        events = [e for _s, e in await spine.read(_EPOCH, after_seq=0)]
+        assert any(isinstance(e, LadderAmendInitiated) for e in events)
+        assert any(isinstance(e, LadderAmendPlanned) for e in events)
+        assert any(isinstance(e, LadderAmendCompleted) for e in events)
+
+    @pytest.mark.asyncio
+    async def test_amend_reconciles_partial_fill_into_remainder(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        adapter.query_order.return_value = _canceled_rung(Decimal('0.2'))
+        placed_before = adapter.submit_order.await_count
+
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        new_calls = adapter.submit_order.call_args_list[placed_before:]
+        placed_total = sum(c.args[_QTY_ARG_INDEX] for c in new_calls)
+        assert placed_total == Decimal('0.6')
+
+    @pytest.mark.asyncio
+    async def test_amend_aborts_clean_when_first_cancel_fails(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+        spine: EventSpine,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        adapter.cancel_order.side_effect = TransientError('venue 5xx')
+        placed_before = adapter.submit_order.await_count
+
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        assert adapter.submit_order.await_count == placed_before
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase is None
+        assert scheme.amend_generation == 0
+
+        events = [e for _s, e in await spine.read(_EPOCH, after_seq=0)]
+        assert any(type(e).__name__ == 'LadderAmendAborted' for e in events)
 
 
 class TestLadderResume:

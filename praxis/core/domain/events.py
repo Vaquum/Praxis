@@ -32,6 +32,11 @@ __all__ = [
     'FillReceived',
     'FlattenInitiated',
     'FundTransaction',
+    'LadderAmendAborted',
+    'LadderAmendCompleted',
+    'LadderAmendInitiated',
+    'LadderAmendPlanned',
+    'LadderAmendStateUnknown',
     'MarkSampled',
     'OperatorHaltRequested',
     'OperatorResumeRequested',
@@ -1128,6 +1133,224 @@ class OrderAmendInitiated(_EventBase):
             raise ValueError(msg)
 
 
+def _require_positive_decimals(cls: str, field: str, values: tuple[Decimal, ...]) -> None:
+
+    '''Validate a tuple holds only positive, finite Decimals.'''
+
+    for value in values:
+        if not isinstance(value, Decimal) or not value.is_finite() or value <= _ZERO:
+            msg = f'{cls}.{field} entries must be positive, finite Decimals'
+            raise ValueError(msg)
+
+
+def _require_positive_int(cls: str, field: str, value: int) -> None:
+
+    '''Validate a value is an int at or above 1.'''
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        msg = f'{cls}.{field} must be an int >= 1'
+        raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class LadderAmendInitiated(_EventBase):
+
+    '''
+    Represent the start of a ladder-rung amend, before the first cancel.
+
+    Persisted before any resting rung is cancelled so a crash mid-amend
+    resumes deterministically: it names the new grid (`price_levels`, optional
+    `level_weights`) and both grids' rung counts, but carries no per-rung
+    quantities — fills can still move while the old rungs are retired, so the
+    exact replacement plan is fixed only later in `LadderAmendPlanned`. The
+    `generation` qualifies the new rungs' client order ids (retry=generation)
+    so a replacement rung never collides with a cancelled one.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose rungs are amended.
+        generation (int): Amend generation (>= 1); qualifies new rung ids.
+        price_levels (tuple[Decimal, ...]): New resting limit prices.
+        old_slices_total (int): Rung count of the grid being retired.
+        new_slices_total (int): Rung count of the new grid.
+        level_weights (tuple[Decimal, ...]): New per-level weights, empty for
+            an equal split.
+    '''
+
+    command_id: str
+    generation: int
+    price_levels: tuple[Decimal, ...]
+    old_slices_total: int
+    new_slices_total: int
+    level_weights: tuple[Decimal, ...] = ()
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        object.__setattr__(self, 'price_levels', tuple(self.price_levels))
+        object.__setattr__(self, 'level_weights', tuple(self.level_weights))
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_positive_int(name, 'generation', self.generation)
+        _require_positive_int(name, 'old_slices_total', self.old_slices_total)
+        _require_positive_int(name, 'new_slices_total', self.new_slices_total)
+        _require_positive_decimals(name, 'price_levels', self.price_levels)
+        _require_positive_decimals(name, 'level_weights', self.level_weights)
+
+
+@dataclass(frozen=True)
+class LadderAmendPlanned(_EventBase):
+
+    '''
+    Fix the exact replacement rung list once every old rung is terminal.
+
+    Persisted after the amend has venue-confirmed every old-generation rung
+    terminal and computed the remainder from venue truth. It fixes the exact
+    rungs to place — sequence, price, quantity — so a crash after this point
+    re-places precisely these ids and never recomputes quantities against
+    fills that landed after the cutover. The rungs are placed at
+    retry=generation.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose rungs are amended.
+        generation (int): Amend generation the planned rungs belong to.
+        sequences (tuple[int, ...]): Per-rung sequence index (0-based).
+        prices (tuple[Decimal, ...]): Per-rung resting limit price.
+        qtys (tuple[Decimal, ...]): Per-rung base quantity.
+    '''
+
+    command_id: str
+    generation: int
+    sequences: tuple[int, ...]
+    prices: tuple[Decimal, ...]
+    qtys: tuple[Decimal, ...]
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        object.__setattr__(self, 'sequences', tuple(self.sequences))
+        object.__setattr__(self, 'prices', tuple(self.prices))
+        object.__setattr__(self, 'qtys', tuple(self.qtys))
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_positive_int(name, 'generation', self.generation)
+
+        if not (len(self.sequences) == len(self.prices) == len(self.qtys)):
+            msg = f'{name}.sequences, prices, qtys must be equal length'
+            raise ValueError(msg)
+
+        for sequence in self.sequences:
+            if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
+                msg = f'{name}.sequences entries must be non-negative ints'
+                raise ValueError(msg)
+
+        _require_positive_decimals(name, 'prices', self.prices)
+        _require_positive_decimals(name, 'qtys', self.qtys)
+
+
+@dataclass(frozen=True)
+class LadderAmendCompleted(_EventBase):
+
+    '''
+    Mark a ladder amend fully placed; the new grid is the live grid.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose amend completed.
+        generation (int): Amend generation now live.
+    '''
+
+    command_id: str
+    generation: int
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_positive_int(name, 'generation', self.generation)
+
+
+@dataclass(frozen=True)
+class LadderAmendAborted(_EventBase):
+
+    '''
+    Mark a ladder amend cleanly rejected before any rung was cancelled.
+
+    Written only when the amend failed with zero old rungs cancelled, so the
+    original grid is untouched and continues unchanged; the amend generation
+    is retired without placing anything.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose amend was aborted.
+        generation (int): Amend generation abandoned.
+        reason (str): Human-readable abort cause.
+    '''
+
+    command_id: str
+    generation: int
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_positive_int(name, 'generation', self.generation)
+
+
+@dataclass(frozen=True)
+class LadderAmendStateUnknown(_EventBase):
+
+    '''
+    Mark a ladder amend halted with an unconfirmable venue state.
+
+    Written when a cancel or query cannot be confirmed (phase CANCELLING) or a
+    replacement placement is unconfirmable (phase PLACING). The amend holds
+    here for the reconcile-tick watchdog to re-query and resolve, rather than
+    placing or finalizing on an unknown venue state.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose amend is unconfirmable.
+        generation (int): Amend generation in flight.
+        phase (str): CANCELLING or PLACING.
+        reason (str): Human-readable ambiguity cause.
+    '''
+
+    command_id: str
+    generation: int
+    phase: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_positive_int(name, 'generation', self.generation)
+
+        if self.phase not in ('CANCELLING', 'PLACING'):
+            msg = f'{name}.phase must be CANCELLING or PLACING'
+            raise ValueError(msg)
+
+
 @dataclass(frozen=True)
 class SchemeStateChanged(_EventBase):
 
@@ -1582,6 +1805,11 @@ type Event = (
     CommandAccepted
     | BracketInitialized
     | OrderAmendInitiated
+    | LadderAmendInitiated
+    | LadderAmendPlanned
+    | LadderAmendCompleted
+    | LadderAmendAborted
+    | LadderAmendStateUnknown
     | SchemeInitialized
     | SchemeStateChanged
     | SchemeFrozen

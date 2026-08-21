@@ -16,6 +16,11 @@ from decimal import Decimal
 from praxis.core.domain.enums import OrderStatus
 from praxis.core.domain.events import (
     BracketInitialized,
+    LadderAmendAborted,
+    LadderAmendCompleted,
+    LadderAmendInitiated,
+    LadderAmendPlanned,
+    LadderAmendStateUnknown,
     OrderAmendInitiated,
     SchemeFrozen,
     SchemeInitialized,
@@ -173,6 +178,11 @@ class TradingState:
                 ProtectionFailed,
                 FlattenInitiated,
                 ProtectionRemediationDelivered,
+                LadderAmendInitiated,
+                LadderAmendPlanned,
+                LadderAmendCompleted,
+                LadderAmendAborted,
+                LadderAmendStateUnknown,
             ),
         ):
             return
