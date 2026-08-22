@@ -1289,3 +1289,15 @@ The protective-OCO amend replacement now holds in `STATE_UNKNOWN` when its submi
 The initial-placement fix is more involved than the amend path: the versioned `Protection*` events require `protection_version >= 1` while the initial placement is version 0, and a durable `STATE_UNKNOWN` there needs boot-resume support; the safe fix queries the ALL_DONE list's leg fills, projects them, and drops or remediates the bracket inline rather than reusing the amend's `STATE_UNKNOWN` path.
 
 **When to fix**: before an initial protective OCO can plausibly fill at placement (a marketable stop against a fast-moving entry). Query and project the terminal list's leg fills and resolve the position instead of marking it active.
+
+## TD-141: Orphan-order sweep cannot recognize a Praxis OCO by its legs
+
+**Origin**: WP-Praxis-0009 (boot orphan sweep — pre-existing)
+**Severity**: Low (very narrow reachability — requires a protective OCO live at the venue whose `OrderSubmitIntent` and `BracketInitialized` both never persisted, so replay reconstructs nothing; a bracket whose init persisted is recovered by protection resume, not this sweep)
+**Module**: `praxis/trading.py` (`_sweep_orphan_venue_orders`), `praxis/infrastructure/binance_adapter.py` (`query_open_orders`), `praxis/infrastructure/venue_adapter.py` (`VenueOrder`)
+
+The boot orphan sweep enumerates `query_open_orders(account_id, symbol)` and decides ownership from each order's `client_order_id` via `praxis_command_fragment`. For an OCO, Binance `/api/v3/openOrders` returns the individual legs, each with a venue-generated leg `clientOrderId` and a shared numeric `orderListId`; the deterministic list client id that embeds the command fragment is not on the leg. `VenueOrder` also carries no `order_list_id`, and `query_open_orders` discards it. So an orphaned Praxis OCO's legs fail the fragment check, are classified foreign, and are left live — a fail-open gap in an otherwise fail-closed readiness gate.
+
+A correct fix adds `order_list_id` to `VenueOrder`, populates it in `query_open_orders`, and has the sweep group orphan legs by `orderListId`, resolve each list's `listClientOrderId` (via `query_order_list` by `orderListId`), check ownership on that list client id, and cancel the parent list with `cancel_order_list`. This reshapes the adapter's open-orders model and adds boot-path list-resolution queries, so it should be validated on the paper host before a tagged release.
+
+**When to fix**: before an orphaned protective OCO is plausible outside the narrowest crash window. Add `order_list_id` to the open-orders model and sweep the parent list by its deterministic list client id.

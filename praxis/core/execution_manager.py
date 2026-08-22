@@ -1398,12 +1398,15 @@ class ExecutionManager:
 
         inits: dict[str, BracketInitialized] = {}
         pending: dict[str, ProtectionAmendRequested | ProtectionStateUnknown] = {}
+        amends: dict[str, ProtectionAmendRequested] = {}
         for _seq, event in events:
             if isinstance(event, BracketInitialized):
                 inits[event.command_id] = event
 
             elif isinstance(event, (ProtectionAmendRequested, ProtectionStateUnknown)):
                 pending[event.command_id] = event
+                if isinstance(event, ProtectionAmendRequested):
+                    amends[event.command_id] = event
 
             elif isinstance(event, (ProtectionActive, ProtectionFailed)):
                 pending.pop(event.command_id, None)
@@ -1431,6 +1434,27 @@ class ExecutionManager:
             entry_client_order_id = generate_client_order_id(
                 ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
             )
+
+            entry_order = self._scheme_child_order(runtime, entry_client_order_id)
+            avg_entry_price = (
+                entry_order.cumulative_notional / entry_order.filled_qty
+                if entry_order is not None and entry_order.filled_qty > _ZERO
+                else None
+            )
+
+            amend = amends.get(command_id)
+            current_tp_price: Decimal | None
+            current_sl_stop_price: Decimal | None
+            current_sl_limit_price: Decimal | None
+            if amend is not None:
+                current_tp_price = amend.take_profit_price
+                current_sl_stop_price = amend.stop_loss_price
+                current_sl_limit_price = amend.stop_loss_limit_price
+            else:
+                current_tp_price = init.take_profit_price
+                current_sl_stop_price = init.stop_loss_price
+                current_sl_limit_price = init.stop_loss_limit_price
+
             runtime.brackets[command_id] = _LiveBracket(
                 command=command,
                 entry_client_order_id=entry_client_order_id,
@@ -1440,6 +1464,10 @@ class ExecutionManager:
                 protection_client_order_id=phase.old_list_client_order_id,
                 pending_replacement_client_order_id=phase.new_list_client_order_id,
                 unknown_since=phase.timestamp,
+                avg_entry_price=avg_entry_price,
+                current_tp_price=current_tp_price,
+                current_sl_stop_price=current_sl_stop_price,
+                current_sl_limit_price=current_sl_limit_price,
             )
             _log.info(
                 'bracket protection resumed STATE_UNKNOWN for watchdog: '
@@ -5610,6 +5638,9 @@ class ExecutionManager:
         exit_command_id = bracket_exit_command_id(cmd.command_id)
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
 
         candidates = [
             candidate
@@ -5623,18 +5654,55 @@ class ExecutionManager:
         candidate_projected = _ZERO
         for candidate in candidates:
             try:
-                exit_venue += await self._cancelled_oco_filled_qty(cmd, candidate)
+                order_list = await self._venue_adapter.query_order_list(
+                    cmd.account_id, list_client_order_id=candidate,
+                )
+                candidate_venue = _ZERO
+                for leg in order_list.legs:
+                    leg_order = await self._venue_adapter.query_order(
+                        cmd.account_id, cmd.symbol, client_order_id=leg.client_order_id,
+                    )
+                    candidate_venue += leg_order.filled_qty
             except NotFoundError:
-                pass
+                continue
             except VenueError:
                 return
 
+            leg_client_order_ids = tuple(
+                leg.client_order_id for leg in order_list.legs
+            )
             candidate_order = self._scheme_child_order(runtime, candidate)
-            if candidate_order is not None:
-                candidate_projected += candidate_order.filled_qty
+            candidate_local = (
+                candidate_order.filled_qty if candidate_order is not None else _ZERO
+            )
+            reconciled = await self._backfill_terminal_order_fills(
+                runtime, cmd.account_id, cmd.symbol, exit_command_id, cmd.trade_id,
+                protective_side, candidate, leg_client_order_ids,
+                candidate_local, candidate_venue,
+            )
+            if not reconciled:
+                return
+
+            exit_venue += candidate_venue
+            candidate_projected += candidate_local
 
         remainder = entry_filled - (exit_projected - candidate_projected + exit_venue)
         if remainder <= _ZERO:
+            exit_cmd = self._commands.get(exit_command_id)
+            exit_filled, exit_notional = self._command_fill_totals(
+                runtime, exit_command_id,
+            )
+            if exit_cmd is not None and exit_filled > _ZERO:
+                await self._build_outcome(
+                    runtime,
+                    exit_cmd,
+                    TradeStatus.FILLED,
+                    filled_qty=exit_filled,
+                    avg_fill_price=exit_notional / exit_filled,
+                    reason=None,
+                    cumulative_notional=exit_notional,
+                )
+
             runtime.brackets.pop(cmd.command_id, None)
             _log.info(
                 'bracket protection resolved: position closed by a protective '

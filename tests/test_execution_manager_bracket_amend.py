@@ -1301,8 +1301,15 @@ class TestBracketProtectionWatchdog:
     ) -> None:
         em, adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
 
-        adapter.query_order_list.side_effect = None
-        adapter.query_order_list.return_value = self._order_list('ALL_DONE')
+        pending_id = runtime.brackets[command_id].pending_replacement_client_order_id
+
+        def _qlist(*_args: Any, **kwargs: Any) -> VenueOrderList:
+            if kwargs.get('list_client_order_id') == pending_id:
+                raise NotFoundError('no replacement list placed')
+            return self._order_list('ALL_DONE')
+
+        adapter.query_order_list.side_effect = _qlist
+        adapter.query_trades.return_value = [_leg_trade(_LEG_TP, Decimal('1'))]
 
         def _tp_filled(*_args: Any, **kwargs: Any) -> VenueOrder:
             coid = kwargs['client_order_id']
@@ -1321,6 +1328,7 @@ class TestBracketProtectionWatchdog:
         await em.resolve_unknown_protection(_ACCT)
 
         assert command_id not in runtime.brackets
+        assert runtime.trading_state.positions.get((_TRADE, _ACCT)) is None
         rows = await spine.read(epoch_id=_EPOCH)
         assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
         assert not any(isinstance(e, ProtectionFailed) for _s, e in rows)
@@ -1465,6 +1473,9 @@ class TestBracketProtectionWatchdog:
         assert resumed.protection_status is BracketProtectionStatus.STATE_UNKNOWN
         assert resumed.protection_client_order_id is not None
         assert resumed.pending_replacement_client_order_id is not None
+        assert resumed.avg_entry_price is not None
+        assert resumed.current_tp_price is not None
+        assert resumed.current_sl_stop_price is not None
 
         await em2.unregister_account(_ACCT)
 
