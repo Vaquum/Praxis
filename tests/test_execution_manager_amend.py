@@ -501,3 +501,22 @@ class TestSequentialAmendCompose:
 
         call = adapter.submit_order.call_args
         assert call.args[_QTY_ARG_INDEX] == Decimal('0.5')
+
+
+class TestModifiableExcludesClosedOrder:
+
+    @pytest.mark.asyncio
+    async def test_rejected_amend_replacement_not_modifiable(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        from praxis.infrastructure.venue_adapter import VenueError
+
+        em, _ = mgr
+        command_id = await _rest_iceberg(em, adapter)
+        assert command_id in em.modifiable_command_ids(_ACCT)
+
+        adapter.submit_order.side_effect = VenueError('venue 5xx')
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        assert command_id not in em.modifiable_command_ids(_ACCT)

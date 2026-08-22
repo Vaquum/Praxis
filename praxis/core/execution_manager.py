@@ -828,9 +828,15 @@ class ExecutionManager:
         exit_ids = {
             bracket_exit_command_id(entry_id) for entry_id in runtime.brackets
         }
+        live_order_commands = set()
+        for command_id, client_order_id in runtime.command_to_order.items():
+            order = runtime.trading_state.orders.get(client_order_id)
+            if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+                live_order_commands.add(command_id)
+
         amendable = (
             set(runtime.schemes)
-            | set(runtime.command_to_order)
+            | live_order_commands
             | set(runtime.brackets)
         ) - exit_ids
         amendable -= self._terminal_commands
@@ -5242,7 +5248,9 @@ class ExecutionManager:
             f'bracket protection failed: command_id={cmd.command_id} '
             f'version={version}',
         )
-        await self._append_protection_failed(cmd, version, reason)
+        await self._append_protection_failed(
+            cmd, version, reason, oco_list_client_order_id,
+        )
         bracket.protection_status = BracketProtectionStatus.FAILED
         self._record_protection_remediation(
             cmd.account_id, cmd.command_id, version, reason,
@@ -6019,6 +6027,7 @@ class ExecutionManager:
 
             await self._boot_reflatten(
                 runtime, cmd, command_id, protection_failed.protection_version,
+                protection_failed.oco_list_client_order_id,
             )
 
     async def _reconcile_flatten_fills(
@@ -6134,8 +6143,16 @@ class ExecutionManager:
         cmd: TradeCommand,
         command_id: str,
         protection_version: int,
+        oco_list_client_order_id: str | None,
     ) -> None:
-        '''Re-attempt a flatten that never reached the venue after a restart.'''
+        '''Re-attempt a flatten that never reached the venue after a restart.
+
+        Passes the protective OCO list id from `ProtectionFailed` so the same
+        live-leg guard the live flatten enforced runs on boot: if the runtime
+        flatten aborted because a leg was live or unconfirmable, boot recovery
+        re-checks it and holds rather than market-flattening against a still-live
+        protective OCO.
+        '''
 
         entry_client_order_id = generate_client_order_id(
             ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
@@ -6154,7 +6171,7 @@ class ExecutionManager:
         )
         await self._flatten_bracket_remainder(
             runtime, bracket, protection_version, 'boot flatten recovery',
-            remainder,
+            remainder, oco_list_client_order_id,
         )
 
     async def _on_slice_failure(
@@ -7613,8 +7630,14 @@ class ExecutionManager:
         cmd: TradeCommand,
         protection_version: int,
         reason: str,
+        oco_list_client_order_id: str | None = None,
     ) -> None:
-        '''Persist a `ProtectionFailed` marking no live protective OCO.'''
+        '''Persist a `ProtectionFailed` marking no live protective OCO.
+
+        The candidate OCO list id is carried on the marker so boot flatten
+        recovery re-checks it for a live leg before market-flattening, exactly
+        as the live flatten did.
+        '''
 
         event = ProtectionFailed(
             account_id=cmd.account_id,
@@ -7622,6 +7645,7 @@ class ExecutionManager:
             command_id=cmd.command_id,
             protection_version=protection_version,
             reason=reason,
+            oco_list_client_order_id=oco_list_client_order_id,
         )
         await self._event_spine.append(event, self._epoch_id)
 

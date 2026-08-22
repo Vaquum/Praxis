@@ -785,6 +785,64 @@ class TestBracketAmendReplaceFails:
         await em2.unregister_account(_ACCT)
 
     @pytest.mark.asyncio
+    async def test_boot_reflatten_holds_when_leg_still_live(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        live_leg = VenueOrder(
+            venue_order_id='v-leg', client_order_id='leg',
+            status=OrderStatus.PARTIALLY_FILLED, symbol='BTCUSDT',
+            side=OrderSide.SELL, order_type=OrderType.LIMIT,
+            qty=Decimal('1'), filled_qty=Decimal('0'), price=Decimal('56000'),
+        )
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        adapter.query_order.side_effect = None
+        adapter.query_order.return_value = live_leg
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        protection_failed = next(e for _s, e in rows if isinstance(e, ProtectionFailed))
+        assert protection_failed.oco_list_client_order_id is not None
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+
+        truncated = await _truncate_after_protection_failed(spine)
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        await em.unregister_account(_ACCT)
+
+        recover_adapter = _make_adapter()
+        recover_adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+
+        def _query(*_args: Any, client_order_id: str = '', **_kwargs: Any) -> VenueOrder:
+            if client_order_id == flatten_id:
+                raise NotFoundError('no flatten order')
+
+            return live_leg
+
+        recover_adapter.query_order.side_effect = _query
+        em2, _ = mgr_factory(recover_adapter)
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, truncated)
+        await em2.recover_incomplete_flattens(_ACCT, truncated)
+
+        assert not any(
+            c['args'][3] is OrderType.MARKET for c in recover_adapter.submit_calls
+        )
+
+        await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
     async def test_flatten_recovery_reflattens_when_intent_never_persisted(
         self, mgr_factory: Any, spine: EventSpine,
     ) -> None:
