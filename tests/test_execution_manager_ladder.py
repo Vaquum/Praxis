@@ -52,6 +52,7 @@ from praxis.infrastructure.venue_adapter import (
     SymbolFilters,
     TransientError,
     VenueAdapter,
+    VenueError,
     VenueOrder,
     VenueTrade,
 )
@@ -352,7 +353,17 @@ class TestLadderAmend:
         await asyncio.sleep(0.3)
         runtime = em._accounts[_ACCT]
 
+        rung_ids = [
+            generate_client_order_id(
+                ExecutionMode.LADDER_DCA, command_id, sequence=index, retry=0,
+            )
+            for index in range(2)
+        ]
         adapter.query_order.return_value = _canceled_rung(Decimal('0.2'))
+        adapter.query_trades.return_value = [
+            _rung_trade(rung_ids[0], Decimal('0.2')),
+            _rung_trade(rung_ids[1], Decimal('0.2')),
+        ]
         placed_before = adapter.submit_order.await_count
 
         await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
@@ -360,6 +371,43 @@ class TestLadderAmend:
         new_calls = adapter.submit_order.call_args_list[placed_before:]
         placed_total = sum(c.args[_QTY_ARG_INDEX] for c in new_calls)
         assert placed_total == Decimal('0.6')
+
+    @pytest.mark.asyncio
+    async def test_unreconciled_rung_backfill_holds_and_scan_completes(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        rung_ids = [
+            generate_client_order_id(
+                ExecutionMode.LADDER_DCA, command_id, sequence=index, retry=0,
+            )
+            for index in range(2)
+        ]
+        adapter.query_order.return_value = _canceled_rung(Decimal('0.2'))
+        adapter.query_trades.side_effect = VenueError('myTrades lag')
+        placed_before = adapter.submit_order.await_count
+
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase is not None
+        assert adapter.submit_order.await_count == placed_before
+
+        adapter.query_trades.side_effect = None
+        adapter.query_trades.return_value = [
+            _rung_trade(rung_ids[0], Decimal('0.2')),
+            _rung_trade(rung_ids[1], Decimal('0.2')),
+        ]
+        await em.resolve_ladder_amends(_ACCT)
+
+        assert scheme.amend_phase is None
+        new_calls = adapter.submit_order.call_args_list[placed_before:]
+        assert sum(c.args[_QTY_ARG_INDEX] for c in new_calls) == Decimal('0.6')
 
     @pytest.mark.asyncio
     async def test_amend_backfills_missed_rung_fill_before_terminalize(

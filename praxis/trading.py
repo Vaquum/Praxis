@@ -750,6 +750,9 @@ class Trading:
             if venue_order.filled_qty > order.filled_qty:
                 await self._reconcile_fills(account_id, order)
 
+            if venue_order.filled_qty > order.filled_qty:
+                continue
+
             venue_terminal = venue_order.status in _TERMINAL_ORDER_STATUSES
             if venue_terminal and not order.is_terminal:
                 await self._reconcile_terminal(

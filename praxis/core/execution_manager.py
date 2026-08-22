@@ -320,6 +320,28 @@ class _LiveBracket:
     current_sl_limit_price: Decimal | None = None
     unknown_since: datetime | None = None
     pending_replacement_client_order_id: str | None = None
+    amend_backfill_since: datetime | None = None
+    amend_new_list_client_order_id: str | None = None
+    amend_tp_price: Decimal | None = None
+    amend_sl_stop_price: Decimal | None = None
+    amend_sl_limit_price: Decimal | None = None
+
+
+@dataclass
+class _PendingSingleAmend:
+    '''A single-order amend held after cancel until its venue fill reconciles.
+
+    When the post-cancel backfill of a fill that raced the cancel cannot be
+    reconciled to venue truth, the amend is parked rather than terminalizing the
+    old order and placing a replacement against an understated ledger. The
+    periodic scan re-drives it — re-query, backfill, then terminalize and place
+    the replacement once the projection reaches venue truth.
+    '''
+
+    old_client_order_id: str
+    new_client_order_id: str
+    new_price: Decimal
+    new_display: Decimal | None
 
 
 def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
@@ -456,6 +478,7 @@ class _AccountRuntime:
         self.schemes: dict[str, _LiveScheme] = {}
         self.brackets: dict[str, _LiveBracket] = {}
         self.amend_counts: dict[str, int] = {}
+        self.pending_amends: dict[str, _PendingSingleAmend] = {}
         self.queue_reservations = 0
         self.reconciling = False
         self.poisoned = False
@@ -841,10 +864,14 @@ class ExecutionManager:
             | set(runtime.brackets)
         ) - exit_ids
         amendable -= self._terminal_commands
+        amendable -= set(runtime.pending_amends)
         amendable -= {
             command_id
             for command_id, scheme in runtime.schemes.items()
-            if scheme.frozen or scheme.protection_frozen or scheme.amend_phase is not None
+            if scheme.frozen
+            or scheme.protection_frozen
+            or scheme.amend_phase is not None
+            or scheme.pending_terminal is not None
         }
 
         for entry_id, bracket in runtime.brackets.items():
@@ -5441,6 +5468,8 @@ class ExecutionManager:
             await self.resolve_unknown_protection(runtime.account_id)
             await self.drain_protection_remediations(runtime.account_id)
             await self.resolve_ladder_amends(runtime.account_id)
+            await self.resolve_pending_amends(runtime.account_id)
+            await self.resolve_held_protection_amends(runtime.account_id)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001
@@ -6181,8 +6210,8 @@ class ExecutionManager:
         venue_client_order_ids: tuple[str, ...],
         local_filled: Decimal,
         venue_filled: Decimal,
-    ) -> None:
-        '''Project venue fills an amend missed before the order is terminalized.
+    ) -> bool:
+        '''Project venue fills an amend missed, before the order is terminalized.
 
         An amend queries a cancelled order's authoritative venue fill to size
         the replacement but marks the order canceled locally. A fill that raced
@@ -6194,9 +6223,14 @@ class ExecutionManager:
         the spine deduplicates on `venue_trade_id`, so an already-seen trade is a
         silent no-op. A protective OCO fills on a leg id distinct from the parent
         list id, so the venue-side match set is passed apart from the local
-        attribution id. The command total is already exact from `venue_filled`,
-        so a trade query that fails is logged and left for live reconcile rather
-        than propagated.
+        attribution id.
+
+        Returns False when the local projection could not be brought up to
+        venue truth — the trade query failed, or the trades returned still fall
+        short of `venue_filled` (venue eventual-consistency). The caller must
+        then hold the amend for reconcile rather than terminalize the order and
+        place a replacement, so a missed fill is never stranded on an order that
+        open-order reconciliation would skip.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -6210,23 +6244,28 @@ class ExecutionManager:
                 trades belong to this order.
             local_filled (Decimal): Locally-projected filled quantity.
             venue_filled (Decimal): Authoritative venue filled quantity.
+
+        Returns:
+            bool: True when the local projection reached venue truth, False when
+                the amend must be held for reconcile.
         '''
 
         if venue_filled <= local_filled:
-            return
+            return True
 
         match = set(venue_client_order_ids)
         try:
             trades = await self._venue_adapter.query_trades(account_id, symbol)
         except VenueError as exc:
             _log.warning(
-                'amend fill backfill query failed, leaving for live reconcile: '
+                'amend fill backfill query failed, holding amend for reconcile: '
                 'command_id=%s reason=%s',
                 command_id,
                 exc.args[0] if exc.args else str(exc),
             )
-            return
+            return False
 
+        accounted = local_filled
         for trade in trades:
             if trade.client_order_id not in match:
                 continue
@@ -6250,6 +6289,9 @@ class ExecutionManager:
             seq = await self._event_spine.append(fill_event, self._epoch_id)
             if seq is not None:
                 self._project(runtime, fill_event)
+                accounted += trade.qty
+
+        return accounted >= venue_filled
 
     async def _boot_reflatten(
         self,
@@ -6667,6 +6709,13 @@ class ExecutionManager:
             _log.warning('modify for unknown command: command_id=%s', command_id)
             return
 
+        if command_id in runtime.pending_amends:
+            _log.warning(
+                'modify rejected: a prior amend is held pending fill '
+                'reconciliation: command_id=%s', command_id,
+            )
+            return
+
         scheme = runtime.schemes.get(command_id)
         if scheme is not None:
             if isinstance(
@@ -6769,28 +6818,68 @@ class ExecutionManager:
             await self._emit_amend_outcome(runtime, cmd)
             return
 
-        # The order cancelled (terminal, not filled); project any fill the
-        # cancel raced before terminalizing it locally, then decide whether the
-        # remainder can be re-placed.
-        await self._backfill_terminal_order_fills(
-            runtime, cmd.account_id, cmd.symbol, cmd.command_id, cmd.trade_id,
-            cmd.side, old_client_order_id, (old_client_order_id,),
-            order.filled_qty, venue_order.filled_qty,
+        # The order cancelled (terminal, not filled); complete the amend once
+        # the venue fill reconciles, else park it for the reconcile scan.
+        pending = _PendingSingleAmend(
+            old_client_order_id=old_client_order_id,
+            new_client_order_id=new_client_order_id,
+            new_price=new_price,
+            new_display=new_display,
         )
+        completed = await self._drive_single_amend(runtime, cmd, pending, venue_order)
+        if not completed:
+            runtime.pending_amends[command_id] = pending
+            _log.warning(
+                'modify held: venue fill unreconciled after cancel; parked for '
+                'the reconcile scan to retry rather than terminalizing the old '
+                'order and placing a replacement against an understated ledger: '
+                'command_id=%s',
+                command_id,
+            )
 
-        if runtime.trading_state.orders.get(old_client_order_id) is not None:
+    async def _drive_single_amend(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        pending: _PendingSingleAmend,
+        venue_order: VenueOrder,
+    ) -> bool:
+        '''Complete a single-order amend once its venue fill reconciles.
+
+        Projects any fill the cancel raced before terminalizing the old order,
+        then places the remainder at the amended price. Returns False when the
+        backfill cannot reach venue truth: the caller then leaves the amend
+        parked and the old order non-terminal so the missed fill stays
+        recoverable on the next reconcile scan rather than being stranded on a
+        terminal order behind an understated ledger. Shared by the live amend
+        and the scan retry, so a re-drive after the old order was already
+        terminalized by reconcile still sizes and places the replacement.
+        '''
+
+        old = pending.old_client_order_id
+        order = self._scheme_child_order(runtime, old)
+        local_filled = order.filled_qty if order is not None else _ZERO
+        reconciled = await self._backfill_terminal_order_fills(
+            runtime, cmd.account_id, cmd.symbol, cmd.command_id, cmd.trade_id,
+            cmd.side, old, (old,), local_filled, venue_order.filled_qty,
+        )
+        if not reconciled:
+            return False
+
+        if runtime.trading_state.orders.get(old) is not None:
             canceled = OrderCanceled(
                 account_id=cmd.account_id,
                 timestamp=self._clock(),
-                client_order_id=old_client_order_id,
-                venue_order_id=order.venue_order_id,
+                client_order_id=old,
+                venue_order_id=venue_order.venue_order_id,
                 reason='amend',
             )
             await self._event_spine.append(canceled, self._epoch_id)
             runtime.trading_state.apply(canceled)
 
+        assert cmd.qty is not None
         command_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
-        remainder = cmd.qty - (command_filled - order.filled_qty + venue_order.filled_qty)
+        remainder = cmd.qty - command_filled
         filters = self._venue_adapter.cached_filters(cmd.symbol)
         lot_min = filters.lot_min if filters is not None else _ZERO
 
@@ -6799,11 +6888,49 @@ class ExecutionManager:
             # re-placed, so the command completes on the fills so far — the
             # same dust shortfall a scheme reports FILLED.
             await self._emit_amend_terminal(runtime, cmd)
-            return
+            return True
 
         await self._place_amend_replacement(
-            runtime, cmd, new_client_order_id, new_price, new_display, remainder,
+            runtime, cmd, pending.new_client_order_id, pending.new_price,
+            pending.new_display, remainder,
         )
+        return True
+
+    async def resolve_pending_amends(self, account_id: str) -> None:
+        '''Retry each single-order amend held pending fill reconciliation.
+
+        A single-order amend parks when the fill the cancel raced could not be
+        reconciled to venue truth. On each reconcile scan the parked order is
+        re-queried and re-driven: once the projection reaches venue truth the
+        old order is terminalized and the replacement placed, and the park is
+        cleared. A re-query that cannot confirm the order leaves it parked for
+        the next scan.
+
+        Args:
+            account_id (str): Account whose parked amends to retry.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for command_id, pending in list(runtime.pending_amends.items()):
+            cmd = self._commands.get(command_id)
+            if cmd is None:
+                runtime.pending_amends.pop(command_id, None)
+                continue
+
+            venue_order = await self._cancel_and_query(
+                cmd, pending.old_client_order_id,
+            )
+            if venue_order is None or venue_order.status not in _TERMINAL_ORDER_STATUSES:
+                continue
+
+            completed = await self._drive_single_amend(
+                runtime, cmd, pending, venue_order,
+            )
+            if completed:
+                runtime.pending_amends.pop(command_id, None)
 
     async def _process_ladder_modify(
         self,
@@ -7046,12 +7173,11 @@ class ExecutionManager:
             if order is None:
                 continue
 
-            projected_filled += order.filled_qty
-
             if order.status in _TERMINAL_ORDER_STATUSES:
                 if order.status is OrderStatus.CANCELED and ctx is not None:
                     ctx.cancel_committed = True
 
+                projected_filled += order.filled_qty
                 total_filled += order.filled_qty
                 scheme.active_children.discard(rung_id)
                 continue
@@ -7089,11 +7215,17 @@ class ExecutionManager:
                 )
                 return None
 
-            await self._backfill_terminal_order_fills(
+            reconciled = await self._backfill_terminal_order_fills(
                 runtime, cmd.account_id, cmd.symbol, cmd.command_id, cmd.trade_id,
                 cmd.side, rung_id, (rung_id,),
                 order.filled_qty, venue_order.filled_qty,
             )
+            if not reconciled:
+                await self._halt_ladder_amend(
+                    cmd, scheme, new_generation, 'CANCELLING',
+                    'rung fills unreconciled after cancel',
+                )
+                return None
 
             if runtime.trading_state.orders.get(rung_id) is not None:
                 canceled = OrderCanceled(
@@ -7106,6 +7238,7 @@ class ExecutionManager:
                 await self._event_spine.append(canceled, self._epoch_id)
                 runtime.trading_state.apply(canceled)
 
+            projected_filled += order.filled_qty
             total_filled += venue_order.filled_qty
             scheme.active_children.discard(rung_id)
 
@@ -7268,7 +7401,7 @@ class ExecutionManager:
         )
         await self._maybe_finalize_scheme(runtime, scheme)
 
-    async def _process_bracket_modify(  # noqa: PLR0911
+    async def _process_bracket_modify(
         self,
         runtime: _AccountRuntime,
         command_id: str,
@@ -7391,6 +7524,54 @@ class ExecutionManager:
         await self._event_spine.append(cancel_confirmed, self._epoch_id)
         bracket.protection_status = BracketProtectionStatus.CANCEL_CONFIRMED
 
+        bracket.amend_new_list_client_order_id = new_list_client_order_id
+        bracket.amend_tp_price = tp_price
+        bracket.amend_sl_stop_price = sl_stop_price
+        bracket.amend_sl_limit_price = sl_limit_price
+
+        await self._drive_bracket_protection_amend(
+            runtime, bracket, cancel_result.venue_order_id,
+        )
+
+    async def _drive_bracket_protection_amend(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        cancel_venue_order_id: str | None,
+    ) -> None:
+        '''Complete a cancel-confirmed protective-OCO amend once fills reconcile.
+
+        Shared by the live amend and the reconcile scan: with the old OCO
+        cancelled, reconcile its authoritative protective fill, then terminalize
+        it and place the replacement OCO for the remaining exposure. When the
+        fill cannot be reconciled the amend is parked in `CANCEL_CONFIRMED` and
+        the scan retries — never `STATE_UNKNOWN`, whose watchdog would remediate
+        a merely under-projected position as naked. If the fill is still
+        unreconciled when the restore deadline elapses the replacement is placed
+        from venue truth anyway: a bounded ledger gap the balance reconciler
+        surfaces is preferable to flattening the position over a transient
+        trade-query failure.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The bracket whose amend to complete; carries
+                the replacement legs and list id resolved at request time.
+            cancel_venue_order_id (str | None): The old OCO's venue id from the
+                live cancel, or None on a scan re-drive.
+        '''
+
+        cmd = bracket.command
+        new_version = bracket.protection_version
+        old_list_client_order_id = bracket.protection_client_order_id
+        new_list_client_order_id = bracket.amend_new_list_client_order_id
+        tp_price = bracket.amend_tp_price
+        sl_stop_price = bracket.amend_sl_stop_price
+        sl_limit_price = bracket.amend_sl_limit_price
+        assert old_list_client_order_id is not None
+        assert new_list_client_order_id is not None
+        assert tp_price is not None
+        assert sl_stop_price is not None
+
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
         exit_command_id = bracket_exit_command_id(cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
@@ -7415,6 +7596,7 @@ class ExecutionManager:
             )
             bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
             bracket.unknown_since = self._clock()
+            bracket.amend_backfill_since = None
             _log.warning(
                 'bracket protective reconcile query failed; halting amend for '
                 'reconcile rather than sizing a replacement from stale local '
@@ -7425,18 +7607,49 @@ class ExecutionManager:
             )
             return
 
-        await self._backfill_terminal_order_fills(
+        reconciled = await self._backfill_terminal_order_fills(
             runtime, cmd.account_id, cmd.symbol, exit_command_id, cmd.trade_id,
             protective_side, old_list_client_order_id, leg_client_order_ids,
             old_oco_projected, oco_filled,
         )
+        if not reconciled:
+            if bracket.amend_backfill_since is None:
+                bracket.amend_backfill_since = self._clock()
+
+            elapsed = (self._clock() - bracket.amend_backfill_since).total_seconds()
+            if elapsed < self._restore_deadline_seconds:
+                bracket.protection_status = BracketProtectionStatus.CANCEL_CONFIRMED
+                _log.warning(
+                    'bracket protective amend held: protective fills unreconciled '
+                    'after cancel; parked for the reconcile scan to retry: '
+                    'command_id=%s version=%d',
+                    cmd.command_id,
+                    new_version,
+                )
+                return
+
+            _log.warning(
+                'bracket protective amend: fills still unreconciled at the '
+                'restore deadline; placing the replacement from venue truth '
+                'rather than flattening over a trade-query gap: command_id=%s '
+                'version=%d',
+                cmd.command_id,
+                new_version,
+            )
+
+        bracket.amend_backfill_since = None
 
         if runtime.trading_state.orders.get(old_list_client_order_id) is not None:
+            terminal_venue_order_id = (
+                cancel_venue_order_id
+                if cancel_venue_order_id is not None
+                else (old_oco_order.venue_order_id if old_oco_order is not None else '')
+            )
             canceled = OrderCanceled(
                 account_id=cmd.account_id,
                 timestamp=self._clock(),
                 client_order_id=old_list_client_order_id,
-                venue_order_id=cancel_result.venue_order_id,
+                venue_order_id=terminal_venue_order_id,
                 reason='bracket protection amended',
             )
             await self._event_spine.append(canceled, self._epoch_id)
@@ -7479,11 +7692,6 @@ class ExecutionManager:
         )
         await self._event_spine.append(replace_submitted, self._epoch_id)
         bracket.protection_status = BracketProtectionStatus.REPLACE_SUBMITTED
-
-        protective_side = (
-            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
-        )
-        exit_command_id = bracket_exit_command_id(cmd.command_id)
 
         intent = OrderSubmitIntent(
             account_id=cmd.account_id,
@@ -7584,6 +7792,10 @@ class ExecutionManager:
         bracket.current_sl_stop_price = sl_stop_price
         bracket.current_sl_limit_price = sl_limit_price
         bracket.protection_status = BracketProtectionStatus.ACTIVE
+        bracket.amend_new_list_client_order_id = None
+        bracket.amend_tp_price = None
+        bracket.amend_sl_stop_price = None
+        bracket.amend_sl_limit_price = None
 
         _log.info(
             'bracket protection amended: command_id=%s version=%d qty=%s '
@@ -7595,6 +7807,30 @@ class ExecutionManager:
             sl_stop_price,
             new_list_client_order_id,
         )
+
+    async def resolve_held_protection_amends(self, account_id: str) -> None:
+        '''Retry each protective-OCO amend held for fill reconciliation.
+
+        A bracket amend parks in `CANCEL_CONFIRMED` with `amend_backfill_since`
+        set when the cancelled OCO's protective fill could not be reconciled to
+        venue truth. Each reconcile scan re-drives it — re-query, backfill, then
+        terminalize and replace once reconciled, or place from venue truth once
+        the restore deadline elapses. Never routed through the naked-remediation
+        watchdog, so a transient trade-query gap cannot flatten the position.
+
+        Args:
+            account_id (str): Account whose held protective amends to retry.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for bracket in list(runtime.brackets.values()):
+            if bracket.amend_backfill_since is None:
+                continue
+
+            await self._drive_bracket_protection_amend(runtime, bracket, None)
 
     def _resolve_bracket_amend(
         self,
@@ -7844,6 +8080,14 @@ class ExecutionManager:
             _log.warning(
                 'modify rejected: scheme is frozen by a protection remediation '
                 'and cannot be resumed by an amend: command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        if scheme.pending_terminal is not None:
+            _log.warning(
+                'modify rejected: scheme has a terminal outcome pending and '
+                'cannot be amended while cancellation settles: command_id=%s',
                 cmd.command_id,
             )
             return

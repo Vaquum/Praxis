@@ -262,8 +262,12 @@ class TestOverOrderSafety:
     ) -> None:
         em, _ = mgr
         command_id = await _rest_iceberg(em, adapter)
+        old_coid = generate_client_order_id(ExecutionMode.ICEBERG, command_id, sequence=0)
 
         adapter.query_order.return_value = _venue_order(Decimal('0.4'))
+        adapter.query_trades.return_value = [
+            _venue_trade(old_coid, Decimal('0.4'), _OLD_PRICE),
+        ]
         em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
         await asyncio.sleep(0.3)
 
@@ -622,3 +626,56 @@ class TestMissedFillBackfilledBeforeTerminalize:
 
         assert outcomes[-1].status is TradeStatus.FILLED
         assert outcomes[-1].filled_qty == Decimal('1')
+
+
+class TestHeldAmendRetry:
+
+    @pytest.mark.asyncio
+    async def test_unreconciled_backfill_parks_and_scan_completes(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        from praxis.infrastructure.venue_adapter import VenueError
+
+        em, _ = mgr
+        command_id = await _rest_iceberg(em, adapter)
+        old_coid = generate_client_order_id(ExecutionMode.ICEBERG, command_id, sequence=0)
+
+        adapter.query_order.return_value = _venue_order(Decimal('0.4'))
+        adapter.query_trades.side_effect = VenueError('myTrades lag')
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        assert command_id in em._accounts[_ACCT].pending_amends
+        assert adapter.submit_order.await_count == 0
+        assert command_id not in em.modifiable_command_ids(_ACCT)
+
+        adapter.query_trades.side_effect = None
+        adapter.query_trades.return_value = [
+            _venue_trade(old_coid, Decimal('0.4'), _OLD_PRICE),
+        ]
+        await em.resolve_pending_amends(_ACCT)
+
+        assert command_id not in em._accounts[_ACCT].pending_amends
+        assert adapter.submit_order.call_args.args[_QTY_ARG_INDEX] == Decimal('0.6')
+
+    @pytest.mark.asyncio
+    async def test_second_modify_rejected_while_parked(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        from praxis.infrastructure.venue_adapter import VenueError
+
+        em, _ = mgr
+        command_id = await _rest_iceberg(em, adapter)
+
+        adapter.query_order.return_value = _venue_order(Decimal('0.4'))
+        adapter.query_trades.side_effect = VenueError('lag')
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+        assert command_id in em._accounts[_ACCT].pending_amends
+
+        cancels_before = adapter.cancel_order.await_count
+        em.submit_modify(_modify(command_id, limit_price=Decimal('48000')))
+        await asyncio.sleep(0.2)
+
+        assert adapter.cancel_order.await_count == cancels_before
+        assert command_id in em._accounts[_ACCT].pending_amends

@@ -514,6 +514,7 @@ class TestBracketAmendPartialFill:
         self, mgr_factory: Any,
     ) -> None:
         adapter = _make_adapter(leg_filled={_LEG_SL: Decimal('0.4')})
+        adapter.query_trades.return_value = [_leg_trade(_LEG_SL, Decimal('0.4'))]
         em, _ = mgr_factory(adapter)
         command_id = await _protected_bracket(em)
         runtime = em._accounts[_ACCT]
@@ -540,10 +541,36 @@ class TestBracketAmendPartialFill:
         assert position.qty == Decimal('0.6')
 
     @pytest.mark.asyncio
+    async def test_unreconciled_protective_backfill_parks_and_scan_completes(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter(leg_filled={_LEG_SL: Decimal('0.4')})
+        adapter.query_trades.side_effect = TransientError('myTrades lag')
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
+
+        bracket = runtime.brackets[command_id]
+        assert bracket.protection_status is BracketProtectionStatus.CANCEL_CONFIRMED
+        assert bracket.amend_backfill_since is not None
+        assert len(_oco_calls(adapter)) == 1
+
+        adapter.query_trades.side_effect = None
+        adapter.query_trades.return_value = [_leg_trade(_LEG_SL, Decimal('0.4'))]
+        await em.resolve_held_protection_amends(_ACCT)
+
+        assert bracket.protection_status is BracketProtectionStatus.ACTIVE
+        assert bracket.amend_backfill_since is None
+        assert len(_oco_calls(adapter)) == 2
+
+    @pytest.mark.asyncio
     async def test_dust_remaining_places_no_replacement_and_drops_bracket(
         self, mgr_factory: Any, spine: EventSpine,
     ) -> None:
         adapter = _make_adapter(leg_filled={_LEG_SL: Decimal('0.9999')})
+        adapter.query_trades.return_value = [_leg_trade(_LEG_SL, Decimal('0.9999'))]
         em, _ = mgr_factory(adapter)
         command_id = await _protected_bracket(em)
         runtime = em._accounts[_ACCT]
@@ -566,6 +593,7 @@ class TestBracketAmendPartialFill:
         self, mgr_factory: Any, spine: EventSpine,
     ) -> None:
         adapter = _make_adapter(leg_filled={_LEG_SL: Decimal('1')})
+        adapter.query_trades.return_value = [_leg_trade(_LEG_SL, Decimal('1'))]
         em, _ = mgr_factory(adapter)
         command_id = await _protected_bracket(em)
         runtime = em._accounts[_ACCT]
