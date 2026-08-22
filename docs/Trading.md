@@ -25,6 +25,7 @@ The main public operations are:
 - `unregister_account()`
 - `submit_command()`
 - `submit_abort()`
+- `submit_modify()`
 - `pull_positions()`
 
 The object also keeps track of:

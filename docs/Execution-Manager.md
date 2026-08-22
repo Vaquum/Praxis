@@ -47,11 +47,11 @@ This matters because fill and terminal events must stay consistent with replay l
 
 ## Aborts
 
-`ExecutionManager.submit_abort()` queues abort requests for an existing command. Abort handling cancels live venue orders, computes the actual filled result, and produces a terminal outcome that reflects what was really executed.
+`ExecutionManager.submit_abort()` queues abort requests for an existing command, and `ExecutionManager.submit_modify()` queues an order-price / scheme-plan amend ahead of new commands on the account writer. Abort handling cancels live venue orders, computes the actual filled result, and produces a terminal outcome that reflects what was really executed.
 
 ## Current Scope
 
-The current runtime executes `SINGLE_SHOT` commands end to end. Unsupported execution modes are rejected with a clear terminal result rather than silently doing partial work.
+The runtime executes every enabled execution mode end to end — `SINGLE_SHOT`, `TWAP`, `TIME_DCA`, `SCHEDULED_VWAP`, `BRACKET`, `ICEBERG`, and `LADDER_DCA` — plus amends of a resting single order, a running scheme, a bracket protective OCO, and a ladder grid. A mode not enabled for the deployment (`enabled_execution_modes`) is rejected with a clear terminal result rather than silently doing partial work. The priority queue carries both aborts and modifies.
 
 ## Read Next
 

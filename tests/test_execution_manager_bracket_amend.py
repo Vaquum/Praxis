@@ -1263,6 +1263,38 @@ class TestBracketProtectionWatchdog:
 
         await em2.unregister_account(_ACCT)
 
+    @pytest.mark.asyncio
+    async def test_resume_rebuilds_bracket_from_amend_requested(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+        await em._process_modify(
+            runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        events = await spine.read(epoch_id=_EPOCH)
+        boot: list[tuple[int, Any]] = []
+        for seq, event in events:
+            boot.append((seq, event))
+            if type(event).__name__ == 'ProtectionAmendRequested':
+                break
+
+        await em.unregister_account(_ACCT)
+
+        em2, _ = mgr_factory(_make_adapter())
+        em2.register_account(_ACCT)
+        em2.replay_events(_ACCT, boot)
+
+        resumed = em2._accounts[_ACCT].brackets[command_id]
+        assert resumed.protection_status is BracketProtectionStatus.STATE_UNKNOWN
+        assert resumed.protection_client_order_id is not None
+        assert resumed.pending_replacement_client_order_id is not None
+
+        await em2.unregister_account(_ACCT)
+
 
 class TestBracketAmendIdempotentPlace:
 

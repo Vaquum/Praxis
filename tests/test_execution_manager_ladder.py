@@ -729,6 +729,40 @@ class TestLadderAmendDurability:
         assert scheme.active_children == _gen_ids(command_id, 1)
 
     @pytest.mark.asyncio
+    async def test_rejected_planned_rung_holds_placing_not_completed(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
+        spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        def _fail_gen1(*_args: Any, client_order_id: str = '', **_kwargs: Any) -> SubmitResult:
+            if client_order_id.endswith('r1'):
+                raise TransientError('venue 5xx')
+
+            return SubmitResult(
+                venue_order_id=f'v-{client_order_id}',
+                status=OrderStatus.OPEN,
+                immediate_fills=(),
+            )
+
+        adapter.submit_order.side_effect = _fail_gen1
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase == 'PLACING'
+
+        await em.resolve_ladder_amends(_ACCT)
+
+        assert scheme.amend_phase == 'PLACING'
+        events = [e for _s, e in await spine.read(_EPOCH, after_seq=0)]
+        assert not any(isinstance(e, LadderAmendCompleted) for e in events)
+
+    @pytest.mark.asyncio
     async def test_crash_mid_place_adopts_filled_new_rung(
         self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
         spine: EventSpine, adapter: AsyncMock,

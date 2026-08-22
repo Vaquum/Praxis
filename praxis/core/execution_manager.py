@@ -176,6 +176,7 @@ _BRACKET_ENTRY_SEQUENCE = 0
 _BRACKET_PROTECTION_SEQUENCE = 1
 _BRACKET_FLATTEN_SEQUENCE = 999
 _BRACKET_FIRST_PROTECTION_VERSION = 1
+_FLATTEN_BUY_PRICE_BUFFER = Decimal('1.01')
 
 
 def _aggregate_oco_terminal_status(
@@ -800,13 +801,18 @@ class ExecutionManager:
         '''Return the command ids a strategy MODIFY may target.
 
         The Nexus INTAKE stage gates a MODIFY against this set (via the
-        launcher provider). It is the non-terminal in-flight set with two
-        bracket adjustments: a bracket whose entry has terminalized but whose
-        protective OCO is still ACTIVE is amendable, so its entry id is added
-        even though it is terminal; and each bracket's protective-OCO exit
-        command (`bracket_exit_command_id`) is removed, so its OCO list id
-        cannot be amended as if it were a single order. `in_flight_command_ids`
-        stays the shutdown-abort set and is not widened by this.
+        launcher provider), so it must hold only commands `_process_modify`
+        would actually accept — not the wider shutdown-abort set. A command
+        merely accepted and still queued has no resting order or running scheme
+        yet, and a MODIFY (drained ahead of commands) would reach it first and
+        be silently rejected, so queued commands are excluded: the set is built
+        from the running schemes/ladders, the single orders with a live venue
+        order, and the ACTIVE-protection brackets. Frozen or mid-amend schemes
+        (rejected by `_process_scheme_modify` / `_process_ladder_modify`) and
+        each bracket's protective-OCO exit command are removed; a bracket whose
+        entry has terminalized but whose protective OCO is still ACTIVE stays
+        amendable through its entry id. `in_flight_command_ids` remains the
+        separate shutdown-abort set.
 
         Args:
             account_id (str): Account identifier to query.
@@ -822,15 +828,28 @@ class ExecutionManager:
         exit_ids = {
             bracket_exit_command_id(entry_id) for entry_id in runtime.brackets
         }
-        amendable = set(self.in_flight_command_ids(account_id)) - exit_ids
+        amendable = (
+            set(runtime.schemes)
+            | set(runtime.command_to_order)
+            | set(runtime.brackets)
+        ) - exit_ids
+        amendable -= self._terminal_commands
+        amendable -= {
+            command_id
+            for command_id, scheme in runtime.schemes.items()
+            if scheme.frozen or scheme.protection_frozen or scheme.amend_phase is not None
+        }
 
         for entry_id, bracket in runtime.brackets.items():
-            if (
+            protection_active = (
                 bracket.protection_placed
                 and bracket.protection_client_order_id is not None
                 and bracket.protection_status is BracketProtectionStatus.ACTIVE
-            ):
+            )
+            if protection_active:
                 amendable.add(entry_id)
+            else:
+                amendable.discard(entry_id)
 
         return sorted(amendable)
 
@@ -1305,31 +1324,33 @@ class ExecutionManager:
         runtime: _AccountRuntime,
         events: list[tuple[int, Event]],
     ) -> None:
-        '''Rebuild STATE_UNKNOWN brackets from durable ProtectionStateUnknown.
+        '''Rebuild STATE_UNKNOWN brackets from any unresolved amend phase.
 
-        A protective-OCO amend that halted STATE_UNKNOWN carries its candidate
-        list ids and timestamp on the durable event, but its live status lived
-        only in memory; after a restart `_resume_brackets` skips it because the
-        pre-amend OCO is already terminal, so the watchdog would have nothing to
-        resolve. The latest unresolved `ProtectionStateUnknown` per command —
-        one not followed by a `ProtectionActive` or `ProtectionFailed` — rebuilds
-        the bracket in STATE_UNKNOWN with its candidate ids and deadline clock so
-        the watchdog can resolve it exactly as before the restart.
+        A protective-OCO amend persists its phase before each venue action
+        (`ProtectionAmendRequested` before the cancel, `ProtectionStateUnknown`
+        on a halt), so a crash anywhere in the amend — even after the venue
+        cancel but before the halt is recorded — leaves an unresolved phase but
+        no live `_LiveBracket`, and `_resume_brackets` skips it because the
+        pre-amend OCO is already terminal. Every command whose latest protection
+        phase is not a terminal `ProtectionActive` / `ProtectionFailed` is
+        rebuilt in STATE_UNKNOWN from that phase's candidate list ids (old and
+        replacement) and timestamp, so the reconcile watchdog re-queries both
+        candidates and resolves it exactly as before the restart.
         '''
 
         inits: dict[str, BracketInitialized] = {}
-        unknowns: dict[str, ProtectionStateUnknown] = {}
+        pending: dict[str, ProtectionAmendRequested | ProtectionStateUnknown] = {}
         for _seq, event in events:
             if isinstance(event, BracketInitialized):
                 inits[event.command_id] = event
 
-            elif isinstance(event, ProtectionStateUnknown):
-                unknowns[event.command_id] = event
+            elif isinstance(event, (ProtectionAmendRequested, ProtectionStateUnknown)):
+                pending[event.command_id] = event
 
             elif isinstance(event, (ProtectionActive, ProtectionFailed)):
-                unknowns.pop(event.command_id, None)
+                pending.pop(event.command_id, None)
 
-        for command_id, unknown in unknowns.items():
+        for command_id, phase in pending.items():
             if command_id in runtime.brackets:
                 continue
 
@@ -1357,10 +1378,10 @@ class ExecutionManager:
                 entry_client_order_id=entry_client_order_id,
                 protection_placed=True,
                 protection_status=BracketProtectionStatus.STATE_UNKNOWN,
-                protection_version=unknown.protection_version,
-                protection_client_order_id=unknown.old_list_client_order_id,
-                pending_replacement_client_order_id=unknown.new_list_client_order_id,
-                unknown_since=unknown.timestamp,
+                protection_version=phase.protection_version,
+                protection_client_order_id=phase.old_list_client_order_id,
+                pending_replacement_client_order_id=phase.new_list_client_order_id,
+                unknown_since=phase.timestamp,
             )
             _log.info(
                 'bracket protection resumed STATE_UNKNOWN for watchdog: '
@@ -5072,6 +5093,29 @@ class ExecutionManager:
 
         return _ZERO
 
+    async def _conservative_flatten_buy_price(
+        self, cmd: TradeCommand, fallback: Decimal,
+    ) -> Decimal:
+        '''Return a fresh conservative price to cap a BUY flatten by free quote.
+
+        A BUY flatten (closing a short) pays the current ask, not the historical
+        entry price — when the market has risen against the stop, the usual
+        failure direction, sizing the quote cap on the entry price buys more
+        than the free balance covers and the venue rejects the remediation. The
+        current best ask plus a fee/slippage buffer bounds the market cost; a
+        book query that fails falls back to the entry price.
+        '''
+
+        try:
+            book = await self._venue_adapter.query_order_book(cmd.symbol)
+        except VenueError:
+            return fallback
+
+        if not book.asks:
+            return fallback
+
+        return book.asks[0].price * _FLATTEN_BUY_PRICE_BUFFER
+
     def _record_protection_remediation(
         self,
         account_id: str,
@@ -5667,7 +5711,8 @@ class ExecutionManager:
         if protective_side is OrderSide.SELL:
             cap = free
         else:
-            cap = free / avg_entry_price if avg_entry_price > _ZERO else _ZERO
+            buy_price = await self._conservative_flatten_buy_price(cmd, avg_entry_price)
+            cap = free / buy_price if buy_price > _ZERO else _ZERO
 
         qty = (min(remainder, cap) // filters.lot_step) * filters.lot_step
 
@@ -7004,8 +7049,17 @@ class ExecutionManager:
             if existing is not None:
                 if existing.status not in _TERMINAL_ORDER_STATUSES:
                     new_active.add(rung_id)
+                    continue
 
-                continue
+                if existing.status is OrderStatus.FILLED:
+                    continue
+
+                await self._halt_ladder_amend(
+                    cmd, scheme, generation, 'PLACING',
+                    f'ladder amend rung {index} terminated '
+                    f'{existing.status.value} without fill',
+                )
+                return
 
             client_order_id = await self._submit_limit_level(
                 runtime, cmd, index, qty, price, generation=generation,

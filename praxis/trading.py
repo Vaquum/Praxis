@@ -55,6 +55,7 @@ __all__ = ['Trading']
 
 _log = logging.getLogger(__name__)
 _BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
+_FUND_RECONCILE_OVERLAP = timedelta(days=7)
 _QUOTE_ASSET = 'USDT'
 _ZERO = Decimal(0)
 _BALANCE_TOLERANCE: dict[str, Decimal] = {
@@ -953,7 +954,8 @@ class Trading:
             account_id (str): Account identifier to reconcile.
         '''
 
-        since = self._fund_reconcile_cursor.get(account_id)
+        cursor = self._fund_reconcile_cursor.get(account_id)
+        since = cursor - _FUND_RECONCILE_OVERLAP if cursor is not None else None
 
         try:
             transactions = await self._venue_adapter.query_fund_transactions(
@@ -1052,6 +1054,12 @@ class Trading:
                 'failed to query balances for reconciliation: %s',
                 exc.args[0] if exc.args else str(exc),
             )
+            return
+
+        if (
+            self._execution_manager.has_pending_ws_events(account_id)
+            or self._execution_manager.get_asset_balances(account_id) != expected_balances
+        ):
             return
 
         venue_totals = {entry.asset: entry.free + entry.locked for entry in entries}

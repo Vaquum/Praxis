@@ -43,13 +43,12 @@ Re-entering reconciliation while a pass is already in flight schedules exactly o
 
 ## What It Does Not Yet Do
 
-The RFC describes a broader reconciliation engine than what ships today. The current code does not yet implement:
+The RFC describes a broader reconciliation engine than what ships today. Now implemented: periodic per-asset balance reconciliation against the venue (a shortfall floor check that appends a `ReconciliationMismatch`), and fund-transaction polling that books quote-asset deposits and withdrawals into the ledger. The current code does not yet implement:
 
-- full balance-level reconciliation across all assets
-- the richer mismatch reporting surface described in the RFC
+- the richer mismatch reporting surface described in the RFC (only the shortfall floor is emitted)
 - a system-wide health/reduce-only/halt response inside Praxis itself
 
-So the right way to describe the current behavior is: recovery and order-level reconciliation are implemented; the full RFC reconciliation engine is not.
+So the right way to describe the current behavior is: recovery, order-level reconciliation, balance-shortfall reconciliation, and fund-transaction booking are implemented; the full RFC reconciliation engine is not.
 
 ## Why Fill Dedup Matters
 

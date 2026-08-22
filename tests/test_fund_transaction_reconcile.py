@@ -120,6 +120,21 @@ async def test_cursor_advances_to_latest_timestamp(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_poll_start_time_overlaps_cursor(spine: EventSpine) -> None:
+    from datetime import timedelta
+
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_fund_transactions.return_value = []
+    trading = _trading(spine, adapter)
+    trading._fund_reconcile_cursor[_ACCT] = _TS
+
+    await trading._reconcile_fund_transactions(_ACCT)
+
+    passed_start = adapter.query_fund_transactions.await_args.kwargs['start_time']
+    assert passed_start == _TS - timedelta(days=7)
+
+
+@pytest.mark.asyncio
 async def test_venue_error_is_swallowed(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_fund_transactions.side_effect = VenueError('boom')
