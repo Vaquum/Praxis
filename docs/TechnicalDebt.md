@@ -1313,3 +1313,15 @@ A correct fix adds `order_list_id` to `VenueOrder`, populates it in `query_open_
 The fix namespaces the id by direction — prefix `fund_transaction_id` with the direction at the adapter boundary (`DEPOSIT-<id>` / `WITHDRAWAL-<id>`), which also namespaces the downstream Nexus dedup key. Because `fund_dedup` is a persisted table (not rebuilt from replay), it needs a one-time migration: seed the direction-prefixed key for every existing `fund_dedup` row (joining `FundTransaction` events for the direction) before the adapter starts emitting prefixed ids, or the same transaction re-queried within the poll overlap window would re-append under the new id and double-book the ledger. The migration touches the recovery-critical spine and must be validated on the paper host.
 
 **When to fix**: alongside a spine-schema migration pass (and the Nexus dedup-key change, cf. TD-138), before the deposit/withdrawal id spaces can no longer be assumed disjoint.
+
+## TD-143: Balance-shortfall reconciliation lacks an opening-balance baseline
+
+**Origin**: WP-Praxis-0009 (reconciliation engine, balance reconciliation)
+**Severity**: Low (does not cause a false halt or double-count; it under-detects — a loss of pre-adoption inventory is not flagged, consistent with the deliberate "does not manage untracked capital" stance)
+**Module**: `praxis/core/account_ledger.py` (`get_asset_balances`), `praxis/trading.py` (`_reconcile_balances`)
+
+The ledger's per-asset balances are post-adoption movements: the ledger starts at zero, `RegisterAccount` carries no opening balances, and fund polling is clamped to the adoption cutover (TD-8-era cutover), so pre-adoption history is never booked. `_reconcile_balances` compares these movement-derived balances against the venue's absolute `free + locked`. A shortfall is only flagged when the venue holds LESS than the ledger; an excess is treated as untracked capital and ignored by design. Consequently a loss of pre-existing inventory is invisible — a venue USDT balance falling from 1,000 to 500 still exceeds a ledger value of 0, so it reads as excess, not shortfall.
+
+This is a design limitation, not a defect in the trade-modify work: Praxis deliberately does not manage capital it did not create. Making the shortfall check meaningful against absolute holdings requires capturing an opening venue-balance baseline at adoption (a durable per-asset baseline event projected into the ledger), so reconciliation compares `baseline + movements` to the venue absolute. That is a reconciliation-model/design decision — it changes the "untracked capital" stance — and the baseline must be durable and survive restart, so it wants architect sign-off and paper-host validation rather than a review-round patch.
+
+**When to fix**: when Praxis must detect drawdown of pre-adoption inventory (e.g., a commingled account it is expected to steward). Capture and project a durable opening-balance baseline at adoption, then reconcile absolute-to-absolute.

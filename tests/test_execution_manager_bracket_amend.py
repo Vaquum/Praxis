@@ -1296,6 +1296,35 @@ class TestBracketProtectionWatchdog:
         assert any(isinstance(e, FlattenInitiated) for _s, e in rows)
 
     @pytest.mark.asyncio
+    async def test_failed_flatten_retried_in_session_when_transient_clears(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+
+        adapter.query_order_list.side_effect = None
+        adapter.query_order_list.return_value = self._order_list('ALL_DONE')
+        adapter.query_trades.return_value = []
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('0'), locked=Decimal('0'))],
+        )
+
+        await em.resolve_unknown_protection(_ACCT)
+
+        bracket = runtime.brackets[command_id]
+        assert bracket.protection_status is BracketProtectionStatus.FAILED
+        assert bracket.flatten_remainder is not None
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        await em.resolve_failed_flattens(_ACCT)
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert any(isinstance(e, FlattenInitiated) for _s, e in rows)
+
+    @pytest.mark.asyncio
     async def test_watchdog_closes_bracket_when_protective_leg_filled(
         self, mgr_factory: Any, spine: EventSpine,
     ) -> None:

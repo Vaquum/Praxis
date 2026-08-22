@@ -326,6 +326,7 @@ class _LiveBracket:
     amend_tp_price: Decimal | None = None
     amend_sl_stop_price: Decimal | None = None
     amend_sl_limit_price: Decimal | None = None
+    flatten_remainder: Decimal | None = None
 
 
 @dataclass
@@ -5379,12 +5380,61 @@ class ExecutionManager:
             self._protection_response_for(cmd.account_id)
             is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
         ):
+            bracket.flatten_remainder = remainder
             await self._flatten_bracket_remainder(
                 runtime, bracket, version, reason,
                 remainder, oco_candidates,
             )
 
         await self.drain_protection_remediations(cmd.account_id)
+
+    async def resolve_failed_flattens(self, account_id: str) -> None:
+        '''Retry a failed bracket's flatten that never became durable in-session.
+
+        A naked-protection remediation records `ProtectionFailed` (which removes
+        the bracket from the STATE_UNKNOWN watchdog) before its flatten guard
+        succeeds; if the flatten then aborts on a transient — a protective leg
+        still live or unconfirmable, or the free balance momentarily short — it
+        returns without a `FlattenInitiated`, and only boot recovery would retry
+        it. This scan re-drives the flatten each reconcile tick for a
+        FLATTEN_THEN_HALT bracket left FAILED with no flatten order yet placed,
+        so remediation no longer waits for a restart. Once the flatten order
+        exists (working or filled) it is left to settle or to boot recovery.
+
+        Args:
+            account_id (str): Account whose failed-flatten brackets to retry.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        if (
+            self._protection_response_for(account_id)
+            is not BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+        ):
+            return
+
+        for bracket in list(runtime.brackets.values()):
+            if (
+                bracket.protection_status is not BracketProtectionStatus.FAILED
+                or bracket.flatten_remainder is None
+            ):
+                continue
+
+            cmd = bracket.command
+            flatten_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, cmd.command_id,
+                sequence=_BRACKET_FLATTEN_SEQUENCE,
+            )
+            if self._scheme_child_order(runtime, flatten_client_order_id) is not None:
+                continue
+
+            await self._flatten_bracket_remainder(
+                runtime, bracket, bracket.protection_version,
+                'failed-flatten retry', bracket.flatten_remainder,
+                self._bracket_oco_candidates(bracket),
+            )
 
     async def _remediate_failed_initial_protection(
         self,
@@ -5526,6 +5576,7 @@ class ExecutionManager:
             await self.resolve_ladder_amends(runtime.account_id)
             await self.resolve_pending_amends(runtime.account_id)
             await self.resolve_held_protection_amends(runtime.account_id)
+            await self.resolve_failed_flattens(runtime.account_id)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001
