@@ -302,6 +302,28 @@ class TestFullyFilledDuringAmend:
         assert outcomes[-1].status is TradeStatus.FILLED
         assert outcomes[-1].filled_qty == Decimal('1')
 
+    @pytest.mark.asyncio
+    async def test_venue_full_fill_backfilled_when_websocket_missed(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, outcomes = mgr
+        command_id = await _rest_iceberg(em, adapter)
+        old_coid = generate_client_order_id(ExecutionMode.ICEBERG, command_id, sequence=0)
+
+        adapter.query_order.return_value = _venue_order(
+            Decimal('1'), status=OrderStatus.FILLED,
+        )
+        adapter.query_trades.return_value = [
+            _venue_trade(old_coid, Decimal('1'), _OLD_PRICE),
+        ]
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        adapter.submit_order.assert_not_awaited()
+        assert outcomes[-1].status is TradeStatus.FILLED
+        assert outcomes[-1].filled_qty == Decimal('1')
+        assert command_id not in em._accounts[_ACCT].pending_amends
+
 
 class TestDustRemainder:
 

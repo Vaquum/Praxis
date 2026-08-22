@@ -410,6 +410,40 @@ class TestLadderAmend:
         assert sum(c.args[_QTY_ARG_INDEX] for c in new_calls) == Decimal('0.6')
 
     @pytest.mark.asyncio
+    async def test_partial_placement_tracks_live_rungs_before_halt(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+
+        new_rung_0 = generate_client_order_id(
+            ExecutionMode.LADDER_DCA, command_id, sequence=0, retry=1,
+        )
+        new_rung_1 = generate_client_order_id(
+            ExecutionMode.LADDER_DCA, command_id, sequence=1, retry=1,
+        )
+        rest = adapter.submit_order.side_effect
+
+        def _fail_second_new_rung(*args: Any, **kwargs: Any) -> SubmitResult:
+            if kwargs.get('client_order_id') == new_rung_1:
+                raise VenueError('rung 1 placement failed')
+
+            return rest(*args, **kwargs)
+
+        adapter.submit_order.side_effect = _fail_second_new_rung
+
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase is not None
+        assert new_rung_0 in scheme.active_children
+
+    @pytest.mark.asyncio
     async def test_amend_backfills_missed_rung_fill_before_terminalize(
         self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
     ) -> None:

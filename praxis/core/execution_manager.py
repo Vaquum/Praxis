@@ -6910,14 +6910,12 @@ class ExecutionManager:
             )
             return
 
-        if venue_order.status is OrderStatus.FILLED:
-            # The order filled at the venue rather than cancelling; leave it
-            # open locally so its pending fills settle to the command total.
-            await self._emit_amend_outcome(runtime, cmd)
-            return
-
-        # The order cancelled (terminal, not filled); complete the amend once
-        # the venue fill reconciles, else park it for the reconcile scan.
+        # The order is terminal at the venue (cancelled, or filled rather than
+        # cancelled). Reconcile its authoritative fill before terminalizing: a
+        # FILLED order backfills to a full-fill terminal outcome, a cancelled
+        # one to the re-placeable remainder. If the fill cannot be reconciled,
+        # park it for the reconcile scan rather than emitting an understated
+        # outcome from a stale local projection.
         pending = _PendingSingleAmend(
             old_client_order_id=old_client_order_id,
             new_client_order_id=new_client_order_id,
@@ -7417,7 +7415,6 @@ class ExecutionManager:
         and the amend completes.
         '''
 
-        new_active: set[str] = set()
         for index, price, qty in planned:
             rung_id = generate_client_order_id(
                 ExecutionMode.LADDER_DCA, cmd.command_id,
@@ -7426,7 +7423,7 @@ class ExecutionManager:
             existing = self._scheme_child_order(runtime, rung_id)
             if existing is not None:
                 if existing.status not in _TERMINAL_ORDER_STATUSES:
-                    new_active.add(rung_id)
+                    scheme.active_children.add(rung_id)
                     continue
 
                 if existing.status is OrderStatus.FILLED:
@@ -7451,9 +7448,8 @@ class ExecutionManager:
 
             order = self._scheme_child_order(runtime, client_order_id)
             if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
-                new_active.add(client_order_id)
+                scheme.active_children.add(client_order_id)
 
-        scheme.active_children |= new_active
         scheme.slice_qtys = [qty for _index, _price, qty in planned]
         scheme.slices_total = len(planned)
         scheme.cursor = len(planned)
