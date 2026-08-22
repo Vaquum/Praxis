@@ -68,6 +68,8 @@ from praxis.infrastructure.venue_adapter import (
     DuplicateClientOrderIdError,
     ImmediateFill,
     NotFoundError,
+    OrderBookLevel,
+    OrderBookSnapshot,
     VenueTrade,
     SubmitResult,
     SymbolFilters,
@@ -136,6 +138,7 @@ def _make_adapter(
     replacement_query_error: Exception | None = None,
     leg_filled: dict[str, Decimal] | None = None,
     new_list_status: str | None = None,
+    replacement_status: OrderStatus = OrderStatus.OPEN,
 ) -> AsyncMock:
     mock = AsyncMock(spec=VenueAdapter)
     submit_calls: list[dict[str, Any]] = []
@@ -153,9 +156,10 @@ def _make_adapter(
             if oco_count['n'] >= 2 and replacement_error is not None:
                 raise replacement_error
 
+            status = replacement_status if oco_count['n'] >= 2 else OrderStatus.OPEN
             return SubmitResult(
                 venue_order_id=f'ol-{oco_count["n"]}',
-                status=OrderStatus.OPEN,
+                status=status,
                 immediate_fills=(),
                 leg_client_order_ids=(_LEG_TP, _LEG_SL),
             )
@@ -224,6 +228,11 @@ def _make_adapter(
     mock.query_order.side_effect = _query_order
     mock.cached_filters.return_value = _filters()
     mock.query_trades.return_value = []
+    mock.query_order_book.return_value = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=_ENTRY_PRICE, qty=Decimal('100')),),
+        asks=(OrderBookLevel(price=_ENTRY_PRICE, qty=Decimal('100')),),
+        last_update_id=1,
+    )
     mock.submit_calls = submit_calls
     return mock
 
@@ -539,6 +548,21 @@ class TestBracketAmendPartialFill:
         position = runtime.trading_state.positions.get((_TRADE, _ACCT))
         assert position is not None
         assert position.qty == Decimal('0.6')
+
+    @pytest.mark.asyncio
+    async def test_terminal_replacement_holds_state_unknown_not_active(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter(replacement_status=OrderStatus.FILLED)
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
+
+        bracket = runtime.brackets[command_id]
+        assert bracket.protection_status is BracketProtectionStatus.STATE_UNKNOWN
+        assert bracket.unknown_since is not None
 
     @pytest.mark.asyncio
     async def test_unreconciled_protective_backfill_parks_and_scan_completes(

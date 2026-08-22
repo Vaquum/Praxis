@@ -1265,3 +1265,27 @@ A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-
 `_run_protection_scan` awaits `resolve_unknown_protection`, `drain_protection_remediations`, and `resolve_ladder_amends` under a single `try`. A venue error thrown by the first skips the remaining two for that tick, so a stuck protection resolve delays a ladder-amend resolution (and vice versa) by one reconcile interval. No state is lost — the next tick re-drives whichever was skipped — but the scans are independent and should not gate each other.
 
 **When to fix**: when either watchdog becomes latency-sensitive. Wrap each scan in its own try/except (log and continue) so one failing scan cannot defer the others.
+
+## TD-139: Balance-mismatch delivery is retried in memory, not durably across a restart
+
+**Origin**: WP-Praxis-0009 (reconciliation engine, balance mismatch)
+**Severity**: Low (advisory alert; the acute cases — transient Nexus failure, or a balance that recovers before the next in-session poll — are already retried; only a restart in the same window drops it)
+**Module**: `praxis/trading.py` (`_reconcile_balances`, `_retry_undelivered_mismatches`, `_deliver_mismatch`)
+
+A balance-reconciliation mismatch is appended to the spine with a stable `(account, asset, delta)` id and, if its Nexus callback fails, retained in the in-memory `_undelivered_mismatches` set and retried every reconcile cycle independently of whether the balance still reads as a shortfall. This covers a transient Nexus outage and a balance that recovers before the next poll. It is not durable across a process restart: if the append succeeds, the callback fails, the process restarts, and the balance recovers during the downtime, the mismatch is on the spine but the in-memory retry set is empty, so it is never delivered and (the divergence gone) never re-detected.
+
+A durable fix mirrors the protection-remediation outbox: append a `ReconciliationMismatchDelivered` marker on successful delivery, and on boot seed `_undelivered_mismatches` from spine `ReconciliationMismatch` events lacking a matching marker (as `seed_protection_remediations` already does for remediations). That also requires the Nexus receiver to be idempotent on `reconciliation_mismatch_id` so a boot-seeded re-delivery is a no-op — the same prerequisite tracked in TD-138.
+
+**When to fix**: alongside TD-138 (Nexus-side idempotency), since a durable re-delivery is only safe once the receiver deduplicates. Add the delivered-marker event and the boot seed then.
+
+## TD-140: Initial protective-OCO placement can mark a terminal list active
+
+**Origin**: WP-Praxis-0009 (bracket protective OCO — pre-existing initial placement)
+**Severity**: Low (rare — requires the protective OCO to be ALL_DONE at placement with no immediate fill carried inline; a missed WebSocket leg fill then leaves a dead list believed active)
+**Module**: `praxis/core/execution_manager.py` (`_place_bracket_protection`)
+
+The protective-OCO amend replacement now holds in `STATE_UNKNOWN` when its submit result is terminal (an ALL_DONE list or a terminal status), so the reconcile watchdog resolves the position rather than marking a filled or cancelled list active. The initial placement (`_place_bracket_protection`) already projects inline `immediate_fills` and builds a terminal exit outcome when the local projection terminalizes, but it does not apply the same guard to the venue-resolved terminal status of a rescued ALL_DONE list carrying no inline fills: it marks the bracket `ACTIVE` and relies on the WebSocket leg fill, which if missed leaves a dead list believed to protect the position.
+
+The initial-placement fix is more involved than the amend path: the versioned `Protection*` events require `protection_version >= 1` while the initial placement is version 0, and a durable `STATE_UNKNOWN` there needs boot-resume support; the safe fix queries the ALL_DONE list's leg fills, projects them, and drops or remediates the bracket inline rather than reusing the amend's `STATE_UNKNOWN` path.
+
+**When to fix**: before an initial protective OCO can plausibly fill at placement (a marketable stop against a fast-moving entry). Query and project the terminal list's leg fills and resolve the position instead of marking it active.

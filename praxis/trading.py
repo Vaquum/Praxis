@@ -42,6 +42,7 @@ from praxis.core.domain.events import (
     OrderExpired,
     OrderRejected,
     ReconciliationMismatch,
+    RegisterAccount,
 )
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
@@ -202,6 +203,7 @@ class Trading:
         self._reconciling_accounts: set[str] = set()
         self._reconcile_rerun_pending: set[str] = set()
         self._fund_reconcile_cursor: dict[str, datetime] = {}
+        self._fund_reconcile_cutover: dict[str, datetime] = {}
         self._balance_mismatch_seen: dict[tuple[str, str], Decimal] = {}
         self._undelivered_mismatches: dict[tuple[str, str], ReconciliationMismatch] = {}
         self._reconcile_task: asyncio.Task[None] | None = None
@@ -510,6 +512,7 @@ class Trading:
             account_id, account_events,
         )
         self._execution_manager.seed_protection_remediations(account_events)
+        self._seed_fund_reconcile_cursor(account_id, account_events)
 
         account_ready = await self._sweep_orphan_venue_orders(account_id)
 
@@ -940,6 +943,45 @@ class Trading:
                     trade.venue_trade_id,
                 )
 
+    def _seed_fund_reconcile_cursor(
+        self, account_id: str, account_events: list[tuple[int, Event]],
+    ) -> None:
+        '''Anchor an account's fund-reconcile poll window to its own history.
+
+        The first poll must not query venue movements from before Praxis owned
+        the account: booking pre-adoption deposits into a fresh epoch ledger
+        would surface as a balance shortfall and could HALT Nexus. A per-account
+        cutover is set to the account's `RegisterAccount` timestamp (its
+        adoption time in this epoch, or the wall clock for a first-ever cold
+        start with no replayed events), and the poll is clamped never to reach
+        before it. Within an epoch a restart resumes from the latest already
+        booked `FundTransaction` on the spine rather than re-scanning from the
+        cutover.
+
+        Args:
+            account_id (str): Account whose poll window to anchor.
+            account_events (list[tuple[int, Event]]): The account's replayed
+                spine events.
+        '''
+
+        cutover: datetime | None = None
+        latest_fund: datetime | None = None
+
+        for _seq, event in account_events:
+            if isinstance(event, RegisterAccount):
+                cutover = event.timestamp
+            elif isinstance(event, FundTransaction) and (
+                latest_fund is None or event.timestamp > latest_fund
+            ):
+                latest_fund = event.timestamp
+
+        self._fund_reconcile_cutover[account_id] = (
+            cutover if cutover is not None else self._clock()
+        )
+
+        if latest_fund is not None:
+            self._fund_reconcile_cursor[account_id] = latest_fund
+
     async def _reconcile_fund_transactions(self, account_id: str) -> None:
         '''
         Detect quote-asset deposits/withdrawals and record them for the account.
@@ -950,16 +992,22 @@ class Trading:
         to the account coroutine to project into the ledger. As with fill
         reconciliation the spine deduplicates on `fund_transaction_id`, so a
         re-detected transaction is a silent no-op and the cursor is only an
-        efficiency bound, not the durability guarantee. Base-asset movements
-        are not modelled by `FundTransaction`; they surface instead as a
-        balance mismatch in the balance-reconciliation pass.
+        efficiency bound, not the durability guarantee. The poll window is
+        clamped never to reach before the account's adoption cutover, so the
+        first poll cannot book pre-Praxis history into a fresh epoch ledger.
+        Base-asset movements are not modelled by `FundTransaction`; they surface
+        instead as a balance mismatch in the balance-reconciliation pass.
 
         Args:
             account_id (str): Account identifier to reconcile.
         '''
 
         cursor = self._fund_reconcile_cursor.get(account_id)
-        since = cursor - _FUND_RECONCILE_OVERLAP if cursor is not None else None
+        cutover = self._fund_reconcile_cutover.get(account_id)
+        since = cursor - _FUND_RECONCILE_OVERLAP if cursor is not None else cutover
+
+        if since is not None and cutover is not None and since < cutover:
+            since = cutover
 
         try:
             transactions = await self._venue_adapter.query_fund_transactions(

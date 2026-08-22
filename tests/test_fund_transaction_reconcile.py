@@ -193,6 +193,21 @@ async def test_balance_shortfall_emits_reconciliation_mismatch(spine: EventSpine
 
 
 @pytest.mark.asyncio
+async def test_first_poll_bounded_to_adoption_cutover(spine: EventSpine) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    adapter.query_fund_transactions.return_value = []
+    trading = _trading(spine, adapter)
+
+    trading._seed_fund_reconcile_cursor(
+        _ACCT, [(1, RegisterAccount(account_id=_ACCT, timestamp=_TS))],
+    )
+
+    await trading._reconcile_fund_transactions(_ACCT)
+
+    assert adapter.query_fund_transactions.call_args.kwargs['start_time'] == _TS
+
+
+@pytest.mark.asyncio
 async def test_mismatch_delivered_on_retry_after_balance_recovers(
     spine: EventSpine,
 ) -> None:

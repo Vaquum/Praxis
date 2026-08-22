@@ -118,6 +118,7 @@ from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     DuplicateClientOrderIdError,
+    ImmediateFill,
     NotFoundError,
     OrderSubmitTimeoutError,
     SubmitResult,
@@ -5179,6 +5180,30 @@ class ExecutionManager:
 
         return book.asks[0].price * _FLATTEN_BUY_PRICE_BUFFER
 
+    async def _current_flatten_sell_price(
+        self, cmd: TradeCommand, fallback: Decimal,
+    ) -> Decimal:
+        '''Return a fresh market price for a SELL flatten's tradability check.
+
+        Binance applies MARKET-order notional rules at current market pricing,
+        so a SELL flatten (closing a long) is checked against the current best
+        bid, not the historical entry price — after a large adverse move the
+        entry-price notional can read below the venue minimum while the current
+        notional clears it, which would otherwise reject a viable remediation
+        and leave the position naked. A book query that fails, or an empty bid
+        side, falls back to the entry price.
+        '''
+
+        try:
+            book = await self._venue_adapter.query_order_book(cmd.symbol)
+        except VenueError:
+            return fallback
+
+        if not book.bids:
+            return fallback
+
+        return book.bids[0].price
+
     def _record_protection_remediation(
         self,
         account_id: str,
@@ -5782,9 +5807,11 @@ class ExecutionManager:
 
         if protective_side is OrderSide.SELL:
             cap = free
+            market_price = await self._current_flatten_sell_price(cmd, avg_entry_price)
         else:
             buy_price = await self._conservative_flatten_buy_price(cmd, avg_entry_price)
             cap = free / buy_price if buy_price > _ZERO else _ZERO
+            market_price = buy_price
 
         qty = (min(remainder, cap) // filters.lot_step) * filters.lot_step
 
@@ -5799,7 +5826,7 @@ class ExecutionManager:
                 qty,
             )
 
-        notional = qty * avg_entry_price
+        notional = qty * market_price
         if qty < filters.lot_min or notional < filters.min_notional:
             _log.error(
                 'flatten remainder below lot or notional minimum; position left '
@@ -7536,7 +7563,7 @@ class ExecutionManager:
             runtime, bracket, cancel_result.venue_order_id,
         )
 
-    async def _drive_bracket_protection_amend(
+    async def _drive_bracket_protection_amend(  # noqa: PLR0911
         self,
         runtime: _AccountRuntime,
         bracket: _LiveBracket,
@@ -7769,6 +7796,10 @@ class ExecutionManager:
                     leg.client_order_id for leg in order_list.legs
                 ),
             )
+            replacement_terminal = (
+                order_list.list_order_status == _OCO_LIST_STATUS_ALL_DONE
+            )
+            immediate_fills: tuple[ImmediateFill, ...] = ()
         else:
             submitted = OrderSubmitted(
                 account_id=cmd.account_id,
@@ -7777,10 +7808,58 @@ class ExecutionManager:
                 venue_order_id=result.venue_order_id,
                 leg_client_order_ids=result.leg_client_order_ids,
             )
+            replacement_terminal = result.status in _TERMINAL_ORDER_STATUSES
+            immediate_fills = result.immediate_fills
 
         runtime.command_to_order[exit_command_id] = new_list_client_order_id
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
+
+        bracket.amend_new_list_client_order_id = None
+        bracket.amend_tp_price = None
+        bracket.amend_sl_stop_price = None
+        bracket.amend_sl_limit_price = None
+
+        if replacement_terminal:
+            await self._append_protection_state_unknown(
+                cmd, new_version,
+                'replacement OCO already terminal at placement',
+                old_list_client_order_id=old_list_client_order_id,
+                new_list_client_order_id=new_list_client_order_id,
+            )
+            bracket.protection_client_order_id = new_list_client_order_id
+            bracket.pending_replacement_client_order_id = new_list_client_order_id
+            bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            bracket.unknown_since = self._clock()
+            _log.warning(
+                'bracket protective replacement already terminal at placement; '
+                'holding for reconcile rather than marking a filled or cancelled '
+                'OCO active: command_id=%s version=%d',
+                cmd.command_id,
+                new_version,
+            )
+            return
+
+        for fill in immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=new_list_client_order_id,
+                venue_order_id=submitted.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
 
         active = ProtectionActive(
             account_id=cmd.account_id,
@@ -7795,10 +7874,6 @@ class ExecutionManager:
         bracket.current_sl_stop_price = sl_stop_price
         bracket.current_sl_limit_price = sl_limit_price
         bracket.protection_status = BracketProtectionStatus.ACTIVE
-        bracket.amend_new_list_client_order_id = None
-        bracket.amend_tp_price = None
-        bracket.amend_sl_stop_price = None
-        bracket.amend_sl_limit_price = None
 
         _log.info(
             'bracket protection amended: command_id=%s version=%d qty=%s '

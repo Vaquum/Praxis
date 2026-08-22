@@ -46,6 +46,8 @@ from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     ImmediateFill,
     NotFoundError,
+    OrderBookLevel,
+    OrderBookSnapshot,
     OrderSubmitTimeoutError,
     SubmitResult,
     SymbolFilters,
@@ -167,6 +169,11 @@ def _make_adapter(
 
     mock.submit_order.side_effect = _submit
     mock.cached_filters.return_value = filters
+    mock.query_order_book.return_value = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=_ENTRY_PRICE, qty=Decimal('100')),),
+        asks=(OrderBookLevel(price=_ENTRY_PRICE, qty=Decimal('100')),),
+        last_update_id=1,
+    )
     mock.submit_calls = calls
     return mock
 
