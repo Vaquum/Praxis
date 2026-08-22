@@ -203,6 +203,7 @@ class Trading:
         self._reconcile_rerun_pending: set[str] = set()
         self._fund_reconcile_cursor: dict[str, datetime] = {}
         self._balance_mismatch_seen: dict[tuple[str, str], Decimal] = {}
+        self._undelivered_mismatches: dict[tuple[str, str], ReconciliationMismatch] = {}
         self._reconcile_task: asyncio.Task[None] | None = None
         self._stopping = False
 
@@ -1027,12 +1028,14 @@ class Trading:
         position on a commingled asset — which Praxis does not manage and does
         not flag; the trade backfill on reconnect, not this floor check, is the
         path that catches a missed Praxis buy fill. The same divergence is
-        reported once until it changes or clears, so a persistent mismatch does
-        not append an event every cycle; the seen-marker is set only after a
-        durable append, so a transient spine failure retries next cycle rather
-        than silently suppressing the alert. Base-asset (BTC) raw quantity is
-        summed from the ledger's cost-basis lots; the venue reports it
-        directly.
+        reported once until it changes or clears: the mismatch id is stable per
+        `(account, asset, delta)`, so a re-append is a spine no-op rather than a
+        fresh event each cycle. Delivery to Nexus is decoupled from the balance
+        comparison — a mismatch whose callback fails is retained and retried
+        each cycle by `_retry_undelivered_mismatches` until it lands, so a
+        transient Nexus outage (or a balance that recovers before the next poll)
+        cannot silently drop the alert. Base-asset (BTC) raw quantity is summed
+        from the ledger's cost-basis lots; the venue reports it directly.
 
         The pass is skipped while events are queued for projection: the ledger
         lags the spine until the account coroutine drains its queue, so a
@@ -1065,6 +1068,8 @@ class Trading:
         ):
             return
 
+        await self._retry_undelivered_mismatches(account_id)
+
         venue_totals = {entry.asset: entry.free + entry.locked for entry in entries}
 
         for asset, expected in expected_balances.items():
@@ -1079,11 +1084,14 @@ class Trading:
             if self._balance_mismatch_seen.get(key) == delta:
                 continue
 
-            now = self._clock()
+            pending = self._undelivered_mismatches.get(key)
+            if pending is not None and pending.actual - pending.expected == delta:
+                continue
+
             mismatch = ReconciliationMismatch(
                 account_id=account_id,
-                timestamp=now,
-                reconciliation_mismatch_id=f'balance-{account_id}-{asset}-{now.isoformat()}',
+                timestamp=self._clock(),
+                reconciliation_mismatch_id=f'balance-{account_id}-{asset}-{delta}',
                 asset=asset,
                 expected=expected,
                 actual=actual,
@@ -1095,17 +1103,56 @@ class Trading:
                 account_id, asset, expected, actual,
             )
 
-            try:
-                await self._on_reconciliation_mismatch(mismatch)
-            except Exception:  # noqa: BLE001 - leave unseen to retry delivery next cycle
-                _log.exception(
-                    'failed to deliver reconciliation mismatch to Nexus; '
-                    'will retry next cycle: account=%s asset=%s',
-                    account_id, asset,
-                )
-                continue
+            if await self._deliver_mismatch(mismatch):
+                self._balance_mismatch_seen[key] = delta
+                self._undelivered_mismatches.pop(key, None)
+            else:
+                self._undelivered_mismatches[key] = mismatch
 
-            self._balance_mismatch_seen[key] = delta
+    async def _retry_undelivered_mismatches(self, account_id: str) -> None:
+        '''Re-attempt Nexus delivery of mismatches whose callback earlier failed.
+
+        Delivery is retried independently of the current balance comparison, so
+        a mismatch appended in an earlier cycle is still delivered even after the
+        venue balance recovers — rather than being dropped when its asset no
+        longer reads as a shortfall. The mismatch id is stable per
+        `(account, asset, delta)`, so a re-append while delivery is pending is a
+        spine no-op instead of a fresh duplicate every cycle.
+
+        Args:
+            account_id (str): Account whose undelivered mismatches to retry.
+        '''
+
+        for key in [k for k in self._undelivered_mismatches if k[0] == account_id]:
+            mismatch = self._undelivered_mismatches[key]
+            if await self._deliver_mismatch(mismatch):
+                self._undelivered_mismatches.pop(key, None)
+                self._balance_mismatch_seen[key] = mismatch.actual - mismatch.expected
+
+    async def _deliver_mismatch(self, mismatch: ReconciliationMismatch) -> bool:
+        '''Deliver a mismatch to Nexus, returning whether the callback succeeded.
+
+        A failed callback is retained for retry and never propagated, so a
+        transient Nexus outage cannot stop the reconciliation loop.
+
+        Args:
+            mismatch (ReconciliationMismatch): The mismatch to deliver.
+
+        Returns:
+            bool: True when the callback succeeded, False to retain for retry.
+        '''
+
+        try:
+            await self._on_reconciliation_mismatch(mismatch)
+        except Exception:  # noqa: BLE001 - retained for retry, never propagated
+            _log.exception(
+                'failed to deliver reconciliation mismatch to Nexus; will '
+                'retry next cycle: id=%s',
+                mismatch.reconciliation_mismatch_id,
+            )
+            return False
+
+        return True
 
     async def _reconciliation_loop(self) -> None:
         '''

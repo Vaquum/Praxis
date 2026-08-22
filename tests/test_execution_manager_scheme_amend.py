@@ -155,6 +155,20 @@ class TestTwapSchemeAmend:
         assert scheme.interval_seconds == 30
 
     @pytest.mark.asyncio
+    async def test_slice_frozen_interval_scheme_stays_amendable(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_twap_kwargs())
+        await asyncio.sleep(0.3)
+
+        scheme = em._accounts[_ACCT].schemes[command_id]
+        scheme.frozen = True
+
+        assert command_id in em.modifiable_command_ids(_ACCT)
+
+    @pytest.mark.asyncio
     async def test_num_slices_increase_replans_remaining(
         self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
     ) -> None:
@@ -242,14 +256,15 @@ class TestVwapSchemeAmend:
         scheme = em._accounts[_ACCT].schemes[command_id]
         before = list(scheme.slice_qtys)
 
-        em.submit_modify(
-            _modify(
-                command_id,
-                ScheduledVwapModify(
-                    volume_weights=(Decimal('0.4'), Decimal('0.4'), Decimal('0.2')),
+        with pytest.raises(ValueError, match='volume-weight amend is not yet supported'):
+            em.submit_modify(
+                _modify(
+                    command_id,
+                    ScheduledVwapModify(
+                        volume_weights=(Decimal('0.4'), Decimal('0.4'), Decimal('0.2')),
+                    ),
                 ),
-            ),
-        )
+            )
         await asyncio.sleep(0.3)
 
         assert scheme.slice_qtys == before

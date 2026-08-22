@@ -178,6 +178,11 @@ def test_trading_config_rejects_non_positive_epoch() -> None:
         TradingConfig(epoch_id=0)
 
 
+def test_trading_config_rejects_non_positive_reconcile_interval() -> None:
+    with pytest.raises(ValueError, match='reconcile_interval_seconds must be positive'):
+        TradingConfig(epoch_id=1, reconcile_interval_seconds=0)
+
+
 def test_trading_config_rejects_empty_account_id() -> None:
     with pytest.raises(ValueError, match='keys must be non-empty'):
         TradingConfig(

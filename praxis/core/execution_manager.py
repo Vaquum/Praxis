@@ -868,10 +868,13 @@ class ExecutionManager:
         amendable -= {
             command_id
             for command_id, scheme in runtime.schemes.items()
-            if scheme.frozen
-            or scheme.protection_frozen
+            if scheme.protection_frozen
             or scheme.amend_phase is not None
             or scheme.pending_terminal is not None
+            or (
+                scheme.frozen
+                and scheme.command.execution_mode is ExecutionMode.LADDER_DCA
+            )
         }
 
         for entry_id, bracket in runtime.brackets.items():

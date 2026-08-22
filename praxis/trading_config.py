@@ -132,6 +132,10 @@ class TradingConfig:
             msg = 'TradingConfig.shutdown_timeout must be positive'
             raise ValueError(msg)
 
+        if self.reconcile_interval_seconds <= 0:
+            msg = 'TradingConfig.reconcile_interval_seconds must be positive'
+            raise ValueError(msg)
+
         if self.bracket_protection_restore_deadline_seconds <= 0:
             msg = (
                 'TradingConfig.bracket_protection_restore_deadline_seconds '

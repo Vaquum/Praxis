@@ -22,6 +22,8 @@ from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
+from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_modify import SingleShotModify
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_command import TradeCommand
@@ -140,6 +142,54 @@ def _ladder_command() -> TradeCommand:
     )
 
 
+def _scheduled_vwap_command() -> TradeCommand:
+    return TradeCommand(
+        command_id=_CMD,
+        trade_id='trade-1',
+        account_id=_ACCT,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=Decimal('1'),
+        order_type=OrderType.MARKET,
+        execution_mode=ExecutionMode.SCHEDULED_VWAP,
+        execution_params=ScheduledVwapParams(
+            interval_seconds=60,
+            volume_weights=(Decimal('0.5'), Decimal('0.5')),
+        ),
+        timeout=3600,
+        reference_price=None,
+        maker_preference=MakerPreference.NO_PREFERENCE,
+        stp_mode=STPMode.NONE,
+        created_at=_TS,
+    )
+
+
+class TestUnsupportedFieldCombos:
+
+    def test_vwap_volume_weight_amend_rejected(self) -> None:
+        commands = {_CMD: _scheduled_vwap_command()}
+
+        with pytest.raises(ValueError, match='volume-weight amend is not yet supported'):
+            validate_trade_modify(
+                _modify(
+                    modify_params=ScheduledVwapModify(
+                        volume_weights=(Decimal('0.6'), Decimal('0.4')),
+                    ),
+                ),
+                commands,
+                set(),
+            )
+
+    def test_vwap_interval_only_amend_allowed(self) -> None:
+        commands = {_CMD: _scheduled_vwap_command()}
+
+        assert validate_trade_modify(
+            _modify(modify_params=ScheduledVwapModify(interval_seconds=120)),
+            commands,
+            set(),
+        ) is True
+
+
 class TestExposureCeiling:
 
     def test_buy_price_decrease_allowed(self) -> None:
@@ -189,14 +239,15 @@ class TestExposureCeiling:
                 set(),
             )
 
-    def test_stop_trigger_amend_not_ceilinged(self) -> None:
+    def test_stop_field_amend_rejected(self) -> None:
         commands = {_CMD: _single_shot_command()}
 
-        assert validate_trade_modify(
-            _modify(modify_params=SingleShotModify(stop_price=Decimal('60000'))),
-            commands,
-            set(),
-        ) is True
+        with pytest.raises(ValueError, match='stop-field amend is not supported'):
+            validate_trade_modify(
+                _modify(modify_params=SingleShotModify(stop_price=Decimal('60000'))),
+                commands,
+                set(),
+            )
 
     def test_ladder_buy_one_level_up_rejected(self) -> None:
         commands = {_CMD: _ladder_command()}

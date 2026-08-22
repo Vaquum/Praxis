@@ -461,15 +461,16 @@ class TestSingleShotAmend:
         )
         await asyncio.sleep(0.3)
 
-        em.submit_modify(
-            TradeModify(
-                command_id=command_id,
-                account_id=_ACCT,
-                reason='reprice',
-                modify_params=SingleShotModify(stop_price=Decimal('48000')),
-                created_at=_T0,
-            ),
-        )
+        with pytest.raises(ValueError, match='stop-field amend is not supported'):
+            em.submit_modify(
+                TradeModify(
+                    command_id=command_id,
+                    account_id=_ACCT,
+                    reason='reprice',
+                    modify_params=SingleShotModify(stop_price=Decimal('48000')),
+                    created_at=_T0,
+                ),
+            )
         await asyncio.sleep(0.3)
 
         adapter.cancel_order.assert_not_awaited()

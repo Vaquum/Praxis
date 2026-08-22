@@ -16,6 +16,8 @@ from praxis.core.domain.enums import ExecutionMode, OrderSide
 from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.modify_params import MODIFY_PARAMS_FOR_MODE
+from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
+from praxis.core.domain.single_shot_modify import SingleShotModify
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.domain.trade_modify import TradeModify
 
@@ -192,6 +194,26 @@ def validate_trade_modify(
         msg = (
             f'modify_params {type(modify.modify_params).__name__} does not '
             f'match execution mode {command.execution_mode.value}'
+        )
+        raise ValueError(msg)
+
+    if isinstance(modify.modify_params, SingleShotModify) and (
+        modify.modify_params.stop_price is not None
+        or modify.modify_params.stop_limit_price is not None
+    ):
+        msg = (
+            f"stop-field amend is not supported (limit price only) for "
+            f"command_id '{modify.command_id}'"
+        )
+        raise ValueError(msg)
+
+    if (
+        isinstance(modify.modify_params, ScheduledVwapModify)
+        and modify.modify_params.volume_weights is not None
+    ):
+        msg = (
+            f"Scheduled VWAP volume-weight amend is not yet supported for "
+            f"command_id '{modify.command_id}'"
         )
         raise ValueError(msg)
 

@@ -193,6 +193,50 @@ async def test_balance_shortfall_emits_reconciliation_mismatch(spine: EventSpine
 
 
 @pytest.mark.asyncio
+async def test_mismatch_delivered_on_retry_after_balance_recovers(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    on_mismatch = AsyncMock(side_effect=[RuntimeError('nexus down'), None])
+    trading = _trading(spine, adapter, on_reconciliation_mismatch=on_mismatch)
+    _seed_usdt(trading, Decimal('100'))
+
+    adapter.query_balance.return_value = [
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
+    ]
+    await trading._reconcile_balances(_ACCT)
+
+    assert (_ACCT, 'USDT') in trading._undelivered_mismatches
+
+    adapter.query_balance.return_value = [
+        BalanceEntry(asset='USDT', free=Decimal('100'), locked=Decimal('0')),
+    ]
+    await trading._reconcile_balances(_ACCT)
+
+    assert on_mismatch.await_count == 2
+    assert (_ACCT, 'USDT') not in trading._undelivered_mismatches
+
+
+@pytest.mark.asyncio
+async def test_persistent_mismatch_stable_id_no_duplicate_append(
+    spine: EventSpine,
+) -> None:
+    adapter = AsyncMock(spec=VenueAdapter)
+    on_mismatch = AsyncMock(side_effect=RuntimeError('nexus down'))
+    trading = _trading(spine, adapter, on_reconciliation_mismatch=on_mismatch)
+    _seed_usdt(trading, Decimal('100'))
+    adapter.query_balance.return_value = [
+        BalanceEntry(asset='USDT', free=Decimal('0'), locked=Decimal('0')),
+    ]
+
+    await trading._reconcile_balances(_ACCT)
+    await trading._reconcile_balances(_ACCT)
+
+    assert len(await _mismatches_on_spine(spine)) == 1
+    assert on_mismatch.await_count >= 2
+
+
+@pytest.mark.asyncio
 async def test_balance_excess_is_ignored_as_untracked(spine: EventSpine) -> None:
     adapter = AsyncMock(spec=VenueAdapter)
     adapter.query_balance.return_value = [

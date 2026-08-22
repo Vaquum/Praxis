@@ -86,6 +86,7 @@ _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
 _DEPOSIT_SUCCESS_STATUS = 1
 _WITHDRAWAL_COMPLETED_STATUS = 6
+_FUND_HISTORY_PAGE_LIMIT = 1000
 _WITHDRAWAL_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
 _DUPLICATE_CLIENT_ORDER_ID_CODE = -2010
@@ -1941,11 +1942,11 @@ class BinanceAdapter:
         if end_time is not None:
             params['endTime'] = str(int(end_time.timestamp() * _MS_PER_SECOND))
 
-        deposits = await self._signed_request(
-            'GET', '/sapi/v1/capital/deposit/hisrec', params, account_id,
+        deposits = await self._fetch_fund_history(
+            '/sapi/v1/capital/deposit/hisrec', params, account_id,
         )
-        withdrawals = await self._signed_request(
-            'GET', '/sapi/v1/capital/withdraw/history', params, account_id,
+        withdrawals = await self._fetch_fund_history(
+            '/sapi/v1/capital/withdraw/history', params, account_id,
         )
 
         transactions = [
@@ -1959,6 +1960,48 @@ class BinanceAdapter:
         ]
 
         return sorted(transactions, key=lambda transaction: transaction.timestamp)
+
+    async def _fetch_fund_history(
+        self,
+        path: str,
+        params: dict[str, str],
+        account_id: str,
+    ) -> list[dict[str, Any]]:
+
+        '''
+        Fetch every page of a paginated SAPI fund-history endpoint.
+
+        The deposit- and withdrawal-history routes return at most
+        `_FUND_HISTORY_PAGE_LIMIT` rows per call and page through `offset`;
+        this walks `offset` until a page shorter than the limit, so a window
+        holding more than one page books every settled movement rather than
+        silently dropping rows beyond the first page.
+
+        Args:
+            path (str): SAPI endpoint path to page through
+            params (dict[str, str]): Base query parameters (time window)
+            account_id (str): Account identifier for API key routing
+
+        Returns:
+            list[dict[str, Any]]: The concatenated rows across all pages
+        '''
+
+        rows: list[dict[str, Any]] = []
+        offset = 0
+
+        while True:
+            page_params = {
+                **params,
+                'offset': str(offset),
+                'limit': str(_FUND_HISTORY_PAGE_LIMIT),
+            }
+            page = await self._signed_request('GET', path, page_params, account_id)
+            rows.extend(page)
+
+            if len(page) < _FUND_HISTORY_PAGE_LIMIT:
+                return rows
+
+            offset += _FUND_HISTORY_PAGE_LIMIT
 
     def _parse_deposit(self, entry: dict[str, Any]) -> VenueFundTransaction:
 

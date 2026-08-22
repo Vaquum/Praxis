@@ -64,6 +64,35 @@ class TestQueryFundTransactions:
         assert withdrawal.timestamp == datetime(2023, 11, 14, 22, 14, tzinfo=UTC)
 
     @pytest.mark.asyncio
+    async def test_pages_deposit_history_until_short_page(self) -> None:
+        adapter = _adapter()
+        page1 = [
+            {'id': f'dep-{i}', 'coin': 'USDT', 'amount': '1',
+             'insertTime': 1700000000000 + i, 'status': 1}
+            for i in range(1000)
+        ]
+        page2 = [
+            {'id': 'dep-last', 'coin': 'USDT', 'amount': '1',
+             'insertTime': 1700001000000, 'status': 1},
+        ]
+
+        async def _route_paged(
+            _method: str, path: str, params: dict[str, str], _account_id: str,
+            **_kw: Any,
+        ) -> Any:
+            if 'withdraw' in path:
+                return []
+
+            return page1 if int(params['offset']) == 0 else page2
+
+        adapter._signed_request = _route_paged  # type: ignore[method-assign]
+
+        result = await adapter.query_fund_transactions(_ACCT)
+
+        assert len(result) == 1001
+        assert result[-1].fund_transaction_id == 'dep-last'
+
+    @pytest.mark.asyncio
     async def test_binsim_returns_empty_without_request(
         self, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
