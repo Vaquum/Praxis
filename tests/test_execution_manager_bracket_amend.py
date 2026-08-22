@@ -810,7 +810,7 @@ class TestBracketAmendReplaceFails:
 
         rows = await spine.read(epoch_id=_EPOCH)
         protection_failed = next(e for _s, e in rows if isinstance(e, ProtectionFailed))
-        assert protection_failed.oco_list_client_order_id is not None
+        assert protection_failed.oco_list_client_order_ids
         assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
 
         truncated = await _truncate_after_protection_failed(spine)
@@ -1276,6 +1276,36 @@ class TestBracketProtectionWatchdog:
         assert any(isinstance(e, ProtectionFailed) for _s, e in rows)
 
     @pytest.mark.asyncio
+    async def test_deadline_flatten_guards_replacement_candidate(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        em, adapter, command_id, runtime = await self._unknown_bracket(mgr_factory)
+        bracket = runtime.brackets[command_id]
+        pending_id = bracket.pending_replacement_client_order_id
+        assert pending_id is not None
+        bracket.unknown_since = _T0 - timedelta(seconds=400)
+
+        def _qlist(*_args: Any, list_client_order_id: str = '', **_kwargs: Any) -> VenueOrderList:
+            if list_client_order_id == pending_id:
+                raise TransientError('venue 5xx')
+
+            return self._order_list('ALL_DONE')
+
+        adapter.query_order_list.side_effect = _qlist
+        adapter.query_order.side_effect = None
+        adapter.query_order.return_value = VenueOrder(
+            venue_order_id='v', client_order_id='leg', status=OrderStatus.CANCELED,
+            symbol='BTCUSDT', side=OrderSide.SELL, order_type=OrderType.LIMIT,
+            qty=Decimal('1'), filled_qty=Decimal('0'), price=Decimal('56000'),
+        )
+
+        await em.resolve_unknown_protection(_ACCT)
+
+        assert bracket.protection_status is BracketProtectionStatus.FAILED
+        rows = await spine.read(epoch_id=_EPOCH)
+        assert not any(isinstance(e, FlattenInitiated) for _s, e in rows)
+
+    @pytest.mark.asyncio
     async def test_request_protection_scan_runs_on_writer(
         self, mgr_factory: Any,
     ) -> None:
@@ -1508,6 +1538,19 @@ class TestBracketAmendPublicPath:
 
         assert command_id in modifiable
         assert bracket_exit_command_id(command_id) not in modifiable
+
+    @pytest.mark.asyncio
+    async def test_modifiable_snapshot_matches_live_set(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await asyncio.sleep(0.1)
+
+        snapshot = em.modifiable_command_ids_snapshot(_ACCT)
+        assert snapshot == frozenset(em.modifiable_command_ids(_ACCT))
+        assert command_id in snapshot
 
     @pytest.mark.asyncio
     async def test_submit_modify_noop_when_protection_not_active(

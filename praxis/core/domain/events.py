@@ -973,31 +973,34 @@ class ProtectionFailed(_EventBase):
         protection_version (int): Monotonic protective-OCO revision that
             failed.
         reason (str): Human-readable description of the failure.
-        oco_list_client_order_id (str | None): The protective OCO list id the
-            flatten must re-check for a live leg, retained so boot flatten
+        oco_list_client_order_ids (tuple[str, ...]): Every protective OCO list
+            id a flatten must re-check for a live leg — the cancelled OCO and
+            any ambiguously-submitted replacement — retained so boot flatten
             recovery enforces the same guard the live flatten did and never
-            market-flattens against a still-live protective OCO. None when no
+            market-flattens against a still-live protective OCO. Empty when no
             OCO could be live (never POSTed).
     '''
 
     command_id: str
     protection_version: int
     reason: str
-    oco_list_client_order_id: str | None = None
+    oco_list_client_order_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
 
         super().__post_init__()
+
+        object.__setattr__(
+            self, 'oco_list_client_order_ids', tuple(self.oco_list_client_order_ids),
+        )
 
         name = type(self).__name__
         _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'reason', self.reason)
         _require_protection_version(name, self.protection_version)
 
-        if self.oco_list_client_order_id is not None:
-            _require_str(
-                name, 'oco_list_client_order_id', self.oco_list_client_order_id,
-            )
+        for candidate in self.oco_list_client_order_ids:
+            _require_str(name, 'oco_list_client_order_ids', candidate)
 
 
 @dataclass(frozen=True)

@@ -924,6 +924,37 @@ class TestBracketCrashRecovery:
         )
         assert bracket_exit_command_id(_RESUME_COMMAND_ID) in em._commands
 
+    @pytest.mark.asyncio
+    async def test_resume_delivers_entry_outcome_before_flatten_exit(
+        self, mgr_factory: Any,
+    ) -> None:
+        filters = SymbolFilters(
+            symbol='BTCUSDT', tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.001'), lot_min=Decimal('0.001'),
+            lot_max=Decimal('100'), min_notional=Decimal('10'),
+            base_asset='BTC', quote_asset='USDT',
+        )
+        adapter = _make_adapter(oco_error=TransientError('oco 5xx'), filters=filters)
+        adapter.query_order_list.side_effect = NotFoundError('no oco')
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, outcomes = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True))
+        await asyncio.sleep(0.3)
+
+        exit_command_id = bracket_exit_command_id(_RESUME_COMMAND_ID)
+        entry_idx = next(
+            i for i, o in enumerate(outcomes) if o.command_id == _RESUME_COMMAND_ID
+        )
+        exit_idx = next(
+            i for i, o in enumerate(outcomes) if o.command_id == exit_command_id
+        )
+        assert entry_idx < exit_idx
+        assert outcomes[entry_idx].status is TradeStatus.FILLED
+
 
 class TestBracketResumeDegenerate:
 

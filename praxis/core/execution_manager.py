@@ -526,6 +526,7 @@ class ExecutionManager:
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
+        self._modifiable_snapshot: dict[str, frozenset[str]] = {}
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
         self._command_trade_ids: dict[str, str] = {}
@@ -858,6 +859,26 @@ class ExecutionManager:
                 amendable.discard(entry_id)
 
         return sorted(amendable)
+
+    def modifiable_command_ids_snapshot(self, account_id: str) -> frozenset[str]:
+        '''Return the last account-writer-published amendable set, thread-safe.
+
+        `modifiable_command_ids` iterates the runtime dictionaries the account
+        writer mutates, so calling it from a Nexus validation thread can tear or
+        raise `RuntimeError: dictionary changed size during iteration`. The
+        account loop republishes an immutable `frozenset` each iteration; this
+        reader returns that snapshot with a single atomic dict lookup, safe to
+        call from any thread. An account with no published snapshot yet (or
+        already unregistered) reads as empty.
+
+        Args:
+            account_id (str): Account identifier to read.
+
+        Returns:
+            frozenset[str]: The amendable command ids as of the last loop pass.
+        '''
+
+        return self._modifiable_snapshot.get(account_id, frozenset())
 
     def replay_events(
         self,
@@ -2144,6 +2165,8 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
+        self._modifiable_snapshot.pop(account_id, None)
+
         if runtime.task is not None:
             runtime.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -2620,6 +2643,10 @@ class ExecutionManager:
                             control.command_id,
                             runtime.account_id,
                         )
+
+                self._modifiable_snapshot[runtime.account_id] = frozenset(
+                    self.modifiable_command_ids(runtime.account_id),
+                )
 
                 if runtime.reconciling or runtime.poisoned:
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
@@ -3335,10 +3362,10 @@ class ExecutionManager:
                 continue
 
             avg_entry_price = entry_order.cumulative_notional / entry_order.filled_qty
+            await self._recover_bracket_entry_outcome(runtime, bracket, entry_order)
             await self._place_bracket_protection(
                 runtime, bracket, entry_order.filled_qty, avg_entry_price,
             )
-            await self._recover_bracket_entry_outcome(runtime, bracket, entry_order)
 
     async def _recover_bracket_entry_outcome(
         self,
@@ -3466,7 +3493,7 @@ class ExecutionManager:
             await self._remediate_failed_initial_protection(
                 runtime, bracket, exit_cmd, client_order_id, qty,
                 'bracket protective legs on the wrong side of the entry fill',
-                None,
+                (),
             )
 
             return
@@ -3497,7 +3524,7 @@ class ExecutionManager:
                 await self._remediate_failed_initial_protection(
                     runtime, bracket, exit_cmd, client_order_id, qty,
                     f'bracket protective OCO submit failed: {exc.args[0]}',
-                    client_order_id,
+                    (client_order_id,),
                 )
 
                 return
@@ -3514,7 +3541,7 @@ class ExecutionManager:
             await self._remediate_failed_initial_protection(
                 runtime, bracket, exit_cmd, client_order_id, qty,
                 f'bracket protective OCO failed: {exc}',
-                client_order_id,
+                (client_order_id,),
             )
 
             return
@@ -5221,7 +5248,7 @@ class ExecutionManager:
         version: int,
         reason: str,
         remainder: Decimal,
-        oco_list_client_order_id: str | None,
+        oco_candidates: tuple[str, ...],
     ) -> None:
         '''Apply the naked-protection remediation: freeze, record, flatten, hold.
 
@@ -5238,8 +5265,10 @@ class ExecutionManager:
             version (int): Protective-OCO revision that failed.
             reason (str): Human-readable trigger.
             remainder (Decimal): Venue-reconciled remaining position.
-            oco_list_client_order_id (str | None): Cancelled OCO list id for the
-                flatten's live-leg guard, or None.
+            oco_candidates (tuple[str, ...]): Every OCO list id the flatten must
+                confirm terminal before selling — the cancelled OCO and any
+                ambiguous replacement — persisted on the marker so boot recovery
+                guards them too.
         '''
 
         cmd = bracket.command
@@ -5249,7 +5278,7 @@ class ExecutionManager:
             f'version={version}',
         )
         await self._append_protection_failed(
-            cmd, version, reason, oco_list_client_order_id,
+            cmd, version, reason, oco_candidates,
         )
         bracket.protection_status = BracketProtectionStatus.FAILED
         self._record_protection_remediation(
@@ -5269,7 +5298,7 @@ class ExecutionManager:
         ):
             await self._flatten_bracket_remainder(
                 runtime, bracket, version, reason,
-                remainder, oco_list_client_order_id,
+                remainder, oco_candidates,
             )
 
         await self.drain_protection_remediations(cmd.account_id)
@@ -5282,7 +5311,7 @@ class ExecutionManager:
         client_order_id: str,
         qty: Decimal,
         reason: str,
-        oco_list_client_order_id: str | None,
+        oco_candidates: tuple[str, ...],
     ) -> None:
         '''Remediate a bracket whose initial protective OCO failed (TD-130).
 
@@ -5295,17 +5324,17 @@ class ExecutionManager:
         recorded against the first protective revision, since the original
         placement (version 0) never rested a protective OCO.
 
-        `oco_list_client_order_id` is the protective OCO's list id when the OCO
-        may have reached the venue (an unsalvageable timeout or a venue error),
-        so the flatten re-checks the venue for a live leg before selling; it is
-        None only when the OCO was never POSTed (wrong-side legs), where a
-        second sell is impossible and the guard is safely skipped.
+        `oco_candidates` is the protective OCO's list id when the OCO may have
+        reached the venue (an unsalvageable timeout or a venue error), so the
+        flatten re-checks the venue for a live leg before selling; it is empty
+        only when the OCO was never POSTed (wrong-side legs), where a second
+        sell is impossible and the guard is safely skipped.
         '''
 
         version = max(bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION)
         runtime.brackets[bracket.command.command_id] = bracket
         await self._remediate_naked_bracket(
-            runtime, bracket, version, reason, qty, oco_list_client_order_id,
+            runtime, bracket, version, reason, qty, oco_candidates,
         )
         await self._append_submit_failed(
             runtime, exit_cmd, client_order_id, reason,
@@ -5563,7 +5592,7 @@ class ExecutionManager:
             bracket.protection_version,
             'protection confirmed terminal and position naked',
             remainder,
-            bracket.protection_client_order_id,
+            self._bracket_oco_candidates(bracket),
         )
 
     async def _remediate_unconfirmable_bracket(
@@ -5598,7 +5627,7 @@ class ExecutionManager:
             bracket.protection_version,
             'protection unconfirmable past restore deadline',
             remainder,
-            bracket.protection_client_order_id,
+            self._bracket_oco_candidates(bracket),
         )
 
     async def _oco_has_live_leg(
@@ -5641,7 +5670,7 @@ class ExecutionManager:
         protection_version: int,
         reason: str,
         remainder: Decimal,
-        oco_list_client_order_id: str | None = None,
+        oco_candidates: tuple[str, ...] = (),
     ) -> None:
         '''Market-close the reconciled remainder of an unprotected bracket.
 
@@ -5668,9 +5697,12 @@ class ExecutionManager:
             reason (str): Human-readable trigger for the flatten.
             remainder (Decimal): Venue-reconciled remaining position to close
                 (entry filled minus the cancelled OCO's venue-truth fills).
-            oco_list_client_order_id (str | None): Cancelled OCO list id to
-                re-check for a live leg immediately before flattening; None
-                skips the guard.
+            oco_candidates (tuple[str, ...]): Every protective OCO list id that
+                could still be live — the cancelled OCO and any ambiguously
+                submitted replacement — each re-checked for a live leg
+                immediately before flattening; the flatten aborts if any is live
+                or unconfirmable, so a market close can never race a still-live
+                protective OCO. Empty skips the guard.
         '''
 
         cmd = bracket.command
@@ -5693,16 +5725,16 @@ class ExecutionManager:
             )
             return
 
-        if (
-            oco_list_client_order_id is not None
-            and await self._oco_has_live_leg(cmd, oco_list_client_order_id)
-        ):
-            _log.warning(
-                'flatten aborted; a protective leg is still live or partially '
-                'filled, staying STATE_UNKNOWN: command_id=%s',
-                cmd.command_id,
-            )
-            return
+        for candidate in oco_candidates:
+            if await self._oco_has_live_leg(cmd, candidate):
+                _log.warning(
+                    'flatten aborted; a protective leg is still live, partially '
+                    'filled, or unconfirmable, staying STATE_UNKNOWN: '
+                    'command_id=%s candidate=%s',
+                    cmd.command_id,
+                    candidate,
+                )
+                return
 
         entry_filled, entry_notional = self._command_fill_totals(runtime, cmd.command_id)
 
@@ -6027,7 +6059,7 @@ class ExecutionManager:
 
             await self._boot_reflatten(
                 runtime, cmd, command_id, protection_failed.protection_version,
-                protection_failed.oco_list_client_order_id,
+                protection_failed.oco_list_client_order_ids,
             )
 
     async def _reconcile_flatten_fills(
@@ -6143,15 +6175,15 @@ class ExecutionManager:
         cmd: TradeCommand,
         command_id: str,
         protection_version: int,
-        oco_list_client_order_id: str | None,
+        oco_candidates: tuple[str, ...],
     ) -> None:
         '''Re-attempt a flatten that never reached the venue after a restart.
 
-        Passes the protective OCO list id from `ProtectionFailed` so the same
+        Passes the protective OCO list ids from `ProtectionFailed` so the same
         live-leg guard the live flatten enforced runs on boot: if the runtime
         flatten aborted because a leg was live or unconfirmable, boot recovery
-        re-checks it and holds rather than market-flattening against a still-live
-        protective OCO.
+        re-checks every candidate and holds rather than market-flattening
+        against a still-live protective OCO.
         '''
 
         entry_client_order_id = generate_client_order_id(
@@ -6171,7 +6203,7 @@ class ExecutionManager:
         )
         await self._flatten_bracket_remainder(
             runtime, bracket, protection_version, 'boot flatten recovery',
-            remainder, oco_list_client_order_id,
+            remainder, oco_candidates,
         )
 
     async def _on_slice_failure(
@@ -7401,7 +7433,7 @@ class ExecutionManager:
             if order_list is None:
                 await self._remediate_naked_bracket(
                     runtime, bracket, new_version, reason,
-                    remaining, old_list_client_order_id,
+                    remaining, (old_list_client_order_id, new_list_client_order_id),
                 )
 
                 return
@@ -7630,12 +7662,12 @@ class ExecutionManager:
         cmd: TradeCommand,
         protection_version: int,
         reason: str,
-        oco_list_client_order_id: str | None = None,
+        oco_candidates: tuple[str, ...] = (),
     ) -> None:
         '''Persist a `ProtectionFailed` marking no live protective OCO.
 
-        The candidate OCO list id is carried on the marker so boot flatten
-        recovery re-checks it for a live leg before market-flattening, exactly
+        The candidate OCO list ids are carried on the marker so boot flatten
+        recovery re-checks each for a live leg before market-flattening, exactly
         as the live flatten did.
         '''
 
@@ -7645,9 +7677,22 @@ class ExecutionManager:
             command_id=cmd.command_id,
             protection_version=protection_version,
             reason=reason,
-            oco_list_client_order_id=oco_list_client_order_id,
+            oco_list_client_order_ids=oco_candidates,
         )
         await self._event_spine.append(event, self._epoch_id)
+
+    @staticmethod
+    def _bracket_oco_candidates(bracket: _LiveBracket) -> tuple[str, ...]:
+        '''Return the OCO list ids a naked bracket's flatten must confirm dead.'''
+
+        return tuple(
+            candidate
+            for candidate in (
+                bracket.protection_client_order_id,
+                bracket.pending_replacement_client_order_id,
+            )
+            if candidate is not None
+        )
 
     async def _process_scheme_modify(
         self,

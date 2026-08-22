@@ -1246,6 +1246,16 @@ A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-
 
 **When to fix**: before an amended schedule must survive a restart, or a strategy needs to re-shape a VWAP curve mid-flight. Persist the amended plan (a `SchemeAmended` event carrying the new slice quantities and interval) and apply the latest one in `_resume_schemes`; define and implement the VWAP remaining-curve semantics.
 
+## TD-138: Protection-remediation redelivery is not idempotent at the Nexus receiver
+
+**Origin**: WP-Praxis-0009 (bracket protection remediation; pre-PR review)
+**Severity**: Low (only reachable in a narrow crash window; the operator-cleared hold is re-applied, not corrupted)
+**Module**: `praxis/core/execution_manager.py` (`drain_protection_remediations`, `seed_protection_remediations`), Nexus `ProtectionRemediationHandler` (cross-repo)
+
+`drain_protection_remediations` delivers a remediation to Nexus (which applies the sticky hold) and only then appends `ProtectionRemediationDelivered`. A crash between the two re-seeds the remediation on boot (`seed_protection_remediations` skips only command ids with a durable delivered marker) and redelivers it. Praxis sends a stable `protection_remediation_id` (`protection-{command_id}-{version}`), but the pinned Nexus handler does not deduplicate on it, so a redelivery can re-apply a hold an operator already cleared.
+
+**When to fix**: before live bracket trading with operator hold-clearing. The durable fix is cross-repo: make the Nexus `ProtectionRemediationHandler` idempotent on `protection_remediation_id` (ignore an id whose hold it has already applied and recorded), or move to a transactional outbox/ack protocol. The Praxis side already provides the stable id required for either.
+
 ## TD-137: Reconcile-tick watchdogs share one try block
 
 **Origin**: WP-Praxis-0009 (ladder-amend crash-safety; pre-PR review)
