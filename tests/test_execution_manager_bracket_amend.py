@@ -223,6 +223,7 @@ def _make_adapter(
     mock.query_order_list.side_effect = _query_order_list
     mock.query_order.side_effect = _query_order
     mock.cached_filters.return_value = _filters()
+    mock.query_trades.return_value = []
     mock.submit_calls = submit_calls
     return mock
 
@@ -490,6 +491,22 @@ class TestBracketAmendHappyPath:
         assert requested.protection_version == 1
 
 
+def _leg_trade(client_order_id: str, qty: Decimal) -> VenueTrade:
+    return VenueTrade(
+        venue_trade_id=f'vt-{client_order_id}',
+        venue_order_id=f'v-{client_order_id}',
+        client_order_id=client_order_id,
+        symbol='BTCUSDT',
+        side=OrderSide.SELL,
+        qty=qty,
+        price=_TP_PRICE,
+        fee=Decimal('0'),
+        fee_asset='USDT',
+        is_maker=True,
+        timestamp=_T0,
+    )
+
+
 class TestBracketAmendPartialFill:
 
     @pytest.mark.asyncio
@@ -505,6 +522,22 @@ class TestBracketAmendPartialFill:
 
         replacement = _oco_calls(adapter)[-1]
         assert replacement['args'][_QTY_ARG_INDEX] == Decimal('0.6')
+
+    @pytest.mark.asyncio
+    async def test_amend_backfills_missed_protective_fill_before_terminalize(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter(leg_filled={_LEG_SL: Decimal('0.4')})
+        adapter.query_trades.return_value = [_leg_trade(_LEG_SL, Decimal('0.4'))]
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
+
+        position = runtime.trading_state.positions.get((_TRADE, _ACCT))
+        assert position is not None
+        assert position.qty == Decimal('0.6')
 
     @pytest.mark.asyncio
     async def test_dust_remaining_places_no_replacement_and_drops_bracket(

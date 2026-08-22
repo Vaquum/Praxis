@@ -44,6 +44,7 @@ from praxis.infrastructure.venue_adapter import (
     SymbolFilters,
     VenueAdapter,
     VenueOrder,
+    VenueTrade,
 )
 
 _T0 = datetime(2099, 1, 1, tzinfo=UTC)
@@ -117,6 +118,7 @@ def adapter() -> AsyncMock:
         lot_max=Decimal('100'),
         min_notional=Decimal('10'),
     )
+    mock.query_trades.return_value = []
     return mock
 
 
@@ -158,6 +160,27 @@ def _ws_fill(command_id: str, client_order_id: str, qty: Decimal, price: Decimal
         fee=Decimal('0'),
         fee_asset='USDT',
         is_maker=True,
+    )
+
+
+def _venue_trade(
+    client_order_id: str,
+    qty: Decimal,
+    price: Decimal,
+    venue_trade_id: str | None = None,
+) -> VenueTrade:
+    return VenueTrade(
+        venue_trade_id=venue_trade_id or f'vt-{client_order_id}-{qty}',
+        venue_order_id='v-ice',
+        client_order_id=client_order_id,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=qty,
+        price=price,
+        fee=Decimal('0'),
+        fee_asset='USDT',
+        is_maker=True,
+        timestamp=_T0,
     )
 
 
@@ -520,3 +543,82 @@ class TestModifiableExcludesClosedOrder:
         await asyncio.sleep(0.3)
 
         assert command_id not in em.modifiable_command_ids(_ACCT)
+
+
+class TestMissedFillBackfilledBeforeTerminalize:
+
+    @pytest.mark.asyncio
+    async def test_amend_backfills_venue_fill_missed_on_websocket(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, outcomes = mgr
+        command_id = await _rest_iceberg(em, adapter)
+        old_coid = generate_client_order_id(ExecutionMode.ICEBERG, command_id, sequence=0)
+
+        adapter.query_order.return_value = _venue_order(Decimal('0.4'))
+        adapter.query_trades.return_value = [
+            _venue_trade(old_coid, Decimal('0.4'), _OLD_PRICE),
+        ]
+
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        assert adapter.submit_order.call_args.args[_QTY_ARG_INDEX] == Decimal('0.6')
+
+        new_coid = generate_client_order_id(ExecutionMode.ICEBERG, command_id, sequence=1)
+        em.enqueue_ws_event(
+            _ACCT, _ws_fill(command_id, new_coid, Decimal('0.6'), _NEW_PRICE),
+        )
+        await asyncio.sleep(0.3)
+
+        assert outcomes[-1].status is TradeStatus.FILLED
+        assert outcomes[-1].filled_qty == Decimal('1')
+
+    @pytest.mark.asyncio
+    async def test_backfill_does_not_double_count_already_recorded_trade(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, outcomes = mgr
+        command_id = await _rest_iceberg(em, adapter)
+        old_coid = generate_client_order_id(ExecutionMode.ICEBERG, command_id, sequence=0)
+
+        shared_vt = 'vt-shared-0.3'
+        recorded_seen = FillReceived(
+            account_id=_ACCT,
+            timestamp=_T0,
+            client_order_id=old_coid,
+            venue_order_id='v',
+            venue_trade_id=shared_vt,
+            trade_id=_TRADE,
+            command_id=command_id,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            qty=Decimal('0.3'),
+            price=_OLD_PRICE,
+            fee=Decimal('0'),
+            fee_asset='USDT',
+            is_maker=True,
+        )
+        await em._event_spine.append(recorded_seen, _EPOCH)
+        em.enqueue_ws_event(_ACCT, recorded_seen)
+        await asyncio.sleep(0.2)
+
+        adapter.query_order.return_value = _venue_order(Decimal('0.5'))
+        adapter.query_trades.return_value = [
+            _venue_trade(old_coid, Decimal('0.3'), _OLD_PRICE, venue_trade_id=shared_vt),
+            _venue_trade(old_coid, Decimal('0.2'), _OLD_PRICE),
+        ]
+
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        assert adapter.submit_order.call_args.args[_QTY_ARG_INDEX] == Decimal('0.5')
+
+        new_coid = generate_client_order_id(ExecutionMode.ICEBERG, command_id, sequence=1)
+        em.enqueue_ws_event(
+            _ACCT, _ws_fill(command_id, new_coid, Decimal('0.5'), _NEW_PRICE),
+        )
+        await asyncio.sleep(0.3)
+
+        assert outcomes[-1].status is TradeStatus.FILLED
+        assert outcomes[-1].filled_qty == Decimal('1')

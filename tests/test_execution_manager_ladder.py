@@ -53,6 +53,7 @@ from praxis.infrastructure.venue_adapter import (
     TransientError,
     VenueAdapter,
     VenueOrder,
+    VenueTrade,
 )
 
 _T0 = datetime(2099, 1, 1, tzinfo=UTC)
@@ -107,6 +108,7 @@ def adapter() -> AsyncMock:
         lot_max=Decimal('100'),
         min_notional=Decimal('10'),
     )
+    mock.query_trades.return_value = []
     return mock
 
 
@@ -278,6 +280,22 @@ def _canceled_rung(filled_qty: Decimal) -> VenueOrder:
     )
 
 
+def _rung_trade(client_order_id: str, qty: Decimal) -> VenueTrade:
+    return VenueTrade(
+        venue_trade_id=f'vt-{client_order_id}',
+        venue_order_id=f'v-{client_order_id}',
+        client_order_id=client_order_id,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        qty=qty,
+        price=Decimal('49000'),
+        fee=Decimal('0'),
+        fee_asset='USDT',
+        is_maker=True,
+        timestamp=_T0,
+    )
+
+
 _NEW_LEVELS = (Decimal('47000'), Decimal('46000'))
 _NEWER_LEVELS = (Decimal('45000'), Decimal('44000'))
 
@@ -342,6 +360,34 @@ class TestLadderAmend:
         new_calls = adapter.submit_order.call_args_list[placed_before:]
         placed_total = sum(c.args[_QTY_ARG_INDEX] for c in new_calls)
         assert placed_total == Decimal('0.6')
+
+    @pytest.mark.asyncio
+    async def test_amend_backfills_missed_rung_fill_before_terminalize(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        rung_ids = [
+            generate_client_order_id(
+                ExecutionMode.LADDER_DCA, command_id, sequence=index, retry=0,
+            )
+            for index in range(2)
+        ]
+        adapter.query_order.return_value = _canceled_rung(Decimal('0.2'))
+        adapter.query_trades.return_value = [
+            _rung_trade(rung_ids[0], Decimal('0.2')),
+            _rung_trade(rung_ids[1], Decimal('0.2')),
+        ]
+
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        position = runtime.trading_state.positions.get((_TRADE, _ACCT))
+        assert position is not None
+        assert position.qty == Decimal('0.4')
 
     @pytest.mark.asyncio
     async def test_second_amend_retains_prior_generation_fills(

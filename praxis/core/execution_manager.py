@@ -6169,6 +6169,88 @@ class ExecutionManager:
             venue_order.filled_qty,
         )
 
+    async def _backfill_terminal_order_fills(
+        self,
+        runtime: _AccountRuntime,
+        account_id: str,
+        symbol: str,
+        command_id: str,
+        trade_id: str,
+        side: OrderSide,
+        local_client_order_id: str,
+        venue_client_order_ids: tuple[str, ...],
+        local_filled: Decimal,
+        venue_filled: Decimal,
+    ) -> None:
+        '''Project venue fills an amend missed before the order is terminalized.
+
+        An amend queries a cancelled order's authoritative venue fill to size
+        the replacement but marks the order canceled locally. A fill that raced
+        the cancel and was missed on the WebSocket is otherwise lost: both the
+        old and the replacement orders look terminal, and open-order
+        reconciliation skips them, leaving the ledger and position short. When
+        venue truth exceeds the local projection the order's trades are queried
+        and any not-yet-recorded fill is projected onto `local_client_order_id`;
+        the spine deduplicates on `venue_trade_id`, so an already-seen trade is a
+        silent no-op. A protective OCO fills on a leg id distinct from the parent
+        list id, so the venue-side match set is passed apart from the local
+        attribution id. The command total is already exact from `venue_filled`,
+        so a trade query that fails is logged and left for live reconcile rather
+        than propagated.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            account_id (str): Account whose order is being terminalized.
+            symbol (str): Trading symbol of the order.
+            command_id (str): Command the projected fills belong to.
+            trade_id (str): Position trade id the fills book against.
+            side (OrderSide): Side of the fills being projected.
+            local_client_order_id (str): Order id the fills attribute to.
+            venue_client_order_ids (tuple[str, ...]): Venue-side order ids whose
+                trades belong to this order.
+            local_filled (Decimal): Locally-projected filled quantity.
+            venue_filled (Decimal): Authoritative venue filled quantity.
+        '''
+
+        if venue_filled <= local_filled:
+            return
+
+        match = set(venue_client_order_ids)
+        try:
+            trades = await self._venue_adapter.query_trades(account_id, symbol)
+        except VenueError as exc:
+            _log.warning(
+                'amend fill backfill query failed, leaving for live reconcile: '
+                'command_id=%s reason=%s',
+                command_id,
+                exc.args[0] if exc.args else str(exc),
+            )
+            return
+
+        for trade in trades:
+            if trade.client_order_id not in match:
+                continue
+
+            fill_event = FillReceived(
+                account_id=account_id,
+                timestamp=self._clock(),
+                client_order_id=local_client_order_id,
+                venue_order_id=trade.venue_order_id,
+                venue_trade_id=trade.venue_trade_id,
+                trade_id=trade_id,
+                command_id=command_id,
+                symbol=symbol,
+                side=side,
+                qty=trade.qty,
+                price=trade.price,
+                fee=trade.fee,
+                fee_asset=trade.fee_asset,
+                is_maker=trade.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
     async def _boot_reflatten(
         self,
         runtime: _AccountRuntime,
@@ -6687,17 +6769,25 @@ class ExecutionManager:
             await self._emit_amend_outcome(runtime, cmd)
             return
 
-        # The order cancelled (terminal, not filled); terminalize it locally
-        # before deciding whether the remainder can be re-placed.
-        canceled = OrderCanceled(
-            account_id=cmd.account_id,
-            timestamp=self._clock(),
-            client_order_id=old_client_order_id,
-            venue_order_id=order.venue_order_id,
-            reason='amend',
+        # The order cancelled (terminal, not filled); project any fill the
+        # cancel raced before terminalizing it locally, then decide whether the
+        # remainder can be re-placed.
+        await self._backfill_terminal_order_fills(
+            runtime, cmd.account_id, cmd.symbol, cmd.command_id, cmd.trade_id,
+            cmd.side, old_client_order_id, (old_client_order_id,),
+            order.filled_qty, venue_order.filled_qty,
         )
-        await self._event_spine.append(canceled, self._epoch_id)
-        runtime.trading_state.apply(canceled)
+
+        if runtime.trading_state.orders.get(old_client_order_id) is not None:
+            canceled = OrderCanceled(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=old_client_order_id,
+                venue_order_id=order.venue_order_id,
+                reason='amend',
+            )
+            await self._event_spine.append(canceled, self._epoch_id)
+            runtime.trading_state.apply(canceled)
 
         command_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
         remainder = cmd.qty - (command_filled - order.filled_qty + venue_order.filled_qty)
@@ -6999,15 +7089,23 @@ class ExecutionManager:
                 )
                 return None
 
-            canceled = OrderCanceled(
-                account_id=cmd.account_id,
-                timestamp=self._clock(),
-                client_order_id=rung_id,
-                venue_order_id=order.venue_order_id,
-                reason='ladder amend',
+            await self._backfill_terminal_order_fills(
+                runtime, cmd.account_id, cmd.symbol, cmd.command_id, cmd.trade_id,
+                cmd.side, rung_id, (rung_id,),
+                order.filled_qty, venue_order.filled_qty,
             )
-            await self._event_spine.append(canceled, self._epoch_id)
-            runtime.trading_state.apply(canceled)
+
+            if runtime.trading_state.orders.get(rung_id) is not None:
+                canceled = OrderCanceled(
+                    account_id=cmd.account_id,
+                    timestamp=self._clock(),
+                    client_order_id=rung_id,
+                    venue_order_id=order.venue_order_id,
+                    reason='ladder amend',
+                )
+                await self._event_spine.append(canceled, self._epoch_id)
+                runtime.trading_state.apply(canceled)
+
             total_filled += venue_order.filled_qty
             scheme.active_children.discard(rung_id)
 
@@ -7293,17 +7391,17 @@ class ExecutionManager:
         await self._event_spine.append(cancel_confirmed, self._epoch_id)
         bracket.protection_status = BracketProtectionStatus.CANCEL_CONFIRMED
 
-        canceled = OrderCanceled(
-            account_id=cmd.account_id,
-            timestamp=self._clock(),
-            client_order_id=old_list_client_order_id,
-            venue_order_id=cancel_result.venue_order_id,
-            reason='bracket protection amended',
-        )
-        await self._event_spine.append(canceled, self._epoch_id)
-        runtime.trading_state.apply(canceled)
-
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+        old_oco_order = self._scheme_child_order(runtime, old_list_client_order_id)
+        old_oco_projected = old_oco_order.filled_qty if old_oco_order is not None else _ZERO
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+        leg_client_order_ids = runtime.trading_state.oco_parent_legs.get(
+            old_list_client_order_id, (),
+        )
 
         try:
             oco_filled = await self._cancelled_oco_filled_qty(
@@ -7327,10 +7425,23 @@ class ExecutionManager:
             )
             return
 
-        exit_command_id = bracket_exit_command_id(cmd.command_id)
-        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
-        old_oco_order = self._scheme_child_order(runtime, old_list_client_order_id)
-        old_oco_projected = old_oco_order.filled_qty if old_oco_order is not None else _ZERO
+        await self._backfill_terminal_order_fills(
+            runtime, cmd.account_id, cmd.symbol, exit_command_id, cmd.trade_id,
+            protective_side, old_list_client_order_id, leg_client_order_ids,
+            old_oco_projected, oco_filled,
+        )
+
+        if runtime.trading_state.orders.get(old_list_client_order_id) is not None:
+            canceled = OrderCanceled(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=old_list_client_order_id,
+                venue_order_id=cancel_result.venue_order_id,
+                reason='bracket protection amended',
+            )
+            await self._event_spine.append(canceled, self._epoch_id)
+            runtime.trading_state.apply(canceled)
+
         remaining = entry_filled - (exit_projected - old_oco_projected + oco_filled)
 
         if remaining <= _ZERO:
