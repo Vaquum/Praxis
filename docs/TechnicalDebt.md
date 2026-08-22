@@ -1301,3 +1301,15 @@ The boot orphan sweep enumerates `query_open_orders(account_id, symbol)` and dec
 A correct fix adds `order_list_id` to `VenueOrder`, populates it in `query_open_orders`, and has the sweep group orphan legs by `orderListId`, resolve each list's `listClientOrderId` (via `query_order_list` by `orderListId`), check ownership on that list client id, and cancel the parent list with `cancel_order_list`. This reshapes the adapter's open-orders model and adds boot-path list-resolution queries, so it should be validated on the paper host before a tagged release.
 
 **When to fix**: before an orphaned protective OCO is plausible outside the narrowest crash window. Add `order_list_id` to the open-orders model and sweep the parent list by its deterministic list client id.
+
+## TD-142: Fund-transaction dedup key does not namespace deposits from withdrawals
+
+**Origin**: WP-Praxis-0009 (reconciliation engine, fund transactions)
+**Severity**: Low (not reachable with current Binance id formats — deposit `id`s are all-numeric strings while withdrawal `id`s are hex/uuid strings, so a deposit id can never equal a withdrawal id; the risk is contractual, not observed)
+**Module**: `praxis/infrastructure/event_spine.py` (`fund_dedup`), `praxis/infrastructure/binance_adapter.py` (`_parse_deposit`, `_parse_withdrawal`)
+
+`query_fund_transactions` merges records from two independent SAPI history endpoints (deposit `hisrec`, withdraw `history`) and stores each raw `id` in the single durable `fund_dedup` namespace `(epoch_id, account_id, fund_transaction_id)`. Nothing guarantees the two endpoints' id spaces are disjoint; if a deposit id ever equalled a withdrawal id, the second movement would be silently treated as a duplicate and never reach the ledger or Nexus.
+
+The fix namespaces the id by direction — prefix `fund_transaction_id` with the direction at the adapter boundary (`DEPOSIT-<id>` / `WITHDRAWAL-<id>`), which also namespaces the downstream Nexus dedup key. Because `fund_dedup` is a persisted table (not rebuilt from replay), it needs a one-time migration: seed the direction-prefixed key for every existing `fund_dedup` row (joining `FundTransaction` events for the direction) before the adapter starts emitting prefixed ids, or the same transaction re-queried within the poll overlap window would re-append under the new id and double-book the ledger. The migration touches the recovery-critical spine and must be validated on the paper host.
+
+**When to fix**: alongside a spine-schema migration pass (and the Nexus dedup-key change, cf. TD-138), before the deposit/withdrawal id spaces can no longer be assumed disjoint.
