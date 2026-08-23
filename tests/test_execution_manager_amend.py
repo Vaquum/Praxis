@@ -651,6 +651,27 @@ class TestMissedFillBackfilledBeforeTerminalize:
         assert outcomes[-1].filled_qty == Decimal('1')
 
 
+class TestModifyGatedWhileRecovering:
+
+    @pytest.mark.asyncio
+    async def test_modify_deferred_while_reconciling(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, _ = mgr
+        command_id = await _rest_iceberg(em, adapter)
+        em._accounts[_ACCT].reconciling = True
+
+        em.submit_modify(_modify(command_id, limit_price=_NEW_PRICE))
+        await asyncio.sleep(0.3)
+
+        adapter.cancel_order.assert_not_awaited()
+
+        em._accounts[_ACCT].reconciling = False
+        await asyncio.sleep(0.3)
+
+        adapter.cancel_order.assert_awaited()
+
+
 class TestHeldAmendRetry:
 
     @pytest.mark.asyncio

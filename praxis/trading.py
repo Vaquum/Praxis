@@ -508,9 +508,6 @@ class Trading:
         if symbols:
             await self._venue_adapter.load_filters(sorted(symbols))
 
-        await self._execution_manager.recover_incomplete_flattens(
-            account_id, account_events,
-        )
         self._execution_manager.seed_protection_remediations(account_events)
         self._seed_fund_reconcile_cursor(account_id, account_events)
 
@@ -540,6 +537,10 @@ class Trading:
             await self._reconcile_on_reconnect(account_id)
         else:
             await self._reconcile_account(account_id)
+
+        await self._execution_manager.recover_incomplete_flattens(
+            account_id, account_events,
+        )
 
         if account_ready:
             self._ready_accounts.add(account_id)

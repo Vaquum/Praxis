@@ -2680,8 +2680,28 @@ class ExecutionManager:
                             runtime.account_id,
                         )
 
+                deferred_modifies: list[TradeModify] = []
                 while not runtime.priority_queue.empty():
                     control = runtime.priority_queue.get_nowait()
+
+                    if isinstance(control, TradeModify) and (
+                        runtime.reconciling or runtime.poisoned
+                    ):
+                        # An abort (risk reduction) still runs, but an amend must
+                        # not cancel/query/place against stale reconnect state or
+                        # keep mutating the venue after fail-stop; defer it until
+                        # the account is order-capable again.
+                        deferred_modifies.append(control)
+                        _log.info(
+                            'modify deferred; account not order-capable '
+                            '(reconciling=%s poisoned=%s): command_id=%s account_id=%s',
+                            runtime.reconciling,
+                            runtime.poisoned,
+                            control.command_id,
+                            runtime.account_id,
+                        )
+                        continue
+
                     _log.info(
                         'priority control received: type=%s command_id=%s account_id=%s',
                         type(control).__name__,
@@ -2703,6 +2723,9 @@ class ExecutionManager:
                             control.command_id,
                             runtime.account_id,
                         )
+
+                for control in deferred_modifies:
+                    runtime.priority_queue.put_nowait(control)
 
                 self._modifiable_snapshot[runtime.account_id] = frozenset(
                     self.modifiable_command_ids(runtime.account_id),
