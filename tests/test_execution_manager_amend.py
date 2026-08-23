@@ -561,7 +561,7 @@ class TestModifiableExcludesClosedOrder:
     ) -> None:
         from praxis.infrastructure.venue_adapter import VenueError
 
-        em, _ = mgr
+        em, outcomes = mgr
         command_id = await _rest_iceberg(em, adapter)
         assert command_id in em.modifiable_command_ids(_ACCT)
 
@@ -570,6 +570,8 @@ class TestModifiableExcludesClosedOrder:
         await asyncio.sleep(0.3)
 
         assert command_id not in em.modifiable_command_ids(_ACCT)
+        assert outcomes[-1].status is TradeStatus.CANCELED
+        assert command_id in em._terminal_commands
 
 
 class TestMissedFillBackfilledBeforeTerminalize:

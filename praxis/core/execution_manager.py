@@ -8558,18 +8558,20 @@ class ExecutionManager:
                 runtime, cmd, new_client_order_id, exc,
             )
             if rescued is None:
+                reason = str(exc.args[0]) if exc.args else str(exc)
                 await self._append_submit_failed(
-                    runtime, cmd, new_client_order_id, str(exc.args[0]),
+                    runtime, cmd, new_client_order_id, reason,
                 )
-                await self._emit_amend_outcome(runtime, cmd)
+                await self._emit_amend_failed(runtime, cmd, reason)
                 return
             result = rescued
             post_venue_ts = self._clock()
         except (VenueError, ValueError) as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
             await self._append_submit_failed(
-                runtime, cmd, new_client_order_id, str(exc.args[0]),
+                runtime, cmd, new_client_order_id, reason,
             )
-            await self._emit_amend_outcome(runtime, cmd)
+            await self._emit_amend_failed(runtime, cmd, reason)
             return
 
         submitted = OrderSubmitted(
@@ -8674,6 +8676,40 @@ class ExecutionManager:
             filled_qty=min(filled_qty, cmd.qty),
             avg_fill_price=avg_fill_price,
             reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _emit_amend_failed(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        reason: str,
+    ) -> None:
+        '''Terminalize an amend whose replacement definitively failed to place.
+
+        The old order is already terminal and the replacement was rejected, so
+        the command can make no further progress: resting it non-terminal would
+        leave a command with no working venue order that can neither advance nor
+        be modified, and Nexus would wait indefinitely. It completes CANCELED on
+        the aggregate fills across the superseded and rejected orders, carrying
+        the failure reason.
+        '''
+
+        assert cmd.qty is not None
+        filled_qty, cumulative_notional = self._command_fill_totals(
+            runtime, cmd.command_id,
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.CANCELED,
+            filled_qty=min(filled_qty, cmd.qty),
+            avg_fill_price=avg_fill_price,
+            reason=reason,
             cumulative_notional=cumulative_notional,
         )
 
