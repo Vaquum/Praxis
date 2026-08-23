@@ -16,6 +16,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.position import Position
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.infrastructure.secret_store import Credentials
 
 __all__ = ['TradingInbound']
@@ -50,6 +51,8 @@ class _ExecutionInboundGateway(Protocol):
     ) -> str: ...
 
     def submit_abort(self, abort: TradeAbort) -> None: ...
+
+    def submit_modify(self, modify: TradeModify) -> None: ...
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]: ...
 
@@ -238,6 +241,20 @@ class TradingInbound:
         '''
 
         self._execution_manager.submit_abort(abort)
+
+    def submit_modify(self, modify: TradeModify) -> None:
+        '''
+        Route inbound amend submission to the execution layer.
+
+        Args:
+            modify (TradeModify): Amend request targeting an existing command.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered in execution.
+            ValueError: If modify validation fails in the execution layer.
+        '''
+
+        self._execution_manager.submit_modify(modify)
 
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         '''

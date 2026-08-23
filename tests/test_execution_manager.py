@@ -436,7 +436,7 @@ class TestAccountLoop:
 
         messages = [r.message for r in caplog.records]
         abort_idx = next(
-            (i for i, m in enumerate(messages) if 'abort received' in m),
+            (i for i, m in enumerate(messages) if 'priority control received' in m),
             None,
         )
         cmd_idx = next(

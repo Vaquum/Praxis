@@ -3,8 +3,9 @@ Event type dataclasses for the Praxis Trading sub-system.
 
 Represent domain events consumed by TradingState.apply(). Each event
 is an immutable fact produced by the execution pipeline and projected
-onto in-memory state. Only event types needed for position and order
-tracking are defined here; later WPs add remaining types.
+onto in-memory state or consumed by other projections. Covers position
+and order tracking, scheme and bracket lifecycle, reconciliation, and
+the bracket protective-OCO amend state machine.
 '''
 
 from __future__ import annotations
@@ -29,11 +30,18 @@ __all__ = [
     'CommandAccepted',
     'Event',
     'FillReceived',
+    'FlattenInitiated',
     'FundTransaction',
+    'LadderAmendAborted',
+    'LadderAmendCompleted',
+    'LadderAmendInitiated',
+    'LadderAmendPlanned',
+    'LadderAmendStateUnknown',
     'MarkSampled',
     'OperatorHaltRequested',
     'OperatorResumeRequested',
     'OrderAcked',
+    'OrderAmendInitiated',
     'OrderCanceled',
     'OrderExpired',
     'OrderRejected',
@@ -43,7 +51,16 @@ __all__ = [
     'OutcomeAcked',
     'OutcomeDeliveryContextRecorded',
     'OutcomeReplayAbandoned',
+    'ProtectionActive',
+    'ProtectionAmendRequested',
+    'ProtectionCancelConfirmed',
+    'ProtectionFailed',
+    'ProtectionRemediationDelivered',
+    'ProtectionReplaceSubmitted',
+    'ProtectionStateUnknown',
+    'ReconciliationMismatch',
     'RegisterAccount',
+    'SchemeFrozen',
     'SchemeInitialized',
     'SchemeStateChanged',
     'SliceFailed',
@@ -52,8 +69,24 @@ __all__ = [
 ]
 
 _ZERO = Decimal(0)
+_MIN_PROTECTION_VERSION = 1
 _COST_BASIS_METHOD_VALUES = frozenset(method.value for method in CostBasisMethod)
 _FUND_DIRECTION_VALUES = frozenset(direction.value for direction in FundDirection)
+
+
+def _require_protection_version(cls: str, value: int) -> None:
+
+    '''
+    Validate that a protective-OCO revision is an int at or above the minimum.
+
+    Args:
+        cls (str): Class name for error context.
+        value (int): Protective-OCO revision to validate.
+    '''
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < _MIN_PROTECTION_VERSION:
+        msg = f'{cls}.protection_version must be an int >= {_MIN_PROTECTION_VERSION}'
+        raise ValueError(msg)
 
 
 @dataclass(frozen=True)
@@ -307,6 +340,38 @@ class SliceFailed(_EventBase):
         name = type(self).__name__
         _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'client_order_id', self.client_order_id)
+        _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class SchemeFrozen(_EventBase):
+
+    '''
+    Represent a running scheme durably frozen against firing further slices.
+
+    Appended when a naked-protection remediation freezes an account's live
+    schemes: no further slices are scheduled, and on replay the scheme
+    resumes frozen rather than re-arming its timer, so a restart cannot
+    resurrect the buying. Distinct from SliceFailed, which reports a
+    per-slice failure with a PARTIAL outcome; a freeze reports no outcome
+    and names no slice.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Frozen scheme identifier.
+        reason (str): Freeze reason.
+    '''
+
+    command_id: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'reason', self.reason)
 
 
@@ -671,6 +736,636 @@ class BracketInitialized(_EventBase):
 
 
 @dataclass(frozen=True)
+class ProtectionAmendRequested(_EventBase):
+
+    '''
+    Represent the intent to amend a bracket's protective OCO, before the
+    venue cancel.
+
+    Persisted first in the protective-OCO amend sequence and carries the
+    complete, resolved replacement OCO — both legs as absolute prices, not a
+    partial patch — so recovery is self-contained: if the process dies
+    between this durable write and the venue cancel/replace, boot re-places
+    exactly these legs without re-deriving offsets from the entry fill. A
+    partial amend (e.g. take-profit only) is merged against the bracket's
+    current protection into a full two-leg snapshot before this event is
+    written.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Amend attempt identifier, starting at 1 and
+            incremented on every `ProtectionAmendRequested` — including a
+            retry after a `ProtectionFailed` — so each attempt (and its
+            `new_list_client_order_id`) is uniquely addressable on replay. It
+            is not a count of successful amends.
+        new_list_client_order_id (str): Client list order id of the
+            replacement OCO to place. Must differ from
+            `old_list_client_order_id`.
+        old_list_client_order_id (str): Client list order id of the resting
+            OCO to cancel.
+        take_profit_price (Decimal): Resolved absolute take-profit price of
+            the replacement OCO.
+        stop_loss_price (Decimal): Resolved absolute stop-loss trigger price
+            of the replacement OCO.
+        stop_loss_limit_price (Decimal | None): Resolved stop-loss limit
+            price, or None for a stop-market stop-loss leg.
+    '''
+
+    command_id: str
+    protection_version: int
+    new_list_client_order_id: str
+    old_list_client_order_id: str
+    take_profit_price: Decimal
+    stop_loss_price: Decimal
+    stop_loss_limit_price: Decimal | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'new_list_client_order_id', self.new_list_client_order_id)
+        _require_str(name, 'old_list_client_order_id', self.old_list_client_order_id)
+
+        _require_protection_version(name, self.protection_version)
+
+        if self.new_list_client_order_id == self.old_list_client_order_id:
+            msg = f'{name} new and old list client order ids must differ'
+            raise ValueError(msg)
+
+        for field in ('take_profit_price', 'stop_loss_price', 'stop_loss_limit_price'):
+            value = getattr(self, field)
+            optional = field == 'stop_loss_limit_price'
+            if optional and value is None:
+                continue
+
+            if not isinstance(value, Decimal) or not value.is_finite() or value <= _ZERO:
+                msg = f'{name}.{field} must be a positive, finite Decimal'
+                raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class ProtectionCancelConfirmed(_EventBase):
+
+    '''
+    Represent confirmation that the old protective OCO was cancelled.
+
+    Written once the venue confirms the resting OCO named by the amend has
+    been cancelled, so replay knows no stale protection remains before the
+    replacement is placed.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision this
+            cancellation belongs to.
+    '''
+
+    command_id: str
+    protection_version: int
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
+class ProtectionStateUnknown(_EventBase):
+
+    '''
+    Represent an ambiguous protective-OCO cancel/replace outcome.
+
+    Written when the venue response to a cancel or replace is inconclusive
+    (timeout or 5xx), so the amend halts in a known-unknown state pending
+    reconciliation rather than assuming success or failure.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision this
+            ambiguity belongs to.
+        reason (str): Human-readable description of the ambiguity.
+        old_list_client_order_id (str | None): Pre-amend protective OCO list
+            client order id, retained so the watchdog can re-query it after a
+            restart. None when the amend never reached a known prior list.
+        new_list_client_order_id (str | None): Replacement protective OCO list
+            client order id when a replacement was submitted, retained so the
+            watchdog can re-query it after a restart. None when no replacement
+            was submitted.
+    '''
+
+    command_id: str
+    protection_version: int
+    reason: str
+    old_list_client_order_id: str | None = None
+    new_list_client_order_id: str | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_protection_version(name, self.protection_version)
+
+        if self.old_list_client_order_id is not None:
+            _require_str(
+                name, 'old_list_client_order_id', self.old_list_client_order_id,
+            )
+
+        if self.new_list_client_order_id is not None:
+            _require_str(
+                name, 'new_list_client_order_id', self.new_list_client_order_id,
+            )
+
+
+@dataclass(frozen=True)
+class ProtectionReplaceSubmitted(_EventBase):
+
+    '''
+    Represent submission of the replacement protective OCO, before the venue
+    place.
+
+    Persisted before the replacement OCO is placed so the replacement's list
+    identity is durable and a restart mid-place cannot lose or duplicate it.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision this
+            replacement belongs to.
+        new_list_client_order_id (str): Client list order id of the
+            replacement OCO being placed.
+    '''
+
+    command_id: str
+    protection_version: int
+    new_list_client_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'new_list_client_order_id', self.new_list_client_order_id)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
+class ProtectionActive(_EventBase):
+
+    '''
+    Represent confirmation that the replacement protective OCO is live.
+
+    Written when the venue confirms the replacement OCO is resting, marking
+    the amend complete for its revision.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO is amended.
+        protection_version (int): Monotonic protective-OCO revision now live.
+        new_list_client_order_id (str): Client list order id of the live
+            replacement OCO.
+    '''
+
+    command_id: str
+    protection_version: int
+    new_list_client_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'new_list_client_order_id', self.new_list_client_order_id)
+        _require_protection_version(name, self.protection_version)
+
+
+@dataclass(frozen=True)
+class ProtectionFailed(_EventBase):
+
+    '''
+    Represent that no valid protective OCO is live and remediation is needed.
+
+    Written when the amend cannot leave a live protective OCO in place, the
+    durable protection-failed marker distinct from any account operational
+    mode: the position is exposed until an operator or reconciliation pass
+    restores protection.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose protective OCO failed.
+        protection_version (int): Monotonic protective-OCO revision that
+            failed.
+        reason (str): Human-readable description of the failure.
+        oco_list_client_order_ids (tuple[str, ...]): Every protective OCO list
+            id a flatten must re-check for a live leg — the cancelled OCO and
+            any ambiguously-submitted replacement — retained so boot flatten
+            recovery enforces the same guard the live flatten did and never
+            market-flattens against a still-live protective OCO. Empty when no
+            OCO could be live (never POSTed).
+    '''
+
+    command_id: str
+    protection_version: int
+    reason: str
+    oco_list_client_order_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        object.__setattr__(
+            self, 'oco_list_client_order_ids', tuple(self.oco_list_client_order_ids),
+        )
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_protection_version(name, self.protection_version)
+
+        for candidate in self.oco_list_client_order_ids:
+            _require_str(name, 'oco_list_client_order_ids', candidate)
+
+
+@dataclass(frozen=True)
+class FlattenInitiated(_EventBase):
+
+    '''
+    Represent the intent to market-close a naked bracket remainder.
+
+    Written before the MARKET flatten order is submitted to the venue, so a
+    crash mid-flatten replays the intent: on restart the deterministic
+    `client_order_id` is queried before any resubmission, and a live or
+    filled flatten is not sent twice. The quantity is the intent-time
+    reconciled remainder (recomputed and re-capped by free balance at send),
+    not a promise that it is still exact.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose remainder is being flattened.
+        protection_version (int): Protective-OCO revision whose failure
+            triggered the flatten.
+        qty (Decimal): Intent-time flatten quantity, a finite positive base
+            amount.
+        client_order_id (str): Deterministic client order id of the flatten
+            MARKET order.
+    '''
+
+    command_id: str
+    protection_version: int
+    qty: Decimal
+    client_order_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'client_order_id', self.client_order_id)
+        _require_protection_version(name, self.protection_version)
+
+        if not isinstance(self.qty, Decimal) or not self.qty.is_finite() or self.qty <= _ZERO:
+            msg = f'{name}.qty must be a finite positive Decimal'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class ProtectionRemediationDelivered(_EventBase):
+
+    '''
+    Represent a protection remediation durably delivered to Nexus.
+
+    Written after the account's Nexus `ProtectionRemediationHandler` has
+    accepted the remediation, so a restart does not re-push a remediation an
+    operator may since have cleared: the Nexus hold is sticky and
+    operator-lifted, and re-pushing would re-apply it. Boot seeding skips a
+    command whose remediation is already recorded delivered.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Bracket command whose remediation was delivered.
+        protection_remediation_id (str): Stable id of the delivered remediation.
+    '''
+
+    command_id: str
+    protection_remediation_id: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'protection_remediation_id', self.protection_remediation_id)
+
+
+@dataclass(frozen=True)
+class OrderAmendInitiated(_EventBase):
+
+    '''
+    Represent the start of an order-price amend, before the cancel.
+
+    Written once when a TradeModify begins amending a resting single order,
+    before the cancel, so the amend is durably recorded. On boot the amend
+    sequence is rebuilt from these events so a later amend cannot reuse a
+    replacement client order id. Carrying the resolved replacement shape
+    (old and new client ids, price, display, and the original total) keeps a
+    future crash-repair that completes the re-price self-contained without
+    the transient command.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Command whose resting order is amended.
+        trade_id (str): Trade correlation identifier.
+        symbol (str): Trading pair symbol.
+        side (OrderSide): Order direction, unchanged by the amend.
+        total_qty (Decimal): Original command quantity; the replacement
+            works the unfilled remainder of this.
+        old_client_order_id (str): Resting order being cancelled.
+        new_client_order_id (str): Replacement order to place.
+        price (Decimal): Resolved limit price for the replacement.
+        display_qty (Decimal | None): Resolved iceberg display quantity, or
+            None for a plain limit replacement.
+    '''
+
+    command_id: str
+    trade_id: str
+    symbol: str
+    side: OrderSide
+    total_qty: Decimal
+    old_client_order_id: str
+    new_client_order_id: str
+    price: Decimal
+    display_qty: Decimal | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        for field in (
+            'command_id',
+            'trade_id',
+            'symbol',
+            'old_client_order_id',
+            'new_client_order_id',
+        ):
+            _require_str(name, field, getattr(self, field))
+
+        for field in ('total_qty', 'price'):
+            value = getattr(self, field)
+            if not isinstance(value, Decimal) or not value.is_finite() or value <= _ZERO:
+                msg = f'{name}.{field} must be a positive, finite Decimal'
+                raise ValueError(msg)
+
+        if self.display_qty is not None and (
+            not isinstance(self.display_qty, Decimal)
+            or not self.display_qty.is_finite()
+            or self.display_qty <= _ZERO
+        ):
+            msg = f'{name}.display_qty must be a positive, finite Decimal'
+            raise ValueError(msg)
+
+
+def _require_positive_decimals(cls: str, field: str, values: tuple[Decimal, ...]) -> None:
+
+    '''Validate a tuple holds only positive, finite Decimals.'''
+
+    for value in values:
+        if not isinstance(value, Decimal) or not value.is_finite() or value <= _ZERO:
+            msg = f'{cls}.{field} entries must be positive, finite Decimals'
+            raise ValueError(msg)
+
+
+def _require_positive_int(cls: str, field: str, value: int) -> None:
+
+    '''Validate a value is an int at or above 1.'''
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        msg = f'{cls}.{field} must be an int >= 1'
+        raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class LadderAmendInitiated(_EventBase):
+
+    '''
+    Represent the start of a ladder-rung amend, before the first cancel.
+
+    Persisted before any resting rung is cancelled so a crash mid-amend
+    resumes deterministically: it names the new grid (`price_levels`, optional
+    `level_weights`) and both grids' rung counts, but carries no per-rung
+    quantities — fills can still move while the old rungs are retired, so the
+    exact replacement plan is fixed only later in `LadderAmendPlanned`. The
+    `generation` qualifies the new rungs' client order ids (retry=generation)
+    so a replacement rung never collides with a cancelled one.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose rungs are amended.
+        generation (int): Amend generation (>= 1); qualifies new rung ids.
+        price_levels (tuple[Decimal, ...]): New resting limit prices.
+        old_slices_total (int): Rung count of the grid being retired.
+        new_slices_total (int): Rung count of the new grid.
+        level_weights (tuple[Decimal, ...]): New per-level weights, empty for
+            an equal split.
+    '''
+
+    command_id: str
+    generation: int
+    price_levels: tuple[Decimal, ...]
+    old_slices_total: int
+    new_slices_total: int
+    level_weights: tuple[Decimal, ...] = ()
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        object.__setattr__(self, 'price_levels', tuple(self.price_levels))
+        object.__setattr__(self, 'level_weights', tuple(self.level_weights))
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_positive_int(name, 'generation', self.generation)
+        _require_positive_int(name, 'old_slices_total', self.old_slices_total)
+        _require_positive_int(name, 'new_slices_total', self.new_slices_total)
+        _require_positive_decimals(name, 'price_levels', self.price_levels)
+        _require_positive_decimals(name, 'level_weights', self.level_weights)
+
+
+@dataclass(frozen=True)
+class LadderAmendPlanned(_EventBase):
+
+    '''
+    Fix the exact replacement rung list once every old rung is terminal.
+
+    Persisted after the amend has venue-confirmed every old-generation rung
+    terminal and computed the remainder from venue truth. It fixes the exact
+    rungs to place — sequence, price, quantity — so a crash after this point
+    re-places precisely these ids and never recomputes quantities against
+    fills that landed after the cutover. The rungs are placed at
+    retry=generation.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose rungs are amended.
+        generation (int): Amend generation the planned rungs belong to.
+        sequences (tuple[int, ...]): Per-rung sequence index (0-based).
+        prices (tuple[Decimal, ...]): Per-rung resting limit price.
+        qtys (tuple[Decimal, ...]): Per-rung base quantity.
+    '''
+
+    command_id: str
+    generation: int
+    sequences: tuple[int, ...]
+    prices: tuple[Decimal, ...]
+    qtys: tuple[Decimal, ...]
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        object.__setattr__(self, 'sequences', tuple(self.sequences))
+        object.__setattr__(self, 'prices', tuple(self.prices))
+        object.__setattr__(self, 'qtys', tuple(self.qtys))
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_positive_int(name, 'generation', self.generation)
+
+        if not (len(self.sequences) == len(self.prices) == len(self.qtys)):
+            msg = f'{name}.sequences, prices, qtys must be equal length'
+            raise ValueError(msg)
+
+        for sequence in self.sequences:
+            if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
+                msg = f'{name}.sequences entries must be non-negative ints'
+                raise ValueError(msg)
+
+        _require_positive_decimals(name, 'prices', self.prices)
+        _require_positive_decimals(name, 'qtys', self.qtys)
+
+
+@dataclass(frozen=True)
+class LadderAmendCompleted(_EventBase):
+
+    '''
+    Mark a ladder amend fully placed; the new grid is the live grid.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose amend completed.
+        generation (int): Amend generation now live.
+    '''
+
+    command_id: str
+    generation: int
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_positive_int(name, 'generation', self.generation)
+
+
+@dataclass(frozen=True)
+class LadderAmendAborted(_EventBase):
+
+    '''
+    Mark a ladder amend cleanly rejected before any rung was cancelled.
+
+    Written only when the amend failed with zero old rungs cancelled, so the
+    original grid is untouched and continues unchanged; the amend generation
+    is retired without placing anything.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose amend was aborted.
+        generation (int): Amend generation abandoned.
+        reason (str): Human-readable abort cause.
+    '''
+
+    command_id: str
+    generation: int
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_positive_int(name, 'generation', self.generation)
+
+
+@dataclass(frozen=True)
+class LadderAmendStateUnknown(_EventBase):
+
+    '''
+    Mark a ladder amend halted with an unconfirmable venue state.
+
+    Written when a cancel or query cannot be confirmed (phase CANCELLING) or a
+    replacement placement is unconfirmable (phase PLACING). The amend holds
+    here for the reconcile-tick watchdog to re-query and resolve, rather than
+    placing or finalizing on an unknown venue state.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Ladder command whose amend is unconfirmable.
+        generation (int): Amend generation in flight.
+        phase (str): CANCELLING or PLACING.
+        reason (str): Human-readable ambiguity cause.
+    '''
+
+    command_id: str
+    generation: int
+    phase: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+        _require_positive_int(name, 'generation', self.generation)
+
+        if self.phase not in ('CANCELLING', 'PLACING'):
+            msg = f'{name}.phase must be CANCELLING or PLACING'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
 class SchemeStateChanged(_EventBase):
 
     '''
@@ -817,6 +1512,52 @@ class FundTransaction(_EventBase):
         if self.direction not in _FUND_DIRECTION_VALUES:
             allowed = ', '.join(sorted(_FUND_DIRECTION_VALUES))
             msg = f'{name}.direction must be one of {allowed}'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class ReconciliationMismatch(_EventBase):
+
+    '''
+    Represent a per-asset balance discrepancy found reconciling against the venue.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        reconciliation_mismatch_id (str): Stable unique identifier for the mismatch.
+        asset (str): Asset whose balance mismatched (e.g. 'USDT', 'BTC').
+        expected (Decimal): Praxis-projected balance for the asset, must be finite.
+        actual (Decimal): Venue-reported balance for the asset, must be finite.
+    '''
+
+    reconciliation_mismatch_id: str
+    asset: str
+    expected: Decimal
+    actual: Decimal
+
+    @property
+    def delta(self) -> Decimal:
+
+        '''Return the venue-reported minus Praxis-projected balance difference.'''
+
+        return self.actual - self.expected
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'reconciliation_mismatch_id', self.reconciliation_mismatch_id)
+        _require_str(name, 'asset', self.asset)
+
+        for field_name in ('expected', 'actual'):
+            value = getattr(self, field_name)
+            if not isinstance(value, Decimal) or not value.is_finite():
+                msg = f'{name}.{field_name} must be a finite Decimal'
+                raise ValueError(msg)
+
+        if self.expected == self.actual:
+            msg = f'{name} requires expected != actual (a mismatch has a non-zero delta)'
             raise ValueError(msg)
 
 
@@ -1077,8 +1818,15 @@ class OutcomeDeliveryContextRecorded(_EventBase):
 type Event = (
     CommandAccepted
     | BracketInitialized
+    | OrderAmendInitiated
+    | LadderAmendInitiated
+    | LadderAmendPlanned
+    | LadderAmendCompleted
+    | LadderAmendAborted
+    | LadderAmendStateUnknown
     | SchemeInitialized
     | SchemeStateChanged
+    | SchemeFrozen
     | OrderSubmitIntent
     | OrderSubmitted
     | OrderSubmitFailed
@@ -1097,6 +1845,15 @@ type Event = (
     | MarkSampled
     | RegisterAccount
     | FundTransaction
+    | ReconciliationMismatch
     | OperatorHaltRequested
     | OperatorResumeRequested
+    | ProtectionAmendRequested
+    | ProtectionCancelConfirmed
+    | ProtectionStateUnknown
+    | ProtectionReplaceSubmitted
+    | ProtectionActive
+    | ProtectionFailed
+    | FlattenInitiated
+    | ProtectionRemediationDelivered
 )

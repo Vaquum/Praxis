@@ -17,10 +17,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from nexus.core.domain.order_types import ExecutionMode as NexusExecutionMode
 from nexus.infrastructure.praxis_connector.praxis_outbound import PraxisOutbound
 
 from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.launcher import _build_praxis_outbound
 from praxis.trading import Trading
 
@@ -114,6 +116,42 @@ def test_submit_abort_adapter_calls_trading_submit_abort_through_loop() -> None:
         assert forwarded.command_id == abort.command_id
         assert forwarded.account_id == abort.account_id
         assert forwarded.reason == abort.reason
+    finally:
+        _stop_loop(loop, thread)
+
+
+def test_submit_modify_adapter_calls_trading_submit_modify_through_loop() -> None:
+    '''The async adapter forwards to `Trading.submit_modify` on the Praxis loop thread.
+
+    `Trading.submit_modify` is sync; the adapter must be schedulable
+    via `run_coroutine_threadsafe` from the Nexus thread without
+    losing the call.
+    '''
+
+    trading = MagicMock(spec=Trading)
+    trading.submit_modify = MagicMock()
+
+    loop, thread = _run_loop_in_thread()
+
+    try:
+        outbound = _build_praxis_outbound(trading, loop)
+
+        outbound.send_modify(
+            command_id='cmd-mod',
+            account_id='acct-mod',
+            reason='runtime_strategy_modify',
+            execution_mode=NexusExecutionMode.TWAP,
+            modify_params={'num_slices': 6},
+            created_at=datetime(2026, 4, 23, 12, 0, 0, tzinfo=UTC),
+        )
+
+        assert trading.submit_modify.call_count == 1
+        forwarded = trading.submit_modify.call_args.args[0]
+        assert isinstance(forwarded, TradeModify)
+        assert forwarded.command_id == 'cmd-mod'
+        assert forwarded.account_id == 'acct-mod'
+        assert forwarded.reason == 'runtime_strategy_modify'
+        assert forwarded.modify_params.num_slices == 6
     finally:
         _stop_loop(loop, thread)
 

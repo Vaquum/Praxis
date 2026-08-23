@@ -22,7 +22,10 @@ from praxis.infrastructure.binance_urls import (
     TESTNET_WS_URL,
 )
 from praxis.core.domain.enums import ExecutionMode
-from praxis.launcher import _parse_enabled_modes, _resolve_trade_mode
+from praxis.launcher import (
+    _parse_enabled_modes,
+    _resolve_trade_mode,
+)
 
 
 class TestResolveTradeMode:

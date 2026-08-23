@@ -31,6 +31,9 @@ import aiosqlite
 from aiohttp import ClientSession, ClientTimeout, web
 
 from nexus.core.capital_controller.capital_controller import CapitalController
+from nexus.core.domain.bracket_protection_failure_response import (
+    BracketProtectionFailureResponse,
+)
 from nexus.core.domain.enums import OperationalMode, OrderSide
 from nexus.core.domain.order_types import ExecutionMode as NexusExecutionMode
 from nexus.core.domain.instance_state import InstanceState
@@ -78,6 +81,13 @@ from nexus.infrastructure.praxis_connector.trade_outcome import (
 )
 from nexus.infrastructure.state_store import StateSnapshotLocks, StateStore
 from nexus.instance_config import InstanceConfig as NexusInstanceConfig
+from nexus.infrastructure.praxis_connector.protection_remediation import (
+    ProtectionRemediation,
+)
+from nexus.reconciler.protection_remediation_handler import (
+    ProtectionRemediationHandler,
+)
+from nexus.reconciler.reconciliation_handler import ReconciliationHandler
 from nexus.startup.sequencer import StartupSequencer
 from nexus.startup.shutdown_sequencer import ShutdownSequencer
 from nexus.strategy.action import Action, ActionType
@@ -89,6 +99,7 @@ from nexus.strategy.timer_loop import TimerLoop
 
 from praxis.command_translator import (
     build_execution_params,
+    build_modify_params,
     translate_execution_mode,
     translate_maker_preference,
     translate_order_side,
@@ -106,14 +117,17 @@ from praxis.core.bracket_exit_command_id import bracket_exit_command_id
 from praxis.core.live_only_modes import is_live_only
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.events import (
     Event,
+    FundTransaction,
     MarkSampled,
     OperatorHaltRequested,
     OperatorResumeRequested,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
+    ReconciliationMismatch,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -128,6 +142,10 @@ from praxis.infrastructure.binance_urls import (
 from praxis.arrow_price_store import ArrowPriceStore
 from praxis.paper.mark_sampler import MarkSampler
 from praxis.paper.paper_report import build_paper_report
+from praxis.reconciliation_translate import (
+    translate_fund_transaction,
+    translate_reconciliation_mismatch,
+)
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.observability import bind_context, configure_logging
 from praxis.outcome_translator import OutcomeTranslator
@@ -245,6 +263,18 @@ def _mark_sample_interval_seconds() -> int:
 
 
 _ZERO = Decimal('0')
+_MODIFY_INTAKE_SENTINEL_SIZE = Decimal('1')
+
+
+class _NexusRuntimeNotReadyError(RuntimeError):
+    '''Raised when a reconciliation event arrives before its account's runtime.
+
+    A recon event fired before the target account's Nexus runtime is
+    registered must not be silently dropped: the raise propagates to the
+    Trading reconciliation loop, which holds the event undelivered (leaves
+    the balance-mismatch seen-marker unset / the fund cursor un-advanced)
+    so the next cycle retries once the runtime exists.
+    '''
 _HUNDRED = Decimal('100')
 
 _ACTION_TYPE_TO_VALIDATION_ACTION = {
@@ -354,6 +384,26 @@ def _build_praxis_outbound(
             ),
         )
 
+    async def submit_modify_async(
+        *,
+        command_id: str,
+        account_id: str,
+        reason: str,
+        execution_mode: Any,
+        modify_params: Any,
+        created_at: datetime,
+    ) -> None:
+        mode = translate_execution_mode(execution_mode)
+        trading.submit_modify(
+            TradeModify(
+                command_id=command_id,
+                account_id=account_id,
+                reason=reason,
+                modify_params=build_modify_params(mode, modify_params),
+                created_at=created_at,
+            ),
+        )
+
     async def submit_command_with_translated_params(
         *,
         side: Any,
@@ -384,6 +434,7 @@ def _build_praxis_outbound(
         unregister_fn=trading.unregister_account,
         pull_positions_fn=trading.pull_positions,
         submit_abort_fn=submit_abort_async,
+        submit_modify_fn=submit_modify_async,
         get_health_snapshot_fn=trading.get_health_snapshot,
     )
 
@@ -720,6 +771,7 @@ def _build_validation_pipeline(
         _default_price_snapshot
     ),
     platform_limits: PlatformLimitsStageLimits | None = None,
+    modifiable_command_ids_provider: Callable[[], set[str]] | None = None,
     clock: Callable[[], datetime] = _utc_now,
 ) -> ValidationPipeline:
     '''Build a six-stage `ValidationPipeline` for one account.
@@ -740,11 +792,11 @@ def _build_validation_pipeline(
     snapshot providers.
 
     Intake hooks are built once via `build_default_intake_hooks` so the
-    duplicate-order window state is preserved across ticks. Both
-    `active_command_ids` and `modifiable_command_ids` default to empty;
-    `ABORT` and `MODIFY` are not exercised by the action-submission
-    helper (`submit_actions` bypasses the validator for `ABORT`, and
-    MMVP strategies do not emit `MODIFY`).
+    duplicate-order window state is preserved across ticks. When a
+    `modifiable_command_ids_provider` is supplied it is threaded into the
+    intake hooks, so a `MODIFY` is validated against the live amendable
+    set (the account's in-flight command ids) rather than an empty set.
+    `submit_actions` still bypasses the validator for `ABORT`.
 
     Args:
         nexus_config: Per-account Nexus runtime config built by
@@ -760,6 +812,10 @@ def _build_validation_pipeline(
             price-check snapshot. Defaults to `None`.
         platform_limits: Operator-configured platform caps for the
             platform-limits stage. Defaults to an empty (all-unset) limit set.
+        modifiable_command_ids_provider: Callable returning the set of
+            command ids currently amendable for the account, threaded into
+            the intake hooks so `MODIFY` is validated against the live
+            amendable set. Defaults to `None` (empty amendable set).
         clock: Source of UTC time for the duplicate-order and order-rate
             intake hooks; a replay run injects its cursor so these gate
             on simulated time rather than wall time.
@@ -768,7 +824,11 @@ def _build_validation_pipeline(
         Six-stage `ValidationPipeline` ready for use by `submit_actions`.
     '''
 
-    intake_hooks = build_default_intake_hooks(nexus_config, now_fn=clock)
+    intake_hooks = build_default_intake_hooks(
+        nexus_config,
+        now_fn=clock,
+        modifiable_command_ids_provider=modifiable_command_ids_provider,
+    )
     risk_limits = RiskStageLimits()
     price_limits = build_price_stage_limits_from_config(nexus_config)
     platform_limits = platform_limits if platform_limits is not None else PlatformLimitsStageLimits()
@@ -856,9 +916,14 @@ def _build_validation_context(
       Returns `None` (and logs) when the referenced trade is missing
       from instance state — the helper skips the action and the caller
       drops it.
-    - `MODIFY`: returns `None` and logs a TD-tracked warning. The
-      `current_order_notional` source is non-trivial and deferred; MMVP
-      strategies do not emit `MODIFY`.
+    - `MODIFY`: builds a minimal INTAKE-only context carrying the
+      target `command_id` and no notional. Nexus validates a MODIFY
+      through the INTAKE stage only (bypassing the capital stage and
+      the notional-zero check), so `order_notional`, `estimated_fees`
+      and `strategy_budget` are all `Decimal('0')`. INTAKE still
+      requires a positive `order_size` for a MODIFY, so a notional-
+      invariant amend (which carries no new size) sets the
+      `_MODIFY_INTAKE_SENTINEL_SIZE` placeholder to pass that gate.
     - `ABORT`: returns `None`. `submit_actions` bypasses the validator
       for `ABORT` and never calls this helper for that action type.
 
@@ -896,9 +961,9 @@ def _build_validation_context(
             exercising the dust-close path may pass `None`.
 
     Returns:
-        `ValidationRequestContext` for `ENTER`/`EXIT`, or `None` when
-        the action cannot be validated (missing price, missing trade,
-        unsupported `MODIFY`/`ABORT`).
+        `ValidationRequestContext` for `ENTER`/`EXIT`/`MODIFY`, or
+        `None` when the action cannot be validated (missing price,
+        missing trade, or an `ABORT` — which bypasses the validator).
     '''
 
     validation_action = _ACTION_TYPE_TO_VALIDATION_ACTION.get(action.action_type)
@@ -912,15 +977,19 @@ def _build_validation_context(
         )
         return None
 
-    if validation_action == ValidationAction.MODIFY:
-        _log.warning(
-            'MODIFY validation context not implemented (TD); skipping action',
-            extra={
-                'strategy_id': strategy_id,
-                'command_id': action.command_id or f'cmd-{uuid.uuid4().hex}',
-            },
+    if validation_action is ValidationAction.MODIFY:
+        return ValidationRequestContext(
+            strategy_id=strategy_id,
+            order_notional=Decimal('0'),
+            estimated_fees=Decimal('0'),
+            strategy_budget=Decimal('0'),
+            state=state,
+            config=nexus_config,
+            action=ValidationAction.MODIFY,
+            symbol=enter_symbol,
+            order_size=_MODIFY_INTAKE_SENTINEL_SIZE,
+            command_id=action.command_id,
         )
-        return None
 
     if validation_action == ValidationAction.ABORT:
         return None
@@ -2410,6 +2479,8 @@ class _NexusRuntime:
     mtm_loop: MtmLoop
     unknown_submission_monitor: _UnknownSubmissionMonitor
     outcome_processor: OutcomeProcessor
+    reconciliation_handler: ReconciliationHandler
+    protection_remediation_handler: ProtectionRemediationHandler
     process_outcome: Callable[[NexusTradeOutcome], None]
     positions_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -2734,6 +2805,59 @@ class Launcher:
                 await user_cb(outcome)
 
             self._trading.set_on_trade_outcome(_composed)
+
+        def _route_fund_transaction(praxis_fund: FundTransaction) -> None:
+            with self._nexus_runtimes_lock:
+                runtime = self._nexus_runtimes.get(praxis_fund.account_id)
+
+            if runtime is None:
+                msg = (
+                    f'no nexus runtime for account {praxis_fund.account_id!r}; '
+                    'fund transaction not delivered'
+                )
+                raise _NexusRuntimeNotReadyError(msg)
+
+            runtime.outcome_processor.process_fund_transaction(
+                translate_fund_transaction(praxis_fund),
+            )
+
+        def _route_reconciliation_mismatch(
+            praxis_mismatch: ReconciliationMismatch,
+        ) -> None:
+            with self._nexus_runtimes_lock:
+                runtime = self._nexus_runtimes.get(praxis_mismatch.account_id)
+
+            if runtime is None:
+                msg = (
+                    f'no nexus runtime for account {praxis_mismatch.account_id!r}; '
+                    'reconciliation mismatch not delivered'
+                )
+                raise _NexusRuntimeNotReadyError(msg)
+
+            runtime.reconciliation_handler.process_reconciliation_mismatch(
+                translate_reconciliation_mismatch(praxis_mismatch),
+            )
+
+        def _route_protection_remediation(
+            remediation: ProtectionRemediation,
+        ) -> None:
+            with self._nexus_runtimes_lock:
+                runtime = self._nexus_runtimes.get(remediation.account_id)
+
+            if runtime is None:
+                msg = (
+                    f'no nexus runtime for account {remediation.account_id!r}; '
+                    'protection remediation not delivered'
+                )
+                raise _NexusRuntimeNotReadyError(msg)
+
+            runtime.protection_remediation_handler.process_protection_remediation(
+                remediation,
+            )
+
+        self._trading.set_on_fund_transaction(_route_fund_transaction)
+        self._trading.set_on_reconciliation_mismatch(_route_reconciliation_mismatch)
+        self._trading.set_on_protection_remediation(_route_protection_remediation)
 
         future = asyncio.run_coroutine_threadsafe(self._trading.start(), self._loop)
         future.result(timeout=30)
@@ -3753,6 +3877,7 @@ class Launcher:
         capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
         positions_lock = threading.Lock()
+        execution_manager = self._trading.execution_manager
         pipeline = _build_validation_pipeline(
             nexus_instance_config, capital_controller,
             platform_snapshot_provider=_build_platform_snapshot_provider(
@@ -3764,6 +3889,9 @@ class Launcher:
                 max_position=_env_positive_decimal('PRAXIS_MAX_POSITION'),
             ),
             price_snapshot_provider=self._build_price_snapshot_provider(),
+            modifiable_command_ids_provider=lambda: set(
+                execution_manager.modifiable_command_ids_snapshot(inst.account_id)
+            ),
             clock=self._clock,
         )
         command_registry_lock = threading.Lock()
@@ -3781,6 +3909,12 @@ class Launcher:
             on_halt=self._build_mode_halt_alert(inst.account_id),
         )
         mode_controller.reconcile()
+        reconciliation_handler = ReconciliationHandler(
+            mode_controller, manifest.reconciliation_mismatch_response,
+        )
+        protection_remediation_handler = ProtectionRemediationHandler(
+            mode_controller, manifest.bracket_protection_failure_response,
+        )
         state_store.attach_snapshot_locks(
             _build_state_snapshot_locks(state, positions_lock, capital_controller),
         )
@@ -4295,6 +4429,8 @@ class Launcher:
             mtm_loop=mtm_loop,
             unknown_submission_monitor=unknown_submission_monitor,
             outcome_processor=outcome_processor,
+            reconciliation_handler=reconciliation_handler,
+            protection_remediation_handler=protection_remediation_handler,
             process_outcome=process_outcome,
             positions_lock=positions_lock,
         )
@@ -4492,11 +4628,17 @@ def main() -> None:
     instances: list[InstanceConfig] = []
     seen_account_ids: dict[str, Path] = {}
     seen_suffixes: dict[str, str] = {}
+    bracket_protection_failure_response: dict[
+        str, BracketProtectionFailureResponse
+    ] = {}
 
     for manifest_path in manifest_paths:
         manifest = load_manifest(manifest_path)
         account_id = manifest.account_id
         _require_safe_account_id(account_id, manifest_path)
+        bracket_protection_failure_response[account_id] = (
+            manifest.bracket_protection_failure_response
+        )
         suffix = _account_id_to_env_suffix(account_id)
 
         if account_id in seen_account_ids:
@@ -4581,6 +4723,7 @@ def main() -> None:
                 and bool(env.get('BINSIM_URL', '').strip())
             ),
         ),
+        bracket_protection_failure_response=bracket_protection_failure_response,
     )
 
     port_raw = env.get('PORT') or env.get('HEALTHZ_PORT')

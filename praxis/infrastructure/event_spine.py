@@ -31,13 +31,23 @@ import orjson
 
 from praxis.core.domain.events import (
     BracketInitialized,
+    LadderAmendAborted,
+    LadderAmendCompleted,
+    LadderAmendInitiated,
+    LadderAmendPlanned,
+    LadderAmendStateUnknown,
+    OrderAmendInitiated,
+    ProtectionRemediationDelivered,
+    SchemeFrozen,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
     Event,
     FillReceived,
+    FlattenInitiated,
     FundTransaction,
     MarkSampled,
+    ReconciliationMismatch,
     OrderAcked,
     OrderCanceled,
     OrderExpired,
@@ -52,6 +62,12 @@ from praxis.core.domain.events import (
     OutcomeReplayAbandoned,
     OperatorHaltRequested,
     OperatorResumeRequested,
+    ProtectionActive,
+    ProtectionAmendRequested,
+    ProtectionCancelConfirmed,
+    ProtectionFailed,
+    ProtectionReplaceSubmitted,
+    ProtectionStateUnknown,
     RegisterAccount,
     TradeClosed,
     TradeOutcomeProduced,
@@ -132,6 +148,14 @@ CREATE TABLE IF NOT EXISTS reconcile_cursor (
     UNIQUE(account_id, symbol)
 )'''
 
+_CREATE_FUND_DEDUP = '''
+CREATE TABLE IF NOT EXISTS fund_dedup (
+    epoch_id INTEGER NOT NULL,
+    account_id TEXT NOT NULL,
+    fund_transaction_id TEXT NOT NULL,
+    UNIQUE(epoch_id, account_id, fund_transaction_id)
+)'''
+
 _INSERT = (
     'INSERT INTO events (epoch_id, timestamp, event_type, payload) '
     'VALUES (?, ?, ?, ?)'
@@ -179,6 +203,11 @@ _DEDUP_V2_INSERT = (
     'VALUES (?, ?, ?, ?)'
 )
 
+_FUND_DEDUP_INSERT = (
+    'INSERT OR IGNORE INTO fund_dedup (epoch_id, account_id, fund_transaction_id) '
+    'VALUES (?, ?, ?)'
+)
+
 _LEGACY_DEDUP_CHECK = (
     'SELECT 1 FROM fill_dedup WHERE epoch_id = ? AND account_id = ? AND dedup_key = ?'
 )
@@ -192,8 +221,10 @@ _EVENT_REGISTRY: dict[str, type] = {
     for cls in (
         CommandAccepted,
         BracketInitialized,
+        OrderAmendInitiated,
         SchemeInitialized,
         SchemeStateChanged,
+        SchemeFrozen,
         OrderSubmitIntent,
         OrderSubmitted,
         OrderSubmitFailed,
@@ -212,8 +243,22 @@ _EVENT_REGISTRY: dict[str, type] = {
         MarkSampled,
         RegisterAccount,
         FundTransaction,
+        ReconciliationMismatch,
         OperatorHaltRequested,
         OperatorResumeRequested,
+        ProtectionAmendRequested,
+        ProtectionCancelConfirmed,
+        ProtectionStateUnknown,
+        ProtectionReplaceSubmitted,
+        ProtectionActive,
+        ProtectionFailed,
+        FlattenInitiated,
+        ProtectionRemediationDelivered,
+        LadderAmendInitiated,
+        LadderAmendPlanned,
+        LadderAmendCompleted,
+        LadderAmendAborted,
+        LadderAmendStateUnknown,
     )
 }
 
@@ -423,6 +468,8 @@ class EventSpine:
             async with self._conn.execute(_CREATE_META):
                 pass
             async with self._conn.execute(_CREATE_RECONCILE_CURSOR):
+                pass
+            async with self._conn.execute(_CREATE_FUND_DEDUP):
                 pass
 
             if version < _SCHEMA_VERSION:
@@ -826,6 +873,59 @@ class EventSpine:
                         'account_id': event.account_id,
                         'venue_trade_id': event.venue_trade_id,
                         'venue_order_id': event.venue_order_id,
+                    },
+                )
+            else:
+                _log.debug(
+                    'event spine appended',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'event_type': type(event).__name__,
+                        'event_seq': seq,
+                        'account_id': event.account_id,
+                    },
+                )
+            return seq
+
+        if isinstance(event, FundTransaction):
+            try:
+                async with self._conn.execute(
+                    _FUND_DEDUP_INSERT,
+                    (epoch_id, event.account_id, event.fund_transaction_id),
+                ) as cursor:
+                    is_duplicate = cursor.rowcount == 0
+                seq = None if is_duplicate else await self._append_event(event, epoch_id)
+            except Exception:
+                await self._safe_rollback('event spine fund-atomic DML failure')
+                _log.exception(
+                    'event spine fund-atomic DML failed (rollback attempted)',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'account_id': event.account_id,
+                        'fund_transaction_id': event.fund_transaction_id,
+                    },
+                )
+                raise
+            try:
+                await self._conn.commit()
+            except Exception:
+                await self._safe_rollback('event spine fund-atomic commit failure')
+                _log.exception(
+                    'event spine fund-atomic commit failed',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'account_id': event.account_id,
+                        'fund_transaction_id': event.fund_transaction_id,
+                    },
+                )
+                raise
+            if seq is None:
+                _log.warning(
+                    'event spine fund transaction deduplicated',
+                    extra={
+                        'epoch_id': epoch_id,
+                        'account_id': event.account_id,
+                        'fund_transaction_id': event.fund_transaction_id,
                     },
                 )
             else:

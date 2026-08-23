@@ -15,13 +15,14 @@ import logging
 import threading
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 
 from praxis.core.account_ledger import AccountLedger
 from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.enums import (
+    BracketProtectionStatus,
     CostBasisMethod,
     ExecutionMode,
     MakerPreference,
@@ -34,12 +35,28 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.events import (
     BracketInitialized,
+    LadderAmendAborted,
+    LadderAmendCompleted,
+    LadderAmendInitiated,
+    LadderAmendPlanned,
+    LadderAmendStateUnknown,
+    OrderAmendInitiated,
+    ProtectionActive,
+    ProtectionAmendRequested,
+    ProtectionCancelConfirmed,
+    ProtectionFailed,
+    ProtectionRemediationDelivered,
+    ProtectionReplaceSubmitted,
+    ProtectionStateUnknown,
+    SchemeFrozen,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
     Event,
     FillReceived,
+    FlattenInitiated,
     FundTransaction,
+    ReconciliationMismatch,
     OrderCanceled,
     OrderExpired,
     OrderQuoteNativeFilled,
@@ -52,20 +69,35 @@ from praxis.core.domain.events import (
     TradeClosed,
     TradeOutcomeProduced,
 )
+from nexus.core.domain.bracket_protection_failure_response import (
+    BracketProtectionFailureResponse,
+)
+from nexus.infrastructure.praxis_connector.protection_remediation import (
+    ProtectionRemediation,
+)
+
 from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.trade_pnl import TradePnL
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+from praxis.core.domain.bracket_modify import BracketModify
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
+from praxis.core.domain.iceberg_modify import IcebergModify
+from praxis.core.domain.single_shot_modify import SingleShotModify
+from praxis.core.domain.twap_modify import TwapModify
+from praxis.core.domain.time_dca_modify import TimeDcaModify
+from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import (
     SlippageEstimate,
@@ -73,6 +105,7 @@ from praxis.core.estimate_slippage import (
     estimate_slippage_for_quote,
 )
 from praxis.core.generate_client_order_id import (
+    command_id_fragment,
     generate_client_order_id,
     validate_command_id_for_client_order_id,
 )
@@ -80,15 +113,18 @@ from praxis.core.plan_even_slices import plan_even_slices
 from praxis.core.plan_weighted_slices import plan_weighted_slices
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
+from praxis.core.validate_trade_modify import validate_trade_modify
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     DuplicateClientOrderIdError,
+    ImmediateFill,
     NotFoundError,
     OrderSubmitTimeoutError,
     SubmitResult,
     VenueAdapter,
     VenueError,
+    VenueOrder,
     VenueOrderList,
 )
 
@@ -139,6 +175,9 @@ _REPLAY_COMMAND_TIMEOUT_SECONDS = 60
 _ONE = Decimal(1)
 _BRACKET_ENTRY_SEQUENCE = 0
 _BRACKET_PROTECTION_SEQUENCE = 1
+_BRACKET_FLATTEN_SEQUENCE = 999
+_BRACKET_FIRST_PROTECTION_VERSION = 1
+_FLATTEN_BUY_PRICE_BUFFER = Decimal('1.01')
 
 
 def _aggregate_oco_terminal_status(
@@ -223,7 +262,32 @@ class _LiveScheme:
     next_run_at: datetime | None = None
     deadline: datetime | None = None
     frozen: bool = False
+    protection_frozen: bool = False
     state: SchemeState = SchemeState.RUNNING
+    amend_generation: int = 0
+    amend_phase: str | None = None
+    amend_context: _LadderAmendContext | None = None
+
+
+@dataclass
+class _LadderAmendContext:
+    '''In-flight ladder-amend state a halt or a restart resumes from.
+
+    Carries the generation being retired and placed, the old grid's rung count
+    (how many rungs to retire), the target grid (to plan the remainder), and
+    the fixed replacement plan once known. Set when an amend begins and
+    rebuilt on boot from the durable amend events, so the shared driver can
+    finish a CANCELLING or PLACING amend identically whether it stalled live
+    or crashed mid-flight.
+    '''
+
+    old_generation: int
+    new_generation: int
+    old_slices_total: int
+    price_levels: tuple[Decimal, ...]
+    level_weights: tuple[Decimal, ...]
+    planned: list[tuple[int, Decimal, Decimal]] | None = None
+    cancel_committed: bool = False
 
 
 @dataclass
@@ -235,11 +299,51 @@ class _LiveBracket:
     account coroutine places the protection from the WebSocket fill via
     `_on_bracket_event`; `protection_placed` guards against a double
     placement across the immediate and asynchronous paths.
+
+    Once the protective OCO is live the bracket is retained as the durable
+    anchor for a protective-OCO amend: `protection_client_order_id` names the
+    resting OCO, `protection_version` counts amend attempts (0 for the
+    original placement), `protection_status` tracks the amend state machine,
+    and the resolved legs (`current_tp_price`, `current_sl_stop_price`,
+    `current_sl_limit_price`) are the snapshot a partial amend merges against.
+    `avg_entry_price` is the entry average fill an offset amend resolves from.
     '''
 
     command: TradeCommand
     entry_client_order_id: str
     protection_placed: bool = False
+    protection_client_order_id: str | None = None
+    protection_version: int = 0
+    protection_status: BracketProtectionStatus = BracketProtectionStatus.ACTIVE
+    avg_entry_price: Decimal | None = None
+    current_tp_price: Decimal | None = None
+    current_sl_stop_price: Decimal | None = None
+    current_sl_limit_price: Decimal | None = None
+    unknown_since: datetime | None = None
+    pending_replacement_client_order_id: str | None = None
+    amend_backfill_since: datetime | None = None
+    amend_new_list_client_order_id: str | None = None
+    amend_tp_price: Decimal | None = None
+    amend_sl_stop_price: Decimal | None = None
+    amend_sl_limit_price: Decimal | None = None
+    flatten_remainder: Decimal | None = None
+
+
+@dataclass
+class _PendingSingleAmend:
+    '''A single-order amend held after cancel until its venue fill reconciles.
+
+    When the post-cancel backfill of a fill that raced the cancel cannot be
+    reconciled to venue truth, the amend is parked rather than terminalizing the
+    old order and placing a replacement against an understated ledger. The
+    periodic scan re-drives it — re-query, backfill, then terminalize and place
+    the replacement once the projection reaches venue truth.
+    '''
+
+    old_client_order_id: str
+    new_client_order_id: str
+    new_price: Decimal
+    new_display: Decimal | None
 
 
 def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
@@ -348,7 +452,7 @@ class _AccountRuntime:
     Args:
         account_id (str): Account identifier.
         command_queue (asyncio.Queue[TradeCommand]): Bounded queue for commands; a full queue rejects fail-closed at submit.
-        priority_queue (asyncio.Queue[TradeAbort]): Unbounded queue for aborts.
+        priority_queue (asyncio.Queue[TradeAbort | TradeModify]): Unbounded queue for aborts and amends.
         ws_event_queue (asyncio.Queue[Event]): Unbounded queue for WS events.
         trading_state (TradingState): Per-account state projection.
         account_ledger (AccountLedger): Per-account double-entry projection.
@@ -358,7 +462,7 @@ class _AccountRuntime:
         self,
         account_id: str,
         command_queue: asyncio.Queue[TradeCommand],
-        priority_queue: asyncio.Queue[TradeAbort],
+        priority_queue: asyncio.Queue[TradeAbort | TradeModify],
         ws_event_queue: asyncio.Queue[Event],
         trading_state: TradingState,
         account_ledger: AccountLedger,
@@ -375,9 +479,12 @@ class _AccountRuntime:
         self.command_to_order: dict[str, str] = {}
         self.schemes: dict[str, _LiveScheme] = {}
         self.brackets: dict[str, _LiveBracket] = {}
+        self.amend_counts: dict[str, int] = {}
+        self.pending_amends: dict[str, _PendingSingleAmend] = {}
         self.queue_reservations = 0
         self.reconciling = False
         self.poisoned = False
+        self.protection_scan_requested = False
 
 
 class ExecutionManager:
@@ -406,6 +513,13 @@ class ExecutionManager:
         clock: Callable[[], datetime] = _utc_now,
         max_slippage_bps: Decimal | None = None,
         enabled_modes: frozenset[ExecutionMode] | None = None,
+        protection_failure_response: (
+            Callable[[str], BracketProtectionFailureResponse] | None
+        ) = None,
+        on_protection_remediation: (
+            Callable[[ProtectionRemediation], Awaitable[None]] | None
+        ) = None,
+        restore_deadline_seconds: float = 300.0,
     ) -> None:
         '''Store dependencies and initialize empty account registry.
 
@@ -430,9 +544,14 @@ class ExecutionManager:
         )
         self._on_trade_outcome = on_trade_outcome
         self._clock = clock
+        self._protection_failure_response = protection_failure_response
+        self._on_protection_remediation = on_protection_remediation
+        self._restore_deadline_seconds = restore_deadline_seconds
+        self._pending_remediations: dict[str, ProtectionRemediation] = {}
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
+        self._modifiable_snapshot: dict[str, frozenset[str]] = {}
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
         self._command_trade_ids: dict[str, str] = {}
@@ -461,6 +580,20 @@ class ExecutionManager:
         '''
 
         self._on_trade_outcome = cb
+
+    def set_on_protection_remediation(
+        self,
+        cb: Callable[[ProtectionRemediation], Awaitable[None]] | None,
+    ) -> None:
+        '''Replace the on_protection_remediation callback.
+
+        Used by `Trading.set_on_protection_remediation` so the launcher can
+        wire the per-account Nexus delivery closure after `Trading()` is
+        constructed. Must accept a `ProtectionRemediation` and return an
+        awaitable.
+        '''
+
+        self._on_protection_remediation = cb
 
     async def _dispatch_outcome_with_retry(
         self,
@@ -615,6 +748,38 @@ class ExecutionManager:
 
         return {k: copy.copy(v) for k, v in runtime.trading_state.orders.items()}
 
+    def owned_command_fragments(self, account_id: str) -> set[str]:
+        '''Return the command fragments this account has ever accepted.
+
+        Each fragment is the client-order-id slice a command produces via
+        `command_id_fragment`. A venue open order is Praxis-owned only if
+        its embedded fragment (`praxis_command_fragment`) is in this set:
+        the account's accepted commands are the authoritative record of
+        what Praxis created, so an order shaped like a Praxis id but tied
+        to no accepted command is foreign and left untouched. The set
+        retains terminalized commands, since a command reconciled at boot
+        can still have a live venue order that must be cancelled.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            set[str]: The account's accepted command fragments.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        if account_id not in self._accounts:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return {
+            command_id_fragment(command_id)
+            for command_id, owner in self._accepted_commands.items()
+            if owner == account_id
+        }
+
     def in_flight_command_ids(self, account_id: str) -> list[str]:
         '''Return the non-terminal command ids still working for an account.
 
@@ -657,6 +822,95 @@ class ExecutionManager:
             for command_id in candidates
             if command_id not in self._terminal_commands
         )
+
+    def modifiable_command_ids(self, account_id: str) -> list[str]:
+        '''Return the command ids a strategy MODIFY may target.
+
+        The Nexus INTAKE stage gates a MODIFY against this set (via the
+        launcher provider), so it must hold only commands `_process_modify`
+        would actually accept — not the wider shutdown-abort set. A command
+        merely accepted and still queued has no resting order or running scheme
+        yet, and a MODIFY (drained ahead of commands) would reach it first and
+        be silently rejected, so queued commands are excluded: the set is built
+        from the running schemes/ladders, the single orders with a live venue
+        order, and the ACTIVE-protection brackets. Frozen or mid-amend schemes
+        (rejected by `_process_scheme_modify` / `_process_ladder_modify`) and
+        each bracket's protective-OCO exit command are removed; a bracket whose
+        entry has terminalized but whose protective OCO is still ACTIVE stays
+        amendable through its entry id. `in_flight_command_ids` remains the
+        separate shutdown-abort set.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            list[str]: Amendable command ids, empty when unregistered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return []
+
+        exit_ids = {
+            bracket_exit_command_id(entry_id) for entry_id in runtime.brackets
+        }
+        live_order_commands = set()
+        for command_id, client_order_id in runtime.command_to_order.items():
+            order = runtime.trading_state.orders.get(client_order_id)
+            if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+                live_order_commands.add(command_id)
+
+        amendable = (
+            set(runtime.schemes)
+            | live_order_commands
+            | set(runtime.brackets)
+        ) - exit_ids
+        amendable -= self._terminal_commands
+        amendable -= set(runtime.pending_amends)
+        amendable -= {
+            command_id
+            for command_id, scheme in runtime.schemes.items()
+            if scheme.protection_frozen
+            or scheme.amend_phase is not None
+            or scheme.pending_terminal is not None
+            or (
+                scheme.frozen
+                and scheme.command.execution_mode is ExecutionMode.LADDER_DCA
+            )
+        }
+
+        for entry_id, bracket in runtime.brackets.items():
+            protection_active = (
+                bracket.protection_placed
+                and bracket.protection_client_order_id is not None
+                and bracket.protection_status is BracketProtectionStatus.ACTIVE
+            )
+            if protection_active:
+                amendable.add(entry_id)
+            else:
+                amendable.discard(entry_id)
+
+        return sorted(amendable)
+
+    def modifiable_command_ids_snapshot(self, account_id: str) -> frozenset[str]:
+        '''Return the last account-writer-published amendable set, thread-safe.
+
+        `modifiable_command_ids` iterates the runtime dictionaries the account
+        writer mutates, so calling it from a Nexus validation thread can tear or
+        raise `RuntimeError: dictionary changed size during iteration`. The
+        account loop republishes an immutable `frozenset` each iteration; this
+        reader returns that snapshot with a single atomic dict lookup, safe to
+        call from any thread. An account with no published snapshot yet (or
+        already unregistered) reads as empty.
+
+        Args:
+            account_id (str): Account identifier to read.
+
+        Returns:
+            frozenset[str]: The amendable command ids as of the last loop pass.
+        '''
+
+        return self._modifiable_snapshot.get(account_id, frozenset())
 
     def replay_events(
         self,
@@ -703,6 +957,21 @@ class ExecutionManager:
                 self._terminal_commands.add(event.command_id)
                 self._commands.pop(event.command_id, None)
 
+            if isinstance(event, OrderAmendInitiated):
+                runtime.amend_counts[event.command_id] = (
+                    runtime.amend_counts.get(event.command_id, 0) + 1
+                )
+                amended = self._commands.get(event.command_id)
+                if amended is not None and isinstance(
+                    amended.execution_params, (IcebergParams, SingleShotParams),
+                ):
+                    self._commands[event.command_id] = replace(
+                        amended,
+                        execution_params=self._amended_order_params(
+                            amended, event.price, event.display_qty,
+                        ),
+                    )
+
             if isinstance(event, OrderSubmitIntent):
                 self._command_trade_ids[event.command_id] = event.trade_id
                 runtime.command_to_order[event.command_id] = event.client_order_id
@@ -736,6 +1005,7 @@ class ExecutionManager:
         self._resume_schemes(runtime, events)
         self._resume_ladders(runtime, events)
         self._resume_brackets(runtime, events)
+        self._resume_unknown_protection(runtime, events)
 
     def _resume_ladders(
         self,
@@ -757,6 +1027,13 @@ class ExecutionManager:
         latest_state: dict[str, SchemeStateChanged] = {}
         terminal_outcomes: set[str] = set()
         frozen_ids: set[str] = set()
+        protection_frozen_ids: set[str] = set()
+        completed: dict[str, tuple[int, LadderDcaParams, int]] = {}
+        inflight: dict[
+            str, tuple[LadderAmendInitiated, LadderAmendPlanned | None, str]
+        ] = {}
+        initiated_by_gen: dict[tuple[str, int], LadderAmendInitiated] = {}
+        planned_by_gen: dict[tuple[str, int], LadderAmendPlanned] = {}
 
         for _seq, event in events:
             if (
@@ -768,8 +1045,42 @@ class ExecutionManager:
                 latest_state[event.command_id] = event
             elif isinstance(event, SliceFailed):
                 frozen_ids.add(event.command_id)
+            elif isinstance(event, SchemeFrozen):
+                frozen_ids.add(event.command_id)
+                protection_frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
+            elif isinstance(event, LadderAmendInitiated):
+                initiated_by_gen[(event.command_id, event.generation)] = event
+                inflight[event.command_id] = (event, None, 'CANCELLING')
+            elif isinstance(event, LadderAmendPlanned):
+                planned_by_gen[(event.command_id, event.generation)] = event
+                pending = inflight.get(event.command_id)
+                if pending is not None:
+                    inflight[event.command_id] = (pending[0], event, 'PLACING')
+            elif isinstance(event, LadderAmendStateUnknown):
+                pending = inflight.get(event.command_id)
+                if pending is not None:
+                    inflight[event.command_id] = (pending[0], pending[1], event.phase)
+            elif isinstance(event, LadderAmendCompleted):
+                init_e = initiated_by_gen.get((event.command_id, event.generation))
+                planned_e = planned_by_gen.get((event.command_id, event.generation))
+                grid_size = len(planned_e.sequences) if planned_e is not None else 0
+                grid_params = (
+                    LadderDcaParams(
+                        price_levels=init_e.price_levels,
+                        level_weights=init_e.level_weights or None,
+                    )
+                    if init_e is not None
+                    else None
+                )
+                if grid_params is not None:
+                    completed[event.command_id] = (
+                        event.generation, grid_params, grid_size,
+                    )
+                inflight.pop(event.command_id, None)
+            elif isinstance(event, LadderAmendAborted):
+                inflight.pop(event.command_id, None)
 
         for command_id, init in inits.items():
             if command_id in terminal_outcomes:
@@ -791,44 +1102,139 @@ class ExecutionManager:
                 )
                 continue
 
-            live_children, posted_count = self._ladder_children_from_projections(
-                runtime, command_id, init.slices_total,
-            )
-
             deadline = (
                 init.timestamp + timedelta(seconds=init.timeout_seconds)
                 if init.timeout_seconds > 0
                 else None
             )
 
-            scheme = _LiveScheme(
-                command=command,
-                slice_qtys=[],
-                slices_total=init.slices_total,
-                interval_seconds=0,
-                cursor=posted_count,
-                active_children=live_children,
-                next_run_at=None,
-                deadline=deadline,
-                frozen=command_id in frozen_ids,
-            )
+            pending = inflight.get(command_id)
+            if pending is not None:
+                _gen, baseline_params, _grid = completed.get(
+                    command_id, (0, command.execution_params, init.slices_total),
+                )
+                assert isinstance(baseline_params, LadderDcaParams)
+                scheme = self._resume_inflight_ladder_amend(
+                    runtime, command_id,
+                    replace(command, execution_params=baseline_params),
+                    deadline, pending,
+                    command_id in frozen_ids, command_id in protection_frozen_ids,
+                )
+            else:
+                generation, params, grid_size = completed.get(
+                    command_id, (0, command.execution_params, init.slices_total),
+                )
+                assert isinstance(params, LadderDcaParams)
+                live_children, posted_count = self._ladder_children_from_projections(
+                    runtime, command_id, grid_size, generation,
+                )
+                scheme = _LiveScheme(
+                    command=replace(command, execution_params=params),
+                    slice_qtys=[],
+                    slices_total=grid_size,
+                    interval_seconds=0,
+                    cursor=posted_count,
+                    active_children=live_children,
+                    next_run_at=None,
+                    deadline=deadline,
+                    frozen=command_id in frozen_ids,
+                    protection_frozen=command_id in protection_frozen_ids,
+                    amend_generation=generation,
+                )
+
             runtime.schemes[command_id] = scheme
-            self._commands[command_id] = command
+            self._commands[command_id] = scheme.command
             self._accepted_commands[command_id] = runtime.account_id
             self._command_trade_ids[command_id] = init.trade_id
 
             _log.info(
-                'resumed ladder from replay: command_id=%s active=%d frozen=%s',
+                'resumed ladder from replay: command_id=%s active=%d frozen=%s '
+                'generation=%d amend_phase=%s',
                 command_id,
-                len(live_children),
+                len(scheme.active_children),
                 scheme.frozen,
+                scheme.amend_generation,
+                scheme.amend_phase,
             )
+
+    def _resume_inflight_ladder_amend(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        command: TradeCommand,
+        deadline: datetime | None,
+        pending: tuple[LadderAmendInitiated, LadderAmendPlanned | None, str],
+        frozen: bool,
+        protection_frozen: bool,
+    ) -> _LiveScheme:
+        '''Rebuild a ladder whose amend was in flight at the crash.
+
+        The old-generation rungs still resting and any new-generation rungs
+        already placed are gathered as active children, and the amend context
+        (target grid, generation, and the fixed plan when reached) is rebuilt
+        from the durable events. The scheme resumes with its `amend_phase` set
+        so the reconcile watchdog re-drives it — retiring the rest of the old
+        grid and placing the new — exactly as the live driver would have.
+        '''
+
+        initiated, planned_event, phase = pending
+        old_generation = initiated.generation - 1
+
+        planned = (
+            [
+                (sequence, price, qty)
+                for sequence, price, qty in zip(
+                    planned_event.sequences,
+                    planned_event.prices,
+                    planned_event.qtys,
+                    strict=True,
+                )
+            ]
+            if planned_event is not None
+            else None
+        )
+        context = _LadderAmendContext(
+            old_generation=old_generation,
+            new_generation=initiated.generation,
+            old_slices_total=initiated.old_slices_total,
+            price_levels=initiated.price_levels,
+            level_weights=initiated.level_weights,
+            planned=planned,
+            cancel_committed=True,
+        )
+
+        old_live, _old_posted = self._ladder_children_from_projections(
+            runtime, command_id, initiated.old_slices_total, old_generation,
+        )
+        new_live: set[str] = set()
+        if planned_event is not None and planned_event.sequences:
+            new_grid_size = max(planned_event.sequences) + 1
+            new_live, _new_posted = self._ladder_children_from_projections(
+                runtime, command_id, new_grid_size, initiated.generation,
+            )
+
+        return _LiveScheme(
+            command=command,
+            slice_qtys=[],
+            slices_total=initiated.old_slices_total,
+            interval_seconds=0,
+            cursor=initiated.old_slices_total,
+            active_children=old_live | new_live,
+            next_run_at=None,
+            deadline=deadline,
+            frozen=frozen,
+            protection_frozen=protection_frozen,
+            amend_generation=old_generation,
+            amend_phase=phase,
+            amend_context=context,
+        )
 
     def _ladder_children_from_projections(
         self,
         runtime: _AccountRuntime,
         command_id: str,
         slices_total: int,
+        generation: int = 0,
     ) -> tuple[set[str], int]:
         '''Reconstruct a ladder's live rungs and posted count from replay.
 
@@ -844,6 +1250,8 @@ class ExecutionManager:
             runtime (_AccountRuntime): Per-account state to read projections.
             command_id (str): The ladder parent command id.
             slices_total (int): The persisted rung count.
+            generation (int): Amend generation whose rung ids (retry=generation)
+                to scan; 0 is the original grid.
 
         Returns:
             tuple[set[str], int]: The still-working rung client order ids and
@@ -854,7 +1262,7 @@ class ExecutionManager:
         posted_count = 0
         for index in range(slices_total):
             child_id = generate_client_order_id(
-                ExecutionMode.LADDER_DCA, command_id, sequence=index,
+                ExecutionMode.LADDER_DCA, command_id, sequence=index, retry=generation,
             )
             order = self._scheme_child_order(runtime, child_id)
             if order is None:
@@ -913,18 +1321,27 @@ class ExecutionManager:
         projection means the submit was persisted but never venue-confirmed
         (a crash between the intent and the response), so it is re-placed —
         the deterministic list client order id makes the retry idempotent via
-        the OCO rescue. A REJECTED protective OCO (venue rejection or a wrong-
-        side-of-fill skip) is a definitive failure and is not retried on boot
-        (TD-130); its filled entry stays unprotected pending operator repair.
-        A malformed init that cannot rebuild valid params is skipped.
+        the OCO rescue. A bracket that carries a durable `ProtectionFailed` was
+        already remediated inline (freeze, flatten, hold) and is not re-placed —
+        even if the process crashed before the exit's `OrderSubmitFailed` left
+        the OCO projection SUBMITTING — because `recover_incomplete_flattens`
+        finishes the flatten from that same marker. A malformed init that cannot
+        rebuild valid params is skipped.
         '''
 
         inits: dict[str, BracketInitialized] = {}
+        remediated: set[str] = set()
         for _seq, event in events:
             if isinstance(event, BracketInitialized):
                 inits[event.command_id] = event
 
+            elif isinstance(event, ProtectionFailed):
+                remediated.add(event.command_id)
+
         for command_id, init in inits.items():
+            if command_id in remediated:
+                continue
+
             entry_client_order_id = generate_client_order_id(
                 ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
             )
@@ -957,6 +1374,105 @@ class ExecutionManager:
             )
             _log.info(
                 'bracket resumed awaiting protection: command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+
+    def _resume_unknown_protection(
+        self,
+        runtime: _AccountRuntime,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Rebuild STATE_UNKNOWN brackets from any unresolved amend phase.
+
+        A protective-OCO amend persists its phase before each venue action
+        (`ProtectionAmendRequested` before the cancel, `ProtectionStateUnknown`
+        on a halt), so a crash anywhere in the amend — even after the venue
+        cancel but before the halt is recorded — leaves an unresolved phase but
+        no live `_LiveBracket`, and `_resume_brackets` skips it because the
+        pre-amend OCO is already terminal. Every command whose latest protection
+        phase is not a terminal `ProtectionActive` / `ProtectionFailed` is
+        rebuilt in STATE_UNKNOWN from that phase's candidate list ids (old and
+        replacement) and timestamp, so the reconcile watchdog re-queries both
+        candidates and resolves it exactly as before the restart.
+        '''
+
+        inits: dict[str, BracketInitialized] = {}
+        pending: dict[str, ProtectionAmendRequested | ProtectionStateUnknown] = {}
+        amends: dict[str, ProtectionAmendRequested] = {}
+        for _seq, event in events:
+            if isinstance(event, BracketInitialized):
+                inits[event.command_id] = event
+
+            elif isinstance(event, (ProtectionAmendRequested, ProtectionStateUnknown)):
+                pending[event.command_id] = event
+                if isinstance(event, ProtectionAmendRequested):
+                    amends[event.command_id] = event
+
+            elif isinstance(event, (ProtectionActive, ProtectionFailed)):
+                pending.pop(event.command_id, None)
+
+        for command_id, phase in pending.items():
+            if command_id in runtime.brackets:
+                continue
+
+            init = inits.get(command_id)
+            if init is None:
+                continue
+
+            try:
+                command = self._bracket_command_from_init(init)
+            except ValueError:
+                _log.exception(
+                    'bracket STATE_UNKNOWN resume skipped: malformed init '
+                    'params: command_id=%s account_id=%s',
+                    command_id,
+                    runtime.account_id,
+                )
+
+                continue
+
+            entry_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+            )
+
+            entry_order = self._scheme_child_order(runtime, entry_client_order_id)
+            avg_entry_price = (
+                entry_order.cumulative_notional / entry_order.filled_qty
+                if entry_order is not None and entry_order.filled_qty > _ZERO
+                else None
+            )
+
+            amend = amends.get(command_id)
+            current_tp_price: Decimal | None
+            current_sl_stop_price: Decimal | None
+            current_sl_limit_price: Decimal | None
+            if amend is not None:
+                current_tp_price = amend.take_profit_price
+                current_sl_stop_price = amend.stop_loss_price
+                current_sl_limit_price = amend.stop_loss_limit_price
+            else:
+                current_tp_price = init.take_profit_price
+                current_sl_stop_price = init.stop_loss_price
+                current_sl_limit_price = init.stop_loss_limit_price
+
+            runtime.brackets[command_id] = _LiveBracket(
+                command=command,
+                entry_client_order_id=entry_client_order_id,
+                protection_placed=True,
+                protection_status=BracketProtectionStatus.STATE_UNKNOWN,
+                protection_version=phase.protection_version,
+                protection_client_order_id=phase.old_list_client_order_id,
+                pending_replacement_client_order_id=phase.new_list_client_order_id,
+                unknown_since=phase.timestamp,
+                avg_entry_price=avg_entry_price,
+                current_tp_price=current_tp_price,
+                current_sl_stop_price=current_sl_stop_price,
+                current_sl_limit_price=current_sl_limit_price,
+            )
+            _log.info(
+                'bracket protection resumed STATE_UNKNOWN for watchdog: '
+                'command_id=%s account_id=%s',
                 command_id,
                 runtime.account_id,
             )
@@ -1017,6 +1533,7 @@ class ExecutionManager:
         latest_state: dict[str, SchemeStateChanged] = {}
         terminal_outcomes: set[str] = set()
         frozen_ids: set[str] = set()
+        protection_frozen_ids: set[str] = set()
 
         for _seq, event in events:
             if isinstance(event, SchemeInitialized):
@@ -1025,6 +1542,9 @@ class ExecutionManager:
                 latest_state[event.command_id] = event
             elif isinstance(event, SliceFailed):
                 frozen_ids.add(event.command_id)
+            elif isinstance(event, SchemeFrozen):
+                frozen_ids.add(event.command_id)
+                protection_frozen_ids.add(event.command_id)
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 terminal_outcomes.add(event.command_id)
 
@@ -1115,6 +1635,7 @@ class ExecutionManager:
                 next_run_at=state.next_run_at if state is not None else None,
                 deadline=deadline,
                 frozen=command_id in frozen_ids,
+                protection_frozen=command_id in protection_frozen_ids,
             )
 
             if (
@@ -1141,14 +1662,19 @@ class ExecutionManager:
         '''Apply an event to the account's trading-state and ledger projections.
 
         `RegisterAccount` and `FundTransaction` book into the ledger only;
-        `FillReceived` and `TradeClosed` book into both; every other event
-        advances the trading state alone. The ledger is a secondary
+        `FillReceived` and `TradeClosed` book into both; `ReconciliationMismatch`
+        is an alert that books nowhere and advances no projection; every other
+        event advances the trading state alone. The ledger is a secondary
         projection, so a projection failure is logged and never propagated
         into the trading path.
         '''
 
         if isinstance(event, RegisterAccount | FundTransaction):
             self._project_to_ledger(runtime, event)
+
+            return
+
+        if isinstance(event, ReconciliationMismatch):
 
             return
 
@@ -1400,17 +1926,18 @@ class ExecutionManager:
 
         await self._dispatch_outcome_with_retry(outcome, source='orphan')
 
-    def _scheme_fill_totals(
+    def _command_fill_totals(
         self,
         runtime: _AccountRuntime,
         command_id: str,
     ) -> tuple[Decimal, Decimal]:
-        '''Sum filled qty and notional across a scheme's child orders.
+        '''Sum filled qty and notional across every order for a command.
 
-        Reads the rebuilt order projections (active and closed) for every
-        child whose `command_id` matches the scheme parent, so the boot
-        terminalization reports the fills that actually settled rather than
-        an in-memory aggregate that a crash discarded.
+        Reads the order projections (active and closed) for every order whose
+        `command_id` matches — a scheme's children, or a single command's
+        original and amend-replacement orders — so fills settled across
+        multiple orders aggregate to the command total rather than an
+        in-memory running sum that a crash discarded.
         '''
 
         filled_qty = _ZERO
@@ -1454,7 +1981,7 @@ class ExecutionManager:
             return
 
         ts = self._clock()
-        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, command_id)
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, command_id)
         target_qty = scheme.total_qty
 
         if filled_qty > target_qty:
@@ -1562,6 +2089,51 @@ class ExecutionManager:
 
         return runtime.account_ledger.read_balances()
 
+    def get_asset_balances(self, account_id: str) -> dict[str, Decimal]:
+        '''
+        Return the account's raw per-asset balances for venue reconciliation.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            dict[str, Decimal]: Raw held balance keyed by asset symbol.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        return runtime.account_ledger.read_asset_balances()
+
+    def has_pending_ws_events(self, account_id: str) -> bool:
+        '''
+        Return whether the account has events queued but not yet projected.
+
+        WS fills and reconciliation events (including fund transactions) are
+        appended to the spine and then queued for the account coroutine to
+        project. Until that queue drains, the ledger projection lags the
+        spine, so a balance comparison against the venue would be stale. A
+        True result means the projection is not yet caught up.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            bool: True when events await projection; False when the account is
+                unregistered or fully drained.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return False
+
+        return not runtime.ws_event_queue.empty()
+
     def get_account_trade_pnls(self, account_id: str) -> dict[str, TradePnL]:
         '''
         Return a detached snapshot of per-trade realized P&L for an account.
@@ -1653,6 +2225,8 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
+        self._modifiable_snapshot.pop(account_id, None)
+
         if runtime.task is not None:
             runtime.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -1695,6 +2269,53 @@ class ExecutionManager:
             'abort enqueued: command_id=%s account_id=%s',
             abort.command_id,
             abort.account_id,
+        )
+
+    def submit_modify(self, modify: TradeModify) -> None:
+        '''
+        Validate and enqueue a TradeModify to the priority queue.
+
+        Args:
+            modify (TradeModify): Amend instruction targeting a command.
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered.
+            ValueError: If command_id is unknown, account_id mismatches, or
+                the amend parameters do not match the command's mode.
+        '''
+
+        runtime = self._accounts.get(modify.account_id)
+        if runtime is None:
+            msg = f"account_id '{modify.account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        bracket_commands = {
+            entry_id: bracket.command
+            for entry_id, bracket in runtime.brackets.items()
+            if bracket.protection_placed
+            and bracket.protection_client_order_id is not None
+            and bracket.protection_status is BracketProtectionStatus.ACTIVE
+        }
+
+        should_enqueue = validate_trade_modify(
+            modify,
+            self._commands,
+            self._terminal_commands,
+            bracket_commands,
+        )
+
+        if not should_enqueue:
+            _log.info(
+                'modify no-op (command already terminal): command_id=%s',
+                modify.command_id,
+            )
+            return
+
+        runtime.priority_queue.put_nowait(modify)
+        _log.info(
+            'modify enqueued: command_id=%s account_id=%s',
+            modify.command_id,
+            modify.account_id,
         )
 
     def enqueue_ws_event(self, account_id: str, event: Event) -> None:
@@ -1756,6 +2377,25 @@ class ExecutionManager:
             raise AccountNotRegisteredError(msg)
 
         runtime.reconciling = reconciling
+
+    def request_protection_scan(self, account_id: str) -> None:
+        '''Request the account writer run the protection watchdog next cycle.
+
+        Sets a flag the account loop consumes so the STATE_UNKNOWN watchdog and
+        the remediation drain execute on the single account writer rather than
+        racing it from the reconcile task. The reconcile task calls this on its
+        cadence; an unknown or reconciling account simply runs it on a later
+        cycle.
+
+        Args:
+            account_id (str): Account identifier.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        runtime.protection_scan_requested = True
 
     def is_order_capable(self, account_id: str) -> bool:
 
@@ -2040,24 +2680,56 @@ class ExecutionManager:
                             runtime.account_id,
                         )
 
+                deferred_modifies: list[TradeModify] = []
                 while not runtime.priority_queue.empty():
-                    abort = runtime.priority_queue.get_nowait()
+                    control = runtime.priority_queue.get_nowait()
+
+                    if isinstance(control, TradeModify) and (
+                        runtime.reconciling or runtime.poisoned
+                    ):
+                        # An abort (risk reduction) still runs, but an amend must
+                        # not cancel/query/place against stale reconnect state or
+                        # keep mutating the venue after fail-stop; defer it until
+                        # the account is order-capable again.
+                        deferred_modifies.append(control)
+                        _log.info(
+                            'modify deferred; account not order-capable '
+                            '(reconciling=%s poisoned=%s): command_id=%s account_id=%s',
+                            runtime.reconciling,
+                            runtime.poisoned,
+                            control.command_id,
+                            runtime.account_id,
+                        )
+                        continue
+
                     _log.info(
-                        'abort received: command_id=%s account_id=%s',
-                        abort.command_id,
+                        'priority control received: type=%s command_id=%s account_id=%s',
+                        type(control).__name__,
+                        control.command_id,
                         runtime.account_id,
                     )
                     try:
-                        await self._process_abort(runtime, abort)
+                        if isinstance(control, TradeModify):
+                            await self._process_modify(runtime, control)
+                        else:
+                            await self._process_abort(runtime, control)
                     except asyncio.CancelledError:
                         raise
                     except Exception:  # noqa: BLE001
                         _log.exception(
-                            'unhandled exception while processing abort: '
-                            'command_id=%s account_id=%s',
-                            abort.command_id,
+                            'unhandled exception while processing priority control: '
+                            'type=%s command_id=%s account_id=%s',
+                            type(control).__name__,
+                            control.command_id,
                             runtime.account_id,
                         )
+
+                for control in deferred_modifies:
+                    runtime.priority_queue.put_nowait(control)
+
+                self._modifiable_snapshot[runtime.account_id] = frozenset(
+                    self.modifiable_command_ids(runtime.account_id),
+                )
 
                 if runtime.reconciling or runtime.poisoned:
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
@@ -2065,6 +2737,10 @@ class ExecutionManager:
 
                 await self._advance_due_schemes(runtime)
                 await self._place_pending_bracket_protection(runtime)
+
+                if runtime.protection_scan_requested:
+                    runtime.protection_scan_requested = False
+                    await self._run_protection_scan(runtime)
 
                 if runtime.command_queue.empty():
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
@@ -2627,13 +3303,15 @@ class ExecutionManager:
         bracket: _LiveBracket,
         entry_order: Order,
     ) -> TradeOutcome:
-        '''Place protection for a settled bracket entry and report its outcome.
+        '''Report a settled bracket entry outcome, then place its protection.
 
         Runs on the command path when the entry filled immediately (no
-        WebSocket round trip): places the protective OCO for the filled
-        quantity and reports the entry outcome. A terminal entry with no
-        fill leaves nothing to protect and reports the venue's terminal
-        state.
+        WebSocket round trip). The entry outcome is delivered before the
+        protective OCO is placed, mirroring the WebSocket path: a definitive
+        protection failure remediates by flattening, whose exit outcome must
+        not reach Nexus before the entry it closes has been recorded. A
+        terminal entry with no fill leaves nothing to protect and reports the
+        venue's terminal state.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -2671,15 +3349,12 @@ class ExecutionManager:
             )
 
         avg_entry_price = cumulative_notional / filled_qty
-        await self._place_bracket_protection(
-            runtime, bracket, filled_qty, avg_entry_price,
-        )
 
         status = (
             TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
         )
 
-        return await self._build_outcome(
+        outcome = await self._build_outcome(
             runtime,
             cmd,
             status,
@@ -2688,6 +3363,12 @@ class ExecutionManager:
             reason=None,
             cumulative_notional=cumulative_notional,
         )
+
+        await self._place_bracket_protection(
+            runtime, bracket, filled_qty, avg_entry_price,
+        )
+
+        return outcome
 
     async def _on_bracket_event(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Place a bracket's protective OCO once its entry order settles.
@@ -2764,10 +3445,10 @@ class ExecutionManager:
                 continue
 
             avg_entry_price = entry_order.cumulative_notional / entry_order.filled_qty
+            await self._recover_bracket_entry_outcome(runtime, bracket, entry_order)
             await self._place_bracket_protection(
                 runtime, bracket, entry_order.filled_qty, avg_entry_price,
             )
-            await self._recover_bracket_entry_outcome(runtime, bracket, entry_order)
 
     async def _recover_bracket_entry_outcome(
         self,
@@ -2828,8 +3509,9 @@ class ExecutionManager:
         position-closing EXIT outcome (`_emit_ws_outcome`) — the identity the
         Nexus exit registration shares. A timeout or duplicate reuses the
         single-shot OCO rescue before failing closed; a definitive failure
-        leaves the entry position unprotected (TD-130), logged for repair
-        rather than unwinding the filled entry.
+        (wrong-side legs, an unsalvageable timeout/duplicate, or a venue error)
+        routes the naked entry through the shared remediation — freeze, flatten,
+        Nexus hold — rather than leaving it unprotected.
 
         Args:
             runtime (_AccountRuntime): Per-account state to update.
@@ -2883,7 +3565,7 @@ class ExecutionManager:
         if not self._bracket_legs_valid_for_entry(cmd, tp_price, sl_stop_price, avg_entry_price):
             _log.error(
                 'bracket protective legs on the wrong side of the entry fill; '
-                'skipping protection (position unprotected): command_id=%s side=%s '
+                'remediating naked entry: command_id=%s side=%s '
                 'avg_entry=%s tp=%s sl=%s',
                 cmd.command_id,
                 cmd.side.value,
@@ -2891,11 +3573,10 @@ class ExecutionManager:
                 tp_price,
                 sl_stop_price,
             )
-            await self._append_submit_failed(
-                runtime,
-                exit_cmd,
-                client_order_id,
+            await self._remediate_failed_initial_protection(
+                runtime, bracket, exit_cmd, client_order_id, qty,
                 'bracket protective legs on the wrong side of the entry fill',
+                (),
             )
 
             return
@@ -2918,13 +3599,15 @@ class ExecutionManager:
             )
             if rescued is None:
                 _log.exception(
-                    'bracket protective OCO failed; entry position unprotected: '
+                    'bracket protective OCO failed; remediating naked entry: '
                     'command_id=%s exit_command_id=%s',
                     cmd.command_id,
                     exit_command_id,
                 )
-                await self._append_submit_failed(
-                    runtime, exit_cmd, client_order_id, str(exc.args[0]),
+                await self._remediate_failed_initial_protection(
+                    runtime, bracket, exit_cmd, client_order_id, qty,
+                    f'bracket protective OCO submit failed: {exc.args[0]}',
+                    (client_order_id,),
                 )
 
                 return
@@ -2932,17 +3615,16 @@ class ExecutionManager:
             result = rescued
         except VenueError as exc:
             _log.exception(
-                'bracket protective OCO failed; entry position unprotected: '
+                'bracket protective OCO failed; remediating naked entry: '
                 'command_id=%s exit_command_id=%s reason=%s',
                 cmd.command_id,
                 exit_command_id,
                 str(exc.args[0]) if exc.args else str(exc),
             )
-            await self._append_submit_failed(
-                runtime,
-                exit_cmd,
-                client_order_id,
+            await self._remediate_failed_initial_protection(
+                runtime, bracket, exit_cmd, client_order_id, qty,
                 f'bracket protective OCO failed: {exc}',
+                (client_order_id,),
             )
 
             return
@@ -2960,6 +3642,14 @@ class ExecutionManager:
         )
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
+
+        bracket.protection_client_order_id = client_order_id
+        bracket.avg_entry_price = avg_entry_price
+        bracket.current_tp_price = tp_price
+        bracket.current_sl_stop_price = sl_stop_price
+        bracket.current_sl_limit_price = sl_limit_price
+        bracket.protection_status = BracketProtectionStatus.ACTIVE
+        runtime.brackets[cmd.command_id] = bracket
 
         for fill in result.immediate_fills:
             fill_event = FillReceived(
@@ -3718,6 +4408,7 @@ class ExecutionManager:
         for scheme in list(runtime.schemes.values()):
             if (
                 scheme.pending_terminal is None
+                and scheme.amend_phase is None
                 and scheme.deadline is not None
                 and now >= scheme.deadline
             ):
@@ -4064,6 +4755,7 @@ class ExecutionManager:
         index: int,
         level_qty: Decimal,
         level_price: Decimal,
+        generation: int = 0,
     ) -> str | None:
         '''Persist-before-send one resting LIMIT child for a ladder rung.
 
@@ -4072,11 +4764,13 @@ class ExecutionManager:
         immediate fill on success, `OrderSubmitFailed` on a definitive
         failure. Returns the rung `client_order_id` on success (usually
         resting OPEN; its later fills aggregate through the order
-        projection), or None when the rung could not be placed.
+        projection), or None when the rung could not be placed. `generation`
+        qualifies the client order id (retry=generation) so an amended rung
+        never collides with a cancelled rung of the same index.
         '''
 
         client_order_id = generate_client_order_id(
-            cmd.execution_mode, cmd.command_id, sequence=index,
+            cmd.execution_mode, cmd.command_id, sequence=index, retry=generation,
         )
         now = self._clock()
 
@@ -4198,7 +4892,7 @@ class ExecutionManager:
         '''
 
         cmd = scheme.command
-        filled_qty, _ = self._scheme_fill_totals(runtime, cmd.command_id)
+        filled_qty, _ = self._command_fill_totals(runtime, cmd.command_id)
 
         changed = SchemeStateChanged(
             account_id=cmd.account_id,
@@ -4234,7 +4928,15 @@ class ExecutionManager:
         to the lot step — economically negligible and un-tradeable, the same
         dust a single-shot MARKET order leaves. PARTIAL is not a terminal
         `TradeStatus`, so it cannot be the outcome of a completed command.
+
+        A ladder mid-amend (`amend_phase` set) never finalizes here: the amend
+        driver empties `active_children` while retiring the old grid, so
+        finalizing on that transient emptiness would complete the ladder before
+        the new grid is placed. The driver finalizes once the amend resolves.
         '''
+
+        if scheme.amend_phase is not None:
+            return
 
         if scheme.active_children:
             return
@@ -4293,6 +4995,9 @@ class ExecutionManager:
 
         if order.status in _TERMINAL_ORDER_STATUSES:
             scheme.active_children.discard(event.client_order_id)
+
+            if scheme.amend_phase is not None:
+                return
 
             if (
                 order.status is not OrderStatus.FILLED
@@ -4385,7 +5090,7 @@ class ExecutionManager:
 
         await self._append_scheme_progress(runtime, scheme, scheme_state)
 
-        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, cmd.command_id)
 
         await self._emit_scheme_terminal(
             runtime,
@@ -4430,6 +5135,1372 @@ class ExecutionManager:
         scheme.next_run_at = None
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _freeze_account_schemes(
+        self,
+        runtime: _AccountRuntime,
+        reason: str,
+    ) -> list[str]:
+        '''Durably freeze every live scheme on the account against new slices.
+
+        Appends a `SchemeFrozen` for each running, non-terminal scheme and
+        freezes it in memory so `_advance_due_schemes` fires no further
+        slice. The durable event lands the scheme in the replay freeze set,
+        so a restart resumes it frozen instead of re-arming its timer — the
+        naked-protection interlock that stops schemes buying while a bracket
+        is unprotected, across restarts. A scheme frozen only by a slice
+        failure (amend-resumable) is upgraded to protection-frozen so an
+        amend cannot resume it during the remediation. Idempotent: an
+        already-protection-frozen or terminalizing scheme is skipped.
+
+        Args:
+            runtime (_AccountRuntime): Account whose schemes to freeze.
+            reason (str): Freeze reason recorded on each event.
+
+        Returns:
+            list[str]: Command ids newly frozen by this call.
+        '''
+
+        frozen: list[str] = []
+
+        for command_id, scheme in runtime.schemes.items():
+            if scheme.protection_frozen or scheme.pending_terminal is not None:
+                continue
+
+            event = SchemeFrozen(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=command_id,
+                reason=reason,
+            )
+            await self._event_spine.append(event, self._epoch_id)
+
+            scheme.frozen = True
+            scheme.protection_frozen = True
+            scheme.next_run_at = None
+            frozen.append(command_id)
+
+        return frozen
+
+    def _protection_response_for(
+        self, account_id: str,
+    ) -> BracketProtectionFailureResponse:
+        '''Resolve the account's bracket-protection failure response.
+
+        Defaults to the fail-safe FLATTEN_THEN_HALT when no per-account
+        resolver was wired, so an unconfigured deployment flattens rather
+        than leaving a naked position.
+        '''
+
+        if self._protection_failure_response is None:
+            return BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+
+        return self._protection_failure_response(account_id)
+
+    async def _free_asset_balance(self, account_id: str, asset: str) -> Decimal:
+        '''Return the venue free balance of an asset, or zero if absent.'''
+
+        entries = await self._venue_adapter.query_balance(
+            account_id, frozenset({asset}),
+        )
+        for entry in entries:
+            if entry.asset == asset:
+                return entry.free
+
+        return _ZERO
+
+    async def _conservative_flatten_buy_price(
+        self, cmd: TradeCommand, fallback: Decimal,
+    ) -> Decimal:
+        '''Return a fresh conservative price to cap a BUY flatten by free quote.
+
+        A BUY flatten (closing a short) pays the current ask, not the historical
+        entry price — when the market has risen against the stop, the usual
+        failure direction, sizing the quote cap on the entry price buys more
+        than the free balance covers and the venue rejects the remediation. The
+        current best ask plus a fee/slippage buffer bounds the market cost; a
+        book query that fails falls back to the entry price.
+        '''
+
+        try:
+            book = await self._venue_adapter.query_order_book(cmd.symbol)
+        except VenueError:
+            return fallback
+
+        if not book.asks:
+            return fallback
+
+        return book.asks[0].price * _FLATTEN_BUY_PRICE_BUFFER
+
+    async def _current_flatten_sell_price(
+        self, cmd: TradeCommand, fallback: Decimal,
+    ) -> Decimal:
+        '''Return a fresh market price for a SELL flatten's tradability check.
+
+        Binance applies MARKET-order notional rules at current market pricing,
+        so a SELL flatten (closing a long) is checked against the current best
+        bid, not the historical entry price — after a large adverse move the
+        entry-price notional can read below the venue minimum while the current
+        notional clears it, which would otherwise reject a viable remediation
+        and leave the position naked. A book query that fails, or an empty bid
+        side, falls back to the entry price.
+        '''
+
+        try:
+            book = await self._venue_adapter.query_order_book(cmd.symbol)
+        except VenueError:
+            return fallback
+
+        if not book.bids:
+            return fallback
+
+        return book.bids[0].price
+
+    def _record_protection_remediation(
+        self,
+        account_id: str,
+        command_id: str,
+        protection_version: int,
+        reason: str,
+    ) -> None:
+        '''Record a protection remediation for durable delivery to Nexus.
+
+        Kept in memory keyed by command id and delivered (idempotently) by
+        `drain_protection_remediations` on the reconcile cycle: the Nexus hold
+        is sticky, so re-delivery after a restart is a no-op. Applies to both
+        policies — Nexus's handler decides HALT vs REDUCE_ONLY.
+        '''
+
+        self._pending_remediations[command_id] = ProtectionRemediation(
+            account_id=account_id,
+            timestamp=self._clock().astimezone(UTC),
+            protection_remediation_id=f'protection-{command_id}-{protection_version}',
+            command_id=command_id,
+            protection_version=protection_version,
+            reason=reason,
+        )
+
+    def seed_protection_remediations(
+        self,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Re-seed pending remediations from replayed `ProtectionFailed` events.
+
+        A failed bracket's Nexus hold must be delivered after a restart, and a
+        failed bracket is not resumed into `runtime.brackets`, so the pending
+        set is rebuilt from the durable failure markers — except commands
+        already recorded delivered by a `ProtectionRemediationDelivered`. The
+        Nexus hold is sticky and operator-cleared, so re-delivering an
+        already-delivered remediation would re-apply a hold an operator may
+        have since lifted; the delivered marker prevents that.
+        '''
+
+        delivered: set[str] = {
+            event.command_id
+            for _seq, event in events
+            if isinstance(event, ProtectionRemediationDelivered)
+        }
+
+        for _seq, event in events:
+            if isinstance(event, ProtectionFailed) and event.command_id not in delivered:
+                self._record_protection_remediation(
+                    event.account_id,
+                    event.command_id,
+                    event.protection_version,
+                    event.reason,
+                )
+
+    async def drain_protection_remediations(self, account_id: str) -> None:
+        '''Deliver pending protection remediations for an account to Nexus.
+
+        Mirrors the reconciliation-mismatch delivery: each pending remediation
+        is delivered through the injected callback, dropped from the pending
+        set on success, and left to retry on the next cycle on any failure
+        (including the Nexus runtime not being ready yet).
+        '''
+
+        if self._on_protection_remediation is None:
+            return
+
+        pending = [
+            (command_id, remediation)
+            for command_id, remediation in self._pending_remediations.items()
+            if remediation.account_id == account_id
+        ]
+        for command_id, remediation in pending:
+            try:
+                await self._on_protection_remediation(remediation)
+            except Exception:  # noqa: BLE001 - leave pending to retry next cycle
+                _log.exception(
+                    'failed to deliver protection remediation to Nexus; will '
+                    'retry next cycle: command_id=%s',
+                    command_id,
+                )
+
+                continue
+
+            delivered = ProtectionRemediationDelivered(
+                account_id=remediation.account_id,
+                timestamp=self._clock(),
+                command_id=command_id,
+                protection_remediation_id=remediation.protection_remediation_id,
+            )
+            await self._event_spine.append(delivered, self._epoch_id)
+            self._pending_remediations.pop(command_id, None)
+
+    async def _remediate_naked_bracket(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        version: int,
+        reason: str,
+        remainder: Decimal,
+        oco_candidates: tuple[str, ...],
+    ) -> None:
+        '''Apply the naked-protection remediation: freeze, record, flatten, hold.
+
+        Freezes the account's schemes against adding exposure, records the
+        durable `ProtectionFailed` marker, flattens the remainder when the
+        account policy is FLATTEN_THEN_HALT, and delivers the Nexus hold
+        immediately (retried on the reconcile cycle). Shared by the definitive
+        amend-failure path and the STATE_UNKNOWN watchdog once a bracket is
+        confirmed naked.
+
+        Args:
+            runtime (_AccountRuntime): Account whose bracket is naked.
+            bracket (_LiveBracket): The unprotected bracket.
+            version (int): Protective-OCO revision that failed.
+            reason (str): Human-readable trigger.
+            remainder (Decimal): Venue-reconciled remaining position.
+            oco_candidates (tuple[str, ...]): Every OCO list id the flatten must
+                confirm terminal before selling — the cancelled OCO and any
+                ambiguous replacement — persisted on the marker so boot recovery
+                guards them too.
+        '''
+
+        cmd = bracket.command
+        await self._freeze_account_schemes(
+            runtime,
+            f'bracket protection failed: command_id={cmd.command_id} '
+            f'version={version}',
+        )
+        await self._append_protection_failed(
+            cmd, version, reason, oco_candidates,
+        )
+        bracket.protection_status = BracketProtectionStatus.FAILED
+        self._record_protection_remediation(
+            cmd.account_id, cmd.command_id, version, reason,
+        )
+        _log.warning(
+            'bracket protection failed; account schemes frozen: command_id=%s '
+            'version=%d reason=%s',
+            cmd.command_id,
+            version,
+            reason,
+        )
+
+        if (
+            self._protection_response_for(cmd.account_id)
+            is BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+        ):
+            bracket.flatten_remainder = remainder
+            await self._flatten_bracket_remainder(
+                runtime, bracket, version, reason,
+                remainder, oco_candidates,
+            )
+
+        await self.drain_protection_remediations(cmd.account_id)
+
+    async def resolve_failed_flattens(self, account_id: str) -> None:
+        '''Retry a failed bracket's flatten that never became durable in-session.
+
+        A naked-protection remediation records `ProtectionFailed` (which removes
+        the bracket from the STATE_UNKNOWN watchdog) before its flatten guard
+        succeeds; if the flatten then aborts on a transient — a protective leg
+        still live or unconfirmable, or the free balance momentarily short — it
+        returns without a `FlattenInitiated`, and only boot recovery would retry
+        it. This scan re-drives the flatten each reconcile tick for a
+        FLATTEN_THEN_HALT bracket left FAILED with no flatten order yet placed,
+        so remediation no longer waits for a restart. Once the flatten order
+        exists (working or filled) it is left to settle or to boot recovery.
+
+        Args:
+            account_id (str): Account whose failed-flatten brackets to retry.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        if (
+            self._protection_response_for(account_id)
+            is not BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+        ):
+            return
+
+        for bracket in list(runtime.brackets.values()):
+            if (
+                bracket.protection_status is not BracketProtectionStatus.FAILED
+                or bracket.flatten_remainder is None
+            ):
+                continue
+
+            cmd = bracket.command
+            flatten_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, cmd.command_id,
+                sequence=_BRACKET_FLATTEN_SEQUENCE,
+            )
+            if self._scheme_child_order(runtime, flatten_client_order_id) is not None:
+                continue
+
+            await self._flatten_bracket_remainder(
+                runtime, bracket, bracket.protection_version,
+                'failed-flatten retry', bracket.flatten_remainder,
+                self._bracket_oco_candidates(bracket),
+            )
+
+    async def _remediate_failed_initial_protection(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        exit_cmd: TradeCommand,
+        client_order_id: str,
+        qty: Decimal,
+        reason: str,
+        oco_candidates: tuple[str, ...],
+    ) -> None:
+        '''Remediate a bracket whose initial protective OCO failed (TD-130).
+
+        The whole filled entry is naked, so the bracket is tracked FAILED and
+        routed through the shared naked-protection remediation (freeze, flatten,
+        hold) instead of being left unprotected with only a log. The durable
+        `ProtectionFailed` is appended (inside the remediation) before the
+        exit's `OrderSubmitFailed`, so a crash between the two still leaves the
+        crash-durable marker that boot flatten recovery keys on. The failure is
+        recorded against the first protective revision, since the original
+        placement (version 0) never rested a protective OCO.
+
+        `oco_candidates` is the protective OCO's list id when the OCO may have
+        reached the venue (an unsalvageable timeout or a venue error), so the
+        flatten re-checks the venue for a live leg before selling; it is empty
+        only when the OCO was never POSTed (wrong-side legs), where a second
+        sell is impossible and the guard is safely skipped.
+        '''
+
+        version = max(bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION)
+        runtime.brackets[bracket.command.command_id] = bracket
+        await self._remediate_naked_bracket(
+            runtime, bracket, version, reason, qty, oco_candidates,
+        )
+        await self._append_submit_failed(
+            runtime, exit_cmd, client_order_id, reason,
+        )
+
+    async def _working_protective_oco(
+        self, cmd: TradeCommand, list_client_order_id: str,
+    ) -> VenueOrderList | None:
+        '''Return a protective OCO list only while it is still working.
+
+        A list the venue reports REJECT or ALL_DONE (cancelled or a leg filled),
+        or that the venue no longer knows (NotFound), is no longer protecting
+        and returns None; a working list is returned so its legs can be
+        re-tracked. Raises `VenueError` when the query cannot be completed, so
+        the caller stays STATE_UNKNOWN rather than act on an unconfirmed state.
+        '''
+
+        try:
+            order_list = await self._venue_adapter.query_order_list(
+                cmd.account_id, list_client_order_id=list_client_order_id,
+            )
+        except NotFoundError:
+            return None
+
+        if order_list.list_order_status in (
+            _OCO_LIST_STATUS_REJECT, _OCO_LIST_STATUS_ALL_DONE,
+        ):
+            return None
+
+        return order_list
+
+    async def _reactivate_protection(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        client_order_id: str,
+        order_list: VenueOrderList,
+    ) -> None:
+        '''Re-track a protective OCO the watchdog confirmed still working.
+
+        Re-tracking only succeeds when the trading state already carries the
+        order (its OrderSubmitIntent was persisted when the OCO was submitted
+        and replays on boot). A submitted event for an unknown order would
+        no-op in the trading state and strand leg-fill routing, so an absent
+        order leaves the bracket STATE_UNKNOWN for the next cycle instead.
+        '''
+
+        cmd = bracket.command
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+
+        if runtime.trading_state.orders.get(client_order_id) is None:
+            _log.warning(
+                'bracket protection re-track skipped: order absent from trading '
+                'state; command_id=%s client_order_id=%s',
+                cmd.command_id,
+                client_order_id,
+            )
+            return
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=client_order_id,
+            venue_order_id=order_list.order_list_id,
+            leg_client_order_ids=tuple(
+                leg.client_order_id for leg in order_list.legs
+            ),
+        )
+        runtime.command_to_order[exit_command_id] = client_order_id
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        active = ProtectionActive(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=bracket.protection_version,
+            new_list_client_order_id=client_order_id,
+        )
+        await self._event_spine.append(active, self._epoch_id)
+        bracket.protection_client_order_id = client_order_id
+        bracket.protection_status = BracketProtectionStatus.ACTIVE
+        bracket.unknown_since = None
+        bracket.pending_replacement_client_order_id = None
+        _log.info(
+            'bracket protection re-confirmed working by watchdog: command_id=%s '
+            'client_order_id=%s',
+            cmd.command_id,
+            client_order_id,
+        )
+
+    async def _run_protection_scan(self, runtime: _AccountRuntime) -> None:
+        '''Run the reconcile-tick watchdogs and drains on the account writer.
+
+        Requested by the off-critical-path reconcile task via
+        `request_protection_scan` and executed here so the watchdogs' writes —
+        protection re-track, scheme freeze, flatten submit, and ladder-amend
+        cancel/place — run on the single account writer rather than racing it
+        from the reconcile task. A failure is logged and swallowed so a venue
+        error cannot stop the account loop.
+        '''
+
+        try:
+            await self.resolve_unknown_protection(runtime.account_id)
+            await self.drain_protection_remediations(runtime.account_id)
+            await self.resolve_ladder_amends(runtime.account_id)
+            await self.resolve_pending_amends(runtime.account_id)
+            await self.resolve_held_protection_amends(runtime.account_id)
+            await self.resolve_failed_flattens(runtime.account_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            _log.exception(
+                'protection scan failed: account_id=%s', runtime.account_id,
+            )
+
+    async def resolve_ladder_amends(self, account_id: str) -> None:
+        '''Advance any stalled or crash-resumed ladder amend on the writer.
+
+        A live amend that could not confirm a cancel or a placement, or one
+        rebuilt mid-flight on boot, holds with `amend_phase` set and its
+        context retained. Each reconcile tick re-drives it — retrying the
+        fail-closed cancels or the missing placements idempotently — until it
+        completes or halts again on a still-unconfirmable venue.
+
+        Args:
+            account_id (str): Account whose ladder amends to advance.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for scheme in list(runtime.schemes.values()):
+            if scheme.amend_phase is None or scheme.amend_context is None:
+                continue
+
+            await self._drive_ladder_amend(runtime, scheme)
+
+    async def resolve_unknown_protection(self, account_id: str) -> None:
+        '''Resolve brackets stuck in STATE_UNKNOWN on the account writer.
+
+        A protective-OCO amend that could not confirm its venue outcome leaves
+        the bracket STATE_UNKNOWN. Each cycle the venue is re-queried:
+
+        - a still-working OCO (the ambiguity resolved in favour of protection)
+          is re-tracked ACTIVE;
+        - every candidate the venue confirms terminal is resolved by remaining
+          quantity now: a filled protective leg (remainder <= 0) closed the
+          position, so the bracket is simply dropped; a genuine naked remainder
+          (> 0) is remediated at once (freeze, flatten, hold);
+        - a query that cannot be completed leaves the bracket STATE_UNKNOWN and,
+          only once the restore deadline elapses without ever confirming the
+          venue state, is remediated fail-safe on the local projection.
+
+        Confirmed outcomes act immediately; the deadline gates only the
+        unconfirmable case, so a routine take-profit fill never freezes schemes
+        or halts the account.
+
+        Args:
+            account_id (str): Account whose brackets to resolve.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for _command_id, bracket in list(runtime.brackets.items()):
+            if bracket.protection_status is not BracketProtectionStatus.STATE_UNKNOWN:
+                continue
+
+            cmd = bracket.command
+            candidates = [
+                candidate
+                for candidate in (
+                    bracket.pending_replacement_client_order_id,
+                    bracket.protection_client_order_id,
+                )
+                if candidate is not None
+            ]
+
+            working: tuple[str, VenueOrderList] | None = None
+            query_failed = False
+            for candidate in candidates:
+                try:
+                    order_list = await self._working_protective_oco(cmd, candidate)
+                except VenueError:
+                    query_failed = True
+                    continue
+
+                if order_list is not None:
+                    working = (candidate, order_list)
+                    break
+
+            if working is not None:
+                await self._reactivate_protection(
+                    runtime, bracket, working[0], working[1],
+                )
+                continue
+
+            if query_failed:
+                await self._remediate_unconfirmable_bracket(runtime, bracket)
+                continue
+
+            await self._resolve_confirmed_terminal_bracket(runtime, bracket)
+
+    async def _resolve_confirmed_terminal_bracket(
+        self, runtime: _AccountRuntime, bracket: _LiveBracket,
+    ) -> None:
+        '''Resolve a STATE_UNKNOWN bracket whose OCO the venue confirms terminal.
+
+        The venue confirmed no candidate list is working, so the outcome turns
+        on venue-truth remaining quantity: a protective leg that filled closes
+        the position (remainder <= 0) and the bracket is dropped without a
+        halt; a positive remainder is genuinely naked and is remediated now.
+        '''
+
+        cmd = bracket.command
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+
+        candidates = [
+            candidate
+            for candidate in (
+                bracket.protection_client_order_id,
+                bracket.pending_replacement_client_order_id,
+            )
+            if candidate is not None
+        ]
+        exit_venue = _ZERO
+        candidate_projected = _ZERO
+        for candidate in candidates:
+            try:
+                order_list = await self._venue_adapter.query_order_list(
+                    cmd.account_id, list_client_order_id=candidate,
+                )
+                candidate_venue = _ZERO
+                for leg in order_list.legs:
+                    leg_order = await self._venue_adapter.query_order(
+                        cmd.account_id, cmd.symbol, client_order_id=leg.client_order_id,
+                    )
+                    candidate_venue += leg_order.filled_qty
+            except NotFoundError:
+                continue
+            except VenueError:
+                return
+
+            leg_client_order_ids = tuple(
+                leg.client_order_id for leg in order_list.legs
+            )
+            candidate_order = self._scheme_child_order(runtime, candidate)
+            candidate_local = (
+                candidate_order.filled_qty if candidate_order is not None else _ZERO
+            )
+            reconciled = await self._backfill_terminal_order_fills(
+                runtime, cmd.account_id, cmd.symbol, exit_command_id, cmd.trade_id,
+                protective_side, candidate, leg_client_order_ids,
+                candidate_local, candidate_venue,
+            )
+            if not reconciled:
+                return
+
+            exit_venue += candidate_venue
+            candidate_projected += candidate_local
+
+        remainder = entry_filled - (exit_projected - candidate_projected + exit_venue)
+        if remainder <= _ZERO:
+            exit_cmd = self._commands.get(exit_command_id)
+            exit_filled, exit_notional = self._command_fill_totals(
+                runtime, exit_command_id,
+            )
+            if exit_cmd is not None and exit_filled > _ZERO:
+                await self._build_outcome(
+                    runtime,
+                    exit_cmd,
+                    TradeStatus.FILLED,
+                    filled_qty=exit_filled,
+                    avg_fill_price=exit_notional / exit_filled,
+                    reason=None,
+                    cumulative_notional=exit_notional,
+                )
+
+            runtime.brackets.pop(cmd.command_id, None)
+            _log.info(
+                'bracket protection resolved: position closed by a protective '
+                'fill; command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        await self._remediate_naked_bracket(
+            runtime,
+            bracket,
+            bracket.protection_version,
+            'protection confirmed terminal and position naked',
+            remainder,
+            self._bracket_oco_candidates(bracket),
+        )
+
+    async def _remediate_unconfirmable_bracket(
+        self, runtime: _AccountRuntime, bracket: _LiveBracket,
+    ) -> None:
+        '''Fail-safe remediate a bracket whose venue state stays unconfirmable.
+
+        A candidate query kept failing, so the venue truth is unknown. The
+        bracket holds STATE_UNKNOWN until the restore deadline elapses; only
+        then, still unable to confirm, is it remediated on the local fill
+        projection (the flatten free-caps the sized quantity).
+        '''
+
+        if bracket.unknown_since is None:
+            return
+
+        elapsed = (self._clock() - bracket.unknown_since).total_seconds()
+        if elapsed < self._restore_deadline_seconds:
+            return
+
+        cmd = bracket.command
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+        remainder = entry_filled - exit_projected
+        if remainder <= _ZERO:
+            return
+
+        await self._remediate_naked_bracket(
+            runtime,
+            bracket,
+            bracket.protection_version,
+            'protection unconfirmable past restore deadline',
+            remainder,
+            self._bracket_oco_candidates(bracket),
+        )
+
+    async def _oco_has_live_leg(
+        self, cmd: TradeCommand, list_client_order_id: str,
+    ) -> bool:
+        '''Whether any leg of a protective OCO is still live or partly filled.
+
+        A second MARKET against a stop-limit that is still executing is a short
+        on spot (no reduceOnly), so the flatten must not run while any leg of
+        the cancelled OCO is non-terminal. A query failure is treated as live
+        (fail-closed): the caller stays STATE_UNKNOWN rather than flatten blind.
+        '''
+
+        try:
+            order_list = await self._venue_adapter.query_order_list(
+                cmd.account_id, list_client_order_id=list_client_order_id,
+            )
+            for leg in order_list.legs:
+                leg_order = await self._venue_adapter.query_order(
+                    cmd.account_id, cmd.symbol, client_order_id=leg.client_order_id,
+                )
+                if leg_order.status not in _TERMINAL_ORDER_STATUSES:
+                    return True
+        except NotFoundError:
+            return False
+        except VenueError:
+            _log.exception(
+                'flatten live-leg guard query failed; treating as live: '
+                'command_id=%s',
+                cmd.command_id,
+            )
+            return True
+
+        return False
+
+    async def _flatten_bracket_remainder(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        protection_version: int,
+        reason: str,
+        remainder: Decimal,
+        oco_candidates: tuple[str, ...] = (),
+    ) -> None:
+        '''Market-close the reconciled remainder of an unprotected bracket.
+
+        The naked position left when a protective-OCO amend fails is closed
+        with a MARKET order on the protective side, sized as the caller's
+        venue-reconciled remainder capped by the fresh free balance of the cap
+        asset (base for a SELL flatten, quote for a BUY) and lot-snapped down —
+        never the raw balance, which would dump unrelated account inventory. A
+        remainder below the lot or notional minimum, or no free cap asset, is
+        left for a halt-and-alert rather than a dust order or an oversell.
+        Before submitting, any still-live protective leg aborts the flatten
+        (STATE_UNKNOWN): a second MARKET against an executing stop is a short.
+        The `FlattenInitiated` intent is persisted before the venue submit, so
+        a crash replays it and the deterministic client id is queried before
+        any resubmission. The flatten submits under the bracket exit command
+        id, so its fill produces the position-closing EXIT outcome. Runs on the
+        account loop (single writer); the free balance is read immediately
+        before submit and never cached across flattens.
+
+        Args:
+            runtime (_AccountRuntime): Account whose bracket to flatten.
+            bracket (_LiveBracket): The unprotected bracket.
+            protection_version (int): Protective-OCO revision that failed.
+            reason (str): Human-readable trigger for the flatten.
+            remainder (Decimal): Venue-reconciled remaining position to close
+                (entry filled minus the cancelled OCO's venue-truth fills).
+            oco_candidates (tuple[str, ...]): Every protective OCO list id that
+                could still be live — the cancelled OCO and any ambiguously
+                submitted replacement — each re-checked for a live leg
+                immediately before flattening; the flatten aborts if any is live
+                or unconfirmable, so a market close can never race a still-live
+                protective OCO. Empty skips the guard.
+        '''
+
+        cmd = bracket.command
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        cap_asset = (
+            filters.base_asset if protective_side is OrderSide.SELL
+            else filters.quote_asset
+        ) if filters is not None else ''
+        if filters is None or not cap_asset:
+            _log.error(
+                'cannot flatten bracket without symbol filters and the cap asset; '
+                'position left unprotected for halt: command_id=%s reason=%s',
+                cmd.command_id,
+                reason,
+            )
+            return
+
+        for candidate in oco_candidates:
+            if await self._oco_has_live_leg(cmd, candidate):
+                _log.warning(
+                    'flatten aborted; a protective leg is still live, partially '
+                    'filled, or unconfirmable, staying STATE_UNKNOWN: '
+                    'command_id=%s candidate=%s',
+                    cmd.command_id,
+                    candidate,
+                )
+                return
+
+        entry_filled, entry_notional = self._command_fill_totals(runtime, cmd.command_id)
+
+        if remainder <= _ZERO or entry_filled <= _ZERO:
+            _log.info(
+                'flatten no-op; bracket remainder already closed: command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        avg_entry_price = entry_notional / entry_filled
+        free = await self._free_asset_balance(cmd.account_id, cap_asset)
+
+        if protective_side is OrderSide.SELL:
+            cap = free
+            market_price = await self._current_flatten_sell_price(cmd, avg_entry_price)
+        else:
+            buy_price = await self._conservative_flatten_buy_price(cmd, avg_entry_price)
+            cap = free / buy_price if buy_price > _ZERO else _ZERO
+            market_price = buy_price
+
+        qty = (min(remainder, cap) // filters.lot_step) * filters.lot_step
+
+        if qty < remainder:
+            _log.warning(
+                'flatten capped below remainder by free %s balance; shortfall: '
+                'command_id=%s remainder=%s free=%s qty=%s',
+                cap_asset,
+                cmd.command_id,
+                remainder,
+                free,
+                qty,
+            )
+
+        notional = qty * market_price
+        if qty < filters.lot_min or notional < filters.min_notional:
+            _log.error(
+                'flatten remainder below lot or notional minimum; position left '
+                'unprotected for halt: command_id=%s qty=%s notional=%s',
+                cmd.command_id,
+                qty,
+                notional,
+            )
+            return
+
+        client_order_id = generate_client_order_id(
+            ExecutionMode.BRACKET, cmd.command_id, sequence=_BRACKET_FLATTEN_SEQUENCE,
+        )
+
+        flatten = FlattenInitiated(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=protection_version,
+            qty=qty,
+            client_order_id=client_order_id,
+        )
+        await self._event_spine.append(flatten, self._epoch_id)
+
+        await self._submit_flatten_order(
+            runtime, cmd, exit_command_id, protective_side, qty, client_order_id,
+        )
+
+    def _flatten_exit_command(
+        self,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        qty: Decimal,
+    ) -> TradeCommand:
+        '''Build the MARKET exit command the flatten order settles under.'''
+
+        return TradeCommand(
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            account_id=cmd.account_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            qty=qty,
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(),
+            timeout=cmd.timeout,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=self._clock(),
+        )
+
+    async def _submit_flatten_order(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        qty: Decimal,
+        client_order_id: str,
+    ) -> None:
+        '''Submit and project the MARKET flatten order under the exit id.'''
+
+        exit_cmd = self._flatten_exit_command(
+            cmd, exit_command_id, protective_side, qty,
+        )
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=client_order_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            order_type=OrderType.MARKET,
+            qty=qty,
+            quote_qty=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                protective_side,
+                OrderType.MARKET,
+                qty,
+                client_order_id=client_order_id,
+            )
+        except VenueError as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, exit_cmd, client_order_id, exc,
+            )
+            if rescued is None:
+                _log.exception(
+                    'flatten submit unconfirmable; position may be naked: '
+                    'command_id=%s client_order_id=%s',
+                    cmd.command_id,
+                    client_order_id,
+                )
+                await self._append_submit_failed(
+                    runtime,
+                    exit_cmd,
+                    client_order_id,
+                    str(exc.args[0]) if exc.args else str(exc),
+                )
+
+                return
+
+            result = rescued
+
+        self._commands[exit_command_id] = exit_cmd
+        self._command_trade_ids[exit_command_id] = cmd.trade_id
+        runtime.command_to_order[exit_command_id] = client_order_id
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            client_order_id=client_order_id,
+            venue_order_id=result.venue_order_id,
+            leg_client_order_ids=result.leg_client_order_ids,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        _log.info(
+            'bracket flatten submitted: command_id=%s exit_command_id=%s side=%s '
+            'qty=%s venue_order_id=%s',
+            cmd.command_id,
+            exit_command_id,
+            protective_side.value,
+            qty,
+            result.venue_order_id,
+        )
+
+        flat_order = self._scheme_child_order(runtime, client_order_id)
+        if (
+            flat_order is not None
+            and flat_order.status in _TERMINAL_ORDER_STATUSES
+            and flat_order.filled_qty > _ZERO
+        ):
+            await self._build_outcome(
+                runtime,
+                exit_cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    flat_order.status, TradeStatus.FILLED,
+                ),
+                filled_qty=flat_order.filled_qty,
+                avg_fill_price=flat_order.cumulative_notional / flat_order.filled_qty,
+                reason=None,
+                cumulative_notional=flat_order.cumulative_notional,
+            )
+
+    async def recover_incomplete_flattens(
+        self,
+        account_id: str,
+        events: list[tuple[int, Event]],
+    ) -> None:
+        '''Reconcile or re-attempt the flatten for a failed-protection bracket.
+
+        Keyed on `ProtectionFailed` (the durable naked marker), not on
+        `FlattenInitiated`, so a crash after recording the failure but before
+        the flatten intent still retries — the flatten is required whenever
+        the account policy is FLATTEN_THEN_HALT. The flatten client id is
+        deterministic, so for each failed bracket whose flatten order has not
+        settled filled the venue is queried by that id: a filled order is
+        reconciled from its trades (never resubmitted), a still-working order
+        is left in place, and a never-reached or terminal-unfilled order is
+        re-flattened against a freshly re-capped free balance under the same
+        client id.
+
+        Args:
+            account_id (str): Account whose events were just replayed.
+            events (list[tuple[int, Event]]): The replayed event sequence.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        if (
+            self._protection_response_for(account_id)
+            is not BracketProtectionFailureResponse.FLATTEN_THEN_HALT
+        ):
+            return
+
+        inits: dict[str, BracketInitialized] = {}
+        failed: dict[str, ProtectionFailed] = {}
+        for _seq, event in events:
+            if isinstance(event, BracketInitialized):
+                inits[event.command_id] = event
+            elif isinstance(event, ProtectionFailed):
+                failed[event.command_id] = event
+
+        for command_id, protection_failed in failed.items():
+            flatten_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_FLATTEN_SEQUENCE,
+            )
+            order = self._scheme_child_order(runtime, flatten_client_order_id)
+            if (
+                order is not None
+                and order.status in _TERMINAL_ORDER_STATUSES
+                and order.filled_qty > _ZERO
+            ):
+                continue
+
+            init = inits.get(command_id)
+            if init is None:
+                _log.error(
+                    'flatten recovery skipped; no bracket init: command_id=%s '
+                    'account_id=%s',
+                    command_id,
+                    account_id,
+                )
+
+                continue
+
+            cmd = self._bracket_command_from_init(init)
+            exit_command_id = bracket_exit_command_id(command_id)
+            protective_side = (
+                OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+            )
+
+            try:
+                venue_order = await self._venue_adapter.query_order(
+                    cmd.account_id,
+                    cmd.symbol,
+                    client_order_id=flatten_client_order_id,
+                )
+            except NotFoundError:
+                venue_order = None
+            except VenueError:
+                _log.exception(
+                    'flatten recovery query failed; left for later reconcile: '
+                    'command_id=%s',
+                    command_id,
+                )
+
+                continue
+
+            if venue_order is not None and venue_order.filled_qty > _ZERO:
+                await self._reconcile_flatten_fills(
+                    runtime,
+                    cmd,
+                    exit_command_id,
+                    protective_side,
+                    flatten_client_order_id,
+                    venue_order,
+                )
+
+                continue
+
+            if (
+                venue_order is not None
+                and venue_order.status not in _TERMINAL_ORDER_STATUSES
+            ):
+                _log.info(
+                    'flatten recovery: order still working, left in place: '
+                    'command_id=%s',
+                    command_id,
+                )
+
+                continue
+
+            await self._boot_reflatten(
+                runtime, cmd, command_id, protection_failed.protection_version,
+                protection_failed.oco_list_client_order_ids,
+            )
+
+    async def _reconcile_flatten_fills(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        exit_command_id: str,
+        protective_side: OrderSide,
+        client_order_id: str,
+        venue_order: VenueOrder,
+    ) -> None:
+        '''Project a flatten that filled at the venue but was not recorded.
+
+        Only projects when the local flatten order carries no fills yet: the
+        fill projection sums quantities rather than deduplicating by trade id,
+        so re-projecting an order that already recorded fills would double
+        count. A partially-recorded order is left for the live WS reconcile.
+        '''
+
+        existing = self._scheme_child_order(runtime, client_order_id)
+        if existing is not None and existing.filled_qty > _ZERO:
+            _log.warning(
+                'flatten recovery: order already carries fills, leaving for live '
+                'reconcile: command_id=%s',
+                cmd.command_id,
+            )
+
+            return
+
+        exit_cmd = self._flatten_exit_command(
+            cmd, exit_command_id, protective_side, venue_order.qty,
+        )
+        self._commands[exit_command_id] = exit_cmd
+        self._command_trade_ids[exit_command_id] = cmd.trade_id
+        runtime.command_to_order[exit_command_id] = client_order_id
+
+        if existing is None:
+            intent = OrderSubmitIntent(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                command_id=exit_command_id,
+                trade_id=cmd.trade_id,
+                client_order_id=client_order_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                order_type=OrderType.MARKET,
+                qty=venue_order.qty,
+                quote_qty=None,
+            )
+            await self._event_spine.append(intent, self._epoch_id)
+            runtime.trading_state.apply(intent)
+
+            submitted = OrderSubmitted(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=venue_order.venue_order_id,
+                leg_client_order_ids=(),
+            )
+            await self._event_spine.append(submitted, self._epoch_id)
+            runtime.trading_state.apply(submitted)
+
+        trades = await self._venue_adapter.query_trades(cmd.account_id, cmd.symbol)
+        for trade in trades:
+            if trade.client_order_id != client_order_id:
+                continue
+
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=client_order_id,
+                venue_order_id=venue_order.venue_order_id,
+                venue_trade_id=trade.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=trade.qty,
+                price=trade.price,
+                fee=trade.fee,
+                fee_asset=trade.fee_asset,
+                is_maker=trade.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        flat_order = self._scheme_child_order(runtime, client_order_id)
+        if flat_order is not None and flat_order.filled_qty > _ZERO:
+            await self._build_outcome(
+                runtime,
+                exit_cmd,
+                _TERMINAL_ORDER_TO_TRADE_STATUS.get(
+                    flat_order.status, TradeStatus.FILLED,
+                ),
+                filled_qty=flat_order.filled_qty,
+                avg_fill_price=flat_order.cumulative_notional / flat_order.filled_qty,
+                reason=None,
+                cumulative_notional=flat_order.cumulative_notional,
+            )
+
+        _log.info(
+            'flatten recovery reconciled venue fills: command_id=%s '
+            'exit_command_id=%s filled=%s',
+            cmd.command_id,
+            exit_command_id,
+            venue_order.filled_qty,
+        )
+
+    async def _backfill_terminal_order_fills(
+        self,
+        runtime: _AccountRuntime,
+        account_id: str,
+        symbol: str,
+        command_id: str,
+        trade_id: str,
+        side: OrderSide,
+        local_client_order_id: str,
+        venue_client_order_ids: tuple[str, ...],
+        local_filled: Decimal,
+        venue_filled: Decimal,
+    ) -> bool:
+        '''Project venue fills an amend missed, before the order is terminalized.
+
+        An amend queries a cancelled order's authoritative venue fill to size
+        the replacement but marks the order canceled locally. A fill that raced
+        the cancel and was missed on the WebSocket is otherwise lost: both the
+        old and the replacement orders look terminal, and open-order
+        reconciliation skips them, leaving the ledger and position short. When
+        venue truth exceeds the local projection the order's trades are queried
+        and any not-yet-recorded fill is projected onto `local_client_order_id`;
+        the spine deduplicates on `venue_trade_id`, so an already-seen trade is a
+        silent no-op. A protective OCO fills on a leg id distinct from the parent
+        list id, so the venue-side match set is passed apart from the local
+        attribution id.
+
+        Returns False when the local projection could not be brought up to
+        venue truth — the trade query failed, or the trades returned still fall
+        short of `venue_filled` (venue eventual-consistency). The caller must
+        then hold the amend for reconcile rather than terminalize the order and
+        place a replacement, so a missed fill is never stranded on an order that
+        open-order reconciliation would skip.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            account_id (str): Account whose order is being terminalized.
+            symbol (str): Trading symbol of the order.
+            command_id (str): Command the projected fills belong to.
+            trade_id (str): Position trade id the fills book against.
+            side (OrderSide): Side of the fills being projected.
+            local_client_order_id (str): Order id the fills attribute to.
+            venue_client_order_ids (tuple[str, ...]): Venue-side order ids whose
+                trades belong to this order.
+            local_filled (Decimal): Locally-projected filled quantity.
+            venue_filled (Decimal): Authoritative venue filled quantity.
+
+        Returns:
+            bool: True when the local projection reached venue truth, False when
+                the amend must be held for reconcile.
+        '''
+
+        if venue_filled <= local_filled:
+            return True
+
+        match = set(venue_client_order_ids)
+        try:
+            trades = await self._venue_adapter.query_trades(account_id, symbol)
+        except VenueError as exc:
+            _log.warning(
+                'amend fill backfill query failed, holding amend for reconcile: '
+                'command_id=%s reason=%s',
+                command_id,
+                exc.args[0] if exc.args else str(exc),
+            )
+            return False
+
+        accounted = local_filled
+        for trade in trades:
+            if trade.client_order_id not in match:
+                continue
+
+            fill_event = FillReceived(
+                account_id=account_id,
+                timestamp=self._clock(),
+                client_order_id=local_client_order_id,
+                venue_order_id=trade.venue_order_id,
+                venue_trade_id=trade.venue_trade_id,
+                trade_id=trade_id,
+                command_id=command_id,
+                symbol=symbol,
+                side=side,
+                qty=trade.qty,
+                price=trade.price,
+                fee=trade.fee,
+                fee_asset=trade.fee_asset,
+                is_maker=trade.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+                accounted += trade.qty
+
+        return accounted >= venue_filled
+
+    async def _boot_reflatten(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        command_id: str,
+        protection_version: int,
+        oco_candidates: tuple[str, ...],
+    ) -> None:
+        '''Re-attempt a flatten that never reached the venue after a restart.
+
+        Passes the protective OCO list ids from `ProtectionFailed` so the same
+        live-leg guard the live flatten enforced runs on boot: if the runtime
+        flatten aborted because a leg was live or unconfirmable, boot recovery
+        re-checks every candidate and holds rather than market-flattening
+        against a still-live protective OCO.
+        '''
+
+        entry_client_order_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+        )
+        bracket = _LiveBracket(
+            command=cmd, entry_client_order_id=entry_client_order_id,
+        )
+        exit_command_id = bracket_exit_command_id(command_id)
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
+        remainder = entry_filled - exit_filled
+        _log.warning(
+            'flatten recovery: re-attempting flatten never confirmed at venue: '
+            'command_id=%s',
+            command_id,
+        )
+        await self._flatten_bracket_remainder(
+            runtime, bracket, protection_version, 'boot flatten recovery',
+            remainder, oco_candidates,
+        )
 
     async def _on_slice_failure(
         self,
@@ -4486,7 +6557,7 @@ class ExecutionManager:
 
         cmd = scheme.command
         ts = self._clock()
-        filled_qty, cumulative_notional = self._scheme_fill_totals(runtime, cmd.command_id)
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, cmd.command_id)
 
         if cmd.qty is not None and filled_qty > cmd.qty:
             if filled_qty > _ZERO:
@@ -4757,6 +6828,1891 @@ class ExecutionManager:
             reason=reason,
         )
 
+    async def _process_modify(  # noqa: PLR0911
+        self,
+        runtime: _AccountRuntime,
+        modify: TradeModify,
+    ) -> None:
+        '''Apply an order-price amend to a resting single order.
+
+        Cancel-then-query-then-place: the resting order is cancelled, the
+        venue is queried for the authoritative filled quantity, and a
+        replacement is placed for the unfilled remainder at the amended
+        price. Deriving the remainder from the venue's post-cancel truth —
+        not a stale local snapshot — means a fill racing the cancel can
+        never make the replacement over-order. A durable
+        `OrderAmendInitiated` is written before the cancel; on boot the amend
+        sequence is rebuilt from it so a later amend cannot reuse a client
+        order id, and a crash mid-amend recovers to a safe state through the
+        existing boot reconcile (the order rests at the old price if never
+        cancelled, or terminalizes if it was) — completing the re-price
+        across a crash is a follow-up. Fills carry across the superseded and
+        replacement orders through `_command_fill_totals`, so the command's
+        outcome stays correct; in the rare case where a fill lands on the
+        old order between the query and the replacement, that fill is still
+        captured in the projection (its WebSocket report applies as usual)
+        and the outcome reconverges on the next fill, with position and
+        ledger always exact.
+
+        A running scheme (TWAP / Time DCA / Scheduled VWAP) is routed to
+        `_process_scheme_modify`; single resting-order modes (SingleShot
+        LIMIT, Iceberg) are amended here; other modes are rejected pending
+        their own slices.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            modify (TradeModify): Amend instruction targeting a command.
+        '''
+
+        command_id = modify.command_id
+
+        if isinstance(modify.modify_params, BracketModify):
+            await self._process_bracket_modify(
+                runtime, command_id, modify.modify_params,
+            )
+            return
+
+        if command_id in self._terminal_commands:
+            _log.info('modify no-op (command terminal): command_id=%s', command_id)
+            return
+
+        cmd = self._commands.get(command_id)
+        if cmd is None:
+            _log.warning('modify for unknown command: command_id=%s', command_id)
+            return
+
+        if command_id in runtime.pending_amends:
+            _log.warning(
+                'modify rejected: a prior amend is held pending fill '
+                'reconciliation: command_id=%s', command_id,
+            )
+            return
+
+        scheme = runtime.schemes.get(command_id)
+        if scheme is not None:
+            if isinstance(
+                modify.modify_params,
+                (TwapModify, TimeDcaModify, ScheduledVwapModify),
+            ):
+                await self._process_scheme_modify(runtime, scheme, modify)
+            elif isinstance(modify.modify_params, LadderDcaModify):
+                await self._process_ladder_modify(runtime, scheme, modify)
+            else:
+                _log.warning(
+                    'modify rejected: amend not yet supported for mode %s command_id=%s',
+                    cmd.execution_mode.value,
+                    command_id,
+                )
+            return
+
+        if not isinstance(modify.modify_params, (SingleShotModify, IcebergModify)):
+            _log.warning(
+                'modify rejected: amend not yet supported for mode %s command_id=%s',
+                cmd.execution_mode.value,
+                command_id,
+            )
+            return
+
+        if isinstance(modify.modify_params, SingleShotModify) and (
+            modify.modify_params.stop_price is not None
+            or modify.modify_params.stop_limit_price is not None
+        ):
+            _log.warning(
+                'modify rejected: stop-field amend not supported '
+                '(limit price only): command_id=%s',
+                command_id,
+            )
+            return
+
+        old_client_order_id = runtime.command_to_order.get(command_id)
+        order = (
+            runtime.trading_state.orders.get(old_client_order_id)
+            if old_client_order_id
+            else None
+        )
+        if order is None or order.order_type is not OrderType.LIMIT:
+            _log.warning(
+                'modify rejected: no resting LIMIT order for command_id=%s', command_id,
+            )
+            return
+
+        assert old_client_order_id is not None
+        assert cmd.qty is not None
+        new_price, new_display = self._resolve_amend(cmd, modify.modify_params)
+        if new_price is None:
+            _log.warning(
+                'modify rejected: no limit price to amend command_id=%s', command_id,
+            )
+            return
+
+        amend_seq = runtime.amend_counts.get(command_id, 0) + 1
+        new_client_order_id = generate_client_order_id(
+            cmd.execution_mode, command_id, sequence=amend_seq,
+        )
+
+        amend_event = OrderAmendInitiated(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=command_id,
+            trade_id=cmd.trade_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            total_qty=cmd.qty,
+            old_client_order_id=old_client_order_id,
+            new_client_order_id=new_client_order_id,
+            price=new_price,
+            display_qty=new_display,
+        )
+        await self._event_spine.append(amend_event, self._epoch_id)
+        runtime.amend_counts[command_id] = amend_seq
+
+        venue_order = await self._cancel_and_query(cmd, old_client_order_id)
+        if venue_order is None:
+            _log.warning(
+                'modify aborted: order state unconfirmed, leaving order live: '
+                'command_id=%s',
+                command_id,
+            )
+            return
+
+        if venue_order.status not in _TERMINAL_ORDER_STATUSES:
+            _log.warning(
+                'modify aborted: order still live at venue, not replacing: '
+                'command_id=%s status=%s',
+                command_id,
+                venue_order.status.value,
+            )
+            return
+
+        # The order is terminal at the venue (cancelled, or filled rather than
+        # cancelled). Reconcile its authoritative fill before terminalizing: a
+        # FILLED order backfills to a full-fill terminal outcome, a cancelled
+        # one to the re-placeable remainder. If the fill cannot be reconciled,
+        # park it for the reconcile scan rather than emitting an understated
+        # outcome from a stale local projection.
+        pending = _PendingSingleAmend(
+            old_client_order_id=old_client_order_id,
+            new_client_order_id=new_client_order_id,
+            new_price=new_price,
+            new_display=new_display,
+        )
+        completed = await self._drive_single_amend(runtime, cmd, pending, venue_order)
+        if not completed:
+            runtime.pending_amends[command_id] = pending
+            _log.warning(
+                'modify held: venue fill unreconciled after cancel; parked for '
+                'the reconcile scan to retry rather than terminalizing the old '
+                'order and placing a replacement against an understated ledger: '
+                'command_id=%s',
+                command_id,
+            )
+
+    async def _drive_single_amend(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        pending: _PendingSingleAmend,
+        venue_order: VenueOrder,
+    ) -> bool:
+        '''Complete a single-order amend once its venue fill reconciles.
+
+        Projects any fill the cancel raced before terminalizing the old order,
+        then places the remainder at the amended price. Returns False when the
+        backfill cannot reach venue truth: the caller then leaves the amend
+        parked and the old order non-terminal so the missed fill stays
+        recoverable on the next reconcile scan rather than being stranded on a
+        terminal order behind an understated ledger. Shared by the live amend
+        and the scan retry, so a re-drive after the old order was already
+        terminalized by reconcile still sizes and places the replacement.
+        '''
+
+        old = pending.old_client_order_id
+        order = self._scheme_child_order(runtime, old)
+        local_filled = order.filled_qty if order is not None else _ZERO
+        reconciled = await self._backfill_terminal_order_fills(
+            runtime, cmd.account_id, cmd.symbol, cmd.command_id, cmd.trade_id,
+            cmd.side, old, (old,), local_filled, venue_order.filled_qty,
+        )
+        if not reconciled:
+            return False
+
+        if runtime.trading_state.orders.get(old) is not None:
+            canceled = OrderCanceled(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=old,
+                venue_order_id=venue_order.venue_order_id,
+                reason='amend',
+            )
+            await self._event_spine.append(canceled, self._epoch_id)
+            runtime.trading_state.apply(canceled)
+
+        assert cmd.qty is not None
+        command_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        remainder = cmd.qty - command_filled
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_min = filters.lot_min if filters is not None else _ZERO
+
+        if remainder <= _ZERO or remainder < lot_min:
+            # Only sub-lot dust remains after the cancel; it cannot be
+            # re-placed, so the command completes on the fills so far — the
+            # same dust shortfall a scheme reports FILLED.
+            await self._emit_amend_terminal(runtime, cmd)
+            return True
+
+        await self._place_amend_replacement(
+            runtime, cmd, pending.new_client_order_id, pending.new_price,
+            pending.new_display, remainder,
+        )
+        return True
+
+    async def resolve_pending_amends(self, account_id: str) -> None:
+        '''Retry each single-order amend held pending fill reconciliation.
+
+        A single-order amend parks when the fill the cancel raced could not be
+        reconciled to venue truth. On each reconcile scan the parked order is
+        re-queried and re-driven: once the projection reaches venue truth the
+        old order is terminalized and the replacement placed, and the park is
+        cleared. A re-query that cannot confirm the order leaves it parked for
+        the next scan.
+
+        Args:
+            account_id (str): Account whose parked amends to retry.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for command_id, pending in list(runtime.pending_amends.items()):
+            cmd = self._commands.get(command_id)
+            if cmd is None:
+                runtime.pending_amends.pop(command_id, None)
+                continue
+
+            venue_order = await self._cancel_and_query(
+                cmd, pending.old_client_order_id,
+            )
+            if venue_order is None or venue_order.status not in _TERMINAL_ORDER_STATUSES:
+                continue
+
+            completed = await self._drive_single_amend(
+                runtime, cmd, pending, venue_order,
+            )
+            if completed:
+                runtime.pending_amends.pop(command_id, None)
+
+    async def _process_ladder_modify(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        modify: TradeModify,
+    ) -> None:
+        '''Amend a resting ladder's grid by strict two-phase cancel-then-place.
+
+        A ladder rests one LIMIT rung per level; a `LadderDcaModify` gives an
+        absolute new grid for the unfilled remainder. The amend is a durable
+        state machine that never adds exposure over a live rung: it persists
+        `LadderAmendInitiated` before touching the venue, retires every
+        old-generation rung and confirms each venue-terminal, and only then —
+        once the remainder is venue-truth — persists `LadderAmendPlanned` (the
+        exact replacement rungs) and places them at `retry=generation`,
+        finishing at `LadderAmendCompleted`. A cancel/query that cannot confirm
+        halts in `LadderAmendStateUnknown` for the watchdog; a failure with no
+        rung yet cancelled aborts cleanly and leaves the old grid untouched.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            scheme (_LiveScheme): The live ladder being amended.
+            modify (TradeModify): Amend carrying a `LadderDcaModify`.
+        '''
+
+        cmd = scheme.command
+        command_id = cmd.command_id
+        params = modify.modify_params
+        assert isinstance(params, LadderDcaModify)
+
+        if scheme.amend_phase is not None:
+            _log.warning(
+                'ladder modify rejected: an amend is already in flight: '
+                'command_id=%s phase=%s',
+                command_id,
+                scheme.amend_phase,
+            )
+            return
+
+        if scheme.frozen or scheme.pending_terminal is not None:
+            _log.warning(
+                'ladder modify rejected: ladder frozen or stopping, not '
+                'amendable: command_id=%s',
+                command_id,
+            )
+            return
+
+        if not isinstance(cmd.execution_params, LadderDcaParams):
+            _log.warning(
+                'ladder modify rejected: not a ladder command: command_id=%s',
+                command_id,
+            )
+            return
+
+        current = cmd.execution_params
+        new_price_levels = (
+            params.price_levels if params.price_levels is not None
+            else current.price_levels
+        )
+        new_weights = (
+            params.level_weights if params.level_weights is not None
+            else current.level_weights
+        )
+        try:
+            LadderDcaParams(
+                price_levels=new_price_levels, level_weights=new_weights,
+            )
+        except ValueError as exc:
+            _log.warning(
+                'ladder modify rejected: amended grid invalid: command_id=%s '
+                'reason=%s',
+                command_id,
+                exc,
+            )
+            return
+
+        old_generation = scheme.amend_generation
+        new_generation = old_generation + 1
+
+        initiated = LadderAmendInitiated(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=command_id,
+            generation=new_generation,
+            price_levels=new_price_levels,
+            level_weights=new_weights or (),
+            old_slices_total=scheme.slices_total,
+            new_slices_total=len(new_price_levels),
+        )
+        await self._event_spine.append(initiated, self._epoch_id)
+        scheme.amend_phase = 'CANCELLING'
+        scheme.amend_context = _LadderAmendContext(
+            old_generation=old_generation,
+            new_generation=new_generation,
+            old_slices_total=scheme.slices_total,
+            price_levels=new_price_levels,
+            level_weights=new_weights or (),
+        )
+
+        await self._drive_ladder_amend(runtime, scheme)
+
+    async def _drive_ladder_amend(
+        self, runtime: _AccountRuntime, scheme: _LiveScheme,
+    ) -> None:
+        '''Advance an in-flight ladder amend from its current phase to done.
+
+        Shared by the live driver, the reconcile watchdog, and boot resume, so
+        an amend finishes identically whether it just started, stalled in
+        STATE_UNKNOWN, or crashed mid-flight. CANCELLING retires and confirms
+        every old rung, then fixes and persists the replacement plan; PLACING
+        places the planned rungs. Each step is idempotent — already-terminal
+        old rungs and already-resting new rungs are adopted — so re-driving
+        never double-cancels or double-places.
+        '''
+
+        cmd = scheme.command
+        ctx = scheme.amend_context
+        if ctx is None:
+            return
+
+        new_params = LadderDcaParams(
+            price_levels=ctx.price_levels,
+            level_weights=ctx.level_weights or None,
+        )
+
+        if scheme.amend_phase == 'CANCELLING':
+            retired = await self._retire_ladder_generation(
+                runtime, cmd, scheme,
+                ctx.old_generation, ctx.old_slices_total, ctx.new_generation,
+            )
+            if retired is None:
+                return
+
+            venue_filled, projected_filled = retired
+            assert cmd.qty is not None
+            command_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+            remainder = cmd.qty - (command_filled - projected_filled + venue_filled)
+            planned = self._plan_ladder_amend(cmd, new_params, remainder)
+
+            if not planned:
+                await self._complete_ladder_amend(
+                    runtime, cmd, scheme, ctx.new_generation, new_params,
+                )
+                return
+
+            planned_event = LadderAmendPlanned(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                command_id=cmd.command_id,
+                generation=ctx.new_generation,
+                sequences=tuple(index for index, _price, _qty in planned),
+                prices=tuple(price for _index, price, _qty in planned),
+                qtys=tuple(qty for _index, _price, qty in planned),
+            )
+            await self._event_spine.append(planned_event, self._epoch_id)
+            ctx.planned = planned
+            scheme.amend_phase = 'PLACING'
+
+        if scheme.amend_phase == 'PLACING':
+            if scheme.protection_frozen:
+                _log.info(
+                    'ladder amend placement held: protection frozen, no new '
+                    'rungs placed: command_id=%s',
+                    cmd.command_id,
+                )
+                return
+
+            assert ctx.planned is not None
+            await self._place_ladder_generation(
+                runtime, cmd, scheme, ctx.new_generation, ctx.planned, new_params,
+            )
+
+    def _plan_ladder_amend(
+        self,
+        cmd: TradeCommand,
+        new_params: LadderDcaParams,
+        remainder: Decimal,
+    ) -> list[tuple[int, Decimal, Decimal]]:
+        '''Plan the replacement rungs (re-indexed 0..M-1) for the remainder.
+
+        The remainder is split across the new grid and floored to the lot
+        step; a rung that floors to a sub-lot or sub-notional quantity is
+        dropped and the survivors are re-indexed contiguously so resume scans
+        a gap-free `0..M-1`. An empty plan means the remainder is untradeable
+        dust and the ladder finalizes on the fills so far.
+        '''
+
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_step = filters.lot_step if filters is not None else None
+        lot_min = filters.lot_min if filters is not None else _ZERO
+        min_notional = filters.min_notional if filters is not None else _ZERO
+
+        if remainder <= _ZERO:
+            return []
+
+        levels = _ladder_levels(new_params, remainder, lot_step)
+        planned: list[tuple[int, Decimal, Decimal]] = []
+        for qty, price in levels:
+            if qty < lot_min or qty * price < min_notional:
+                continue
+
+            planned.append((len(planned), price, qty))
+
+        return planned
+
+    async def _retire_ladder_generation(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        scheme: _LiveScheme,
+        old_generation: int,
+        old_slices_total: int,
+        new_generation: int,
+    ) -> tuple[Decimal, Decimal] | None:
+        '''Cancel and venue-confirm every old-generation rung terminal.
+
+        Returns `(venue_filled, projected_filled)` for the old grid once every
+        rung is positively terminal: `venue_filled` sums each rung's
+        authoritative venue quantity (queried after cancel, or the projection
+        for a rung already terminal), and `projected_filled` sums the same
+        rungs' local projections. The caller replaces the retiring generation's
+        projected fills inside the command total with `venue_filled`, so the
+        remainder stays exact across repeated amends. `cancel_committed` is set
+        the moment a cancel is sent — a sent-but-unconfirmed cancel may already
+        have retired the rung — so any failure after that point is
+        `LadderAmendStateUnknown` for the watchdog, never a clean abort.
+        Returns None in every halt case.
+        '''
+
+        ctx = scheme.amend_context
+        total_filled = _ZERO
+        projected_filled = _ZERO
+        for index in range(old_slices_total):
+            rung_id = generate_client_order_id(
+                ExecutionMode.LADDER_DCA, cmd.command_id,
+                sequence=index, retry=old_generation,
+            )
+            order = self._scheme_child_order(runtime, rung_id)
+            if order is None:
+                continue
+
+            if order.status in _TERMINAL_ORDER_STATUSES:
+                if order.status is OrderStatus.CANCELED and ctx is not None:
+                    ctx.cancel_committed = True
+
+                projected_filled += order.filled_qty
+                total_filled += order.filled_qty
+                scheme.active_children.discard(rung_id)
+                continue
+
+            if ctx is not None:
+                ctx.cancel_committed = True
+
+            try:
+                await self._venue_adapter.cancel_order(
+                    cmd.account_id, cmd.symbol, client_order_id=rung_id,
+                )
+            except NotFoundError:
+                pass
+            except VenueError:
+                await self._halt_ladder_amend(
+                    cmd, scheme, new_generation, 'CANCELLING', 'rung cancel failed',
+                )
+                return None
+
+            try:
+                venue_order = await self._venue_adapter.query_order(
+                    cmd.account_id, cmd.symbol, client_order_id=rung_id,
+                )
+            except (NotFoundError, VenueError):
+                await self._halt_ladder_amend(
+                    cmd, scheme, new_generation, 'CANCELLING',
+                    'rung query unconfirmable after cancel',
+                )
+                return None
+
+            if venue_order.status not in _TERMINAL_ORDER_STATUSES:
+                await self._halt_ladder_amend(
+                    cmd, scheme, new_generation, 'CANCELLING',
+                    'rung still live after cancel',
+                )
+                return None
+
+            reconciled = await self._backfill_terminal_order_fills(
+                runtime, cmd.account_id, cmd.symbol, cmd.command_id, cmd.trade_id,
+                cmd.side, rung_id, (rung_id,),
+                order.filled_qty, venue_order.filled_qty,
+            )
+            if not reconciled:
+                await self._halt_ladder_amend(
+                    cmd, scheme, new_generation, 'CANCELLING',
+                    'rung fills unreconciled after cancel',
+                )
+                return None
+
+            if runtime.trading_state.orders.get(rung_id) is not None:
+                canceled = OrderCanceled(
+                    account_id=cmd.account_id,
+                    timestamp=self._clock(),
+                    client_order_id=rung_id,
+                    venue_order_id=order.venue_order_id,
+                    reason='ladder amend',
+                )
+                await self._event_spine.append(canceled, self._epoch_id)
+                runtime.trading_state.apply(canceled)
+
+            projected_filled += order.filled_qty
+            total_filled += venue_order.filled_qty
+            scheme.active_children.discard(rung_id)
+
+        return total_filled, projected_filled
+
+    async def _halt_ladder_amend(
+        self,
+        cmd: TradeCommand,
+        scheme: _LiveScheme,
+        generation: int,
+        phase: str,
+        reason: str,
+    ) -> None:
+        '''Abort a torn-free amend or hold an unconfirmable one for the watchdog.
+
+        The amend may abort cleanly (durable `LadderAmendAborted`, ladder
+        resumes running) only while no cancel has ever been committed to the
+        venue — a decision that must hold across watchdog retries and a restart,
+        so it reads the context's `cancel_committed` (set the moment a cancel is
+        sent, and true for any resumed amend) rather than a per-drive count that
+        resets each retry. Once a cancel is committed the venue may already have
+        retired a rung, so the amend holds in `LadderAmendStateUnknown` with its
+        phase for the reconcile watchdog to finish.
+        '''
+
+        committed = scheme.amend_context is not None and scheme.amend_context.cancel_committed
+        if not committed:
+            aborted = LadderAmendAborted(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                command_id=cmd.command_id,
+                generation=generation,
+                reason=reason,
+            )
+            await self._event_spine.append(aborted, self._epoch_id)
+            scheme.amend_phase = None
+            scheme.amend_context = None
+            _log.warning(
+                'ladder amend aborted, old grid intact: command_id=%s reason=%s',
+                cmd.command_id,
+                reason,
+            )
+            return
+
+        unknown = LadderAmendStateUnknown(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            generation=generation,
+            phase=phase,
+            reason=reason,
+        )
+        await self._event_spine.append(unknown, self._epoch_id)
+        scheme.amend_phase = phase
+        _log.warning(
+            'ladder amend unconfirmable; holding for watchdog: command_id=%s '
+            'phase=%s reason=%s',
+            cmd.command_id,
+            phase,
+            reason,
+        )
+
+    async def _place_ladder_generation(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        scheme: _LiveScheme,
+        generation: int,
+        planned: list[tuple[int, Decimal, Decimal]],
+        new_params: LadderDcaParams,
+    ) -> None:
+        '''Place the planned new-generation rungs, then complete the amend.
+
+        Each planned rung already resting (crash-resume) is adopted; a missing
+        one is placed at `retry=generation`. A placement failure halts in
+        `LadderAmendStateUnknown` (PLACING) with the placed rungs resting for
+        the watchdog to finish; otherwise the new grid becomes the live grid
+        and the amend completes.
+        '''
+
+        for index, price, qty in planned:
+            rung_id = generate_client_order_id(
+                ExecutionMode.LADDER_DCA, cmd.command_id,
+                sequence=index, retry=generation,
+            )
+            existing = self._scheme_child_order(runtime, rung_id)
+            if existing is not None:
+                if existing.status not in _TERMINAL_ORDER_STATUSES:
+                    scheme.active_children.add(rung_id)
+                    continue
+
+                if existing.status is OrderStatus.FILLED:
+                    continue
+
+                await self._halt_ladder_amend(
+                    cmd, scheme, generation, 'PLACING',
+                    f'ladder amend rung {index} terminated '
+                    f'{existing.status.value} without fill',
+                )
+                return
+
+            client_order_id = await self._submit_limit_level(
+                runtime, cmd, index, qty, price, generation=generation,
+            )
+            if client_order_id is None:
+                await self._halt_ladder_amend(
+                    cmd, scheme, generation, 'PLACING',
+                    f'ladder amend rung {index} placement failed',
+                )
+                return
+
+            order = self._scheme_child_order(runtime, client_order_id)
+            if order is not None and order.status not in _TERMINAL_ORDER_STATUSES:
+                scheme.active_children.add(client_order_id)
+
+        scheme.slice_qtys = [qty for _index, _price, qty in planned]
+        scheme.slices_total = len(planned)
+        scheme.cursor = len(planned)
+        await self._complete_ladder_amend(runtime, cmd, scheme, generation, new_params)
+
+    async def _complete_ladder_amend(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        scheme: _LiveScheme,
+        generation: int,
+        new_params: LadderDcaParams,
+    ) -> None:
+        '''Mark the amend complete and adopt the new grid as the live grid.
+
+        Persists `LadderAmendCompleted`, promotes the generation, updates the
+        command's params so a later amend merges against the new grid, clears
+        the amend phase, and lets the ladder finalize once its rungs settle.
+        An amend that placed nothing (dust remainder) leaves `slices_total`
+        unchanged so the already-satisfied cursor finalizes the ladder FILLED.
+        '''
+
+        completed = LadderAmendCompleted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            generation=generation,
+        )
+        await self._event_spine.append(completed, self._epoch_id)
+
+        new_command = replace(cmd, execution_params=new_params)
+        scheme.command = new_command
+        self._commands[cmd.command_id] = new_command
+        scheme.amend_generation = generation
+        scheme.amend_phase = None
+        scheme.amend_context = None
+
+        _log.info(
+            'ladder amend complete: command_id=%s generation=%d rungs=%d',
+            cmd.command_id,
+            generation,
+            scheme.slices_total,
+        )
+        await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _process_bracket_modify(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+        params: BracketModify,
+    ) -> None:
+        '''Amend a live bracket's protective OCO by cancel-then-replace.
+
+        Drives the durable `Protection*` state machine: the partial
+        `BracketModify` is merged against the bracket's current legs into a
+        full two-leg snapshot, `ProtectionAmendRequested` is persisted before
+        the venue cancel, the resting OCO is cancelled, the remaining exposure
+        is reconciled from venue truth (entry filled minus the cancelled OCO's
+        filled), and a replacement OCO is placed for that remainder. Each
+        spine append precedes the venue action it authorizes
+        (persist-before-cancel, persist-before-place). Success ends in
+        `ProtectionActive` with the bracket re-pointed at the new list; an
+        ambiguous cancel halts in `ProtectionStateUnknown` for reconciliation;
+        a definitive replace failure lands in `ProtectionFailed`. The response
+        to a failed protection (flatten / reduce-only) is handled elsewhere.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            command_id (str): Bracket command whose protective OCO is amended.
+            params (BracketModify): Partial amend of the protective legs.
+        '''
+
+        bracket = runtime.brackets.get(command_id)
+        if bracket is None:
+            _log.warning(
+                'bracket modify rejected: no live bracket for command_id=%s',
+                command_id,
+            )
+            return
+
+        if not bracket.protection_placed or bracket.protection_client_order_id is None:
+            _log.warning(
+                'bracket modify rejected: no live protective OCO for command_id=%s',
+                command_id,
+            )
+            return
+
+        if bracket.protection_status is not BracketProtectionStatus.ACTIVE:
+            _log.warning(
+                'bracket modify rejected: protection not ACTIVE (status=%s) '
+                'command_id=%s',
+                bracket.protection_status.value,
+                command_id,
+            )
+            return
+
+        if bracket.avg_entry_price is None:
+            _log.warning(
+                'bracket modify rejected: no entry reference for command_id=%s',
+                command_id,
+            )
+            return
+
+        cmd = bracket.command
+        resolved = self._resolve_bracket_amend(bracket, params)
+        if resolved is None:
+            _log.warning(
+                'bracket modify rejected: amended legs invalid for entry '
+                'command_id=%s',
+                command_id,
+            )
+            return
+
+        tp_price, sl_stop_price, sl_limit_price = resolved
+        old_list_client_order_id = bracket.protection_client_order_id
+        new_version = bracket.protection_version + 1
+        new_list_client_order_id = generate_client_order_id(
+            cmd.execution_mode,
+            cmd.command_id,
+            sequence=_BRACKET_PROTECTION_SEQUENCE,
+            retry=new_version,
+        )
+
+        requested = ProtectionAmendRequested(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+            new_list_client_order_id=new_list_client_order_id,
+            old_list_client_order_id=old_list_client_order_id,
+            take_profit_price=tp_price,
+            stop_loss_price=sl_stop_price,
+            stop_loss_limit_price=sl_limit_price,
+        )
+        await self._event_spine.append(requested, self._epoch_id)
+        bracket.protection_version = new_version
+        bracket.protection_status = BracketProtectionStatus.AMEND_REQUESTED
+
+        try:
+            cancel_result = await self._venue_adapter.cancel_order_list(
+                cmd.account_id, cmd.symbol, client_order_id=old_list_client_order_id,
+            )
+        except VenueError as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
+            await self._append_protection_state_unknown(
+                cmd, new_version, reason,
+                old_list_client_order_id=old_list_client_order_id,
+            )
+            bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            bracket.unknown_since = self._clock()
+            _log.warning(
+                'bracket protective cancel ambiguous; halting amend for '
+                'reconcile: command_id=%s version=%d reason=%s',
+                cmd.command_id,
+                new_version,
+                reason,
+            )
+            return
+
+        cancel_confirmed = ProtectionCancelConfirmed(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+        )
+        await self._event_spine.append(cancel_confirmed, self._epoch_id)
+        bracket.protection_status = BracketProtectionStatus.CANCEL_CONFIRMED
+
+        bracket.amend_new_list_client_order_id = new_list_client_order_id
+        bracket.amend_tp_price = tp_price
+        bracket.amend_sl_stop_price = sl_stop_price
+        bracket.amend_sl_limit_price = sl_limit_price
+
+        await self._drive_bracket_protection_amend(
+            runtime, bracket, cancel_result.venue_order_id,
+        )
+
+    async def _drive_bracket_protection_amend(  # noqa: PLR0911
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        cancel_venue_order_id: str | None,
+    ) -> None:
+        '''Complete a cancel-confirmed protective-OCO amend once fills reconcile.
+
+        Shared by the live amend and the reconcile scan: with the old OCO
+        cancelled, reconcile its authoritative protective fill, then terminalize
+        it and place the replacement OCO for the remaining exposure. When the
+        fill cannot be reconciled the amend is parked in `CANCEL_CONFIRMED` and
+        the scan retries — never `STATE_UNKNOWN`, whose watchdog would remediate
+        a merely under-projected position as naked. If the fill is still
+        unreconciled when the restore deadline elapses the replacement is placed
+        from venue truth anyway: a bounded ledger gap the balance reconciler
+        surfaces is preferable to flattening the position over a transient
+        trade-query failure.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            bracket (_LiveBracket): The bracket whose amend to complete; carries
+                the replacement legs and list id resolved at request time.
+            cancel_venue_order_id (str | None): The old OCO's venue id from the
+                live cancel, or None on a scan re-drive.
+        '''
+
+        cmd = bracket.command
+        new_version = bracket.protection_version
+        old_list_client_order_id = bracket.protection_client_order_id
+        new_list_client_order_id = bracket.amend_new_list_client_order_id
+        tp_price = bracket.amend_tp_price
+        sl_stop_price = bracket.amend_sl_stop_price
+        sl_limit_price = bracket.amend_sl_limit_price
+        assert old_list_client_order_id is not None
+        assert new_list_client_order_id is not None
+        assert tp_price is not None
+        assert sl_stop_price is not None
+
+        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        exit_command_id = bracket_exit_command_id(cmd.command_id)
+        exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
+        old_oco_order = self._scheme_child_order(runtime, old_list_client_order_id)
+        old_oco_projected = old_oco_order.filled_qty if old_oco_order is not None else _ZERO
+        protective_side = (
+            OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
+        )
+        leg_client_order_ids = runtime.trading_state.oco_parent_legs.get(
+            old_list_client_order_id, (),
+        )
+
+        try:
+            oco_filled = await self._cancelled_oco_filled_qty(
+                cmd, old_list_client_order_id,
+            )
+        except VenueError as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
+            await self._append_protection_state_unknown(
+                cmd, new_version, reason,
+                old_list_client_order_id=old_list_client_order_id,
+            )
+            bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            bracket.unknown_since = self._clock()
+            bracket.amend_backfill_since = None
+            _log.warning(
+                'bracket protective reconcile query failed; halting amend for '
+                'reconcile rather than sizing a replacement from stale local '
+                'fills: command_id=%s version=%d reason=%s',
+                cmd.command_id,
+                new_version,
+                reason,
+            )
+            return
+
+        reconciled = await self._backfill_terminal_order_fills(
+            runtime, cmd.account_id, cmd.symbol, exit_command_id, cmd.trade_id,
+            protective_side, old_list_client_order_id, leg_client_order_ids,
+            old_oco_projected, oco_filled,
+        )
+        if not reconciled:
+            if bracket.amend_backfill_since is None:
+                bracket.amend_backfill_since = self._clock()
+
+            elapsed = (self._clock() - bracket.amend_backfill_since).total_seconds()
+            if elapsed < self._restore_deadline_seconds:
+                bracket.protection_status = BracketProtectionStatus.CANCEL_CONFIRMED
+                _log.warning(
+                    'bracket protective amend held: protective fills unreconciled '
+                    'after cancel; parked for the reconcile scan to retry: '
+                    'command_id=%s version=%d',
+                    cmd.command_id,
+                    new_version,
+                )
+                return
+
+            _log.warning(
+                'bracket protective amend: fills still unreconciled at the '
+                'restore deadline; placing the replacement from venue truth '
+                'rather than flattening over a trade-query gap: command_id=%s '
+                'version=%d',
+                cmd.command_id,
+                new_version,
+            )
+
+        bracket.amend_backfill_since = None
+
+        if runtime.trading_state.orders.get(old_list_client_order_id) is not None:
+            terminal_venue_order_id = (
+                cancel_venue_order_id
+                if cancel_venue_order_id is not None
+                else (old_oco_order.venue_order_id if old_oco_order is not None else '')
+            )
+            canceled = OrderCanceled(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=old_list_client_order_id,
+                venue_order_id=terminal_venue_order_id,
+                reason='bracket protection amended',
+            )
+            await self._event_spine.append(canceled, self._epoch_id)
+            runtime.trading_state.apply(canceled)
+
+        remaining = entry_filled - (exit_projected - old_oco_projected + oco_filled)
+
+        if remaining <= _ZERO:
+            runtime.brackets.pop(cmd.command_id, None)
+            _log.info(
+                'bracket protective amend: position closed by a protective '
+                'fill, no replacement placed: command_id=%s version=%d',
+                cmd.command_id,
+                new_version,
+            )
+            return
+
+        filters = self._venue_adapter.cached_filters(cmd.symbol)
+        lot_min = filters.lot_min if filters is not None else _ZERO
+        min_notional = filters.min_notional if filters is not None else _ZERO
+
+        if remaining < lot_min or remaining * tp_price < min_notional:
+            runtime.brackets.pop(cmd.command_id, None)
+            _log.info(
+                'bracket protective amend: remaining below tradable minimums '
+                'after reconcile, position treated as closed dust, no '
+                'replacement placed: command_id=%s version=%d remaining=%s',
+                cmd.command_id,
+                new_version,
+                remaining,
+            )
+            return
+
+        replace_submitted = ProtectionReplaceSubmitted(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+            new_list_client_order_id=new_list_client_order_id,
+        )
+        await self._event_spine.append(replace_submitted, self._epoch_id)
+        bracket.protection_status = BracketProtectionStatus.REPLACE_SUBMITTED
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=exit_command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=new_list_client_order_id,
+            symbol=cmd.symbol,
+            side=protective_side,
+            order_type=OrderType.OCO,
+            qty=remaining,
+            quote_qty=None,
+            price=tp_price,
+            stop_price=sl_stop_price,
+            stop_limit_price=sl_limit_price,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                protective_side,
+                OrderType.OCO,
+                remaining,
+                price=tp_price,
+                stop_price=sl_stop_price,
+                stop_limit_price=sl_limit_price,
+                client_order_id=new_list_client_order_id,
+            )
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError, VenueError) as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
+
+            try:
+                order_list = await self._replacement_oco_is_live(
+                    cmd, new_list_client_order_id,
+                )
+            except VenueError:
+                await self._append_protection_state_unknown(
+                    cmd, new_version, reason,
+                    old_list_client_order_id=old_list_client_order_id,
+                    new_list_client_order_id=new_list_client_order_id,
+                )
+                bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+                bracket.unknown_since = self._clock()
+                bracket.pending_replacement_client_order_id = new_list_client_order_id
+                _log.warning(
+                    'bracket protective replacement unconfirmable after venue '
+                    'error; halting amend for reconcile: command_id=%s '
+                    'version=%d reason=%s',
+                    cmd.command_id,
+                    new_version,
+                    reason,
+                )
+                return
+
+            if order_list is None:
+                await self._remediate_naked_bracket(
+                    runtime, bracket, new_version, reason,
+                    remaining, (old_list_client_order_id, new_list_client_order_id),
+                )
+
+                return
+
+            submitted = OrderSubmitted(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=new_list_client_order_id,
+                venue_order_id=order_list.order_list_id,
+                leg_client_order_ids=tuple(
+                    leg.client_order_id for leg in order_list.legs
+                ),
+            )
+            replacement_terminal = (
+                order_list.list_order_status == _OCO_LIST_STATUS_ALL_DONE
+            )
+            immediate_fills: tuple[ImmediateFill, ...] = ()
+        else:
+            submitted = OrderSubmitted(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=new_list_client_order_id,
+                venue_order_id=result.venue_order_id,
+                leg_client_order_ids=result.leg_client_order_ids,
+            )
+            replacement_terminal = result.status in _TERMINAL_ORDER_STATUSES
+            immediate_fills = result.immediate_fills
+
+        runtime.command_to_order[exit_command_id] = new_list_client_order_id
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        bracket.amend_new_list_client_order_id = None
+        bracket.amend_tp_price = None
+        bracket.amend_sl_stop_price = None
+        bracket.amend_sl_limit_price = None
+
+        if replacement_terminal:
+            await self._append_protection_state_unknown(
+                cmd, new_version,
+                'replacement OCO already terminal at placement',
+                old_list_client_order_id=old_list_client_order_id,
+                new_list_client_order_id=new_list_client_order_id,
+            )
+            bracket.protection_client_order_id = new_list_client_order_id
+            bracket.pending_replacement_client_order_id = new_list_client_order_id
+            bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+            bracket.unknown_since = self._clock()
+            _log.warning(
+                'bracket protective replacement already terminal at placement; '
+                'holding for reconcile rather than marking a filled or cancelled '
+                'OCO active: command_id=%s version=%d',
+                cmd.command_id,
+                new_version,
+            )
+            return
+
+        for fill in immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=self._clock(),
+                client_order_id=new_list_client_order_id,
+                venue_order_id=submitted.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=exit_command_id,
+                symbol=cmd.symbol,
+                side=protective_side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        active = ProtectionActive(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=new_version,
+            new_list_client_order_id=new_list_client_order_id,
+        )
+        await self._event_spine.append(active, self._epoch_id)
+        bracket.protection_client_order_id = new_list_client_order_id
+        bracket.current_tp_price = tp_price
+        bracket.current_sl_stop_price = sl_stop_price
+        bracket.current_sl_limit_price = sl_limit_price
+        bracket.protection_status = BracketProtectionStatus.ACTIVE
+
+        _log.info(
+            'bracket protection amended: command_id=%s version=%d qty=%s '
+            'tp=%s sl=%s new_list=%s',
+            cmd.command_id,
+            new_version,
+            remaining,
+            tp_price,
+            sl_stop_price,
+            new_list_client_order_id,
+        )
+
+    async def resolve_held_protection_amends(self, account_id: str) -> None:
+        '''Retry each protective-OCO amend held for fill reconciliation.
+
+        A bracket amend parks in `CANCEL_CONFIRMED` with `amend_backfill_since`
+        set when the cancelled OCO's protective fill could not be reconciled to
+        venue truth. Each reconcile scan re-drives it — re-query, backfill, then
+        terminalize and replace once reconciled, or place from venue truth once
+        the restore deadline elapses. Never routed through the naked-remediation
+        watchdog, so a transient trade-query gap cannot flatten the position.
+
+        Args:
+            account_id (str): Account whose held protective amends to retry.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for bracket in list(runtime.brackets.values()):
+            if bracket.amend_backfill_since is None:
+                continue
+
+            await self._drive_bracket_protection_amend(runtime, bracket, None)
+
+    def _resolve_bracket_amend(
+        self,
+        bracket: _LiveBracket,
+        params: BracketModify,
+    ) -> tuple[Decimal, Decimal, Decimal | None] | None:
+        '''Merge a partial bracket amend into a full, validated leg snapshot.
+
+        A leg the amend sets is resolved — an absolute price used as-is, a
+        basis-point offset resolved side-aware from the entry average fill and
+        snapped to the venue tick; a leg the amend leaves unset keeps the
+        bracket's current value. The merged legs are validated on the correct
+        side of the entry, mirroring initial placement.
+
+        Args:
+            bracket (_LiveBracket): The bracket holding current legs and the
+                entry reference.
+            params (BracketModify): Partial amend of the protective legs.
+
+        Returns:
+            tuple[Decimal, Decimal, Decimal | None] | None: The resolved
+                take-profit, stop-loss trigger, and optional stop-limit
+                prices, or None when the merged legs are invalid.
+        '''
+
+        cmd = bracket.command
+        assert bracket.avg_entry_price is not None
+        avg_entry_price = bracket.avg_entry_price
+        profit_direction = _ONE if cmd.side is OrderSide.BUY else -_ONE
+
+        tp_price: Decimal | None
+        sl_stop_price: Decimal | None
+        sl_limit_price: Decimal | None
+
+        if params.take_profit_price is not None:
+            tp_price = self._snap_price(cmd.symbol, params.take_profit_price)
+        elif params.take_profit_offset_bps is not None:
+            tp_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE + profit_direction * params.take_profit_offset_bps / _BPS_MULTIPLIER),
+            )
+        else:
+            tp_price = bracket.current_tp_price
+
+        if params.stop_loss_price is not None:
+            sl_stop_price = self._snap_price(cmd.symbol, params.stop_loss_price)
+        elif params.stop_loss_offset_bps is not None:
+            sl_stop_price = self._snap_price(
+                cmd.symbol,
+                avg_entry_price
+                * (_ONE - profit_direction * params.stop_loss_offset_bps / _BPS_MULTIPLIER),
+            )
+        else:
+            sl_stop_price = bracket.current_sl_stop_price
+
+        if params.stop_loss_limit_price is not None:
+            sl_limit_price = self._snap_price(cmd.symbol, params.stop_loss_limit_price)
+        else:
+            sl_limit_price = bracket.current_sl_limit_price
+
+        if tp_price is None or sl_stop_price is None:
+            return None
+
+        if not self._bracket_legs_valid_for_entry(
+            cmd, tp_price, sl_stop_price, avg_entry_price,
+        ):
+            return None
+
+        return tp_price, sl_stop_price, sl_limit_price
+
+    async def _cancelled_oco_filled_qty(
+        self,
+        cmd: TradeCommand,
+        list_client_order_id: str,
+    ) -> Decimal:
+        '''Return the authoritative filled quantity of a cancelled protective OCO.
+
+        The venue's OCO list query carries only leg identities, not a filled
+        quantity, so each leg is queried and its filled quantity summed — a
+        one-sided protective OCO fills at most one leg. A query failure leaves
+        the cancelled OCO's fill unresolved and raises `VenueError`: the caller
+        must halt the amend for reconciliation rather than size a replacement
+        from a stale local projection that could under-count a missed fill and
+        over-size the replacement.
+
+        Args:
+            cmd (TradeCommand): Bracket command carrying account and symbol.
+            list_client_order_id (str): Cancelled OCO's list client order id.
+
+        Returns:
+            Decimal: The cancelled OCO's authoritative filled quantity.
+
+        Raises:
+            VenueError: When the venue query cannot be completed.
+        '''
+
+        order_list = await self._venue_adapter.query_order_list(
+            cmd.account_id, list_client_order_id=list_client_order_id,
+        )
+
+        filled = _ZERO
+        for leg in order_list.legs:
+            leg_order = await self._venue_adapter.query_order(
+                cmd.account_id, cmd.symbol, client_order_id=leg.client_order_id,
+            )
+            filled += leg_order.filled_qty
+
+        return filled
+
+    async def _replacement_oco_is_live(
+        self,
+        cmd: TradeCommand,
+        list_client_order_id: str,
+    ) -> VenueOrderList | None:
+        '''Return an ambiguously-submitted replacement OCO if it is resting.
+
+        After an ambiguous submit (timeout, duplicate client id, or a generic
+        venue error once the old OCO is already cancelled) the venue is queried
+        for the replacement list rather than blindly failing: a list present
+        and not rejected is a confirmed idempotent success and is returned so
+        its venue identities can be tracked; a list the venue confirms REJECT
+        returns None. A query that cannot be completed raises `VenueError` so
+        the caller halts for reconciliation (unknown) rather than treating an
+        unconfirmable replacement as rejected.
+
+        Args:
+            cmd (TradeCommand): Bracket command carrying the account.
+            list_client_order_id (str): Replacement OCO's list client order id.
+
+        Returns:
+            VenueOrderList | None: The resting replacement list, or None when
+                the venue confirms the list is rejected.
+
+        Raises:
+            VenueError: When the venue query cannot be completed.
+        '''
+
+        order_list = await self._venue_adapter.query_order_list(
+            cmd.account_id, list_client_order_id=list_client_order_id,
+        )
+
+        if order_list.list_order_status == _OCO_LIST_STATUS_REJECT:
+            return None
+
+        return order_list
+
+    async def _append_protection_state_unknown(
+        self,
+        cmd: TradeCommand,
+        protection_version: int,
+        reason: str,
+        old_list_client_order_id: str | None = None,
+        new_list_client_order_id: str | None = None,
+    ) -> None:
+        '''Persist a `ProtectionStateUnknown` for an ambiguous amend outcome.
+
+        The candidate list client order ids are carried on the event so the
+        watchdog can rebuild the bracket and re-query them after a restart,
+        where they would otherwise survive only in memory.
+        '''
+
+        event = ProtectionStateUnknown(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=protection_version,
+            reason=reason,
+            old_list_client_order_id=old_list_client_order_id,
+            new_list_client_order_id=new_list_client_order_id,
+        )
+        await self._event_spine.append(event, self._epoch_id)
+
+    async def _append_protection_failed(
+        self,
+        cmd: TradeCommand,
+        protection_version: int,
+        reason: str,
+        oco_candidates: tuple[str, ...] = (),
+    ) -> None:
+        '''Persist a `ProtectionFailed` marking no live protective OCO.
+
+        The candidate OCO list ids are carried on the marker so boot flatten
+        recovery re-checks each for a live leg before market-flattening, exactly
+        as the live flatten did.
+        '''
+
+        event = ProtectionFailed(
+            account_id=cmd.account_id,
+            timestamp=self._clock(),
+            command_id=cmd.command_id,
+            protection_version=protection_version,
+            reason=reason,
+            oco_list_client_order_ids=oco_candidates,
+        )
+        await self._event_spine.append(event, self._epoch_id)
+
+    @staticmethod
+    def _bracket_oco_candidates(bracket: _LiveBracket) -> tuple[str, ...]:
+        '''Return the OCO list ids a naked bracket's flatten must confirm dead.'''
+
+        return tuple(
+            candidate
+            for candidate in (
+                bracket.protection_client_order_id,
+                bracket.pending_replacement_client_order_id,
+            )
+            if candidate is not None
+        )
+
+    async def _process_scheme_modify(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        modify: TradeModify,
+    ) -> None:
+        '''Amend a running scheme's remaining schedule in place.
+
+        TWAP / Time DCA / Scheduled VWAP fire MARKET slices at an interval and
+        rest no orders, so an amend needs no venue cancel-replace: the
+        remaining unfilled quantity is re-planned across the remaining slices
+        and the cadence rescheduled. A new slice count (TWAP / Time DCA)
+        re-plans the not-yet-fired slices for the remaining quantity; a new
+        interval reschedules the next slice. Any successful amend resets the
+        cadence clock: the next slice fires a full (new) interval from now,
+        not from the previous slice. A new total at or below the fired cursor
+        is rejected (a scheme is stopped with a TradeAbort, not by shrinking
+        it below what has already fired). A successful amend clears
+        a freeze, resuming a scheme frozen by a slice failure — but a scheme
+        frozen by a protection remediation is not resumable by an amend and
+        the modify is rejected. The amend is applied in memory only — a
+        restart replays the original schedule (TD-135) — and a Scheduled
+        VWAP weight-curve amend is not yet supported.
+
+        Args:
+            runtime (_AccountRuntime): Per-account state to update.
+            scheme (_LiveScheme): The running scheme to amend.
+            modify (TradeModify): Amend instruction with a scheme ModifyParams.
+        '''
+
+        cmd = scheme.command
+        params = modify.modify_params
+        assert cmd.qty is not None
+        assert isinstance(params, (TwapModify, TimeDcaModify, ScheduledVwapModify))
+
+        if scheme.protection_frozen:
+            _log.warning(
+                'modify rejected: scheme is frozen by a protection remediation '
+                'and cannot be resumed by an amend: command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        if scheme.pending_terminal is not None:
+            _log.warning(
+                'modify rejected: scheme has a terminal outcome pending and '
+                'cannot be amended while cancellation settles: command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        if isinstance(params, ScheduledVwapModify) and params.volume_weights is not None:
+            _log.warning(
+                'modify rejected: Scheduled VWAP weight amend not yet supported: '
+                'command_id=%s',
+                cmd.command_id,
+            )
+            return
+
+        current_total = scheme.slices_total
+        current_interval = scheme.interval_seconds
+        new_total, new_interval = self._resolve_scheme_amend(
+            params, current_total, current_interval,
+        )
+
+        filled_qty, _ = self._command_fill_totals(runtime, cmd.command_id)
+        remaining_qty = cmd.qty - filled_qty
+        remaining_slices = new_total - scheme.cursor
+
+        if remaining_qty <= _ZERO:
+            _log.info(
+                'scheme amend no-op (already filled): command_id=%s', cmd.command_id,
+            )
+            return
+
+        if remaining_slices <= 0:
+            _log.warning(
+                'modify rejected: new slice total %d is not beyond the fired '
+                'cursor %d; abort to stop a scheme: command_id=%s',
+                new_total,
+                scheme.cursor,
+                cmd.command_id,
+            )
+            return
+
+        if new_total != current_total:
+            filters = self._venue_adapter.cached_filters(cmd.symbol)
+            lot_step = filters.lot_step if filters is not None else None
+            try:
+                remaining_qtys = plan_even_slices(remaining_qty, remaining_slices, lot_step)
+            except ValueError as exc:
+                _log.warning(
+                    'scheme amend replan failed; leaving schedule unchanged: '
+                    'command_id=%s reason=%s',
+                    cmd.command_id,
+                    exc,
+                )
+                return
+
+            scheme.slice_qtys = scheme.slice_qtys[:scheme.cursor] + remaining_qtys
+            scheme.slices_total = new_total
+
+        scheme.interval_seconds = new_interval
+        scheme.frozen = False
+        scheme.next_run_at = self._clock() + timedelta(seconds=new_interval)
+        await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
+
+    def _resolve_scheme_amend(
+        self,
+        params: TwapModify | TimeDcaModify | ScheduledVwapModify,
+        current_total: int,
+        current_interval: int,
+    ) -> tuple[int, int]:
+        '''Resolve a scheme amend's absolute new slice total and interval.
+
+        An unset field keeps the running scheme's current live value, so
+        sequential partial amends compose rather than reverting to the
+        original command. Scheduled VWAP carries no slice-count field (its
+        count is its weight-curve length, which this slice does not amend),
+        so its total is unchanged.
+        '''
+
+        interval = (
+            params.interval_seconds
+            if params.interval_seconds is not None
+            else current_interval
+        )
+
+        if isinstance(params, TwapModify):
+            total = params.num_slices if params.num_slices is not None else current_total
+            return total, interval
+
+        if isinstance(params, TimeDcaModify):
+            total = (
+                params.num_iterations
+                if params.num_iterations is not None
+                else current_total
+            )
+            return total, interval
+
+        return current_total, interval
+
+    def _resolve_amend(
+        self,
+        cmd: TradeCommand,
+        params: SingleShotModify | IcebergModify,
+    ) -> tuple[Decimal | None, Decimal | None]:
+        '''Resolve the replacement's absolute price and display quantity.
+
+        Absolute amend values override the original; unset fields keep the
+        command's original value. Returns (price, display_qty), with
+        display_qty None for a plain limit replacement.
+        '''
+
+        if isinstance(params, IcebergModify):
+            assert isinstance(cmd.execution_params, IcebergParams)
+            price = (
+                params.limit_price
+                if params.limit_price is not None
+                else cmd.execution_params.limit_price
+            )
+            display = (
+                params.display_qty
+                if params.display_qty is not None
+                else cmd.execution_params.display_qty
+            )
+            return price, display
+
+        assert isinstance(cmd.execution_params, SingleShotParams)
+        resolved_price = (
+            params.price if params.price is not None else cmd.execution_params.price
+        )
+        return resolved_price, None
+
+    def _amended_order_params(
+        self,
+        cmd: TradeCommand,
+        price: Decimal,
+        display_qty: Decimal | None,
+    ) -> ExecutionParams:
+        '''Return the command's execution params with the amend's values applied.
+
+        Adopting the resolved price and display after a successful amend keeps
+        `cmd.execution_params` the current effective order, so a later amend
+        that leaves a field unset resolves it from the latest values rather
+        than reverting to the original command.
+        '''
+
+        if isinstance(cmd.execution_params, IcebergParams):
+            assert display_qty is not None
+            return replace(
+                cmd.execution_params, limit_price=price, display_qty=display_qty,
+            )
+
+        assert isinstance(cmd.execution_params, SingleShotParams)
+        return replace(cmd.execution_params, price=price)
+
+    async def _cancel_and_query(
+        self,
+        cmd: TradeCommand,
+        client_order_id: str,
+    ) -> VenueOrder | None:
+        '''Cancel the resting order and return its authoritative venue state.
+
+        Fail-closed: a cancel that errors (the order may still be live) or a
+        query that errors (the order state cannot be confirmed) returns None,
+        and the caller must abort the amend without cancelling locally or
+        placing a replacement — otherwise a still-live original plus a
+        replacement could double the exposure. A `NotFoundError` on cancel
+        means the order is already gone, resolved by the query. The cancel
+        response carries no filled quantity, so the venue is queried for the
+        authoritative filled and terminal status the replacement is sized
+        against.
+        '''
+
+        try:
+            await self._venue_adapter.cancel_order(
+                cmd.account_id, cmd.symbol, client_order_id=client_order_id,
+            )
+        except NotFoundError:
+            pass
+        except VenueError as exc:
+            _log.warning(
+                'amend aborted: cancel failed, order may still be live: '
+                'command_id=%s reason=%s',
+                cmd.command_id,
+                exc.args[0] if exc.args else exc,
+            )
+            return None
+
+        try:
+            return await self._venue_adapter.query_order(
+                cmd.account_id, cmd.symbol, client_order_id=client_order_id,
+            )
+        except (NotFoundError, VenueError) as exc:
+            _log.warning(
+                'amend aborted: order state could not be confirmed: '
+                'command_id=%s reason=%s',
+                cmd.command_id,
+                exc.args[0] if exc.args else exc,
+            )
+            return None
+
+    async def _place_amend_replacement(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        new_client_order_id: str,
+        price: Decimal,
+        display_qty: Decimal | None,
+        remainder: Decimal,
+    ) -> None:
+        '''Place the amend's replacement LIMIT order for the remainder.
+
+        Persist-before-send: `OrderSubmitIntent` then the venue call, with the
+        same timeout / duplicate rescue as the initial submit. On success the
+        command's live order becomes the replacement; the outcome is emitted
+        from the command-total fills so the superseded order's fills carry
+        forward. A submit failure leaves the durable `OrderAmendInitiated`
+        for boot repair and reports the fills so far.
+        '''
+
+        iceberg_qty = display_qty if display_qty is not None and display_qty < remainder else None
+        now = self._clock()
+
+        intent = OrderSubmitIntent(
+            account_id=cmd.account_id,
+            timestamp=now,
+            command_id=cmd.command_id,
+            trade_id=cmd.trade_id,
+            client_order_id=new_client_order_id,
+            symbol=cmd.symbol,
+            side=cmd.side,
+            order_type=OrderType.LIMIT,
+            qty=remainder,
+            quote_qty=None,
+            price=price,
+            stop_price=None,
+            stop_limit_price=None,
+        )
+        await self._event_spine.append(intent, self._epoch_id)
+        runtime.trading_state.apply(intent)
+        runtime.command_to_order[cmd.command_id] = new_client_order_id
+
+        try:
+            result = await self._venue_adapter.submit_order(
+                cmd.account_id,
+                cmd.symbol,
+                cmd.side,
+                OrderType.LIMIT,
+                remainder,
+                price=price,
+                client_order_id=new_client_order_id,
+                iceberg_qty=iceberg_qty,
+            )
+            post_venue_ts = self._clock()
+        except (OrderSubmitTimeoutError, DuplicateClientOrderIdError) as exc:
+            rescued = await self._rescue_by_client_order_id(
+                runtime, cmd, new_client_order_id, exc,
+            )
+            if rescued is None:
+                reason = str(exc.args[0]) if exc.args else str(exc)
+                await self._append_submit_failed(
+                    runtime, cmd, new_client_order_id, reason,
+                )
+                await self._emit_amend_failed(runtime, cmd, reason)
+                return
+            result = rescued
+            post_venue_ts = self._clock()
+        except (VenueError, ValueError) as exc:
+            reason = str(exc.args[0]) if exc.args else str(exc)
+            await self._append_submit_failed(
+                runtime, cmd, new_client_order_id, reason,
+            )
+            await self._emit_amend_failed(runtime, cmd, reason)
+            return
+
+        submitted = OrderSubmitted(
+            account_id=cmd.account_id,
+            timestamp=post_venue_ts,
+            client_order_id=new_client_order_id,
+            venue_order_id=result.venue_order_id,
+        )
+        await self._event_spine.append(submitted, self._epoch_id)
+        runtime.trading_state.apply(submitted)
+
+        self._commands[cmd.command_id] = replace(
+            cmd, execution_params=self._amended_order_params(cmd, price, display_qty),
+        )
+
+        for fill in result.immediate_fills:
+            fill_event = FillReceived(
+                account_id=cmd.account_id,
+                timestamp=post_venue_ts,
+                client_order_id=new_client_order_id,
+                venue_order_id=result.venue_order_id,
+                venue_trade_id=fill.venue_trade_id,
+                trade_id=cmd.trade_id,
+                command_id=cmd.command_id,
+                symbol=cmd.symbol,
+                side=cmd.side,
+                qty=fill.qty,
+                price=fill.price,
+                fee=fill.fee,
+                fee_asset=fill.fee_asset,
+                is_maker=fill.is_maker,
+            )
+            seq = await self._event_spine.append(fill_event, self._epoch_id)
+            if seq is not None:
+                self._project(runtime, fill_event)
+
+        await self._emit_amend_outcome(runtime, cmd)
+
+    async def _emit_amend_outcome(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Emit an outcome for an amended command from its aggregate fills.
+
+        Status is derived from the command-total filled across the superseded
+        and replacement orders: FILLED once the target is reached, PARTIAL
+        while some quantity has filled, otherwise PENDING for the resting
+        replacement.
+        '''
+
+        assert cmd.qty is not None
+        filled_qty, cumulative_notional = self._command_fill_totals(
+            runtime, cmd.command_id,
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        if filled_qty >= cmd.qty:
+            status = TradeStatus.FILLED
+        elif filled_qty > _ZERO:
+            status = TradeStatus.PARTIAL
+        else:
+            status = TradeStatus.PENDING
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            status,
+            filled_qty=min(filled_qty, cmd.qty),
+            avg_fill_price=avg_fill_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _emit_amend_terminal(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+    ) -> None:
+        '''Terminalize an amended command that cancelled with only dust left.
+
+        The resting order was cancelled and the unfilled remainder is sub-lot
+        dust that cannot be re-placed, so the command completes FILLED on the
+        fills so far — the same economically-negligible shortfall a scheme
+        reports FILLED — rather than resting non-terminal forever.
+        '''
+
+        assert cmd.qty is not None
+        filled_qty, cumulative_notional = self._command_fill_totals(
+            runtime, cmd.command_id,
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.FILLED,
+            filled_qty=min(filled_qty, cmd.qty),
+            avg_fill_price=avg_fill_price,
+            reason=None,
+            cumulative_notional=cumulative_notional,
+        )
+
+    async def _emit_amend_failed(
+        self,
+        runtime: _AccountRuntime,
+        cmd: TradeCommand,
+        reason: str,
+    ) -> None:
+        '''Terminalize an amend whose replacement definitively failed to place.
+
+        The old order is already terminal and the replacement was rejected, so
+        the command can make no further progress: resting it non-terminal would
+        leave a command with no working venue order that can neither advance nor
+        be modified, and Nexus would wait indefinitely. It completes CANCELED on
+        the aggregate fills across the superseded and rejected orders, carrying
+        the failure reason.
+        '''
+
+        assert cmd.qty is not None
+        filled_qty, cumulative_notional = self._command_fill_totals(
+            runtime, cmd.command_id,
+        )
+        avg_fill_price = (
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        await self._build_outcome(
+            runtime,
+            cmd,
+            TradeStatus.CANCELED,
+            filled_qty=min(filled_qty, cmd.qty),
+            avg_fill_price=avg_fill_price,
+            reason=reason,
+            cumulative_notional=cumulative_notional,
+        )
+
     async def _build_abort_outcome(
         self,
         runtime: _AccountRuntime,
@@ -4888,13 +8844,17 @@ class ExecutionManager:
         if cmd is None:
             return
 
+        if runtime.command_to_order.get(command_id) != client_order_id:
+            return
+
+        filled_qty, cumulative_notional = self._command_fill_totals(runtime, command_id)
+
         avg_fill_price: Decimal | None = (
-            order.cumulative_notional / order.filled_qty
-            if order.filled_qty > _ZERO else None
+            cumulative_notional / filled_qty if filled_qty > _ZERO else None
         )
 
-        emitted_filled_qty = order.filled_qty
-        emitted_cumulative_notional = order.cumulative_notional
+        emitted_filled_qty = filled_qty
+        emitted_cumulative_notional = cumulative_notional
         if not cmd.is_quote_native:
             assert cmd.qty is not None
             if emitted_filled_qty > cmd.qty:
@@ -4911,10 +8871,12 @@ class ExecutionManager:
                 emitted_filled_qty = cmd.qty
 
         if isinstance(event, FillReceived):
-            status = (
-                TradeStatus.FILLED
-                if order.status == OrderStatus.FILLED else TradeStatus.PARTIAL
+            fully_filled = (
+                emitted_filled_qty >= cmd.qty
+                if not cmd.is_quote_native and cmd.qty is not None
+                else order.status == OrderStatus.FILLED
             )
+            status = TradeStatus.FILLED if fully_filled else TradeStatus.PARTIAL
             reason: str | None = None
 
         elif isinstance(event, OrderCanceled):

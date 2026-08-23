@@ -17,11 +17,19 @@ import pytest_asyncio
 from praxis.core.domain.enums import ExecutionMode, OrderSide, OrderType
 from praxis.core.domain.events import (
     BracketInitialized,
+    OrderAmendInitiated,
     CommandAccepted,
     Event,
     FillReceived,
     FundTransaction,
     MarkSampled,
+    ProtectionActive,
+    ProtectionAmendRequested,
+    ProtectionCancelConfirmed,
+    ProtectionFailed,
+    ProtectionReplaceSubmitted,
+    ProtectionStateUnknown,
+    ReconciliationMismatch,
     OrderAcked,
     OrderCanceled,
     OrderExpired,
@@ -30,8 +38,10 @@ from praxis.core.domain.events import (
     OperatorHaltRequested,
     OperatorResumeRequested,
     OrderSubmitIntent,
+    FlattenInitiated,
     OrderSubmitted,
     RegisterAccount,
+    SchemeFrozen,
     SchemeInitialized,
     TradeClosed,
 )
@@ -77,6 +87,14 @@ _ALL_EVENTS: list[Event] = [
         timeout_seconds=300,
     ),
 
+    OrderAmendInitiated(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, trade_id=_TRADE, symbol=_SYMBOL,
+        side=OrderSide.BUY, total_qty=Decimal('1'),
+        old_client_order_id='old-coid', new_client_order_id='new-coid',
+        price=Decimal('49000.00'), display_qty=Decimal('0.1'),
+    ),
+
     SchemeInitialized(
         account_id=_ACCT, timestamp=_TS,
         command_id=_CMD, trade_id=_TRADE,
@@ -96,6 +114,17 @@ _ALL_EVENTS: list[Event] = [
         interval_seconds=0, timeout_seconds=300,
         volume_weights=(Decimal('0.6'), Decimal('0.4')),
         price_levels=(Decimal('49000.00'), Decimal('48000.00')),
+    ),
+
+    SchemeFrozen(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, reason='protection lost',
+    ),
+
+    FlattenInitiated(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, protection_version=1,
+        qty=Decimal('0.5'), client_order_id='flat-coid',
     ),
 
     OrderSubmitFailed(
@@ -151,11 +180,42 @@ _ALL_EVENTS: list[Event] = [
         account_id=_ACCT, timestamp=_TS,
         fund_transaction_id='fund-1', amount=Decimal('1000'), direction='DEPOSIT',
     ),
+    ReconciliationMismatch(
+        account_id=_ACCT, timestamp=_TS,
+        reconciliation_mismatch_id='recon-1', asset='USDT',
+        expected=Decimal('1000'), actual=Decimal('995.5'),
+    ),
     OperatorHaltRequested(
         account_id=_ACCT, timestamp=_TS, reason='manual stop',
     ),
     OperatorResumeRequested(
         account_id=_ACCT, timestamp=_TS, reason='cleared',
+    ),
+    ProtectionAmendRequested(
+        account_id=_ACCT, timestamp=_TS,
+        command_id=_CMD, protection_version=1,
+        new_list_client_order_id='px-new-1', old_list_client_order_id='px-old-1',
+        take_profit_price=Decimal('52000.50'), stop_loss_price=Decimal('48000.00'),
+        stop_loss_limit_price=Decimal('47900.25'),
+    ),
+    ProtectionCancelConfirmed(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+    ),
+    ProtectionStateUnknown(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        reason='venue timeout',
+    ),
+    ProtectionReplaceSubmitted(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        new_list_client_order_id='px-new-1',
+    ),
+    ProtectionActive(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        new_list_client_order_id='px-new-1',
+    ),
+    ProtectionFailed(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD, protection_version=1,
+        reason='replace rejected',
     ),
 
 ]
@@ -168,6 +228,11 @@ _FILL = FillReceived(
     side=OrderSide.BUY, qty=Decimal('1.5'),
     price=Decimal('50000.25'), fee=Decimal('0.001'),
     fee_asset='USDT', is_maker=True,
+)
+
+_FUND = FundTransaction(
+    account_id=_ACCT, timestamp=_TS,
+    fund_transaction_id='fund-1', amount=Decimal('1000'), direction='DEPOSIT',
 )
 
 
@@ -351,6 +416,47 @@ async def test_fill_dedup_same_trade_id_different_accounts(spine: EventSpine) ->
     assert isinstance(seq_b, int)
     events = await spine.read(epoch_id=_EPOCH)
     assert len(events) == 2
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_duplicate_returns_none(spine: EventSpine) -> None:
+
+    await spine.append(_FUND, epoch_id=_EPOCH)
+    result = await spine.append(_FUND, epoch_id=_EPOCH)
+    assert result is None
+    events = await spine.read(epoch_id=_EPOCH)
+    assert len(events) == 1
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_different_ids_both_append(spine: EventSpine) -> None:
+
+    fund_b = replace(_FUND, fund_transaction_id='fund-2')
+    seq_a = await spine.append(_FUND, epoch_id=_EPOCH)
+    seq_b = await spine.append(fund_b, epoch_id=_EPOCH)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+    assert len(await spine.read(epoch_id=_EPOCH)) == 2
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_same_id_different_epochs(spine: EventSpine) -> None:
+
+    seq_a = await spine.append(_FUND, epoch_id=1)
+    seq_b = await spine.append(_FUND, epoch_id=2)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+
+
+@pytest.mark.asyncio
+async def test_fund_dedup_same_id_different_accounts(spine: EventSpine) -> None:
+
+    fund_b = replace(_FUND, account_id='acc-2')
+    seq_a = await spine.append(_FUND, epoch_id=_EPOCH)
+    seq_b = await spine.append(fund_b, epoch_id=_EPOCH)
+    assert isinstance(seq_a, int)
+    assert isinstance(seq_b, int)
+    assert len(await spine.read(epoch_id=_EPOCH)) == 2
 
 
 @pytest.mark.asyncio

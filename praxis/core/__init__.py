@@ -2,7 +2,8 @@
 Represent core projection and domain types for the Praxis Trading sub-system.
 
 Re-exports TradingState, ExecutionManager, generate_client_order_id,
-validate_trade_command, and validate_trade_abort from the core package.
+validate_trade_command, validate_trade_abort, and validate_trade_modify
+from the core package.
 '''
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from praxis.core.trading_state import TradingState
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.core.validate_trade_abort import validate_trade_abort
+from praxis.core.validate_trade_modify import validate_trade_modify
 
 __all__ = [
     'AccountNotRegisteredError',
@@ -23,4 +25,5 @@ __all__ = [
     'generate_client_order_id',
     'validate_trade_abort',
     'validate_trade_command',
+    'validate_trade_modify',
 ]

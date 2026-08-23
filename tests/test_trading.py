@@ -43,6 +43,8 @@ from praxis.core.domain.events import (
 )
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.iceberg_modify import IcebergModify
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.execution_manager import (
     AccountNotRegisteredError,
     ExecutionManager,
@@ -236,6 +238,9 @@ class _FakeInbound:
     def submit_abort(self, abort: TradeAbort) -> None:
         self.calls.append(('submit_abort', abort))
 
+    def submit_modify(self, modify: object) -> None:
+        self.calls.append(('submit_modify', modify))
+
     def pull_positions(self, account_id: str) -> dict[tuple[str, str], Position]:
         self.calls.append(('pull_positions', account_id))
         return {
@@ -387,6 +392,17 @@ async def test_trading_requires_start_before_facade_operations(
                 account_id='acc-1',
                 command_id='cmd-1',
                 reason='cancel',
+                created_at=_CREATED_AT,
+            )
+        )
+
+    with pytest.raises(RuntimeError, match=r'Trading\.start'):
+        trading.submit_modify(
+            TradeModify(
+                account_id='acc-1',
+                command_id='cmd-1',
+                reason='reprice',
+                modify_params=IcebergModify(limit_price=Decimal('49000')),
                 created_at=_CREATED_AT,
             )
         )
@@ -2543,7 +2559,7 @@ class _SweepVenueAdapter(_InjectedVenueAdapter):
 def _orphan_order() -> VenueOrder:
     return VenueOrder(
         venue_order_id='v-orphan',
-        client_order_id='SS-orphan0000000-000',
+        client_order_id='SS-orphan0000000000-000',
         status=OrderStatus.OPEN,
         symbol='BTCUSDT',
         side=OrderSide.BUY,
@@ -2566,19 +2582,28 @@ def _sweep_trading(adapter: _SweepVenueAdapter, spine: EventSpine) -> Trading:
     )
 
 
+async def _accept_command(spine: EventSpine, command_id: str) -> None:
+    await spine.append(CommandAccepted(
+        account_id='acc-1', timestamp=_CREATED_AT,
+        command_id=command_id, trade_id=f'trade-{command_id}',
+    ), 1)
+
+
 @pytest.mark.asyncio
 async def test_boot_sweep_cancels_orphan_and_marks_account_ready(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphan0000000000')
     adapter = _SweepVenueAdapter([_orphan_order()])
     trading = _sweep_trading(adapter, spine)
 
     await trading.start()
 
-    assert adapter.cancelled == ['SS-orphan0000000-000']
+    assert adapter.cancelled == ['SS-orphan0000000000-000']
     assert 'acc-1' in trading._ready_accounts
 
 
 @pytest.mark.asyncio
 async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphan0000000000')
     adapter = _SweepVenueAdapter([_orphan_order()], cancel_fails=True)
     trading = _sweep_trading(adapter, spine)
 
@@ -2590,9 +2615,10 @@ async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSp
 
 @pytest.mark.asyncio
 async def test_boot_sweep_cancels_orphan_oco_via_cancel_order_list(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphanoco0000000')
     oco_orphan = VenueOrder(
         venue_order_id='v-orphan-oco',
-        client_order_id='SS-orphanoco00000-000',
+        client_order_id='SS-orphanoco0000000-000',
         status=OrderStatus.OPEN,
         symbol='BTCUSDT',
         side=OrderSide.SELL,
@@ -2607,12 +2633,61 @@ async def test_boot_sweep_cancels_orphan_oco_via_cancel_order_list(spine: EventS
     await trading.start()
 
     assert adapter.cancelled == []
-    assert adapter.cancelled_lists == ['SS-orphanoco00000-000']
+    assert adapter.cancelled_lists == ['SS-orphanoco0000000-000']
+    assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_leaves_foreign_open_order_untouched(spine: EventSpine) -> None:
+    foreign = VenueOrder(
+        venue_order_id='v-foreign',
+        client_order_id='web_manual_order_1',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+    adapter = _SweepVenueAdapter([foreign])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert adapter.cancelled_lists == []
+    assert 'acc-1' in trading._ready_accounts
+
+
+@pytest.mark.asyncio
+async def test_boot_sweep_leaves_praxis_shaped_order_with_no_owned_command(
+    spine: EventSpine,
+) -> None:
+    spoof = VenueOrder(
+        venue_order_id='v-spoof',
+        client_order_id='SS-1111111111111111-000',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.LIMIT,
+        qty=Decimal('1'),
+        filled_qty=Decimal('0'),
+        price=Decimal('50000'),
+    )
+    adapter = _SweepVenueAdapter([spoof])
+    trading = _sweep_trading(adapter, spine)
+
+    await trading.start()
+
+    assert adapter.cancelled == []
+    assert adapter.cancelled_lists == []
     assert 'acc-1' in trading._ready_accounts
 
 
 @pytest.mark.asyncio
 async def test_boot_sweep_query_failure_leaves_account_not_ready(spine: EventSpine) -> None:
+    await _accept_command(spine, 'orphan0000000000')
     adapter = _SweepVenueAdapter([_orphan_order()], query_fails=True)
     trading = _sweep_trading(adapter, spine)
 
@@ -2753,4 +2828,67 @@ async def test_trading_config_enables_named_mode(spine: EventSpine) -> None:
     )
     assert isinstance(command_id, str)
 
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_submit_modify_routes_to_inbound(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+    fake_inbound = _FakeInbound()
+    trading._inbound = cast(TradingInbound, fake_inbound)
+    trading._ready_accounts.add('acc-1')
+
+    modify = TradeModify(
+        account_id='acc-1',
+        command_id='cmd-1',
+        reason='reprice',
+        modify_params=IcebergModify(limit_price=Decimal('49000')),
+        created_at=_CREATED_AT,
+    )
+    trading.submit_modify(modify)
+
+    assert ('submit_modify', modify) in fake_inbound.calls
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_submit_modify_reaches_execution(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    trading._ready_accounts.add('acc-1')
+
+    with pytest.raises(ValueError, match='unknown command_id'):
+        trading.submit_modify(
+            TradeModify(
+                account_id='acc-1',
+                command_id='no-such-command',
+                reason='reprice',
+                modify_params=IcebergModify(limit_price=Decimal('49000')),
+                created_at=_CREATED_AT,
+            )
+        )
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_trading_shutdown_rejects_modifies(spine: EventSpine) -> None:
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+    await trading.start()
+    trading._ready_accounts.add('acc-1')
+    trading._stopping = True
+
+    with pytest.raises(RuntimeError, match='shutting down'):
+        trading.submit_modify(
+            TradeModify(
+                account_id='acc-1',
+                command_id='cmd-1',
+                reason='reprice',
+                modify_params=IcebergModify(limit_price=Decimal('49000')),
+                created_at=_CREATED_AT,
+            )
+        )
+
+    trading._stopping = False
     await trading.stop()

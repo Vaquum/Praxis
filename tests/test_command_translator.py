@@ -33,6 +33,7 @@ import pytest
 
 from praxis.command_translator import (
     build_execution_params,
+    build_modify_params,
     build_single_shot_params,
     translate_execution_mode,
     translate_maker_preference,
@@ -371,3 +372,44 @@ def test_build_execution_params_rejects_non_decimal_value() -> None:
             ExecutionMode.ICEBERG,
             {'display_qty': 0.1, 'limit_price': Decimal('50000')},
         )
+
+
+def test_build_modify_params_twap_from_mapping() -> None:
+    from praxis.core.domain.twap_modify import TwapModify
+
+    result = build_modify_params(ExecutionMode.TWAP, {'num_slices': 6})
+
+    assert result == TwapModify(num_slices=6)
+
+
+def test_build_modify_params_passes_through_dataclass() -> None:
+    from praxis.core.domain.twap_modify import TwapModify
+
+    params = TwapModify(interval_seconds=30)
+
+    assert build_modify_params(ExecutionMode.TWAP, params) is params
+
+
+def test_build_modify_params_unknown_key_raises() -> None:
+    with pytest.raises(ValueError, match='modify_params has unsupported keys'):
+        build_modify_params(ExecutionMode.TWAP, {'nope': 1})
+
+
+def test_build_modify_params_wrong_shape_raises() -> None:
+    with pytest.raises(TypeError, match='modify_params for TWAP'):
+        build_modify_params(ExecutionMode.TWAP, 'nope')
+
+
+def test_build_modify_params_ladder_coerces_levels_to_tuple() -> None:
+    from praxis.core.domain.ladder_dca_modify import LadderDcaModify
+
+    result = build_modify_params(
+        ExecutionMode.LADDER_DCA, {'price_levels': [Decimal('90'), Decimal('80')]},
+    )
+
+    assert result == LadderDcaModify(price_levels=(Decimal('90'), Decimal('80')))
+
+
+def test_build_modify_params_empty_mapping_rejected() -> None:
+    with pytest.raises(ValueError):
+        build_modify_params(ExecutionMode.TWAP, {})

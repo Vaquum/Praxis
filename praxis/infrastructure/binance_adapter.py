@@ -58,6 +58,7 @@ from praxis.infrastructure.venue_adapter import (
     SymbolFilters,
     TransientError,
     VenueError,
+    VenueFundTransaction,
     VenueOrder,
     VenueOrderList,
     VenueOrderListLeg,
@@ -83,6 +84,10 @@ _HTTP_TOO_MANY = 429
 _HTTP_SERVER_ERROR = 500
 _UNKNOWN_VENUE_CODE = -1
 _MS_PER_SECOND = 1000
+_DEPOSIT_SUCCESS_STATUS = 1
+_WITHDRAWAL_COMPLETED_STATUS = 6
+_FUND_HISTORY_PAGE_LIMIT = 1000
+_WITHDRAWAL_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 _NOT_FOUND_CODES = frozenset({-2013, -2011})
 _DUPLICATE_CLIENT_ORDER_ID_CODE = -2010
 _LOCAL_FILTER_REJECT_CODE = -1013
@@ -1890,6 +1895,148 @@ class BinanceAdapter:
 
         return [self._parse_venue_trade(entry) for entry in data]
 
+    async def query_fund_transactions(
+        self,
+        account_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> list[VenueFundTransaction]:
+
+        '''
+        Query completed deposit and withdrawal records from the venue.
+
+        Calls the signed SAPI deposit- and withdrawal-history endpoints and
+        keeps only settled transactions (deposit status 1 = success,
+        withdrawal status 6 = completed) so a pending movement is never
+        booked. The SAPI endpoints are not served by the spot testnet, so
+        this is only meaningful against the live venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing
+            start_time (datetime | None): Return transactions at or after this
+                time, must be timezone-aware
+            end_time (datetime | None): Return transactions at or before this
+                time, must be timezone-aware
+
+        Returns:
+            list[VenueFundTransaction]: Settled deposits and withdrawals,
+                ascending by timestamp
+
+        Note:
+            Returns an empty list under binsim: the simulator does not serve
+            the SAPI fund-history routes and no real funds move against it.
+        '''
+
+        if _binsim_enabled():
+            return []
+
+        _require_aware(start_time, 'start_time')
+        _require_aware(end_time, 'end_time')
+
+        params: dict[str, str] = {}
+
+        if start_time is not None:
+            params['startTime'] = str(int(start_time.timestamp() * _MS_PER_SECOND))
+
+        if end_time is not None:
+            params['endTime'] = str(int(end_time.timestamp() * _MS_PER_SECOND))
+
+        deposits = await self._fetch_fund_history(
+            '/sapi/v1/capital/deposit/hisrec', params, account_id,
+        )
+        withdrawals = await self._fetch_fund_history(
+            '/sapi/v1/capital/withdraw/history', params, account_id,
+        )
+
+        transactions = [
+            self._parse_deposit(entry)
+            for entry in deposits
+            if int(entry['status']) == _DEPOSIT_SUCCESS_STATUS
+        ] + [
+            self._parse_withdrawal(entry)
+            for entry in withdrawals
+            if int(entry['status']) == _WITHDRAWAL_COMPLETED_STATUS
+        ]
+
+        return sorted(transactions, key=lambda transaction: transaction.timestamp)
+
+    async def _fetch_fund_history(
+        self,
+        path: str,
+        params: dict[str, str],
+        account_id: str,
+    ) -> list[dict[str, Any]]:
+
+        '''
+        Fetch every page of a paginated SAPI fund-history endpoint.
+
+        The deposit- and withdrawal-history routes return at most
+        `_FUND_HISTORY_PAGE_LIMIT` rows per call and page through `offset`;
+        this walks `offset` until a page shorter than the limit, so a window
+        holding more than one page books every settled movement rather than
+        silently dropping rows beyond the first page.
+
+        Args:
+            path (str): SAPI endpoint path to page through
+            params (dict[str, str]): Base query parameters (time window)
+            account_id (str): Account identifier for API key routing
+
+        Returns:
+            list[dict[str, Any]]: The concatenated rows across all pages
+        '''
+
+        rows: list[dict[str, Any]] = []
+        offset = 0
+
+        while True:
+            page_params = {
+                **params,
+                'offset': str(offset),
+                'limit': str(_FUND_HISTORY_PAGE_LIMIT),
+            }
+            page = await self._signed_request('GET', path, page_params, account_id)
+            rows.extend(page)
+
+            if len(page) < _FUND_HISTORY_PAGE_LIMIT:
+                return rows
+
+            offset += _FUND_HISTORY_PAGE_LIMIT
+
+    def _parse_deposit(self, entry: dict[str, Any]) -> VenueFundTransaction:
+
+        '''Map a SAPI deposit-history record to a `VenueFundTransaction`.'''
+
+        return VenueFundTransaction(
+            fund_transaction_id=str(entry['id']),
+            asset=entry['coin'],
+            amount=Decimal(str(entry['amount'])),
+            direction='DEPOSIT',
+            timestamp=datetime.fromtimestamp(
+                int(entry['insertTime']) / _MS_PER_SECOND, tz=UTC,
+            ),
+        )
+
+    def _parse_withdrawal(self, entry: dict[str, Any]) -> VenueFundTransaction:
+
+        '''Map a SAPI withdrawal-history record to a `VenueFundTransaction`.
+
+        Binance reports `applyTime` as a UTC `'%Y-%m-%d %H:%M:%S'` string, and
+        reports `transactionFee` separately from `amount` though both reduce the
+        venue balance, so the debit is their sum — recording only `amount`
+        understates the ledger by the fee and fabricates a balance shortfall.
+        '''
+
+        return VenueFundTransaction(
+            fund_transaction_id=str(entry['id']),
+            asset=entry['coin'],
+            amount=Decimal(str(entry['amount'])) + Decimal(str(entry['transactionFee'])),
+            direction='WITHDRAWAL',
+            timestamp=datetime.strptime(
+                entry['applyTime'], _WITHDRAWAL_TIME_FORMAT,
+            ).replace(tzinfo=UTC),
+        )
+
     async def query_api_permissions(self, account_id: str) -> ApiPermissions:
 
         '''
@@ -2054,6 +2201,8 @@ class BinanceAdapter:
                 lot_min=Decimal(filters['LOT_SIZE']['minQty']),
                 lot_max=Decimal(filters['LOT_SIZE']['maxQty']),
                 min_notional=Decimal(filters['NOTIONAL']['minNotional']),
+                base_asset=str(symbol_info.get('baseAsset', '')),
+                quote_asset=str(symbol_info.get('quoteAsset', '')),
             )
         except (KeyError, ArithmeticError) as exc:
             msg = f"Malformed exchangeInfo payload for {symbol!r}: {exc}"

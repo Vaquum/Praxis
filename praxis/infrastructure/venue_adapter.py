@@ -40,6 +40,7 @@ __all__ = [
     'TransientError',
     'VenueAdapter',
     'VenueError',
+    'VenueFundTransaction',
     'VenueOrder',
     'VenueOrderList',
     'VenueOrderListLeg',
@@ -229,6 +230,45 @@ class BalanceEntry:
     locked: Decimal
 
 
+_FUND_DIRECTIONS = frozenset({'DEPOSIT', 'WITHDRAWAL'})
+
+
+@dataclass(frozen=True)
+class VenueFundTransaction:
+    '''
+    Represent a deposit or withdrawal record from the venue.
+
+    Args:
+        fund_transaction_id (str): Venue-assigned unique transaction identifier.
+        asset (str): Asset moved.
+        amount (Decimal): Amount moved, must be positive and finite.
+        direction (str): 'DEPOSIT' or 'WITHDRAWAL'.
+        timestamp (datetime): Venue-reported time, must be timezone-aware.
+    '''
+
+    fund_transaction_id: str
+    asset: str
+    amount: Decimal
+    direction: str
+    timestamp: datetime
+
+    def __post_init__(self) -> None:
+        '''Validate invariants at construction time.'''
+
+        if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
+            msg = 'VenueFundTransaction.timestamp must be timezone-aware'
+            raise ValueError(msg)
+
+        if not self.amount.is_finite() or self.amount <= Decimal(0):
+            msg = 'VenueFundTransaction.amount must be a positive finite Decimal'
+            raise ValueError(msg)
+
+        if self.direction not in _FUND_DIRECTIONS:
+            allowed = ', '.join(sorted(_FUND_DIRECTIONS))
+            msg = f'VenueFundTransaction.direction must be one of {allowed}'
+            raise ValueError(msg)
+
+
 @dataclass(frozen=True)
 class SymbolFilters:
     '''
@@ -241,6 +281,12 @@ class SymbolFilters:
         lot_min (Decimal): Minimum order quantity
         lot_max (Decimal): Maximum order quantity
         min_notional (Decimal): Minimum order value (price * qty)
+        base_asset (str): Base asset of the pair (e.g. 'BTC' for BTCUSDT),
+            used to query the free base balance when flattening a long. Empty
+            when the venue did not report it.
+        quote_asset (str): Quote asset of the pair (e.g. 'USDT' for BTCUSDT),
+            used to query the free quote balance when flattening a short (a
+            BUY flatten). Empty when the venue did not report it.
     '''
 
     symbol: str
@@ -249,6 +295,8 @@ class SymbolFilters:
     lot_min: Decimal
     lot_max: Decimal
     min_notional: Decimal
+    base_asset: str = ''
+    quote_asset: str = ''
 
 
 @dataclass(frozen=True)
@@ -876,6 +924,30 @@ class VenueAdapter(Protocol):
 
         Returns:
             list[VenueTrade]: Trade records from the venue, ascending by id
+        '''
+
+        ...
+
+    async def query_fund_transactions(
+        self,
+        account_id: str,
+        *,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> list[VenueFundTransaction]:
+        '''
+        Query deposit and withdrawal records from the venue.
+
+        Args:
+            account_id (str): Account identifier for API key routing.
+            start_time (datetime | None): Return transactions at or after this
+                time (timezone-aware).
+            end_time (datetime | None): Return transactions at or before this
+                time (timezone-aware).
+
+        Returns:
+            list[VenueFundTransaction]: Deposit and withdrawal records,
+                ascending by timestamp.
         '''
 
         ...

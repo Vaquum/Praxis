@@ -66,6 +66,8 @@ def _stub_nexus_runtime() -> _NexusRuntime:
         mtm_loop=MagicMock(),
         unknown_submission_monitor=MagicMock(),
         outcome_processor=MagicMock(),
+        reconciliation_handler=MagicMock(),
+        protection_remediation_handler=MagicMock(),
         process_outcome=MagicMock(),
     )
 

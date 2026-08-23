@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import logging
 import queue
@@ -11,7 +12,12 @@ from decimal import Decimal
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
+from nexus.infrastructure.praxis_connector.protection_remediation import (
+    ProtectionRemediation,
+)
+
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
+from praxis.core.generate_client_order_id import praxis_command_fragment
 from praxis.core.domain.enums import (
     ExecutionMode,
     ExecutionType,
@@ -25,13 +31,18 @@ from praxis.core.domain.health_snapshot import HealthSnapshot
 from praxis.core.domain.position import Position
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.trade_abort import TradeAbort
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.events import (
+    BracketInitialized,
     Event,
     FillReceived,
+    FundTransaction,
     OrderCanceled,
     OrderExpired,
     OrderRejected,
+    ReconciliationMismatch,
+    RegisterAccount,
 )
 from praxis.infrastructure.binance_adapter import BinanceAdapter
 from praxis.infrastructure.event_spine import EventSpine
@@ -45,6 +56,13 @@ __all__ = ['Trading']
 
 _log = logging.getLogger(__name__)
 _BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
+_FUND_RECONCILE_OVERLAP = timedelta(days=7)
+_QUOTE_ASSET = 'USDT'
+_ZERO = Decimal(0)
+_BALANCE_TOLERANCE: dict[str, Decimal] = {
+    'USDT': Decimal('0.01'),
+    'BTC': Decimal('0.00000001'),
+}
 _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.FILLED,
     OrderStatus.CANCELED,
@@ -57,6 +75,36 @@ def _utc_now() -> datetime:
     '''Return the current UTC time.'''
 
     return datetime.now(UTC)
+
+
+def _wrap_event_callback[E](
+    cb: Callable[[E], None] | Callable[[E], Awaitable[None]] | None,
+) -> Callable[[E], Awaitable[None]]:
+    '''Adapt a sync-or-async event callback into an always-async adapter.
+
+    Mirrors `set_on_trade_outcome`'s adapter: the returned coroutine
+    awaits the result when it is awaitable and treats it as a plain
+    return otherwise, covering coroutine functions, sync callables,
+    `AsyncMock`, and `functools.partial` wrappers. A `None` callback
+    yields a no-op adapter so callers can fire unconditionally.
+
+    Args:
+        cb: The sync or async callback, or `None` for a no-op.
+
+    Returns:
+        An async adapter that never raises on a `None` callback.
+    '''
+
+    async def _adapter(event: E) -> None:
+        if cb is None:
+            return
+
+        result = cb(event)
+
+        if inspect.isawaitable(result):
+            await result
+
+    return _adapter
 
 
 class Trading:
@@ -109,6 +157,10 @@ class Trading:
         '''
 
         self._config = config
+        self._on_fund_transaction = _wrap_event_callback(config.on_fund_transaction)
+        self._on_reconciliation_mismatch = _wrap_event_callback(
+            config.on_reconciliation_mismatch,
+        )
         self._event_spine = event_spine
         self._clock = clock
         self._bootstrap_filter_symbols = frozenset(bootstrap_filter_symbols)
@@ -132,6 +184,9 @@ class Trading:
             clock=clock,
             max_slippage_bps=max_slippage_bps,
             enabled_modes=config.enabled_execution_modes,
+            protection_failure_response=config.response_for,
+            on_protection_remediation=config.on_protection_remediation,
+            restore_deadline_seconds=config.bracket_protection_restore_deadline_seconds,
         )
         self._inbound = TradingInbound(
             execution_manager=self._execution_manager,
@@ -147,6 +202,11 @@ class Trading:
         self._ready_accounts: set[str] = set()
         self._reconciling_accounts: set[str] = set()
         self._reconcile_rerun_pending: set[str] = set()
+        self._fund_reconcile_cursor: dict[str, datetime] = {}
+        self._fund_reconcile_cutover: dict[str, datetime] = {}
+        self._balance_mismatch_seen: dict[tuple[str, str], Decimal] = {}
+        self._undelivered_mismatches: dict[tuple[str, str], ReconciliationMismatch] = {}
+        self._reconcile_task: asyncio.Task[None] | None = None
         self._stopping = False
 
     @property
@@ -296,6 +356,99 @@ class Trading:
 
         self._execution_manager.set_on_trade_outcome(_async_adapter)
 
+    def set_on_fund_transaction(
+        self,
+        cb: Callable[[FundTransaction], None]
+        | Callable[[FundTransaction], Awaitable[None]]
+        | None,
+    ) -> None:
+        '''Install the on_fund_transaction callback after construction.
+
+        The launcher wires this to a per-account dispatcher that only
+        exists once its Nexus runtimes are built, so it cannot be
+        referenced by the frozen `TradingConfig`. Called before
+        `start()`, alongside `set_on_trade_outcome`.
+
+        Args:
+            cb: Sync `(FundTransaction) -> None`, async equivalent, any
+                callable returning an awaitable, or `None` to clear.
+
+        Raises:
+            RuntimeError: If called once `start()` has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_fund_transaction must not be called once '
+                'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
+        self._on_fund_transaction = _wrap_event_callback(cb)
+
+    def set_on_reconciliation_mismatch(
+        self,
+        cb: Callable[[ReconciliationMismatch], None]
+        | Callable[[ReconciliationMismatch], Awaitable[None]]
+        | None,
+    ) -> None:
+        '''Install the on_reconciliation_mismatch callback after construction.
+
+        The launcher wires this to a per-account dispatcher that only
+        exists once its Nexus runtimes are built, so it cannot be
+        referenced by the frozen `TradingConfig`. Called before
+        `start()`, alongside `set_on_trade_outcome`.
+
+        Args:
+            cb: Sync `(ReconciliationMismatch) -> None`, async
+                equivalent, any callable returning an awaitable, or
+                `None` to clear.
+
+        Raises:
+            RuntimeError: If called once `start()` has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_reconciliation_mismatch must not be called once '
+                'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
+        self._on_reconciliation_mismatch = _wrap_event_callback(cb)
+
+    def set_on_protection_remediation(
+        self,
+        cb: Callable[[ProtectionRemediation], None]
+        | Callable[[ProtectionRemediation], Awaitable[None]]
+        | None,
+    ) -> None:
+        '''Install the on_protection_remediation callback after construction.
+
+        The launcher wires this to a per-account dispatcher that pushes a
+        bracket-protection remediation to the account's Nexus runtime, which
+        only exists once built, so it cannot be referenced by the frozen
+        `TradingConfig`. Called before `start()`, alongside the other setters.
+
+        Args:
+            cb: Sync `(ProtectionRemediation) -> None`, async equivalent, any
+                callable returning an awaitable, or `None` to clear.
+
+        Raises:
+            RuntimeError: If called once `start()` has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                'set_on_protection_remediation must not be called once '
+                'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
+        self._execution_manager.set_on_protection_remediation(
+            _wrap_event_callback(cb),
+        )
+
     async def start(self) -> None:
         '''Initialize runtime and execute per-account startup sequence.'''
 
@@ -323,6 +476,7 @@ class Trading:
             await self._cleanup_partial_startup()
             raise
 
+        self._reconcile_task = asyncio.create_task(self._reconciliation_loop())
         self._started = True
 
     async def _startup_account(
@@ -346,8 +500,16 @@ class Trading:
 
         symbols = set(self._execution_manager.active_symbols(account_id))
         symbols |= self._bootstrap_filter_symbols
+        symbols |= {
+            event.symbol
+            for _seq, event in account_events
+            if isinstance(event, BracketInitialized)
+        }
         if symbols:
             await self._venue_adapter.load_filters(sorted(symbols))
+
+        self._execution_manager.seed_protection_remediations(account_events)
+        self._seed_fund_reconcile_cursor(account_id, account_events)
 
         account_ready = await self._sweep_orphan_venue_orders(account_id)
 
@@ -376,6 +538,10 @@ class Trading:
         else:
             await self._reconcile_account(account_id)
 
+        await self._execution_manager.recover_incomplete_flattens(
+            account_id, account_events,
+        )
+
         if account_ready:
             self._ready_accounts.add(account_id)
         else:
@@ -392,6 +558,12 @@ class Trading:
             return
 
         self._stopping = True
+
+        if self._reconcile_task is not None:
+            self._reconcile_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._reconcile_task
+            self._reconcile_task = None
 
         try:
             in_flight_by_account: dict[str, set[str]] = {}
@@ -583,6 +755,9 @@ class Trading:
             if venue_order.filled_qty > order.filled_qty:
                 await self._reconcile_fills(account_id, order)
 
+            if venue_order.filled_qty > order.filled_qty:
+                continue
+
             venue_terminal = venue_order.status in _TERMINAL_ORDER_STATUSES
             if venue_terminal and not order.is_terminal:
                 await self._reconcile_terminal(
@@ -599,10 +774,17 @@ class Trading:
         user stream opens, so an orphan is cancelled before the stream
         could deliver — and `_on_execution_report` silently drop — its
         fill report. The sweep queries the venue's open orders for every
-        managed symbol; any open order whose `client_order_id` is unknown
-        locally is cancelled — never adopted, because Praxis cannot
-        reconstruct its `command_id` / `trade_id` / Nexus capital lineage
-        from a venue order alone — with a high-severity log. An OCO leg is
+        managed symbol; an open order that is unknown locally yet embeds
+        the command fragment (`praxis_command_fragment`) of a command
+        this account has accepted (`owned_command_fragments`) is a
+        self-inflicted orphan and is cancelled — never adopted, because
+        Praxis cannot reconstruct its `trade_id` / Nexus capital lineage
+        from a venue order alone — with a high-severity log. The accepted
+        command set is the authoritative ownership signal: an order whose
+        id merely imitates the minting shape but ties to no accepted
+        command, and an order placed manually or by another system, are
+        both foreign — Praxis does not manage what it did not create, so
+        they are left untouched and do not gate readiness. An OCO leg is
         cancelled via `cancel_order_list`, since the venue rejects
         single-leg OCO cancellation (mirroring `stop`).
 
@@ -623,6 +805,7 @@ class Trading:
             return True
 
         known = set(trading_state.orders) | set(trading_state.closed_orders)
+        owned_fragments = self._execution_manager.owned_command_fragments(account_id)
         symbols = (
             set(self._execution_manager.active_symbols(account_id))
             | self._bootstrap_filter_symbols
@@ -644,6 +827,16 @@ class Trading:
 
             for venue_order in venue_orders:
                 if venue_order.client_order_id in known:
+                    continue
+
+                fragment = praxis_command_fragment(venue_order.client_order_id)
+                if fragment is None or fragment not in owned_fragments:
+                    _log.info(
+                        'foreign venue open order left untouched (no Praxis '
+                        'lineage): symbol=%s client_order_id=%s',
+                        symbol,
+                        venue_order.client_order_id,
+                    )
                     continue
 
                 _log.error(
@@ -750,6 +943,300 @@ class Trading:
                     order.client_order_id,
                     trade.venue_trade_id,
                 )
+
+    def _seed_fund_reconcile_cursor(
+        self, account_id: str, account_events: list[tuple[int, Event]],
+    ) -> None:
+        '''Anchor an account's fund-reconcile poll window to its own history.
+
+        The first poll must not query venue movements from before Praxis owned
+        the account: booking pre-adoption deposits into a fresh epoch ledger
+        would surface as a balance shortfall and could HALT Nexus. A per-account
+        cutover is set to the account's `RegisterAccount` timestamp (its
+        adoption time in this epoch, or the wall clock for a first-ever cold
+        start with no replayed events), and the poll is clamped never to reach
+        before it. Within an epoch a restart resumes from the latest already
+        booked `FundTransaction` on the spine rather than re-scanning from the
+        cutover.
+
+        Args:
+            account_id (str): Account whose poll window to anchor.
+            account_events (list[tuple[int, Event]]): The account's replayed
+                spine events.
+        '''
+
+        cutover: datetime | None = None
+        latest_fund: datetime | None = None
+
+        for _seq, event in account_events:
+            if isinstance(event, RegisterAccount):
+                cutover = event.timestamp
+            elif isinstance(event, FundTransaction) and (
+                latest_fund is None or event.timestamp > latest_fund
+            ):
+                latest_fund = event.timestamp
+
+        self._fund_reconcile_cutover[account_id] = (
+            cutover if cutover is not None else self._clock()
+        )
+
+        if latest_fund is not None:
+            self._fund_reconcile_cursor[account_id] = latest_fund
+
+    async def _reconcile_fund_transactions(self, account_id: str) -> None:
+        '''
+        Detect quote-asset deposits/withdrawals and record them for the account.
+
+        The Reconciliation Engine role: poll the venue for settled fund
+        transactions since the last-seen cursor, and for each new quote-asset
+        (USDT) transaction append a `FundTransaction` to the spine and hand it
+        to the account coroutine to project into the ledger. As with fill
+        reconciliation the spine deduplicates on `fund_transaction_id`, so a
+        re-detected transaction is a silent no-op and the cursor is only an
+        efficiency bound, not the durability guarantee. The poll window is
+        clamped never to reach before the account's adoption cutover, so the
+        first poll cannot book pre-Praxis history into a fresh epoch ledger.
+        Base-asset movements are not modelled by `FundTransaction`; they surface
+        instead as a balance mismatch in the balance-reconciliation pass.
+
+        Args:
+            account_id (str): Account identifier to reconcile.
+        '''
+
+        cursor = self._fund_reconcile_cursor.get(account_id)
+        cutover = self._fund_reconcile_cutover.get(account_id)
+        since = cursor - _FUND_RECONCILE_OVERLAP if cursor is not None else cutover
+
+        if since is not None and cutover is not None and since < cutover:
+            since = cutover
+
+        try:
+            transactions = await self._venue_adapter.query_fund_transactions(
+                account_id, start_time=since,
+            )
+        except VenueError as exc:
+            _log.warning(
+                'failed to query fund transactions for reconciliation: %s',
+                exc.args[0] if exc.args else str(exc),
+            )
+            return
+
+        all_delivered = True
+
+        for transaction in transactions:
+            if transaction.asset != _QUOTE_ASSET:
+                continue
+
+            fund = FundTransaction(
+                account_id=account_id,
+                timestamp=transaction.timestamp,
+                fund_transaction_id=transaction.fund_transaction_id,
+                amount=transaction.amount,
+                direction=transaction.direction,
+            )
+
+            seq = await self._event_spine.append(fund, self._config.epoch_id)
+            if seq is not None:
+                self._execution_manager.enqueue_ws_event(account_id, fund)
+                _log.info(
+                    'reconciled fund transaction: %s %s %s',
+                    transaction.direction,
+                    transaction.amount,
+                    transaction.fund_transaction_id,
+                )
+
+            try:
+                await self._on_fund_transaction(fund)
+            except Exception:  # noqa: BLE001 - hold the cursor to retry delivery next cycle
+                _log.exception(
+                    'failed to deliver fund transaction to Nexus; will retry '
+                    'next cycle: %s',
+                    fund.fund_transaction_id,
+                )
+                all_delivered = False
+                break
+
+        if transactions and all_delivered:
+            self._fund_reconcile_cursor[account_id] = max(
+                transaction.timestamp for transaction in transactions
+            )
+
+    async def _reconcile_balances(self, account_id: str) -> None:
+        '''
+        Compare the account's projected per-asset balances against the venue.
+
+        The Reconciliation Engine role: read the ledger's raw per-asset
+        balances (the projection derived from fills and fund transactions) and
+        the venue's reported balances (`free + locked`, since locked funds are
+        still held), and append a `ReconciliationMismatch` to the spine for any
+        asset where the venue holds LESS than the ledger expects beyond its
+        tolerance. Only a shortfall is a mismatch: Praxis's own funds are
+        missing or a fill was double-counted, and it is never silently dropped.
+        An excess (the venue holds more than the ledger expects) is untracked
+        capital Praxis never created — a manual deposit or another system's
+        position on a commingled asset — which Praxis does not manage and does
+        not flag; the trade backfill on reconnect, not this floor check, is the
+        path that catches a missed Praxis buy fill. The same divergence is
+        reported once until it changes or clears: the mismatch id is stable per
+        `(account, asset, delta)`, so a re-append is a spine no-op rather than a
+        fresh event each cycle. Delivery to Nexus is decoupled from the balance
+        comparison — a mismatch whose callback fails is retained and retried
+        each cycle by `_retry_undelivered_mismatches` until it lands, so a
+        transient Nexus outage (or a balance that recovers before the next poll)
+        cannot silently drop the alert. Base-asset (BTC) raw quantity is summed
+        from the ledger's cost-basis lots; the venue reports it directly.
+
+        The pass is skipped while events are queued for projection: the ledger
+        lags the spine until the account coroutine drains its queue, so a
+        just-detected deposit or an unprojected fill would otherwise read as a
+        false mismatch. The next cycle, once caught up, reconciles cleanly.
+
+        Args:
+            account_id (str): Account identifier to reconcile.
+        '''
+
+        if self._execution_manager.has_pending_ws_events(account_id):
+            return
+
+        expected_balances = self._execution_manager.get_asset_balances(account_id)
+
+        try:
+            entries = await self._venue_adapter.query_balance(
+                account_id, frozenset(expected_balances),
+            )
+        except VenueError as exc:
+            _log.warning(
+                'failed to query balances for reconciliation: %s',
+                exc.args[0] if exc.args else str(exc),
+            )
+            return
+
+        if (
+            self._execution_manager.has_pending_ws_events(account_id)
+            or self._execution_manager.get_asset_balances(account_id) != expected_balances
+        ):
+            return
+
+        await self._retry_undelivered_mismatches(account_id)
+
+        venue_totals = {entry.asset: entry.free + entry.locked for entry in entries}
+
+        for asset, expected in expected_balances.items():
+            actual = venue_totals.get(asset, _ZERO)
+            delta = actual - expected
+            key = (account_id, asset)
+
+            if delta >= -_BALANCE_TOLERANCE.get(asset, _ZERO):
+                self._balance_mismatch_seen.pop(key, None)
+                continue
+
+            if self._balance_mismatch_seen.get(key) == delta:
+                continue
+
+            pending = self._undelivered_mismatches.get(key)
+            if pending is not None and pending.actual - pending.expected == delta:
+                continue
+
+            mismatch = ReconciliationMismatch(
+                account_id=account_id,
+                timestamp=self._clock(),
+                reconciliation_mismatch_id=f'balance-{account_id}-{asset}-{delta}',
+                asset=asset,
+                expected=expected,
+                actual=actual,
+            )
+
+            await self._event_spine.append(mismatch, self._config.epoch_id)
+            _log.warning(
+                'balance mismatch: account=%s asset=%s expected=%s actual=%s',
+                account_id, asset, expected, actual,
+            )
+
+            if await self._deliver_mismatch(mismatch):
+                self._balance_mismatch_seen[key] = delta
+                self._undelivered_mismatches.pop(key, None)
+            else:
+                self._undelivered_mismatches[key] = mismatch
+
+    async def _retry_undelivered_mismatches(self, account_id: str) -> None:
+        '''Re-attempt Nexus delivery of mismatches whose callback earlier failed.
+
+        Delivery is retried independently of the current balance comparison, so
+        a mismatch appended in an earlier cycle is still delivered even after the
+        venue balance recovers — rather than being dropped when its asset no
+        longer reads as a shortfall. The mismatch id is stable per
+        `(account, asset, delta)`, so a re-append while delivery is pending is a
+        spine no-op instead of a fresh duplicate every cycle.
+
+        Args:
+            account_id (str): Account whose undelivered mismatches to retry.
+        '''
+
+        for key in [k for k in self._undelivered_mismatches if k[0] == account_id]:
+            mismatch = self._undelivered_mismatches[key]
+            if await self._deliver_mismatch(mismatch):
+                self._undelivered_mismatches.pop(key, None)
+                self._balance_mismatch_seen[key] = mismatch.actual - mismatch.expected
+
+    async def _deliver_mismatch(self, mismatch: ReconciliationMismatch) -> bool:
+        '''Deliver a mismatch to Nexus, returning whether the callback succeeded.
+
+        A failed callback is retained for retry and never propagated, so a
+        transient Nexus outage cannot stop the reconciliation loop.
+
+        Args:
+            mismatch (ReconciliationMismatch): The mismatch to deliver.
+
+        Returns:
+            bool: True when the callback succeeded, False to retain for retry.
+        '''
+
+        try:
+            await self._on_reconciliation_mismatch(mismatch)
+        except Exception:  # noqa: BLE001 - retained for retry, never propagated
+            _log.exception(
+                'failed to deliver reconciliation mismatch to Nexus; will '
+                'retry next cycle: id=%s',
+                mismatch.reconciliation_mismatch_id,
+            )
+            return False
+
+        return True
+
+    async def _reconciliation_loop(self) -> None:
+        '''
+        Run the detector-style reconciliation passes periodically, off the
+        critical path.
+
+        Sleeps `reconcile_interval_seconds` between cycles, then for each ready
+        account polls fund transactions and reconciles balances against the
+        venue. A per-account failure is logged and never propagated, so one
+        account's venue error cannot stop the loop or affect another account.
+        Started by `start` and cancelled by `stop`; because it runs as its own
+        background task, a slow venue call delays only the next cycle and never
+        blocks account startup or order reconciliation.
+        '''
+
+        while not self._stopping:
+            try:
+                await asyncio.sleep(self._config.reconcile_interval_seconds)
+            except asyncio.CancelledError:
+                return
+
+            for account_id in sorted(self._ready_accounts):
+                if self._stopping:
+                    return
+
+                try:
+                    await self._reconcile_fund_transactions(account_id)
+                    await self._reconcile_balances(account_id)
+                    self._execution_manager.request_protection_scan(account_id)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001 - a detector must not stop the loop
+                    _log.exception(
+                        'reconciliation cycle failed for account: %s', account_id,
+                    )
 
     async def _reconcile_on_reconnect(self, account_id: str) -> None:
         '''
@@ -1183,6 +1670,15 @@ class Trading:
         self._require_account_ready(abort.account_id)
         self._inbound.submit_abort(abort)
 
+    def submit_modify(self, modify: TradeModify) -> None:
+        '''Submit trade amend through inbound facade.'''
+
+        if self._stopping:
+            msg = 'Trading is shutting down, new modifies rejected'
+            raise RuntimeError(msg)
+        self._require_account_ready(modify.account_id)
+        self._inbound.submit_modify(modify)
+
     async def quiesce(self, account_id: str) -> None:
         '''Wait until an account's queued commands are fully processed.
 
@@ -1205,8 +1701,8 @@ class Trading:
         asyncio.run_coroutine_threadsafe(trading.get_health_snapshot(...),
         trading.loop) without blocking the loop.
 
-        Unlike submit_command and submit_abort, this does not require the
-        account to be ready: health is intentionally pollable across the
+        Unlike submit_command, submit_abort, and submit_modify, this does not
+        require the account to be ready: health is intentionally pollable across the
         whole lifecycle (the underlying adapter returns a default zeroed
         snapshot for unknown accounts) so a Manager can observe degradation
         before the account is fully wired.

@@ -1176,15 +1176,17 @@ When a non-idempotent POST times out (or returns `-2010` duplicate) and the resc
 
 **When to fix**: before live trading at scale. Terminalize a rescued-completed order at rescue time — either backfill its fills from `myTrades` inline, or emit the terminal event (`OrderCanceled` / a fill-less close) for the no-fill ALL_DONE / canceled case — so the order and its reservation resolve immediately rather than waiting for the reconcile pass.
 
-## TD-130: A bracket whose protective OCO fails leaves a naked position
+## TD-130: A bracket whose protective OCO fails leaves a naked position — RESOLVED
 
 **Origin**: WP-Praxis-0007 (6.3 Bracket slice; unstaged review)
 **Severity**: Medium (open risk with no TP/SL until an operator or reconcile intervenes)
 **Module**: `praxis/core/execution_manager.py` (`_place_bracket_protection`)
 
-A bracket fills its MARKET entry, then places the protective OCO. If the OCO submission fails definitively — a venue rejection, or a timeout/duplicate the rescue could not salvage — the entry position is already open and is left **unprotected**: `_place_bracket_protection` appends `OrderSubmitFailed` for the exit and logs the naked position, but does not unwind the entry, retry the OCO, or flatten. The bracket entry outcome is still reported FILLED. Until an operator or a reconcile pass intervenes, the position carries open risk with no stop-loss or take-profit.
+A bracket fills its MARKET entry, then places the protective OCO. If the OCO submission fails definitively — a venue rejection, or a timeout/duplicate the rescue could not salvage — the entry position is already open and was left **unprotected**: `_place_bracket_protection` appended `OrderSubmitFailed` for the exit and logged the naked position, but did not unwind the entry, retry the OCO, or flatten. The bracket entry outcome is still reported FILLED.
 
-**When to fix**: before live bracket trading. Add an explicit unprotected-entry policy — at minimum an alert/runbook signal, and ideally a bounded OCO retry and/or an auto-flatten-or-freeze on definitive protection failure — rather than silently holding a naked position.
+**Resolved**: every definitive initial-placement failure (wrong-side legs, an unsalvageable timeout/duplicate, or a venue error) now routes the naked entry through the shared naked-protection remediation via `_remediate_failed_initial_protection` — the bracket is tracked FAILED, the account's schemes are frozen, the position is flattened for a FLATTEN_THEN_HALT account, and the durable `ProtectionFailed` marker delivers the Nexus hold and drives `recover_incomplete_flattens` on boot. The remediation runs on the account writer (the same path as the amend-failure and STATE_UNKNOWN-watchdog remediations), so a naked entry is no longer silently held pending operator repair.
+
+Three ordering and safety guarantees make it correct: (1) on the immediate-fill path `_settle_bracket_entry` now delivers the entry FILLED outcome *before* placing protection, so a remediation flatten's EXIT can never reach Nexus before the ENTER it closes; (2) when the OCO may have reached the venue (an unsalvageable timeout or a venue error), the flatten re-checks the venue for a live leg before selling — the guard is skipped only for wrong-side legs, which are never POSTed — so a still-live OCO is never doubled by a second market sell; (3) the durable `ProtectionFailed` is appended before the exit's `OrderSubmitFailed`, and `_resume_brackets` skips any command carrying a `ProtectionFailed`, so a crash mid-remediation resumes into flatten recovery rather than re-placing protection on an already-remediated bracket.
 
 ## TD-131: Bracket partial-fill protection for a future resting entry — RESOLVED (durability) / deferred (resting entry)
 
@@ -1217,3 +1219,109 @@ Iceberg works the command as a single native-iceberg (`icebergQty`) GTC LIMIT or
 The live-only classification is mode-level: BRACKET, ICEBERG, and LADDER_DCA are refused against the binsim venue (MARKET-only) at deploy. SINGLE_SHOT stays enabled because it is usually MARKET, but a SINGLE_SHOT command carrying a LIMIT / OCO order type still cannot run against binsim — it is caught by binsim's own MARKET-only rejection at execution rather than gated up front. This is the deliberate order-type edge left to venue self-protection (option (i) of the scoping decision): the mode-level gate handles the whole-mode-live-only cases, and binsim rejects a stray non-MARKET single-shot with a clear venue error.
 
 **When to fix**: if paper (binsim) operators rely on SINGLE_SHOT LIMIT/OCO. Add an order-type-aware paper check (reject a non-MARKET single-shot against binsim at intake) so the failure is a fast, clear configuration error rather than a venue reject.
+
+## TD-134: Order-price amend is cancel-query-place, not atomic; crash mid-amend does not re-place
+
+**Origin**: WP-Praxis-0009 (8.6* order-price amend, single resting order)
+**Severity**: Low (fail-closed — no over-order and no double exposure; a crash recovers to a safe state)
+**Module**: `praxis/core/execution_manager.py` (`_process_modify`, `_drive_single_amend`, `resolve_pending_amends`, `_cancel_and_query`, `_place_amend_replacement`)
+
+A single-order amend cancels the resting order, queries the venue for the authoritative filled quantity, and places a replacement for the unfilled remainder. It is fail-closed: an ambiguous cancel or query (or an order still live at the venue) aborts the amend without cancelling locally or placing, so the original order stays live and there is never a still-live original plus a replacement. When a fill raced the cancel but its trades cannot be reconciled to venue truth (trade query failed, or returned short), the amend is now parked in `runtime.pending_amends` and the reconcile scan re-drives it — re-query, backfill, then terminalize and place once the projection reaches venue truth — so an unreconciled fill is never stranded on a terminal order behind an understated ledger. The held-amend park and the bracket/ladder equivalents mean the in-session miss is retried; two gaps remain, both crash-window only:
+
+1. **Non-atomic window.** Between the confirmed cancel and the replacement placement the order is briefly off the book. For a passive single LIMIT this is a liquidity gap, not a risk. Binance Spot has no race-free amend primitive (`cancelReplace` creates a fresh order and can partially succeed), so this is inherent to the venue; a future refinement could use `cancelReplace` with `STOP_ON_FAILURE` plus reconciliation to shorten the window.
+
+2. **Crash mid-amend does not complete the re-price.** `OrderAmendInitiated` is durable and boot rebuilds the amend sequence from it, but a crash between the cancel and the placement — or while a held amend is parked, since `pending_amends` (and the bracket's in-memory `amend_*` park) is not persisted — is not repaired by re-placing the remainder; it recovers to a safe state through the existing reconcile (the order rests at the old price if never cancelled, or terminalizes if it was). Completing the re-price across a crash needs a boot-time amend-repair pass that reads an un-completed `OrderAmendInitiated` (no terminalize of the old id, no submit of the new id), queries the old order, backfills, and re-places the remainder — reconstructing the same park the in-session scan drives.
+
+**When to fix**: before order-price amend runs unattended with a meaningful re-price SLA. Add the boot amend-repair pass (2) — which also reconstructs the held-amend park — and, if the window matters, the `cancelReplace`-based path (1).
+
+## TD-135: Scheme-plan amend is in-memory only; a restart replays the original schedule
+
+**Origin**: WP-Praxis-0009 (8.6* scheme-plan amend)
+**Severity**: Low (safe — the scheme still works the remaining quantity; only the amended cadence/count is lost on restart)
+**Module**: `praxis/core/execution_manager.py` (`_process_scheme_modify`, `_resume_schemes`)
+
+A TWAP / Time DCA / Scheduled VWAP amend updates the running `_LiveScheme` (remaining slice quantities, slice count, interval, next-run) in place and appends a `SchemeStateChanged`, but the amended plan itself is not persisted: `_resume_schemes` re-plans from the original `SchemeInitialized` (its slice count, interval, and weights). So after a restart a mid-flight amended scheme reverts to its original schedule — it still works the remaining quantity (no over-order, no lost fills), but the amended cadence/count is gone.
+
+A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-curve-to-remaining-slices normalization is ambiguous (the fired slices used the old curve), so `_process_scheme_modify` rejects a `ScheduledVwapModify.volume_weights` amend and accepts interval-only for VWAP.
+
+**When to fix**: before an amended schedule must survive a restart, or a strategy needs to re-shape a VWAP curve mid-flight. Persist the amended plan (a `SchemeAmended` event carrying the new slice quantities and interval) and apply the latest one in `_resume_schemes`; define and implement the VWAP remaining-curve semantics.
+
+## TD-138: Protection-remediation redelivery is not idempotent at the Nexus receiver
+
+**Origin**: WP-Praxis-0009 (bracket protection remediation; pre-PR review)
+**Severity**: Low (only reachable in a narrow crash window; the operator-cleared hold is re-applied, not corrupted)
+**Module**: `praxis/core/execution_manager.py` (`drain_protection_remediations`, `seed_protection_remediations`), Nexus `ProtectionRemediationHandler` (cross-repo)
+
+`drain_protection_remediations` delivers a remediation to Nexus (which applies the sticky hold) and only then appends `ProtectionRemediationDelivered`. A crash between the two re-seeds the remediation on boot (`seed_protection_remediations` skips only command ids with a durable delivered marker) and redelivers it. Praxis sends a stable `protection_remediation_id` (`protection-{command_id}-{version}`), but the pinned Nexus handler does not deduplicate on it, so a redelivery can re-apply a hold an operator already cleared.
+
+**When to fix**: before live bracket trading with operator hold-clearing. The durable fix is cross-repo: make the Nexus `ProtectionRemediationHandler` idempotent on `protection_remediation_id` (ignore an id whose hold it has already applied and recorded), or move to a transactional outbox/ack protocol. The Praxis side already provides the stable id required for either.
+
+## TD-137: Reconcile-tick watchdogs share one try block
+
+**Origin**: WP-Praxis-0009 (ladder-amend crash-safety; pre-PR review)
+**Severity**: Low (each watchdog self-heals on the next reconcile tick)
+**Module**: `praxis/core/execution_manager.py` (`_run_protection_scan`)
+
+`_run_protection_scan` awaits `resolve_unknown_protection`, `drain_protection_remediations`, and `resolve_ladder_amends` under a single `try`. A venue error thrown by the first skips the remaining two for that tick, so a stuck protection resolve delays a ladder-amend resolution (and vice versa) by one reconcile interval. No state is lost — the next tick re-drives whichever was skipped — but the scans are independent and should not gate each other.
+
+**When to fix**: when either watchdog becomes latency-sensitive. Wrap each scan in its own try/except (log and continue) so one failing scan cannot defer the others.
+
+## TD-139: Balance-mismatch delivery is retried in memory, not durably across a restart
+
+**Origin**: WP-Praxis-0009 (reconciliation engine, balance mismatch)
+**Severity**: Low (advisory alert; the acute cases — transient Nexus failure, or a balance that recovers before the next in-session poll — are already retried; only a restart in the same window drops it)
+**Module**: `praxis/trading.py` (`_reconcile_balances`, `_retry_undelivered_mismatches`, `_deliver_mismatch`)
+
+A balance-reconciliation mismatch is appended to the spine with a stable `(account, asset, delta)` id and, if its Nexus callback fails, retained in the in-memory `_undelivered_mismatches` set and retried every reconcile cycle independently of whether the balance still reads as a shortfall. This covers a transient Nexus outage and a balance that recovers before the next poll. It is not durable across a process restart: if the append succeeds, the callback fails, the process restarts, and the balance recovers during the downtime, the mismatch is on the spine but the in-memory retry set is empty, so it is never delivered and (the divergence gone) never re-detected.
+
+A durable fix mirrors the protection-remediation outbox: append a `ReconciliationMismatchDelivered` marker on successful delivery, and on boot seed `_undelivered_mismatches` from spine `ReconciliationMismatch` events lacking a matching marker (as `seed_protection_remediations` already does for remediations). That also requires the Nexus receiver to be idempotent on `reconciliation_mismatch_id` so a boot-seeded re-delivery is a no-op — the same prerequisite tracked in TD-138.
+
+**When to fix**: alongside TD-138 (Nexus-side idempotency), since a durable re-delivery is only safe once the receiver deduplicates. Add the delivered-marker event and the boot seed then.
+
+## TD-140: Initial protective-OCO placement can mark a terminal list active
+
+**Origin**: WP-Praxis-0009 (bracket protective OCO — pre-existing initial placement)
+**Severity**: Low (rare — requires the protective OCO to be ALL_DONE at placement with no immediate fill carried inline; a missed WebSocket leg fill then leaves a dead list believed active)
+**Module**: `praxis/core/execution_manager.py` (`_place_bracket_protection`)
+
+The protective-OCO amend replacement now holds in `STATE_UNKNOWN` when its submit result is terminal (an ALL_DONE list or a terminal status), so the reconcile watchdog resolves the position rather than marking a filled or cancelled list active. The initial placement (`_place_bracket_protection`) already projects inline `immediate_fills` and builds a terminal exit outcome when the local projection terminalizes, but it does not apply the same guard to the venue-resolved terminal status of a rescued ALL_DONE list carrying no inline fills: it marks the bracket `ACTIVE` and relies on the WebSocket leg fill, which if missed leaves a dead list believed to protect the position.
+
+The initial-placement fix is more involved than the amend path: the versioned `Protection*` events require `protection_version >= 1` while the initial placement is version 0, and a durable `STATE_UNKNOWN` there needs boot-resume support; the safe fix queries the ALL_DONE list's leg fills, projects them, and drops or remediates the bracket inline rather than reusing the amend's `STATE_UNKNOWN` path.
+
+**When to fix**: before an initial protective OCO can plausibly fill at placement (a marketable stop against a fast-moving entry). Query and project the terminal list's leg fills and resolve the position instead of marking it active.
+
+## TD-141: Orphan-order sweep cannot recognize a Praxis OCO by its legs
+
+**Origin**: WP-Praxis-0009 (boot orphan sweep — pre-existing)
+**Severity**: Low (very narrow reachability — requires a protective OCO live at the venue whose `OrderSubmitIntent` and `BracketInitialized` both never persisted, so replay reconstructs nothing; a bracket whose init persisted is recovered by protection resume, not this sweep)
+**Module**: `praxis/trading.py` (`_sweep_orphan_venue_orders`), `praxis/infrastructure/binance_adapter.py` (`query_open_orders`), `praxis/infrastructure/venue_adapter.py` (`VenueOrder`)
+
+The boot orphan sweep enumerates `query_open_orders(account_id, symbol)` and decides ownership from each order's `client_order_id` via `praxis_command_fragment`. For an OCO, Binance `/api/v3/openOrders` returns the individual legs, each with a venue-generated leg `clientOrderId` and a shared numeric `orderListId`; the deterministic list client id that embeds the command fragment is not on the leg. `VenueOrder` also carries no `order_list_id`, and `query_open_orders` discards it. So an orphaned Praxis OCO's legs fail the fragment check, are classified foreign, and are left live — a fail-open gap in an otherwise fail-closed readiness gate.
+
+A correct fix adds `order_list_id` to `VenueOrder`, populates it in `query_open_orders`, and has the sweep group orphan legs by `orderListId`, resolve each list's `listClientOrderId` (via `query_order_list` by `orderListId`), check ownership on that list client id, and cancel the parent list with `cancel_order_list`. This reshapes the adapter's open-orders model and adds boot-path list-resolution queries, so it should be validated on the paper host before a tagged release.
+
+**When to fix**: before an orphaned protective OCO is plausible outside the narrowest crash window. Add `order_list_id` to the open-orders model and sweep the parent list by its deterministic list client id.
+
+## TD-142: Fund-transaction dedup key does not namespace deposits from withdrawals
+
+**Origin**: WP-Praxis-0009 (reconciliation engine, fund transactions)
+**Severity**: Low (not reachable with current Binance id formats — deposit `id`s are all-numeric strings while withdrawal `id`s are hex/uuid strings, so a deposit id can never equal a withdrawal id; the risk is contractual, not observed)
+**Module**: `praxis/infrastructure/event_spine.py` (`fund_dedup`), `praxis/infrastructure/binance_adapter.py` (`_parse_deposit`, `_parse_withdrawal`)
+
+`query_fund_transactions` merges records from two independent SAPI history endpoints (deposit `hisrec`, withdraw `history`) and stores each raw `id` in the single durable `fund_dedup` namespace `(epoch_id, account_id, fund_transaction_id)`. Nothing guarantees the two endpoints' id spaces are disjoint; if a deposit id ever equalled a withdrawal id, the second movement would be silently treated as a duplicate and never reach the ledger or Nexus.
+
+The fix namespaces the id by direction — prefix `fund_transaction_id` with the direction at the adapter boundary (`DEPOSIT-<id>` / `WITHDRAWAL-<id>`), which also namespaces the downstream Nexus dedup key. Because `fund_dedup` is a persisted table (not rebuilt from replay), it needs a one-time migration: seed the direction-prefixed key for every existing `fund_dedup` row (joining `FundTransaction` events for the direction) before the adapter starts emitting prefixed ids, or the same transaction re-queried within the poll overlap window would re-append under the new id and double-book the ledger. The migration touches the recovery-critical spine and must be validated on the paper host.
+
+**When to fix**: alongside a spine-schema migration pass (and the Nexus dedup-key change, cf. TD-138), before the deposit/withdrawal id spaces can no longer be assumed disjoint.
+
+## TD-143: Balance-shortfall reconciliation lacks an opening-balance baseline
+
+**Origin**: WP-Praxis-0009 (reconciliation engine, balance reconciliation)
+**Severity**: Low (does not cause a false halt or double-count; it under-detects — a loss of pre-adoption inventory is not flagged, consistent with the deliberate "does not manage untracked capital" stance)
+**Module**: `praxis/core/account_ledger.py` (`get_asset_balances`), `praxis/trading.py` (`_reconcile_balances`)
+
+The ledger's per-asset balances are post-adoption movements: the ledger starts at zero, `RegisterAccount` carries no opening balances, and fund polling is clamped to the adoption cutover (TD-8-era cutover), so pre-adoption history is never booked. `_reconcile_balances` compares these movement-derived balances against the venue's absolute `free + locked`. A shortfall is only flagged when the venue holds LESS than the ledger; an excess is treated as untracked capital and ignored by design. Consequently a loss of pre-existing inventory is invisible — a venue USDT balance falling from 1,000 to 500 still exceeds a ledger value of 0, so it reads as excess, not shortfall.
+
+This is a design limitation, not a defect in the trade-modify work: Praxis deliberately does not manage capital it did not create. Making the shortfall check meaningful against absolute holdings requires capturing an opening venue-balance baseline at adoption (a durable per-asset baseline event projected into the ledger), so reconciliation compares `baseline + movements` to the venue absolute. That is a reconciliation-model/design decision — it changes the "untracked capital" stance — and the baseline must be durable and survive restart, so it wants architect sign-off and paper-host validation rather than a review-round patch.
+
+**When to fix**: when Praxis must detect drawdown of pre-adoption inventory (e.g., a commingled account it is expected to steward). Capture and project a durable opening-balance baseline at adoption, then reconcile absolute-to-absolute.

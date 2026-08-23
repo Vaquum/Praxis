@@ -154,6 +154,32 @@ class AccountLedger:
         with self._lock:
             return dict(self.balances)
 
+    def read_asset_balances(self) -> dict[str, Decimal]:
+
+        '''Return the raw per-asset balances to reconcile against the venue.
+
+        The quote balance is the `Cash:USDT` account — deposits credit it and
+        fills debit the traded notional, so it tracks the raw held USDT. The
+        base balance is the summed open lot quantities: `Crypto:BTC` carries
+        the base at cost in quote units, so the lots — which already net any
+        base-asset fee — are the raw held base quantity.
+
+        Returns:
+            dict[str, Decimal]: Raw held balance keyed by asset symbol
+                (`'USDT'`, `'BTC'`).
+        '''
+
+        with self._lock:
+            base_qty = sum(
+                (lot.qty for lots in self._lots.values() for lot in lots),
+                start=_ZERO,
+            )
+
+            return {
+                _QUOTE_ASSET: self.balances[Account.CASH_USDT],
+                _BASE_ASSET: base_qty,
+            }
+
     def read_trade_pnls(self) -> dict[str, TradePnL]:
 
         '''Return copies of the per-trade realized P&L, keyed by `trade_id`.'''
