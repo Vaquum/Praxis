@@ -277,23 +277,14 @@ def test_order_submit_failed_rejects_and_closes() -> None:
     assert state.closed_orders[_ORDER].status == OrderStatus.REJECTED
 
 
-def test_order_acked_promotes_submitting_to_open() -> None:
+def test_order_acked_is_retained_but_not_projected() -> None:
 
     state = _state()
     state.apply(_submit_intent())
     state.apply(_acked())
     order = state.orders[_ORDER]
-    assert order.status == OrderStatus.OPEN
-    assert order.venue_order_id == _VENUE_OID
-
-
-def test_order_acked_does_not_regress_partially_filled() -> None:
-
-    state = _state()
-    state.apply(_submit_intent(qty=Decimal('2')))
-    state.apply(_fill_event(qty=Decimal('1')))
-    state.apply(_acked())
-    assert state.orders[_ORDER].status == OrderStatus.PARTIALLY_FILLED
+    assert order.status == OrderStatus.SUBMITTING
+    assert order.venue_order_id is None
 
 
 def test_partial_fill_updates_order() -> None:
@@ -467,7 +458,7 @@ def test_order_updated_at_tracks_latest_event() -> None:
     state = _state()
     state.apply(_submit_intent())
     assert state.orders[_ORDER].updated_at == _TS
-    state.apply(_acked())
+    state.apply(_submitted())
     assert state.orders[_ORDER].updated_at == _TS2
 
 
@@ -587,7 +578,6 @@ def test_full_lifecycle_submit_fill_close() -> None:
     state = _state()
     state.apply(_command_accepted())
     state.apply(_submit_intent(qty=Decimal('2')))
-    state.apply(_acked())
     state.apply(_fill_event(qty=Decimal('1')))
     order = state.orders[_ORDER]
     assert order.status == OrderStatus.PARTIALLY_FILLED
@@ -607,7 +597,6 @@ def test_cumulative_notional_accumulates_on_fills() -> None:
 
     state = _state()
     state.apply(_submit_intent(qty=Decimal('3')))
-    state.apply(_acked())
 
     state.apply(_fill_event(qty=Decimal('1'), price=Decimal('50000')))
     order = state.orders[_ORDER]
@@ -624,7 +613,6 @@ def test_vwap_computed_from_cumulative_notional() -> None:
 
     state = _state()
     state.apply(_submit_intent(qty=Decimal('2')))
-    state.apply(_acked())
 
     state.apply(_fill_event(qty=Decimal('1'), price=Decimal('50000')))
     state.apply(_fill_event(qty=Decimal('1'), price=Decimal('52000')))

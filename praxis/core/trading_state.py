@@ -63,6 +63,31 @@ _log = logging.getLogger(__name__)
 
 _ZERO = Decimal(0)
 
+_UNPROJECTED_EVENT_TYPES = frozenset({
+    OrderAcked,
+    OutcomeDeliveryContextRecorded,
+    OutcomeReplayAbandoned,
+    MarkSampled,
+    SliceFailed,
+    SchemeFrozen,
+    BracketInitialized,
+    OrderAmendInitiated,
+    ReconciliationMismatch,
+    ProtectionAmendRequested,
+    ProtectionCancelConfirmed,
+    ProtectionStateUnknown,
+    ProtectionReplaceSubmitted,
+    ProtectionActive,
+    ProtectionFailed,
+    FlattenInitiated,
+    ProtectionRemediationDelivered,
+    LadderAmendInitiated,
+    LadderAmendPlanned,
+    LadderAmendCompleted,
+    LadderAmendAborted,
+    LadderAmendStateUnknown,
+})
+
 
 class TradingState:
 
@@ -131,19 +156,17 @@ class TradingState:
         elif isinstance(event, OrderSubmitted):
             self._on_order_submitted(event)
         elif isinstance(event, OrderSubmitFailed):
-            self._on_order_submit_failed(event)
-        elif isinstance(event, OrderAcked):
-            self._on_order_acked(event)
+            self._close_order_terminal('OrderSubmitFailed', event, OrderStatus.REJECTED)
         elif isinstance(event, FillReceived):
             self._on_fill_received(event)
         elif isinstance(event, OrderQuoteNativeFilled):
             self._on_order_quote_native_filled(event)
         elif isinstance(event, OrderRejected):
-            self._on_order_rejected(event)
+            self._close_order_terminal('OrderRejected', event, OrderStatus.REJECTED)
         elif isinstance(event, OrderCanceled):
-            self._on_order_canceled(event)
+            self._close_order_terminal('OrderCanceled', event, OrderStatus.CANCELED)
         elif isinstance(event, OrderExpired):
-            self._on_order_expired(event)
+            self._close_order_terminal('OrderExpired', event, OrderStatus.EXPIRED)
         elif isinstance(event, TradeClosed):
             self._on_trade_closed(event)
         elif isinstance(event, TradeOutcomeProduced):
@@ -159,32 +182,7 @@ class TradingState:
                 event.outcome_id,
                 self.account_id,
             )
-        elif isinstance(
-            event,
-            (
-                OutcomeDeliveryContextRecorded,
-                OutcomeReplayAbandoned,
-                MarkSampled,
-                SliceFailed,
-                SchemeFrozen,
-                BracketInitialized,
-                OrderAmendInitiated,
-                ReconciliationMismatch,
-                ProtectionAmendRequested,
-                ProtectionCancelConfirmed,
-                ProtectionStateUnknown,
-                ProtectionReplaceSubmitted,
-                ProtectionActive,
-                ProtectionFailed,
-                FlattenInitiated,
-                ProtectionRemediationDelivered,
-                LadderAmendInitiated,
-                LadderAmendPlanned,
-                LadderAmendCompleted,
-                LadderAmendAborted,
-                LadderAmendStateUnknown,
-            ),
-        ):
+        elif type(event) in _UNPROJECTED_EVENT_TYPES:
             return
         else:
             _log.warning(
@@ -309,30 +307,31 @@ class TradingState:
         if event.leg_client_order_ids:
             self.oco_parent_legs[event.client_order_id] = event.leg_client_order_ids
 
-    def _on_order_submit_failed(self, event: OrderSubmitFailed) -> None:
+    def _close_order_terminal(
+        self,
+        event_type: str,
+        event: OrderSubmitFailed | OrderRejected | OrderCanceled | OrderExpired,
+        status: OrderStatus,
+    ) -> None:
 
-        '''Update order to REJECTED and close it.'''
+        '''Set an order to a terminal status and close it.
 
-        order = self._get_order('OrderSubmitFailed', event.client_order_id)
+        Shared by the reject/cancel/expire terminal events. Records the
+        venue-assigned order id when the event carries one (`OrderSubmitFailed`
+        does not), sets the terminal `status`, and closes the order.
+        '''
+
+        order = self._get_order(event_type, event.client_order_id)
         if order is None:
             return
 
-        order.status = OrderStatus.REJECTED
+        venue_order_id = getattr(event, 'venue_order_id', None)
+        if venue_order_id is not None:
+            order.venue_order_id = venue_order_id
+
+        order.status = status
         order.updated_at = event.timestamp
         self._close_order(event.client_order_id)
-
-    def _on_order_acked(self, event: OrderAcked) -> None:
-
-        '''Update order venue identifier, promote to OPEN if still SUBMITTING.'''
-
-        order = self._get_order('OrderAcked', event.client_order_id)
-        if order is None:
-            return
-
-        order.venue_order_id = event.venue_order_id
-        if order.status == OrderStatus.SUBMITTING:
-            order.status = OrderStatus.OPEN
-        order.updated_at = event.timestamp
 
     def _on_fill_received(self, event: FillReceived) -> None:
 
@@ -402,48 +401,6 @@ class TradingState:
                 if new_qty == _ZERO:
                     del self.positions[key]
                     self.trade_strategy_ids.pop(event.trade_id, None)
-
-    def _on_order_rejected(self, event: OrderRejected) -> None:
-
-        '''Update order to REJECTED and close it.'''
-
-        order = self._get_order('OrderRejected', event.client_order_id)
-        if order is None:
-            return
-
-        if event.venue_order_id is not None:
-            order.venue_order_id = event.venue_order_id
-        order.status = OrderStatus.REJECTED
-        order.updated_at = event.timestamp
-        self._close_order(event.client_order_id)
-
-    def _on_order_canceled(self, event: OrderCanceled) -> None:
-
-        '''Update order to CANCELED and close it.'''
-
-        order = self._get_order('OrderCanceled', event.client_order_id)
-        if order is None:
-            return
-
-        if event.venue_order_id is not None:
-            order.venue_order_id = event.venue_order_id
-        order.status = OrderStatus.CANCELED
-        order.updated_at = event.timestamp
-        self._close_order(event.client_order_id)
-
-    def _on_order_expired(self, event: OrderExpired) -> None:
-
-        '''Update order to EXPIRED and close it.'''
-
-        order = self._get_order('OrderExpired', event.client_order_id)
-        if order is None:
-            return
-
-        if event.venue_order_id is not None:
-            order.venue_order_id = event.venue_order_id
-        order.status = OrderStatus.EXPIRED
-        order.updated_at = event.timestamp
-        self._close_order(event.client_order_id)
 
     def _on_trade_closed(self, event: TradeClosed) -> None:
 

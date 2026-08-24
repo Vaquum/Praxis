@@ -1283,6 +1283,40 @@ class ExecutionManager:
 
         return live_children, posted_count
 
+    def _replay_command(
+        self,
+        init: SchemeInitialized | BracketInitialized,
+        *,
+        order_type: OrderType,
+        execution_mode: ExecutionMode,
+        execution_params: ExecutionParams,
+        timeout: int,
+    ) -> TradeCommand:
+        '''Rebuild a TradeCommand envelope from a durable init event for resume.
+
+        Fills the identity from the init event and the fixed replay defaults
+        shared by every resumed mode — no reference price, no maker preference,
+        no self-trade prevention. The caller supplies the mode-specific order
+        type, execution mode, params, and timeout.
+        '''
+
+        return TradeCommand(
+            command_id=init.command_id,
+            trade_id=init.trade_id,
+            account_id=init.account_id,
+            symbol=init.symbol,
+            side=init.side,
+            qty=init.total_qty,
+            order_type=order_type,
+            execution_mode=execution_mode,
+            execution_params=execution_params,
+            timeout=timeout,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=init.timestamp,
+        )
+
     def _ladder_command_from_init(self, init: SchemeInitialized) -> TradeCommand:
         '''Rebuild a ladder command from its durable init event for resume.
 
@@ -1293,13 +1327,8 @@ class ExecutionManager:
             TradeCommand: The reconstructed ladder command.
         '''
 
-        return TradeCommand(
-            command_id=init.command_id,
-            trade_id=init.trade_id,
-            account_id=init.account_id,
-            symbol=init.symbol,
-            side=init.side,
-            qty=init.total_qty,
+        return self._replay_command(
+            init,
             order_type=OrderType.LIMIT,
             execution_mode=ExecutionMode.LADDER_DCA,
             execution_params=LadderDcaParams(
@@ -1307,10 +1336,6 @@ class ExecutionManager:
                 level_weights=tuple(init.volume_weights) or None,
             ),
             timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
-            reference_price=None,
-            maker_preference=MakerPreference.NO_PREFERENCE,
-            stp_mode=STPMode.NONE,
-            created_at=init.timestamp,
         )
 
     def _resume_brackets(
@@ -1496,13 +1521,8 @@ class ExecutionManager:
             TradeCommand: The reconstructed bracket command.
         '''
 
-        return TradeCommand(
-            command_id=init.command_id,
-            trade_id=init.trade_id,
-            account_id=init.account_id,
-            symbol=init.symbol,
-            side=init.side,
-            qty=init.total_qty,
+        return self._replay_command(
+            init,
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.BRACKET,
             execution_params=BracketParams(
@@ -1513,10 +1533,6 @@ class ExecutionManager:
                 stop_loss_limit_price=init.stop_loss_limit_price,
             ),
             timeout=init.timeout_seconds or _REPLAY_COMMAND_TIMEOUT_SECONDS,
-            reference_price=None,
-            maker_preference=MakerPreference.NO_PREFERENCE,
-            stp_mode=STPMode.NONE,
-            created_at=init.timestamp,
         )
 
     def _resume_schemes(
@@ -1604,21 +1620,12 @@ class ExecutionManager:
                 )
                 continue
 
-            command = TradeCommand(
-                command_id=command_id,
-                trade_id=init.trade_id,
-                account_id=runtime.account_id,
-                symbol=init.symbol,
-                side=init.side,
-                qty=init.total_qty,
+            command = self._replay_command(
+                init,
                 order_type=OrderType.MARKET,
                 execution_mode=init.execution_mode,
                 execution_params=rebuilt_params,
                 timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
-                reference_price=None,
-                maker_preference=MakerPreference.NO_PREFERENCE,
-                stp_mode=STPMode.NONE,
-                created_at=init.timestamp,
             )
 
             live_children: set[str] = set()
