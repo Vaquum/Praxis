@@ -473,6 +473,8 @@ class _AccountRuntime:
         self.command_queue = command_queue
         self.priority_queue = priority_queue
         self.ws_event_queue = ws_event_queue
+        self.dispatch_queue: asyncio.Queue[Event] = asyncio.Queue()
+        self.write_lock = asyncio.Lock()
         self.trading_state = trading_state
         self.account_ledger = account_ledger
         self.task: asyncio.Task[None] | None = None
@@ -2362,6 +2364,99 @@ class ExecutionManager:
 
         runtime.ws_event_queue.put_nowait(event)
 
+    async def admit(self, account_id: str, event: Event) -> int | None:
+        '''Append and project one external event in a single serialized turn.
+
+        The writer-admission primitive for events produced off the account
+        writer — WebSocket fills, reconnect backfill fills and terminals, and
+        reconciled fund transactions. It appends the event to the spine and
+        projects it into the trading state and ledger under the account's
+        `write_lock`, with no `await` between the append and the projection,
+        so the projection order can never diverge from the spine sequence
+        order. Contrast `enqueue_ws_event`, which appends off-writer and
+        defers projection to the writer's queue: a terminal the writer
+        appends in that gap projects first and the deferred fill then lands
+        on a closed order and is dropped.
+
+        Dispatch — the WS-driven outcome, scheme advance, and bracket drive —
+        is handed to the writer via `dispatch_queue` rather than run here, so
+        the scheme and bracket state stay owned by the single writer task.
+
+        Args:
+            account_id (str): Account whose writer admits the event.
+            event (Event): External domain event to append and project.
+
+        Returns:
+            int | None: The assigned spine sequence, or None when the event
+                deduplicated against a prior append (nothing projected).
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered, or was
+                unregistered while the append was in flight (the event is
+                durable and projects on replay; it is not projected into the
+                detached runtime).
+            RuntimeError: If called off the event-loop thread, or if the
+                account is poisoned (projection has fail-stopped; a restart
+                is required).
+        '''
+
+        if (
+            self._loop_thread_id is not None
+            and threading.get_ident() != self._loop_thread_id
+        ):
+            msg = (
+                'admit called from non-event-loop thread. '
+                'append and projection must run on the loop thread.'
+            )
+            raise RuntimeError(msg)
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        def _guard_poisoned() -> None:
+            if runtime.poisoned:
+                msg = f"account '{account_id}' is poisoned; restart required"
+                raise RuntimeError(msg)
+
+        _guard_poisoned()
+
+        async with runtime.write_lock:
+            _guard_poisoned()
+
+            seq = await self._event_spine.append(event, self._epoch_id)
+
+            _guard_poisoned()
+
+            if seq is None:
+                return None
+
+            if self._accounts.get(account_id) is not runtime:
+                msg = (
+                    f"account '{account_id}' unregistered during admit; event "
+                    f'is durable (seq={seq}) and projects on replay'
+                )
+                raise AccountNotRegisteredError(msg)
+
+            try:
+                self._project(runtime, event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                runtime.poisoned = True
+                _log.exception(
+                    'admitted projection failed; poisoning account '
+                    '(fail-stop, restart required): event_type=%s account_id=%s',
+                    type(event).__name__,
+                    account_id,
+                )
+                raise
+
+        runtime.dispatch_queue.put_nowait(event)
+
+        return seq
+
     def set_reconciling(self, account_id: str, reconciling: bool) -> None:
 
         '''
@@ -2717,19 +2812,45 @@ class ExecutionManager:
                     runtime.account_id,
                 )
                 continue
-            try:
-                await self._emit_ws_outcome(runtime, event)
-                await self._on_scheme_child_event(runtime, event)
-                await self._on_bracket_event(runtime, event)
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # noqa: BLE001
-                _log.exception(
-                    'failed to emit WS-driven TradeOutcome: '
-                    'event_type=%s account_id=%s',
-                    type(event).__name__,
-                    runtime.account_id,
-                )
+            await self._dispatch_event(runtime, event)
+
+    async def _drain_dispatch_queue(self, runtime: _AccountRuntime) -> None:
+        '''Dispatch every admitted event the writer has yet to react to.
+
+        Events admitted via `admit` are already appended and projected under
+        the account `write_lock`; only their dispatch — the WS-driven
+        outcome, scheme advance, and bracket drive — is deferred here so it
+        runs on the single writer task rather than on the producing WS or
+        reconcile task. A dispatch failure is logged and the drain continues.
+        '''
+
+        while not runtime.dispatch_queue.empty():
+            event = runtime.dispatch_queue.get_nowait()
+            if runtime.poisoned:
+                continue
+            await self._dispatch_event(runtime, event)
+
+    async def _dispatch_event(self, runtime: _AccountRuntime, event: Event) -> None:
+        '''Dispatch a projected external event's reactions on the writer.
+
+        Emits the WS-driven outcome, advances the owning scheme, and drives
+        the owning bracket (which can place a protective OCO). A failure is
+        logged and swallowed so one event cannot stall the drain.
+        '''
+
+        try:
+            await self._emit_ws_outcome(runtime, event)
+            await self._on_scheme_child_event(runtime, event)
+            await self._on_bracket_event(runtime, event)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            _log.exception(
+                'failed to dispatch external event: '
+                'event_type=%s account_id=%s',
+                type(event).__name__,
+                runtime.account_id,
+            )
 
     async def _account_loop(self, runtime: _AccountRuntime) -> None:
         '''
@@ -2749,6 +2870,7 @@ class ExecutionManager:
                     continue
 
                 await self._drain_ws_events(runtime)
+                await self._drain_dispatch_queue(runtime)
 
                 deferred_modifies: list[TradeModify] = []
                 while not runtime.priority_queue.empty():

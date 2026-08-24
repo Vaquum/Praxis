@@ -942,9 +942,8 @@ class Trading:
                 is_maker=trade.is_maker,
             )
 
-            seq = await self._event_spine.append(fill_event, self._config.epoch_id)
+            seq = await self._execution_manager.admit(account_id, fill_event)
             if seq is not None:
-                self._execution_manager.enqueue_ws_event(account_id, fill_event)
                 _log.info(
                     'reconciled fill: %s %s',
                     order.client_order_id,
@@ -1042,9 +1041,8 @@ class Trading:
                 direction=transaction.direction,
             )
 
-            seq = await self._event_spine.append(fund, self._config.epoch_id)
+            seq = await self._execution_manager.admit(account_id, fund)
             if seq is not None:
-                self._execution_manager.enqueue_ws_event(account_id, fund)
                 _log.info(
                     'reconciled fund transaction: %s %s %s',
                     transaction.direction,
@@ -1379,9 +1377,9 @@ class Trading:
         '''
         Reconstruct a FillReceived from a backfilled trade and its local order.
 
-        Appends through the Event Spine dedup gate and enqueues to the
-        account writer only when the append is new; a duplicate append
-        (already recorded) is silently skipped.
+        Admits the fill through the account writer, which appends it past the
+        Event Spine dedup gate and projects it in one serialized turn; a
+        duplicate append (already recorded) is silently skipped.
 
         Args:
             account_id (str): Account identifier.
@@ -1411,9 +1409,7 @@ class Trading:
             is_maker=trade.is_maker,
         )
 
-        seq = await self._event_spine.append(fill_event, self._config.epoch_id)
-        if seq is not None:
-            self._execution_manager.enqueue_ws_event(account_id, fill_event)
+        await self._execution_manager.admit(account_id, fill_event)
 
     async def _reconcile_terminal(
         self,
@@ -1462,8 +1458,7 @@ class Trading:
             )
 
         if event is not None:
-            await self._event_spine.append(event, self._config.epoch_id)
-            self._execution_manager.enqueue_ws_event(account_id, event)
+            await self._execution_manager.admit(account_id, event)
             _log.info(
                 'reconciled terminal state: %s %s',
                 order.client_order_id,
@@ -1517,9 +1512,7 @@ class Trading:
         if event is None:
             return
 
-        seq = await self._event_spine.append(event, self._config.epoch_id)
-        if seq is not None:
-            self._execution_manager.enqueue_ws_event(account_id, event)
+        await self._execution_manager.admit(account_id, event)
 
     def _convert_execution_report(  # noqa: PLR0911
         self,
