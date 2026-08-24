@@ -468,7 +468,7 @@ class Trading:
                 events_by_account[event.account_id].append((seq, event))
 
             for account_id in self._config.account_credentials:
-                self._inbound.register_account(account_id)
+                self._inbound.register_account(account_id, booting=True)
                 self._managed_accounts.add(account_id)
                 await self._startup_account(account_id, events_by_account[account_id])
         except Exception:
@@ -492,55 +492,62 @@ class Trading:
             account_events: Pre-filtered events for this account.
         '''
 
-        self._execution_manager.replay_events(account_id, account_events)
-        await self._execution_manager.register_account_on_spine(account_id)
-        await self._execution_manager.reconcile_orphan_commands(
-            account_id, account_events,
-        )
+        account_ready = False
 
-        symbols = set(self._execution_manager.active_symbols(account_id))
-        symbols |= self._bootstrap_filter_symbols
-        symbols |= {
-            event.symbol
-            for _seq, event in account_events
-            if isinstance(event, BracketInitialized)
-        }
-        if symbols:
-            await self._venue_adapter.load_filters(sorted(symbols))
-
-        self._execution_manager.seed_protection_remediations(account_events)
-        self._seed_fund_reconcile_cursor(account_id, account_events)
-
-        account_ready = await self._sweep_orphan_venue_orders(account_id)
-
-        if isinstance(self._venue_adapter, BinanceAdapter):
-            adapter = self._venue_adapter
-
-            async def on_message(data: dict[str, Any]) -> None:
-                await self._on_execution_report(account_id, data)
-
-            async def on_disconnect() -> None:
-                self._execution_manager.set_reconciling(account_id, True)
-
-            async def on_reconnect() -> None:
-                await self._reconcile_on_reconnect(account_id)
-
-            stream = BinanceUserStream(
-                adapter=adapter,
-                account_id=account_id,
-                on_message=on_message,
-                on_disconnect=on_disconnect,
-                on_reconnect=on_reconnect,
+        try:
+            self._execution_manager.replay_events(account_id, account_events)
+            await self._execution_manager.register_account_on_spine(account_id)
+            await self._execution_manager.reconcile_orphan_commands(
+                account_id, account_events,
             )
-            await stream.initiate_connection()
-            self._user_streams[account_id] = stream
-            await self._reconcile_on_reconnect(account_id)
-        else:
-            await self._reconcile_account(account_id)
 
-        await self._execution_manager.recover_incomplete_flattens(
-            account_id, account_events,
-        )
+            symbols = set(self._execution_manager.active_symbols(account_id))
+            symbols |= self._bootstrap_filter_symbols
+            symbols |= {
+                event.symbol
+                for _seq, event in account_events
+                if isinstance(event, BracketInitialized)
+            }
+            if symbols:
+                await self._venue_adapter.load_filters(sorted(symbols))
+
+            self._execution_manager.seed_protection_remediations(account_events)
+            self._seed_fund_reconcile_cursor(account_id, account_events)
+
+            account_ready = await self._sweep_orphan_venue_orders(account_id)
+
+            if isinstance(self._venue_adapter, BinanceAdapter):
+                adapter = self._venue_adapter
+
+                async def on_message(data: dict[str, Any]) -> None:
+                    await self._on_execution_report(account_id, data)
+
+                async def on_disconnect() -> None:
+                    self._execution_manager.set_reconciling(account_id, True)
+
+                async def on_reconnect() -> None:
+                    await self._reconcile_on_reconnect(account_id)
+
+                stream = BinanceUserStream(
+                    adapter=adapter,
+                    account_id=account_id,
+                    on_message=on_message,
+                    on_disconnect=on_disconnect,
+                    on_reconnect=on_reconnect,
+                )
+                await stream.initiate_connection()
+                self._user_streams[account_id] = stream
+                await self._reconcile_on_reconnect(account_id)
+            else:
+                await self._reconcile_account(account_id)
+
+            await self._execution_manager.drain_ws_events(account_id)
+
+            await self._execution_manager.recover_incomplete_flattens(
+                account_id, account_events,
+            )
+        finally:
+            self._execution_manager.finish_account_startup(account_id)
 
         if account_ready:
             self._ready_accounts.add(account_id)

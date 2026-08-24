@@ -14,6 +14,7 @@ directly; the public-path tests drive `submit_modify` end to end.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -40,6 +41,7 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.events import (
     Event,
+    FillReceived,
     OrderCanceled,
     OrderSubmitIntent,
     OrderSubmitted,
@@ -969,6 +971,78 @@ class TestBracketAmendReplaceFails:
         assert len(market_sells) == 1
         assert market_sells[0]['args'][4] == Decimal('1')
 
+        await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_boot_reflatten_sizes_from_drained_backfill_fill(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        '''Size the boot flatten from a fill that only lands during recovery.
+
+        Reproduces the boot-ownership window: the parked writer holds a
+        queued entry fill that completes the entry, so the persisted entry
+        is only partially filled at replay. `_boot_reflatten` must drain
+        that queued fill into `_command_fill_totals` before it sizes the
+        flatten, otherwise the remainder is undersized and the position is
+        left partially exposed. The account is registered `booting=True`, so
+        only the drain inside `_boot_reflatten` projects the backfill.
+        '''
+
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        truncated = await _truncate_after_protection_failed(spine)
+
+        entry_index, entry_fill = next(
+            (index, event)
+            for index, (_seq, event) in enumerate(truncated)
+            if isinstance(event, FillReceived) and event.side is OrderSide.BUY
+        )
+        seq = truncated[entry_index][0]
+        truncated[entry_index] = (
+            seq, dataclasses.replace(entry_fill, qty=Decimal('0.6')),
+        )
+        backfill = dataclasses.replace(
+            entry_fill,
+            qty=Decimal('0.4'),
+            venue_trade_id=f'{entry_fill.venue_trade_id}-backfill',
+        )
+        await em.unregister_account(_ACCT)
+
+        recover_adapter = _make_adapter()
+        recover_adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        recover_adapter.query_order.side_effect = NotFoundError('no such order')
+        em2, _ = mgr_factory(recover_adapter)
+        em2.register_account(_ACCT, booting=True)
+        em2.replay_events(_ACCT, truncated)
+        em2.enqueue_ws_event(_ACCT, backfill)
+
+        await em2.recover_incomplete_flattens(_ACCT, truncated)
+
+        market_sells = [
+            c for c in recover_adapter.submit_calls
+            if c['args'][3] is OrderType.MARKET
+            and c['args'][2] is OrderSide.SELL
+            and c['kwargs'].get('client_order_id') == flatten_id
+        ]
+        assert len(market_sells) == 1
+        assert market_sells[0]['args'][4] == Decimal('1')
+
+        em2.finish_account_startup(_ACCT)
         await em2.unregister_account(_ACCT)
 
     @pytest.mark.asyncio

@@ -725,3 +725,34 @@ class TestHeldAmendRetry:
 
         assert adapter.cancel_order.await_count == cancels_before
         assert command_id in em._accounts[_ACCT].pending_amends
+
+
+class TestBootOwnership:
+
+    @pytest.mark.asyncio
+    async def test_writer_parked_during_boot_drain_projects_inline(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        em.begin_account_startup(_ACCT)
+        await asyncio.sleep(0.2)
+
+        state = em._accounts[_ACCT].trading_state
+        em.enqueue_ws_event(
+            _ACCT, _ws_fill('cmd-x', 'coid-x', Decimal('0.4'), _OLD_PRICE),
+        )
+        await asyncio.sleep(0.2)
+        assert state.positions.get((_TRADE, _ACCT)) is None
+
+        await em.drain_ws_events(_ACCT)
+        position = state.positions.get((_TRADE, _ACCT))
+        assert position is not None
+        assert position.qty == Decimal('0.4')
+
+        em.finish_account_startup(_ACCT)
+        em.enqueue_ws_event(
+            _ACCT, _ws_fill('cmd-x', 'coid-x', Decimal('0.1'), _OLD_PRICE),
+        )
+        await asyncio.sleep(0.2)
+        assert state.positions[(_TRADE, _ACCT)].qty == Decimal('0.5')

@@ -25,7 +25,7 @@ __all__ = ['TradingInbound']
 class _ExecutionInboundGateway(Protocol):
     def has_account(self, account_id: str) -> bool: ...
 
-    def register_account(self, account_id: str) -> None: ...
+    def register_account(self, account_id: str, *, booting: bool = False) -> None: ...
 
     async def unregister_account(self, account_id: str) -> None: ...
 
@@ -93,12 +93,14 @@ class TradingInbound:
         self._venue_adapter = venue_adapter
         self._account_credentials = dict(account_credentials)
 
-    def register_account(self, account_id: str) -> None:
+    def register_account(self, account_id: str, *, booting: bool = False) -> None:
         '''
         Register account credentials and execution runtime for an account.
 
         Args:
             account_id (str): Account identifier.
+            booting (bool): Register the execution runtime parked for boot
+                recovery, forwarded to the execution manager.
 
         Raises:
             ValueError: If account_id is empty, credentials are missing,
@@ -126,7 +128,7 @@ class TradingInbound:
 
         self._venue_adapter.register_account(account_id, credentials)
         try:
-            self._execution_manager.register_account(account_id)
+            self._execution_manager.register_account(account_id, booting=booting)
         except (ValueError, RuntimeError):
             with contextlib.suppress(KeyError):
                 self._venue_adapter.unregister_account(account_id)

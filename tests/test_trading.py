@@ -221,7 +221,7 @@ class _FakeInbound:
         self.calls: list[tuple[str, object]] = []
         self.unregister_fail_once: set[str] = set()
 
-    def register_account(self, account_id: str) -> None:
+    def register_account(self, account_id: str, *, booting: bool = False) -> None:  # noqa: ARG002
         self.calls.append(('register_account', account_id))
 
     async def unregister_account(self, account_id: str) -> None:

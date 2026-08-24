@@ -483,6 +483,7 @@ class _AccountRuntime:
         self.pending_amends: dict[str, _PendingSingleAmend] = {}
         self.queue_reservations = 0
         self.reconciling = False
+        self.booting = False
         self.poisoned = False
         self.protection_scan_requested = False
 
@@ -651,12 +652,17 @@ class ExecutionManager:
                 )
                 await asyncio.sleep(delay)
 
-    def register_account(self, account_id: str) -> None:
+    def register_account(self, account_id: str, *, booting: bool = False) -> None:
         '''
         Create per-account queues and start account coroutine.
 
         Args:
             account_id (str): Account identifier to register.
+            booting (bool): When True the account is registered parked — its
+                writer loop is created but idle — so boot recovery owns the
+                account as the sole projector until `finish_account_startup`.
+                Set atomically with the task so the writer can never run a
+                single iteration before recovery begins.
 
         Raises:
             ValueError: If account_id is empty or already registered.
@@ -681,6 +687,7 @@ class ExecutionManager:
             trading_state=TradingState(account_id),
             account_ledger=AccountLedger(account_id),
         )
+        runtime.booting = booting
         runtime.task = asyncio.create_task(
             self._account_loop(runtime),
             name=f"account-{account_id}",
@@ -2636,6 +2643,94 @@ class ExecutionManager:
 
         await runtime.command_queue.join()
 
+    def begin_account_startup(self, account_id: str) -> None:
+        '''Park an already-registered account writer for boot recovery.
+
+        The boot path registers the account with `booting=True` so the writer
+        is parked from creation; this is the equivalent for a runtime that was
+        registered live and must re-enter recovery. Setting `booting` parks the
+        whole loop — no drain, no projection, no dispatch — so boot recovery is
+        the sole owner until `finish_account_startup`.
+
+        Args:
+            account_id (str): Account entering boot recovery.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is not None:
+            runtime.booting = True
+
+    def finish_account_startup(self, account_id: str) -> None:
+        '''Release the account writer once boot recovery has completed.
+
+        Args:
+            account_id (str): Account whose recovery is complete.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is not None:
+            runtime.booting = False
+
+    async def drain_ws_events(self, account_id: str) -> None:
+        '''Project and dispatch every queued external event on the caller.
+
+        Called only by boot recovery while the writer is parked, so recovery
+        reads a projection caught up to every queued fill before it sizes a
+        remediation. Refuses to run unless the account is `booting`: draining
+        from any other caller while the writer runs would create a second
+        projector for the account.
+
+        Args:
+            account_id (str): Account whose queued events to project now.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is not None and runtime.booting:
+            await self._drain_ws_events(runtime)
+
+    async def _drain_ws_events(self, runtime: _AccountRuntime) -> None:
+        '''Project AND dispatch every queued WebSocket/reconcile event.
+
+        The sole projector for an account's external events, shared by the
+        account loop and boot recovery. Beyond projecting each event into the
+        trading state and ledger, it dispatches it: emits the WS-driven
+        outcome, advances the owning scheme, and drives the owning bracket
+        (which can place a protective OCO). A projection failure poisons the
+        account (fail-stop); an outcome-emit failure is logged and the drain
+        continues.
+        '''
+
+        while not runtime.ws_event_queue.empty():
+            event = runtime.ws_event_queue.get_nowait()
+            if runtime.poisoned:
+                continue
+            try:
+                self._project(runtime, event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                runtime.poisoned = True
+                _log.exception(
+                    'projection failed; poisoning account (fail-stop, '
+                    'restart required): event_type=%s account_id=%s',
+                    type(event).__name__,
+                    runtime.account_id,
+                )
+                continue
+            try:
+                await self._emit_ws_outcome(runtime, event)
+                await self._on_scheme_child_event(runtime, event)
+                await self._on_bracket_event(runtime, event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                _log.exception(
+                    'failed to emit WS-driven TradeOutcome: '
+                    'event_type=%s account_id=%s',
+                    type(event).__name__,
+                    runtime.account_id,
+                )
+
     async def _account_loop(self, runtime: _AccountRuntime) -> None:
         '''
         Drain priority and command queues for a single account.
@@ -2649,36 +2744,11 @@ class ExecutionManager:
 
         try:
             while True:
-                while not runtime.ws_event_queue.empty():
-                    event = runtime.ws_event_queue.get_nowait()
-                    if runtime.poisoned:
-                        continue
-                    try:
-                        self._project(runtime, event)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:  # noqa: BLE001
-                        runtime.poisoned = True
-                        _log.exception(
-                            'projection failed; poisoning account (fail-stop, '
-                            'restart required): event_type=%s account_id=%s',
-                            type(event).__name__,
-                            runtime.account_id,
-                        )
-                        continue
-                    try:
-                        await self._emit_ws_outcome(runtime, event)
-                        await self._on_scheme_child_event(runtime, event)
-                        await self._on_bracket_event(runtime, event)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:  # noqa: BLE001
-                        _log.exception(
-                            'failed to emit WS-driven TradeOutcome: '
-                            'event_type=%s account_id=%s',
-                            type(event).__name__,
-                            runtime.account_id,
-                        )
+                if runtime.booting:
+                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
+                    continue
+
+                await self._drain_ws_events(runtime)
 
                 deferred_modifies: list[TradeModify] = []
                 while not runtime.priority_queue.empty():
@@ -6489,6 +6559,7 @@ class ExecutionManager:
             command=cmd, entry_client_order_id=entry_client_order_id,
         )
         exit_command_id = bracket_exit_command_id(command_id)
+        await self._drain_ws_events(runtime)
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
         exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_filled
