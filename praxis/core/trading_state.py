@@ -451,7 +451,14 @@ class TradingState:
 
     def _close_order(self, client_order_id: str) -> None:
 
-        '''Move order from active to closed.'''
+        '''Move order from active to closed.
+
+        The OCO leg-to-parent mapping is retained past close: a leg fill that
+        is delivered late or backfilled after its parent has already closed
+        (a sibling leg cancelled it, or the fill was missed across a
+        reconnect) must still resolve to the parent so the position is
+        reduced rather than left as a ghost. The mapping lives for the epoch.
+        '''
 
         order = self.orders.pop(client_order_id, None)
         if order is None:
@@ -463,7 +470,3 @@ class TradingState:
             return
 
         self.closed_orders[client_order_id] = order
-
-        legs = self.oco_parent_legs.pop(client_order_id, ())
-        for leg_id in legs:
-            self.oco_leg_parent.pop(leg_id, None)

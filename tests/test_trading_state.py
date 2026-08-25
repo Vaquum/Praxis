@@ -246,7 +246,7 @@ def test_order_submitted_without_legs_leaves_map_empty() -> None:
     assert state.oco_leg_parent == {}
 
 
-def test_closing_oco_parent_clears_leg_mappings() -> None:
+def test_oco_leg_mappings_persist_after_parent_close() -> None:
 
     state = _state()
     state.apply(_submit_intent())
@@ -264,8 +264,9 @@ def test_closing_oco_parent_clears_leg_mappings() -> None:
 
     state.apply(_canceled())
 
-    assert state.oco_leg_parent == {}
-    assert state.oco_parent_legs == {}
+    assert _ORDER in state.closed_orders
+    assert state.oco_leg_parent == {'leg-a': _ORDER, 'leg-b': _ORDER}
+    assert state.oco_parent_legs == {_ORDER: ('leg-a', 'leg-b')}
 
 
 def test_order_submit_failed_rejects_and_closes() -> None:

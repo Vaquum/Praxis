@@ -1333,6 +1333,79 @@ async def test_reconcile_fills_deduplicates(spine: EventSpine) -> None:
     await trading.stop()
 
 
+async def _seed_oco_parent_with_ghost_position(
+    trading: Trading, *, closed: bool,
+) -> Any:
+    ts = trading._execution_manager._accounts['acc-1'].trading_state
+    ts.apply(OrderSubmitIntent(
+        account_id='acc-1', timestamp=_CREATED_AT, command_id='cmd-1',
+        trade_id='trade-1', client_order_id='OCO-parent', symbol='BTCUSDT',
+        side=OrderSide.SELL, order_type=OrderType.OCO, qty=Decimal('1'),
+    ))
+    ts.apply(OrderSubmitted(
+        account_id='acc-1', timestamp=_CREATED_AT, client_order_id='OCO-parent',
+        venue_order_id='v-oco', leg_client_order_ids=('leg-sl', 'leg-tp'),
+    ))
+    if closed:
+        ts.apply(OrderCanceled(
+            account_id='acc-1', timestamp=_CREATED_AT, client_order_id='OCO-parent',
+            venue_order_id='v-oco', reason='sibling leg triggered',
+        ))
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+    ts.positions[('trade-1', 'acc-1')] = Position(
+        account_id='acc-1', trade_id='trade-1', symbol='BTCUSDT',
+        side=OrderSide.BUY, qty=Decimal('1'), avg_entry_price=Decimal('50000'),
+    )
+
+    return ts.orders.get('OCO-parent') or ts.closed_orders.get('OCO-parent')
+
+
+def _oco_leg_sell_trade() -> VenueTrade:
+    return VenueTrade(
+        venue_trade_id='99', venue_order_id='v-leg', client_order_id='leg-sl',
+        symbol='BTCUSDT', side=OrderSide.SELL, qty=Decimal('1'),
+        price=Decimal('51000'), fee=Decimal('0.001'), fee_asset='USDT',
+        is_maker=False, timestamp=_CREATED_AT,
+    )
+
+
+@pytest.mark.asyncio
+async def test_reconcile_fills_books_oco_leg_fill_to_parent(spine: EventSpine) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    parent = await _seed_oco_parent_with_ghost_position(trading, closed=False)
+    adapter._venue_trades = [_oco_leg_sell_trade()]
+
+    await trading._reconcile_fills('acc-1', parent)
+
+    ts = trading._execution_manager._accounts['acc-1'].trading_state
+    events = await _trading_events(spine)
+    fills = [e for _s, e in events if isinstance(e, FillReceived)]
+    assert len(fills) == 1
+    assert fills[0].client_order_id == 'OCO-parent'
+    assert ('trade-1', 'acc-1') not in ts.positions
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_backfill_books_oco_leg_fill_after_parent_closed(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    await _seed_oco_parent_with_ghost_position(trading, closed=True)
+    adapter._venue_trades = [_oco_leg_sell_trade()]
+
+    await trading._backfill_account('acc-1')
+    await trading._backfill_account('acc-1')
+
+    ts = trading._execution_manager._accounts['acc-1'].trading_state
+    events = await _trading_events(spine)
+    fills = [e for _s, e in events if isinstance(e, FillReceived)]
+    assert len(fills) == 1
+    assert fills[0].client_order_id == 'OCO-parent'
+    assert ('trade-1', 'acc-1') not in ts.positions
+    await trading.stop()
+
+
 @pytest.mark.asyncio
 async def test_reconcile_fills_skips_unknown_account(spine: EventSpine) -> None:
     trading, _ = await _started_trading_with_recon_adapter(spine)

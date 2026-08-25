@@ -922,13 +922,16 @@ class Trading:
             return
 
         for trade in trades:
-            if trade.client_order_id != order.client_order_id:
+            parent_client_order_id = trading_state.oco_leg_parent.get(
+                trade.client_order_id, trade.client_order_id,
+            )
+            if parent_client_order_id != order.client_order_id:
                 continue
 
             fill_event = FillReceived(
                 account_id=account_id,
                 timestamp=trade.timestamp,
-                client_order_id=trade.client_order_id,
+                client_order_id=parent_client_order_id,
                 venue_order_id=trade.venue_order_id,
                 venue_trade_id=trade.venue_trade_id,
                 trade_id=trade_id,
@@ -1350,9 +1353,12 @@ class Trading:
                     )
                     continue
 
-                order = trading_state.orders.get(trade.client_order_id)
+                parent_client_order_id = trading_state.oco_leg_parent.get(
+                    trade.client_order_id, trade.client_order_id,
+                )
+                order = trading_state.orders.get(parent_client_order_id)
                 if order is None:
-                    order = trading_state.closed_orders.get(trade.client_order_id)
+                    order = trading_state.closed_orders.get(parent_client_order_id)
                 if order is not None:
                     await self._apply_backfilled_fill(account_id, trade, order)
 
@@ -1395,7 +1401,7 @@ class Trading:
         fill_event = FillReceived(
             account_id=account_id,
             timestamp=trade.timestamp,
-            client_order_id=trade.client_order_id,
+            client_order_id=order.client_order_id,
             venue_order_id=trade.venue_order_id,
             venue_trade_id=trade.venue_trade_id,
             trade_id=trade_id,
