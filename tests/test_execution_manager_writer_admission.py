@@ -287,3 +287,59 @@ async def test_admit_rejects_calls_off_the_loop_thread(spine: EventSpine) -> Non
 
     em._loop_thread_id = None
     await em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_cross_path_fill_delivery_dedups_and_replays_equal(
+    spine: EventSpine,
+) -> None:
+    '''The same trade delivered by two live paths counts once and replays equal.
+
+    A fill reaches Praxis from the WebSocket stream and again from reconnect
+    trade backfill; both carry the same venue trade id (Binance's per-symbol
+    trade identifier) but differ in other fields. Dedup keys on
+    `(epoch, account, symbol, venue_trade_id)`, so the second admit
+    deduplicates and never projects: the position is booked once, the spine
+    holds a single `FillReceived`, and a fresh account replaying the whole
+    spine lands on the identical position.
+    '''
+
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT, booting=True)
+    live = em._accounts[_ACCT]
+
+    ws_fill = _fill(Decimal('0.5'), venue_trade_id='99')
+    backfill_fill = FillReceived(
+        account_id=_ACCT, timestamp=_T0, client_order_id=_COID,
+        venue_order_id='rest-order', venue_trade_id='99', trade_id=_TRADE,
+        command_id=_CMD, symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('0.5'),
+        price=Decimal('100'), fee=Decimal('0'), fee_asset='USDT', is_maker=True,
+    )
+
+    replay_em: ExecutionManager | None = None
+    try:
+        ws_seq = await em.admit(_ACCT, ws_fill)
+        backfill_seq = await em.admit(_ACCT, backfill_fill)
+
+        assert ws_seq is not None
+        assert backfill_seq is None
+        live_position = live.trading_state.positions[(_TRADE, _ACCT)]
+        assert live_position.qty == Decimal('0.5')
+
+        full = await spine.read(epoch_id=_EPOCH)
+        fills = [event for _seq, event in full if isinstance(event, FillReceived)]
+        assert fills == [ws_fill]
+
+        replay_em = _manager(spine, [])
+        replay_em.register_account(_ACCT, booting=True)
+        replay_em.replay_events(_ACCT, full)
+        replay_position = replay_em._accounts[_ACCT].trading_state.positions[
+            (_TRADE, _ACCT)
+        ]
+
+        assert replay_position == live_position
+    finally:
+        for manager in (em, replay_em):
+            if manager is not None and _ACCT in manager._accounts:
+                await manager.unregister_account(_ACCT)
