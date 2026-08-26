@@ -1902,3 +1902,31 @@ class TestBracketAmendPublicPath:
 
         assert runtime.priority_queue.empty()
         assert command_id not in em.modifiable_command_ids(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_protection_scan_resolver_failure_does_not_skip_others(
+    mgr_factory: Any,
+) -> None:
+    '''A resolver raising must not skip the remaining protection-scan resolvers.'''
+
+    em, _ = mgr_factory(_make_adapter())
+    em.register_account(_ACCT)
+    runtime = em._accounts[_ACCT]
+    called: list[str] = []
+
+    async def _raise(_account_id: str) -> None:
+        called.append('unknown')
+        raise TransientError('venue 5xx')
+
+    async def _spy(_account_id: str) -> None:
+        called.append('flatten')
+
+    em.resolve_unknown_protection = _raise
+    em.resolve_failed_flattens = _spy
+
+    await em._run_protection_scan(runtime)
+
+    assert 'unknown' in called
+    assert 'flatten' in called
+    await em.unregister_account(_ACCT)

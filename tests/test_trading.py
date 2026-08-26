@@ -1419,6 +1419,32 @@ async def test_reconcile_fills_skips_unknown_account(spine: EventSpine) -> None:
 
 
 @pytest.mark.asyncio
+async def test_reconcile_account_tick_isolates_detector_failures(
+    spine: EventSpine,
+) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    called: list[str] = []
+
+    async def _raise(_account_id: str) -> None:
+        called.append('fund')
+        raise RuntimeError('venue boom')
+
+    async def _balances(_account_id: str) -> None:
+        called.append('balances')
+
+    scans: list[str] = []
+    trading._reconcile_fund_transactions = _raise
+    trading._reconcile_balances = _balances
+    trading._execution_manager.request_protection_scan = lambda aid: scans.append(aid)
+
+    await trading._reconcile_account_tick('acc-1')
+
+    assert called == ['fund', 'balances']
+    assert scans == ['acc-1']
+    await trading.stop()
+
+
+@pytest.mark.asyncio
 async def test_reconcile_fills_handles_venue_error(spine: EventSpine) -> None:
     trading, adapter = await _started_trading_with_recon_adapter(spine)
     order = _make_order()

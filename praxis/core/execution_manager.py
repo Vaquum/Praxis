@@ -5797,23 +5797,30 @@ class ExecutionManager:
         `request_protection_scan` and executed here so the watchdogs' writes —
         protection re-track, scheme freeze, flatten submit, and ladder-amend
         cancel/place — run on the single account writer rather than racing it
-        from the reconcile task. A failure is logged and swallowed so a venue
-        error cannot stop the account loop.
+        from the reconcile task. The resolvers are independent, so each runs
+        in its own failure domain: a venue error in one is logged and
+        swallowed and cannot skip the others for the tick.
         '''
 
-        try:
-            await self.resolve_unknown_protection(runtime.account_id)
-            await self.drain_protection_remediations(runtime.account_id)
-            await self.resolve_ladder_amends(runtime.account_id)
-            await self.resolve_pending_amends(runtime.account_id)
-            await self.resolve_held_protection_amends(runtime.account_id)
-            await self.resolve_failed_flattens(runtime.account_id)
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # noqa: BLE001
-            _log.exception(
-                'protection scan failed: account_id=%s', runtime.account_id,
-            )
+        resolvers = (
+            self.resolve_unknown_protection,
+            self.drain_protection_remediations,
+            self.resolve_ladder_amends,
+            self.resolve_pending_amends,
+            self.resolve_held_protection_amends,
+            self.resolve_failed_flattens,
+        )
+        for resolver in resolvers:
+            try:
+                await resolver(runtime.account_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                _log.exception(
+                    'protection scan resolver failed: resolver=%s account_id=%s',
+                    resolver.__name__,
+                    runtime.account_id,
+                )
 
     async def resolve_ladder_amends(self, account_id: str) -> None:
         '''Advance any stalled or crash-resumed ladder amend on the writer.

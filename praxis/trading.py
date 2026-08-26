@@ -1235,16 +1235,33 @@ class Trading:
                 if self._stopping:
                     return
 
-                try:
-                    await self._reconcile_fund_transactions(account_id)
-                    await self._reconcile_balances(account_id)
-                    self._execution_manager.request_protection_scan(account_id)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:  # noqa: BLE001 - a detector must not stop the loop
-                    _log.exception(
-                        'reconciliation cycle failed for account: %s', account_id,
-                    )
+                await self._reconcile_account_tick(account_id)
+
+    async def _reconcile_account_tick(self, account_id: str) -> None:
+        '''Run one account's reconcile detectors, each in its own failure domain.
+
+        The fund-transaction and balance detectors are independent, so a venue
+        error in one is logged and swallowed and cannot skip the other for the
+        tick. The protection scan is requested unconditionally afterwards — a
+        detector failure must not defer the watchdogs either.
+        '''
+
+        for detector in (
+            self._reconcile_fund_transactions,
+            self._reconcile_balances,
+        ):
+            try:
+                await detector(account_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - a detector must not stop the loop
+                _log.exception(
+                    'reconciliation detector failed: detector=%s account=%s',
+                    detector.__name__,
+                    account_id,
+                )
+
+        self._execution_manager.request_protection_scan(account_id)
 
     async def _reconcile_on_reconnect(self, account_id: str) -> None:
         '''
