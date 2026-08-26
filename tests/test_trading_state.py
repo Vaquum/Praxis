@@ -15,6 +15,8 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
+    OperatorHaltRequested,
+    OperatorResumeRequested,
     OrderAcked,
     OrderCanceled,
     OrderExpired,
@@ -23,6 +25,7 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    OutcomeAcked,
     TradeClosed,
 )
 from praxis.core.trading_state import TradingState
@@ -286,6 +289,29 @@ def test_order_acked_is_retained_but_not_projected() -> None:
     order = state.orders[_ORDER]
     assert order.status == OrderStatus.SUBMITTING
     assert order.venue_order_id is None
+
+
+def test_exempt_telemetry_events_are_silent_no_ops(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+
+    state = _state()
+    with caplog.at_level(logging.WARNING):
+        state.apply(OperatorHaltRequested(
+            account_id=_ACCT, timestamp=_TS, reason='operator halt',
+        ))
+        state.apply(OperatorResumeRequested(
+            account_id=_ACCT, timestamp=_TS, reason='operator resume',
+        ))
+        state.apply(OutcomeAcked(
+            account_id=_ACCT, timestamp=_TS, outcome_id='outcome-1',
+        ))
+
+    assert state.orders == {}
+    assert state.positions == {}
+    assert not any(
+        'unhandled event type' in record.getMessage() for record in caplog.records
+    )
 
 
 def test_partial_fill_updates_order() -> None:

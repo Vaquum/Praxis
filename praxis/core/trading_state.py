@@ -38,6 +38,8 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    OperatorHaltRequested,
+    OperatorResumeRequested,
     OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
@@ -63,11 +65,26 @@ _log = logging.getLogger(__name__)
 
 _ZERO = Decimal(0)
 
-_UNPROJECTED_EVENT_TYPES = frozenset({
-    OrderAcked,
+# Launcher-owned records that never project into TradingState and sit outside
+# its state-machine contract. `MarkSampled` and the `Operator*` events are
+# telemetry / operator audit; the `Outcome*` records are durable
+# outcome-delivery and replay-workflow state consumed by the launcher's outcome
+# replay planner, not by TradingState. Appended off the account writer.
+_TRADING_STATE_EXEMPT_EVENT_TYPES = frozenset({
+    MarkSampled,
+    OperatorHaltRequested,
+    OperatorResumeRequested,
+    OutcomeAcked,
     OutcomeDeliveryContextRecorded,
     OutcomeReplayAbandoned,
-    MarkSampled,
+})
+
+# Durable state-machine events the account writer records that do not mutate
+# positions or orders: they drive scheme / bracket / ladder / protection
+# reconstruction on replay and Nexus delivery, so projection is a deliberate
+# no-op. `OrderAcked` is a retained-but-unproduced hydrator type (see events).
+_UNPROJECTED_EVENT_TYPES = _TRADING_STATE_EXEMPT_EVENT_TYPES | frozenset({
+    OrderAcked,
     SliceFailed,
     SchemeFrozen,
     BracketInitialized,
@@ -174,12 +191,6 @@ class TradingState:
                 'trade outcome produced: command_id=%s trade_id=%s account=%s',
                 event.command_id,
                 event.trade_id,
-                self.account_id,
-            )
-        elif isinstance(event, OutcomeAcked):
-            _log.debug(
-                'outcome acked: outcome_id=%s account=%s',
-                event.outcome_id,
                 self.account_id,
             )
         elif type(event) in _UNPROJECTED_EVENT_TYPES:
