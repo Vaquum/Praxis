@@ -11,6 +11,8 @@ its orders never reach a real venue.
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from praxis.infrastructure.binance_urls import (
@@ -23,9 +25,13 @@ from praxis.infrastructure.binance_urls import (
 )
 from praxis.core.domain.enums import ExecutionMode
 from praxis.launcher import (
+    _LIVE_ARM_ENV,
+    _LIVE_ARM_TOKEN,
     _parse_enabled_modes,
     _resolve_trade_mode,
 )
+
+_ARMED = {_LIVE_ARM_ENV: _LIVE_ARM_TOKEN}
 
 
 class TestResolveTradeMode:
@@ -38,7 +44,7 @@ class TestResolveTradeMode:
         assert ws_api == TESTNET_WS_API_URL
 
     def test_live_returns_mainnet_urls(self) -> None:
-        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': 'live'})
+        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': 'live', **_ARMED})
 
         assert rest == MAINNET_REST_URL
         assert ws == MAINNET_WS_URL
@@ -52,7 +58,7 @@ class TestResolveTradeMode:
         assert ws_api == TESTNET_WS_API_URL
 
     def test_live_is_case_insensitive(self) -> None:
-        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': 'Live'})
+        rest, ws, ws_api = _resolve_trade_mode({'TRADE_MODE': 'Live', **_ARMED})
 
         assert rest == MAINNET_REST_URL
         assert ws == MAINNET_WS_URL
@@ -65,6 +71,39 @@ class TestResolveTradeMode:
     def test_empty_value_rejected(self) -> None:
         with pytest.raises(RuntimeError, match='TRADE_MODE must be one of'):
             _resolve_trade_mode({'TRADE_MODE': ''})
+
+
+class TestLiveArmGuard:
+
+    def test_live_missing_arm_rejected(self) -> None:
+        with pytest.raises(RuntimeError, match=_LIVE_ARM_ENV):
+            _resolve_trade_mode({'TRADE_MODE': 'live'})
+
+    def test_live_wrong_arm_rejected(self) -> None:
+        with pytest.raises(RuntimeError, match=_LIVE_ARM_ENV):
+            _resolve_trade_mode({'TRADE_MODE': 'live', _LIVE_ARM_ENV: 'true'})
+
+    def test_live_arm_with_trailing_whitespace_rejected(self) -> None:
+        with pytest.raises(RuntimeError, match=_LIVE_ARM_ENV):
+            _resolve_trade_mode(
+                {'TRADE_MODE': 'live', _LIVE_ARM_ENV: f'{_LIVE_ARM_TOKEN} '},
+            )
+
+    def test_live_binsim_rejected_before_arm_check(self) -> None:
+        with pytest.raises(RuntimeError, match='BINSIM_URL'):
+            _resolve_trade_mode(
+                {'TRADE_MODE': 'live', 'BINSIM_URL': 'http://localhost:9001'},
+            )
+
+    def test_live_exact_arm_logs_warning(
+        self, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        with caplog.at_level(logging.WARNING):
+            _resolve_trade_mode({'TRADE_MODE': 'live', **_ARMED})
+
+        assert any(
+            'LIVE ARM CONFIRMED' in record.getMessage() for record in caplog.records
+        )
 
 
 class TestResolveTradeModeBinsim:

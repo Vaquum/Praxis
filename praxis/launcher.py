@@ -181,6 +181,8 @@ _REQUIRED_ENV_VARS = (
 _TRADE_MODE_PAPER = 'paper'
 _TRADE_MODE_LIVE = 'live'
 _TRADE_MODES = (_TRADE_MODE_PAPER, _TRADE_MODE_LIVE)
+_LIVE_ARM_ENV = 'PRAXIS_LIVE_ARM'
+_LIVE_ARM_TOKEN = 'I_UNDERSTAND_THIS_ENABLES_REAL_BINANCE_MAINNET_ORDERS'  # noqa: S105 - public arm phrase, not a secret
 _SECRETS_FILE_ENV = 'PRAXIS_SECRETS_FILE'
 _ENABLED_MODES_ENV = 'PRAXIS_ENABLED_EXECUTION_MODES'
 _DEFAULT_SHUTDOWN_TIMEOUT = '30'
@@ -4480,6 +4482,12 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str]:
     only when the system as a whole is in live mode) is preserved.
     Mixing `BINSIM_URL` with `TRADE_MODE=live` is a hard error: it would
     silently divert mainnet flow at the URL layer.
+
+    `TRADE_MODE=live` alone does not arm mainnet order routing: it also
+    requires `PRAXIS_LIVE_ARM` to equal `_LIVE_ARM_TOKEN` byte-for-byte
+    (no whitespace or case tolerance), a deliberate accidental-activation
+    interlock. A missing or non-matching value fails closed before any
+    adapter, socket, or credential backend is created.
     '''
 
     raw = env['TRADE_MODE'].strip().lower()
@@ -4495,6 +4503,23 @@ def _resolve_trade_mode(env: dict[str, str]) -> tuple[str, str, str]:
         if binsim_url:
             msg = 'BINSIM_URL must not be set when TRADE_MODE=live'
             raise RuntimeError(msg)
+
+        if env.get(_LIVE_ARM_ENV) != _LIVE_ARM_TOKEN:
+            msg = (
+                f'TRADE_MODE=live requires {_LIVE_ARM_ENV} to equal '
+                f'{_LIVE_ARM_TOKEN} exactly to arm real Binance mainnet orders'
+            )
+            raise RuntimeError(msg)
+
+        _log.warning(
+            'LIVE ARM CONFIRMED: mainnet order routing is authorized if all '
+            'subsequent startup checks pass',
+            extra={
+                'trade_mode': _TRADE_MODE_LIVE,
+                'venue': 'binance_spot',
+                'network': 'mainnet',
+            },
+        )
 
         return MAINNET_REST_URL, MAINNET_WS_URL, MAINNET_WS_API_URL
 
