@@ -135,6 +135,50 @@ class TestEnterContext:
         assert ctx.order_side == OrderSide.BUY
         assert ctx.symbol == 'BTCUSDT'
 
+    def test_enter_context_carries_action_reference_price(self) -> None:
+        ctx = _build_validation_context(
+            _enter_action(size=Decimal('0.5'), reference_price=Decimal('200')),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.reference_price == Decimal('200')
+
+    def test_enter_context_reference_price_ignores_fallback(self) -> None:
+        ctx = _build_validation_context(
+            _enter_action(reference_price=None),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=lambda: Decimal('150'),
+        )
+
+        assert ctx is not None
+        assert ctx.reference_price is None
+
+    def test_enter_quote_native_context_carries_action_reference_price(self) -> None:
+        ctx = _build_validation_context(
+            _quote_native_enter_action(
+                quote_qty=Decimal('100'), reference_price=Decimal('200'),
+            ),
+            'strat_a',
+            nexus_config=_nexus_config(),
+            capital_controller=_capital_controller(),
+            state=_instance_state(),
+            capital_pct=Decimal('100'),
+            fallback_price_provider=_no_fallback,
+        )
+
+        assert ctx is not None
+        assert ctx.reference_price == Decimal('200')
+
     def test_enter_falls_back_to_provider_when_reference_absent(self) -> None:
         ctx = _build_validation_context(
             _enter_action(reference_price=None),

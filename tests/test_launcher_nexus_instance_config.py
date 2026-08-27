@@ -17,10 +17,15 @@ from praxis.launcher import (
 )
 
 
-def _stub_strategy_spec(strategy_id: str, capital_pct: Decimal) -> MagicMock:
+def _stub_strategy_spec(
+    strategy_id: str,
+    capital_pct: Decimal,
+    max_price_deviation_bps: Decimal | None = None,
+) -> MagicMock:
     spec = MagicMock()
     spec.strategy_id = strategy_id
     spec.capital_pct = capital_pct
+    spec.max_price_deviation_bps = max_price_deviation_bps
     return spec
 
 
@@ -169,3 +174,53 @@ class TestBuildNexusInstanceConfig:
         )
 
         assert dict(cfg.capital_pct) == {}
+
+    def test_price_deviation_map_mirrors_manifest_caps(self) -> None:
+        '''Per-strategy deviation caps mirror manifest specs and arm origo_mid.'''
+
+        manifest = _stub_manifest((
+            _stub_strategy_spec('strat_a', Decimal('60'), Decimal('50')),
+            _stub_strategy_spec('strat_b', Decimal('40'), Decimal('120')),
+        ))
+
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
+
+        assert dict(cfg.price_deviation_max_bps_by_strategy) == {
+            'strat_a': Decimal('50'),
+            'strat_b': Decimal('120'),
+        }
+        assert cfg.reference_price_source == 'origo_mid'
+
+    def test_price_deviation_map_skips_strategies_without_cap(self) -> None:
+        '''A strategy without a declared cap is absent from the map.'''
+
+        manifest = _stub_manifest((
+            _stub_strategy_spec('strat_a', Decimal('60'), Decimal('50')),
+            _stub_strategy_spec('strat_b', Decimal('40')),
+        ))
+
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
+
+        assert dict(cfg.price_deviation_max_bps_by_strategy) == {
+            'strat_a': Decimal('50'),
+        }
+        assert cfg.reference_price_source == 'origo_mid'
+
+    def test_price_deviation_map_empty_leaves_source_unset(self) -> None:
+        '''No declared caps leaves the map empty and the source unset.'''
+
+        manifest = _stub_manifest((
+            _stub_strategy_spec('strat_a', Decimal('60')),
+            _stub_strategy_spec('strat_b', Decimal('40')),
+        ))
+
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
+
+        assert dict(cfg.price_deviation_max_bps_by_strategy) == {}
+        assert cfg.reference_price_source is None

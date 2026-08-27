@@ -189,6 +189,7 @@ _DEFAULT_SHUTDOWN_TIMEOUT = '30'
 _DEFAULT_HEALTHZ_PORT = 8080
 _DEFAULT_DUPLICATE_WINDOW_MS = 1000
 _DEFAULT_VENUE = 'binance_spot'
+_REFERENCE_PRICE_SOURCE = 'origo_mid'
 _DEFAULT_FEE_RATE = Decimal('0.001')
 _DEFAULT_SYMBOL = 'BTCUSDT'
 _LOOPBACK_HOSTS = frozenset({'127.0.0.1', '::1'})
@@ -304,12 +305,18 @@ def _build_nexus_instance_config(
     `STPMode.CANCEL_TAKER`, no per-process rate limit, no Stage-3 price
     thresholds. The per-strategy `capital_pct` map mirrors the
     manifest's strategy-spec percentages so capital-stage validation
-    sees the same allocation the manifest declares.
+    sees the same allocation the manifest declares. The per-strategy
+    `price_deviation_max_bps_by_strategy` map mirrors each spec's
+    `max_price_deviation_bps` collar; when any strategy declares one,
+    `reference_price_source` is set to `'origo_mid'` so the price stage
+    resolves the venue book mid as the deviation reference.
 
     Args:
         praxis_inst: Per-account launcher config (used for `account_id`).
         manifest: Loaded strategy manifest (used to populate
-            `capital_pct` from `manifest.strategies[*].capital_pct`).
+            `capital_pct` from `manifest.strategies[*].capital_pct` and
+            `price_deviation_max_bps_by_strategy` from
+            `manifest.strategies[*].max_price_deviation_bps`).
 
     Returns:
         Nexus runtime `InstanceConfig` ready to pass into
@@ -318,6 +325,12 @@ def _build_nexus_instance_config(
 
     capital_pct = {
         spec.strategy_id: spec.capital_pct for spec in manifest.strategies
+    }
+
+    price_deviation_max_bps_by_strategy = {
+        spec.strategy_id: spec.max_price_deviation_bps
+        for spec in manifest.strategies
+        if spec.max_price_deviation_bps is not None
     }
 
     book_staleness_max_seconds = limit_profile.book_staleness_seconds
@@ -344,6 +357,12 @@ def _build_nexus_instance_config(
         max_spread_bps=limit_profile.max_spread_bps,
         book_staleness_max_seconds=book_staleness_max_seconds,
         max_order_rate=limit_profile.max_order_rate,
+        price_deviation_max_bps_by_strategy=price_deviation_max_bps_by_strategy,
+        reference_price_source=(
+            _REFERENCE_PRICE_SOURCE
+            if price_deviation_max_bps_by_strategy
+            else None
+        ),
     )
 
 
@@ -1169,6 +1188,7 @@ def _build_enter_context(
             strategy_budget=strategy_budget,
             state=state,
             config=nexus_config,
+            reference_price=action.reference_price,
         )
 
     reference_price = action.reference_price
@@ -1244,6 +1264,7 @@ def _build_enter_context(
         strategy_budget=strategy_budget,
         state=state,
         config=nexus_config,
+        reference_price=action.reference_price,
     )
 
 
@@ -3733,7 +3754,12 @@ class Launcher:
         '''Return a provider reading the cached book for the order's symbol.'''
 
         def provider(context: ValidationRequestContext) -> PriceCheckSnapshot | None:
-            return build_price_snapshot(self._book_cache, context.symbol, self._clock())
+            return build_price_snapshot(
+                self._book_cache,
+                context.symbol,
+                self._clock(),
+                reference_price=context.reference_price,
+            )
 
         return provider
 
