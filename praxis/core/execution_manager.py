@@ -3001,19 +3001,33 @@ class ExecutionManager:
     def _slippage_guard_reason(
         self, cmd: TradeCommand, estimate: SlippageEstimate | None,
     ) -> str | None:
-        '''Return a rejection reason when a MARKET order's estimated slippage is too wide.
+        '''Return a rejection reason when a MARKET order's slippage is unsafe.
 
-        Guards MARKET orders only; a LIMIT order self-caps at its price. The
-        adverse direction is positive slippage for a BUY and negative for a
-        SELL, so both are compared as a positive breach against the limit.
+        Guards MARKET orders only; a LIMIT order self-caps at its price. When
+        a cap is configured the guard fails closed on a missing estimate: an
+        unavailable order book (venue error, or a book too empty or one-sided
+        to price the order) means the slippage cannot be verified, so the
+        MARKET order is refused rather than sent blind. The adverse direction
+        is positive slippage for a BUY and negative for a SELL, so both are
+        compared as a positive breach against the limit.
         '''
 
-        if (
-            self._max_slippage_bps is None
-            or estimate is None
-            or cmd.order_type is not OrderType.MARKET
-        ):
+        if self._max_slippage_bps is None or cmd.order_type is not OrderType.MARKET:
             return None
+
+        if estimate is None:
+            _log.warning(
+                'slippage guard rejected (no usable book depth): '
+                'command_id=%s trade_id=%s max_bps=%s',
+                cmd.command_id,
+                cmd.trade_id,
+                self._max_slippage_bps,
+            )
+
+            return (
+                'slippage estimate unavailable; refusing MARKET order without '
+                'usable book depth'
+            )
 
         adverse_bps = (
             estimate.slippage_estimate_bps

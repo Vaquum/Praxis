@@ -58,7 +58,7 @@ def test_estimate_slippage_returns_none_when_book_side_missing() -> None:
     assert result is None
 
 
-def test_estimate_slippage_partial_depth_logs_warning(
+def test_estimate_slippage_returns_none_on_partial_depth(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     book = OrderBookSnapshot(
@@ -75,11 +75,22 @@ def test_estimate_slippage_partial_depth_logs_warning(
             symbol='BTCUSDT',
         )
 
-    assert result is not None
-    assert result.simulated_vwap == Decimal('101')
+    assert result is None
     messages = [r.message for r in caplog.records]
     assert any('book depth insufficient:' in message for message in messages)
     assert any('symbol=BTCUSDT' in message for message in messages)
+
+
+def test_quote_slippage_returns_none_on_partial_depth() -> None:
+    book = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=Decimal('100'), qty=Decimal('5')),),
+        asks=(OrderBookLevel(price=Decimal('101'), qty=Decimal('1')),),
+        last_update_id=1,
+    )
+
+    assert estimate_slippage_for_quote(
+        book, Decimal('500'), OrderSide.BUY, symbol='BTCUSDT',
+    ) is None
 
 
 def test_quote_slippage_buy_walks_ask_levels() -> None:

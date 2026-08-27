@@ -1357,3 +1357,13 @@ The open decision is which layer owns the canonical drawdown / rolling-loss poli
 The live-safety controls added for the cutover — the mandatory limit-cap profile, the API-permission assertion, and the live-arm interlock — are all keyed on the `main` entrypoint deriving them and coupling them into `Launcher`. They are not an authoritative constructor invariant, so a caller instantiating `Launcher` directly can still bypass them: constructing with `enforce_api_permissions=False` while supplying mainnet venue URLs receives the all-`None` paper limit profile and skips the API-permission assertion; and the completeness guard is `None`-only, so a hand-built `_LiveLimitProfile` with non-finite or non-positive values passes the constructor (only `_build_live_limit_profile` validates finiteness/positivity). `main` — the only production construction path — sets `enforce_api_permissions` from live mode, builds a validated profile, and enforces the live-arm token, so it is unaffected.
 
 **When to fix**: before any production deployment constructs `Launcher` outside `main`. Make live-vs-paper an explicit, authoritative constructor argument (a capability object rather than a permission flag), derive venue URLs, credential store, permission assertion, and mandatory caps from that single source, and validate cap finiteness/positivity in the constructor rather than only in the env builder.
+
+## TD-147: Slippage guard covers only single-shot MARKET orders
+
+**Origin**: WP-Praxis-0010 (live-cutover slippage fail-closed; codex/opencode design review)
+**Severity**: Low while single-shot is the only live-enabled mode (the default); becomes a live blocker if any multi-slice mode is armed live
+**Module**: `praxis/core/execution_manager.py` (`_slippage_guard_reason`, `_process_command`)
+
+The pre-trade slippage guard — estimate the fill against the venue book, reject when adverse slippage exceeds `PRAXIS_MAX_SLIPPAGE_BPS` or the book has no usable depth — runs only in `_process_command` (single-shot). Bracket entry, scheme children (TWAP / Time-DCA / VWAP), iceberg, and ladder place MARKET orders with no slippage check at all. The default live gate is `{SINGLE_SHOT}` (`_parse_enabled_modes`), so only single-shot is exposed unless an operator sets `PRAXIS_ENABLED_EXECUTION_MODES`; the unguarded multi-slice MARKET paths are arguably worse when enabled, since a dislocated book is hit repeatedly across slices.
+
+**When to fix**: before enabling any mode beyond single-shot on live. Extract the estimate-and-guard into one shared helper and apply it at every MARKET submission site (entry and per-slice), so the fail-closed-on-missing-depth contract holds uniformly rather than only for single-shot.
