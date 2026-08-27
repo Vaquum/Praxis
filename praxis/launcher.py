@@ -20,7 +20,7 @@ import sys
 import threading
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -290,6 +290,7 @@ _ACTION_TYPE_TO_VALIDATION_ACTION = {
 def _build_nexus_instance_config(
     praxis_inst: InstanceConfig,
     manifest: Manifest,
+    limit_profile: _LiveLimitProfile,
 ) -> NexusInstanceConfig:
     '''Build a Nexus runtime `InstanceConfig` for one account.
 
@@ -319,7 +320,7 @@ def _build_nexus_instance_config(
         spec.strategy_id: spec.capital_pct for spec in manifest.strategies
     }
 
-    book_staleness_max_seconds = _env_positive_int('PRAXIS_BOOK_STALENESS_SECONDS')
+    book_staleness_max_seconds = limit_profile.book_staleness_seconds
 
     if (
         book_staleness_max_seconds is not None
@@ -340,8 +341,9 @@ def _build_nexus_instance_config(
         duplicate_window_ms=_DEFAULT_DUPLICATE_WINDOW_MS,
         stp_mode=STPMode.CANCEL_TAKER,
         capital_pct=capital_pct,
-        max_spread_bps=_env_positive_decimal('PRAXIS_MAX_SPREAD_BPS'),
+        max_spread_bps=limit_profile.max_spread_bps,
         book_staleness_max_seconds=book_staleness_max_seconds,
+        max_order_rate=limit_profile.max_order_rate,
     )
 
 
@@ -686,6 +688,115 @@ def _env_positive_int(name: str) -> int | None:
         raise ValueError(msg)
 
     return value
+
+
+@dataclass(frozen=True)
+class _LiveLimitProfile:
+    '''Resolved deployment limit caps, threaded from `main` into construction.
+
+    Built once so the caps validated at startup are exactly the caps enforced
+    downstream: construction sites read this profile instead of re-reading the
+    environment, which could otherwise drift from the startup preflight. On
+    live every cap is required and non-`None`; on paper each stays optional.
+    '''
+
+    max_order_notional: Decimal | None
+    max_position: Decimal | None
+    max_order_rate: int | None
+    max_spread_bps: Decimal | None
+    book_staleness_seconds: int | None
+    max_slippage_bps: Decimal | None
+
+
+_LIVE_LIMIT_ENV_VARS = (
+    'PRAXIS_MAX_ORDER_NOTIONAL',
+    'PRAXIS_MAX_POSITION',
+    'PRAXIS_MAX_ORDER_RATE',
+    'PRAXIS_MAX_SPREAD_BPS',
+    'PRAXIS_BOOK_STALENESS_SECONDS',
+    'PRAXIS_MAX_SLIPPAGE_BPS',
+)
+
+
+def _build_live_limit_profile(*, live: bool) -> _LiveLimitProfile:
+    '''Resolve the deployment limit caps, mandatory and fail-closed on live.
+
+    Each cap is parsed from its environment variable via the same positive
+    finite validators the rest of the launcher uses. On live every cap must
+    be present; all missing caps are reported together in one `RuntimeError`
+    before any adapter or venue connection is created. On paper the caps stay
+    optional, so an unset cap resolves to `None` and imposes no limit.
+
+    Args:
+        live: Whether the deployment is arming real Binance mainnet orders.
+
+    Returns:
+        _LiveLimitProfile: The resolved caps.
+
+    Raises:
+        RuntimeError: On live when one or more required caps are unset.
+        ValueError: When a cap is set but is not a positive finite value.
+    '''
+
+    profile = _LiveLimitProfile(
+        max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),
+        max_position=_env_positive_decimal('PRAXIS_MAX_POSITION'),
+        max_order_rate=_env_positive_int('PRAXIS_MAX_ORDER_RATE'),
+        max_spread_bps=_env_positive_decimal('PRAXIS_MAX_SPREAD_BPS'),
+        book_staleness_seconds=_env_positive_int('PRAXIS_BOOK_STALENESS_SECONDS'),
+        max_slippage_bps=_env_positive_decimal('PRAXIS_MAX_SLIPPAGE_BPS'),
+    )
+
+    if not live:
+        return profile
+
+    resolved = {
+        'PRAXIS_MAX_ORDER_NOTIONAL': profile.max_order_notional,
+        'PRAXIS_MAX_POSITION': profile.max_position,
+        'PRAXIS_MAX_ORDER_RATE': profile.max_order_rate,
+        'PRAXIS_MAX_SPREAD_BPS': profile.max_spread_bps,
+        'PRAXIS_BOOK_STALENESS_SECONDS': profile.book_staleness_seconds,
+        'PRAXIS_MAX_SLIPPAGE_BPS': profile.max_slippage_bps,
+    }
+    missing = [name for name in _LIVE_LIMIT_ENV_VARS if resolved[name] is None]
+    if missing:
+        msg = (
+            'TRADE_MODE=live requires every deployment limit cap to be set; '
+            f'missing: {", ".join(missing)}'
+        )
+        raise RuntimeError(msg)
+
+    return profile
+
+
+def _require_live_risk_controls(manifest: Manifest) -> None:
+    '''Reject a live boot whose manifest lacks the account loss breakers.
+
+    On live each manifest must arm the account-level breakers the
+    `ModeController` enforces: a daily-loss limit and at least one drawdown
+    limit (absolute or fractional). An unset breaker leaves the account with
+    no automatic halt on a loss, so the boot fails closed.
+
+    Args:
+        manifest: Loaded strategy manifest for one account.
+
+    Raises:
+        RuntimeError: When a required breaker is unset for the account.
+    '''
+
+    controls = manifest.risk_controls
+    missing: list[str] = []
+    if controls.max_daily_loss is None:
+        missing.append('max_daily_loss')
+    if controls.max_drawdown is None and controls.max_drawdown_pct is None:
+        missing.append('max_drawdown or max_drawdown_pct')
+
+    if missing:
+        msg = (
+            f'TRADE_MODE=live requires account {manifest.account_id!r} risk_controls '
+            f'to set: {", ".join(missing)}'
+        )
+        raise RuntimeError(msg)
 
 
 def _parse_enabled_modes(
@@ -2581,12 +2692,32 @@ class Launcher:
         conduit_dir: Path | None = None,
         arrow_dir: Path | None = None,
         enforce_api_permissions: bool = False,
+        limit_profile: _LiveLimitProfile | None = None,
     ) -> None:
         if (event_spine is None) == (db_path is None):
             msg = 'Launcher requires exactly one of event_spine or db_path'
             raise ValueError(msg)
 
+        if enforce_api_permissions:
+            unset = [
+                name for name, value in asdict(
+                    limit_profile if limit_profile is not None
+                    else _build_live_limit_profile(live=False),
+                ).items()
+                if value is None
+            ]
+            if unset:
+                msg = (
+                    'Launcher requires every limit cap set when '
+                    'enforce_api_permissions is set; a live deployment must not '
+                    f'run without the mandatory caps: {", ".join(sorted(unset))}'
+                )
+                raise ValueError(msg)
+
         self._enforce_api_permissions = enforce_api_permissions
+        self._limit_profile = limit_profile if limit_profile is not None else (
+            _build_live_limit_profile(live=False)
+        )
         self._trading_config = trading_config
         self._instances = list(instances)
         self._event_spine = event_spine
@@ -2764,7 +2895,7 @@ class Launcher:
             venue_adapter=self._venue_adapter,
             bootstrap_filter_symbols=frozenset({_DEFAULT_SYMBOL}),
             clock=self._clock,
-            max_slippage_bps=_env_positive_decimal('PRAXIS_MAX_SLIPPAGE_BPS'),
+            max_slippage_bps=self._limit_profile.max_slippage_bps,
         )
 
         for inst in self._instances:
@@ -3875,7 +4006,9 @@ class Launcher:
             )
             raise RuntimeError(msg)
 
-        nexus_instance_config = _build_nexus_instance_config(inst, manifest)
+        nexus_instance_config = _build_nexus_instance_config(
+            inst, manifest, self._limit_profile,
+        )
         capital_controller = CapitalController(state.capital, clock=self._clock)
         capital_controller.reconcile_at_boot(positions=state.positions.values())
         positions_lock = threading.Lock()
@@ -3887,8 +4020,8 @@ class Launcher:
                 lambda symbol: book_mid_price(self._book_cache, symbol),
             ),
             platform_limits=PlatformLimitsStageLimits(
-                max_order_notional=_env_positive_decimal('PRAXIS_MAX_ORDER_NOTIONAL'),
-                max_position=_env_positive_decimal('PRAXIS_MAX_POSITION'),
+                max_order_notional=self._limit_profile.max_order_notional,
+                max_position=self._limit_profile.max_position,
             ),
             price_snapshot_provider=self._build_price_snapshot_provider(),
             modifiable_command_ids_provider=lambda: set(
@@ -4639,6 +4772,7 @@ def main() -> None:
 
     venue_rest_url, venue_ws_url, venue_ws_api_url = _resolve_trade_mode(env)
     trade_mode = env['TRADE_MODE'].strip().lower()
+    limit_profile = _build_live_limit_profile(live=trade_mode == _TRADE_MODE_LIVE)
 
     manifests_dir = Path(env['MANIFESTS_DIR'])
     state_base = Path(env['STATE_BASE'])
@@ -4661,6 +4795,9 @@ def main() -> None:
         manifest = load_manifest(manifest_path)
         account_id = manifest.account_id
         _require_safe_account_id(account_id, manifest_path)
+
+        if trade_mode == _TRADE_MODE_LIVE:
+            _require_live_risk_controls(manifest)
         bracket_protection_failure_response[account_id] = (
             manifest.bracket_protection_failure_response
         )
@@ -4762,6 +4899,7 @@ def main() -> None:
         db_path=state_base / 'event_spine.sqlite',
         healthz_port=healthz_port,
         enforce_api_permissions=trade_mode == _TRADE_MODE_LIVE,
+        limit_profile=limit_profile,
     )
 
     _log.info(

@@ -1335,3 +1335,25 @@ This is a design limitation, not a defect in the trade-modify work: Praxis delib
 A fill applied to an order that has already moved to `closed_orders` — e.g. a protective OCO leg fill delivered or backfilled after a sibling leg cancelled the parent — reduces the position (`_update_position_on_fill`, keyed on `(trade_id, account_id)`) but does not update the closed order's `filled_qty` / `cumulative_notional`, because `_update_order_on_fill` looks orders up through `_get_order`, which scans only open `self.orders`. `_command_fill_totals` sums `filled_qty` across both open and closed orders, so it under-reports for such a command. This is benign today: every `_command_fill_totals` caller short-circuits terminal commands via the `command_id in self._terminal_commands` guard (e.g. `_emit_ws_outcome`), so the stale total is never read. It is a latent coupling — future code that totals a terminal command's fills without that guard would read a too-low value — and it is the general "late fill on a closed order" class, not OCO-specific.
 
 **When to fix**: in the reconciliation / audit-hardening pass, where accurate closed-order `filled_qty` has independent value. Update `_update_order_on_fill` to also apply the fill when the order is in `closed_orders`, with tests for the terminal-order re-fill semantics (no status flicker, no re-`_close_order`).
+
+## TD-145: RiskStageLimits is constructed empty; canonical drawdown/rolling-loss policy undecided
+
+**Origin**: WP-Praxis-0010 (live-cutover mandatory-limit profile)
+**Severity**: Low (the live loss breaker is covered by the manifest `risk_controls` → `RiskBreakerThresholds` on `ModeController`; the validator risk stage simply performs no additional check)
+**Module**: `praxis/launcher.py` (`RiskStageLimits()`), Nexus `nexus/core/validator/risk_stage.py`, `nexus/core/domain/risk_breaker_thresholds.py`
+
+The validator risk stage is wired with an empty `RiskStageLimits()` (no `max_total_drawdown[_pct]`, `max_drawdown[_pct]_limit`, or `max_rolling_loss_24h/7d/30d`), so it enforces nothing. The account-level loss breaker that actually fires on live is the manifest `risk_controls` (`RiskBreakerThresholds`: `max_daily_loss`, `max_drawdown`, `max_drawdown_pct`) applied by `ModeController`, which the live mandatory-limit profile requires. Wiring `RiskStageLimits` now would stand up a second, independently-configured loss-breaker system alongside the manifest breaker during a real-money cutover — two sources of truth for the same policy.
+
+The open decision is which layer owns the canonical drawdown / rolling-loss policy: the validator risk stage (pre-trade rejection) or the ModeController breaker (halt on breach). The rolling-loss windows (24h/7d/30d) exist only on `RiskStageLimits` and have no `RiskBreakerThresholds` equivalent, so if rolling-loss enforcement is required they must be wired — but only after deciding the single owning layer.
+
+**When to fix**: when pre-trade drawdown/rolling-loss rejection (distinct from the ModeController halt breaker) is required, or before scaling beyond the smallest-size live smoke. Decide the owning layer first, then wire the chosen one and add env plumbing + tests; do not enable both.
+
+## TD-146: Launcher direct construction can bypass the live-safety controls
+
+**Origin**: WP-Praxis-0010 (live-cutover mandatory-limit profile; codex pre-commit review)
+**Severity**: Low (the production entrypoint `main` is fully protected; only a direct, non-`main` `Launcher(...)` construction — which no in-repo production path performs — can reach these gaps)
+**Module**: `praxis/launcher.py` (`Launcher.__init__`, `_resolve_trade_mode`, `_verify_api_permissions`)
+
+The live-safety controls added for the cutover — the mandatory limit-cap profile, the API-permission assertion, and the live-arm interlock — are all keyed on the `main` entrypoint deriving them and coupling them into `Launcher`. They are not an authoritative constructor invariant, so a caller instantiating `Launcher` directly can still bypass them: constructing with `enforce_api_permissions=False` while supplying mainnet venue URLs receives the all-`None` paper limit profile and skips the API-permission assertion; and the completeness guard is `None`-only, so a hand-built `_LiveLimitProfile` with non-finite or non-positive values passes the constructor (only `_build_live_limit_profile` validates finiteness/positivity). `main` — the only production construction path — sets `enforce_api_permissions` from live mode, builds a validated profile, and enforces the live-arm token, so it is unaffected.
+
+**When to fix**: before any production deployment constructs `Launcher` outside `main`. Make live-vs-paper an explicit, authoritative constructor argument (a capability object rather than a permission flag), derive venue URLs, credential store, permission assertion, and mandatory caps from that single source, and validate cap finiteness/positivity in the constructor rather than only in the env builder.

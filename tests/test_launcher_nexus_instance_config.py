@@ -12,6 +12,7 @@ from nexus.core.stp_mode import STPMode
 
 from praxis.launcher import (
     InstanceConfig,
+    _build_live_limit_profile,
     _build_nexus_instance_config,
 )
 
@@ -46,7 +47,9 @@ class TestBuildNexusInstanceConfig:
     def test_account_id_propagated_from_praxis_inst(self) -> None:
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance('acct-001'), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance('acct-001'), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.account_id == 'acct-001'
 
@@ -55,7 +58,9 @@ class TestBuildNexusInstanceConfig:
         monkeypatch.delenv('PRAXIS_BOOK_STALENESS_SECONDS', raising=False)
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.max_spread_bps is None
         assert cfg.book_staleness_max_seconds is None
@@ -65,7 +70,9 @@ class TestBuildNexusInstanceConfig:
         monkeypatch.setenv('PRAXIS_BOOK_STALENESS_SECONDS', '5')
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.max_spread_bps == Decimal('25')
         assert cfg.book_staleness_max_seconds == 5
@@ -77,7 +84,9 @@ class TestBuildNexusInstanceConfig:
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
         with pytest.raises(ValueError, match='must exceed the book poll interval'):
-            _build_nexus_instance_config(_praxis_instance(), manifest)
+            _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
     def test_book_staleness_above_poll_interval_accepted(
         self, monkeypatch: pytest.MonkeyPatch,
@@ -85,28 +94,36 @@ class TestBuildNexusInstanceConfig:
         monkeypatch.setenv('PRAXIS_BOOK_STALENESS_SECONDS', '3')
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.book_staleness_max_seconds == 3
 
     def test_venue_defaults_to_binance_spot(self) -> None:
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.venue == 'binance_spot'
 
     def test_stp_mode_defaults_to_cancel_taker(self) -> None:
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.stp_mode == STPMode.CANCEL_TAKER
 
     def test_duplicate_window_default(self) -> None:
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.duplicate_window_ms == 1000
 
@@ -115,7 +132,9 @@ class TestBuildNexusInstanceConfig:
 
         manifest = _stub_manifest((_stub_strategy_spec('s', Decimal('100')),))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert cfg.max_order_rate is None
         assert cfg.book_staleness_max_seconds is None
@@ -131,7 +150,9 @@ class TestBuildNexusInstanceConfig:
             _stub_strategy_spec('strat_b', Decimal('40')),
         ))
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert dict(cfg.capital_pct) == {
             'strat_a': Decimal('60'),
@@ -143,6 +164,8 @@ class TestBuildNexusInstanceConfig:
 
         manifest = _stub_manifest(())
 
-        cfg = _build_nexus_instance_config(_praxis_instance(), manifest)
+        cfg = _build_nexus_instance_config(
+            _praxis_instance(), manifest, _build_live_limit_profile(live=False),
+        )
 
         assert dict(cfg.capital_pct) == {}

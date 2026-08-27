@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -10,7 +11,7 @@ import pytest
 
 from praxis.infrastructure.secret_store import Credentials
 from praxis.infrastructure.venue_adapter import ApiPermissions, AuthenticationError
-from praxis.launcher import InstanceConfig, Launcher
+from praxis.launcher import InstanceConfig, Launcher, _LiveLimitProfile
 from praxis.trading_config import TradingConfig
 
 _ACCT = 'acc-1'
@@ -39,6 +40,14 @@ def _launcher(*, enforce: bool, instances: list[InstanceConfig]) -> Launcher:
         instances=instances,
         event_spine=Mock(),
         enforce_api_permissions=enforce,
+        limit_profile=_LiveLimitProfile(
+            max_order_notional=Decimal('1000'),
+            max_position=Decimal('5000'),
+            max_order_rate=3,
+            max_spread_bps=Decimal('25'),
+            book_staleness_seconds=5,
+            max_slippage_bps=Decimal('30'),
+        ) if enforce else None,
     )
 
 
