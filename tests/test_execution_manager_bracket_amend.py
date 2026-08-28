@@ -83,6 +83,8 @@ from praxis.infrastructure.venue_adapter import (
     VenueOrderListLeg,
 )
 
+from tests.support.replay_parity import assert_replays_equal
+
 _T0 = datetime(2099, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
 _TRADE = 'trade-1'
@@ -368,16 +370,6 @@ def _oco_calls(adapter: AsyncMock) -> list[dict[str, Any]]:
         for call in adapter.submit_calls
         if call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
     ]
-
-
-def _state_snapshot(trading_state: Any) -> dict[str, Any]:
-    return {
-        'positions': dict(trading_state.positions),
-        'orders': dict(trading_state.orders),
-        'closed_orders': dict(trading_state.closed_orders),
-        'oco_leg_parent': dict(trading_state.oco_leg_parent),
-        'oco_parent_legs': dict(trading_state.oco_parent_legs),
-    }
 
 
 async def _fresh_spine() -> tuple[EventSpine, aiosqlite.Connection]:
@@ -1171,9 +1163,10 @@ class TestBracketAmendReplaceFails:
             replayed.register_account(_ACCT, booting=True)
             replayed.replay_events(_ACCT, full)
 
-            assert _state_snapshot(
+            assert_replays_equal(
                 live._accounts[_ACCT].trading_state,
-            ) == _state_snapshot(replayed._accounts[_ACCT].trading_state)
+                replayed._accounts[_ACCT].trading_state,
+            )
         finally:
             for manager in (live, replayed):
                 if _ACCT in manager._accounts:

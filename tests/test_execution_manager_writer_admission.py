@@ -26,6 +26,8 @@ from praxis.core.execution_manager import (
 )
 from praxis.infrastructure.event_spine import EventSpine
 
+from tests.support.replay_parity import assert_replays_equal
+
 _T0 = datetime(2099, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
 _EPOCH = 1
@@ -334,11 +336,11 @@ async def test_cross_path_fill_delivery_dedups_and_replays_equal(
         replay_em = _manager(spine, [])
         replay_em.register_account(_ACCT, booting=True)
         replay_em.replay_events(_ACCT, full)
-        replay_position = replay_em._accounts[_ACCT].trading_state.positions[
-            (_TRADE, _ACCT)
-        ]
 
-        assert replay_position == live_position
+        assert_replays_equal(
+            live.trading_state,
+            replay_em._accounts[_ACCT].trading_state,
+        )
     finally:
         for manager in (em, replay_em):
             if manager is not None and _ACCT in manager._accounts:
