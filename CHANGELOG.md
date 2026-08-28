@@ -1362,7 +1362,7 @@
 
 ### Add
 
-- Add a per-account writer-admission primitive: [`admit`](praxis/core/execution_manager.py) appends a fill, terminal, or fund transaction and projects it in one serialized writer turn under the write lock, deduplicating fills on `(epoch, account, symbol, venue_trade_id)` so a trade delivered by both the WebSocket stream and reconnect backfill is booked once
+- Add a per-account writer-admission primitive: [`admit`](praxis/core/execution_manager.py) hands a fill, terminal, or fund transaction to the single account writer, which appends and projects it in turn with its own command work so the projection order can never diverge from the spine order, deduplicating fills on `(epoch, account, symbol, venue_trade_id)` so a trade delivered by both the WebSocket stream and reconnect backfill is booked once
 - Add a boot-ownership boundary so no account-writer task becomes runnable until startup recovery completes, letting replay and reconciliation finish before any live event competes for the writer
 - Add the fail-closed live-arm interlock: mainnet order routing requires `PRAXIS_LIVE_ARM` to match the expected token exactly, refused before any adapter, socket, or credential backend is built
 - Add the mandatory live limit-cap profile and account loss breakers: a live launch requires a complete [`_LiveLimitProfile`](praxis/launcher.py) (spread, staleness, order-rate, slippage, and account breaker thresholds) and fails closed if any cap is unset
