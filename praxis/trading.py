@@ -537,9 +537,13 @@ class Trading:
                 )
                 await stream.initiate_connection()
                 self._user_streams[account_id] = stream
-                await self._reconcile_on_reconnect(account_id)
+                await self._reconcile_on_reconnect(
+                    account_id, recovery_owner=True,
+                )
             else:
-                await self._reconcile_account(account_id)
+                await self._reconcile_account(
+                    account_id, recovery_owner=True,
+                )
 
             await self._execution_manager.drain_ws_events(account_id)
 
@@ -723,12 +727,17 @@ class Trading:
             msg = f'account {account_id} startup not complete'
             raise RuntimeError(msg)
 
-    async def _reconcile_account(self, account_id: str) -> None:
+    async def _reconcile_account(
+        self, account_id: str, *, recovery_owner: bool = False,
+    ) -> None:
         '''
         Reconcile projected state against venue for open orders.
 
         Args:
             account_id (str): Account identifier to reconcile.
+            recovery_owner (bool): True only when boot/reconnect recovery owns
+                a parked account, so admitted fills and terminals append and
+                project directly rather than queueing to the stopped writer.
         '''
 
         trading_state = self._execution_manager.get_trading_state(account_id)
@@ -760,7 +769,9 @@ class Trading:
                 continue
 
             if venue_order.filled_qty > order.filled_qty:
-                await self._reconcile_fills(account_id, order)
+                await self._reconcile_fills(
+                    account_id, order, recovery_owner=recovery_owner,
+                )
 
             if venue_order.filled_qty > order.filled_qty:
                 continue
@@ -769,6 +780,7 @@ class Trading:
             if venue_terminal and not order.is_terminal:
                 await self._reconcile_terminal(
                     account_id, order, venue_order,
+                    recovery_owner=recovery_owner,
                 )
 
     async def _sweep_orphan_venue_orders(self, account_id: str) -> bool:
@@ -884,6 +896,8 @@ class Trading:
         self,
         account_id: str,
         order: Any,
+        *,
+        recovery_owner: bool = False,
     ) -> None:
         '''
         Query and emit missing fills for an order.
@@ -945,7 +959,9 @@ class Trading:
                 is_maker=trade.is_maker,
             )
 
-            seq = await self._execution_manager.admit(account_id, fill_event)
+            seq = await self._execution_manager.admit(
+                account_id, fill_event, recovery_owner=recovery_owner,
+            )
             if seq is not None:
                 _log.info(
                     'reconciled fill: %s %s',
@@ -1263,7 +1279,9 @@ class Trading:
 
         self._execution_manager.request_protection_scan(account_id)
 
-    async def _reconcile_on_reconnect(self, account_id: str) -> None:
+    async def _reconcile_on_reconnect(
+        self, account_id: str, *, recovery_owner: bool = False,
+    ) -> None:
         '''
         Backfill missed fills and reconcile orders, submission-gated.
 
@@ -1288,8 +1306,12 @@ class Trading:
             while True:
                 self._execution_manager.set_reconciling(account_id, True)
                 try:
-                    complete = await self._backfill_account(account_id)
-                    await self._reconcile_account(account_id)
+                    complete = await self._backfill_account(
+                        account_id, recovery_owner=recovery_owner,
+                    )
+                    await self._reconcile_account(
+                        account_id, recovery_owner=recovery_owner,
+                    )
                 except VenueError as exc:
                     _log.error(
                         'reconcile failed; account stays gated (fail closed): %s %s',
@@ -1314,7 +1336,9 @@ class Trading:
             self._reconciling_accounts.discard(account_id)
             self._reconcile_rerun_pending.discard(account_id)
 
-    async def _backfill_account(self, account_id: str) -> bool:
+    async def _backfill_account(
+        self, account_id: str, *, recovery_owner: bool = False,
+    ) -> bool:
         '''
         Paginate myTrades from the durable cursor and apply missed fills per symbol.
 
@@ -1377,7 +1401,9 @@ class Trading:
                 if order is None:
                     order = trading_state.closed_orders.get(parent_client_order_id)
                 if order is not None:
-                    await self._apply_backfilled_fill(account_id, trade, order)
+                    await self._apply_backfilled_fill(
+                        account_id, trade, order, recovery_owner=recovery_owner,
+                    )
 
                 if max_id is None or trade_id_num > max_id:
                     max_id = trade_id_num
@@ -1396,7 +1422,14 @@ class Trading:
 
         return all_complete
 
-    async def _apply_backfilled_fill(self, account_id: str, trade: Any, order: Any) -> None:
+    async def _apply_backfilled_fill(
+        self,
+        account_id: str,
+        trade: Any,
+        order: Any,
+        *,
+        recovery_owner: bool = False,
+    ) -> None:
         '''
         Reconstruct a FillReceived from a backfilled trade and its local order.
 
@@ -1432,13 +1465,17 @@ class Trading:
             is_maker=trade.is_maker,
         )
 
-        await self._execution_manager.admit(account_id, fill_event)
+        await self._execution_manager.admit(
+            account_id, fill_event, recovery_owner=recovery_owner,
+        )
 
     async def _reconcile_terminal(
         self,
         account_id: str,
         order: Any,
         venue_order: Any,
+        *,
+        recovery_owner: bool = False,
     ) -> None:
         '''
         Emit terminal event for order that is terminal on venue but not locally.
@@ -1447,6 +1484,9 @@ class Trading:
             account_id (str): Account identifier.
             order: Local order projection.
             venue_order: Venue order state.
+            recovery_owner (bool): True only when boot/reconnect recovery owns
+                a parked account, so the terminal appends and projects directly
+                rather than queueing to the stopped writer.
         '''
 
         trading_state = self._execution_manager.get_trading_state(account_id)
@@ -1481,7 +1521,9 @@ class Trading:
             )
 
         if event is not None:
-            await self._execution_manager.admit(account_id, event)
+            await self._execution_manager.admit(
+                account_id, event, recovery_owner=recovery_owner,
+            )
             _log.info(
                 'reconciled terminal state: %s %s',
                 order.client_order_id,

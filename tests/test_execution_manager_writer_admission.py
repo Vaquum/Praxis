@@ -78,7 +78,7 @@ async def test_admit_projects_synchronously_and_queues_dispatch(
     em.register_account(_ACCT, booting=True)
     runtime = em._accounts[_ACCT]
 
-    seq = await em.admit(_ACCT, _fill(Decimal('0.4')))
+    seq = await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
 
     assert seq is not None
     assert runtime.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.4')
@@ -96,7 +96,7 @@ async def test_admit_dispatch_runs_on_writer_without_double_projecting(
     em.register_account(_ACCT, booting=True)
     runtime = em._accounts[_ACCT]
 
-    await em.admit(_ACCT, _fill(Decimal('0.4')))
+    await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
     assert runtime.dispatch_queue.qsize() == 1
 
     em.finish_account_startup(_ACCT)
@@ -127,7 +127,7 @@ async def test_admit_closes_the_projection_gap_enqueue_leaves_open(
     await spine.append(enqueued, _EPOCH)
     em.enqueue_ws_event(_ACCT, enqueued)
 
-    await em.admit(_ACCT, _fill(Decimal('0.4')))
+    await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
 
     assert runtime.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.4')
     assert ('t2', _ACCT) not in runtime.trading_state.positions
@@ -148,8 +148,8 @@ async def test_admit_deduplicates_without_double_projecting(
     em.register_account(_ACCT, booting=True)
     runtime = em._accounts[_ACCT]
 
-    first = await em.admit(_ACCT, _fill(Decimal('0.4'), venue_trade_id='vt-dup'))
-    second = await em.admit(_ACCT, _fill(Decimal('0.4'), venue_trade_id='vt-dup'))
+    first = await em.admit(_ACCT, _fill(Decimal('0.4'), venue_trade_id='vt-dup'), recovery_owner=True)
+    second = await em.admit(_ACCT, _fill(Decimal('0.4'), venue_trade_id='vt-dup'), recovery_owner=True)
 
     assert first is not None
     assert second is None
@@ -169,11 +169,11 @@ async def test_admit_preserves_a_fill_that_precedes_a_terminal(
     runtime = em._accounts[_ACCT]
     _open_order(runtime)
 
-    await em.admit(_ACCT, _fill(Decimal('0.4')))
+    await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
     await em.admit(_ACCT, OrderCanceled(
         account_id=_ACCT, timestamp=_T0, client_order_id=_COID,
         venue_order_id='v-1', reason='reconciled from venue',
-    ))
+    ), recovery_owner=True)
 
     closed = runtime.trading_state.closed_orders[_COID]
     assert closed.filled_qty == Decimal('0.4')
@@ -190,7 +190,7 @@ async def test_admit_raises_when_account_poisoned(spine: EventSpine) -> None:
     em._accounts[_ACCT].poisoned = True
 
     with pytest.raises(RuntimeError, match='poisoned'):
-        await em.admit(_ACCT, _fill(Decimal('0.4')))
+        await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
 
     await em.unregister_account(_ACCT)
 
@@ -211,7 +211,7 @@ async def test_admit_raises_when_poisoned_during_append(spine: EventSpine) -> No
     spine.append = _append_then_poison
 
     with pytest.raises(RuntimeError, match='poisoned'):
-        await em.admit(_ACCT, _fill(Decimal('0.4')))
+        await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
 
     assert (_TRADE, _ACCT) not in runtime.trading_state.positions
     assert runtime.dispatch_queue.empty()
@@ -230,7 +230,7 @@ async def test_admit_fails_stop_even_when_poisoned_append_deduplicates(
     em.register_account(_ACCT, booting=True)
     runtime = em._accounts[_ACCT]
     fill = _fill(Decimal('0.4'), venue_trade_id='vt-dedup-poison')
-    await em.admit(_ACCT, fill)
+    await em.admit(_ACCT, fill, recovery_owner=True)
 
     original_append = spine.append
 
@@ -242,7 +242,7 @@ async def test_admit_fails_stop_even_when_poisoned_append_deduplicates(
     spine.append = _dedup_then_poison
 
     with pytest.raises(RuntimeError, match='poisoned'):
-        await em.admit(_ACCT, fill)
+        await em.admit(_ACCT, fill, recovery_owner=True)
 
     spine.append = original_append
     runtime.poisoned = False
@@ -267,7 +267,7 @@ async def test_admit_raises_when_account_detached_during_append(
     spine.append = _append_then_detach
 
     with pytest.raises(AccountNotRegisteredError):
-        await em.admit(_ACCT, _fill(Decimal('0.4')))
+        await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
 
     assert (_TRADE, _ACCT) not in runtime.trading_state.positions
     assert runtime.dispatch_queue.empty()
@@ -285,7 +285,7 @@ async def test_admit_rejects_calls_off_the_loop_thread(spine: EventSpine) -> Non
     em._loop_thread_id = -1
 
     with pytest.raises(RuntimeError, match='non-event-loop thread'):
-        await em.admit(_ACCT, _fill(Decimal('0.4')))
+        await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
 
     em._loop_thread_id = None
     await em.unregister_account(_ACCT)
@@ -321,8 +321,8 @@ async def test_cross_path_fill_delivery_dedups_and_replays_equal(
 
     replay_em: ExecutionManager | None = None
     try:
-        ws_seq = await em.admit(_ACCT, ws_fill)
-        backfill_seq = await em.admit(_ACCT, backfill_fill)
+        ws_seq = await em.admit(_ACCT, ws_fill, recovery_owner=True)
+        backfill_seq = await em.admit(_ACCT, backfill_fill, recovery_owner=True)
 
         assert ws_seq is not None
         assert backfill_seq is None
@@ -345,3 +345,47 @@ async def test_cross_path_fill_delivery_dedups_and_replays_equal(
         for manager in (em, replay_em):
             if manager is not None and _ACCT in manager._accounts:
                 await manager.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_admit_via_running_writer_queues_and_projects(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT)
+    replay_em: ExecutionManager | None = None
+    try:
+        seq = await em.admit(_ACCT, _fill(Decimal('0.4')))
+
+        assert seq is not None
+        live = em._accounts[_ACCT]
+        assert live.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.4')
+
+        full = await spine.read(epoch_id=_EPOCH)
+        replay_em = _manager(spine, [])
+        replay_em.register_account(_ACCT, booting=True)
+        replay_em.replay_events(_ACCT, full)
+
+        assert_replays_equal(
+            live.trading_state,
+            replay_em._accounts[_ACCT].trading_state,
+        )
+    finally:
+        await em.unregister_account(_ACCT)
+        if replay_em is not None and _ACCT in replay_em._accounts:
+            await replay_em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_recovery_owner_admit_requires_parked_account(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT)
+    try:
+        with pytest.raises(RuntimeError, match='not parked'):
+            await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
+    finally:
+        await em.unregister_account(_ACCT)

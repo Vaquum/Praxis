@@ -474,7 +474,10 @@ class _AccountRuntime:
         self.priority_queue = priority_queue
         self.ws_event_queue = ws_event_queue
         self.dispatch_queue: asyncio.Queue[Event] = asyncio.Queue()
-        self.write_lock = asyncio.Lock()
+        self.admission_queue: asyncio.Queue[
+            tuple[Event, asyncio.Future[int | None]]
+        ] = asyncio.Queue()
+        self.wake = asyncio.Event()
         self.trading_state = trading_state
         self.account_ledger = account_ledger
         self.task: asyncio.Task[None] | None = None
@@ -2252,6 +2255,14 @@ class ExecutionManager:
 
         self._modifiable_snapshot.pop(account_id, None)
 
+        unregister_error = AccountNotRegisteredError(
+            f"account_id '{account_id}' is not registered",
+        )
+        while not runtime.admission_queue.empty():
+            _event, future = runtime.admission_queue.get_nowait()
+            if not future.cancelled():
+                future.set_exception(unregister_error)
+
         if runtime.task is not None:
             runtime.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -2380,27 +2391,40 @@ class ExecutionManager:
 
         runtime.ws_event_queue.put_nowait(event)
 
-    async def admit(self, account_id: str, event: Event) -> int | None:
-        '''Append and project one external event in a single serialized turn.
+    async def admit(
+        self,
+        account_id: str,
+        event: Event,
+        *,
+        recovery_owner: bool = False,
+    ) -> int | None:
+        '''Append and project one external event via the account writer.
 
         The writer-admission primitive for events produced off the account
         writer — WebSocket fills, reconnect backfill fills and terminals, and
-        reconciled fund transactions. It appends the event to the spine and
-        projects it into the trading state and ledger under the account's
-        `write_lock`, with no `await` between the append and the projection,
-        so the projection order can never diverge from the spine sequence
-        order. Contrast `enqueue_ws_event`, which appends off-writer and
-        defers projection to the writer's queue: a terminal the writer
-        appends in that gap projects first and the deferred fill then lands
-        on a closed order and is dropped.
+        reconciled fund transactions. The single writer task is the sole
+        appender and projector for a running account, so admission hands the
+        event to the writer via `admission_queue` and awaits the sequence the
+        writer assigns; the writer appends and projects it in turn with its
+        own command work, and no other task appends between the writer's
+        append and its projection. A per-account lock around admission alone
+        was not enough: it serialized admissions against one another but not
+        against the writer's own append/projection sites, so an admitted fill
+        could still project after a terminal the writer appended in the gap.
 
-        Dispatch — the WS-driven outcome, scheme advance, and bracket drive —
-        is handed to the writer via `dispatch_queue` rather than run here, so
-        the scheme and bracket state stay owned by the single writer task.
+        The one exception is a parked account (`booting`), whose writer is
+        stopped and whose boot/reconnect recovery is the sole owner: only that
+        owner passes `recovery_owner=True`, appending and projecting directly
+        because the queue would never drain while the writer is parked.
+        Ordinary callers (WebSocket handlers, runtime reconciliation) always
+        queue, even while the account is parked; their events drain once the
+        writer resumes.
 
         Args:
             account_id (str): Account whose writer admits the event.
             event (Event): External domain event to append and project.
+            recovery_owner (bool): True only when the parked account's boot or
+                reconnect recovery owner admits directly; requires `booting`.
 
         Returns:
             int | None: The assigned spine sequence, or None when the event
@@ -2411,9 +2435,10 @@ class ExecutionManager:
                 unregistered while the append was in flight (the event is
                 durable and projects on replay; it is not projected into the
                 detached runtime).
-            RuntimeError: If called off the event-loop thread, or if the
-                account is poisoned (projection has fail-stopped; a restart
-                is required).
+            RuntimeError: If called off the event-loop thread, if the account
+                is poisoned (projection has fail-stopped; a restart is
+                required), or if `recovery_owner` is set for an account that
+                is not parked.
         '''
 
         if (
@@ -2431,45 +2456,78 @@ class ExecutionManager:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
-        def _guard_poisoned() -> None:
-            if runtime.poisoned:
-                msg = f"account '{account_id}' is poisoned; restart required"
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        if recovery_owner:
+            if not runtime.booting:
+                msg = (
+                    f"account '{account_id}' is not parked; recovery admission "
+                    'requires booting=True'
+                )
                 raise RuntimeError(msg)
 
-        _guard_poisoned()
+            seq = await self._append_project_admitted(runtime, account_id, event)
 
-        async with runtime.write_lock:
-            _guard_poisoned()
+            if seq is not None:
+                runtime.dispatch_queue.put_nowait(event)
 
-            seq = await self._event_spine.append(event, self._epoch_id)
+            return seq
 
-            _guard_poisoned()
+        loop = asyncio.get_running_loop()
+        result: asyncio.Future[int | None] = loop.create_future()
+        runtime.admission_queue.put_nowait((event, result))
+        runtime.wake.set()
 
-            if seq is None:
-                return None
+        return await result
 
-            if self._accounts.get(account_id) is not runtime:
-                msg = (
-                    f"account '{account_id}' unregistered during admit; event "
-                    f'is durable (seq={seq}) and projects on replay'
-                )
-                raise AccountNotRegisteredError(msg)
+    async def _append_project_admitted(
+        self,
+        runtime: _AccountRuntime,
+        account_id: str,
+        event: Event,
+    ) -> int | None:
+        '''Append an admitted event and project it, poisoning on failure.
 
-            try:
-                self._project(runtime, event)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                runtime.poisoned = True
-                _log.exception(
-                    'admitted projection failed; poisoning account '
-                    '(fail-stop, restart required): event_type=%s account_id=%s',
-                    type(event).__name__,
-                    account_id,
-                )
-                raise
+        The shared append-then-project step for both the recovery-owner path
+        and the writer's `_drain_admission_queue`, so both keep the same dedup,
+        detached-runtime, and fail-stop semantics.
+        '''
 
-        runtime.dispatch_queue.put_nowait(event)
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        seq = await self._event_spine.append(event, self._epoch_id)
+
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        if seq is None:
+            return None
+
+        if self._accounts.get(account_id) is not runtime:
+            msg = (
+                f"account '{account_id}' unregistered during admit; event "
+                f'is durable (seq={seq}) and projects on replay'
+            )
+            raise AccountNotRegisteredError(msg)
+
+        try:
+            self._project(runtime, event)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            runtime.poisoned = True
+            _log.exception(
+                'admitted projection failed; poisoning account '
+                '(fail-stop, restart required): event_type=%s account_id=%s',
+                type(event).__name__,
+                account_id,
+            )
+            raise
 
         return seq
 
@@ -2830,14 +2888,62 @@ class ExecutionManager:
                 continue
             await self._dispatch_event(runtime, event)
 
+    async def _drain_admission_queue(self, runtime: _AccountRuntime) -> None:
+        '''Append, project, and queue dispatch for every admitted event.
+
+        The writer is the sole appender and projector for a running account,
+        so an admitted fill, terminal, or fund event is appended and projected
+        here in sequence with the writer's own command work; the append and
+        projection order can never diverge from the spine order. Each waiting
+        caller's future is completed with the assigned sequence (or None on
+        dedup); a cancelled waiter never cancels the durable append. Dispatch
+        is deferred to `_drain_dispatch_queue`, as for a recovery-owner
+        admission.
+
+        If the writer task is cancelled mid-drain (account unregister or
+        shutdown), the in-flight caller's future is failed with a stopped-writer
+        `RuntimeError` even when the append already committed; the event is
+        durable and re-reconciles on restart, and a retry deduplicates.
+        '''
+
+        while not runtime.admission_queue.empty():
+            event, future = runtime.admission_queue.get_nowait()
+
+            try:
+                seq = await self._append_project_admitted(
+                    runtime, runtime.account_id, event,
+                )
+
+                if seq is not None:
+                    runtime.dispatch_queue.put_nowait(event)
+
+                if not future.cancelled():
+                    future.set_result(seq)
+
+            except asyncio.CancelledError:
+                if not future.cancelled():
+                    future.set_exception(
+                        RuntimeError(
+                            f"account '{runtime.account_id}' writer stopped "
+                            'during admit',
+                        ),
+                    )
+
+                raise
+
+            except Exception as exc:  # noqa: BLE001
+                if not future.cancelled():
+                    future.set_exception(exc)
+
     async def _drain_dispatch_queue(self, runtime: _AccountRuntime) -> None:
         '''Dispatch every admitted event the writer has yet to react to.
 
-        Events admitted via `admit` are already appended and projected under
-        the account `write_lock`; only their dispatch — the WS-driven
-        outcome, scheme advance, and bracket drive — is deferred here so it
-        runs on the single writer task rather than on the producing WS or
-        reconcile task. A dispatch failure is logged and the drain continues.
+        Events admitted via `admit` are already appended and projected on the
+        writer (or by a recovery owner while the account is parked); only their
+        dispatch — the WS-driven outcome, scheme advance, and bracket drive —
+        is deferred here so it runs on the single writer task rather than on
+        the producing WS or reconcile task. A dispatch failure is logged and
+        the drain continues.
         '''
 
         while not runtime.dispatch_queue.empty():
@@ -2868,6 +2974,20 @@ class ExecutionManager:
                 runtime.account_id,
             )
 
+    async def _wait_for_work(self, runtime: _AccountRuntime) -> None:
+        '''Sleep until an admission wakes the writer or the poll interval lapses.
+
+        An admitted event sets `runtime.wake`, so a queued fill or terminal is
+        drained without waiting out the poll interval (which would add up to
+        that latency to every admitted projection); command, priority, and WS
+        work keep the poll cadence.
+        '''
+
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(runtime.wake.wait(), timeout=_QUEUE_POLL_INTERVAL)
+
+        runtime.wake.clear()
+
     async def _account_loop(self, runtime: _AccountRuntime) -> None:
         '''
         Drain priority and command queues for a single account.
@@ -2885,6 +3005,7 @@ class ExecutionManager:
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
 
+                await self._drain_admission_queue(runtime)
                 await self._drain_ws_events(runtime)
                 await self._drain_dispatch_queue(runtime)
 
@@ -2940,7 +3061,7 @@ class ExecutionManager:
                 )
 
                 if runtime.reconciling or runtime.poisoned:
-                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
+                    await self._wait_for_work(runtime)
                     continue
 
                 await self._advance_due_schemes(runtime)
@@ -2951,7 +3072,7 @@ class ExecutionManager:
                     await self._run_protection_scan(runtime)
 
                 if runtime.command_queue.empty():
-                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
+                    await self._wait_for_work(runtime)
                     continue
 
                 cmd = runtime.command_queue.get_nowait()

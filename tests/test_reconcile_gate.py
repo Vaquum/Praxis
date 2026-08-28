@@ -206,8 +206,8 @@ async def test_reconcile_on_reconnect_gates_then_releases(spine: EventSpine) -> 
     calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
     assert (_ACCT, True) in calls
     assert calls[-1] == (_ACCT, False)
-    trading._backfill_account.assert_awaited_once_with(_ACCT)
-    trading._reconcile_account.assert_awaited_once_with(_ACCT)
+    trading._backfill_account.assert_awaited_once_with(_ACCT, recovery_owner=False)
+    trading._reconcile_account.assert_awaited_once_with(_ACCT, recovery_owner=False)
 
 
 @pytest.mark.asyncio
@@ -217,7 +217,7 @@ async def test_reconcile_on_reconnect_reruns_when_reentered(spine: EventSpine) -
     trading._reconcile_account = AsyncMock()
     calls = 0
 
-    async def _backfill(account_id: str) -> bool:
+    async def _backfill(account_id: str, **_kwargs: object) -> bool:
         nonlocal calls
         calls += 1
         if calls == 1:
@@ -258,7 +258,7 @@ async def test_reconcile_clears_pending_on_venue_failure(spine: EventSpine) -> N
     trading._execution_manager = MagicMock()
     trading._reconcile_account = AsyncMock()
 
-    async def _backfill(account_id: str) -> bool:
+    async def _backfill(account_id: str, **_kwargs: object) -> bool:
         await trading._reconcile_on_reconnect(account_id)
         raise VenueError('boom')
 
@@ -276,7 +276,7 @@ async def test_reconcile_clears_pending_on_incomplete_backfill(spine: EventSpine
     trading._execution_manager = MagicMock()
     trading._reconcile_account = AsyncMock()
 
-    async def _backfill(account_id: str) -> bool:
+    async def _backfill(account_id: str, **_kwargs: object) -> bool:
         await trading._reconcile_on_reconnect(account_id)
         return False
 
