@@ -65,6 +65,19 @@ def test_build_price_snapshot_computes_deviation_from_reference_price():
     assert snapshot.reference_price_source == 'origo_mid'
 
 
+def test_build_price_snapshot_omits_deviation_on_non_positive_reference():
+    cache = BookCache()
+    cache.update('BTCUSDT', _book('100', '101'), _FETCHED)
+
+    snapshot = build_price_snapshot(
+        cache, 'BTCUSDT', _NOW, reference_price=Decimal('0'),
+    )
+
+    assert snapshot is not None
+    assert snapshot.deviation_bps is None
+    assert snapshot.reference_price_source is None
+
+
 def test_build_price_snapshot_none_on_crossed_book():
     cache = BookCache()
     cache.update('BTCUSDT', _book('101', '100'), _FETCHED)

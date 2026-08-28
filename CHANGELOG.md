@@ -1357,3 +1357,21 @@
 - Add the reconciliation engine: fund-transaction polling, periodic balance reconciliation against the live venue, and dispatch of a [`ReconciliationMismatch`](praxis/core/domain/events.py) — with confirmed fund transactions and mismatches event-pushed to Nexus via the outcome processor
 - Add a cold-start policy that leaves venue positions and open orders Praxis did not create untouched, so a restart adopts only its own lineage rather than cancelling or reconciling foreign state
 - Add an amend exposure ceiling and a modify-params translator on the Nexus launcher path, and repin `vaquum-nexus` to the release carrying the bracket-protection hold, `ProtectionRemediationHandler`, and per-account manifest response policy
+
+## v0.96.0 on 28th of August, 2026
+
+### Add
+
+- Add a per-account writer-admission primitive: [`admit`](praxis/core/execution_manager.py) appends a fill, terminal, or fund transaction and projects it in one serialized writer turn under the write lock, deduplicating fills on `(epoch, account, symbol, venue_trade_id)` so a trade delivered by both the WebSocket stream and reconnect backfill is booked once
+- Add a boot-ownership boundary so no account-writer task becomes runnable until startup recovery completes, letting replay and reconciliation finish before any live event competes for the writer
+- Add the fail-closed live-arm interlock: mainnet order routing requires `PRAXIS_LIVE_ARM` to match the expected token exactly, refused before any adapter, socket, or credential backend is built
+- Add the mandatory live limit-cap profile and account loss breakers: a live launch requires a complete [`_LiveLimitProfile`](praxis/launcher.py) (spread, staleness, order-rate, slippage, and account breaker thresholds) and fails closed if any cap is unset
+- Add the pre-trade price-deviation collar: each manifest strategy's `max_price_deviation_bps` projects into the Nexus instance config, both ENTER validation contexts carry the strategy's `action.reference_price`, and [`build_price_snapshot`](praxis/infrastructure/book_cache.py) computes the book-mid deviation and tags the `origo_mid` source, so the validator PRICE stage rejects an ENTER whose market has moved past the per-strategy cap and fails closed when a capped strategy supplies no reference price
+- Add the event-spine projection-replay parity harness ([`replay_parity`](tests/support/replay_parity.py)): assert a recorded spine reconstructs an identical `TradingState`, hold the OCO bidirectional and open/closed-disjoint invariants, and confirm replay is deterministic
+
+### Fix
+
+- Fix reconnect fill backfill missing OCO leg fills: [`_reconcile_fills`](praxis/core/execution_manager.py) now remaps a protective-leg `client_order_id` to its parent so a leg fill arriving during a WebSocket gap updates the bracket instead of leaving a ghost open position
+- Fix a slippage guard that passed when the venue book had no usable depth: [`estimate_slippage`](praxis/core/estimate_slippage.py) returns `None` on partial depth and the guard rejects a single-shot MARKET order it cannot price
+- Simplify the `TradingState` projection and boot replay/reconcile, prune unused event types while retaining their hydrators, and classify `MarkSampled` and launcher audit/ack appends as telemetry outside the state-machine contract
+- Split the reconcile-tick watchdogs into isolated failure domains so one detector's failure cannot stop the reconcile loop (TD-137)

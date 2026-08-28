@@ -101,7 +101,8 @@ def build_price_snapshot(
         symbol: Symbol to read.
         now: Current time, for the staleness reference.
         reference_price: Optional strategy reference price for the
-            deviation collar; `None` leaves `deviation_bps` unset.
+            deviation collar; `None` or a non-positive value leaves
+            `deviation_bps` unset.
     '''
 
     cached = cache.get(symbol)
@@ -126,7 +127,7 @@ def build_price_snapshot(
     deviation_bps: Decimal | None = None
     reference_price_source: str | None = None
 
-    if reference_price is not None:
+    if reference_price is not None and reference_price > _ZERO:
         deviation_bps = abs(mid - reference_price) / reference_price * _BPS
         reference_price_source = _ORIGO_MID
 
