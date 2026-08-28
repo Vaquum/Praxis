@@ -24,7 +24,7 @@ The projection is updated through `TradingState.apply(event)`.
 Important behaviors:
 
 - `OrderSubmitIntent` creates an order in `SUBMITTING`
-- `OrderSubmitted` or `OrderAcked` attaches venue order id and moves toward `OPEN`
+- `OrderSubmitted` attaches venue order id and moves the order to `OPEN`
 - `FillReceived` updates both the order and the position
 - terminal order events move orders into `closed_orders`
 

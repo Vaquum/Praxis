@@ -1325,3 +1325,71 @@ The ledger's per-asset balances are post-adoption movements: the ledger starts a
 This is a design limitation, not a defect in the trade-modify work: Praxis deliberately does not manage capital it did not create. Making the shortfall check meaningful against absolute holdings requires capturing an opening venue-balance baseline at adoption (a durable per-asset baseline event projected into the ledger), so reconciliation compares `baseline + movements` to the venue absolute. That is a reconciliation-model/design decision — it changes the "untracked capital" stance — and the baseline must be durable and survive restart, so it wants architect sign-off and paper-host validation rather than a review-round patch.
 
 **When to fix**: when Praxis must detect drawdown of pre-adoption inventory (e.g., a commingled account it is expected to steward). Capture and project a durable opening-balance baseline at adoption, then reconcile absolute-to-absolute.
+
+## TD-144: Late fill on a closed order does not update the order's filled_qty
+
+**Origin**: WP-Praxis-0010 (reconnect OCO leg-fill backfill fix)
+**Severity**: Low (benign today; the position is reduced correctly so there is no financial impact, and every `_command_fill_totals` caller is guarded for terminal commands)
+**Module**: `praxis/core/trading_state.py` (`_update_order_on_fill`, `_get_order`), `praxis/core/execution_manager.py` (`_command_fill_totals`)
+
+A fill applied to an order that has already moved to `closed_orders` — e.g. a protective OCO leg fill delivered or backfilled after a sibling leg cancelled the parent — reduces the position (`_update_position_on_fill`, keyed on `(trade_id, account_id)`) but does not update the closed order's `filled_qty` / `cumulative_notional`, because `_update_order_on_fill` looks orders up through `_get_order`, which scans only open `self.orders`. `_command_fill_totals` sums `filled_qty` across both open and closed orders, so it under-reports for such a command. This is benign today: every `_command_fill_totals` caller short-circuits terminal commands via the `command_id in self._terminal_commands` guard (e.g. `_emit_ws_outcome`), so the stale total is never read. It is a latent coupling — future code that totals a terminal command's fills without that guard would read a too-low value — and it is the general "late fill on a closed order" class, not OCO-specific.
+
+**When to fix**: in the reconciliation / audit-hardening pass, where accurate closed-order `filled_qty` has independent value. Update `_update_order_on_fill` to also apply the fill when the order is in `closed_orders`, with tests for the terminal-order re-fill semantics (no status flicker, no re-`_close_order`).
+
+## TD-145: RiskStageLimits is constructed empty; canonical drawdown/rolling-loss policy undecided
+
+**Origin**: WP-Praxis-0010 (live-cutover mandatory-limit profile)
+**Severity**: Low (the live loss breaker is covered by the manifest `risk_controls` → `RiskBreakerThresholds` on `ModeController`; the validator risk stage simply performs no additional check)
+**Module**: `praxis/launcher.py` (`RiskStageLimits()`), Nexus `nexus/core/validator/risk_stage.py`, `nexus/core/domain/risk_breaker_thresholds.py`
+
+The validator risk stage is wired with an empty `RiskStageLimits()` (no `max_total_drawdown[_pct]`, `max_drawdown[_pct]_limit`, or `max_rolling_loss_24h/7d/30d`), so it enforces nothing. The account-level loss breaker that actually fires on live is the manifest `risk_controls` (`RiskBreakerThresholds`: `max_daily_loss`, `max_drawdown`, `max_drawdown_pct`) applied by `ModeController`, which the live mandatory-limit profile requires. Wiring `RiskStageLimits` now would stand up a second, independently-configured loss-breaker system alongside the manifest breaker during a real-money cutover — two sources of truth for the same policy.
+
+The open decision is which layer owns the canonical drawdown / rolling-loss policy: the validator risk stage (pre-trade rejection) or the ModeController breaker (halt on breach). The rolling-loss windows (24h/7d/30d) exist only on `RiskStageLimits` and have no `RiskBreakerThresholds` equivalent, so if rolling-loss enforcement is required they must be wired — but only after deciding the single owning layer.
+
+**When to fix**: when pre-trade drawdown/rolling-loss rejection (distinct from the ModeController halt breaker) is required, or before scaling beyond the smallest-size live smoke. Decide the owning layer first, then wire the chosen one and add env plumbing + tests; do not enable both.
+
+## TD-146: Launcher direct construction can bypass the live-safety controls
+
+**Origin**: WP-Praxis-0010 (live-cutover mandatory-limit profile; codex pre-commit review)
+**Severity**: Low (the production entrypoint `main` is fully protected; only a direct, non-`main` `Launcher(...)` construction — which no in-repo production path performs — can reach these gaps)
+**Module**: `praxis/launcher.py` (`Launcher.__init__`, `_resolve_trade_mode`, `_verify_api_permissions`)
+
+The live-safety controls added for the cutover — the mandatory limit-cap profile, the API-permission assertion, and the live-arm interlock — are all keyed on the `main` entrypoint deriving them and coupling them into `Launcher`. They are not an authoritative constructor invariant, so a caller instantiating `Launcher` directly can still bypass them: constructing with `enforce_api_permissions=False` while supplying mainnet venue URLs receives the all-`None` paper limit profile and skips the API-permission assertion; and the completeness guard is `None`-only, so a hand-built `_LiveLimitProfile` with non-finite or non-positive values passes the constructor (only `_build_live_limit_profile` validates finiteness/positivity). `main` — the only production construction path — sets `enforce_api_permissions` from live mode, builds a validated profile, and enforces the live-arm token, so it is unaffected.
+
+**When to fix**: before any production deployment constructs `Launcher` outside `main`. Make live-vs-paper an explicit, authoritative constructor argument (a capability object rather than a permission flag), derive venue URLs, credential store, permission assertion, and mandatory caps from that single source, and validate cap finiteness/positivity in the constructor rather than only in the env builder.
+
+## TD-147: Slippage guard covers only single-shot MARKET orders
+
+**Origin**: WP-Praxis-0010 (live-cutover slippage fail-closed; codex/opencode design review)
+**Severity**: Low while single-shot is the only live-enabled mode (the default); becomes a live blocker if any multi-slice mode is armed live
+**Module**: `praxis/core/execution_manager.py` (`_slippage_guard_reason`, `_process_command`)
+
+The pre-trade slippage guard — estimate the fill against the venue book, reject when adverse slippage exceeds `PRAXIS_MAX_SLIPPAGE_BPS` or the book has no usable depth — runs only in `_process_command` (single-shot). Bracket entry, scheme children (TWAP / Time-DCA / VWAP), iceberg, and ladder place MARKET orders with no slippage check at all. The default live gate is `{SINGLE_SHOT}` (`_parse_enabled_modes`), so only single-shot is exposed unless an operator sets `PRAXIS_ENABLED_EXECUTION_MODES`; the unguarded multi-slice MARKET paths are arguably worse when enabled, since a dislocated book is hit repeatedly across slices.
+
+**When to fix**: before enabling any mode beyond single-shot on live. Extract the estimate-and-guard into one shared helper and apply it at every MARKET submission site (entry and per-slice), so the fail-closed-on-missing-depth contract holds uniformly rather than only for single-shot.
+
+## TD-148: Pre-trade price-deviation reference source is unwired (cross-repo) — RESOLVED
+
+**Resolved** in WP-Praxis-0010. Nexus v0.75.0 added the per-strategy deviation cap (`InstanceConfig.price_deviation_max_bps_by_strategy`, `StrategySpec.max_price_deviation_bps`, `reference_price_source='origo_mid'`) and the `validate_price_stage` collar. Praxis now projects each manifest spec's `max_price_deviation_bps` into the Nexus instance config, threads `action.reference_price` onto both ENTER validation contexts, and computes `deviation_bps` plus the `origo_mid` source in `build_price_snapshot`. The collar is ENTER-only, per-strategy opt-in, and fails closed (`PRICE_SYSTEM_DATA_UNAVAILABLE`) when a capped strategy supplies no reference price. Entry retained as historical record.
+
+**Origin**: WP-Praxis-0010 (live cutover; deferred from WP-0008); codex + opencode scope review
+**Severity**: Medium — a universal pre-trade price collar (the Nexus PRICE stage runs per-action for every execution mode) that is currently switched off; standard control in professional trading systems
+**Module**: `praxis/infrastructure/book_cache.py` (`build_price_snapshot`), `praxis/launcher.py` (`_build_price_snapshot_provider`, the ENTER context builder), Nexus `nexus/core/validator/price_stage.py`, `nexus/core/validator/pipeline_models.py`, `nexus/instance_config.py`
+
+`NexusInstanceConfig.price_deviation_max_bps` and `reference_price_source` are unwired (`None`). The validator PRICE stage only consumes a precomputed `PriceCheckSnapshot.deviation_bps` + `reference_price_source`; the sole allowed source is `origo_mid` (Origo's book mid). Nothing produces the deviation: `build_price_snapshot` emits `spread_bps` only, and the Praxis `ValidationRequestContext` carries no reference/limit price — the strategy's `action.reference_price` is used to size the ENTER notional and then discarded, and is absent for quote-native MARKET orders. The intended policy (undefined in code) is `|action_signal_price − book_mid| / book_mid × 10_000` — "has the market moved from where the strategy decided to trade?".
+
+Fail-closed trap: because the stage rejects `PRICE_SYSTEM_DATA_UNAVAILABLE` when a cap is set but the snapshot lacks `deviation_bps`, setting `price_deviation_max_bps` without the full wiring rejects every ENTER. Leave the cap `None` until the feature lands.
+
+Scope note: the Nexus validator PRICE stage (`validate_price_stage`, `launcher.py:956`) runs on every ENTER/EXIT action before the execution mode is dispatched, so the deviation collar — once wired — covers ALL execution modes uniformly (single-shot, bracket, TWAP, Time-DCA, VWAP, iceberg, ladder), not just single-shot. It is distinct from and not covered by the Praxis single-shot MARKET slippage guard (`_slippage_guard_reason`, an execution-time check on one mode). Leaving the cap `None` today means signal-price-vs-market-mid drift is unbounded across all modes and order types — the classic fat-finger / stale-signal exposure a price collar exists to catch (e.g. a marketable limit priced far through the book). Spread + book-staleness remain enforced for all modes; the deviation dimension is the gap.
+
+**When to fix**: alongside LIMIT-order support or when signal-to-market drift must be bounded. Cross-repo: add a reference-price field to the Nexus `ValidationRequestContext`, thread `action.reference_price` from the Praxis ENTER builder, compute `deviation_bps` + `reference_price_source='origo_mid'` in `build_price_snapshot`, wire the cap/source into the live limit profile, and add tests (explicit reference price, missing reference price, quote-native MARKET, stale/missing book, source mismatch, threshold boundaries). Decide the deviation policy explicitly first.
+
+## TD-149: Replay-parity harness proves projection determinism, not golden parity against a real paper run
+
+**Origin**: WP-Praxis-0010 (paper→live replay-engine validation harness; codex scope review)
+**Severity**: Low — the projection boundary is covered by parity, invariant, and determinism assertions; the gap is a stronger claim that requires new production capture
+**Module**: `tests/support/replay_parity.py` (`assert_reconstructs_clean`), the runtime that would emit a golden snapshot
+
+`assert_reconstructs_clean` verifies that a recorded spine reconstructs cleanly (chain verification, per-account replay, projection invariants) and deterministically (two independent replays agree). Determinism is nearly tautological on its own: replaying a recorded spine and comparing it to a second replay of the same spine proves replay is a pure function of the events, not that the reconstruction matches what the live run actually held. True parity against a real captured paper session needs a golden `TradingState` snapshot captured by the runtime at record time (at shutdown or checkpoint); a spine alone does not carry the prior in-memory projection. Nothing in the runtime emits such a snapshot today. The harness also asserts the `TradingState` projection only — account-ledger parity is out of scope, and ledger replay requires a `RegisterAccount` event in the recording.
+
+**When to fix**: before a real captured paper spine is used as a pre-cutover gate (as opposed to authored-scenario regression tests, which hold the live manager in memory and use `assert_replays_equal` directly). Add a projection-snapshot serializer and a capture hook at shutdown/checkpoint so a recording bundles `spine` plus a serialized golden `TradingState`, then extend the harness with a golden-comparison mode; optionally include the account ledger in the recording contract.

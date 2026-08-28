@@ -75,7 +75,7 @@ class _FakeExecutionManager:
         self.has_account_calls.append(account_id)
         return account_id in self.accounts
 
-    def register_account(self, account_id: str) -> None:
+    def register_account(self, account_id: str, *, booting: bool = False) -> None:  # noqa: ARG002
         if self.register_error is not None:
             raise self.register_error
         self.accounts.add(account_id)

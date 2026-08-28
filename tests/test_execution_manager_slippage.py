@@ -19,6 +19,7 @@ from praxis.core.domain.enums import (
     OrderStatus,
     OrderType,
     STPMode,
+    TradeStatus,
 )
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_command import TradeCommand
@@ -135,6 +136,68 @@ async def test_submission_proceeds_when_order_book_query_fails(
     ]
     messages = [r.message for r in caplog.records]
     assert any('slippage estimate skipped:' in message for message in messages)
+
+
+@pytest.mark.asyncio
+async def test_capped_submission_rejected_when_order_book_query_fails(
+    spine: EventSpine,
+    adapter: AsyncMock,
+) -> None:
+    adapter.query_order_book.side_effect = TransientError('depth unavailable')
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        max_slippage_bps=Decimal('20'),
+    )
+    manager.register_account(_ACCT)
+    try:
+        await manager.submit_command(**{
+            **_CMD_KWARGS,
+            'order_type': OrderType.MARKET,
+            'execution_params': SingleShotParams(),
+        })
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitIntent' not in types
+        outcome = next(e for _, e in events if type(e).__name__ == 'TradeOutcomeProduced')
+        assert outcome.status is TradeStatus.REJECTED
+        adapter.submit_order.assert_not_called()
+    finally:
+        await manager.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_capped_submission_rejected_on_partial_book_depth(
+    spine: EventSpine,
+    adapter: AsyncMock,
+) -> None:
+    adapter.query_order_book.return_value = OrderBookSnapshot(
+        bids=(OrderBookLevel(price=Decimal('49990'), qty=Decimal('5')),),
+        asks=(OrderBookLevel(price=Decimal('50010'), qty=Decimal('0.2')),),
+        last_update_id=1,
+    )
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        max_slippage_bps=Decimal('20'),
+    )
+    manager.register_account(_ACCT)
+    try:
+        await manager.submit_command(**{
+            **_CMD_KWARGS,
+            'order_type': OrderType.MARKET,
+            'execution_params': SingleShotParams(),
+        })
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        types = [type(e).__name__ for _, e in events]
+        assert 'OrderSubmitIntent' not in types
+        outcome = next(e for _, e in events if type(e).__name__ == 'TradeOutcomeProduced')
+        assert outcome.status is TradeStatus.REJECTED
+        adapter.submit_order.assert_not_called()
+    finally:
+        await manager.unregister_account(_ACCT)
 
 
 @pytest.mark.asyncio
@@ -345,4 +408,27 @@ def test_slippage_guard_skips_limit_orders() -> None:
 def test_slippage_guard_disabled_when_unset() -> None:
     assert _guard_manager(None)._slippage_guard_reason(
         _market_command(), _estimate('50'),
+    ) is None
+
+
+def test_slippage_guard_fails_closed_on_missing_estimate() -> None:
+    reason = _guard_manager(Decimal('20'))._slippage_guard_reason(
+        _market_command(), None,
+    )
+
+    assert reason is not None
+    assert 'usable book depth' in reason
+
+
+def test_slippage_guard_allows_missing_estimate_when_unset() -> None:
+    assert _guard_manager(None)._slippage_guard_reason(
+        _market_command(), None,
+    ) is None
+
+
+def test_slippage_guard_skips_limit_orders_on_missing_estimate() -> None:
+    limit_cmd = TradeCommand(command_id='c1', **_CMD_KWARGS)
+
+    assert _guard_manager(Decimal('20'))._slippage_guard_reason(
+        limit_cmd, None,
     ) is None

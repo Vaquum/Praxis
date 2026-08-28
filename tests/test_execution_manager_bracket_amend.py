@@ -14,12 +14,14 @@ directly; the public-path tests drive `submit_modify` end to end.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
 
+import aiosqlite
 import pytest
 import pytest_asyncio
 
@@ -40,6 +42,7 @@ from praxis.core.domain.enums import (
 )
 from praxis.core.domain.events import (
     Event,
+    FillReceived,
     OrderCanceled,
     OrderSubmitIntent,
     OrderSubmitted,
@@ -79,6 +82,8 @@ from praxis.infrastructure.venue_adapter import (
     VenueOrderList,
     VenueOrderListLeg,
 )
+
+from tests.support.replay_parity import assert_replays_equal
 
 _T0 = datetime(2099, 1, 1, tzinfo=UTC)
 _ACCT = 'acc-1'
@@ -365,6 +370,27 @@ def _oco_calls(adapter: AsyncMock) -> list[dict[str, Any]]:
         for call in adapter.submit_calls
         if call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
     ]
+
+
+async def _fresh_spine() -> tuple[EventSpine, aiosqlite.Connection]:
+    conn = await aiosqlite.connect(':memory:')
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+
+    return spine, conn
+
+
+def _mgr_on(spine: EventSpine, adapter: AsyncMock) -> ExecutionManager:
+    async def _capture(_outcome: TradeOutcome) -> None:
+        return None
+
+    return ExecutionManager(
+        event_spine=spine,
+        epoch_id=_EPOCH,
+        venue_adapter=adapter,
+        on_trade_outcome=_capture,
+        clock=lambda: _T0,
+    )
 
 
 class TestBracketAmendHappyPath:
@@ -970,6 +996,182 @@ class TestBracketAmendReplaceFails:
         assert market_sells[0]['args'][4] == Decimal('1')
 
         await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_boot_reflatten_sizes_from_drained_backfill_fill(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        '''Size the boot flatten from a fill that only lands during recovery.
+
+        Reproduces the boot-ownership window: the parked writer holds a
+        queued entry fill that completes the entry, so the persisted entry
+        is only partially filled at replay. `_boot_reflatten` must drain
+        that queued fill into `_command_fill_totals` before it sizes the
+        flatten, otherwise the remainder is undersized and the position is
+        left partially exposed. The account is registered `booting=True`, so
+        only the drain inside `_boot_reflatten` projects the backfill.
+        '''
+
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        flatten_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=999,
+        )
+        truncated = await _truncate_after_protection_failed(spine)
+
+        entry_index, entry_fill = next(
+            (index, event)
+            for index, (_seq, event) in enumerate(truncated)
+            if isinstance(event, FillReceived) and event.side is OrderSide.BUY
+        )
+        seq = truncated[entry_index][0]
+        truncated[entry_index] = (
+            seq, dataclasses.replace(entry_fill, qty=Decimal('0.6')),
+        )
+        backfill = dataclasses.replace(
+            entry_fill,
+            qty=Decimal('0.4'),
+            venue_trade_id=f'{entry_fill.venue_trade_id}-backfill',
+        )
+        await em.unregister_account(_ACCT)
+
+        recover_adapter = _make_adapter()
+        recover_adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        recover_adapter.query_order.side_effect = NotFoundError('no such order')
+        em2, _ = mgr_factory(recover_adapter)
+        em2.register_account(_ACCT, booting=True)
+        em2.replay_events(_ACCT, truncated)
+        em2.enqueue_ws_event(_ACCT, backfill)
+
+        await em2.recover_incomplete_flattens(_ACCT, truncated)
+
+        market_sells = [
+            c for c in recover_adapter.submit_calls
+            if c['args'][3] is OrderType.MARKET
+            and c['args'][2] is OrderSide.SELL
+            and c['kwargs'].get('client_order_id') == flatten_id
+        ]
+        assert len(market_sells) == 1
+        assert market_sells[0]['args'][4] == Decimal('1')
+
+        em2.finish_account_startup(_ACCT)
+        await em2.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_reconnect_remainder_flatten_sizing_replays_equal_to_live(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        '''Startup ordering must hold and the projection must replay-equal.
+
+        Simulates a crash whose durable log ends at `ProtectionFailed` with
+        the entry only partially filled (0.6). On boot the entry's reconnect
+        remainder (0.4 on the same order) is appended and queued but not yet
+        projected; recovery must drain it before it sizes the flatten. Three
+        invariants are pinned on a clean crash spine:
+
+        - Decision: the flatten sells the full 1.0 — recovery drains the
+          queued remainder into the command totals before it sizes, not the
+          pre-crash 0.6.
+        - Ordering: the remainder fill is sequenced on the spine strictly
+          before the recovery flatten intent.
+        - Durability: a fresh account replaying the whole crash spine lands on
+          the identical trading-state projection, so nothing the live path
+          decided lives only in memory.
+        '''
+
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+        truncated = await _truncate_after_protection_failed(spine)
+        await em.unregister_account(_ACCT)
+
+        entry_index, entry_fill = next(
+            (index, event)
+            for index, (_seq, event) in enumerate(truncated)
+            if isinstance(event, FillReceived) and event.side is OrderSide.BUY
+        )
+        truncated[entry_index] = (
+            truncated[entry_index][0],
+            dataclasses.replace(entry_fill, qty=Decimal('0.6')),
+        )
+        remainder = dataclasses.replace(
+            entry_fill,
+            qty=Decimal('0.4'),
+            venue_trade_id=f'{entry_fill.venue_trade_id}-remainder',
+        )
+
+        crash_spine, crash_conn = await _fresh_spine()
+        for _seq, event in truncated:
+            await crash_spine.append(event, _EPOCH)
+
+        recover_adapter = _make_adapter()
+        recover_adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        recover_adapter.query_order.side_effect = NotFoundError('no such order')
+        live = _mgr_on(crash_spine, recover_adapter)
+        replayed = _mgr_on(crash_spine, _make_adapter())
+        try:
+            live.register_account(_ACCT, booting=True)
+            live.replay_events(_ACCT, truncated)
+
+            remainder_seq = await crash_spine.append(remainder, _EPOCH)
+            live.enqueue_ws_event(_ACCT, remainder)
+            await live.recover_incomplete_flattens(_ACCT, truncated)
+
+            flatten_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=999,
+            )
+            market_sells = [
+                c for c in recover_adapter.submit_calls
+                if c['args'][3] is OrderType.MARKET
+                and c['args'][2] is OrderSide.SELL
+                and c['kwargs'].get('client_order_id') == flatten_id
+            ]
+            assert len(market_sells) == 1
+            assert market_sells[0]['args'][4] == Decimal('1')
+
+            full = await crash_spine.read(epoch_id=_EPOCH)
+            flatten_intent_seq = next(
+                seq for seq, event in full
+                if isinstance(event, OrderSubmitIntent)
+                and event.client_order_id == flatten_id
+            )
+            assert remainder_seq is not None
+            assert remainder_seq < flatten_intent_seq
+
+            replayed.register_account(_ACCT, booting=True)
+            replayed.replay_events(_ACCT, full)
+
+            assert_replays_equal(
+                live._accounts[_ACCT].trading_state,
+                replayed._accounts[_ACCT].trading_state,
+            )
+        finally:
+            for manager in (live, replayed):
+                if _ACCT in manager._accounts:
+                    await manager.unregister_account(_ACCT)
+            await crash_conn.close()
 
     @pytest.mark.asyncio
     async def test_flatten_recovery_reconciles_venue_fills(
@@ -1693,3 +1895,31 @@ class TestBracketAmendPublicPath:
 
         assert runtime.priority_queue.empty()
         assert command_id not in em.modifiable_command_ids(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_protection_scan_resolver_failure_does_not_skip_others(
+    mgr_factory: Any,
+) -> None:
+    '''A resolver raising must not skip the remaining protection-scan resolvers.'''
+
+    em, _ = mgr_factory(_make_adapter())
+    em.register_account(_ACCT)
+    runtime = em._accounts[_ACCT]
+    called: list[str] = []
+
+    async def _raise(_account_id: str) -> None:
+        called.append('unknown')
+        raise TransientError('venue 5xx')
+
+    async def _spy(_account_id: str) -> None:
+        called.append('flatten')
+
+    em.resolve_unknown_protection = _raise
+    em.resolve_failed_flattens = _spy
+
+    await em._run_protection_scan(runtime)
+
+    assert 'unknown' in called
+    assert 'flatten' in called
+    await em.unregister_account(_ACCT)

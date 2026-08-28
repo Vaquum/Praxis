@@ -95,10 +95,12 @@ def estimate_slippage(
 
     Returns:
         SlippageEstimate | None: Estimate with mid-price, simulated VWAP,
-            and slippage in bps. When available depth is insufficient to
-            fill qty, the estimate still returns and uses only filled
-            quantity (with a warning log). None when the book lacks either
-            a bid or an ask (mid-price cannot be computed).
+            and slippage in bps. None when the book lacks either a bid or an
+            ask (mid-price cannot be computed), or when the resting depth is
+            insufficient to fill qty (with a warning log): a partial-depth
+            fill cannot bound the MARKET order's true impact, so the order is
+            treated as unpriceable rather than estimated on the visible
+            portion alone.
     '''
 
     mid_price = _mid_price(book)
@@ -119,9 +121,6 @@ def estimate_slippage(
 
     filled = qty - remaining
 
-    if filled == _ZERO:
-        return None
-
     if remaining > _ZERO:
         _log.warning(
             'book depth insufficient: symbol=%s needed=%s available=%s side=%s',
@@ -130,6 +129,8 @@ def estimate_slippage(
             filled,
             side.value,
         )
+
+        return None
 
     return _slippage_from_fill(mid_price, cost, filled)
 
@@ -157,7 +158,9 @@ def estimate_slippage_for_quote(
     Returns:
         SlippageEstimate | None: Estimate with mid-price, simulated VWAP,
             and slippage in bps. None when the book lacks a bid or an ask,
-            or when no base could be filled.
+            or when the resting depth is insufficient to fill the quote
+            amount (a partial-depth fill cannot bound the order's impact, so
+            it is treated as unpriceable).
     '''
 
     mid_price = _mid_price(book)
@@ -176,9 +179,6 @@ def estimate_slippage_for_quote(
         filled_base += spend / level.price
         remaining_quote -= spend
 
-    if filled_base == _ZERO:
-        return None
-
     if remaining_quote > _ZERO:
         _log.warning(
             'book depth insufficient for quote amount: symbol=%s needed_quote=%s side=%s',
@@ -186,5 +186,7 @@ def estimate_slippage_for_quote(
             quote_qty,
             side.value,
         )
+
+        return None
 
     return _slippage_from_fill(mid_price, quote_qty - remaining_quote, filled_base)

@@ -473,6 +473,11 @@ class _AccountRuntime:
         self.command_queue = command_queue
         self.priority_queue = priority_queue
         self.ws_event_queue = ws_event_queue
+        self.dispatch_queue: asyncio.Queue[Event] = asyncio.Queue()
+        self.admission_queue: asyncio.Queue[
+            tuple[Event, asyncio.Future[int | None]]
+        ] = asyncio.Queue()
+        self.wake = asyncio.Event()
         self.trading_state = trading_state
         self.account_ledger = account_ledger
         self.task: asyncio.Task[None] | None = None
@@ -483,6 +488,7 @@ class _AccountRuntime:
         self.pending_amends: dict[str, _PendingSingleAmend] = {}
         self.queue_reservations = 0
         self.reconciling = False
+        self.booting = False
         self.poisoned = False
         self.protection_scan_requested = False
 
@@ -651,12 +657,17 @@ class ExecutionManager:
                 )
                 await asyncio.sleep(delay)
 
-    def register_account(self, account_id: str) -> None:
+    def register_account(self, account_id: str, *, booting: bool = False) -> None:
         '''
         Create per-account queues and start account coroutine.
 
         Args:
             account_id (str): Account identifier to register.
+            booting (bool): When True the account is registered parked — its
+                writer loop is created but idle — so boot recovery owns the
+                account as the sole projector until `finish_account_startup`.
+                Set atomically with the task so the writer can never run a
+                single iteration before recovery begins.
 
         Raises:
             ValueError: If account_id is empty or already registered.
@@ -681,6 +692,7 @@ class ExecutionManager:
             trading_state=TradingState(account_id),
             account_ledger=AccountLedger(account_id),
         )
+        runtime.booting = booting
         runtime.task = asyncio.create_task(
             self._account_loop(runtime),
             name=f"account-{account_id}",
@@ -1274,6 +1286,40 @@ class ExecutionManager:
 
         return live_children, posted_count
 
+    def _replay_command(
+        self,
+        init: SchemeInitialized | BracketInitialized,
+        *,
+        order_type: OrderType,
+        execution_mode: ExecutionMode,
+        execution_params: ExecutionParams,
+        timeout: int,
+    ) -> TradeCommand:
+        '''Rebuild a TradeCommand envelope from a durable init event for resume.
+
+        Fills the identity from the init event and the fixed replay defaults
+        shared by every resumed mode — no reference price, no maker preference,
+        no self-trade prevention. The caller supplies the mode-specific order
+        type, execution mode, params, and timeout.
+        '''
+
+        return TradeCommand(
+            command_id=init.command_id,
+            trade_id=init.trade_id,
+            account_id=init.account_id,
+            symbol=init.symbol,
+            side=init.side,
+            qty=init.total_qty,
+            order_type=order_type,
+            execution_mode=execution_mode,
+            execution_params=execution_params,
+            timeout=timeout,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE,
+            created_at=init.timestamp,
+        )
+
     def _ladder_command_from_init(self, init: SchemeInitialized) -> TradeCommand:
         '''Rebuild a ladder command from its durable init event for resume.
 
@@ -1284,13 +1330,8 @@ class ExecutionManager:
             TradeCommand: The reconstructed ladder command.
         '''
 
-        return TradeCommand(
-            command_id=init.command_id,
-            trade_id=init.trade_id,
-            account_id=init.account_id,
-            symbol=init.symbol,
-            side=init.side,
-            qty=init.total_qty,
+        return self._replay_command(
+            init,
             order_type=OrderType.LIMIT,
             execution_mode=ExecutionMode.LADDER_DCA,
             execution_params=LadderDcaParams(
@@ -1298,10 +1339,6 @@ class ExecutionManager:
                 level_weights=tuple(init.volume_weights) or None,
             ),
             timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
-            reference_price=None,
-            maker_preference=MakerPreference.NO_PREFERENCE,
-            stp_mode=STPMode.NONE,
-            created_at=init.timestamp,
         )
 
     def _resume_brackets(
@@ -1487,13 +1524,8 @@ class ExecutionManager:
             TradeCommand: The reconstructed bracket command.
         '''
 
-        return TradeCommand(
-            command_id=init.command_id,
-            trade_id=init.trade_id,
-            account_id=init.account_id,
-            symbol=init.symbol,
-            side=init.side,
-            qty=init.total_qty,
+        return self._replay_command(
+            init,
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.BRACKET,
             execution_params=BracketParams(
@@ -1504,10 +1536,6 @@ class ExecutionManager:
                 stop_loss_limit_price=init.stop_loss_limit_price,
             ),
             timeout=init.timeout_seconds or _REPLAY_COMMAND_TIMEOUT_SECONDS,
-            reference_price=None,
-            maker_preference=MakerPreference.NO_PREFERENCE,
-            stp_mode=STPMode.NONE,
-            created_at=init.timestamp,
         )
 
     def _resume_schemes(
@@ -1595,21 +1623,12 @@ class ExecutionManager:
                 )
                 continue
 
-            command = TradeCommand(
-                command_id=command_id,
-                trade_id=init.trade_id,
-                account_id=runtime.account_id,
-                symbol=init.symbol,
-                side=init.side,
-                qty=init.total_qty,
+            command = self._replay_command(
+                init,
                 order_type=OrderType.MARKET,
                 execution_mode=init.execution_mode,
                 execution_params=rebuilt_params,
                 timeout=_REPLAY_COMMAND_TIMEOUT_SECONDS,
-                reference_price=None,
-                maker_preference=MakerPreference.NO_PREFERENCE,
-                stp_mode=STPMode.NONE,
-                created_at=init.timestamp,
             )
 
             live_children: set[str] = set()
@@ -1938,6 +1957,15 @@ class ExecutionManager:
         original and amend-replacement orders — so fills settled across
         multiple orders aggregate to the command total rather than an
         in-memory running sum that a crash discarded.
+
+        Note:
+            A fill applied to an order after it moved to `closed_orders` does
+            not update that order's `filled_qty` (`_update_order_on_fill` is
+            open-order-only), so this total under-reports for a command with a
+            late or backfilled fill on an already-closed order. Every caller
+            short-circuits terminal commands via `_terminal_commands`, so the
+            stale total is never read today; do not rely on this helper for a
+            terminal command with late fills (TD-144).
         '''
 
         filled_qty = _ZERO
@@ -2227,6 +2255,14 @@ class ExecutionManager:
 
         self._modifiable_snapshot.pop(account_id, None)
 
+        unregister_error = AccountNotRegisteredError(
+            f"account_id '{account_id}' is not registered",
+        )
+        while not runtime.admission_queue.empty():
+            _event, future = runtime.admission_queue.get_nowait()
+            if not future.cancelled():
+                future.set_exception(unregister_error)
+
         if runtime.task is not None:
             runtime.task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -2354,6 +2390,146 @@ class ExecutionManager:
             raise AccountNotRegisteredError(msg)
 
         runtime.ws_event_queue.put_nowait(event)
+
+    async def admit(
+        self,
+        account_id: str,
+        event: Event,
+        *,
+        recovery_owner: bool = False,
+    ) -> int | None:
+        '''Append and project one external event via the account writer.
+
+        The writer-admission primitive for events produced off the account
+        writer — WebSocket fills, reconnect backfill fills and terminals, and
+        reconciled fund transactions. The single writer task is the sole
+        appender and projector for a running account, so admission hands the
+        event to the writer via `admission_queue` and awaits the sequence the
+        writer assigns; the writer appends and projects it in turn with its
+        own command work, and no other task appends between the writer's
+        append and its projection. A per-account lock around admission alone
+        was not enough: it serialized admissions against one another but not
+        against the writer's own append/projection sites, so an admitted fill
+        could still project after a terminal the writer appended in the gap.
+
+        The one exception is a parked account (`booting`), whose writer is
+        stopped and whose boot/reconnect recovery is the sole owner: only that
+        owner passes `recovery_owner=True`, appending and projecting directly
+        because the queue would never drain while the writer is parked.
+        Ordinary callers (WebSocket handlers, runtime reconciliation) always
+        queue, even while the account is parked; their events drain once the
+        writer resumes.
+
+        Args:
+            account_id (str): Account whose writer admits the event.
+            event (Event): External domain event to append and project.
+            recovery_owner (bool): True only when the parked account's boot or
+                reconnect recovery owner admits directly; requires `booting`.
+
+        Returns:
+            int | None: The assigned spine sequence, or None when the event
+                deduplicated against a prior append (nothing projected).
+
+        Raises:
+            AccountNotRegisteredError: If account_id is not registered, or was
+                unregistered while the append was in flight (the event is
+                durable and projects on replay; it is not projected into the
+                detached runtime).
+            RuntimeError: If called off the event-loop thread, if the account
+                is poisoned (projection has fail-stopped; a restart is
+                required), or if `recovery_owner` is set for an account that
+                is not parked.
+        '''
+
+        if (
+            self._loop_thread_id is not None
+            and threading.get_ident() != self._loop_thread_id
+        ):
+            msg = (
+                'admit called from non-event-loop thread. '
+                'append and projection must run on the loop thread.'
+            )
+            raise RuntimeError(msg)
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            msg = f"account_id '{account_id}' is not registered"
+            raise AccountNotRegisteredError(msg)
+
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        if recovery_owner:
+            if not runtime.booting:
+                msg = (
+                    f"account '{account_id}' is not parked; recovery admission "
+                    'requires booting=True'
+                )
+                raise RuntimeError(msg)
+
+            seq = await self._append_project_admitted(runtime, account_id, event)
+
+            if seq is not None:
+                runtime.dispatch_queue.put_nowait(event)
+
+            return seq
+
+        loop = asyncio.get_running_loop()
+        result: asyncio.Future[int | None] = loop.create_future()
+        runtime.admission_queue.put_nowait((event, result))
+        runtime.wake.set()
+
+        return await result
+
+    async def _append_project_admitted(
+        self,
+        runtime: _AccountRuntime,
+        account_id: str,
+        event: Event,
+    ) -> int | None:
+        '''Append an admitted event and project it, poisoning on failure.
+
+        The shared append-then-project step for both the recovery-owner path
+        and the writer's `_drain_admission_queue`, so both keep the same dedup,
+        detached-runtime, and fail-stop semantics.
+        '''
+
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        seq = await self._event_spine.append(event, self._epoch_id)
+
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        if seq is None:
+            return None
+
+        if self._accounts.get(account_id) is not runtime:
+            msg = (
+                f"account '{account_id}' unregistered during admit; event "
+                f'is durable (seq={seq}) and projects on replay'
+            )
+            raise AccountNotRegisteredError(msg)
+
+        try:
+            self._project(runtime, event)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            runtime.poisoned = True
+            _log.exception(
+                'admitted projection failed; poisoning account '
+                '(fail-stop, restart required): event_type=%s account_id=%s',
+                type(event).__name__,
+                account_id,
+            )
+            raise
+
+        return seq
 
     def set_reconciling(self, account_id: str, reconciling: bool) -> None:
 
@@ -2636,6 +2812,182 @@ class ExecutionManager:
 
         await runtime.command_queue.join()
 
+    def begin_account_startup(self, account_id: str) -> None:
+        '''Park an already-registered account writer for boot recovery.
+
+        The boot path registers the account with `booting=True` so the writer
+        is parked from creation; this is the equivalent for a runtime that was
+        registered live and must re-enter recovery. Setting `booting` parks the
+        whole loop — no drain, no projection, no dispatch — so boot recovery is
+        the sole owner until `finish_account_startup`.
+
+        Args:
+            account_id (str): Account entering boot recovery.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is not None:
+            runtime.booting = True
+
+    def finish_account_startup(self, account_id: str) -> None:
+        '''Release the account writer once boot recovery has completed.
+
+        Args:
+            account_id (str): Account whose recovery is complete.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is not None:
+            runtime.booting = False
+
+    async def drain_ws_events(self, account_id: str) -> None:
+        '''Project and dispatch every queued external event on the caller.
+
+        Called only by boot recovery while the writer is parked, so recovery
+        reads a projection caught up to every queued fill before it sizes a
+        remediation. Refuses to run unless the account is `booting`: draining
+        from any other caller while the writer runs would create a second
+        projector for the account.
+
+        Args:
+            account_id (str): Account whose queued events to project now.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is not None and runtime.booting:
+            await self._drain_ws_events(runtime)
+
+    async def _drain_ws_events(self, runtime: _AccountRuntime) -> None:
+        '''Project AND dispatch every queued WebSocket/reconcile event.
+
+        The sole projector for an account's external events, shared by the
+        account loop and boot recovery. Beyond projecting each event into the
+        trading state and ledger, it dispatches it: emits the WS-driven
+        outcome, advances the owning scheme, and drives the owning bracket
+        (which can place a protective OCO). A projection failure poisons the
+        account (fail-stop); an outcome-emit failure is logged and the drain
+        continues.
+        '''
+
+        while not runtime.ws_event_queue.empty():
+            event = runtime.ws_event_queue.get_nowait()
+            if runtime.poisoned:
+                continue
+            try:
+                self._project(runtime, event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                runtime.poisoned = True
+                _log.exception(
+                    'projection failed; poisoning account (fail-stop, '
+                    'restart required): event_type=%s account_id=%s',
+                    type(event).__name__,
+                    runtime.account_id,
+                )
+                continue
+            await self._dispatch_event(runtime, event)
+
+    async def _drain_admission_queue(self, runtime: _AccountRuntime) -> None:
+        '''Append, project, and queue dispatch for every admitted event.
+
+        The writer is the sole appender and projector for a running account,
+        so an admitted fill, terminal, or fund event is appended and projected
+        here in sequence with the writer's own command work; the append and
+        projection order can never diverge from the spine order. Each waiting
+        caller's future is completed with the assigned sequence (or None on
+        dedup); a cancelled waiter never cancels the durable append. Dispatch
+        is deferred to `_drain_dispatch_queue`, as for a recovery-owner
+        admission.
+
+        If the writer task is cancelled mid-drain (account unregister or
+        shutdown), the in-flight caller's future is failed with a stopped-writer
+        `RuntimeError` even when the append already committed; the event is
+        durable and re-reconciles on restart, and a retry deduplicates.
+        '''
+
+        while not runtime.admission_queue.empty():
+            event, future = runtime.admission_queue.get_nowait()
+
+            try:
+                seq = await self._append_project_admitted(
+                    runtime, runtime.account_id, event,
+                )
+
+                if seq is not None:
+                    runtime.dispatch_queue.put_nowait(event)
+
+                if not future.cancelled():
+                    future.set_result(seq)
+
+            except asyncio.CancelledError:
+                if not future.cancelled():
+                    future.set_exception(
+                        RuntimeError(
+                            f"account '{runtime.account_id}' writer stopped "
+                            'during admit',
+                        ),
+                    )
+
+                raise
+
+            except Exception as exc:  # noqa: BLE001
+                if not future.cancelled():
+                    future.set_exception(exc)
+
+    async def _drain_dispatch_queue(self, runtime: _AccountRuntime) -> None:
+        '''Dispatch every admitted event the writer has yet to react to.
+
+        Events admitted via `admit` are already appended and projected on the
+        writer (or by a recovery owner while the account is parked); only their
+        dispatch — the WS-driven outcome, scheme advance, and bracket drive —
+        is deferred here so it runs on the single writer task rather than on
+        the producing WS or reconcile task. A dispatch failure is logged and
+        the drain continues.
+        '''
+
+        while not runtime.dispatch_queue.empty():
+            event = runtime.dispatch_queue.get_nowait()
+            if runtime.poisoned:
+                continue
+            await self._dispatch_event(runtime, event)
+
+    async def _dispatch_event(self, runtime: _AccountRuntime, event: Event) -> None:
+        '''Dispatch a projected external event's reactions on the writer.
+
+        Emits the WS-driven outcome, advances the owning scheme, and drives
+        the owning bracket (which can place a protective OCO). A failure is
+        logged and swallowed so one event cannot stall the drain.
+        '''
+
+        try:
+            await self._emit_ws_outcome(runtime, event)
+            await self._on_scheme_child_event(runtime, event)
+            await self._on_bracket_event(runtime, event)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            _log.exception(
+                'failed to dispatch external event: '
+                'event_type=%s account_id=%s',
+                type(event).__name__,
+                runtime.account_id,
+            )
+
+    async def _wait_for_work(self, runtime: _AccountRuntime) -> None:
+        '''Sleep until an admission wakes the writer or the poll interval lapses.
+
+        An admitted event sets `runtime.wake`, so a queued fill or terminal is
+        drained without waiting out the poll interval (which would add up to
+        that latency to every admitted projection); command, priority, and WS
+        work keep the poll cadence.
+        '''
+
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(runtime.wake.wait(), timeout=_QUEUE_POLL_INTERVAL)
+
+        runtime.wake.clear()
+
     async def _account_loop(self, runtime: _AccountRuntime) -> None:
         '''
         Drain priority and command queues for a single account.
@@ -2649,36 +3001,13 @@ class ExecutionManager:
 
         try:
             while True:
-                while not runtime.ws_event_queue.empty():
-                    event = runtime.ws_event_queue.get_nowait()
-                    if runtime.poisoned:
-                        continue
-                    try:
-                        self._project(runtime, event)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:  # noqa: BLE001
-                        runtime.poisoned = True
-                        _log.exception(
-                            'projection failed; poisoning account (fail-stop, '
-                            'restart required): event_type=%s account_id=%s',
-                            type(event).__name__,
-                            runtime.account_id,
-                        )
-                        continue
-                    try:
-                        await self._emit_ws_outcome(runtime, event)
-                        await self._on_scheme_child_event(runtime, event)
-                        await self._on_bracket_event(runtime, event)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:  # noqa: BLE001
-                        _log.exception(
-                            'failed to emit WS-driven TradeOutcome: '
-                            'event_type=%s account_id=%s',
-                            type(event).__name__,
-                            runtime.account_id,
-                        )
+                if runtime.booting:
+                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
+                    continue
+
+                await self._drain_admission_queue(runtime)
+                await self._drain_ws_events(runtime)
+                await self._drain_dispatch_queue(runtime)
 
                 deferred_modifies: list[TradeModify] = []
                 while not runtime.priority_queue.empty():
@@ -2732,7 +3061,7 @@ class ExecutionManager:
                 )
 
                 if runtime.reconciling or runtime.poisoned:
-                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
+                    await self._wait_for_work(runtime)
                     continue
 
                 await self._advance_due_schemes(runtime)
@@ -2743,7 +3072,7 @@ class ExecutionManager:
                     await self._run_protection_scan(runtime)
 
                 if runtime.command_queue.empty():
-                    await asyncio.sleep(_QUEUE_POLL_INTERVAL)
+                    await self._wait_for_work(runtime)
                     continue
 
                 cmd = runtime.command_queue.get_nowait()
@@ -2793,19 +3122,33 @@ class ExecutionManager:
     def _slippage_guard_reason(
         self, cmd: TradeCommand, estimate: SlippageEstimate | None,
     ) -> str | None:
-        '''Return a rejection reason when a MARKET order's estimated slippage is too wide.
+        '''Return a rejection reason when a MARKET order's slippage is unsafe.
 
-        Guards MARKET orders only; a LIMIT order self-caps at its price. The
-        adverse direction is positive slippage for a BUY and negative for a
-        SELL, so both are compared as a positive breach against the limit.
+        Guards MARKET orders only; a LIMIT order self-caps at its price. When
+        a cap is configured the guard fails closed on a missing estimate: an
+        unavailable order book (venue error, or a book too empty or one-sided
+        to price the order) means the slippage cannot be verified, so the
+        MARKET order is refused rather than sent blind. The adverse direction
+        is positive slippage for a BUY and negative for a SELL, so both are
+        compared as a positive breach against the limit.
         '''
 
-        if (
-            self._max_slippage_bps is None
-            or estimate is None
-            or cmd.order_type is not OrderType.MARKET
-        ):
+        if self._max_slippage_bps is None or cmd.order_type is not OrderType.MARKET:
             return None
+
+        if estimate is None:
+            _log.warning(
+                'slippage guard rejected (no usable book depth): '
+                'command_id=%s trade_id=%s max_bps=%s',
+                cmd.command_id,
+                cmd.trade_id,
+                self._max_slippage_bps,
+            )
+
+            return (
+                'slippage estimate unavailable; refusing MARKET order without '
+                'usable book depth'
+            )
 
         adverse_bps = (
             estimate.slippage_estimate_bps
@@ -5589,23 +5932,30 @@ class ExecutionManager:
         `request_protection_scan` and executed here so the watchdogs' writes —
         protection re-track, scheme freeze, flatten submit, and ladder-amend
         cancel/place — run on the single account writer rather than racing it
-        from the reconcile task. A failure is logged and swallowed so a venue
-        error cannot stop the account loop.
+        from the reconcile task. The resolvers are independent, so each runs
+        in its own failure domain: a venue error in one is logged and
+        swallowed and cannot skip the others for the tick.
         '''
 
-        try:
-            await self.resolve_unknown_protection(runtime.account_id)
-            await self.drain_protection_remediations(runtime.account_id)
-            await self.resolve_ladder_amends(runtime.account_id)
-            await self.resolve_pending_amends(runtime.account_id)
-            await self.resolve_held_protection_amends(runtime.account_id)
-            await self.resolve_failed_flattens(runtime.account_id)
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # noqa: BLE001
-            _log.exception(
-                'protection scan failed: account_id=%s', runtime.account_id,
-            )
+        resolvers = (
+            self.resolve_unknown_protection,
+            self.drain_protection_remediations,
+            self.resolve_ladder_amends,
+            self.resolve_pending_amends,
+            self.resolve_held_protection_amends,
+            self.resolve_failed_flattens,
+        )
+        for resolver in resolvers:
+            try:
+                await resolver(runtime.account_id)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                _log.exception(
+                    'protection scan resolver failed: resolver=%s account_id=%s',
+                    resolver.__name__,
+                    runtime.account_id,
+                )
 
     async def resolve_ladder_amends(self, account_id: str) -> None:
         '''Advance any stalled or crash-resumed ladder amend on the writer.
@@ -6489,6 +6839,7 @@ class ExecutionManager:
             command=cmd, entry_client_order_id=entry_client_order_id,
         )
         exit_command_id = bracket_exit_command_id(command_id)
+        await self._drain_ws_events(runtime)
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
         exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_filled

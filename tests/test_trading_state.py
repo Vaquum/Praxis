@@ -15,6 +15,8 @@ from praxis.core.domain.enums import OrderSide, OrderStatus, OrderType
 from praxis.core.domain.events import (
     CommandAccepted,
     FillReceived,
+    OperatorHaltRequested,
+    OperatorResumeRequested,
     OrderAcked,
     OrderCanceled,
     OrderExpired,
@@ -23,6 +25,7 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    OutcomeAcked,
     TradeClosed,
 )
 from praxis.core.trading_state import TradingState
@@ -246,7 +249,7 @@ def test_order_submitted_without_legs_leaves_map_empty() -> None:
     assert state.oco_leg_parent == {}
 
 
-def test_closing_oco_parent_clears_leg_mappings() -> None:
+def test_oco_leg_mappings_persist_after_parent_close() -> None:
 
     state = _state()
     state.apply(_submit_intent())
@@ -264,8 +267,9 @@ def test_closing_oco_parent_clears_leg_mappings() -> None:
 
     state.apply(_canceled())
 
-    assert state.oco_leg_parent == {}
-    assert state.oco_parent_legs == {}
+    assert _ORDER in state.closed_orders
+    assert state.oco_leg_parent == {'leg-a': _ORDER, 'leg-b': _ORDER}
+    assert state.oco_parent_legs == {_ORDER: ('leg-a', 'leg-b')}
 
 
 def test_order_submit_failed_rejects_and_closes() -> None:
@@ -277,23 +281,37 @@ def test_order_submit_failed_rejects_and_closes() -> None:
     assert state.closed_orders[_ORDER].status == OrderStatus.REJECTED
 
 
-def test_order_acked_promotes_submitting_to_open() -> None:
+def test_order_acked_is_retained_but_not_projected() -> None:
 
     state = _state()
     state.apply(_submit_intent())
     state.apply(_acked())
     order = state.orders[_ORDER]
-    assert order.status == OrderStatus.OPEN
-    assert order.venue_order_id == _VENUE_OID
+    assert order.status == OrderStatus.SUBMITTING
+    assert order.venue_order_id is None
 
 
-def test_order_acked_does_not_regress_partially_filled() -> None:
+def test_exempt_telemetry_events_are_silent_no_ops(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
 
     state = _state()
-    state.apply(_submit_intent(qty=Decimal('2')))
-    state.apply(_fill_event(qty=Decimal('1')))
-    state.apply(_acked())
-    assert state.orders[_ORDER].status == OrderStatus.PARTIALLY_FILLED
+    with caplog.at_level(logging.WARNING):
+        state.apply(OperatorHaltRequested(
+            account_id=_ACCT, timestamp=_TS, reason='operator halt',
+        ))
+        state.apply(OperatorResumeRequested(
+            account_id=_ACCT, timestamp=_TS, reason='operator resume',
+        ))
+        state.apply(OutcomeAcked(
+            account_id=_ACCT, timestamp=_TS, outcome_id='outcome-1',
+        ))
+
+    assert state.orders == {}
+    assert state.positions == {}
+    assert not any(
+        'unhandled event type' in record.getMessage() for record in caplog.records
+    )
 
 
 def test_partial_fill_updates_order() -> None:
@@ -467,7 +485,7 @@ def test_order_updated_at_tracks_latest_event() -> None:
     state = _state()
     state.apply(_submit_intent())
     assert state.orders[_ORDER].updated_at == _TS
-    state.apply(_acked())
+    state.apply(_submitted())
     assert state.orders[_ORDER].updated_at == _TS2
 
 
@@ -587,7 +605,6 @@ def test_full_lifecycle_submit_fill_close() -> None:
     state = _state()
     state.apply(_command_accepted())
     state.apply(_submit_intent(qty=Decimal('2')))
-    state.apply(_acked())
     state.apply(_fill_event(qty=Decimal('1')))
     order = state.orders[_ORDER]
     assert order.status == OrderStatus.PARTIALLY_FILLED
@@ -607,7 +624,6 @@ def test_cumulative_notional_accumulates_on_fills() -> None:
 
     state = _state()
     state.apply(_submit_intent(qty=Decimal('3')))
-    state.apply(_acked())
 
     state.apply(_fill_event(qty=Decimal('1'), price=Decimal('50000')))
     order = state.orders[_ORDER]
@@ -624,7 +640,6 @@ def test_vwap_computed_from_cumulative_notional() -> None:
 
     state = _state()
     state.apply(_submit_intent(qty=Decimal('2')))
-    state.apply(_acked())
 
     state.apply(_fill_event(qty=Decimal('1'), price=Decimal('50000')))
     state.apply(_fill_event(qty=Decimal('1'), price=Decimal('52000')))

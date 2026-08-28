@@ -22,6 +22,7 @@ _ZERO = Decimal('0')
 _TWO = Decimal('2')
 _BPS = Decimal('10000')
 _MS_PER_SECOND = 1000
+_ORIGO_MID = 'origo_mid'
 
 
 @dataclass(frozen=True)
@@ -83,16 +84,25 @@ def book_mid_price(cache: BookCache, symbol: str) -> Decimal | None:
 
 def build_price_snapshot(
     cache: BookCache, symbol: str, now: datetime,
+    reference_price: Decimal | None = None,
 ) -> PriceCheckSnapshot | None:
     '''Build a `PriceCheckSnapshot` from the cached book, or `None`.
 
     Returns `None` when no book is cached or the book is empty or crossed,
     so a configured price limit rejects rather than trades on a bad book.
 
+    When `reference_price` is supplied, the snapshot also carries
+    `deviation_bps` — the absolute deviation of the book mid from the
+    reference price — and `reference_price_source` set to `'origo_mid'`,
+    so the price stage's per-strategy deviation collar can evaluate.
+
     Args:
         cache: Book cache the poller keeps current.
         symbol: Symbol to read.
         now: Current time, for the staleness reference.
+        reference_price: Optional strategy reference price for the
+            deviation collar; `None` or a non-positive value leaves
+            `deviation_bps` unset.
     '''
 
     cached = cache.get(symbol)
@@ -114,8 +124,17 @@ def build_price_snapshot(
     mid = (best_bid + best_ask) / _TWO
     spread_bps = (best_ask - best_bid) / mid * _BPS
 
+    deviation_bps: Decimal | None = None
+    reference_price_source: str | None = None
+
+    if reference_price is not None and reference_price > _ZERO:
+        deviation_bps = abs(mid - reference_price) / reference_price * _BPS
+        reference_price_source = _ORIGO_MID
+
     return PriceCheckSnapshot(
         now_ms=int(now.timestamp() * _MS_PER_SECOND),
         book_timestamp_ms=int(cached.fetched_at.timestamp() * _MS_PER_SECOND),
         spread_bps=spread_bps,
+        deviation_bps=deviation_bps,
+        reference_price_source=reference_price_source,
     )
