@@ -45,7 +45,7 @@ from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.generate_client_order_id import generate_client_order_id
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     SubmitResult,
@@ -827,7 +827,7 @@ class TestLadderAmendDurability:
         ))
         await asyncio.sleep(0.2)
 
-        assert scheme.frozen is False
+        assert scheme.hold is _Hold.OPEN
         events = [e for _s, e in await spine.read(_EPOCH, after_seq=0)]
         assert not any(isinstance(e, SliceFailed) for e in events)
 
@@ -840,17 +840,34 @@ class TestLadderAmendDurability:
         command_id = await em.submit_command(**_ladder_kwargs())
         await asyncio.sleep(0.3)
         runtime = em._accounts[_ACCT]
-        scheme = runtime.schemes[command_id]
-        scheme.protection_frozen = True
 
+        rung_0 = generate_client_order_id(
+            ExecutionMode.LADDER_DCA, command_id, sequence=0, retry=0,
+        )
+
+        def _query(*_args: Any, client_order_id: str = '', **_kwargs: Any) -> VenueOrder:
+            if client_order_id == rung_0:
+                return _canceled_rung(Decimal('0'))
+
+            raise TransientError('venue 5xx')
+
+        adapter.query_order.side_effect = _query
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase == 'CANCELLING'
+
+        scheme.hold = _Hold.PROTECTION
+        adapter.query_order.side_effect = None
         adapter.query_order.return_value = _canceled_rung(Decimal('0'))
         placed_before = adapter.submit_order.await_count
-        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        await em.resolve_ladder_amends(_ACCT)
 
         assert scheme.amend_phase == 'PLACING'
         assert adapter.submit_order.await_count == placed_before
 
-        scheme.protection_frozen = False
+        scheme.hold = _Hold.OPEN
         await em.resolve_ladder_amends(_ACCT)
 
         assert scheme.amend_phase is None
@@ -1010,7 +1027,7 @@ class TestLadderResume:
         restarted.replay_events(_ACCT, events)
 
         scheme = restarted._accounts[_ACCT].schemes[command_id]
-        assert scheme.state is SchemeState.RUNNING
+        assert scheme.hold is _Hold.OPEN
         assert len(scheme.active_children) == 2
         assert scheme.next_run_at is None
 
@@ -1097,7 +1114,7 @@ class TestLadderCrashDurability:
         scheme = em._accounts[_ACCT].schemes[_RESUME_COMMAND_ID]
         assert scheme.cursor == 1
         assert scheme.active_children == {_rung_coid(0)}
-        assert scheme.state is SchemeState.RUNNING
+        assert scheme.hold is _Hold.OPEN
         assert not any(o.status is TradeStatus.FILLED for o in outcomes)
 
     @pytest.mark.asyncio

@@ -47,7 +47,7 @@ from praxis.core.domain.events import (
     TradeOutcomeProduced,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import SubmitResult, VenueAdapter
 
@@ -259,7 +259,7 @@ class TestReconcileOrphanCommands:
         mgr.replay_events(_ACCT, events)
 
         assert 'cmd-algo' in mgr._accounts[_ACCT].schemes
-        assert mgr._accounts[_ACCT].schemes['cmd-algo'].state is SchemeState.RUNNING
+        assert mgr._accounts[_ACCT].schemes['cmd-algo'].hold is _Hold.OPEN
 
         await mgr.reconcile_orphan_commands(_ACCT, events)
 

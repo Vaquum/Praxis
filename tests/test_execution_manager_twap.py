@@ -40,7 +40,7 @@ from praxis.core.domain.events import (
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.twap_params import TwapParams
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
@@ -302,8 +302,7 @@ async def test_twap_slice_failure_freezes_and_reports_partial(
     assert partial.filled_qty == Decimal('0.25')
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
-    assert scheme.state is SchemeState.RUNNING
+    assert scheme.hold is _Hold.SLICE_FAILED
 
     await _advance(clock_holder)
     assert len(outcomes) == 1
@@ -582,8 +581,7 @@ async def test_twap_async_rejected_child_freezes_not_filled(
     assert outcome.filled_qty == Decimal('0.5')
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
-    assert scheme.state is SchemeState.RUNNING
+    assert scheme.hold is _Hold.SLICE_FAILED
 
 
 @pytest.mark.asyncio
@@ -680,8 +678,7 @@ async def test_twap_slice_submit_failure_freezes_keeping_active_child(
     assert outcomes[0].status is TradeStatus.PARTIAL
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
-    assert scheme.state is SchemeState.RUNNING
+    assert scheme.hold is _Hold.SLICE_FAILED
     assert len(scheme.active_children) == 1
 
 
@@ -766,7 +763,7 @@ async def test_twap_resumes_from_replay_and_completes(
 
     resumed = restarted._accounts[_ACCT].schemes[command_id]
     assert len(restart_outcomes) == 0
-    assert resumed.state is SchemeState.RUNNING
+    assert resumed.hold is _Hold.OPEN
     assert resumed.cursor == 1
 
     for _ in range(3):
@@ -931,7 +928,7 @@ async def test_twap_resume_stays_frozen_after_slice_failure(
     await em.reconcile_orphan_commands(_ACCT, events)
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
+    assert scheme.hold is _Hold.SLICE_FAILED
     assert scheme.cursor == 1
 
     await asyncio.sleep(0.3)
@@ -969,7 +966,7 @@ async def test_freeze_account_schemes_stops_slices_and_persists(
     frozen = await em._freeze_account_schemes(runtime, 'protection lost')
 
     assert frozen == [command_id]
-    assert scheme.frozen is True
+    assert scheme.hold is _Hold.PROTECTION
     assert scheme.next_run_at is None
 
     events = await spine.read(_EPOCH, after_seq=0)
@@ -1039,7 +1036,7 @@ async def test_frozen_scheme_resumes_frozen_from_replay(
     restarted.replay_events(_ACCT, events)
 
     resumed = restarted._accounts[_ACCT].schemes[command_id]
-    assert resumed.frozen is True
+    assert resumed.hold is _Hold.PROTECTION
 
     submits_before = adapter.submit_order.await_count
     for _ in range(3):
@@ -1065,9 +1062,10 @@ async def test_freeze_account_schemes_freezes_many_and_skips_pending_terminal(
     runtime.schemes[second].pending_terminal = (
         TradeStatus.CANCELED, SchemeState.CANCELED, 'already terminalizing',
     )
+    runtime.schemes[second].hold = _Hold.DRAINING
 
     frozen = await em._freeze_account_schemes(runtime, 'protection lost')
 
     assert frozen == [first]
-    assert runtime.schemes[first].frozen is True
-    assert runtime.schemes[second].frozen is False
+    assert runtime.schemes[first].hold is _Hold.PROTECTION
+    assert runtime.schemes[second].hold is _Hold.DRAINING

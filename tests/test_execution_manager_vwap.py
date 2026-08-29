@@ -29,7 +29,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import Event, SchemeInitialized
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
@@ -283,7 +283,7 @@ async def test_vwap_resumes_weighted_plan_from_replay(
     restarted.replay_events(_ACCT, events)
 
     resumed = restarted._accounts[_ACCT].schemes[command_id]
-    assert resumed.state is SchemeState.RUNNING
+    assert resumed.hold is _Hold.OPEN
     assert resumed.slice_qtys == [Decimal('0.5'), Decimal('0.3'), Decimal('0.2')]
     assert resumed.cursor == 1
 

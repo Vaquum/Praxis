@@ -30,7 +30,7 @@ from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.domain.twap_modify import TwapModify
 from praxis.core.domain.twap_params import TwapParams
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
@@ -164,7 +164,7 @@ class TestTwapSchemeAmend:
         await asyncio.sleep(0.3)
 
         scheme = em._accounts[_ACCT].schemes[command_id]
-        scheme.frozen = True
+        scheme.hold = _Hold.SLICE_FAILED
 
         assert command_id in em.modifiable_command_ids(_ACCT)
 
@@ -296,12 +296,12 @@ class TestFrozenResumeAndComposition:
         await asyncio.sleep(0.3)
 
         scheme = em._accounts[_ACCT].schemes[command_id]
-        assert scheme.frozen is True
+        assert scheme.hold is _Hold.SLICE_FAILED
         submits_before = adapter.submit_order.call_count
 
         em.submit_modify(_modify(command_id, TwapModify(interval_seconds=5)))
         await asyncio.sleep(0.3)
-        assert scheme.frozen is False
+        assert scheme.hold is _Hold.OPEN
 
         await _advance(clock_holder)
         assert adapter.submit_order.call_count > submits_before
@@ -319,19 +319,40 @@ class TestFrozenResumeAndComposition:
         runtime = em._accounts[_ACCT]
         await em._freeze_account_schemes(runtime, 'protection lost')
         scheme = runtime.schemes[command_id]
-        assert scheme.protection_frozen is True
+        assert scheme.hold is _Hold.PROTECTION
         submits_before = adapter.submit_order.call_count
 
         em.submit_modify(_modify(command_id, TwapModify(interval_seconds=30)))
         await asyncio.sleep(0.3)
 
-        assert scheme.frozen is True
-        assert scheme.protection_frozen is True
+        assert scheme.hold is _Hold.PROTECTION
         assert scheme.next_run_at is None
         assert scheme.interval_seconds != 30
 
         await _advance(clock_holder)
         assert adapter.submit_order.call_count == submits_before
+
+    @pytest.mark.asyncio
+    async def test_amend_rejected_on_draining_scheme(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    ) -> None:
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_twap_kwargs())
+        await asyncio.sleep(0.3)
+
+        runtime = em._accounts[_ACCT]
+        scheme = runtime.schemes[command_id]
+        original_interval = scheme.interval_seconds
+        scheme.hold = _Hold.DRAINING
+
+        await em._process_modify(
+            runtime,
+            _modify(command_id, TwapModify(interval_seconds=original_interval + 5)),
+        )
+
+        assert scheme.hold is _Hold.DRAINING
+        assert scheme.interval_seconds == original_interval
 
     @pytest.mark.asyncio
     async def test_protection_freeze_survives_replay_and_still_rejects_amend(
@@ -358,12 +379,12 @@ class TestFrozenResumeAndComposition:
         restarted.replay_events(_ACCT, events)
 
         resumed = restarted._accounts[_ACCT].schemes[command_id]
-        assert resumed.protection_frozen is True
+        assert resumed.hold is _Hold.PROTECTION
 
         restarted.submit_modify(_modify(command_id, TwapModify(interval_seconds=30)))
         await asyncio.sleep(0.3)
 
-        assert resumed.frozen is True
+        assert resumed.hold is _Hold.PROTECTION
         assert resumed.interval_seconds != 30
 
         await restarted.unregister_account(_ACCT)
@@ -392,19 +413,17 @@ class TestFrozenResumeAndComposition:
 
         runtime = em._accounts[_ACCT]
         scheme = runtime.schemes[command_id]
-        assert scheme.frozen is True
-        assert scheme.protection_frozen is False
+        assert scheme.hold is _Hold.SLICE_FAILED
 
         frozen = await em._freeze_account_schemes(runtime, 'protection lost')
 
         assert frozen == [command_id]
-        assert scheme.protection_frozen is True
+        assert scheme.hold is _Hold.PROTECTION
 
         em.submit_modify(_modify(command_id, TwapModify(interval_seconds=5)))
         await asyncio.sleep(0.3)
 
-        assert scheme.frozen is True
-        assert scheme.protection_frozen is True
+        assert scheme.hold is _Hold.PROTECTION
         assert scheme.interval_seconds != 5
 
     @pytest.mark.asyncio

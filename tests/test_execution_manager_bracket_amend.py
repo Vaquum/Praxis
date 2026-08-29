@@ -62,7 +62,7 @@ from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
-from praxis.core.execution_manager import ExecutionManager, _LiveScheme
+from praxis.core.execution_manager import ExecutionManager, _Hold, _LiveScheme
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
@@ -1379,8 +1379,7 @@ class TestBracketAmendReplaceFails:
         await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
 
         assert runtime.brackets[command_id].protection_status is BracketProtectionStatus.FAILED
-        assert runtime.schemes['twap-1'].frozen is True
-        assert runtime.schemes['twap-1'].protection_frozen is True
+        assert runtime.schemes['twap-1'].hold is _Hold.PROTECTION
 
         rows = await spine.read(epoch_id=_EPOCH)
         frozen = [(seq, e) for seq, e in rows if isinstance(e, SchemeFrozen)]
@@ -1416,8 +1415,7 @@ class TestBracketAmendReplaceFails:
         restarted.replay_events(_ACCT, events)
 
         resumed = restarted._accounts[_ACCT].schemes['twap-1']
-        assert resumed.frozen is True
-        assert resumed.protection_frozen is True
+        assert resumed.hold is _Hold.PROTECTION
 
         await restarted.unregister_account(_ACCT)
 

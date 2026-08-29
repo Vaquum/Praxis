@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, UTC
+from enum import Enum
 from decimal import Decimal
 
 from praxis.core.account_ledger import AccountLedger
@@ -242,6 +243,44 @@ class ExecutionModeNotEnabledError(ValueError):
     '''
 
 
+class _Hold(Enum):
+    '''The scheduler hold state of a live scheme.
+
+    A single state replaces the former `frozen` / `protection_frozen` /
+    `state` fields. `OPEN` advances slices normally; `SLICE_FAILED` is a
+    slice-failure freeze that an interval-scheme amend can clear back to
+    `OPEN`; `PROTECTION` is a protection-remediation freeze that no amend
+    clears; `DRAINING` means a terminal outcome is pending while active
+    children drain, and overrides any prior freeze. Precedence when set:
+    `DRAINING` > `PROTECTION` > `SLICE_FAILED` > `OPEN`.
+    '''
+
+    OPEN = 'OPEN'
+    SLICE_FAILED = 'SLICE_FAILED'
+    PROTECTION = 'PROTECTION'
+    DRAINING = 'DRAINING'
+
+
+def _resume_hold(
+    command_id: str,
+    frozen_ids: set[str],
+    protection_frozen_ids: set[str],
+) -> _Hold:
+    '''Derive a scheme's resumed hold from the replayed freeze sets.
+
+    A protection freeze wins over a slice-failure freeze regardless of event
+    order; `protection_frozen_ids` is a subset of `frozen_ids`.
+    '''
+
+    if command_id in protection_frozen_ids:
+        return _Hold.PROTECTION
+
+    if command_id in frozen_ids:
+        return _Hold.SLICE_FAILED
+
+    return _Hold.OPEN
+
+
 @dataclass
 class _LiveScheme:
     '''In-memory scheduler state for a running multi-slice scheme.
@@ -261,9 +300,7 @@ class _LiveScheme:
     pending_terminal: tuple[TradeStatus, SchemeState, str | None] | None = None
     next_run_at: datetime | None = None
     deadline: datetime | None = None
-    frozen: bool = False
-    protection_frozen: bool = False
-    state: SchemeState = SchemeState.RUNNING
+    hold: _Hold = _Hold.OPEN
     amend_generation: int = 0
     amend_phase: str | None = None
     amend_context: _LadderAmendContext | None = None
@@ -882,11 +919,11 @@ class ExecutionManager:
         amendable -= {
             command_id
             for command_id, scheme in runtime.schemes.items()
-            if scheme.protection_frozen
+            if scheme.hold is _Hold.PROTECTION
             or scheme.amend_phase is not None
-            or scheme.pending_terminal is not None
+            or scheme.hold is _Hold.DRAINING
             or (
-                scheme.frozen
+                scheme.hold is not _Hold.OPEN
                 and scheme.command.execution_mode is ExecutionMode.LADDER_DCA
             )
         }
@@ -1130,7 +1167,7 @@ class ExecutionManager:
                     runtime, command_id,
                     replace(command, execution_params=baseline_params),
                     deadline, pending,
-                    command_id in frozen_ids, command_id in protection_frozen_ids,
+                    _resume_hold(command_id, frozen_ids, protection_frozen_ids),
                 )
             else:
                 generation, params, grid_size = completed.get(
@@ -1149,8 +1186,9 @@ class ExecutionManager:
                     active_children=live_children,
                     next_run_at=None,
                     deadline=deadline,
-                    frozen=command_id in frozen_ids,
-                    protection_frozen=command_id in protection_frozen_ids,
+                    hold=_resume_hold(
+                        command_id, frozen_ids, protection_frozen_ids,
+                    ),
                     amend_generation=generation,
                 )
 
@@ -1160,11 +1198,11 @@ class ExecutionManager:
             self._command_trade_ids[command_id] = init.trade_id
 
             _log.info(
-                'resumed ladder from replay: command_id=%s active=%d frozen=%s '
+                'resumed ladder from replay: command_id=%s active=%d hold=%s '
                 'generation=%d amend_phase=%s',
                 command_id,
                 len(scheme.active_children),
-                scheme.frozen,
+                scheme.hold.value,
                 scheme.amend_generation,
                 scheme.amend_phase,
             )
@@ -1176,8 +1214,7 @@ class ExecutionManager:
         command: TradeCommand,
         deadline: datetime | None,
         pending: tuple[LadderAmendInitiated, LadderAmendPlanned | None, str],
-        frozen: bool,
-        protection_frozen: bool,
+        hold: _Hold,
     ) -> _LiveScheme:
         '''Rebuild a ladder whose amend was in flight at the crash.
 
@@ -1234,8 +1271,7 @@ class ExecutionManager:
             active_children=old_live | new_live,
             next_run_at=None,
             deadline=deadline,
-            frozen=frozen,
-            protection_frozen=protection_frozen,
+            hold=hold,
             amend_generation=old_generation,
             amend_phase=phase,
             amend_context=context,
@@ -1655,12 +1691,11 @@ class ExecutionManager:
                 active_children=live_children,
                 next_run_at=state.next_run_at if state is not None else None,
                 deadline=deadline,
-                frozen=command_id in frozen_ids,
-                protection_frozen=command_id in protection_frozen_ids,
+                hold=_resume_hold(command_id, frozen_ids, protection_frozen_ids),
             )
 
             if (
-                not scheme.frozen
+                scheme.hold is _Hold.OPEN
                 and scheme.cursor < scheme.slices_total
                 and scheme.next_run_at is None
             ):
@@ -1672,11 +1707,11 @@ class ExecutionManager:
             self._command_trade_ids[command_id] = init.trade_id
 
             _log.info(
-                'resumed scheme from replay: command_id=%s cursor=%d active=%d frozen=%s',
+                'resumed scheme from replay: command_id=%s cursor=%d active=%d hold=%s',
                 command_id,
                 scheme.cursor,
                 len(scheme.active_children),
-                scheme.frozen,
+                scheme.hold.value,
             )
 
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
@@ -4752,7 +4787,7 @@ class ExecutionManager:
 
         for scheme in list(runtime.schemes.values()):
             if (
-                scheme.pending_terminal is None
+                scheme.hold is not _Hold.DRAINING
                 and scheme.amend_phase is None
                 and scheme.deadline is not None
                 and now >= scheme.deadline
@@ -4760,9 +4795,13 @@ class ExecutionManager:
                 await self._expire_scheme(runtime, scheme)
                 continue
 
+            # `pending_terminal is None` is implied by `hold is OPEN` (a
+            # terminal-pending scheme holds DRAINING); it is kept as a
+            # defensive guard so a slice can never fire on a terminalizing
+            # scheme even if a future writer leaves hold and pending_terminal
+            # inconsistent.
             due = (
-                scheme.state is SchemeState.RUNNING
-                and not scheme.frozen
+                scheme.hold is _Hold.OPEN
                 and scheme.pending_terminal is None
                 and scheme.next_run_at is not None
                 and now >= scheme.next_run_at
@@ -5297,7 +5336,7 @@ class ExecutionManager:
             )
             return
 
-        if scheme.frozen:
+        if scheme.hold is not _Hold.OPEN:
             return
 
         if scheme.cursor >= scheme.slices_total:
@@ -5346,8 +5385,7 @@ class ExecutionManager:
 
             if (
                 order.status is not OrderStatus.FILLED
-                and scheme.pending_terminal is None
-                and not scheme.frozen
+                and scheme.hold is _Hold.OPEN
             ):
                 await self._on_slice_failure(
                     runtime,
@@ -5428,7 +5466,6 @@ class ExecutionManager:
         '''
 
         cmd = scheme.command
-        scheme.state = scheme_state
         scheme.next_run_at = None
         scheme.active_children.clear()
         runtime.schemes.pop(cmd.command_id, None)
@@ -5477,6 +5514,7 @@ class ExecutionManager:
             SchemeState.CANCELED,
             abort.reason,
         )
+        scheme.hold = _Hold.DRAINING
         scheme.next_run_at = None
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
@@ -5509,7 +5547,7 @@ class ExecutionManager:
         frozen: list[str] = []
 
         for command_id, scheme in runtime.schemes.items():
-            if scheme.protection_frozen or scheme.pending_terminal is not None:
+            if scheme.hold in (_Hold.PROTECTION, _Hold.DRAINING):
                 continue
 
             event = SchemeFrozen(
@@ -5520,8 +5558,7 @@ class ExecutionManager:
             )
             await self._event_spine.append(event, self._epoch_id)
 
-            scheme.frozen = True
-            scheme.protection_frozen = True
+            scheme.hold = _Hold.PROTECTION
             scheme.next_run_at = None
             frozen.append(command_id)
 
@@ -6889,7 +6926,8 @@ class ExecutionManager:
         )
         await self._event_spine.append(failed, self._epoch_id)
 
-        scheme.frozen = True
+        if scheme.hold is _Hold.OPEN:
+            scheme.hold = _Hold.SLICE_FAILED
         scheme.next_run_at = None
 
         await self._emit_scheme_partial(runtime, scheme, reason)
@@ -6977,6 +7015,7 @@ class ExecutionManager:
             SchemeState.FAILED,
             'scheme deadline exceeded',
         )
+        scheme.hold = _Hold.DRAINING
         scheme.next_run_at = None
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
@@ -7494,7 +7533,7 @@ class ExecutionManager:
             )
             return
 
-        if scheme.frozen or scheme.pending_terminal is not None:
+        if scheme.hold is not _Hold.OPEN:
             _log.warning(
                 'ladder modify rejected: ladder frozen or stopping, not '
                 'amendable: command_id=%s',
@@ -7614,7 +7653,7 @@ class ExecutionManager:
             scheme.amend_phase = 'PLACING'
 
         if scheme.amend_phase == 'PLACING':
-            if scheme.protection_frozen:
+            if scheme.hold is _Hold.PROTECTION:
                 _log.info(
                     'ladder amend placement held: protection frozen, no new '
                     'rungs placed: command_id=%s',
@@ -8645,10 +8684,12 @@ class ExecutionManager:
         assert cmd.qty is not None
         assert isinstance(params, (TwapModify, TimeDcaModify, ScheduledVwapModify))
 
-        if scheme.protection_frozen:
+        if scheme.hold in (_Hold.PROTECTION, _Hold.DRAINING):
             _log.warning(
-                'modify rejected: scheme is frozen by a protection remediation '
-                'and cannot be resumed by an amend: command_id=%s',
+                'modify rejected: scheme is %s and cannot be resumed by an '
+                'amend: command_id=%s',
+                'terminalizing' if scheme.hold is _Hold.DRAINING
+                else 'frozen by a protection remediation',
                 cmd.command_id,
             )
             return
@@ -8713,7 +8754,7 @@ class ExecutionManager:
             scheme.slices_total = new_total
 
         scheme.interval_seconds = new_interval
-        scheme.frozen = False
+        scheme.hold = _Hold.OPEN
         scheme.next_run_at = self._clock() + timedelta(seconds=new_interval)
         await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
 
