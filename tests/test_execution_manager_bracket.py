@@ -963,38 +963,64 @@ class TestBracketCrashRecovery:
         assert outcomes[entry_idx].status is TradeStatus.FILLED
 
 
-class TestBracketResumeDegenerate:
+class TestBracketInitializedValidation:
 
-    @pytest.mark.asyncio
-    async def test_resume_skips_malformed_init(
-        self, mgr_factory: Any,
-    ) -> None:
-        adapter = _make_adapter()
-        em, _ = mgr_factory(adapter)
-        em.register_account(_ACCT)
-
-        events = _bracket_boot_events(entry_filled=True)
-        events[0] = (
-            events[0][0],
-            BracketInitialized(
-                account_id=_ACCT,
-                timestamp=_T0,
-                command_id=_RESUME_COMMAND_ID,
-                trade_id=_TRADE,
-                symbol='BTCUSDT',
-                side=OrderSide.BUY,
-                total_qty=Decimal('1'),
-            ),
+    @staticmethod
+    def _init(**legs: Any) -> BracketInitialized:
+        return BracketInitialized(
+            account_id=_ACCT,
+            timestamp=_T0,
+            command_id=_RESUME_COMMAND_ID,
+            trade_id=_TRADE,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            total_qty=Decimal('1'),
+            **legs,
         )
 
-        em.replay_events(_ACCT, events)
-        await asyncio.sleep(0.3)
+    def test_no_leg_init_rejected(self) -> None:
+        with pytest.raises(ValueError, match='take_profit'):
+            self._init()
 
-        assert _RESUME_COMMAND_ID not in em._accounts[_ACCT].brackets
-        assert not any(
-            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
-            for call in adapter.submit_calls
+    def test_both_take_profit_forms_rejected(self) -> None:
+        with pytest.raises(ValueError, match='take_profit'):
+            self._init(
+                take_profit_price=Decimal('110'),
+                take_profit_offset_bps=Decimal('50'),
+                stop_loss_price=Decimal('90'),
+            )
+
+    def test_neither_take_profit_form_rejected(self) -> None:
+        with pytest.raises(ValueError, match='take_profit'):
+            self._init(stop_loss_price=Decimal('90'))
+
+    def test_both_stop_loss_forms_rejected(self) -> None:
+        with pytest.raises(ValueError, match='stop_loss'):
+            self._init(
+                take_profit_price=Decimal('110'),
+                stop_loss_price=Decimal('90'),
+                stop_loss_offset_bps=Decimal('50'),
+            )
+
+    def test_neither_stop_loss_form_rejected(self) -> None:
+        with pytest.raises(ValueError, match='stop_loss'):
+            self._init(take_profit_price=Decimal('110'))
+
+    def test_non_positive_leg_rejected(self) -> None:
+        with pytest.raises(ValueError, match='positive'):
+            self._init(
+                take_profit_price=Decimal('0'),
+                stop_loss_price=Decimal('90'),
+            )
+
+    def test_mixed_forms_construct(self) -> None:
+        event = self._init(
+            take_profit_offset_bps=Decimal('50'),
+            stop_loss_price=Decimal('90'),
         )
+
+        assert event.take_profit_offset_bps == Decimal('50')
+        assert event.stop_loss_price == Decimal('90')
 
 
 class TestBracketExitCommandId:

@@ -1362,8 +1362,10 @@ class ExecutionManager:
         already remediated inline (freeze, flatten, hold) and is not re-placed —
         even if the process crashed before the exit's `OrderSubmitFailed` left
         the OCO projection SUBMITTING — because `recover_incomplete_flattens`
-        finishes the flatten from that same marker. A malformed init that cannot
-        rebuild valid params is skipped.
+        finishes the flatten from that same marker. `BracketInitialized`
+        validates its leg invariants at construction and hydrate, so a malformed
+        init cannot reach replay; the rebuild's `ValueError` guard is retained as
+        defense-in-depth.
         '''
 
         inits: dict[str, BracketInitialized] = {}

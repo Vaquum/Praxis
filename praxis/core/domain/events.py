@@ -15,6 +15,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from praxis.core.domain._require_str import _require_str
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
     CostBasisMethod,
     ExecutionMode,
@@ -733,6 +734,17 @@ class BracketInitialized(_EventBase):
         if self.timeout_seconds < 0:
             msg = f'{name}.timeout_seconds must be non-negative'
             raise ValueError(msg)
+
+        # Validate the leg invariants (exactly-one-of price/offset per leg,
+        # positivity) at construction and hydrate; the params are intentionally
+        # not stored — the spine round-trips the flat fields.
+        BracketParams(
+            take_profit_price=self.take_profit_price,
+            take_profit_offset_bps=self.take_profit_offset_bps,
+            stop_loss_price=self.stop_loss_price,
+            stop_loss_offset_bps=self.stop_loss_offset_bps,
+            stop_loss_limit_price=self.stop_loss_limit_price,
+        )
 
 
 @dataclass(frozen=True)
