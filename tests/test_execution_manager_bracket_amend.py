@@ -508,6 +508,40 @@ class TestBracketAmendHappyPath:
         assert old_list in resumed_runtime.trading_state.closed_orders
 
     @pytest.mark.asyncio
+    async def test_resume_rebuilds_amended_bracket_active_amendable(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        new_list = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=1, retry=1,
+        )
+        await em._process_modify(
+            runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        resumed_adapter = _make_adapter()
+        resumed, _ = mgr_factory(resumed_adapter)
+        resumed.register_account(_ACCT)
+        resumed.replay_events(_ACCT, rows)
+
+        bracket = resumed._accounts[_ACCT].brackets[command_id]
+        assert bracket.protection_status is BracketProtectionStatus.ACTIVE
+        assert bracket.protection_version == 1
+        assert bracket.protection_client_order_id == new_list
+        assert bracket.current_tp_price == _NEW_TP_PRICE
+        assert bracket.current_sl_stop_price == _SL_PRICE
+        assert command_id in resumed.modifiable_command_ids(_ACCT)
+        assert not any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in resumed_adapter.submit_calls
+        )
+
+    @pytest.mark.asyncio
     async def test_amend_requested_snapshot_merges_unchanged_stop_loss(
         self, mgr_factory: Any, spine: EventSpine,
     ) -> None:

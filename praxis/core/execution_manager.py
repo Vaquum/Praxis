@@ -1382,53 +1382,66 @@ class ExecutionManager:
         runtime: _AccountRuntime,
         events: list[tuple[int, Event]],
     ) -> None:
-        '''Rebuild live bracket state for incomplete brackets after replay.
+        '''Rebuild live bracket state for every resumable bracket after replay.
 
-        For each `BracketInitialized` whose protective OCO was not confirmed
-        placed, a `_LiveBracket` is registered so the account loop can place
-        protection: immediately for an already-filled entry
-        (`_place_pending_bracket_protection`), or from `_on_bracket_event`
-        when a still-open entry fills. A protective OCO is treated as
-        confirmed when its order projection exists and is past SUBMITTING
-        (OPEN, filled, canceled, or a REJECTED submit failure); a SUBMITTING
-        projection means the submit was persisted but never venue-confirmed
-        (a crash between the intent and the response), so it is re-placed —
-        the deterministic list client order id makes the retry idempotent via
-        the OCO rescue. A bracket that carries a durable `ProtectionFailed` was
-        already remediated inline (freeze, flatten, hold) and is not re-placed —
-        even if the process crashed before the exit's `OrderSubmitFailed` left
-        the OCO projection SUBMITTING — because `recover_incomplete_flattens`
-        finishes the flatten from that same marker. `BracketInitialized`
-        validates its leg invariants at construction and hydrate, so a malformed
-        init cannot reach replay; the rebuild's `ValueError` guard is retained as
-        defense-in-depth.
+        For each `BracketInitialized` (whose entry order still projects), the
+        current protective OCO — the initial deterministic list id, or the
+        `new_list_client_order_id` of the latest `ProtectionActive` after an
+        amend — determines the rebuild:
+
+        - a confirmed `OPEN` OCO rebuilds an ACTIVE `_LiveBracket` so the
+          resting protection stays amendable across the restart, with its
+          resolved legs restored from the completed amend snapshot (amended)
+          or re-derived from the entry average (initial). `protection_placed`
+          is set so the account loop never re-submits the resting OCO;
+        - a `SUBMITTING` or missing OCO registers a pending `_LiveBracket` so
+          the account loop places protection — immediately for an already
+          filled entry (`_place_pending_bracket_protection`), or from
+          `_on_bracket_event` when a still-open entry fills; the deterministic
+          list id makes the eventual placement idempotent via the OCO rescue;
+        - a terminal OCO that is not mid-amend leaves nothing to rebuild.
+
+        A bracket whose latest protection phase is an unresolved amend
+        (`ProtectionAmendRequested` / `ProtectionStateUnknown` not closed by a
+        `ProtectionActive` / `ProtectionFailed`) is skipped here and owned by
+        `_resume_unknown_protection`. A bracket whose latest terminal protection
+        event is `ProtectionFailed` was already remediated inline (freeze,
+        flatten, hold) and is not rebuilt; a later `ProtectionActive` clears the
+        failed marker so a retried-and-restored protection resumes ACTIVE.
+        `BracketInitialized` validates its leg invariants at construction and
+        hydrate, so a malformed init cannot reach replay; the rebuild's
+        `ValueError` guard is retained as defense-in-depth.
         '''
 
         inits: dict[str, BracketInitialized] = {}
+        latest_active: dict[str, ProtectionActive] = {}
+        amends: dict[str, dict[int, ProtectionAmendRequested]] = {}
+        unresolved_amend: set[str] = set()
         remediated: set[str] = set()
         for _seq, event in events:
             if isinstance(event, BracketInitialized):
                 inits[event.command_id] = event
 
+            elif isinstance(event, ProtectionAmendRequested):
+                unresolved_amend.add(event.command_id)
+                amends.setdefault(event.command_id, {})[
+                    event.protection_version
+                ] = event
+
+            elif isinstance(event, ProtectionStateUnknown):
+                unresolved_amend.add(event.command_id)
+
+            elif isinstance(event, ProtectionActive):
+                unresolved_amend.discard(event.command_id)
+                remediated.discard(event.command_id)
+                latest_active[event.command_id] = event
+
             elif isinstance(event, ProtectionFailed):
+                unresolved_amend.discard(event.command_id)
                 remediated.add(event.command_id)
 
         for command_id, init in inits.items():
-            if command_id in remediated:
-                continue
-
-            entry_client_order_id = generate_client_order_id(
-                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
-            )
-            oco_client_order_id = generate_client_order_id(
-                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_PROTECTION_SEQUENCE,
-            )
-
-            oco_order = self._scheme_child_order(runtime, oco_client_order_id)
-            if oco_order is not None and oco_order.status is not OrderStatus.SUBMITTING:
-                continue
-
-            if self._scheme_child_order(runtime, entry_client_order_id) is None:
+            if command_id in unresolved_amend or command_id in remediated:
                 continue
 
             try:
@@ -1441,6 +1454,96 @@ class ExecutionManager:
                     runtime.account_id,
                 )
 
+                continue
+
+            entry_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+            )
+            entry_order = self._scheme_child_order(runtime, entry_client_order_id)
+            if entry_order is None:
+                continue
+
+            active = latest_active.get(command_id)
+            if active is not None:
+                oco_client_order_id = active.new_list_client_order_id
+                protection_version = active.protection_version
+            else:
+                oco_client_order_id = generate_client_order_id(
+                    ExecutionMode.BRACKET, command_id,
+                    sequence=_BRACKET_PROTECTION_SEQUENCE,
+                )
+                protection_version = 0
+
+            oco_order = self._scheme_child_order(runtime, oco_client_order_id)
+
+            if oco_order is not None and oco_order.status is OrderStatus.OPEN:
+                avg_entry_price = (
+                    entry_order.cumulative_notional / entry_order.filled_qty
+                    if entry_order.filled_qty > _ZERO
+                    else None
+                )
+                amend = (
+                    amends.get(command_id, {}).get(protection_version)
+                    if active is not None
+                    else None
+                )
+                if avg_entry_price is None or (
+                    active is not None
+                    and (
+                        amend is None
+                        or amend.new_list_client_order_id
+                        != active.new_list_client_order_id
+                    )
+                ):
+                    # An OPEN OCO with no filled entry, or an amended active
+                    # whose replacement snapshot is missing or names a different
+                    # list id, is an inconsistent durable state: fail closed and
+                    # leave it to reconciliation rather than resume a bracket
+                    # with no or wrong legs.
+                    continue
+
+                current_tp: Decimal | None
+                current_sl_stop: Decimal | None
+                current_sl_limit: Decimal | None
+                if amend is not None:
+                    current_tp = amend.take_profit_price
+                    current_sl_stop = amend.stop_loss_price
+                    current_sl_limit = amend.stop_loss_limit_price
+                else:
+                    current_tp, current_sl_stop, current_sl_limit = (
+                        self._bracket_protective_prices(command, avg_entry_price)
+                    )
+
+                runtime.brackets[command_id] = _LiveBracket(
+                    command=command,
+                    entry_client_order_id=entry_client_order_id,
+                    protection_placed=True,
+                    protection_status=BracketProtectionStatus.ACTIVE,
+                    protection_version=protection_version,
+                    protection_client_order_id=oco_client_order_id,
+                    avg_entry_price=avg_entry_price,
+                    current_tp_price=current_tp,
+                    current_sl_stop_price=current_sl_stop,
+                    current_sl_limit_price=current_sl_limit,
+                )
+                _log.info(
+                    'bracket resumed with active protection: command_id=%s '
+                    'version=%d account_id=%s',
+                    command_id,
+                    protection_version,
+                    runtime.account_id,
+                )
+
+                continue
+
+            if active is not None:
+                # An amended protection whose current OCO is not OPEN (terminal,
+                # or a crash-window projection gap) must not fall through to the
+                # pending path, which would re-place the stale initial OCO;
+                # reconciliation resolves it.
+                continue
+
+            if oco_order is not None and oco_order.status is not OrderStatus.SUBMITTING:
                 continue
 
             runtime.brackets[command_id] = _LiveBracket(

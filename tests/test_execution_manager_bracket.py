@@ -36,6 +36,7 @@ from praxis.core.domain.events import (
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
+    ProtectionActive,
     ProtectionFailed,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
@@ -930,6 +931,87 @@ class TestBracketCrashRecovery:
             for call in adapter.submit_calls
         )
         assert bracket_exit_command_id(_RESUME_COMMAND_ID) in em._commands
+
+        bracket = em._accounts[_ACCT].brackets[_RESUME_COMMAND_ID]
+        assert bracket.protection_placed is True
+        assert bracket.protection_status is BracketProtectionStatus.ACTIVE
+
+    @pytest.mark.asyncio
+    async def test_resume_rebuilds_active_bracket_amendable(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True, oco='submitted'))
+        await asyncio.sleep(0.3)
+
+        bracket = em._accounts[_ACCT].brackets[_RESUME_COMMAND_ID]
+        oco_coid = generate_client_order_id(
+            ExecutionMode.BRACKET, _RESUME_COMMAND_ID, sequence=1,
+        )
+        assert bracket.protection_placed is True
+        assert bracket.protection_status is BracketProtectionStatus.ACTIVE
+        assert bracket.protection_version == 0
+        assert bracket.protection_client_order_id == oco_coid
+        assert bracket.avg_entry_price == _ENTRY_PRICE
+        assert bracket.current_tp_price == Decimal('55000')
+        assert bracket.current_sl_stop_price == Decimal('48000')
+
+        assert _RESUME_COMMAND_ID in em.modifiable_command_ids(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_resume_fail_closed_when_amended_oco_projection_missing(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        command_id = _RESUME_COMMAND_ID
+        entry_coid = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=0,
+        )
+        new_list = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=1, retry=1,
+        )
+        events: list[Event] = [
+            BracketInitialized(
+                account_id=_ACCT, timestamp=_T0, command_id=command_id,
+                trade_id=_TRADE, symbol='BTCUSDT', side=OrderSide.BUY,
+                total_qty=Decimal('1'),
+                take_profit_price=Decimal('55000'),
+                stop_loss_price=Decimal('48000'),
+            ),
+            OrderSubmitIntent(
+                account_id=_ACCT, timestamp=_T0, command_id=command_id,
+                trade_id=_TRADE, client_order_id=entry_coid, symbol='BTCUSDT',
+                side=OrderSide.BUY, order_type=OrderType.MARKET, qty=Decimal('1'),
+            ),
+            OrderSubmitted(
+                account_id=_ACCT, timestamp=_T0, client_order_id=entry_coid,
+                venue_order_id='v-entry',
+            ),
+            _fill(
+                client_order_id=entry_coid, command_id=command_id,
+                side=OrderSide.BUY, qty=Decimal('1'), price=_ENTRY_PRICE,
+                venue_trade_id='t-entry', venue_order_id='v-entry',
+            ),
+            ProtectionActive(
+                account_id=_ACCT, timestamp=_T0, command_id=command_id,
+                protection_version=1, new_list_client_order_id=new_list,
+            ),
+        ]
+
+        em.replay_events(_ACCT, list(enumerate(events, start=1)))
+        await asyncio.sleep(0.3)
+
+        assert command_id not in em._accounts[_ACCT].brackets
+        assert not any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in adapter.submit_calls
+        )
 
     @pytest.mark.asyncio
     async def test_resume_delivers_entry_outcome_before_flatten_exit(
