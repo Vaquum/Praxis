@@ -33,7 +33,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueAdapter,
     VenueError,
 )
-from praxis.trading import Trading
+from praxis.trading import ReconcilePhase, Trading
 from praxis.trading_config import TradingConfig
 
 _TS = datetime(2099, 1, 1, tzinfo=UTC)
@@ -229,8 +229,7 @@ async def test_reconcile_on_reconnect_reruns_when_reentered(spine: EventSpine) -
     await trading._reconcile_on_reconnect(_ACCT)
 
     assert calls == 2
-    assert _ACCT not in trading._reconciling_accounts
-    assert _ACCT not in trading._reconcile_rerun_pending
+    assert _ACCT not in trading._reconcile_phase
 
     gate_calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
     assert gate_calls.count((_ACCT, False)) == 1
@@ -249,7 +248,7 @@ async def test_reconcile_on_reconnect_stays_gated_on_incomplete_backfill(spine: 
     calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
     assert (_ACCT, True) in calls
     assert (_ACCT, False) not in calls
-    assert _ACCT not in trading._reconciling_accounts
+    assert trading._reconcile_phase.get(_ACCT) is ReconcilePhase.GATED
 
 
 @pytest.mark.asyncio
@@ -266,8 +265,7 @@ async def test_reconcile_clears_pending_on_venue_failure(spine: EventSpine) -> N
 
     await trading._reconcile_on_reconnect(_ACCT)
 
-    assert _ACCT not in trading._reconcile_rerun_pending
-    assert _ACCT not in trading._reconciling_accounts
+    assert trading._reconcile_phase.get(_ACCT) is ReconcilePhase.GATED
 
 
 @pytest.mark.asyncio
@@ -284,8 +282,7 @@ async def test_reconcile_clears_pending_on_incomplete_backfill(spine: EventSpine
 
     await trading._reconcile_on_reconnect(_ACCT)
 
-    assert _ACCT not in trading._reconcile_rerun_pending
-    assert _ACCT not in trading._reconciling_accounts
+    assert trading._reconcile_phase.get(_ACCT) is ReconcilePhase.GATED
     calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
     assert (_ACCT, False) not in calls
 
@@ -302,4 +299,49 @@ async def test_reconcile_on_reconnect_stays_gated_on_venue_failure(spine: EventS
     calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
     assert (_ACCT, True) in calls
     assert (_ACCT, False) not in calls
-    assert _ACCT not in trading._reconciling_accounts
+    assert trading._reconcile_phase.get(_ACCT) is ReconcilePhase.GATED
+
+
+@pytest.mark.asyncio
+async def test_disconnect_gates_idle_account(spine: EventSpine) -> None:
+    trading = _trading(spine)
+    trading._execution_manager = MagicMock()
+
+    trading._on_stream_disconnect(_ACCT)
+
+    assert trading._reconcile_phase.get(_ACCT) is ReconcilePhase.GATED
+    trading._execution_manager.set_reconciling.assert_called_with(_ACCT, True)
+
+
+@pytest.mark.asyncio
+async def test_disconnect_during_pass_ends_gated(spine: EventSpine) -> None:
+    trading = _trading(spine)
+    trading._execution_manager = MagicMock()
+    trading._reconcile_account = AsyncMock()
+
+    async def _backfill(account_id: str, **_kwargs: object) -> bool:
+        trading._on_stream_disconnect(account_id)
+        return True
+
+    trading._backfill_account = _backfill
+
+    await trading._reconcile_on_reconnect(_ACCT)
+
+    assert trading._reconcile_phase.get(_ACCT) is ReconcilePhase.GATED
+    calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
+    assert (_ACCT, False) not in calls
+
+
+@pytest.mark.asyncio
+async def test_unexpected_exception_leaves_gated(spine: EventSpine) -> None:
+    trading = _trading(spine)
+    trading._execution_manager = MagicMock()
+    trading._backfill_account = AsyncMock(side_effect=RuntimeError('boom'))
+    trading._reconcile_account = AsyncMock()
+
+    with pytest.raises(RuntimeError, match='boom'):
+        await trading._reconcile_on_reconnect(_ACCT)
+
+    assert trading._reconcile_phase.get(_ACCT) is ReconcilePhase.GATED
+    calls = [call.args for call in trading._execution_manager.set_reconciling.call_args_list]
+    assert (_ACCT, False) not in calls

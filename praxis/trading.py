@@ -9,6 +9,7 @@ import threading
 from collections import defaultdict
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
+from enum import Enum
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
@@ -68,6 +69,46 @@ _TERMINAL_ORDER_STATUSES = frozenset({
     OrderStatus.CANCELED,
     OrderStatus.REJECTED,
     OrderStatus.EXPIRED,
+})
+
+
+class ReconcilePhase(Enum):
+    '''The per-account reconcile gate state, a single source of truth.
+
+    Replaces the former `_reconciling_accounts` / `_reconcile_rerun_pending`
+    sets and the derived `ExecutionManager` gate bit, which could disagree.
+    An absent account is `IDLE`. The execution-manager gate bit is derived as
+    `phase is not IDLE` and set from one place, so the two can never diverge.
+
+    - `IDLE`: not gated; command submission proceeds.
+    - `GATED`: submission blocked, no reconcile pass running (a WS disconnect,
+      a fail-closed pass, or a pass that ended while the stream was down). The
+      next reconnect starts a pass.
+    - `RUNNING`: one reconcile pass is executing; the stream is up and no
+      further edge arrived, so the pass releases to `IDLE` on success.
+    - `RUNNING_RERUN_PENDING`: a pass is executing and a reconnect edge arrived
+      during it, so exactly one more pass runs before release.
+    - `RUNNING_GATE_PENDING`: a pass is executing and a disconnect edge arrived
+      during it, so the pass ends `GATED` rather than releasing — the stream is
+      down and the account must not become order-capable.
+
+    A `RUNNING*` phase is the sole running token: a re-entrant reconnect finds
+    the account running and only requests a rerun, never starting a second
+    pass, and a disconnect keeps the token (`RUNNING_GATE_PENDING`) rather than
+    dropping to `GATED` mid-pass.
+    '''
+
+    IDLE = 'IDLE'
+    GATED = 'GATED'
+    RUNNING = 'RUNNING'
+    RUNNING_RERUN_PENDING = 'RUNNING_RERUN_PENDING'
+    RUNNING_GATE_PENDING = 'RUNNING_GATE_PENDING'
+
+
+_RUNNING_PHASES = frozenset({
+    ReconcilePhase.RUNNING,
+    ReconcilePhase.RUNNING_RERUN_PENDING,
+    ReconcilePhase.RUNNING_GATE_PENDING,
 })
 
 
@@ -200,8 +241,7 @@ class Trading:
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
         self._ready_accounts: set[str] = set()
-        self._reconciling_accounts: set[str] = set()
-        self._reconcile_rerun_pending: set[str] = set()
+        self._reconcile_phase: dict[str, ReconcilePhase] = {}
         self._fund_reconcile_cursor: dict[str, datetime] = {}
         self._fund_reconcile_cutover: dict[str, datetime] = {}
         self._balance_mismatch_seen: dict[tuple[str, str], Decimal] = {}
@@ -523,7 +563,7 @@ class Trading:
                     await self._on_execution_report(account_id, data)
 
                 async def on_disconnect() -> None:
-                    self._execution_manager.set_reconciling(account_id, True)
+                    self._on_stream_disconnect(account_id)
 
                 async def on_reconnect() -> None:
                     await self._reconcile_on_reconnect(account_id)
@@ -677,6 +717,7 @@ class Trading:
                     await self._inbound.unregister_account(account_id)
                     self._managed_accounts.discard(account_id)
                     self._ready_accounts.discard(account_id)
+                    self._reconcile_phase.pop(account_id, None)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:  # noqa: BLE001
@@ -708,6 +749,7 @@ class Trading:
                 _log.exception('error unregistering account during cleanup: %s', account_id)
             self._managed_accounts.discard(account_id)
             self._ready_accounts.discard(account_id)
+            self._reconcile_phase.pop(account_id, None)
 
     def _require_started(self) -> None:
         if not self._started:
@@ -1279,6 +1321,45 @@ class Trading:
 
         self._execution_manager.request_protection_scan(account_id)
 
+    def _set_reconcile_phase(
+        self, account_id: str, phase: ReconcilePhase,
+    ) -> None:
+        '''Set an account's reconcile phase and derive the execution gate.
+
+        The phase map is the single source of truth; the execution-manager gate
+        bit is `phase is not IDLE`, set from here so the two never diverge. An
+        `IDLE` account drops out of the map. A gate update for an account that
+        has already been unregistered is a no-op.
+        '''
+
+        if phase is ReconcilePhase.IDLE:
+            self._reconcile_phase.pop(account_id, None)
+        else:
+            self._reconcile_phase[account_id] = phase
+
+        try:
+            self._execution_manager.set_reconciling(
+                account_id, phase is not ReconcilePhase.IDLE,
+            )
+        except AccountNotRegisteredError:
+            self._reconcile_phase.pop(account_id, None)
+
+    def _on_stream_disconnect(self, account_id: str) -> None:
+        '''Gate an account whose WebSocket stream dropped.
+
+        A disconnect while a reconcile pass runs keeps the running token as
+        `RUNNING_GATE_PENDING` so the pass ends gated (the stream is down) and
+        no second pass starts; otherwise the account moves to `GATED`.
+        '''
+
+        phase = self._reconcile_phase.get(account_id, ReconcilePhase.IDLE)
+        if phase in _RUNNING_PHASES:
+            self._set_reconcile_phase(
+                account_id, ReconcilePhase.RUNNING_GATE_PENDING,
+            )
+        else:
+            self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
+
     async def _reconcile_on_reconnect(
         self, account_id: str, *, recovery_owner: bool = False,
     ) -> None:
@@ -1288,23 +1369,27 @@ class Trading:
         Runs at boot (after the stream opens) and on every WS reconnect
         edge. Holds the account's submission gate while it backfills
         myTrades from the durable cursor and reconciles open orders, then
-        releases the gate only when the backfill fully drained. A truncated
-        backfill (page cap) or a venue failure leaves the account gated
-        (fail-closed) until a later reconcile drains it or a restart. A
-        reconnect arriving mid-pass schedules exactly one rerun.
+        releases the gate only when the backfill fully drained AND the stream
+        stayed up. A truncated backfill (page cap), a venue failure, or a
+        disconnect that arrived mid-pass leaves the account gated (fail-closed)
+        until a later reconnect drains it or a restart. A reconnect arriving
+        mid-pass schedules exactly one rerun.
 
         Args:
             account_id (str): Account identifier.
+            recovery_owner (bool): True only when boot/reconnect recovery owns
+                a parked account, threaded to the admit path.
         '''
 
-        if account_id in self._reconciling_accounts:
-            self._reconcile_rerun_pending.add(account_id)
+        if self._reconcile_phase.get(account_id) in _RUNNING_PHASES:
+            self._set_reconcile_phase(
+                account_id, ReconcilePhase.RUNNING_RERUN_PENDING,
+            )
             return
 
-        self._reconciling_accounts.add(account_id)
+        self._set_reconcile_phase(account_id, ReconcilePhase.RUNNING)
         try:
             while True:
-                self._execution_manager.set_reconciling(account_id, True)
                 try:
                     complete = await self._backfill_account(
                         account_id, recovery_owner=recovery_owner,
@@ -1318,6 +1403,7 @@ class Trading:
                         account_id,
                         exc.args[0] if exc.args else str(exc),
                     )
+                    self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
                     return
 
                 if not complete:
@@ -1326,15 +1412,28 @@ class Trading:
                         'reconcile drains it: %s',
                         account_id,
                     )
+                    self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
                     return
 
-                if account_id not in self._reconcile_rerun_pending:
-                    self._execution_manager.set_reconciling(account_id, False)
+                phase = self._reconcile_phase.get(account_id)
+                if phase is ReconcilePhase.RUNNING_RERUN_PENDING:
+                    self._set_reconcile_phase(account_id, ReconcilePhase.RUNNING)
+                    continue
+                if phase is ReconcilePhase.RUNNING:
+                    self._set_reconcile_phase(account_id, ReconcilePhase.IDLE)
                     return
-                self._reconcile_rerun_pending.discard(account_id)
+                # RUNNING_GATE_PENDING (a disconnect arrived mid-pass), or any
+                # unexpected phase (e.g. the account was unregistered mid-pass):
+                # fail closed rather than release the gate. Only an
+                # undisturbed RUNNING pass releases to IDLE.
+                self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
+                return
         finally:
-            self._reconciling_accounts.discard(account_id)
-            self._reconcile_rerun_pending.discard(account_id)
+            if self._reconcile_phase.get(account_id) in _RUNNING_PHASES:
+                # An unexpected exit (a bug, a task cancellation) while a pass
+                # is still marked running must leave the account gated, never
+                # order-capable.
+                self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
 
     async def _backfill_account(
         self, account_id: str, *, recovery_owner: bool = False,
@@ -1680,6 +1779,7 @@ class Trading:
         await self._inbound.unregister_account(account_id)
         self._managed_accounts.discard(account_id)
         self._ready_accounts.discard(account_id)
+        self._reconcile_phase.pop(account_id, None)
 
     async def submit_command(
         self,
