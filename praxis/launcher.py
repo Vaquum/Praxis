@@ -2096,15 +2096,33 @@ def _make_pre_register(
         forced_trade_id: str | None = None
         bracket_exit_id: str | None = None
 
+        def _submission() -> _PreRegisteredSubmission:
+            return _PreRegisteredSubmission(
+                command_id=cmd.command_id,
+                strategy_id=strategy_id,
+                command_registrations=wiring.command_registrations,
+                capital_controller=wiring.capital_controller,
+                lock=wiring.command_registry_lock,
+                reservation_consumed=reservation_consumed,
+                registration_inserted=registration_inserted,
+                action_type=action.action_type.value,
+                symbol=cmd.symbol,
+                side=cmd.side.value,
+                order_notional=cmd.notional,
+                now=wiring.now,
+                rollback_position=rollback_position,
+                bracket_exit_command_id=bracket_exit_id,
+            )
+
         # Once `send_order` consumed the reservation into a capital order,
         # every step below must be exception-safe: if one raises,
         # `submit_actions`' catch calls `_release_granted_reservation`,
         # which is a no-op for an already-consumed reservation — leaking
         # the capital order and the registration entry until boot
-        # reconcile. Mirror `rollback` here (undo the position effect,
-        # recover the orphaned order, pop the registration) before
+        # reconcile. Run the handle's own `rollback` here before
         # re-raising so the cleanup contract does not depend on these
-        # helpers staying raise-free.
+        # helpers staying raise-free, and so this path can never drift
+        # from the rollback the caller would have run.
         try:
             if action.action_type == ActionType.ENTER:
                 forced_trade_id = cmd.command_id
@@ -2171,41 +2189,15 @@ def _make_pre_register(
                     bracket_exit_id = _register_bracket_exit(
                         wiring, cmd, order_context, strategy_id,
                     )
-        except BaseException:
+        except BaseException as exc:
             # BaseException, not Exception: a CancelledError after
             # `send_order` must still run the capital-recovery cleanup, or
             # the consumed reservation leaks. The cleanup re-raises, so
             # KeyboardInterrupt / SystemExit are not swallowed.
-            if rollback_position is not None:
-                rollback_position()
-            if reservation_consumed:
-                wiring.capital_controller.recover_orphaned_order(
-                    cmd.command_id,
-                    'submit_failed',
-                )
-            with wiring.command_registry_lock:
-                if registration_inserted:
-                    wiring.command_registrations.pop(cmd.command_id, None)
-                if bracket_exit_id is not None:
-                    wiring.command_registrations.pop(bracket_exit_id, None)
+            _submission().rollback(exc)
             raise
 
-        return _PreRegisteredSubmission(
-            command_id=cmd.command_id,
-            strategy_id=strategy_id,
-            command_registrations=wiring.command_registrations,
-            capital_controller=wiring.capital_controller,
-            lock=wiring.command_registry_lock,
-            reservation_consumed=reservation_consumed,
-            registration_inserted=registration_inserted,
-            action_type=action.action_type.value,
-            symbol=cmd.symbol,
-            side=cmd.side.value,
-            order_notional=cmd.notional,
-            now=wiring.now,
-            rollback_position=rollback_position,
-            bracket_exit_command_id=bracket_exit_id,
-        )
+        return _submission()
 
     return pre_register
 

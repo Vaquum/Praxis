@@ -480,6 +480,46 @@ def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
     assert cmd.command_id not in controller._orders
 
 
+def test_post_send_order_exception_runs_handle_rollback(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = Action(
+        action_type=ActionType.ENTER,
+        direction=OrderSide.BUY,
+        size=Decimal('0.01'),
+        execution_mode=ExecutionMode.SINGLE_SHOT,
+        order_type=OrderType.MARKET,
+        deadline=60,
+        command_id=cmd.command_id,
+    )
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+
+    wiring = _PreRegisterWiring(
+        pending_registrations=pending,
+        command_registrations={},
+        command_registry_lock=threading.Lock(),
+        capital_controller=controller,
+        state=state,
+        positions_lock=threading.Lock(),
+        fallback_price_provider=lambda: Decimal('-1'),
+        now=lambda: _NOW,
+        append_delivery_context=lambda *_: None,
+    )
+
+    with caplog.at_level(logging.WARNING), pytest.raises(ValueError):
+        _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    rolled_back = [
+        record
+        for record in caplog.records
+        if 'pre-registered submission rolled back' in record.message
+    ]
+    assert len(rolled_back) == 1
+
+
 def test_exit_order_context_carries_captured_full_close() -> None:
     from nexus.core.domain.position import Position
 
