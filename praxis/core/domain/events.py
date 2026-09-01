@@ -1759,7 +1759,7 @@ class OutcomeDeliveryContextRecorded(_EventBase):
     metadata: `strategy_id`, `is_entry`, `order_notional`,
     `estimated_fees`, `order_size`, `intended_full_close`) from the
     strategy `Action` at submit time and holds it only in the in-memory
-    `command_contexts` map, which is empty after a restart. Boot replay
+    `command_registrations` map, which is empty after a restart. Boot replay
     (TD-052) needs that context to re-route an unacked `TradeOutcomeProduced`
     through `OutcomeProcessor.process`. This event durably records the
     context on the spine at submit time, keyed by `command_id`, so the

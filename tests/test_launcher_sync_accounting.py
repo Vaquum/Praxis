@@ -18,7 +18,7 @@ from nexus.infrastructure.praxis_connector.trade_outcome import (
 )
 from nexus.infrastructure.praxis_connector.trade_outcome_type import TradeOutcomeType
 
-from praxis.launcher import Launcher, _AccountOutcomeWiring
+from praxis.launcher import Launcher, _AccountOutcomeWiring, _CommandRegistration
 
 
 class _RecordingProcessor:
@@ -78,12 +78,19 @@ def _wiring(
     processor: Any,
     contexts: dict[str, OrderContext],
 ) -> _AccountOutcomeWiring:
+    registrations = {
+        command_id: _CommandRegistration(
+            strategy_id=context.strategy_id,
+            order_context=context,
+        )
+        for command_id, context in contexts.items()
+    }
+
     return _AccountOutcomeWiring(
         outcome_processor=processor,
-        command_contexts=contexts,
+        command_registrations=registrations,
         command_registry_lock=threading.Lock(),
         account_id='acct-test',
-        command_strategy_ids={},
     )
 
 
