@@ -173,13 +173,14 @@ def _trade_closed() -> TradeClosed:
     )
 
 
-def _command_accepted() -> CommandAccepted:
+def _command_accepted(strategy_id: str | None = None) -> CommandAccepted:
 
     return CommandAccepted(
         account_id=_ACCT,
         timestamp=_TS,
         command_id=_CMD,
         trade_id=_TRADE,
+        strategy_id=strategy_id,
     )
 
 
@@ -196,12 +197,33 @@ def test_rejects_empty_account_id() -> None:
         TradingState(account_id='')
 
 
-def test_command_accepted_is_noop() -> None:
+def test_command_accepted_without_strategy_records_nothing() -> None:
 
     state = _state()
     state.apply(_command_accepted())
     assert state.orders == {}
     assert state.positions == {}
+    assert state.trade_strategy_ids == {}
+
+
+def test_command_accepted_records_strategy_attribution() -> None:
+
+    state = _state()
+    state.apply(_command_accepted(strategy_id='strat_001'))
+
+    assert state.trade_strategy_ids == {_TRADE: 'strat_001'}
+    assert state.orders == {}
+    assert state.positions == {}
+
+
+def test_replayed_command_accepted_attributes_the_opened_position() -> None:
+
+    state = _state()
+    state.apply(_command_accepted(strategy_id='strat_001'))
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+
+    assert state.positions[(_TRADE, _ACCT)].strategy_id == 'strat_001'
 
 
 def test_submit_intent_creates_submitting_order() -> None:

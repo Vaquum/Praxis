@@ -177,6 +177,28 @@ class TestSubmitCommand:
             await mgr.submit_command(**_CMD_KWARGS)
 
     @pytest.mark.asyncio
+    async def test_live_submit_records_strategy_attribution(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS, strategy_id='strat_001')
+
+        trading_state = mgr._accounts[_ACCT].trading_state
+
+        assert trading_state.trade_strategy_ids[_CMD_KWARGS['trade_id']] == 'strat_001'
+
+    @pytest.mark.asyncio
+    async def test_live_submit_without_strategy_records_nothing(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+
+        assert mgr._accounts[_ACCT].trading_state.trade_strategy_ids == {}
+
+    @pytest.mark.asyncio
     async def test_caller_supplied_command_id_used_verbatim(
         self,
         mgr: ExecutionManager,

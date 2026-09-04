@@ -999,9 +999,6 @@ class ExecutionManager:
             if isinstance(event, CommandAccepted):
                 self._accepted_commands[event.command_id] = account_id
 
-                if event.strategy_id is not None:
-                    runtime.trading_state.trade_strategy_ids[event.trade_id] = event.strategy_id
-
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
                 self._commands.pop(event.command_id, None)
@@ -2919,8 +2916,11 @@ class ExecutionManager:
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
 
-        if strategy_id is not None:
-            runtime.trading_state.trade_strategy_ids[trade_id] = strategy_id
+        # Applied directly rather than through `_project`: a projection
+        # failure there is a fail-stop that poisons the account, and this
+        # path runs after the durable append, so raising would report a
+        # failure for a command that is already accepted and queued.
+        runtime.trading_state.apply(event)
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',
