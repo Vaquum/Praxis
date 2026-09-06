@@ -26,7 +26,6 @@ def _outcome(
     avg_fill_price: Decimal | None = Decimal('50000.00'),
     slices_completed: int = 5,
     slices_total: int = 5,
-    missed_iterations: int | None = None,
     cumulative_notional: Decimal | None = None,
 ) -> TradeOutcome:
 
@@ -48,7 +47,6 @@ def _outcome(
         slices_total=slices_total,
         reason='done',
         created_at=_TS,
-        missed_iterations=missed_iterations,
         cumulative_notional=cumulative_notional,
     )
 
@@ -85,8 +83,6 @@ def test_trade_outcome_creation() -> None:
     assert outcome.slices_completed == _SLICES
     assert outcome.slices_total == _SLICES
     assert outcome.reason == 'done'
-    assert outcome.missed_iterations is None
-    assert outcome.missed_reason is None
 
 
 def test_trade_outcome_frozen() -> None:
@@ -201,12 +197,6 @@ def test_trade_outcome_rejects_slices_completed_exceeds_slices_total() -> None:
         _outcome(slices_completed=6, slices_total=5)
 
 
-def test_trade_outcome_rejects_negative_missed_iterations() -> None:
-
-    with pytest.raises(ValueError, match='non-negative'):
-        _outcome(missed_iterations=-1)
-
-
 def test_trade_outcome_rejects_naive_created_at() -> None:
 
     with pytest.raises(ValueError, match='timezone-aware'):
@@ -264,10 +254,6 @@ def test_trade_outcome_fill_ratio_zero() -> None:
     assert outcome.fill_ratio == Decimal('0')
 
 
-def test_trade_outcome_missed_iterations_zero_valid() -> None:
-
-    outcome = _outcome(missed_iterations=0)
-    assert outcome.missed_iterations == 0
 
 
 @pytest.mark.parametrize('field', ['command_id', 'trade_id', 'account_id'])

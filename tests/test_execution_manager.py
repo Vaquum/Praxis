@@ -998,8 +998,6 @@ class TestTradeOutcome:
         assert outcome.target_qty == Decimal('1')
         assert outcome.slices_completed == 1
         assert outcome.slices_total == 1
-        assert outcome.missed_iterations is None
-        assert outcome.missed_reason is None
         assert outcome.created_at.tzinfo is not None
 
         await mgr.unregister_account(_ACCT)

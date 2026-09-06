@@ -48,8 +48,6 @@ class TradeOutcome:
         slices_completed (int): Completed slices or steps, must be non-negative.
         slices_total (int): Total planned slices or steps, must be positive.
         reason (str | None): Descriptive reason for status.
-        missed_iterations (int | None): Skipped DCA iterations, must be non-negative if set.
-        missed_reason (str | None): Why DCA iterations were missed.
         created_at (datetime): Outcome creation time, must be timezone-aware.
         cumulative_notional (Decimal): Venue-side cumulative notional for
             this command, sum of `qty * price` over all fills. FINAL-MAJOR-07:
@@ -73,8 +71,6 @@ class TradeOutcome:
     slices_total: int
     reason: str | None
     created_at: datetime
-    missed_iterations: int | None = None
-    missed_reason: str | None = None
     cumulative_notional: Decimal = _ZERO
 
     def __post_init__(self) -> None:
@@ -122,10 +118,6 @@ class TradeOutcome:
 
         if self.slices_completed > self.slices_total:
             msg = 'TradeOutcome.slices_completed cannot exceed slices_total'
-            raise ValueError(msg)
-
-        if self.missed_iterations is not None and self.missed_iterations < 0:
-            msg = 'TradeOutcome.missed_iterations must be non-negative'
             raise ValueError(msg)
 
         if self.cumulative_notional < _ZERO:
