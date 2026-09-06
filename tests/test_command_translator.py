@@ -26,11 +26,14 @@ members.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field, fields
 from decimal import Decimal
 from enum import Enum
+from typing import Annotated
 
 import pytest
 
+from praxis import command_translator
 from praxis.command_translator import (
     build_execution_params,
     build_modify_params,
@@ -49,8 +52,10 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
+from praxis.core.domain.execution_params import PARAMS_FOR_MODE
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
+from praxis.core.domain.modify_params import MODIFY_PARAMS_FOR_MODE
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.twap_params import TwapParams
 
@@ -413,3 +418,77 @@ def test_build_modify_params_ladder_coerces_levels_to_tuple() -> None:
 def test_build_modify_params_empty_mapping_rejected() -> None:
     with pytest.raises(ValueError):
         build_modify_params(ExecutionMode.TWAP, {})
+
+
+@pytest.mark.parametrize('mode', list(PARAMS_FOR_MODE))
+def test_every_registered_mode_builds_execution_params(mode: ExecutionMode) -> None:
+    '''Every mode in the registry dispatches, is labelled by its own name,
+    and accepts exactly its params dataclass's constructor fields.'''
+
+    with pytest.raises(ValueError) as exc:
+        build_execution_params(mode, {'__not_a_field__': 1})
+
+    message = str(exc.value)
+
+    assert f'unsupported keys for {mode.name}' in message
+
+    for params_field in fields(PARAMS_FOR_MODE[mode]):
+        if params_field.init:
+            assert params_field.name in message
+
+
+@pytest.mark.parametrize('mode', list(MODIFY_PARAMS_FOR_MODE))
+def test_every_registered_mode_builds_modify_params(mode: ExecutionMode) -> None:
+    '''Same for amends, off the modify registry.'''
+
+    with pytest.raises(ValueError) as exc:
+        build_modify_params(mode, {'__not_a_field__': 1})
+
+    message = str(exc.value)
+
+    assert f'unsupported keys for {mode.name}' in message
+
+    for params_field in fields(MODIFY_PARAMS_FOR_MODE[mode]):
+        if params_field.init:
+            assert params_field.name in message
+
+
+def test_derived_keys_exclude_non_init_fields() -> None:
+    '''A non-constructor field is never wire-settable.'''
+
+    @dataclass
+    class _Params:
+        wire: int = 0
+        derived: int = field(default=0, init=False)
+
+    assert command_translator._field_names(_Params) == frozenset({'wire'})
+
+
+def test_unregistered_mode_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(command_translator, 'PARAMS_FOR_MODE', {})
+    monkeypatch.setattr(command_translator, 'MODIFY_PARAMS_FOR_MODE', {})
+
+    with pytest.raises(ValueError, match='no execution_params builder for mode TWAP'):
+        build_execution_params(ExecutionMode.TWAP, {'num_slices': 2})
+
+    with pytest.raises(ValueError, match='no modify_params builder for mode TWAP'):
+        build_modify_params(ExecutionMode.TWAP, {'num_slices': 2})
+
+
+@pytest.mark.parametrize(
+    ('hint', 'expected'),
+    [
+        (tuple, True),
+        (tuple[int, ...], True),
+        (tuple[int, ...] | None, True),
+        (Annotated[tuple[int, ...] | None, 'meta'], True),
+        (list[tuple[int, ...]], False),
+        (Decimal | None, False),
+        (int, False),
+    ],
+)
+def test_tuple_hint_detection(hint: object, expected: bool) -> None:
+    '''Only a tuple-typed field coerces its list payload — a tuple nested in
+    another generic must not.'''
+
+    assert command_translator._is_tuple_hint(hint) is expected
