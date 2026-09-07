@@ -77,7 +77,18 @@ __all__ = ['ChainVerificationError', 'EventSpine', 'SpineSchemaError']
 
 _log = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
+
+# The version whose migration proved the legacy dedup symbol. Databases below
+# it still need that proof run; databases at it were proven but never had their
+# legacy rows folded into `fill_dedup_v2`, which is what v4 completes.
+_PROVEN_DEDUP_SYMBOL_VERSION = 3
+
+# The version that folded those proven rows into `fill_dedup_v2`. Each
+# migration is gated on the version it introduced, so a later schema bump
+# cannot re-enter a step that has already run.
+_FOLDED_DEDUP_VERSION = 4
+
 _CHAIN_VERSION = 1
 _HASH_DOMAIN = b'praxis.spine.chain.v1'
 _GENESIS_ANCHOR = hashlib.sha256(_HASH_DOMAIN + b'.genesis').hexdigest()
@@ -208,11 +219,22 @@ _FUND_DEDUP_INSERT = (
     'VALUES (?, ?, ?)'
 )
 
-_LEGACY_DEDUP_CHECK = (
-    'SELECT 1 FROM fill_dedup WHERE epoch_id = ? AND account_id = ? AND dedup_key = ?'
+_LEGACY_DEDUP_IDS = 'SELECT epoch_id, account_id, dedup_key FROM fill_dedup'
+
+_FILL_DEDUP_TABLE = 'fill_dedup'
+
+_TABLE_EXISTS = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?"
+
+_DEDUP_V2_BACKFILL = (
+    'INSERT OR IGNORE INTO fill_dedup_v2 (epoch_id, account_id, symbol, dedup_key) '
+    'SELECT epoch_id, account_id, ?, dedup_key FROM fill_dedup'
 )
 
-_LEGACY_DEDUP_IDS = 'SELECT epoch_id, account_id, dedup_key FROM fill_dedup'
+_DEDUP_V2_IDS = (
+    'SELECT epoch_id, account_id, dedup_key FROM fill_dedup_v2 WHERE symbol = ?'
+)
+
+_DROP_FILL_DEDUP = 'DROP TABLE fill_dedup'
 
 _FILL_PAYLOAD_SCAN = "SELECT epoch_id, payload FROM events WHERE event_type = 'FillReceived'"
 
@@ -420,7 +442,6 @@ class EventSpine:
 
         self._conn = conn
         self._append_lock = asyncio.Lock()
-        self._legacy_dedup_symbol: str | None = None
 
     async def ensure_schema(self) -> None:
 
@@ -430,14 +451,16 @@ class EventSpine:
         Gate the migration on `PRAGMA user_version`: a database newer
         than this build (`user_version > _SCHEMA_VERSION`) is refused
         rather than silently downgraded; an older or fresh database is
-        migrated forward once. The migration is additive (nullable hash
-        columns, a metadata table) and idempotent — re-running at the
-        current version is a no-op.
+        migrated forward once. Each step is gated on the version that
+        introduced it and is idempotent — re-running at the current
+        version is a no-op. Steps are mostly additive (nullable hash
+        columns, a metadata table); v4 also drops `fill_dedup` once its
+        rows are folded into `fill_dedup_v2`.
 
-        All DDL, the migration, and the version bump run in one
-        transaction ended by `commit()`, so a crash mid-migration rolls
-        back (the version does not advance) and the next boot re-runs
-        the step. The commit also makes the schema durable on the main
+        The migration and the version bump are ended by `commit()`, and
+        each step is written to be resumable, so a crash mid-migration
+        leaves the version un-advanced and the next boot re-runs the
+        step over whatever it finds. The commit also makes the schema durable on the main
         DB file before any caller appends; without it a spine read from
         a separate connection sees an empty file until the first commit.
 
@@ -461,8 +484,6 @@ class EventSpine:
                 pass
             async with self._conn.execute(_CREATE_INDEX):
                 pass
-            async with self._conn.execute(_CREATE_FILL_DEDUP):
-                pass
             async with self._conn.execute(_CREATE_FILL_DEDUP_V2):
                 pass
             async with self._conn.execute(_CREATE_META):
@@ -473,8 +494,13 @@ class EventSpine:
                 pass
 
             if version < _SCHEMA_VERSION:
-                await self._migrate_to_v1()
-                await self._migrate_to_v3()
+                if version < _PROVEN_DEDUP_SYMBOL_VERSION:
+                    await self._migrate_to_v1()
+                    await self._migrate_to_v3()
+
+                if version < _FOLDED_DEDUP_VERSION:
+                    await self._migrate_to_v4()
+
                 async with self._conn.execute(f'PRAGMA user_version = {_SCHEMA_VERSION}'):
                     pass
 
@@ -484,7 +510,6 @@ class EventSpine:
             _log.exception('event spine schema migration failed (rollback attempted)')
             raise
 
-        self._legacy_dedup_symbol = await self._get_meta(_META_LEGACY_DEDUP_SYMBOL)
         _log.info('event spine schema ensured', extra={'schema_version': _SCHEMA_VERSION})
 
     async def _user_version(self) -> int:
@@ -554,8 +579,8 @@ class EventSpine:
         `fill_dedup_v2`. Legacy `fill_dedup` rows carry no symbol, so this
         step proves the historical symbol set by scanning `FillReceived`
         payloads. If the legacy database contains zero or one symbol, that
-        proven symbol is recorded and the legacy table is consulted only
-        for it (dual-read gating avoids a cross-symbol false-positive). If
+        proven symbol is recorded, and `_migrate_to_v4` later replays the
+        legacy rows under it. If
         it spans multiple symbols, or a legacy dedup row has no matching
         `FillReceived` event, the migration fails closed — an offline,
         operator-run symbol-aware backfill is required.
@@ -567,6 +592,9 @@ class EventSpine:
         Returns:
             None
         '''
+
+        async with self._conn.execute(_CREATE_FILL_DEDUP):
+            pass
 
         symbols, fill_keys = await self._scan_fill_dedup_symbols()
         legacy_keys = await self._legacy_dedup_ids()
@@ -589,6 +617,105 @@ class EventSpine:
         legacy_symbol = next(iter(symbols)) if symbols else ''
         async with self._conn.execute(_META_SET, (_META_LEGACY_DEDUP_SYMBOL, legacy_symbol)):
             pass
+
+    async def _migrate_to_v4(self) -> None:
+
+        '''
+        Fold the legacy dedup rows into `fill_dedup_v2` and drop the old table.
+
+        The v3 proof established that every legacy row belongs to one known
+        symbol, which is exactly what the legacy rows lacked. Replaying them
+        under that symbol makes them ordinary v2 rows, so the dual-read the
+        append path performed for the proven symbol has nothing left to find
+        and the legacy table can go.
+
+        Runs after a crash as readily as the first time: the backfill ignores
+        rows already present, and a table already dropped means the fold has
+        already happened, so an interrupted migration simply resumes.
+
+        Raises:
+            SpineSchemaError: If legacy rows exist but no symbol was proven
+                for them, or if any legacy row is missing from `fill_dedup_v2`
+                after the backfill.
+
+        Returns:
+            None
+        '''
+
+        if not await self._table_exists(_FILL_DEDUP_TABLE):
+            return
+
+        legacy_keys = await self._legacy_dedup_ids()
+
+        if not legacy_keys:
+            async with self._conn.execute(_DROP_FILL_DEDUP):
+                pass
+
+            return
+
+        legacy_symbol = await self._get_meta(_META_LEGACY_DEDUP_SYMBOL)
+
+        if not legacy_symbol:
+            msg = (
+                f'{len(legacy_keys)} legacy fill_dedup rows carry no proven '
+                f'symbol; offline symbol-aware fill_dedup_v2 backfill required'
+            )
+            raise SpineSchemaError(msg)
+
+        async with self._conn.execute(_DEDUP_V2_BACKFILL, (legacy_symbol,)):
+            pass
+
+        migrated = await self._dedup_v2_ids(legacy_symbol)
+        unmigrated = legacy_keys - migrated
+
+        if unmigrated:
+            msg = (
+                f'{len(unmigrated)} legacy fill_dedup rows are absent from '
+                f'fill_dedup_v2 after backfill; refusing to drop the table'
+            )
+            raise SpineSchemaError(msg)
+
+        async with self._conn.execute(_DROP_FILL_DEDUP):
+            pass
+
+        _log.info(
+            'legacy fill dedup rows folded into fill_dedup_v2',
+            extra={'rows': len(legacy_keys), 'symbol': legacy_symbol},
+        )
+
+    async def _table_exists(self, name: str) -> bool:
+
+        '''
+        Report whether a table is present in the database.
+
+        Args:
+            name (str): Table name to look for.
+
+        Returns:
+            bool: True if the table exists.
+        '''
+
+        async with self._conn.execute(_TABLE_EXISTS, (name,)) as cursor:
+            return await cursor.fetchone() is not None
+
+    async def _dedup_v2_ids(self, symbol: str) -> set[tuple[int, str, str]]:
+
+        '''
+        Return the dedup identities `fill_dedup_v2` holds for one symbol.
+
+        Args:
+            symbol (str): The symbol whose rows to read.
+
+        Returns:
+            set[tuple[int, str, str]]: `(epoch_id, account_id, dedup_key)`
+            identities, shaped to compare against the legacy rows.
+        '''
+
+        async with self._conn.execute(_DEDUP_V2_IDS, (symbol,)) as cursor:
+            return {
+                (int(epoch_id), str(account_id), str(dedup_key))
+                async for epoch_id, account_id, dedup_key in cursor
+            }
 
     async def _scan_fill_dedup_symbols(self) -> tuple[set[str], set[tuple[int, str, str]]]:
 
@@ -661,30 +788,6 @@ class EventSpine:
             row = await cursor.fetchone()
 
         return str(row[0]) if row is not None else None
-
-    async def _is_legacy_duplicate(self, epoch_id: int, event: FillReceived) -> bool:
-
-        '''
-        Report whether a fill was already recorded under the legacy dedup key.
-
-        Consulted only for the proven legacy symbol, so a same-id fill on a
-        different symbol never matches a legacy row.
-
-        Args:
-            epoch_id (int): Current epoch identifier.
-            event (FillReceived): The fill being appended.
-
-        Returns:
-            bool: True if the legacy table already holds this trade id.
-        '''
-
-        if not self._legacy_dedup_symbol or event.symbol != self._legacy_dedup_symbol:
-            return False
-
-        async with self._conn.execute(
-            _LEGACY_DEDUP_CHECK, (epoch_id, event.account_id, event.venue_trade_id)
-        ) as cursor:
-            return await cursor.fetchone() is not None
 
     async def _genesis_anchor(self) -> str:
 
@@ -769,9 +872,9 @@ class EventSpine:
         Serialize and append a domain event to the log.
 
         Deduplicate FillReceived events by (account_id, symbol,
-        venue_trade_id) within the epoch via `fill_dedup_v2`, plus a
-        dual-read of the legacy `fill_dedup` table for the one proven
-        pre-migration symbol. Duplicate fills are silently dropped per RFC.
+        venue_trade_id) within the epoch via `fill_dedup_v2`, which the
+        v4 migration folded the pre-symbol legacy rows into. Duplicate
+        fills are silently dropped per RFC.
         FillReceived atomicity is guaranteed internally: both the
         dedup insert and the event insert run in a single implicit
         transaction (Python sqlite3 auto-begins on the first DML
@@ -831,13 +934,11 @@ class EventSpine:
             #   - commit failure: rollback best-effort, re-raise the
             #     COMMIT exception (preserves the root cause)
             try:
-                is_duplicate = await self._is_legacy_duplicate(epoch_id, event)
-                if not is_duplicate:
-                    async with self._conn.execute(
-                        _DEDUP_V2_INSERT,
-                        (epoch_id, event.account_id, event.symbol, event.venue_trade_id),
-                    ) as cursor:
-                        is_duplicate = cursor.rowcount == 0
+                async with self._conn.execute(
+                    _DEDUP_V2_INSERT,
+                    (epoch_id, event.account_id, event.symbol, event.venue_trade_id),
+                ) as cursor:
+                    is_duplicate = cursor.rowcount == 0
                 seq = None if is_duplicate else await self._append_event(event, epoch_id)
             except Exception:
                 await self._safe_rollback('event spine fill-atomic DML failure')
