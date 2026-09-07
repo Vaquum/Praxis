@@ -8,6 +8,7 @@ normalize venue-specific data into internal domain types.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -232,6 +233,34 @@ class BalanceEntry:
 
 _FUND_DIRECTIONS = frozenset({'DEPOSIT', 'WITHDRAWAL'})
 
+_log = logging.getLogger(__name__)
+
+_ZERO = Decimal(0)
+
+# The execution facts only a TRADE report carries, paired with the value a
+# report that executed nothing holds instead. `cumulative_filled_qty` is
+# deliberately absent: it is the running total, so a CANCELED after a partial
+# still reports how much had filled.
+_FILL_FIELD_DEFAULTS: tuple[tuple[str, object], ...] = (
+    ('last_filled_qty', _ZERO),
+    ('last_filled_price', _ZERO),
+    ('commission', _ZERO),
+    ('commission_asset', None),
+    ('venue_trade_id', None),
+    ('is_maker', False),
+)
+
+# `is_maker` is a modality flag rather than execution data, so a stray bit on a
+# non-TRADE report is stripped without comment; the rest name real executions
+# and their presence is a venue anomaly worth surfacing.
+_FILL_EVIDENCE_FIELDS = frozenset({
+    'last_filled_qty',
+    'last_filled_price',
+    'commission',
+    'commission_asset',
+    'venue_trade_id',
+})
+
 
 @dataclass(frozen=True)
 class VenueFundTransaction:
@@ -380,6 +409,12 @@ class ExecutionReport:
     Normalized from venue-specific payloads into domain types.
     Used by Execution Manager to update order state and emit domain events.
 
+    The fill fields belong to a TRADE and only a TRADE: a TRADE report must
+    carry a venue trade id, a commission asset, and a positive filled quantity
+    and price, while any other execution type has them stripped to their empty
+    values. `cumulative_filled_qty` is exempt — it is the running total and
+    stays meaningful on a cancel or expiry after a partial fill.
+
     Args:
         event_time (datetime): Venue event timestamp, timezone-aware
         symbol (str): Trading pair symbol
@@ -423,7 +458,13 @@ class ExecutionReport:
     is_maker: bool
 
     def __post_init__(self) -> None:
-        '''Validate timezone-aware timestamps at construction time.'''
+        '''Validate timestamps and hold the report to its execution type.
+
+        A TRADE reports an execution and must carry the fill that proves it;
+        every other type reports a lifecycle transition and carries no fill,
+        so residual fill data is stripped rather than left for a reader to
+        mistake for an execution.
+        '''
 
         if self.event_time.tzinfo is None or self.event_time.utcoffset() is None:
             msg = 'ExecutionReport.event_time must be timezone-aware'
@@ -434,6 +475,65 @@ class ExecutionReport:
         ):
             msg = 'ExecutionReport.transaction_time must be timezone-aware'
             raise ValueError(msg)
+
+        if self.execution_type is ExecutionType.TRADE:
+            self._require_fill()
+
+            return
+
+        self._strip_fill()
+
+    def _require_fill(self) -> None:
+        '''Reject a TRADE report that does not carry the fill it claims.
+
+        The commission's sign is unconstrained — a zero fee is legitimate
+        under a promotion or fee discount, and a rebate is legitimately
+        negative — but it must still be a real number.
+        '''
+
+        if self.venue_trade_id is None:
+            msg = 'ExecutionReport TRADE must carry a venue_trade_id'
+            raise ValueError(msg)
+
+        if not self.commission_asset:
+            msg = 'ExecutionReport TRADE must carry a commission_asset'
+            raise ValueError(msg)
+
+        for name in ('last_filled_qty', 'last_filled_price'):
+            value: Decimal = getattr(self, name)
+
+            if not value.is_finite() or value <= _ZERO:
+                msg = (
+                    f'ExecutionReport.{name} must be a finite positive '
+                    f'Decimal on a TRADE report'
+                )
+                raise ValueError(msg)
+
+        if not self.commission.is_finite():
+            msg = 'ExecutionReport.commission must be finite on a TRADE report'
+            raise ValueError(msg)
+
+    def _strip_fill(self) -> None:
+        '''Clear the fill fields a non-TRADE report has no execution to carry.'''
+
+        residual = sorted(
+            name
+            for name, default in _FILL_FIELD_DEFAULTS
+            if name in _FILL_EVIDENCE_FIELDS and getattr(self, name) != default
+        )
+
+        if residual:
+            _log.warning(
+                'non-TRADE execution report carried fill data; stripping: '
+                'execution_type=%s client_order_id=%s fields=%s',
+                self.execution_type.value,
+                self.client_order_id,
+                residual,
+            )
+
+        for name, default in _FILL_FIELD_DEFAULTS:
+            if getattr(self, name) != default:
+                object.__setattr__(self, name, default)
 
 
 class VenueError(Exception):

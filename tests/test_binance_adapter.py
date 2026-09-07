@@ -2804,6 +2804,26 @@ class TestParseExecutionReport:
         assert result.execution_type == ExecutionType.CANCELED
         assert result.order_status == OrderStatus.CANCELED
 
+    def test_non_trade_report_strips_fill_fields(self) -> None:
+        '''The payload here still carries the TRADE fixture's fill data, which
+        a non-TRADE report has no execution to justify. The running total
+        survives so a cancel after a partial still reports what filled.'''
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'CANCELED'
+        data['X'] = 'CANCELED'
+
+        result = adapter.parse_execution_report(data)
+
+        assert result.last_filled_qty == Decimal('0')
+        assert result.last_filled_price == Decimal('0')
+        assert result.commission == Decimal('0')
+        assert result.commission_asset is None
+        assert result.venue_trade_id is None
+        assert result.is_maker is False
+        assert result.cumulative_filled_qty == Decimal('0.5')
+
     def test_replaced_order(self) -> None:
 
         adapter = _make_adapter()

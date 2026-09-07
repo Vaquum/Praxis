@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
+import logging
 import functools
 import queue
 from collections.abc import Sequence
@@ -1153,6 +1155,35 @@ class _ReconVenueAdapter(_InjectedVenueAdapter):
         return CancelResult(venue_order_id='v-1', status=OrderStatus.CANCELED)
 
 
+def _execution_report(**overrides: Any) -> ExecutionReport:
+    '''Build a valid TRADE report, overridable per field.'''
+
+    fields: dict[str, Any] = {
+        'event_time': _CREATED_AT,
+        'symbol': 'BTCUSDT',
+        'client_order_id': 'SS-cmd1-00',
+        'side': OrderSide.BUY,
+        'order_type': OrderType.MARKET,
+        'original_qty': Decimal('1'),
+        'original_price': Decimal('0'),
+        'execution_type': ExecutionType.TRADE,
+        'order_status': OrderStatus.FILLED,
+        'reject_reason': 'NONE',
+        'venue_order_id': 'v-1',
+        'last_filled_qty': Decimal('1'),
+        'last_filled_price': Decimal('50000'),
+        'cumulative_filled_qty': Decimal('1'),
+        'commission': Decimal('0.001'),
+        'commission_asset': 'BTC',
+        'transaction_time': _CREATED_AT,
+        'venue_trade_id': 't-1',
+        'is_maker': False,
+    }
+    fields.update(overrides)
+
+    return ExecutionReport(**fields)
+
+
 def _make_order(
     client_order_id: str = 'SS-cmd1-00',
     venue_order_id: str = 'v-1',
@@ -1982,74 +2013,169 @@ async def test_convert_execution_report_unknown_type(spine: EventSpine) -> None:
     await trading.stop()
 
 
-@pytest.mark.asyncio
-async def test_convert_execution_report_trade_missing_venue_trade_id(
-    spine: EventSpine,
-) -> None:
-    trading, _ = await _started_trading_with_recon_adapter(spine)
-    order = _make_order()
-    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+def test_execution_report_trade_requires_venue_trade_id() -> None:
+    '''A TRADE that names no venue trade cannot be constructed: the report
+    claims an execution it carries no evidence of.'''
 
-    report = ExecutionReport(
-        event_time=_CREATED_AT,
-        symbol='BTCUSDT',
-        client_order_id='SS-cmd1-00',
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        original_qty=Decimal('1'),
-        original_price=Decimal('0'),
-        execution_type=ExecutionType.TRADE,
-        order_status=OrderStatus.FILLED,
-        reject_reason='NONE',
-        venue_order_id='v-1',
-        last_filled_qty=Decimal('1'),
-        last_filled_price=Decimal('50000'),
-        cumulative_filled_qty=Decimal('1'),
-        commission=Decimal('0.001'),
+    with pytest.raises(ValueError, match='must carry a venue_trade_id'):
+        _execution_report(execution_type=ExecutionType.TRADE, venue_trade_id=None)
+
+
+def test_execution_report_trade_requires_commission_asset() -> None:
+
+    with pytest.raises(ValueError, match='must carry a commission_asset'):
+        _execution_report(execution_type=ExecutionType.TRADE, commission_asset=None)
+
+
+@pytest.mark.parametrize('field', ['last_filled_qty', 'last_filled_price'])
+@pytest.mark.parametrize('value', [Decimal('0'), Decimal('-1'), Decimal('NaN')])
+def test_execution_report_trade_requires_positive_finite_fill(
+    field: str,
+    value: Decimal,
+) -> None:
+
+    with pytest.raises(ValueError, match='finite positive'):
+        _execution_report(execution_type=ExecutionType.TRADE, **{field: value})
+
+
+def test_execution_report_trade_allows_zero_and_negative_commission() -> None:
+    '''A zero fee is legitimate under a promotion, and a rebate is negative.'''
+
+    for commission in (Decimal('0'), Decimal('-0.0001')):
+        report = _execution_report(
+            execution_type=ExecutionType.TRADE, commission=commission,
+        )
+        assert report.commission == commission
+
+
+@pytest.mark.parametrize(
+    'execution_type',
+    [
+        ExecutionType.NEW,
+        ExecutionType.CANCELED,
+        ExecutionType.REPLACED,
+        ExecutionType.REJECTED,
+        ExecutionType.EXPIRED,
+        ExecutionType.TRADE_PREVENTION,
+    ],
+)
+def test_execution_report_non_trade_strips_fill_fields(
+    execution_type: ExecutionType,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Every non-TRADE type carries no execution, so residual fill data is
+    stripped and reported — while the running total survives.'''
+
+    with caplog.at_level(logging.WARNING):
+        report = _execution_report(
+            execution_type=execution_type,
+            last_filled_qty=Decimal('0.5'),
+            last_filled_price=Decimal('50000'),
+            cumulative_filled_qty=Decimal('0.5'),
+            commission=Decimal('0.0005'),
+            commission_asset='BTC',
+            venue_trade_id='t-99',
+            is_maker=True,
+        )
+
+    assert report.last_filled_qty == Decimal('0')
+    assert report.last_filled_price == Decimal('0')
+    assert report.commission == Decimal('0')
+    assert report.commission_asset is None
+    assert report.venue_trade_id is None
+    assert report.is_maker is False
+    assert report.cumulative_filled_qty == Decimal('0.5')
+
+    assert [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
+
+
+def test_execution_report_non_trade_maker_flag_alone_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''is_maker is a modality flag, not evidence of an execution, so a stray
+    bit is stripped without the anomaly warning.'''
+
+    with caplog.at_level(logging.WARNING):
+        report = _execution_report(
+            execution_type=ExecutionType.CANCELED,
+            last_filled_qty=Decimal('0'),
+            last_filled_price=Decimal('0'),
+            commission=Decimal('0'),
+            commission_asset=None,
+            venue_trade_id=None,
+            is_maker=True,
+        )
+
+    assert report.is_maker is False
+    assert not [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
+
+
+def test_execution_report_non_trade_strip_is_idempotent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Re-normalising an already-stripped report changes nothing and is
+    silent, so a replayed report does not read as an anomaly.'''
+
+    stripped = _execution_report(
+        execution_type=ExecutionType.CANCELED,
+        venue_trade_id='t-99',
         commission_asset='BTC',
-        transaction_time=_CREATED_AT,
-        venue_trade_id=None,
-        is_maker=False,
     )
 
-    event = trading._convert_execution_report('acc-1', report, order)
-    assert event is None
-    await trading.stop()
+    caplog.clear()
+
+    with caplog.at_level(logging.WARNING):
+        again = dataclasses.replace(stripped)
+
+    assert again == stripped
+    assert not [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
 
 
-@pytest.mark.asyncio
-async def test_convert_execution_report_trade_missing_commission_asset(
-    spine: EventSpine,
+@pytest.mark.parametrize(
+    'value', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')],
+)
+def test_execution_report_trade_rejects_non_finite_commission(value: Decimal) -> None:
+    '''A fee may be zero or a negative rebate, but it must be a real number.'''
+
+    with pytest.raises(ValueError, match='commission must be finite'):
+        _execution_report(execution_type=ExecutionType.TRADE, commission=value)
+
+
+@pytest.mark.parametrize('value', [Decimal('Infinity'), Decimal('-Infinity')])
+def test_execution_report_trade_rejects_infinite_fill(value: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='finite positive'):
+        _execution_report(execution_type=ExecutionType.TRADE, last_filled_qty=value)
+
+
+def test_execution_report_non_trade_without_residuals_is_silent(
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    trading, _ = await _started_trading_with_recon_adapter(spine)
-    order = _make_order()
-    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
 
-    report = ExecutionReport(
-        event_time=_CREATED_AT,
-        symbol='BTCUSDT',
-        client_order_id='SS-cmd1-00',
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        original_qty=Decimal('1'),
-        original_price=Decimal('0'),
-        execution_type=ExecutionType.TRADE,
-        order_status=OrderStatus.FILLED,
-        reject_reason='NONE',
-        venue_order_id='v-1',
-        last_filled_qty=Decimal('1'),
-        last_filled_price=Decimal('50000'),
-        cumulative_filled_qty=Decimal('1'),
-        commission=Decimal('0.001'),
-        commission_asset=None,
-        transaction_time=_CREATED_AT,
-        venue_trade_id='t-1',
-        is_maker=False,
-    )
+    with caplog.at_level(logging.WARNING):
+        report = _execution_report(
+            execution_type=ExecutionType.CANCELED,
+            last_filled_qty=Decimal('0'),
+            last_filled_price=Decimal('0'),
+            commission=Decimal('0'),
+            commission_asset=None,
+            venue_trade_id=None,
+        )
 
-    event = trading._convert_execution_report('acc-1', report, order)
-    assert event is None
-    await trading.stop()
+    assert report.venue_trade_id is None
+    assert not [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
 
 
 @pytest.mark.asyncio

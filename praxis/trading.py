@@ -1678,7 +1678,7 @@ class Trading:
 
         await self._execution_manager.admit(account_id, event)
 
-    def _convert_execution_report(  # noqa: PLR0911
+    def _convert_execution_report(
         self,
         account_id: str,
         report: Any,
@@ -1699,12 +1699,6 @@ class Trading:
         ts = report.transaction_time
 
         if report.execution_type == ExecutionType.TRADE:
-            if report.venue_trade_id is None:
-                _log.warning('TRADE report missing venue_trade_id')
-                return None
-            if not report.commission_asset:
-                _log.warning('TRADE report missing commission_asset')
-                return None
             trade_id = self._execution_manager.trade_id_for_command(order.command_id)
             if trade_id is None:
                 _log.warning(
