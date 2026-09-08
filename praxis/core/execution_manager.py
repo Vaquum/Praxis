@@ -280,6 +280,44 @@ def _resume_hold(
 
 
 @dataclass
+class _SchemeReplayFold:
+    """What one pass over a replayed history tells both scheme resumers.
+
+    Built once and read after, so the collections stay ordinary mutables
+    rather than pretending to a frozen-ness a dataclass cannot give the
+    dicts and sets inside it.
+
+    Args:
+        inits: First `SchemeInitialized` per command, any mode.
+        ladder_inits: First LADDER_DCA init per command, kept apart so
+            neither resumer can take the other's init for a command id
+            that carried both.
+        latest_state: Last `SchemeStateChanged` per command.
+        terminal_outcomes: Commands that reached a terminal outcome.
+        frozen_ids: Commands frozen by a failed slice or a freeze.
+        protection_frozen_ids: Commands frozen by protection specifically,
+            which outranks a slice failure when the hold is resolved.
+        ladder_completed: Per ladder, the last completed amend as
+            `(generation, grid params, grid size)`.
+        ladder_inflight: Per ladder, an amend still in flight as
+            `(initiated, planned, phase)`.
+    """
+
+    inits: dict[str, SchemeInitialized] = field(default_factory=dict)
+    ladder_inits: dict[str, SchemeInitialized] = field(default_factory=dict)
+    latest_state: dict[str, SchemeStateChanged] = field(default_factory=dict)
+    terminal_outcomes: set[str] = field(default_factory=set)
+    frozen_ids: set[str] = field(default_factory=set)
+    protection_frozen_ids: set[str] = field(default_factory=set)
+    ladder_completed: dict[str, tuple[int, LadderDcaParams, int]] = field(
+        default_factory=dict,
+    )
+    ladder_inflight: dict[
+        str, tuple[LadderAmendInitiated, LadderAmendPlanned | None, str]
+    ] = field(default_factory=dict)
+
+
+@dataclass
 class _LiveScheme:
     '''In-memory scheduler state for a running multi-slice scheme.
 
@@ -981,11 +1019,8 @@ class ExecutionManager:
 
         self._bridge_legacy_registration(runtime, events)
 
-        scheme_command_ids = {
-            event.command_id
-            for _seq, event in events
-            if isinstance(event, SchemeInitialized)
-        }
+        fold = self._fold_scheme_replay(events)
+        scheme_command_ids = set(fold.inits)
 
         for _seq, event in events:
             self._project(runtime, event)
@@ -1042,66 +1077,70 @@ class ExecutionManager:
                         created_at=event.timestamp,
                     )
 
-        self._resume_schemes(runtime, events)
-        self._resume_ladders(runtime, events)
+        self._resume_schemes(runtime, fold)
+        self._resume_ladders(runtime, fold)
         self._resume_brackets(runtime, events)
         self._resume_unknown_protection(runtime, events)
 
-    def _resume_ladders(
+    def _fold_scheme_replay(
         self,
-        runtime: _AccountRuntime,
         events: list[tuple[int, Event]],
-    ) -> None:
-        '''Rebuild live ladder state for non-terminal ladders after replay.
+    ) -> _SchemeReplayFold:
+        '''Gather what resuming a scheme or a ladder needs, in one pass.
 
-        A ladder posts all of its resting LIMIT rungs at start, so resume
-        does not replan or resubmit — it rebuilds the `_LiveScheme` with the
-        replayed cursor and the rungs still working (`active_client_order_ids`
-        whose order is not terminal), leaving `next_run_at` None so the
-        account loop only finalizes it once every rung settles. A ladder with
-        a terminal outcome, a non-RUNNING state, too few persisted levels, or
-        a malformed init is not resumed.
+        Both resumers ask the same questions of the history — which schemes
+        were initialized, what state each reached, which terminalized, which
+        froze — so they ask them together rather than each walking the log.
+
+        The two keep their inits apart. A ladder resumes from the first
+        ladder init and a scheme from the first init of any mode, and a
+        single shared choice would let one steal the other's init if a
+        command id ever carried both.
         '''
 
-        inits: dict[str, SchemeInitialized] = {}
-        latest_state: dict[str, SchemeStateChanged] = {}
-        terminal_outcomes: set[str] = set()
-        frozen_ids: set[str] = set()
-        protection_frozen_ids: set[str] = set()
-        completed: dict[str, tuple[int, LadderDcaParams, int]] = {}
-        inflight: dict[
-            str, tuple[LadderAmendInitiated, LadderAmendPlanned | None, str]
-        ] = {}
+        fold = _SchemeReplayFold()
         initiated_by_gen: dict[tuple[str, int], LadderAmendInitiated] = {}
         planned_by_gen: dict[tuple[str, int], LadderAmendPlanned] = {}
 
         for _seq, event in events:
-            if (
-                isinstance(event, SchemeInitialized)
-                and event.execution_mode is ExecutionMode.LADDER_DCA
-            ):
-                inits.setdefault(event.command_id, event)
+            if isinstance(event, SchemeInitialized):
+                fold.inits.setdefault(event.command_id, event)
+
+                if event.execution_mode is ExecutionMode.LADDER_DCA:
+                    fold.ladder_inits.setdefault(event.command_id, event)
+
             elif isinstance(event, SchemeStateChanged):
-                latest_state[event.command_id] = event
+                fold.latest_state[event.command_id] = event
+
             elif isinstance(event, SliceFailed):
-                frozen_ids.add(event.command_id)
+                fold.frozen_ids.add(event.command_id)
+
             elif isinstance(event, SchemeFrozen):
-                frozen_ids.add(event.command_id)
-                protection_frozen_ids.add(event.command_id)
+                fold.frozen_ids.add(event.command_id)
+                fold.protection_frozen_ids.add(event.command_id)
+
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
-                terminal_outcomes.add(event.command_id)
+                fold.terminal_outcomes.add(event.command_id)
+
             elif isinstance(event, LadderAmendInitiated):
                 initiated_by_gen[(event.command_id, event.generation)] = event
-                inflight[event.command_id] = (event, None, 'CANCELLING')
+                fold.ladder_inflight[event.command_id] = (event, None, 'CANCELLING')
+
             elif isinstance(event, LadderAmendPlanned):
                 planned_by_gen[(event.command_id, event.generation)] = event
-                pending = inflight.get(event.command_id)
+                pending = fold.ladder_inflight.get(event.command_id)
+
                 if pending is not None:
-                    inflight[event.command_id] = (pending[0], event, 'PLACING')
+                    fold.ladder_inflight[event.command_id] = (pending[0], event, 'PLACING')
+
             elif isinstance(event, LadderAmendStateUnknown):
-                pending = inflight.get(event.command_id)
+                pending = fold.ladder_inflight.get(event.command_id)
+
                 if pending is not None:
-                    inflight[event.command_id] = (pending[0], pending[1], event.phase)
+                    fold.ladder_inflight[event.command_id] = (
+                        pending[0], pending[1], event.phase,
+                    )
+
             elif isinstance(event, LadderAmendCompleted):
                 init_e = initiated_by_gen.get((event.command_id, event.generation))
                 planned_e = planned_by_gen.get((event.command_id, event.generation))
@@ -1114,19 +1153,40 @@ class ExecutionManager:
                     if init_e is not None
                     else None
                 )
+
                 if grid_params is not None:
-                    completed[event.command_id] = (
+                    fold.ladder_completed[event.command_id] = (
                         event.generation, grid_params, grid_size,
                     )
-                inflight.pop(event.command_id, None)
-            elif isinstance(event, LadderAmendAborted):
-                inflight.pop(event.command_id, None)
 
-        for command_id, init in inits.items():
-            if command_id in terminal_outcomes:
+                fold.ladder_inflight.pop(event.command_id, None)
+
+            elif isinstance(event, LadderAmendAborted):
+                fold.ladder_inflight.pop(event.command_id, None)
+
+        return fold
+
+    def _resume_ladders(
+        self,
+        runtime: _AccountRuntime,
+        fold: _SchemeReplayFold,
+    ) -> None:
+        '''Rebuild live ladder state for non-terminal ladders after replay.
+
+        A ladder posts all of its resting LIMIT rungs at start, so resume
+        does not replan or resubmit — it rebuilds the `_LiveScheme` with the
+        replayed cursor and the rungs still working (`active_client_order_ids`
+        whose order is not terminal), leaving `next_run_at` None so the
+        account loop only finalizes it once every rung settles. A ladder with
+        a terminal outcome, a non-RUNNING state, too few persisted levels, or
+        a malformed init is not resumed.
+        '''
+
+        for command_id, init in fold.ladder_inits.items():
+            if command_id in fold.terminal_outcomes:
                 continue
 
-            state = latest_state.get(command_id)
+            state = fold.latest_state.get(command_id)
             scheme_state = state.state if state is not None else SchemeState.RUNNING
             if scheme_state is not SchemeState.RUNNING:
                 continue
@@ -1148,9 +1208,9 @@ class ExecutionManager:
                 else None
             )
 
-            pending = inflight.get(command_id)
+            pending = fold.ladder_inflight.get(command_id)
             if pending is not None:
-                _gen, baseline_params, _grid = completed.get(
+                _gen, baseline_params, _grid = fold.ladder_completed.get(
                     command_id, (0, command.execution_params, init.slices_total),
                 )
                 assert isinstance(baseline_params, LadderDcaParams)
@@ -1158,10 +1218,10 @@ class ExecutionManager:
                     runtime, command_id,
                     replace(command, execution_params=baseline_params),
                     deadline, pending,
-                    _resume_hold(command_id, frozen_ids, protection_frozen_ids),
+                    _resume_hold(command_id, fold.frozen_ids, fold.protection_frozen_ids),
                 )
             else:
-                generation, params, grid_size = completed.get(
+                generation, params, grid_size = fold.ladder_completed.get(
                     command_id, (0, command.execution_params, init.slices_total),
                 )
                 assert isinstance(params, LadderDcaParams)
@@ -1178,7 +1238,7 @@ class ExecutionManager:
                     next_run_at=None,
                     deadline=deadline,
                     hold=_resume_hold(
-                        command_id, frozen_ids, protection_frozen_ids,
+                        command_id, fold.frozen_ids, fold.protection_frozen_ids,
                     ),
                     amend_generation=generation,
                 )
@@ -1673,7 +1733,7 @@ class ExecutionManager:
     def _resume_schemes(
         self,
         runtime: _AccountRuntime,
-        events: list[tuple[int, Event]],
+        fold: _SchemeReplayFold,
     ) -> None:
         '''Rebuild live scheme state for non-terminal schemes after replay.
 
@@ -1689,30 +1749,11 @@ class ExecutionManager:
         are not resumed.
         '''
 
-        inits: dict[str, SchemeInitialized] = {}
-        latest_state: dict[str, SchemeStateChanged] = {}
-        terminal_outcomes: set[str] = set()
-        frozen_ids: set[str] = set()
-        protection_frozen_ids: set[str] = set()
-
-        for _seq, event in events:
-            if isinstance(event, SchemeInitialized):
-                inits.setdefault(event.command_id, event)
-            elif isinstance(event, SchemeStateChanged):
-                latest_state[event.command_id] = event
-            elif isinstance(event, SliceFailed):
-                frozen_ids.add(event.command_id)
-            elif isinstance(event, SchemeFrozen):
-                frozen_ids.add(event.command_id)
-                protection_frozen_ids.add(event.command_id)
-            elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
-                terminal_outcomes.add(event.command_id)
-
-        for command_id, init in inits.items():
-            if command_id in terminal_outcomes:
+        for command_id, init in fold.inits.items():
+            if command_id in fold.terminal_outcomes:
                 continue
 
-            state = latest_state.get(command_id)
+            state = fold.latest_state.get(command_id)
             scheme_state = state.state if state is not None else SchemeState.RUNNING
             if scheme_state is not SchemeState.RUNNING:
                 continue
@@ -1785,7 +1826,7 @@ class ExecutionManager:
                 active_children=live_children,
                 next_run_at=state.next_run_at if state is not None else None,
                 deadline=deadline,
-                hold=_resume_hold(command_id, frozen_ids, protection_frozen_ids),
+                hold=_resume_hold(command_id, fold.frozen_ids, fold.protection_frozen_ids),
             )
 
             if (
