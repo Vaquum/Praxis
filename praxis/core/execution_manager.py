@@ -86,18 +86,16 @@ from praxis.core.domain.bracket_modify import BracketModify
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.time_dca_params import TimeDcaParams
-from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.single_shot_modify import SingleShotModify
-from praxis.core.domain.twap_modify import TwapModify
-from praxis.core.domain.time_dca_modify import TimeDcaModify
 from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import (
@@ -392,11 +390,8 @@ def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
     dispatch admits only `_SCHEME_MODES`.
     '''
 
-    if isinstance(params, TwapParams):
+    if isinstance(params, IntervalSliceParams):
         return params.num_slices, params.interval_seconds
-
-    if isinstance(params, TimeDcaParams):
-        return params.num_iterations, params.interval_seconds
 
     if isinstance(params, ScheduledVwapParams):
         return len(params.volume_weights), params.interval_seconds
@@ -467,11 +462,10 @@ def _rebuild_scheme_params(
     command's params need not be stored to resume the schedule.
     '''
 
-    if mode is ExecutionMode.TWAP:
-        return TwapParams(num_slices=slices_total, interval_seconds=interval_seconds)
-
-    if mode is ExecutionMode.TIME_DCA:
-        return TimeDcaParams(num_iterations=slices_total, interval_seconds=interval_seconds)
+    if mode in (ExecutionMode.TWAP, ExecutionMode.TIME_DCA):
+        return IntervalSliceParams(
+            num_slices=slices_total, interval_seconds=interval_seconds,
+        )
 
     if mode is ExecutionMode.SCHEDULED_VWAP:
         return ScheduledVwapParams(
@@ -7387,7 +7381,7 @@ class ExecutionManager:
         if scheme is not None:
             if isinstance(
                 modify.modify_params,
-                (TwapModify, TimeDcaModify, ScheduledVwapModify),
+                (IntervalSliceModify, ScheduledVwapModify),
             ):
                 await self._process_scheme_modify(runtime, scheme, modify)
             elif isinstance(modify.modify_params, LadderDcaModify):
@@ -8785,7 +8779,7 @@ class ExecutionManager:
         cmd = scheme.command
         params = modify.modify_params
         assert cmd.qty is not None
-        assert isinstance(params, (TwapModify, TimeDcaModify, ScheduledVwapModify))
+        assert isinstance(params, (IntervalSliceModify, ScheduledVwapModify))
 
         if scheme.hold in (_Hold.PROTECTION, _Hold.DRAINING):
             _log.warning(
@@ -8863,7 +8857,7 @@ class ExecutionManager:
 
     def _resolve_scheme_amend(
         self,
-        params: TwapModify | TimeDcaModify | ScheduledVwapModify,
+        params: IntervalSliceModify | ScheduledVwapModify,
         current_total: int,
         current_interval: int,
     ) -> tuple[int, int]:
@@ -8882,16 +8876,8 @@ class ExecutionManager:
             else current_interval
         )
 
-        if isinstance(params, TwapModify):
+        if isinstance(params, IntervalSliceModify):
             total = params.num_slices if params.num_slices is not None else current_total
-            return total, interval
-
-        if isinstance(params, TimeDcaModify):
-            total = (
-                params.num_iterations
-                if params.num_iterations is not None
-                else current_total
-            )
             return total, interval
 
         return current_total, interval

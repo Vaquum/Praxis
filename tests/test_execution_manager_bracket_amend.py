@@ -58,7 +58,7 @@ from praxis.core.domain.events import (
     SchemeInitialized,
 )
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
@@ -334,7 +334,7 @@ def _inject_twap_scheme(runtime: Any, command_id: str) -> None:
         command_id=command_id, trade_id='twap-trade', account_id=_ACCT,
         symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
         order_type=OrderType.MARKET, execution_mode=ExecutionMode.TWAP,
-        execution_params=TwapParams(num_slices=4, interval_seconds=10),
+        execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
         timeout=3600, reference_price=None,
         maker_preference=MakerPreference.NO_PREFERENCE, stp_mode=STPMode.NONE,
         created_at=_T0,

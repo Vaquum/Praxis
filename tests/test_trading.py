@@ -44,7 +44,7 @@ from praxis.core.domain.events import (
     TradeOutcomeProduced,
 )
 from praxis.core.account_ledger import CostBasisMethod
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.execution_manager import (
@@ -3009,7 +3009,7 @@ async def test_trading_default_config_gates_non_single_shot_mode(
             qty=Decimal('1'),
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.TWAP,
-            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
             timeout=300,
             reference_price=None,
             maker_preference=MakerPreference.NO_PREFERENCE,
@@ -3044,7 +3044,7 @@ async def test_trading_config_enables_named_mode(spine: EventSpine) -> None:
         qty=Decimal('1'),
         order_type=OrderType.MARKET,
         execution_mode=ExecutionMode.TWAP,
-        execution_params=TwapParams(num_slices=4, interval_seconds=10),
+        execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
         timeout=300,
         reference_price=None,
         maker_preference=MakerPreference.NO_PREFERENCE,

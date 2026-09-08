@@ -57,7 +57,7 @@ from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.modify_params import MODIFY_PARAMS_FOR_MODE
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 
 
 def test_none_returns_default_single_shot_params() -> None:
@@ -313,11 +313,11 @@ def test_build_execution_params_twap_from_mapping() -> None:
         ExecutionMode.TWAP, {'num_slices': 4, 'interval_seconds': 30},
     )
 
-    assert result == TwapParams(num_slices=4, interval_seconds=30)
+    assert result == IntervalSliceParams(num_slices=4, interval_seconds=30)
 
 
 def test_build_execution_params_passes_through_dataclass() -> None:
-    params = TwapParams(num_slices=3, interval_seconds=15)
+    params = IntervalSliceParams(num_slices=3, interval_seconds=15)
 
     assert build_execution_params(ExecutionMode.TWAP, params) is params
 
@@ -330,7 +330,7 @@ def test_build_execution_params_unknown_key_raises() -> None:
 
 
 def test_build_execution_params_wrong_shape_raises() -> None:
-    with pytest.raises(TypeError, match='must be TwapParams or a Mapping'):
+    with pytest.raises(TypeError, match='must be IntervalSliceParams or a Mapping'):
         build_execution_params(ExecutionMode.TWAP, 'nope')
 
 
@@ -380,17 +380,17 @@ def test_build_execution_params_rejects_non_decimal_value() -> None:
 
 
 def test_build_modify_params_twap_from_mapping() -> None:
-    from praxis.core.domain.twap_modify import TwapModify
+    from praxis.core.domain.interval_slice_modify import IntervalSliceModify
 
     result = build_modify_params(ExecutionMode.TWAP, {'num_slices': 6})
 
-    assert result == TwapModify(num_slices=6)
+    assert result == IntervalSliceModify(num_slices=6)
 
 
 def test_build_modify_params_passes_through_dataclass() -> None:
-    from praxis.core.domain.twap_modify import TwapModify
+    from praxis.core.domain.interval_slice_modify import IntervalSliceModify
 
-    params = TwapModify(interval_seconds=30)
+    params = IntervalSliceModify(interval_seconds=30)
 
     assert build_modify_params(ExecutionMode.TWAP, params) is params
 

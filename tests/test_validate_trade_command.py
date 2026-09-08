@@ -22,9 +22,8 @@ from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.time_dca_params import TimeDcaParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.domain.twap_params import TwapParams
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
@@ -35,11 +34,11 @@ _DEFAULT_PARAMS: dict[ExecutionMode, ExecutionParams] = {
     ExecutionMode.BRACKET: BracketParams(
         take_profit_price=Decimal('60000'), stop_loss_price=Decimal('40000'),
     ),
-    ExecutionMode.TWAP: TwapParams(num_slices=2, interval_seconds=30),
+    ExecutionMode.TWAP: IntervalSliceParams(num_slices=2, interval_seconds=30),
     ExecutionMode.SCHEDULED_VWAP: ScheduledVwapParams(
         interval_seconds=60, volume_weights=(Decimal('0.5'), Decimal('0.5')),
     ),
-    ExecutionMode.TIME_DCA: TimeDcaParams(num_iterations=2, interval_seconds=30),
+    ExecutionMode.TIME_DCA: IntervalSliceParams(num_slices=2, interval_seconds=30),
     ExecutionMode.ICEBERG: IcebergParams(
         display_qty=Decimal('0.001'), limit_price=Decimal('50000'),
     ),
@@ -600,7 +599,7 @@ class TestModeParams:
             quote_qty=Decimal('100'),
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.TWAP,
-            execution_params=TwapParams(num_slices=2, interval_seconds=30),
+            execution_params=IntervalSliceParams(num_slices=2, interval_seconds=30),
             timeout=60,
             reference_price=None,
             maker_preference=MakerPreference.NO_PREFERENCE,
@@ -616,7 +615,7 @@ class TestModeParams:
                 _cmd(
                     order_type=OrderType.MARKET,
                     execution_mode=ExecutionMode.TIME_DCA,
-                    execution_params=TimeDcaParams(num_iterations=2, interval_seconds=30),
+                    execution_params=IntervalSliceParams(num_slices=2, interval_seconds=30),
                     side=OrderSide.SELL,
                 ),
             )
@@ -626,7 +625,7 @@ class TestModeParams:
             _cmd(
                 order_type=OrderType.MARKET,
                 execution_mode=ExecutionMode.TIME_DCA,
-                execution_params=TimeDcaParams(num_iterations=2, interval_seconds=30),
+                execution_params=IntervalSliceParams(num_slices=2, interval_seconds=30),
                 side=OrderSide.BUY,
             ),
         )
@@ -649,7 +648,7 @@ class TestModeParams:
             _cmd(
                 order_type=OrderType.MARKET,
                 execution_mode=ExecutionMode.TWAP,
-                execution_params=TwapParams(num_slices=2, interval_seconds=30),
+                execution_params=IntervalSliceParams(num_slices=2, interval_seconds=30),
                 qty=Decimal('0.010'),
             ),
             filters=_FILTERS,
@@ -659,7 +658,7 @@ class TestModeParams:
                 _cmd(
                     order_type=OrderType.MARKET,
                     execution_mode=ExecutionMode.TWAP,
-                    execution_params=TwapParams(num_slices=100, interval_seconds=30),
+                    execution_params=IntervalSliceParams(num_slices=100, interval_seconds=30),
                     qty=Decimal('0.010'),
                 ),
                 filters=_FILTERS,
@@ -743,3 +742,18 @@ class TestModeParams:
                 ),
                 filters=_FILTERS,
             )
+
+
+    def test_twap_accepts_sell(self) -> None:
+        '''TWAP and Time DCA share one params type, so the accumulation-only
+        rule has to hang off the execution mode. Keyed on the params type it
+        would reject this sell, the two modes being indistinguishable.'''
+
+        validate_trade_command(
+            _cmd(
+                order_type=OrderType.MARKET,
+                execution_mode=ExecutionMode.TWAP,
+                execution_params=IntervalSliceParams(num_slices=2, interval_seconds=30),
+                side=OrderSide.SELL,
+            ),
+        )

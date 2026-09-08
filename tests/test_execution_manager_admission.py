@@ -25,7 +25,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import CommandAccepted
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core import execution_manager as em_module
 from praxis.core.execution_manager import CommandQueueFullError, ExecutionManager
 from praxis.infrastructure.event_spine import EventSpine
@@ -104,7 +104,7 @@ async def test_stale_command_expires_at_dispatch(
         **_cmd(
             timeout=10,
             execution_mode=ExecutionMode.TWAP,
-            execution_params=TwapParams(num_slices=2, interval_seconds=10),
+            execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10),
         )
     )
     clock_holder[0] = _T0 + timedelta(seconds=100)

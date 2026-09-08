@@ -1,25 +1,26 @@
 '''
-TWAP amend parameters.
+Interval-slicing amend parameters.
 
-Absolute new values for a running TWAP scheme's slice count and interval.
-Every field is optional; at least one must be set. Whether the new count is
-consistent with the scheme's progress is checked when the amend is applied.
+Absolute new values for a running interval-sliced scheme's slice count and
+interval. Every field is optional; at least one must be set. Whether the new
+count is consistent with the scheme's progress is checked when the amend is
+applied.
 '''
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ['TwapModify']
+__all__ = ['IntervalSliceModify']
 
 _MIN_SLICES = 2
 
 
 @dataclass(frozen=True)
-class TwapModify:
+class IntervalSliceModify:
 
     '''
-    Amend parameters for a running TWAP scheme.
+    Amend parameters for a running interval-sliced scheme.
 
     Args:
         num_slices (int | None): New total slice count, at least 2, or None.
@@ -35,7 +36,7 @@ class TwapModify:
         '''Validate invariants at construction time.'''
 
         if self.num_slices is None and self.interval_seconds is None:
-            msg = 'TwapModify requires at least one field to amend'
+            msg = 'IntervalSliceModify requires at least one field to amend'
             raise ValueError(msg)
 
         if self.num_slices is not None and (
@@ -43,7 +44,7 @@ class TwapModify:
             or not isinstance(self.num_slices, int)
             or self.num_slices < _MIN_SLICES
         ):
-            msg = f'TwapModify.num_slices must be an int at least {_MIN_SLICES}'
+            msg = f'IntervalSliceModify.num_slices must be an int at least {_MIN_SLICES}'
             raise ValueError(msg)
 
         if self.interval_seconds is not None and (
@@ -51,5 +52,5 @@ class TwapModify:
             or not isinstance(self.interval_seconds, int)
             or self.interval_seconds <= 0
         ):
-            msg = 'TwapModify.interval_seconds must be a positive int'
+            msg = 'IntervalSliceModify.interval_seconds must be a positive int'
             raise ValueError(msg)

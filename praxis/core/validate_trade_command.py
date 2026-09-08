@@ -13,12 +13,11 @@ from decimal import Decimal
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import ExecutionMode, MakerPreference, OrderSide, OrderType
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.domain.twap_params import TwapParams
 from praxis.infrastructure.venue_adapter import SymbolFilters
 
 __all__ = ['validate_trade_command']
@@ -337,7 +336,7 @@ def _validate_mode_params(cmd: TradeCommand) -> None:
 
     params = cmd.execution_params
 
-    if isinstance(params, TimeDcaParams) and cmd.side is not OrderSide.BUY:
+    if cmd.execution_mode is ExecutionMode.TIME_DCA and cmd.side is not OrderSide.BUY:
         msg = f'Time DCA is an accumulation order and requires side BUY, got {cmd.side.value}'
         raise ValueError(msg)
 
@@ -406,11 +405,13 @@ def _validate_mode_venue_filters(cmd: TradeCommand, filters: SymbolFilters) -> N
     assert cmd.qty is not None
     params = cmd.execution_params
 
-    if isinstance(params, TwapParams):
-        _check_lot_min(cmd.qty / params.num_slices, filters, 'TWAP slice qty')
-
-    elif isinstance(params, TimeDcaParams):
-        _check_lot_min(cmd.qty / params.num_iterations, filters, 'Time DCA slice qty')
+    if isinstance(params, IntervalSliceParams):
+        label = (
+            'Time DCA slice qty'
+            if cmd.execution_mode is ExecutionMode.TIME_DCA
+            else 'TWAP slice qty'
+        )
+        _check_lot_min(cmd.qty / params.num_slices, filters, label)
 
     elif isinstance(params, ScheduledVwapParams):
         for weight in params.volume_weights:

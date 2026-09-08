@@ -39,7 +39,7 @@ from praxis.core.domain.events import (
 )
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
@@ -68,7 +68,7 @@ def _twap_kwargs(**overrides: Any) -> dict[str, Any]:
         'qty': Decimal('1'),
         'order_type': OrderType.MARKET,
         'execution_mode': ExecutionMode.TWAP,
-        'execution_params': TwapParams(num_slices=4, interval_seconds=10),
+        'execution_params': IntervalSliceParams(num_slices=4, interval_seconds=10),
         'timeout': 3600,
         'reference_price': None,
         'maker_preference': MakerPreference.NO_PREFERENCE,
@@ -241,7 +241,7 @@ async def test_twap_emits_expected_spine_sequence(
 ) -> None:
     em, _ = mgr
     em.register_account(_ACCT)
-    await em.submit_command(**_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10)))
+    await em.submit_command(**_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10)))
     await asyncio.sleep(0.3)
     await _advance(clock_holder)
 
@@ -369,7 +369,7 @@ async def test_twap_lot_aligned_slices_complete(
     em, outcomes = mgr
     em.register_account(_ACCT)
     await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=3, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=3, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
     await _advance(clock_holder)
@@ -470,7 +470,7 @@ async def test_twap_partial_immediate_fill_completes_via_ws(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 
@@ -553,7 +553,7 @@ async def test_twap_async_rejected_child_freezes_not_filled(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
     await _advance(clock_holder)
@@ -611,7 +611,7 @@ async def test_twap_abort_cancels_live_child_then_finalizes(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 
@@ -664,7 +664,7 @@ async def test_twap_slice_submit_failure_freezes_keeping_active_child(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 
@@ -690,7 +690,7 @@ async def test_twap_deadline_expires_scheme(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(timeout=30, execution_params=TwapParams(num_slices=4, interval_seconds=10))
+        **_twap_kwargs(timeout=30, execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 

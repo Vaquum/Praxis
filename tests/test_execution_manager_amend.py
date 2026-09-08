@@ -31,8 +31,8 @@ from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.domain.twap_modify import TwapModify
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.event_spine import EventSpine
@@ -362,7 +362,7 @@ class TestUnsupportedMode:
             **_iceberg_kwargs(
                 order_type=OrderType.MARKET,
                 execution_mode=ExecutionMode.TWAP,
-                execution_params=TwapParams(num_slices=4, interval_seconds=10),
+                execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
             ),
         )
         await asyncio.sleep(0.3)
@@ -372,7 +372,7 @@ class TestUnsupportedMode:
                 command_id=command_id,
                 account_id=_ACCT,
                 reason='reprice',
-                modify_params=TwapModify(interval_seconds=30),
+                modify_params=IntervalSliceModify(interval_seconds=30),
                 created_at=_T0,
             ),
         )

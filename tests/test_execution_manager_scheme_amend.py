@@ -28,8 +28,8 @@ from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.domain.twap_modify import TwapModify
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
@@ -56,7 +56,7 @@ def _twap_kwargs(**overrides: Any) -> dict[str, Any]:
         'qty': Decimal('1'),
         'order_type': OrderType.MARKET,
         'execution_mode': ExecutionMode.TWAP,
-        'execution_params': TwapParams(num_slices=4, interval_seconds=10),
+        'execution_params': IntervalSliceParams(num_slices=4, interval_seconds=10),
         'timeout': 3600,
         'reference_price': None,
         'maker_preference': MakerPreference.NO_PREFERENCE,
@@ -148,7 +148,7 @@ class TestTwapSchemeAmend:
         command_id = await em.submit_command(**_twap_kwargs())
         await asyncio.sleep(0.3)
 
-        em.submit_modify(_modify(command_id, TwapModify(interval_seconds=30)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(interval_seconds=30)))
         await asyncio.sleep(0.3)
 
         scheme = em._accounts[_ACCT].schemes[command_id]
@@ -180,7 +180,7 @@ class TestTwapSchemeAmend:
         scheme = em._accounts[_ACCT].schemes[command_id]
         cursor = scheme.cursor
 
-        em.submit_modify(_modify(command_id, TwapModify(num_slices=6)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(num_slices=6)))
         await asyncio.sleep(0.3)
 
         assert scheme.slices_total == 6
@@ -203,7 +203,7 @@ class TestTwapSchemeAmend:
         assert scheme.cursor >= 2
         before = list(scheme.slice_qtys)
 
-        em.submit_modify(_modify(command_id, TwapModify(num_slices=2)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(num_slices=2)))
         await asyncio.sleep(0.3)
 
         assert scheme.slices_total == 4
@@ -299,7 +299,7 @@ class TestFrozenResumeAndComposition:
         assert scheme.hold is _Hold.SLICE_FAILED
         submits_before = adapter.submit_order.call_count
 
-        em.submit_modify(_modify(command_id, TwapModify(interval_seconds=5)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(interval_seconds=5)))
         await asyncio.sleep(0.3)
         assert scheme.hold is _Hold.OPEN
 
@@ -322,7 +322,7 @@ class TestFrozenResumeAndComposition:
         assert scheme.hold is _Hold.PROTECTION
         submits_before = adapter.submit_order.call_count
 
-        em.submit_modify(_modify(command_id, TwapModify(interval_seconds=30)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(interval_seconds=30)))
         await asyncio.sleep(0.3)
 
         assert scheme.hold is _Hold.PROTECTION
@@ -348,7 +348,7 @@ class TestFrozenResumeAndComposition:
 
         await em._process_modify(
             runtime,
-            _modify(command_id, TwapModify(interval_seconds=original_interval + 5)),
+            _modify(command_id, IntervalSliceModify(interval_seconds=original_interval + 5)),
         )
 
         assert scheme.hold is _Hold.DRAINING
@@ -381,7 +381,7 @@ class TestFrozenResumeAndComposition:
         resumed = restarted._accounts[_ACCT].schemes[command_id]
         assert resumed.hold is _Hold.PROTECTION
 
-        restarted.submit_modify(_modify(command_id, TwapModify(interval_seconds=30)))
+        restarted.submit_modify(_modify(command_id, IntervalSliceModify(interval_seconds=30)))
         await asyncio.sleep(0.3)
 
         assert resumed.hold is _Hold.PROTECTION
@@ -420,7 +420,7 @@ class TestFrozenResumeAndComposition:
         assert frozen == [command_id]
         assert scheme.hold is _Hold.PROTECTION
 
-        em.submit_modify(_modify(command_id, TwapModify(interval_seconds=5)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(interval_seconds=5)))
         await asyncio.sleep(0.3)
 
         assert scheme.hold is _Hold.PROTECTION
@@ -437,11 +437,11 @@ class TestFrozenResumeAndComposition:
 
         scheme = em._accounts[_ACCT].schemes[command_id]
 
-        em.submit_modify(_modify(command_id, TwapModify(interval_seconds=30)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(interval_seconds=30)))
         await asyncio.sleep(0.3)
         assert scheme.interval_seconds == 30
 
-        em.submit_modify(_modify(command_id, TwapModify(num_slices=6)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(num_slices=6)))
         await asyncio.sleep(0.3)
 
         assert scheme.interval_seconds == 30
@@ -454,15 +454,15 @@ class TestTimeDcaSchemeAmend:
     async def test_num_iterations_increase_replans_remaining(
         self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
     ) -> None:
-        from praxis.core.domain.time_dca_modify import TimeDcaModify
-        from praxis.core.domain.time_dca_params import TimeDcaParams
+        from praxis.core.domain.interval_slice_modify import IntervalSliceModify
+        from praxis.core.domain.interval_slice_params import IntervalSliceParams
 
         em, _ = mgr
         em.register_account(_ACCT)
         command_id = await em.submit_command(
             **_twap_kwargs(
                 execution_mode=ExecutionMode.TIME_DCA,
-                execution_params=TimeDcaParams(num_iterations=4, interval_seconds=10),
+                execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
             ),
         )
         await asyncio.sleep(0.3)
@@ -470,7 +470,7 @@ class TestTimeDcaSchemeAmend:
         scheme = em._accounts[_ACCT].schemes[command_id]
         cursor = scheme.cursor
 
-        em.submit_modify(_modify(command_id, TimeDcaModify(num_iterations=6, interval_seconds=20)))
+        em.submit_modify(_modify(command_id, IntervalSliceModify(num_slices=6, interval_seconds=20)))
         await asyncio.sleep(0.3)
 
         assert scheme.slices_total == 6

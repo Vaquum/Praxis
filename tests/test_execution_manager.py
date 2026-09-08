@@ -42,7 +42,7 @@ from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import (
@@ -1543,7 +1543,7 @@ class TestModeDispatch:
             qty=Decimal('1'),
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.TWAP,
-            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
             timeout=300,
             reference_price=None,
             maker_preference=MakerPreference.NO_PREFERENCE,
@@ -1568,7 +1568,7 @@ class TestCapabilityGate:
         **_CMD_KWARGS,
         'order_type': OrderType.MARKET,
         'execution_mode': ExecutionMode.TWAP,
-        'execution_params': TwapParams(num_slices=4, interval_seconds=10),
+        'execution_params': IntervalSliceParams(num_slices=4, interval_seconds=10),
     }
 
     @pytest.mark.asyncio
