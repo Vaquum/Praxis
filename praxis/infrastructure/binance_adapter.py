@@ -20,8 +20,10 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from datetime import datetime, UTC
 from decimal import Decimal
+from enum import Enum
 from typing import Any
 from urllib.parse import urlencode
 
@@ -196,6 +198,63 @@ _BINANCE_OCO_STATUS_MAP: dict[str, OrderStatus] = {
 }
 
 _BINANCE_NO_TRADE_ID = -1
+
+
+class _TimeInForcePolicy(Enum):
+
+    '''How an order type settles its `timeInForce`.'''
+
+    NONE = 'NONE'
+    CALLER_OR_GTC = 'CALLER_OR_GTC'
+    FIXED_IOC = 'FIXED_IOC'
+
+
+@dataclass(frozen=True)
+class _OrderTypeSpec:
+
+    '''What a Binance order of one type is made of.
+
+    Args:
+        venue_type: The `type` Binance is sent, which several domain types
+            share — LIMIT_IOC is a LIMIT with a fixed time in force.
+        price_required: Whether the type needs a limit price. A type that
+            does not need one does not accept one.
+        stop_price_required: Whether the type needs a trigger price, on the
+            same all-or-nothing terms.
+        time_in_force: How `timeInForce` is settled for the type.
+    '''
+
+    venue_type: str
+    price_required: bool
+    stop_price_required: bool
+    time_in_force: _TimeInForcePolicy
+
+
+_ORDER_TYPE_SPECS: dict[OrderType, _OrderTypeSpec] = {
+    OrderType.MARKET: _OrderTypeSpec(
+        'MARKET', False, False, _TimeInForcePolicy.NONE,
+    ),
+    OrderType.LIMIT: _OrderTypeSpec(
+        'LIMIT', True, False, _TimeInForcePolicy.CALLER_OR_GTC,
+    ),
+    OrderType.LIMIT_IOC: _OrderTypeSpec(
+        'LIMIT', True, False, _TimeInForcePolicy.FIXED_IOC,
+    ),
+    OrderType.STOP: _OrderTypeSpec(
+        'STOP_LOSS', False, True, _TimeInForcePolicy.NONE,
+    ),
+    OrderType.STOP_LIMIT: _OrderTypeSpec(
+        'STOP_LOSS_LIMIT', True, True, _TimeInForcePolicy.CALLER_OR_GTC,
+    ),
+    OrderType.TAKE_PROFIT: _OrderTypeSpec(
+        'TAKE_PROFIT', False, True, _TimeInForcePolicy.NONE,
+    ),
+    OrderType.TP_LIMIT: _OrderTypeSpec(
+        'TAKE_PROFIT_LIMIT', True, True, _TimeInForcePolicy.CALLER_OR_GTC,
+    ),
+}
+
+_DEFAULT_TIME_IN_FORCE = 'GTC'
 
 
 class BinanceAdapter:
@@ -709,98 +768,62 @@ class BinanceAdapter:
             dict[str, str]: Binance API query parameters
         '''
 
+        if iceberg_qty is not None and order_type != OrderType.LIMIT:
+            msg = 'iceberg_qty is only supported for LIMIT orders'
+            raise ValueError(msg)
+
+        spec = _ORDER_TYPE_SPECS.get(order_type)
+
+        if spec is None:
+            msg = f"Unsupported order type: {order_type}"
+            raise ValueError(msg)
+
+        # Required before forbidden, price before stop, so a type that wants
+        # a trigger it did not get reports the missing one rather than a
+        # price it merely refuses to carry.
+        if spec.price_required and price is None:
+            msg = f'price is required for {order_type.value} orders'
+            raise ValueError(msg)
+
+        if spec.stop_price_required and stop_price is None:
+            msg = f'stop_price is required for {order_type.value} orders'
+            raise ValueError(msg)
+
+        if not spec.price_required and price is not None:
+            msg = f'price is not supported for {order_type.value} orders'
+            raise ValueError(msg)
+
+        if not spec.stop_price_required and stop_price is not None:
+            msg = f'stop_price is not supported for {order_type.value} orders'
+            raise ValueError(msg)
+
         params: dict[str, str] = {
             'symbol': symbol,
             'side': side.value,
             'quantity': format(qty, 'f'),
             'newOrderRespType': 'FULL',
+            'type': spec.venue_type,
         }
 
-        if iceberg_qty is not None and order_type != OrderType.LIMIT:
-            msg = 'iceberg_qty is only supported for LIMIT orders'
-            raise ValueError(msg)
-
-        if order_type == OrderType.MARKET:
-            params['type'] = 'MARKET'
-            if stop_price is not None:
-                msg = 'stop_price is not supported for MARKET orders'
-                raise ValueError(msg)
-
-        elif order_type == OrderType.LIMIT:
-            params['type'] = 'LIMIT'
-            if price is None:
-                msg = 'price is required for LIMIT orders'
-                raise ValueError(msg)
-            if stop_price is not None:
-                msg = 'stop_price is not supported for LIMIT orders'
-                raise ValueError(msg)
+        if price is not None:
             params['price'] = format(price, 'f')
-            params['timeInForce'] = time_in_force or 'GTC'
-            if iceberg_qty is not None:
-                if iceberg_qty >= qty:
-                    msg = 'iceberg_qty must be below the total quantity'
-                    raise ValueError(msg)
-                params['icebergQty'] = format(iceberg_qty, 'f')
-                params['timeInForce'] = 'GTC'
 
-        elif order_type == OrderType.LIMIT_IOC:
-            params['type'] = 'LIMIT'
-            if price is None:
-                msg = 'price is required for LIMIT_IOC orders'
-                raise ValueError(msg)
-            if stop_price is not None:
-                msg = 'stop_price is not supported for LIMIT_IOC orders'
-                raise ValueError(msg)
-            params['price'] = format(price, 'f')
+        if stop_price is not None:
+            params['stopPrice'] = format(stop_price, 'f')
+
+        if spec.time_in_force is _TimeInForcePolicy.CALLER_OR_GTC:
+            params['timeInForce'] = time_in_force or _DEFAULT_TIME_IN_FORCE
+
+        elif spec.time_in_force is _TimeInForcePolicy.FIXED_IOC:
             params['timeInForce'] = 'IOC'
 
-        elif order_type == OrderType.STOP:
-            params['type'] = 'STOP_LOSS'
-            if stop_price is None:
-                msg = 'stop_price is required for STOP orders'
+        if iceberg_qty is not None:
+            if iceberg_qty >= qty:
+                msg = 'iceberg_qty must be below the total quantity'
                 raise ValueError(msg)
-            if price is not None:
-                msg = 'price is not supported for STOP orders'
-                raise ValueError(msg)
-            params['stopPrice'] = format(stop_price, 'f')
 
-        elif order_type == OrderType.STOP_LIMIT:
-            params['type'] = 'STOP_LOSS_LIMIT'
-            if price is None:
-                msg = 'price is required for STOP_LIMIT orders'
-                raise ValueError(msg)
-            if stop_price is None:
-                msg = 'stop_price is required for STOP_LIMIT orders'
-                raise ValueError(msg)
-            params['price'] = format(price, 'f')
-            params['stopPrice'] = format(stop_price, 'f')
-            params['timeInForce'] = time_in_force or 'GTC'
-
-        elif order_type == OrderType.TAKE_PROFIT:
-            params['type'] = 'TAKE_PROFIT'
-            if stop_price is None:
-                msg = 'stop_price is required for TAKE_PROFIT orders'
-                raise ValueError(msg)
-            if price is not None:
-                msg = 'price is not supported for TAKE_PROFIT orders'
-                raise ValueError(msg)
-            params['stopPrice'] = format(stop_price, 'f')
-
-        elif order_type == OrderType.TP_LIMIT:
-            params['type'] = 'TAKE_PROFIT_LIMIT'
-            if price is None:
-                msg = 'price is required for TP_LIMIT orders'
-                raise ValueError(msg)
-            if stop_price is None:
-                msg = 'stop_price is required for TP_LIMIT orders'
-                raise ValueError(msg)
-            params['price'] = format(price, 'f')
-            params['stopPrice'] = format(stop_price, 'f')
-            params['timeInForce'] = time_in_force or 'GTC'
-
-        else:
-            msg = f"Unsupported order type: {order_type}"
-            raise ValueError(msg)
+            params['icebergQty'] = format(iceberg_qty, 'f')
+            params['timeInForce'] = _DEFAULT_TIME_IN_FORCE
 
         if client_order_id is not None:
             params['newClientOrderId'] = client_order_id
