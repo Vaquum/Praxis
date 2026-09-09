@@ -1534,24 +1534,30 @@ class ExecutionManager:
                     if entry_order.filled_qty > _ZERO
                     else None
                 )
-                amend = (
-                    amends.get(command_id, {}).get(protection_version)
-                    if active is not None
-                    else None
-                )
-                if avg_entry_price is None or (
-                    active is not None
-                    and (
-                        amend is None
-                        or amend.new_list_client_order_id
-                        != active.new_list_client_order_id
+                amend = None
+                if active is not None:
+                    # Keyed on the list that is actually resting, not on the
+                    # version: the STATE_UNKNOWN watchdog re-tracks whichever
+                    # candidate the venue confirms working, so an amend whose
+                    # cancel never landed leaves the pre-amend list active at
+                    # the amended version. The legs to restore are the ones
+                    # belonging to that list, and an active naming no recorded
+                    # amend is the initial placement, whose legs derive from
+                    # the entry average.
+                    amend = next(
+                        (
+                            candidate
+                            for candidate in amends.get(command_id, {}).values()
+                            if candidate.new_list_client_order_id
+                            == active.new_list_client_order_id
+                        ),
+                        None,
                     )
-                ):
-                    # An OPEN OCO with no filled entry, or an amended active
-                    # whose replacement snapshot is missing or names a different
-                    # list id, is an inconsistent durable state: fail closed and
-                    # leave it to reconciliation rather than resume a bracket
-                    # with no or wrong legs.
+
+                if avg_entry_price is None:
+                    # An OPEN OCO with no filled entry is an inconsistent
+                    # durable state: fail closed and leave it to reconciliation
+                    # rather than resume a bracket whose legs cannot be derived.
                     continue
 
                 current_tp: Decimal | None

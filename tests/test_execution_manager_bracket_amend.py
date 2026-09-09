@@ -542,6 +542,49 @@ class TestBracketAmendHappyPath:
         )
 
     @pytest.mark.asyncio
+    async def test_resume_rebuilds_a_bracket_the_watchdog_re_tracked_pre_amend(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        old_list = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=1,
+        )
+        await em._process_modify(
+            runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        rows = [
+            (seq, event)
+            for seq, event in await spine.read(epoch_id=_EPOCH)
+            if not (
+                isinstance(event, OrderCanceled)
+                and event.client_order_id == old_list
+            )
+        ]
+        rows.append((rows[-1][0] + 1, ProtectionActive(
+            account_id=_ACCT,
+            timestamp=_T0,
+            command_id=command_id,
+            protection_version=1,
+            new_list_client_order_id=old_list,
+        )))
+
+        resumed, _ = mgr_factory(_make_adapter())
+        resumed.register_account(_ACCT)
+        resumed.replay_events(_ACCT, rows)
+
+        bracket = resumed._accounts[_ACCT].brackets[command_id]
+
+        assert bracket.protection_status is BracketProtectionStatus.ACTIVE
+        assert bracket.protection_client_order_id == old_list
+        assert bracket.current_tp_price == _TP_PRICE
+        assert command_id in resumed.modifiable_command_ids(_ACCT)
+
+    @pytest.mark.asyncio
     async def test_amend_requested_snapshot_merges_unchanged_stop_loss(
         self, mgr_factory: Any, spine: EventSpine,
     ) -> None:
