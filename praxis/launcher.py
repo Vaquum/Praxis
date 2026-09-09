@@ -2789,6 +2789,17 @@ class Launcher:
         )
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
+        # Two maps because they answer two questions with different answers
+        # in time, not one map written twice. The wiring says an account can
+        # be accounted for: it is published before the startup actions drain,
+        # inside the build, and stays available while Trading can still
+        # deliver a fill, which is past the shutdown sequencer. Membership of
+        # the runtimes says an account can be reached: only once the build has
+        # returned, so reconciliation and the ops endpoints never touch a
+        # half-built account, and removed before teardown, so nothing looks
+        # one up again while it is being dismantled — a caller already holding
+        # a reference keeps it. Collapsing them into one slot loses whichever
+        # edge it is published on.
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
         self._account_outcome_wiring_lock = threading.Lock()
         self._nexus_runtimes: dict[str, _NexusRuntime] = {}
@@ -2985,15 +2996,9 @@ class Launcher:
             self._trading.set_on_trade_outcome(_composed)
 
         def _route_fund_transaction(praxis_fund: FundTransaction) -> None:
-            with self._nexus_runtimes_lock:
-                runtime = self._nexus_runtimes.get(praxis_fund.account_id)
-
-            if runtime is None:
-                msg = (
-                    f'no nexus runtime for account {praxis_fund.account_id!r}; '
-                    'fund transaction not delivered'
-                )
-                raise _NexusRuntimeNotReadyError(msg)
+            runtime = self._require_routable_runtime(
+                praxis_fund.account_id, 'fund transaction',
+            )
 
             runtime.outcome_processor.process_fund_transaction(
                 translate_fund_transaction(praxis_fund),
@@ -3002,15 +3007,9 @@ class Launcher:
         def _route_reconciliation_mismatch(
             praxis_mismatch: ReconciliationMismatch,
         ) -> None:
-            with self._nexus_runtimes_lock:
-                runtime = self._nexus_runtimes.get(praxis_mismatch.account_id)
-
-            if runtime is None:
-                msg = (
-                    f'no nexus runtime for account {praxis_mismatch.account_id!r}; '
-                    'reconciliation mismatch not delivered'
-                )
-                raise _NexusRuntimeNotReadyError(msg)
+            runtime = self._require_routable_runtime(
+                praxis_mismatch.account_id, 'reconciliation mismatch',
+            )
 
             runtime.reconciliation_handler.process_reconciliation_mismatch(
                 translate_reconciliation_mismatch(praxis_mismatch),
@@ -3019,15 +3018,9 @@ class Launcher:
         def _route_protection_remediation(
             remediation: ProtectionRemediation,
         ) -> None:
-            with self._nexus_runtimes_lock:
-                runtime = self._nexus_runtimes.get(remediation.account_id)
-
-            if runtime is None:
-                msg = (
-                    f'no nexus runtime for account {remediation.account_id!r}; '
-                    'protection remediation not delivered'
-                )
-                raise _NexusRuntimeNotReadyError(msg)
+            runtime = self._require_routable_runtime(
+                remediation.account_id, 'protection remediation',
+            )
 
             runtime.protection_remediation_handler.process_protection_remediation(
                 remediation,
@@ -3939,6 +3932,42 @@ class Launcher:
         self._loop_thread = None
 
         _log.info('shutdown complete')
+
+    def _require_routable_runtime(
+        self,
+        account_id: str,
+        undelivered: str,
+    ) -> _NexusRuntime:
+
+        '''Return the account's published runtime, or refuse to deliver.
+
+        The caller's raise reaches the Trading reconciliation loop, which
+        holds the event undelivered — leaving the seen-marker unset or the
+        cursor un-advanced — so an account still starting up retries on the
+        next cycle rather than losing the event.
+
+        Args:
+            account_id (str): Account the event is addressed to.
+            undelivered (str): What is not being delivered, for the message.
+
+        Returns:
+            _NexusRuntime: The account's published runtime.
+
+        Raises:
+            _NexusRuntimeNotReadyError: The account has no published runtime.
+        '''
+
+        with self._nexus_runtimes_lock:
+            runtime = self._nexus_runtimes.get(account_id)
+
+        if runtime is None:
+            msg = (
+                f'no nexus runtime for account {account_id!r}; '
+                f'{undelivered} not delivered'
+            )
+            raise _NexusRuntimeNotReadyError(msg)
+
+        return runtime
 
     def _run_nexus_instance(
         self,
