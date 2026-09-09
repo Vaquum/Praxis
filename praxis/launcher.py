@@ -4276,8 +4276,6 @@ class Launcher:
                     if registration is None:
                         registration = _CommandRegistration(strategy_id=strategy_id)
                         command_registrations[outcome.command_id] = registration
-                    else:
-                        registration.strategy_id = strategy_id
 
                     if (
                         outcome.decision is not None
