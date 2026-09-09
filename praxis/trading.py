@@ -123,11 +123,15 @@ def _wrap_event_callback[E](
 ) -> Callable[[E], Awaitable[None]]:
     '''Adapt a sync-or-async event callback into an always-async adapter.
 
-    Mirrors `set_on_trade_outcome`'s adapter: the returned coroutine
-    awaits the result when it is awaitable and treats it as a plain
-    return otherwise, covering coroutine functions, sync callables,
-    `AsyncMock`, and `functools.partial` wrappers. A `None` callback
-    yields a no-op adapter so callers can fire unconditionally.
+    The returned coroutine awaits the result when it is awaitable and
+    treats it as a plain return otherwise, covering coroutine functions,
+    sync callables, `AsyncMock`, and `functools.partial` wrappers.
+
+    A `None` callback yields a NO-OP adapter, which is what the callers
+    that `await` their callback unconditionally need. It is therefore the
+    wrong wrapper for a callback installed on the execution manager: that
+    reads `None` as "nobody is listening", and a no-op would instead tell
+    it someone is.
 
     Args:
         cb: The sync or async callback, or `None` for a no-op.
@@ -340,6 +344,29 @@ class Trading:
 
         q.put_nowait(outcome)
 
+    def _refuse_after_start(self, method_name: str) -> None:
+        '''Refuse to swap a callback once startup has begun.
+
+        The replay loop and in-flight order coroutines hold the callback
+        they were given, so exchanging it mid-flight would race with the
+        outcomes it is meant to receive. Both conditions are needed:
+        `start()` binds the loop before it marks itself started, so the
+        loop is what catches an install attempted during startup.
+
+        Args:
+            method_name (str): Setter being called, named in the error.
+
+        Raises:
+            RuntimeError: Startup has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                f'{method_name} must not be called once '
+                f'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
     def set_on_trade_outcome(
         self,
         cb: Callable[[TradeOutcome], None] | Callable[[TradeOutcome], Awaitable[None]] | None,
@@ -375,12 +402,7 @@ class Trading:
                 `self._started`) and after start completes.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_trade_outcome must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_trade_outcome')
 
         if cb is None:
             self._execution_manager.set_on_trade_outcome(None)
@@ -417,12 +439,7 @@ class Trading:
             RuntimeError: If called once `start()` has begun.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_fund_transaction must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_fund_transaction')
 
         self._on_fund_transaction = _wrap_event_callback(cb)
 
@@ -448,12 +465,7 @@ class Trading:
             RuntimeError: If called once `start()` has begun.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_reconciliation_mismatch must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_reconciliation_mismatch')
 
         self._on_reconciliation_mismatch = _wrap_event_callback(cb)
 
@@ -478,12 +490,7 @@ class Trading:
             RuntimeError: If called once `start()` has begun.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_protection_remediation must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_protection_remediation')
 
         self._execution_manager.set_on_protection_remediation(
             _wrap_event_callback(cb),

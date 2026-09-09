@@ -3117,3 +3117,44 @@ async def test_trading_shutdown_rejects_modifies(spine: EventSpine) -> None:
 
     trading._stopping = False
     await trading.stop()
+
+
+@pytest.mark.parametrize(
+    'setter',
+    [
+        'set_on_trade_outcome',
+        'set_on_fund_transaction',
+        'set_on_reconciliation_mismatch',
+        'set_on_protection_remediation',
+    ],
+)
+@pytest.mark.asyncio
+async def test_every_callback_setter_refuses_after_start(
+    spine: EventSpine,
+    setter: str,
+) -> None:
+    """All four setters share one guard, and each still names itself.
+
+    The replay loop and in-flight order coroutines hold the callback they
+    were handed, so swapping one mid-flight would race the outcomes it is
+    there to receive.
+    """
+
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, _InjectedVenueAdapter()),
+    )
+
+    await trading.start()
+    try:
+        expected = (
+            rf'^{setter} must not be called once Trading\.start\(\) has begun$'
+        )
+        with pytest.raises(RuntimeError, match=expected):
+            getattr(trading, setter)(None)
+    finally:
+        await trading.stop()
