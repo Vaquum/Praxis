@@ -496,3 +496,37 @@ async def test_boot_drain_revisits_admissions_that_arrive_during_dispatch(
     assert runtime.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.65')
 
     await em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_one_drain_pass_defers_an_admission_made_during_dispatch(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT, booting=True)
+    runtime = em._accounts[_ACCT]
+    _open_order(runtime)
+
+    late = _fill(Decimal('0.25'), venue_trade_id='vt-late')
+    dispatched: list[object] = []
+    original = em._dispatch_event
+
+    async def _dispatch_then_admit(rt: object, event: object) -> None:
+        dispatched.append(event)
+
+        if len(dispatched) == 1:
+            loop = asyncio.get_running_loop()
+            rt.admission_queue.put_nowait((late, loop.create_future()))
+
+        await original(rt, event)
+
+    em._dispatch_event = _dispatch_then_admit
+
+    await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
+    await em._drain_external_events(runtime)
+
+    assert not runtime.admission_queue.empty()
+    assert runtime.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.4')
+
+    await em.unregister_account(_ACCT)

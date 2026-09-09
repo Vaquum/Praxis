@@ -3061,7 +3061,7 @@ class ExecutionManager:
 
         runtime = self._accounts.get(account_id)
         if runtime is not None and runtime.booting:
-            await self._drain_external_events(runtime)
+            await self._drain_external_events(runtime, until_empty=True)
 
     def _fail_pending_admissions(
         self,
@@ -3081,20 +3081,38 @@ class ExecutionManager:
             if not future.cancelled():
                 future.set_exception(error)
 
-    async def _drain_external_events(self, runtime: _AccountRuntime) -> None:
+    async def _drain_external_events(
+        self,
+        runtime: _AccountRuntime,
+        *,
+        until_empty: bool = False,
+    ) -> None:
         '''Drain every queue an external event can be waiting in.
 
         Admitted events are appended and projected out of `admission_queue`
         and only then dispatched out of `dispatch_queue`, so a caller that
         drains one and not the others reads a projection that still lags the
-        events already handed to the account. The account loop and boot
-        recovery share this order so both catch up on the same terms.
+        events already handed to the account.
+
+        Boot recovery passes `until_empty` because it must read its own
+        writes before it sizes a remediation, and dispatching one event can
+        admit another that a single pass would leave behind. The account loop
+        takes one pass: it is already a loop, and draining to empty ahead of
+        the priority queue would let a sustained fill stream starve a queued
+        abort.
+
+        Args:
+            runtime (_AccountRuntime): Account whose queues to drain.
+            until_empty (bool): Repeat until no queue holds an event.
         '''
 
-        while self._has_queued_external_events(runtime):
+        while True:
             await self._drain_admission_queue(runtime)
             await self._drain_ws_events(runtime)
             await self._drain_dispatch_queue(runtime)
+
+            if not until_empty or not self._has_queued_external_events(runtime):
+                return
 
     @staticmethod
     def _has_queued_external_events(runtime: _AccountRuntime) -> bool:
@@ -7109,7 +7127,7 @@ class ExecutionManager:
             command=cmd, entry_client_order_id=entry_client_order_id,
         )
         exit_command_id = bracket_exit_command_id(command_id)
-        await self._drain_external_events(runtime)
+        await self._drain_external_events(runtime, until_empty=True)
 
         if runtime.poisoned:
             _log.warning(
