@@ -3133,12 +3133,12 @@ async def test_every_callback_setter_refuses_after_start(
     spine: EventSpine,
     setter: str,
 ) -> None:
-    """All four setters share one guard, and each still names itself.
+    '''All four setters share one guard, and each still names itself.
 
     The replay loop and in-flight order coroutines hold the callback they
     were handed, so swapping one mid-flight would race the outcomes it is
     there to receive.
-    """
+    '''
 
     trading = Trading(
         config=TradingConfig(

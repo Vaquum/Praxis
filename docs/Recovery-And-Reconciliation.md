@@ -58,7 +58,7 @@ Praxis uses `fill_dedup_v2` in the Event Spine — keyed per `(epoch, account, s
 - REST backfill
 - reconciliation after restart
 
-Without that dedup path, repeated venue fills could inflate positions and distort outcomes. The legacy `fill_dedup` table is dual-read only for the one symbol proven present before the version 3 migration.
+Without that dedup path, repeated venue fills could inflate positions and distort outcomes. The legacy `fill_dedup` table no longer exists: the version 4 migration folded its rows into `fill_dedup_v2` under the symbol the version 3 migration proved, and dropped it.
 
 ## Read Next
 

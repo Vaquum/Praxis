@@ -354,7 +354,7 @@ def _vwap_init_for(
 async def test_unusable_scheme_does_not_stop_a_healthy_one_replaying(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
 ) -> None:
-    """A scheme the writer could not have produced is skipped, not fatal.
+    '''A scheme the writer could not have produced is skipped, not fatal.
 
     The event deliberately validates its fields one at a time and not the
     relationships between them. Both writers build it from a params object
@@ -362,7 +362,7 @@ async def test_unusable_scheme_does_not_stop_a_healthy_one_replaying(
     record is foreign or damaged — and refusing it here would refuse it at
     decode, taking down the whole account's replay rather than the one
     scheme that cannot be rebuilt.
-    """
+    '''
 
     em, _ = mgr
     em.register_account(_ACCT)

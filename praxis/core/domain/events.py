@@ -691,15 +691,25 @@ class BracketInitialized(_EventBase):
         side (OrderSide): Entry order direction.
         total_qty (Decimal): Entry base quantity.
         take_profit_price (Decimal | None): Absolute take-profit price.
+            Exactly one of this and `take_profit_offset_bps` must be set.
         take_profit_offset_bps (Decimal | None): Take-profit offset in basis
-            points from the entry average fill.
+            points from the entry average fill. Exactly one of this and
+            `take_profit_price` must be set.
         stop_loss_price (Decimal | None): Absolute stop-loss trigger price.
+            Exactly one of this and `stop_loss_offset_bps` must be set.
         stop_loss_offset_bps (Decimal | None): Stop-loss offset in basis
-            points from the entry average fill.
+            points from the entry average fill. Exactly one of this and
+            `stop_loss_price` must be set.
         stop_loss_limit_price (Decimal | None): Stop-loss limit price, or None
             for a stop-market stop-loss leg.
         timeout_seconds (int): Command deadline in seconds. Non-negative;
             0 means no deadline. Defaults to 0.
+
+    The leg fields default to None so the flat record can be built field by
+    field, not because a leg is optional: `__post_init__` validates them
+    through `BracketParams`, which requires both legs and exactly one form of
+    each. A bracket cannot carry a naked leg, and a persisted record that does
+    is refused at hydrate rather than resumed without protection.
     '''
 
     command_id: str

@@ -126,20 +126,20 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 **Severity**: Low (transient, no current consumer trips it)
 **Module**: `praxis/launcher.py:1500-1533`
 
-`process_outcome` releases `command_registry_lock` (after popping `command_contexts` / `command_strategy_ids`) and then re-acquires `positions_lock` to delete the position. A predict tick that runs between the two acquisitions sees a position whose strategy-id mapping has already been popped. Today the strategy-context build path filters positions by `strategy_id` independently of the registry, so the worst case is a tick that briefly observes a position that's about to be removed — benign for current consumers.
+`process_outcome` releases `command_registry_lock` (after popping the command's `command_registrations` record, formerly the parallel `command_contexts` / `command_strategy_ids` maps) and then re-acquires `positions_lock` to delete the position. A predict tick that runs between the two acquisitions sees a position whose strategy-id mapping has already been popped. Today the strategy-context build path filters positions by `strategy_id` independently of the registry, so the worst case is a tick that briefly observes a position that's about to be removed — benign for current consumers.
 
-**When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
+**When to fix**: If a future code path resolves positions through the registration's `strategy_id`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
 **Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.
 
 ---
 
-## TD-029: `command_contexts` and `command_strategy_ids` leak when `_grow_position` / `_reduce_position` raises
+## TD-029: the command registration leaks when `_grow_position` / `_reduce_position` raises
 
 **Origin**: Round-14 8-pass aggregation
 **Severity**: Low (bounded; few raise sites)
 **Module**: `praxis/launcher.py` (`process_outcome` terminal-cleanup block after `outcome_processor.process(...)`); cross-repo `nexus/infrastructure/praxis_connector/outcome_processor.py:325-381` (raise sites)
 
-`process_outcome`'s registry purge (`command_contexts.pop` / `command_strategy_ids.pop`) sits behind `if outcome.outcome_type.is_terminal:` AFTER `outcome_processor.process(...)`. A `RuntimeError` from `_grow_position` (`outcome_processor.py:341, 348`) or `_reduce_position` (`:380, 386, 396`) unwinds the call site, skipping the purge. OutcomeLoop's outermost catch swallows it. Memory grows on each defective outcome.
+`process_outcome`'s registry purge (`command_registrations.pop`, formerly `command_contexts.pop` / `command_strategy_ids.pop`) sits behind `if outcome.outcome_type.is_terminal:` AFTER `outcome_processor.process(...)`. A `RuntimeError` from `_grow_position` (`outcome_processor.py:341, 348`) or `_reduce_position` (`:380, 386, 396`) unwinds the call site, skipping the purge. OutcomeLoop's outermost catch swallows it. Memory grows on each defective outcome.
 
 **When to fix**: When defective outcomes are observed in production (e.g., venue ID drift causing missing trade_id), OR when long-running deployments accumulate measurable memory growth.
 **Migration**: Wrap `outcome_processor.process(...)` in try/finally that unconditionally runs the registry purge for terminal types, OR couple with Nexus TD-048 (post-success exception path) for a unified fix.
@@ -483,7 +483,7 @@ Add tests covering: (1) rescue returns ImmediateFill tuple matching VenueTrade r
 **Severity**: Low (defense-in-depth; gated upstream by validator PRICE stage)
 **Module**: `praxis/launcher.py` (`_ensure_entry_position`); cross-repo: `nexus/infrastructure/praxis_connector/outcome_processor.py` (`_grow_position`)
 
-`_ensure_entry_position` logs a warning and returns when `ref_price is None` (the existing docstring justifies this as "logging the skip rather than raising keeps the submitter loop alive" on a branch that the validator PRICE stage is supposed to make unreachable). The submitter then registers `command_contexts[command_id] = order_context` — `_build_order_context` does not depend on `ref_price`. When the ENTER FILL arrives, `_handle_fill` ENTRY path: `order_fill` mutates capital (succeeds because the TrackedOrder is in WORKING state), then `_update_position_on_fill` → `_grow_position` raises `RuntimeError('entry fill for missing position')`. `OutcomeLoop` catches the exception and logs it. Net result: capital incremented (in_flight → position_notional) but no `Position` record in `state.positions` → drift between capital aggregates and positions.
+`_ensure_entry_position` logs a warning and returns when `ref_price is None` (the existing docstring justifies this as "logging the skip rather than raising keeps the submitter loop alive" on a branch that the validator PRICE stage is supposed to make unreachable). The submitter then attaches `order_context` to the command's `command_registrations` record — `_build_order_context` does not depend on `ref_price`. When the ENTER FILL arrives, `_handle_fill` ENTRY path: `order_fill` mutates capital (succeeds because the TrackedOrder is in WORKING state), then `_update_position_on_fill` → `_grow_position` raises `RuntimeError('entry fill for missing position')`. `OutcomeLoop` catches the exception and logs it. Net result: capital incremented (in_flight → position_notional) but no `Position` record in `state.positions` → drift between capital aggregates and positions.
 
 If an ENTER command is registered without a placeholder Position, a later ENTER fill can mutate `CapitalController` via `order_fill` and then raise in `_grow_position` because the position is missing. This leaves in-memory capital/position drift until restart. Today this is guarded by the validator PRICE stage (`_build_enter_context`'s no-price guard rejects the action before `_ensure_entry_position` runs), so the gap is defense-in-depth — only fires under a "deeper bug" path.
 
@@ -828,7 +828,7 @@ Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in
 
 **Origin**: TD-052 boot-replay deferral (codex review)
 **Severity**: Low (the authoritative pre-registration path records the context durably; this path is the unknown-submission fallback)
-**Module**: `praxis/launcher.py` (consumer-side `command_contexts` registration in `_build_nexus_runtime`)
+**Module**: `praxis/launcher.py` (consumer-side `command_registrations` registration in `_build_nexus_runtime`, formerly `command_contexts`)
 
 The pre-registration path (`pre_register`) appends `OutcomeDeliveryContextRecorded` durably before the `send_command` handoff, so a normal submission's context survives a restart. The legacy consumer-registration path — which rebuilds an `OrderContext` when an outcome arrives for a command with no pre-registered context — does NOT append the context, because by then the command has already been submitted and a durable record before the fact is impossible. An outcome whose context was only ever built on this path is not replayable after a restart (boot replay skips it with a no-context warning).
 
@@ -1146,7 +1146,7 @@ Original gap: a scheme finalized only when every slice was submitted and every c
 
 Two residual gaps in boot resume:
 
-1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.frozen`, both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
+1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.hold` to `_Hold.SLICE_FAILED` (formerly the `frozen` flag), both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
 
 2. **Lot-step replan divergence.** Resume recomputes the slice plan with the venue's *current* `lot_step` (`plan_even_slices(total_qty, slices_total, lot_step)`). If the LOT_SIZE filter changed between init and resume, the remaining (unsubmitted) slice sizes differ from the original plan — already-submitted children are unaffected (durable on the spine), and the aggregate still targets `total_qty`, but the per-slice grid shifts. Fix: persist the original `lot_step` (a single Decimal, `_coerce`-safe) on `SchemeInitialized` and replan against it, so the grid is identical across a restart.
 
@@ -1395,3 +1395,27 @@ Scope note: the Nexus validator PRICE stage (`validate_price_stage`, `launcher.p
 `assert_reconstructs_clean` verifies that a recorded spine reconstructs cleanly (chain verification, per-account replay, projection invariants) and deterministically (two independent replays agree). Determinism is nearly tautological on its own: replaying a recorded spine and comparing it to a second replay of the same spine proves replay is a pure function of the events, not that the reconstruction matches what the live run actually held. True parity against a real captured paper session needs a golden `TradingState` snapshot captured by the runtime at record time (at shutdown or checkpoint); a spine alone does not carry the prior in-memory projection. Nothing in the runtime emits such a snapshot today. The harness also asserts the `TradingState` projection only — account-ledger parity is out of scope, and ledger replay requires a `RegisterAccount` event in the recording.
 
 **When to fix**: before a real captured paper spine is used as a pre-cutover gate (as opposed to authored-scenario regression tests, which hold the live manager in memory and use `assert_replays_equal` directly). Add a projection-snapshot serializer and a capture hook at shutdown/checkpoint so a recording bundles `spine` plus a serialized golden `TradingState`, then extend the harness with a golden-comparison mode; optionally include the account ledger in the recording contract.
+
+## TD-150: A TRADE report naming no commission asset is rejected, not booked
+
+**Origin**: WP-Praxis-0010 / issue #177 A11 (hold `ExecutionReport` to its execution type)
+**Severity**: Unknown pending venue evidence — no financial impact observed, and the pre-change code dropped the same report
+**Module**: `praxis/infrastructure/venue_adapter.py` (`_require_fill`), `praxis/trading.py` (`_on_execution_report`)
+
+`_require_fill` rejects a TRADE report whose `commission_asset` is absent, while its own docstring records that a zero commission is legitimate under a promotion or fee discount. Binance sources the field as `data.get('N')` with no default, so if the venue omits it on a zero-commission fill the report is rejected at construction and the fill is never booked. This is not a regression — before the change `_convert_execution_report` returned `None` for the same report, dropping it with a warning — but the constraint now lives in the domain type, where it is harder to relax, and the rejection reached the WebSocket handler's blanket `except` and was logged as a generic callback error. `_on_execution_report` now catches the `ValueError` and logs the discarded report with its client order id and execution type.
+
+**Open question**: whether Binance Spot ever emits an `executionReport` with `x=TRADE` and `N: null`. This has not been observed in a live frame, only reasoned about from the field's optionality. Resolving it needs a capture from the live user-data stream, not a code reading.
+
+**When to fix**: if a live capture shows a null `N` on a TRADE. The fix is to require `commission_asset` only when `commission` is non-zero, which also needs `FillReceived.fee_asset` relaxed to match, since it `_require_str`s the same field. Do not relax one without the other.
+
+## TD-151: An already-registered account cannot re-enter boot recovery
+
+**Origin**: issue #177 pre-PR review
+**Severity**: Low (fails closed — recovery admission raises rather than proceeding unsafely)
+**Module**: `praxis/trading_inbound.py` (`register_account`), `praxis/core/execution_manager.py` (`begin_account_startup`, `_account_loop`)
+
+`TradingInbound.register_account` treats an already-registered account as idempotent success and returns early, dropping `booting=True`. Boot recovery then calls `admit(..., recovery_owner=True)`, which requires a parked account and raises `RuntimeError("... is not parked; recovery admission requires booting=True")`. `ExecutionManager.begin_account_startup` exists for exactly this case and has no caller.
+
+Wiring `begin_account_startup` into that early return was tried and reverted. `_account_loop` reads `booting` at the top of each iteration, so parking a live writer takes effect only once its current iteration completes. Boot recovery would then be free to drain the admission queue while the writer is still inside `_drain_admission_queue` — two tasks appending and projecting the same account, which is the exact invariant the writer-admission primitive exists to hold. Trading a loud startup failure for a silent double-projector is the wrong trade.
+
+**When to fix**: when an account genuinely needs to re-enter recovery without a process restart. The fix needs a quiescence handshake — park, then wait for the writer to acknowledge it has left the drain path (an event the loop sets when it observes `booting`) — before recovery admits anything. Do not park a running writer without it.

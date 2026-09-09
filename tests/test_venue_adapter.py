@@ -51,8 +51,8 @@ class TestResponseDataclasses:
             fill.qty = Decimal('1.0')  # type: ignore[misc]
 
     def test_immediate_fill_from_venue_trade_takes_the_fill_fields(self) -> None:
-        """A venue that describes a submission's fill as a whole trade states
-        it once; the fill is the part of it that belongs to the fill."""
+        '''A venue that describes a submission's fill as a whole trade states
+        it once; the fill is the part of it that belongs to the fill.'''
 
         trade = VenueTrade(
             venue_trade_id='vt-002',

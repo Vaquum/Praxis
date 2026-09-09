@@ -1088,9 +1088,9 @@ class TestBuildOrderParams:
             )
 
     def test_iceberg_on_unsupported_type_reports_iceberg_not_the_type(self) -> None:
-        """The iceberg guard runs before the type lookup, so a type that is
+        '''The iceberg guard runs before the type lookup, so a type that is
         both unsupported here and given an iceberg is told about the iceberg —
-        the thing the caller actually got wrong."""
+        the thing the caller actually got wrong.'''
 
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='iceberg_qty is only supported for LIMIT'):
@@ -1110,9 +1110,9 @@ class TestBuildOrderParams:
         assert params['timeInForce'] == 'GTC'
 
     def test_market_rejects_price(self) -> None:
-        """A price on a MARKET order is meaningless, and the domain already
+        '''A price on a MARKET order is meaningless, and the domain already
         refuses one: Order.__post_init__ requires price be None for MARKET.
-        The builder used to accept and silently drop it."""
+        The builder used to accept and silently drop it.'''
 
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='price is not supported for MARKET'):
@@ -1122,9 +1122,9 @@ class TestBuildOrderParams:
             )
 
     def test_missing_required_reported_before_unsupported(self) -> None:
-        """A type missing the trigger it needs reports that, not the price it
+        '''A type missing the trigger it needs reports that, not the price it
         merely refuses to carry: required fields are checked before forbidden
-        ones, so the caller learns what to supply rather than what to drop."""
+        ones, so the caller learns what to supply rather than what to drop.'''
 
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='stop_price is required for STOP'):
@@ -1302,8 +1302,8 @@ class TestBuildQuoteNativeMarketParams:
             )
 
     def test_submit_order_base_qty_market_rejects_price(self) -> None:
-        """The quote-native path already refused a price; the base-quantity
-        path forwarded it to the builder, which dropped it."""
+        '''The quote-native path already refused a price; the base-quantity
+        path forwarded it to the builder, which dropped it.'''
 
         adapter = _make_adapter()
         with pytest.raises(ValueError, match='price is not supported for MARKET'):

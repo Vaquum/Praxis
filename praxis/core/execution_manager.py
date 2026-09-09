@@ -281,7 +281,7 @@ def _resume_hold(
 
 @dataclass
 class _SchemeReplayFold:
-    """What one pass over a replayed history tells both scheme resumers.
+    '''What one pass over a replayed history tells both scheme resumers.
 
     Built once and read after, so the collections stay ordinary mutables
     rather than pretending to a frozen-ness a dataclass cannot give the
@@ -301,7 +301,7 @@ class _SchemeReplayFold:
             `(generation, grid params, grid size)`.
         ladder_inflight: Per ladder, an amend still in flight as
             `(initiated, planned, phase)`.
-    """
+    '''
 
     inits: dict[str, SchemeInitialized] = field(default_factory=dict)
     ladder_inits: dict[str, SchemeInitialized] = field(default_factory=dict)
@@ -2583,9 +2583,9 @@ class ExecutionManager:
         The writer-admission primitive for events produced off the account
         writer — WebSocket fills, reconnect backfill fills and terminals, and
         reconciled fund transactions. The single writer task is the sole
-        appender and projector for a running account, so admission hands the
-        event to the writer via `admission_queue` and awaits the sequence the
-        writer assigns; the writer appends and projects it in turn with its
+        appender and projector of those events for a running account, so
+        admission hands the event to the writer via `admission_queue` and
+        awaits the sequence the writer assigns; the writer appends and projects it in turn with its
         own command work, and no other task appends between the writer's
         append and its projection. A per-account lock around admission alone
         was not enough: it serialized admissions against one another but not
@@ -2959,10 +2959,11 @@ class ExecutionManager:
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
 
-        # Applied directly rather than through `_project`: a projection
-        # failure there is a fail-stop that poisons the account, and this
-        # path runs after the durable append, so raising would report a
-        # failure for a command that is already accepted and queued.
+        # Applied directly rather than through `_project`, whose projection
+        # failure is a fail-stop that poisons the account. A raise here still
+        # propagates out of submit_command after the durable append, but it
+        # reports one command's failure rather than taking the whole account
+        # down for a command that is already accepted and queued.
         runtime.trading_state.apply(event)
 
         _log.info(
@@ -3000,9 +3001,10 @@ class ExecutionManager:
 
         The boot path registers the account with `booting=True` so the writer
         is parked from creation; this is the equivalent for a runtime that was
-        registered live and must re-enter recovery. Setting `booting` parks the
-        whole loop — no drain, no projection, no dispatch — so boot recovery is
-        the sole owner until `finish_account_startup`.
+        registered live and must re-enter recovery. The flag is read at the top
+        of each loop iteration, so the writer parks once its current iteration
+        finishes — no further drain, projection, or dispatch — leaving boot
+        recovery the sole owner until `finish_account_startup`.
 
         Args:
             account_id (str): Account entering boot recovery.
@@ -3117,12 +3119,15 @@ class ExecutionManager:
     async def _drain_admission_queue(self, runtime: _AccountRuntime) -> None:
         '''Append, project, and queue dispatch for every admitted event.
 
-        The writer is the sole appender and projector for a running account,
-        so an admitted fill, terminal, or fund event is appended and projected
-        here in sequence with the writer's own command work; the append and
-        projection order can never diverge from the spine order. Each waiting
-        caller's future is completed with the assigned sequence (or None on
-        dedup); a cancelled waiter never cancels the durable append. Dispatch
+        The writer is the sole appender and projector of external events for a
+        running account, so an admitted fill, terminal, or fund event is
+        appended and projected here in sequence with the writer's own command
+        work, so the append and projection order can never diverge from the
+        spine order. A command's own `CommandAccepted` is appended and
+        projected by the submitting task before the command reaches this queue
+        at all. Each waiting caller's future is completed with the assigned
+        sequence (or None on dedup); a cancelled waiter never cancels the
+        durable append. Dispatch
         is deferred to `_drain_dispatch_queue`, as for a recovery-owner
         admission.
 
