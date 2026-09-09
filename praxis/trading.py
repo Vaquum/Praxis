@@ -1636,7 +1636,9 @@ class Trading:
                 venue_order.status.value,
             )
 
-    async def _on_execution_report(self, account_id: str, data: dict[str, Any]) -> None:
+    async def _on_execution_report(  # noqa: PLR0911 - one return per discard reason
+        self, account_id: str, data: dict[str, Any],
+    ) -> None:
         '''
         Process incoming WebSocket execution report.
 
@@ -1651,7 +1653,18 @@ class Trading:
         if not isinstance(self._venue_adapter, BinanceAdapter):
             return
 
-        report = self._venue_adapter.parse_execution_report(data)
+        try:
+            report = self._venue_adapter.parse_execution_report(data)
+        except ValueError:
+            _log.exception(
+                'discarding malformed execution report: account_id=%s '
+                'client_order_id=%s execution_type=%s',
+                account_id,
+                data.get('c'),
+                data.get('x'),
+            )
+
+            return
         trading_state = self._execution_manager.get_trading_state(account_id)
         if trading_state is None:
             _log.warning('execution report for unknown account: %s', account_id)
