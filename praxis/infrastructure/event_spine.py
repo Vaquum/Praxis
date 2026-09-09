@@ -101,7 +101,14 @@ _META_LEGACY_DEDUP_SYMBOL = 'legacy_dedup_symbol'
 
 class SpineSchemaError(RuntimeError):
 
-    '''Raised when the on-disk schema version is newer than this build supports.'''
+    '''Raised when this build cannot operate on the database it was given.
+
+    Raised when the on-disk schema is newer than this build supports; when
+    the chain the database already holds was not written by this build, its
+    chain version or genesis anchor differing or absent, neither of which a
+    migration can reconcile; and when a legacy dedup row cannot be folded
+    because no symbol was ever proven for it.
+    '''
 
 
 class ChainVerificationError(RuntimeError):
@@ -498,11 +505,15 @@ class EventSpine:
                     await self._migrate_to_v1()
                     await self._migrate_to_v3()
 
+                await self._require_chain_identity()
+
                 if version < _FOLDED_DEDUP_VERSION:
                     await self._migrate_to_v4()
 
                 async with self._conn.execute(f'PRAGMA user_version = {_SCHEMA_VERSION}'):
                     pass
+            else:
+                await self._require_chain_identity()
 
             await self._conn.commit()
         except Exception:
@@ -789,19 +800,71 @@ class EventSpine:
 
         return str(row[0]) if row is not None else None
 
+    async def _require_chain_identity(self) -> None:
+
+        '''Refuse a database whose chain this build did not write.
+
+        Every event hash mixes in the chain version and is anchored on the
+        genesis constant, so a database recording different ones holds a
+        chain in another dialect. This build could neither extend it
+        honestly nor verify it, and no migration can reconcile the two —
+        the events are already hashed. Refusing at open is the point: the
+        alternative is discovering it at the first hashed row, by which
+        time more has been written.
+
+        A database that carried no record of either is seeded by the v1
+        migration just before this runs, so it is this check\'s absence of
+        a stored value, not its disagreement, that would mean the metadata
+        was lost.
+
+        Raises:
+            SpineSchemaError: A recorded value is missing or is not this
+                build\'s.
+        '''
+
+        for key, expected in (
+            (_META_CHAIN_VERSION, str(_CHAIN_VERSION)),
+            (_META_GENESIS_ANCHOR, _GENESIS_ANCHOR),
+        ):
+            stored = await self._get_meta(key)
+
+            if stored is None:
+                msg = (
+                    f'event spine is missing {key!r}; the chain it holds '
+                    f'cannot be attributed to this build'
+                )
+                raise SpineSchemaError(msg)
+
+            if stored != expected:
+                msg = (
+                    f'event spine {key!r} is {stored!r}, not this build\'s '
+                    f'{expected!r}; its chain was written in another dialect'
+                )
+                raise SpineSchemaError(msg)
+
     async def _genesis_anchor(self) -> str:
 
         '''
-        Return the stored genesis anchor, falling back to the build constant.
+        Return the stored genesis anchor.
+
+        `ensure_schema` has already refused any database whose stored
+        anchor is missing or is not this build's, so the stored value is
+        the build constant and is read rather than assumed.
 
         Returns:
             str: The predecessor hash for the first hashed event.
         '''
 
-        async with self._conn.execute(_META_GET, (_META_GENESIS_ANCHOR,)) as cursor:
-            row = await cursor.fetchone()
+        stored = await self._get_meta(_META_GENESIS_ANCHOR)
 
-        return str(row[0]) if row and row[0] is not None else _GENESIS_ANCHOR
+        if stored is None:
+            msg = (
+                'event spine lost its genesis anchor after the schema was '
+                'checked; refusing to anchor a chain on an assumption'
+            )
+            raise SpineSchemaError(msg)
+
+        return stored
 
     async def _safe_rollback(self, context: str) -> None:
 

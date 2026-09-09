@@ -925,3 +925,80 @@ async def test_legacy_rows_with_stored_empty_symbol_fail_closed() -> None:
             await EventSpine(conn).ensure_schema()
 
         assert await _table_exists(conn, 'fill_dedup')
+
+
+async def _set_meta(conn: aiosqlite.Connection, key: str, value: str) -> None:
+    await conn.execute(
+        'INSERT OR REPLACE INTO spine_meta (key, value) VALUES (?, ?)', (key, value),
+    )
+    await conn.commit()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('key', ['chain_version', 'genesis_anchor'])
+async def test_missing_chain_identity_is_refused(key: str) -> None:
+    '''A database that records nothing about the chain it holds cannot be
+    attributed to this build, so it is refused rather than adopted.'''
+
+    async with aiosqlite.connect(':memory:') as conn:
+        await EventSpine(conn).ensure_schema()
+        await conn.execute('DELETE FROM spine_meta WHERE key = ?', (key,))
+        await conn.commit()
+
+        with pytest.raises(SpineSchemaError, match=f'missing {key!r}'):
+            await EventSpine(conn).ensure_schema()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('key', 'stale'),
+    [
+        ('chain_version', '2'),
+        ('genesis_anchor', 'a' * 64),
+    ],
+)
+async def test_foreign_chain_identity_is_refused(key: str, stale: str) -> None:
+    '''A stale value is the case presence alone would accept.
+
+    The metadata is written with INSERT OR IGNORE, so a database already
+    holding another build's value keeps it silently. Its events are already
+    hashed under that dialect, which no migration can reconcile.
+    '''
+
+    async with aiosqlite.connect(':memory:') as conn:
+        await EventSpine(conn).ensure_schema()
+        await _set_meta(conn, key, stale)
+
+        with pytest.raises(SpineSchemaError, match='another dialect'):
+            await EventSpine(conn).ensure_schema()
+
+
+@pytest.mark.asyncio
+async def test_chain_identity_checked_before_v4_migrates() -> None:
+    '''A database arriving mid-version is checked before anything mutates it.
+
+    The legacy dedup table is what v4 would drop, so it standing afterwards
+    is the evidence that nothing ran: were the check to move after v4, the
+    table would be gone and its rows folded before the chain was ever found
+    to be foreign.
+    '''
+
+    async with aiosqlite.connect(':memory:') as conn:
+        await EventSpine(conn).ensure_schema()
+        await conn.execute(
+            'CREATE TABLE IF NOT EXISTS fill_dedup (epoch_id INTEGER, '
+            'account_id TEXT, dedup_key TEXT, UNIQUE(epoch_id, account_id, dedup_key))'
+        )
+        await conn.execute(
+            'INSERT INTO fill_dedup (epoch_id, account_id, dedup_key) VALUES (?, ?, ?)',
+            (_EPOCH, _ACCT, 'vt-foreign'),
+        )
+        await _set_meta(conn, 'genesis_anchor', 'b' * 64)
+        await conn.execute('PRAGMA user_version = 3')
+        await conn.commit()
+
+        with pytest.raises(SpineSchemaError, match='another dialect'):
+            await EventSpine(conn).ensure_schema()
+
+        assert await _user_version(conn) == 3
+        assert await _table_exists(conn, 'fill_dedup')
