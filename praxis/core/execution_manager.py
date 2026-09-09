@@ -2132,13 +2132,11 @@ class ExecutionManager:
         in-memory running sum that a crash discarded.
 
         Note:
-            A fill applied to an order after it moved to `closed_orders` does
-            not update that order's `filled_qty` (`_update_order_on_fill` is
-            open-order-only), so this total under-reports for a command with a
-            late or backfilled fill on an already-closed order. Every caller
-            short-circuits terminal commands via `_terminal_commands`, so the
-            stale total is never read today; do not rely on this helper for a
-            terminal command with late fills (TD-144).
+            A fill applied to an order after it moved to `closed_orders` — a
+            protective OCO leg delivered once a sibling leg cancelled the
+            parent — is booked onto the closed order, so the total holds for
+            the flatten sizing that reads it on an exit command whose OCO
+            parent is closed by definition once a leg fills.
         '''
 
         filled_qty = _ZERO

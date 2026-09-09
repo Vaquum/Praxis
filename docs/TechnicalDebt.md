@@ -1326,15 +1326,17 @@ This is a design limitation, not a defect in the trade-modify work: Praxis delib
 
 **When to fix**: when Praxis must detect drawdown of pre-adoption inventory (e.g., a commingled account it is expected to steward). Capture and project a durable opening-balance baseline at adoption, then reconcile absolute-to-absolute.
 
-## TD-144: Late fill on a closed order does not update the order's filled_qty
+## TD-144: Late fill on a closed order does not update the order's filled_qty — RESOLVED
 
 **Origin**: WP-Praxis-0010 (reconnect OCO leg-fill backfill fix)
-**Severity**: Low (benign today; the position is reduced correctly so there is no financial impact, and every `_command_fill_totals` caller is guarded for terminal commands)
+**Severity**: was Low on a premise that did not hold — the flatten-sizing callers are not guarded for terminal commands, so the under-report reached order sizing
 **Module**: `praxis/core/trading_state.py` (`_update_order_on_fill`, `_get_order`), `praxis/core/execution_manager.py` (`_command_fill_totals`)
 
 A fill applied to an order that has already moved to `closed_orders` — e.g. a protective OCO leg fill delivered or backfilled after a sibling leg cancelled the parent — reduces the position (`_update_position_on_fill`, keyed on `(trade_id, account_id)`) but does not update the closed order's `filled_qty` / `cumulative_notional`, because `_update_order_on_fill` looks orders up through `_get_order`, which scans only open `self.orders`. `_command_fill_totals` sums `filled_qty` across both open and closed orders, so it under-reports for such a command. This is benign today: every `_command_fill_totals` caller short-circuits terminal commands via the `command_id in self._terminal_commands` guard (e.g. `_emit_ws_outcome`), so the stale total is never read. It is a latent coupling — future code that totals a terminal command's fills without that guard would read a too-low value — and it is the general "late fill on a closed order" class, not OCO-specific.
 
-**When to fix**: in the reconciliation / audit-hardening pass, where accurate closed-order `filled_qty` has independent value. Update `_update_order_on_fill` to also apply the fill when the order is in `closed_orders`, with tests for the terminal-order re-fill semantics (no status flicker, no re-`_close_order`).
+**Correction**: the "benign today" rating rested on the claim that every `_command_fill_totals` caller short-circuits terminal commands. It does not. Of the caller sites, the three that size a flatten (`_flatten_bracket_remainder`, `_boot_reflatten`, and the bracket-amend remainder) read the totals for the *exit* command, whose protective OCO parent is closed by definition once a leg fills — exactly this case. The under-report overstated the remainder and biased the flatten toward selling more than the position held.
+
+**Resolved**: `_update_order_on_fill` now books a fill onto an order already in `closed_orders`, adding the quantity and notional and stamping `updated_at` while leaving the terminal status untouched, so the order neither flickers back to partially filled nor closes a second time. Pinned by `test_late_fill_on_a_closed_order_books_without_reopening_it` and `test_late_fill_on_a_filled_order_does_not_close_it_twice`.
 
 ## TD-145: RiskStageLimits is constructed empty; canonical drawdown/rolling-loss policy undecided
 

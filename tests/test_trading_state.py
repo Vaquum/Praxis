@@ -766,3 +766,34 @@ def test_apply_reconciliation_mismatch_is_noop(
         )
 
     assert 'unhandled event type' not in caplog.text
+
+
+def test_late_fill_on_a_closed_order_books_without_reopening_it() -> None:
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_canceled())
+    closed = state.closed_orders[_ORDER]
+
+    assert closed.status == OrderStatus.CANCELED
+    assert closed.filled_qty == Decimal('0')
+
+    state.apply(_fill_event(qty=Decimal('0.25')))
+
+    assert _ORDER not in state.orders
+    assert closed.status == OrderStatus.CANCELED
+    assert closed.filled_qty == Decimal('0.25')
+    assert closed.cumulative_notional == Decimal('0.25') * Decimal('50000')
+
+
+def test_late_fill_on_a_filled_order_does_not_close_it_twice() -> None:
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+    closed = state.closed_orders[_ORDER]
+
+    state.apply(_fill_event(qty=Decimal('0.5')))
+
+    assert closed.status == OrderStatus.FILLED
+    assert closed.filled_qty == Decimal('1.5')

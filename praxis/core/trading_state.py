@@ -375,7 +375,23 @@ class TradingState:
 
     def _update_order_on_fill(self, event: FillReceived) -> None:
 
-        '''Update order filled quantity and status.'''
+        '''Update order filled quantity and status.
+
+        A fill can arrive after its order has already closed: a protective OCO
+        leg delivered or backfilled once a sibling leg cancelled the parent.
+        The quantity and notional are still booked, so a command's fill totals
+        stay accurate for the flatten sizing that reads them, but the order
+        keeps the terminal status it reached — it must not flicker back to
+        partially filled, and it must not close a second time.
+        '''
+
+        closed_order = self.closed_orders.get(event.client_order_id)
+        if closed_order is not None:
+            closed_order.filled_qty += event.qty
+            closed_order.cumulative_notional += event.qty * event.price
+            closed_order.updated_at = event.timestamp
+
+            return
 
         order = self._get_order('FillReceived', event.client_order_id)
         if order is None:
