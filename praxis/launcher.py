@@ -1918,7 +1918,11 @@ class _PreRegisteredSubmission:
         registration_inserted: Whether this call created the command's
             registration (vs finding one already present); rollback pops
             the record only when this call inserted it, so a re-entrant
-            registration for a still-live command is never destroyed.
+            registration for a still-live command is never destroyed. A
+            re-entrant call therefore leaves the existing record's
+            `strategy_id` alone: rollback cannot restore what it did not
+            insert, so overwriting it would strip the live command's
+            attribution permanently on a failed second registration.
         action_type: `ENTER` or `EXIT`, recorded into the unknown record.
         symbol: Command symbol, recorded into the unknown record.
         side: `BUY` or `SELL`, recorded into the unknown record.
@@ -2074,8 +2078,6 @@ def _make_pre_register(
             if registration is None:
                 registration = _CommandRegistration(strategy_id=strategy_id)
                 wiring.command_registrations[cmd.command_id] = registration
-            else:
-                registration.strategy_id = strategy_id
 
             if decision.reservation is not None:
                 send_result = wiring.capital_controller.send_order(
