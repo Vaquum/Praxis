@@ -600,6 +600,14 @@ class Trading:
         finally:
             self._execution_manager.finish_account_startup(account_id)
 
+        if account_ready and self._execution_manager.is_poisoned(account_id):
+            account_ready = False
+            _log.error(
+                'account %s not marked ready: projecting the events recovered '
+                'at boot fail-stopped the account (restart required)',
+                account_id,
+            )
+
         if account_ready:
             self._ready_accounts.add(account_id)
         else:

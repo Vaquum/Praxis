@@ -1229,6 +1229,26 @@ async def _started_trading_with_recon_adapter(
 
 
 @pytest.mark.asyncio
+async def test_boot_poisoned_account_is_not_marked_ready(spine: EventSpine) -> None:
+    adapter = _ReconVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    trading._execution_manager.is_poisoned = lambda _account_id: True
+
+    await trading.start()
+
+    assert 'acc-1' not in trading._ready_accounts
+    await trading.stop()
+
+
+@pytest.mark.asyncio
 async def test_reconcile_account_skips_terminal_orders(spine: EventSpine) -> None:
     trading, _ = await _started_trading_with_recon_adapter(spine)
     order = _make_order(status=OrderStatus.FILLED, filled_qty=Decimal('1'))

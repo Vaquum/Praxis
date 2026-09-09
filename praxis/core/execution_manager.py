@@ -2753,6 +2753,27 @@ class ExecutionManager:
 
         runtime.protection_scan_requested = True
 
+    def is_poisoned(self, account_id: str) -> bool:
+
+        '''
+        Report whether an account has fail-stopped on a projection failure.
+
+        Distinct from `is_order_capable`, which also reports False while the
+        account reconciles. Reconciling is a transient gate the reconcile
+        phase already governs; poisoning is terminal until restart, so the
+        two must not be conflated by a caller that only asks about the latter.
+
+        Args:
+            account_id (str): Account identifier.
+
+        Returns:
+            bool: True when the account is registered and poisoned.
+        '''
+
+        runtime = self._accounts.get(account_id)
+
+        return runtime is not None and runtime.poisoned
+
     def is_order_capable(self, account_id: str) -> bool:
 
         '''
