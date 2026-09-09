@@ -54,6 +54,15 @@ class ImmediateFill:
     '''
     Represent a fill returned inline with an order submission response.
 
+    Deliberately narrower than `VenueTrade`, which is not the same thing
+    cut short. In Binance's FULL order response each entry of `fills`
+    carries the fill alone; the order it belongs to, its symbol and side,
+    and the transaction time are stated once for the submission rather
+    than repeated per fill. A historical trade, by contrast, does carry
+    its own order, identity and execution time. Widening this to
+    `VenueTrade` would copy one order's identity onto every fill and give
+    each a time no venue reported per trade.
+
     Args:
         venue_trade_id (str): Venue-assigned unique trade identifier
         qty (Decimal): Filled quantity
@@ -69,6 +78,32 @@ class ImmediateFill:
     fee: Decimal
     fee_asset: str
     is_maker: bool
+
+    @classmethod
+    def from_venue_trade(cls, trade: VenueTrade) -> ImmediateFill:
+
+        '''Take the per-fill core of a trade the venue has already described.
+
+        A venue that reports a submission's fills as whole trades — the
+        replay venue settles its own orders, so it knows each one fully —
+        states the fill once and narrows it here, rather than restating the
+        same numbers in a second shape.
+
+        Args:
+            trade (VenueTrade): The trade to narrow.
+
+        Returns:
+            ImmediateFill: The fill-scoped fields of `trade`.
+        '''
+
+        return cls(
+            venue_trade_id=trade.venue_trade_id,
+            qty=trade.qty,
+            price=trade.price,
+            fee=trade.fee,
+            fee_asset=trade.fee_asset,
+            is_maker=trade.is_maker,
+        )
 
 
 @dataclass(frozen=True)

@@ -237,35 +237,25 @@ class ReplayVenueAdapter:
             filled_qty=base_qty,
             price=None,
         )
-        self._trades.setdefault(account_id, []).append(
-            VenueTrade(
-                venue_trade_id=venue_trade_id,
-                venue_order_id=venue_order_id,
-                client_order_id=resolved_coid,
-                symbol=symbol,
-                side=side,
-                qty=base_qty,
-                price=fill_price,
-                fee=fee,
-                fee_asset=_QUOTE_ASSET,
-                is_maker=False,
-                timestamp=ts,
-            )
-        )
-
-        fill = ImmediateFill(
+        trade = VenueTrade(
             venue_trade_id=venue_trade_id,
+            venue_order_id=venue_order_id,
+            client_order_id=resolved_coid,
+            symbol=symbol,
+            side=side,
             qty=base_qty,
             price=fill_price,
             fee=fee,
             fee_asset=_QUOTE_ASSET,
             is_maker=False,
+            timestamp=ts,
         )
+        self._trades.setdefault(account_id, []).append(trade)
 
         return SubmitResult(
             venue_order_id=venue_order_id,
             status=OrderStatus.FILLED,
-            immediate_fills=(fill,),
+            immediate_fills=(ImmediateFill.from_venue_trade(trade),),
         )
 
     async def cancel_order(
