@@ -1663,7 +1663,7 @@ class Trading:
 
         try:
             report = self._venue_adapter.parse_execution_report(data)
-        except ValueError:
+        except (ValueError, KeyError, TypeError, ArithmeticError):
             _log.exception(
                 'discarding malformed execution report: account_id=%s '
                 'client_order_id=%s execution_type=%s',

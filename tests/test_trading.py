@@ -1705,6 +1705,25 @@ async def test_on_execution_report_ignores_non_binance_adapter(
 
 
 @pytest.mark.asyncio
+async def test_on_execution_report_discards_a_malformed_frame(
+    spine: EventSpine,
+) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    adapter.parse_execution_report.side_effect = KeyError('l')
+    trading._venue_adapter = cast(VenueAdapter, adapter)
+
+    await trading._on_execution_report(
+        'acc-1', {'e': 'executionReport', 'c': 'coid-1', 'x': 'TRADE'},
+    )
+
+    events = await _trading_events(spine)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
 async def test_on_execution_report_skips_unknown_account(
     spine: EventSpine,
 ) -> None:
