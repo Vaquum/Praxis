@@ -87,6 +87,14 @@ _STOP_REQUIRED_TYPES: frozenset[OrderType] = frozenset(
     }
 )
 
+# A submitted OCO must name the price its stop leg rests at. The venue
+# builder is looser, treating that price as optional, and the difference is
+# deliberate: a bracket whose stop leg is a market order builds its
+# protective OCO internally, with no stop-limit price, and submits it
+# straight to the venue without passing through admission. Tightening the
+# builder to match this, or loosening this to match the builder, would
+# either refuse that protection or stop requiring a price of the orders
+# that do need one.
 _STOP_LIMIT_PRICE_REQUIRED_TYPES: frozenset[OrderType] = frozenset(
     {
         OrderType.OCO,
