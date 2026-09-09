@@ -745,7 +745,7 @@ class TestBootOwnership:
         await asyncio.sleep(0.2)
         assert state.positions.get((_TRADE, _ACCT)) is None
 
-        await em.drain_ws_events(_ACCT)
+        await em.drain_external_events(_ACCT)
         position = state.positions.get((_TRADE, _ACCT))
         assert position is not None
         assert position.qty == Decimal('0.4')

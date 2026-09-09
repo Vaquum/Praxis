@@ -546,6 +546,7 @@ class _AccountRuntime:
         self.admission_queue: asyncio.Queue[
             tuple[Event, asyncio.Future[int | None]]
         ] = asyncio.Queue()
+        self.admissions_in_flight = 0
         self.wake = asyncio.Event()
         self.trading_state = trading_state
         self.account_ledger = account_ledger
@@ -2310,29 +2311,33 @@ class ExecutionManager:
 
         return runtime.account_ledger.read_asset_balances()
 
-    def has_pending_ws_events(self, account_id: str) -> bool:
+    def has_pending_external_events(self, account_id: str) -> bool:
         '''
-        Return whether the account has events queued but not yet projected.
+        Return whether the account has events queued but not yet settled.
 
-        WS fills and reconciliation events (including fund transactions) are
-        appended to the spine and then queued for the account coroutine to
-        project. Until that queue drains, the ledger projection lags the
-        spine, so a balance comparison against the venue would be stale. A
-        True result means the projection is not yet caught up.
+        WS fills and reconciliation events (including fund transactions) reach
+        the account through `admit`, which queues them for the writer to
+        append and project and then queues their dispatch. Until all three
+        queues drain, the ledger projection lags the spine or its reactions
+        have yet to run, so a balance comparison against the venue would be
+        stale. A True result means the account is not yet caught up.
 
         Args:
             account_id (str): Account identifier to query.
 
         Returns:
-            bool: True when events await projection; False when the account is
-                unregistered or fully drained.
+            bool: True when events await projection or dispatch; False when
+                the account is unregistered or fully drained.
         '''
 
         runtime = self._accounts.get(account_id)
         if runtime is None:
             return False
 
-        return not runtime.ws_event_queue.empty()
+        return (
+            runtime.admissions_in_flight > 0
+            or self._has_queued_external_events(runtime)
+        )
 
     def get_account_trade_pnls(self, account_id: str) -> dict[str, TradePnL]:
         '''
@@ -2427,13 +2432,12 @@ class ExecutionManager:
 
         self._modifiable_snapshot.pop(account_id, None)
 
-        unregister_error = AccountNotRegisteredError(
-            f"account_id '{account_id}' is not registered",
+        self._fail_pending_admissions(
+            runtime,
+            AccountNotRegisteredError(
+                f"account_id '{account_id}' is not registered",
+            ),
         )
-        while not runtime.admission_queue.empty():
-            _event, future = runtime.admission_queue.get_nowait()
-            if not future.cancelled():
-                future.set_exception(unregister_error)
 
         if runtime.task is not None:
             runtime.task.cancel()
@@ -3015,7 +3019,7 @@ class ExecutionManager:
         if runtime is not None:
             runtime.booting = False
 
-    async def drain_ws_events(self, account_id: str) -> None:
+    async def drain_external_events(self, account_id: str) -> None:
         '''Project and dispatch every queued external event on the caller.
 
         Called only by boot recovery while the writer is parked, so recovery
@@ -3030,7 +3034,50 @@ class ExecutionManager:
 
         runtime = self._accounts.get(account_id)
         if runtime is not None and runtime.booting:
+            await self._drain_external_events(runtime)
+
+    def _fail_pending_admissions(
+        self,
+        runtime: _AccountRuntime,
+        error: Exception,
+    ) -> None:
+        '''Hand every admission still waiting on the writer an error.
+
+        A caller of `admit` awaits the sequence the writer will assign, so a
+        writer that will never run again has to fail its waiters: left alone
+        they wait forever, and the WebSocket reader and the reconcile tick
+        wait with them rather than reporting that the account is down.
+        '''
+
+        while not runtime.admission_queue.empty():
+            _event, future = runtime.admission_queue.get_nowait()
+            if not future.cancelled():
+                future.set_exception(error)
+
+    async def _drain_external_events(self, runtime: _AccountRuntime) -> None:
+        '''Drain every queue an external event can be waiting in.
+
+        Admitted events are appended and projected out of `admission_queue`
+        and only then dispatched out of `dispatch_queue`, so a caller that
+        drains one and not the others reads a projection that still lags the
+        events already handed to the account. The account loop and boot
+        recovery share this order so both catch up on the same terms.
+        '''
+
+        while self._has_queued_external_events(runtime):
+            await self._drain_admission_queue(runtime)
             await self._drain_ws_events(runtime)
+            await self._drain_dispatch_queue(runtime)
+
+    @staticmethod
+    def _has_queued_external_events(runtime: _AccountRuntime) -> bool:
+        '''Report whether any queue still holds an external event.'''
+
+        return (
+            not runtime.admission_queue.empty()
+            or not runtime.ws_event_queue.empty()
+            or not runtime.dispatch_queue.empty()
+        )
 
     async def _drain_ws_events(self, runtime: _AccountRuntime) -> None:
         '''Project AND dispatch every queued WebSocket/reconcile event.
@@ -3083,6 +3130,7 @@ class ExecutionManager:
 
         while not runtime.admission_queue.empty():
             event, future = runtime.admission_queue.get_nowait()
+            runtime.admissions_in_flight += 1
 
             try:
                 seq = await self._append_project_admitted(
@@ -3109,6 +3157,9 @@ class ExecutionManager:
             except Exception as exc:  # noqa: BLE001
                 if not future.cancelled():
                     future.set_exception(exc)
+
+            finally:
+                runtime.admissions_in_flight -= 1
 
     async def _drain_dispatch_queue(self, runtime: _AccountRuntime) -> None:
         '''Dispatch every admitted event the writer has yet to react to.
@@ -3180,9 +3231,7 @@ class ExecutionManager:
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
 
-                await self._drain_admission_queue(runtime)
-                await self._drain_ws_events(runtime)
-                await self._drain_dispatch_queue(runtime)
+                await self._drain_external_events(runtime)
 
                 deferred_modifies: list[TradeModify] = []
                 while not runtime.priority_queue.empty():
@@ -3291,6 +3340,20 @@ class ExecutionManager:
         except asyncio.CancelledError:
             _log.info('account loop cancelled: %s', runtime.account_id)
             raise
+        except Exception:  # noqa: BLE001
+            runtime.poisoned = True
+            _log.exception(
+                'account loop died; poisoning account (fail-stop, restart '
+                'required): account_id=%s',
+                runtime.account_id,
+            )
+            self._fail_pending_admissions(
+                runtime,
+                RuntimeError(
+                    f"account '{runtime.account_id}' writer stopped; "
+                    'restart required',
+                ),
+            )
         finally:
             _log.info('account loop exited: %s', runtime.account_id)
 
@@ -7016,7 +7079,18 @@ class ExecutionManager:
             command=cmd, entry_client_order_id=entry_client_order_id,
         )
         exit_command_id = bracket_exit_command_id(command_id)
-        await self._drain_ws_events(runtime)
+        await self._drain_external_events(runtime)
+
+        if runtime.poisoned:
+            _log.warning(
+                'flatten recovery abandoned: account poisoned while draining '
+                'the events it would size from: command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+
+            return
+
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
         exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_filled

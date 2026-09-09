@@ -389,3 +389,110 @@ async def test_recovery_owner_admit_requires_parked_account(
             await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
     finally:
         await em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_boot_drain_projects_an_admission_queued_while_parked(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT, booting=True)
+    runtime = em._accounts[_ACCT]
+    _open_order(runtime)
+
+    admitted = asyncio.create_task(em.admit(_ACCT, _fill(Decimal('0.4'))))
+    for _ in range(3):
+        await asyncio.sleep(0)
+
+    assert em.has_pending_external_events(_ACCT)
+    assert (_TRADE, _ACCT) not in runtime.trading_state.positions
+
+    await em.drain_external_events(_ACCT)
+
+    assert await admitted is not None
+    assert runtime.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.4')
+    assert not em.has_pending_external_events(_ACCT)
+
+    await em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_pending_external_events_reports_an_undispatched_admission(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT, booting=True)
+    runtime = em._accounts[_ACCT]
+    _open_order(runtime)
+
+    await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
+
+    assert em.has_pending_external_events(_ACCT)
+
+    await em.drain_external_events(_ACCT)
+
+    assert not em.has_pending_external_events(_ACCT)
+
+    await em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_a_dead_writer_fails_waiting_admissions_instead_of_hanging(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT)
+    runtime = em._accounts[_ACCT]
+    _open_order(runtime)
+
+    async def _die(_runtime: object) -> None:
+        msg = 'writer boom'
+        raise ValueError(msg)
+
+    em._drain_external_events = _die
+
+    with pytest.raises(RuntimeError, match='writer stopped'):
+        await asyncio.wait_for(em.admit(_ACCT, _fill(Decimal('0.4'))), timeout=5)
+
+    assert runtime.poisoned
+
+    await em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_boot_drain_revisits_admissions_that_arrive_during_dispatch(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT, booting=True)
+    runtime = em._accounts[_ACCT]
+    _open_order(runtime)
+
+    late = _fill(Decimal('0.25'), venue_trade_id='vt-late')
+    dispatched: list[object] = []
+    original = em._dispatch_event
+
+    async def _dispatch_then_admit(rt: object, event: object) -> None:
+        dispatched.append(event)
+
+        if len(dispatched) == 1:
+            loop = asyncio.get_running_loop()
+            rt.admission_queue.put_nowait((late, loop.create_future()))
+
+        await original(rt, event)
+
+    em._dispatch_event = _dispatch_then_admit
+
+    await em.admit(_ACCT, _fill(Decimal('0.4')), recovery_owner=True)
+    await em.drain_external_events(_ACCT)
+
+    assert runtime.admission_queue.empty()
+    assert runtime.dispatch_queue.empty()
+    assert not em.has_pending_external_events(_ACCT)
+    assert runtime.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.65')
+
+    await em.unregister_account(_ACCT)

@@ -592,7 +592,7 @@ class Trading:
                     account_id, recovery_owner=True,
                 )
 
-            await self._execution_manager.drain_ws_events(account_id)
+            await self._execution_manager.drain_external_events(account_id)
 
             await self._execution_manager.recover_incomplete_flattens(
                 account_id, account_events,
@@ -1168,7 +1168,7 @@ class Trading:
             account_id (str): Account identifier to reconcile.
         '''
 
-        if self._execution_manager.has_pending_ws_events(account_id):
+        if self._execution_manager.has_pending_external_events(account_id):
             return
 
         expected_balances = self._execution_manager.get_asset_balances(account_id)
@@ -1185,7 +1185,7 @@ class Trading:
             return
 
         if (
-            self._execution_manager.has_pending_ws_events(account_id)
+            self._execution_manager.has_pending_external_events(account_id)
             or self._execution_manager.get_asset_balances(account_id) != expected_balances
         ):
             return
