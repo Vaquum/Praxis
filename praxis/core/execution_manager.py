@@ -3516,7 +3516,7 @@ class ExecutionManager:
                     self.modifiable_command_ids(runtime.account_id),
                 )
 
-                await self._drive_pending_drains(runtime)
+                await self._drive_pending_drains(runtime, pending_only=True)
 
                 if runtime.reconciling or runtime.poisoned:
                     await self._wait_for_work(runtime)
@@ -6393,7 +6393,12 @@ class ExecutionManager:
 
         await self._drive_pending_drains(runtime)
 
-    async def _drive_pending_drains(self, runtime: _AccountRuntime) -> None:
+    async def _drive_pending_drains(
+        self,
+        runtime: _AccountRuntime,
+        *,
+        pending_only: bool = False,
+    ) -> None:
         '''Retire the children a durable drain left working at the venue.
 
         Runs ahead of the reconciling and poisoned gate, alongside the abort
@@ -6402,8 +6407,16 @@ class ExecutionManager:
         behind order-capability would leave the rungs resting for exactly the
         state the backstop exists to cover.
 
+        The account loop passes `pending_only`, so it re-drives once for a
+        scheme that resumed mid-drain and then leaves it alone: a cancel per
+        child on every loop pass would keep re-cancelling orders that are
+        merely taking time to settle. Retrying is the reconcile tick's job,
+        which runs on its own cadence.
+
         Args:
             runtime (_AccountRuntime): Account whose drains to retire.
+            pending_only (bool): Only drive schemes still flagged as needing
+                their post-resume re-drive.
         '''
 
         for scheme in list(runtime.schemes.values()):
@@ -6411,6 +6424,7 @@ class ExecutionManager:
                 scheme.hold is not _Hold.DRAINING
                 or scheme.amend_phase is not None
                 or not scheme.active_children
+                or (pending_only and not scheme.drain_cancel_pending)
             ):
                 continue
 
@@ -6678,14 +6692,14 @@ class ExecutionManager:
                 continue
 
             cmd = bracket.command
-            candidates = [
+            candidates = list(dict.fromkeys(
                 candidate
                 for candidate in (
                     bracket.pending_replacement_client_order_id,
                     bracket.protection_client_order_id,
                 )
                 if candidate is not None
-            ]
+            ))
 
             working: tuple[str, VenueOrderList] | None = None
             query_failed = False
