@@ -1146,7 +1146,7 @@ Original gap: a scheme finalized only when every slice was submitted and every c
 
 Two residual gaps in boot resume:
 
-1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.hold` to `_Hold.SLICE_FAILED` (formerly the `frozen` flag), both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
+1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.hold` to `_Hold.SLICE_FAILED` (formerly the `frozen` flag), both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). `_resume_schemes` also kicks `next_run_at` to now when hold reconstructs as `OPEN`, the cursor is short of `slices_total`, and no child is live, so a mid-abort crash with no remaining children reschedules a slice rather than draining. Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
 
 2. **Lot-step replan divergence.** Resume recomputes the slice plan with the venue's *current* `lot_step` (`plan_even_slices(total_qty, slices_total, lot_step)`). If the LOT_SIZE filter changed between init and resume, the remaining (unsubmitted) slice sizes differ from the original plan — already-submitted children are unaffected (durable on the spine), and the aggregate still targets `total_qty`, but the per-slice grid shifts. Fix: persist the original `lot_step` (a single Decimal, `_coerce`-safe) on `SchemeInitialized` and replan against it, so the grid is identical across a restart.
 
@@ -1429,3 +1429,27 @@ Wiring `begin_account_startup` into that early return was tried and reverted. `_
 `_resume_brackets` restores an ACTIVE bracket only when the protective parent projects as `OrderStatus.OPEN`. A partial protective fill changes that parent to `PARTIALLY_FILLED`, so replay retains the order and remaining position but skips the live bracket registration. With a 1-unit entry and a 0.2-unit protective fill, replay reconstructs a 0.8-unit position and a partially filled protective OCO, but no `runtime.brackets` entry for the command; bracket MODIFY is therefore unavailable. The same probe fails on the pre-audit implementation, so this is not a new regression. A4 explicitly covers confirmed-OPEN protection only.
 
 **When to fix**: before restart-safe amendment of partially executed protective orders is required. Restore nonterminal protective parents with their effective leg prices and version, verify remaining exposure across amend generations, and cover partial fills before and after restart without duplicating protection or previously booked fills.
+
+---
+
+## TD-153: `_LiveScheme.hold` and `pending_terminal` still encode drain twice
+
+**Origin**: Greybeard pre-PR review (`feat/simplification-audit`)
+**Severity**: Low (writers currently set both together; the due-check treats `pending_terminal is None` as a defensive second gate)
+**Module**: `praxis/core/execution_manager.py` (`_LiveScheme`, `_abort_scheme`, `_expire_scheme`, `_advance_due_schemes`)
+
+`_Hold.DRAINING` replaced the freeze booleans, but abort and expire still write a parallel `pending_terminal` tuple (`TradeStatus`, `SchemeState`, reason) and the due-check still consults both fields. A future writer that sets one without the other can either fire a slice on a terminalizing scheme or finalize without a status. The payload belongs on `DRAINING`, not on a second field.
+
+**When to fix**: when the next scheme-abort or expire change touches these writers. Fold the tuple into the hold (or a drain-only payload type) and drop the dual assignment.
+
+---
+
+## TD-154: Ladder `amend_phase` is a pair of magic strings
+
+**Origin**: Greybeard pre-PR review (`feat/simplification-audit`)
+**Severity**: Low (two values, four guards; tests pin `'CANCELLING'` / `'PLACING'`)
+**Module**: `praxis/core/execution_manager.py` (`_LiveScheme.amend_phase`, `_drive_ladder_amend`)
+
+Ladder amend phase is stored as `str | None` and compared to `'CANCELLING'` and `'PLACING'`. A typo or a third undocumented string is representable and would skip both driver branches. The durable fold already carries the same strings through `ladder_inflight`.
+
+**When to fix**: with the next ladder-amend change. Replace the string with an enum (or reuse the durable event type as the discriminant) and keep `None` as idle.

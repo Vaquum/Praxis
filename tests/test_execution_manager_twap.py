@@ -862,6 +862,48 @@ async def test_twap_resume_prunes_already_filled_active_child_and_finalizes(
 
 
 @pytest.mark.asyncio
+async def test_twap_resume_does_not_rearm_next_run_while_a_child_is_live(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    adapter: AsyncMock,
+) -> None:
+    em, outcomes = mgr
+    command_id = 'cmd-livech000000000000000000000000'
+    coid0 = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+    half = Decimal('0.5')
+
+    events = [
+        (1, CommandAccepted(account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE)),
+        (2, SchemeInitialized(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+            execution_mode=ExecutionMode.TWAP, symbol='BTCUSDT', side=OrderSide.BUY,
+            total_qty=Decimal('1'), slices_total=2, interval_seconds=10,
+        )),
+        (3, _intent(command_id, coid0, half)),
+        (4, OrderSubmitted(account_id=_ACCT, timestamp=_T0, client_order_id=coid0, venue_order_id=f'v-{coid0}')),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid0,), next_run_at=None,
+            state=SchemeState.RUNNING,
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    scheme = em._accounts[_ACCT].schemes[command_id]
+    assert scheme.hold is _Hold.OPEN
+    assert scheme.cursor == 1
+    assert scheme.active_children == {coid0}
+    assert scheme.next_run_at is None
+
+    await asyncio.sleep(0.3)
+
+    adapter.submit_order.assert_not_awaited()
+    assert len(outcomes) == 0
+    assert scheme.next_run_at is None
+
+
+@pytest.mark.asyncio
 async def test_scheme_missing_interval_is_unresumable_and_terminalized(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
 ) -> None:

@@ -1373,26 +1373,34 @@
 
 - Fix reconnect fill backfill missing OCO leg fills: [`_reconcile_fills`](praxis/core/execution_manager.py) now remaps a protective-leg `client_order_id` to its parent so a leg fill arriving during a WebSocket gap updates the bracket instead of leaving a ghost open position
 - Fix a slippage guard that passed when the venue book had no usable depth: [`estimate_slippage`](praxis/core/estimate_slippage.py) returns `None` on partial depth and the guard rejects a single-shot MARKET order it cannot price
-- Simplify the `TradingState` projection and boot replay/reconcile, prune unused event types while retaining their hydrators, and classify `MarkSampled` and launcher audit/ack appends as telemetry outside the state-machine contract
 - Split the reconcile-tick watchdogs into isolated failure domains so one detector's failure cannot stop the reconcile loop (TD-137)
+
+### Update
+
+- Update the `TradingState` projection and boot replay/reconcile, prune unused event types while retaining their hydrators, and classify `MarkSampled` and launcher audit/ack appends as telemetry outside the state-machine contract
 
 ## v0.97.0 on 10th of September, 2026
 
-- **BREAKING**: Remove the unused `TradeOutcome.missed_iterations` and `TradeOutcome.missed_reason` constructor fields and attributes
-- **BREAKING**: Rename `ExecutionManager.drain_ws_events` to `drain_external_events` and `has_pending_ws_events` to `has_pending_external_events` to cover admission, legacy WebSocket, and dispatch queues
-- **BREAKING**: Replace `TwapParams` and `TimeDcaParams` with [`IntervalSliceParams`](praxis/core/domain/interval_slice_params.py), and `TwapModify` and `TimeDcaModify` with [`IntervalSliceModify`](praxis/core/domain/interval_slice_modify.py), without compatibility aliases; TIME_DCA command and modify payloads must use `num_slices` instead of `num_iterations`, while the execution-mode identifiers and TIME_DCA BUY-only rule remain unchanged
-- **NOTE**: Advance the event database to schema 4 by folding symbol-proven legacy `fill_dedup` rows into `fill_dedup_v2`, verifying coverage per key, and dropping the old table; migration resumes after interruption, and older builds refuse the upgraded database, so preserve a pre-upgrade backup for rollback
-- **NOTE**: Refuse missing or incompatible stored chain identity before the schema-four fold; gate each migration on its introducing version so an already-proven database does not repeat the legacy single-symbol proof
-- Refactor Binance request construction through `_ORDER_TYPE_SPECS`, preserving required-before-forbidden validation and rejecting a supplied MARKET price instead of silently dropping it
-- Refactor command and modify payload construction to derive accepted keys and tuple coercion from `PARAMS_FOR_MODE` and `MODIFY_PARAMS_FOR_MODE`
-- Refactor command registration into one `_CommandRegistration` record and run pre-registration failure cleanup through `_PreRegisteredSubmission.rollback`
-- Refactor reconciliation gates into `ReconcilePhase`, keeping disconnects, incomplete backfills, venue failures, and unexpected exits gated
-- Refactor replay inline fills to derive `ImmediateFill` from the recorded `VenueTrade`
-- Refactor scheme and ladder boot reconstruction to share one history fold while retaining separate initialization records
-- Refactor scheme holds into `_Hold` with explicit protection, slice-failure, and terminal-drain precedence
-- Refactor snapshot metric assembly into [`build_snapshot_result`](praxis/metrics/snapshot_result.py), sharing output keys, units, and rounding across the portfolio and Limen engines
-- Refactor the four Trading callback setters to share their startup guard and the launcher reconciliation routes to share runtime lookup
-- Refactor TWAP and Time DCA schedule construction and amendments to use the shared interval-slice parameter types
+### BREAKING
+
+- Remove the unused `TradeOutcome.missed_iterations` and `TradeOutcome.missed_reason` constructor fields and attributes
+- Rename `ExecutionManager.drain_ws_events` to `drain_external_events` and `has_pending_ws_events` to `has_pending_external_events` to cover admission, legacy WebSocket, and dispatch queues
+- Replace `TwapParams` and `TimeDcaParams` with [`IntervalSliceParams`](praxis/core/domain/interval_slice_params.py), and `TwapModify` and `TimeDcaModify` with [`IntervalSliceModify`](praxis/core/domain/interval_slice_modify.py), without compatibility aliases; TIME_DCA command and modify payloads must use `num_slices` instead of `num_iterations`, while the execution-mode identifiers and TIME_DCA BUY-only rule remain unchanged
+
+### NOTE
+
+- Advance the event database to schema 4 by folding symbol-proven legacy `fill_dedup` rows into `fill_dedup_v2`, verifying coverage per key, and dropping the old table; migration resumes after interruption, and older builds refuse the upgraded database, so preserve a pre-upgrade backup for rollback
+- Refuse missing or incompatible stored chain identity before the schema-four fold; gate each migration on its introducing version so an already-proven database does not repeat the legacy single-symbol proof
+
+### Add
+
+- Add regression coverage for abort during ladder cancel and placement phases, uncertain cancellation, replacement-generation fill backfill, and terminal replay
+- Add regression coverage for missing or foreign chain identity across schema versions, mutation-free rejection, intact upgrades, and interrupted unversioned initialization
+- Add regression coverage that an unusable scheme does not prevent a healthy scheme from replaying
+- Add regression coverage that scheme resume does not re-arm `next_run_at` while a child is still live
+
+### Fix
+
 - Fix aborting a protection-frozen ladder mid-amend to retire and confirm both rung generations without posting replacements, backfill cancellation-time fills, and emit one canceled outcome after confirmation
 - Fix boot recovery and stale-balance guards to cover every external-event queue and in-flight admissions, drain boot reactions to completion, and refuse readiness or flatten sizing after a projection fail-stop
 - Fix `BracketInitialized` hydration to validate complete protective-leg combinations through `BracketParams`
@@ -1403,9 +1411,23 @@
 - Fix re-entrant command registrations to retain the existing strategy attribution at both registration sites
 - Fix `TradingState.apply` to record `CommandAccepted` strategy attribution and preserve it in pure projection replay
 - Fix unexpected account-writer exits to poison the account and fail pending admission waiters
+- Fix scheme resume kicking `next_run_at` to now while a child order is still live
+- Fix a failed boot unparking the account writer in `finally` before cleanup, so a load-filters / reconcile / flatten failure cannot advance schemes or place protection
+- Fix order-reconciliation swallowing `VenueError` from `query_order`, which let reconnect treat a failed pass as success and release IDLE
+- Fix repository-source links in [`TechnicalDebt.md`](docs/TechnicalDebt.md) so the documentation site passes strict link validation
+
+### Update
+
+- Refactor Binance request construction through `_ORDER_TYPE_SPECS`, preserving required-before-forbidden validation and rejecting a supplied MARKET price instead of silently dropping it
+- Refactor command and modify payload construction to derive accepted keys and tuple coercion from `PARAMS_FOR_MODE` and `MODIFY_PARAMS_FOR_MODE`
+- Refactor command registration into one `_CommandRegistration` record and run pre-registration failure cleanup through `_PreRegisteredSubmission.rollback`
+- Refactor reconciliation gates into `ReconcilePhase`, keeping disconnects, incomplete backfills, venue failures, and unexpected exits gated
+- Refactor replay inline fills to derive `ImmediateFill` from the recorded `VenueTrade`
+- Refactor scheme and ladder boot reconstruction to share one history fold while retaining separate initialization records
+- Refactor scheme holds into `_Hold` with explicit protection, slice-failure, and terminal-drain precedence
+- Refactor snapshot metric assembly into [`build_snapshot_result`](praxis/metrics/snapshot_result.py), sharing output keys, units, and rounding across the portfolio and Limen engines
+- Refactor the four Trading callback setters to share their startup guard and the launcher reconciliation routes to share runtime lookup
+- Refactor TWAP and Time DCA schedule construction and amendments to use the shared interval-slice parameter types
 - Update [`Event-Spine.md`](docs/Event-Spine.md) and [`Recovery-And-Reconciliation.md`](docs/Recovery-And-Reconciliation.md) for schema 4 and record the pre-existing partial-OCO replay limitation as TD-152 in [`TechnicalDebt.md`](docs/TechnicalDebt.md)
 - Update [`Execution-Manager.md`](docs/Execution-Manager.md) and [`Trade-Outcomes.md`](docs/Trade-Outcomes.md) with the v0.97.0 API migration and add the shared metric assembler contract in [`Metric-Snapshots.md`](docs/Metric-Snapshots.md)
-- Add regression coverage for abort during ladder cancel and placement phases, uncertain cancellation, replacement-generation fill backfill, and terminal replay
-- Add regression coverage for missing or foreign chain identity across schema versions, mutation-free rejection, intact upgrades, and interrupted unversioned initialization
-- Add regression coverage that an unusable scheme does not prevent a healthy scheme from replaying
-- Fix repository-source links in [`TechnicalDebt.md`](docs/TechnicalDebt.md) so the documentation site passes strict link validation
+- Record TD-153 (`hold` vs `pending_terminal`) and TD-154 (ladder `amend_phase` strings) in [`TechnicalDebt.md`](docs/TechnicalDebt.md)

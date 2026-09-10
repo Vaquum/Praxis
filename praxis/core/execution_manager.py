@@ -1840,6 +1840,7 @@ class ExecutionManager:
                 scheme.hold is _Hold.OPEN
                 and scheme.cursor < scheme.slices_total
                 and scheme.next_run_at is None
+                and not live_children
             ):
                 scheme.next_run_at = self._clock()
 

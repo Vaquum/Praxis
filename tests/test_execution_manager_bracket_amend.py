@@ -528,6 +528,7 @@ class TestBracketAmendHappyPath:
         resumed, _ = mgr_factory(resumed_adapter)
         resumed.register_account(_ACCT)
         resumed.replay_events(_ACCT, rows)
+        await asyncio.sleep(0.3)
 
         bracket = resumed._accounts[_ACCT].brackets[command_id]
         assert bracket.protection_status is BracketProtectionStatus.ACTIVE

@@ -73,7 +73,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueOrder,
     VenueTrade,
 )
-from praxis.trading import Trading
+from praxis.trading import ReconcilePhase, Trading
 from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
 
@@ -1271,6 +1271,56 @@ async def test_reconcile_account_handles_not_found(spine: EventSpine) -> None:
 
     events = await _trading_events(spine)
     assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_account_propagates_venue_error(spine: EventSpine) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    async def _boom(
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> VenueOrder:
+        del account_id, symbol, venue_order_id, client_order_id
+        raise VenueError('timeout')
+
+    adapter.query_order = _boom  # type: ignore[method-assign]
+
+    with pytest.raises(VenueError, match='timeout'):
+        await trading._reconcile_account('acc-1')
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_on_reconnect_stays_gated_when_query_order_fails(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    async def _boom(
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> VenueOrder:
+        del account_id, symbol, venue_order_id, client_order_id
+        raise VenueError('timeout')
+
+    adapter.query_order = _boom  # type: ignore[method-assign]
+
+    await trading._reconcile_on_reconnect('acc-1')
+
+    assert trading._reconcile_phase.get('acc-1') is ReconcilePhase.GATED
     await trading.stop()
 
 
@@ -2875,6 +2925,7 @@ async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSp
 
     assert adapter.cancelled == []
     assert 'acc-1' not in trading._ready_accounts
+    assert trading._execution_manager._accounts['acc-1'].booting is True
 
 
 @pytest.mark.asyncio
