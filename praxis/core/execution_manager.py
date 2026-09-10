@@ -1894,7 +1894,7 @@ class ExecutionManager:
                 ),
                 cursor=state.cursor if state is not None else 0,
                 active_children=live_children,
-                next_run_at=state.next_run_at if state is not None else None,
+                next_run_at=self._resumed_next_run_at(state, replan),
                 deadline=deadline,
                 hold=_resume_hold(
                     command_id, fold.frozen_ids,
@@ -1928,6 +1928,35 @@ class ExecutionManager:
                 len(scheme.active_children),
                 scheme.hold.value,
             )
+
+    @staticmethod
+    def _resumed_next_run_at(
+        state: SchemeStateChanged | None,
+        replan: SchemeReplanned | None,
+    ) -> datetime | None:
+        '''Pick the timer that belongs to the plan being resumed.
+
+        A progress event appended after the amend carries the amended
+        schedule's timer and is the newer fact. When the amend committed and
+        the progress append did not, the replan's own timer is the only one
+        that matches the plan; the older progress timer belongs to the
+        schedule the amend replaced.
+
+        Args:
+            state (SchemeStateChanged | None): Last progress event, if any.
+            replan (SchemeReplanned | None): Last amend, if any.
+
+        Returns:
+            datetime | None: The timer to resume with.
+        '''
+
+        if replan is None:
+            return state.next_run_at if state is not None else None
+
+        if state is None or state.timestamp < replan.timestamp:
+            return replan.next_run_at
+
+        return state.next_run_at
 
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Apply an event to the account's trading-state and ledger projections.
@@ -3454,6 +3483,8 @@ class ExecutionManager:
                     self.modifiable_command_ids(runtime.account_id),
                 )
 
+                await self._drive_pending_drains(runtime)
+
                 if runtime.reconciling or runtime.poisoned:
                     await self._wait_for_work(runtime)
                     continue
@@ -4150,25 +4181,28 @@ class ExecutionManager:
         if order.status not in _TERMINAL_ORDER_STATUSES:
             return
 
-        if not isinstance(event, FillReceived):
-            # A protective OCO carries the bracket's exit command id, so it
-            # never resolves through the entry-keyed map; without this the
-            # bracket keeps reporting ACTIVE protection that no longer rests
-            # at the venue, and stays amendable through its entry id.
-            protective = next(
-                (
-                    live
-                    for live in runtime.brackets.values()
-                    if live.protection_client_order_id == order.client_order_id
-                    and live.protection_status is BracketProtectionStatus.ACTIVE
-                ),
-                None,
-            )
+        # A protective OCO carries the bracket's exit command id, so it never
+        # resolves through the entry-keyed map; without this the bracket keeps
+        # reporting ACTIVE protection that no longer rests at the venue, and
+        # stays amendable through its entry id. A leg reports under its own id,
+        # so resolve it to the parent list first.
+        protective_id = runtime.trading_state.oco_leg_parent.get(
+            order.client_order_id, order.client_order_id,
+        )
+        protective = next(
+            (
+                live
+                for live in runtime.brackets.values()
+                if live.protection_client_order_id == protective_id
+                and live.protection_status is BracketProtectionStatus.ACTIVE
+            ),
+            None,
+        )
 
-            if protective is not None:
-                await self._on_protection_terminal(runtime, protective, order)
+        if protective is not None:
+            await self._on_protection_terminal(runtime, protective, order)
 
-                return
+            return
 
         bracket = runtime.brackets.get(order.command_id)
         if bracket is None or order.client_order_id != bracket.entry_client_order_id:
@@ -5198,19 +5232,6 @@ class ExecutionManager:
                 and now >= scheme.next_run_at
             )
 
-            if (
-                scheme.hold is _Hold.DRAINING
-                and scheme.amend_phase is None
-                and scheme.drain_cancel_pending
-                and scheme.active_children
-            ):
-                # A drain persisted before its cancels completed replays with
-                # the children still live. Expiry skips a draining scheme, so
-                # without re-driving here the rungs would rest for the life of
-                # the epoch behind a durable abort that never took effect.
-                scheme.drain_cancel_pending = False
-                await self._cancel_active_children(runtime, scheme)
-
             if due:
                 await self._advance_scheme_guarded(runtime, scheme, now)
             else:
@@ -6185,14 +6206,20 @@ class ExecutionManager:
         bracket: _LiveBracket,
         order: Order,
     ) -> None:
-        '''Resolve a bracket whose protective OCO reached a terminal status.
+        '''Hand a bracket whose protective OCO terminalized to the watchdog.
 
-        A leg fill closes the OCO through the ordinary fill path; reaching
-        this point means the list was cancelled, expired, or rejected. If the
-        entry still holds exposure the position is naked, so it goes through
-        the same freeze / flatten / hold remediation a definitive amend
-        failure does. With no exposure left the bracket has simply finished
-        and is dropped.
+        The list is gone from the venue, so the bracket must stop reporting
+        ACTIVE protection and stop being amendable. What replaced it is not
+        knowable from the local projection: a cancellation can arrive before
+        the sibling leg's fills project, so a remainder derived from local
+        totals alone can size a flatten for exposure the take-profit already
+        closed and sell the position twice.
+
+        STATE_UNKNOWN is the state that question already has an answer for.
+        The reconcile-tick watchdog re-queries the venue and resolves it from
+        venue truth — re-tracking a list still working, closing the bracket
+        when a leg filled, and remediating only a position it has confirmed
+        naked.
 
         Args:
             runtime (_AccountRuntime): Account that owns the bracket.
@@ -6200,36 +6227,16 @@ class ExecutionManager:
             order (Order): The protective order that reached a terminal state.
         '''
 
-        command_id = bracket.command.command_id
-        exit_command_id = bracket_exit_command_id(command_id)
-        entry_filled, _ = self._command_fill_totals(runtime, command_id)
-        exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
-        remainder = entry_filled - exit_filled
-
-        if remainder <= _ZERO:
-            runtime.brackets.pop(command_id, None)
-
-            return
-
-        bracket.protection_status = BracketProtectionStatus.FAILED
+        bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+        bracket.unknown_since = self._clock()
+        self.request_protection_scan(runtime.account_id)
 
         _log.warning(
-            'bracket protective OCO terminalized with exposure remaining; '
-            'remediating naked position: command_id=%s client_order_id=%s '
-            'status=%s remainder=%s',
-            command_id,
+            'bracket protective OCO terminalized; holding STATE_UNKNOWN for '
+            'venue resolution: command_id=%s client_order_id=%s status=%s',
+            bracket.command.command_id,
             order.client_order_id,
             order.status.value,
-            remainder,
-        )
-
-        await self._remediate_naked_bracket(
-            runtime,
-            bracket,
-            max(bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION),
-            f'protective OCO {order.status.value} with exposure remaining',
-            remainder,
-            (order.client_order_id,),
         )
 
     async def _remediate_naked_bracket(
@@ -6317,6 +6324,21 @@ class ExecutionManager:
         runtime = self._accounts.get(account_id)
         if runtime is None:
             return
+
+        await self._drive_pending_drains(runtime)
+
+    async def _drive_pending_drains(self, runtime: _AccountRuntime) -> None:
+        '''Retire the children a durable drain left working at the venue.
+
+        Runs ahead of the reconciling and poisoned gate, alongside the abort
+        the priority queue already drains in those states. A GATED reconnect
+        is precisely the window a crashed abort resumes into, so gating this
+        behind order-capability would leave the rungs resting for exactly the
+        state the backstop exists to cover.
+
+        Args:
+            runtime (_AccountRuntime): Account whose drains to retire.
+        '''
 
         for scheme in list(runtime.schemes.values()):
             if (
@@ -9345,6 +9367,8 @@ class ExecutionManager:
 
         scheme.interval_seconds = new_interval
 
+        next_run_at = self._clock() + timedelta(seconds=new_interval)
+
         await self._event_spine.append(
             SchemeReplanned(
                 account_id=runtime.account_id,
@@ -9353,13 +9377,14 @@ class ExecutionManager:
                 slices_total=scheme.slices_total,
                 interval_seconds=new_interval,
                 slice_qtys=tuple(scheme.slice_qtys),
+                next_run_at=next_run_at,
                 clears_slice_failure=scheme.hold is _Hold.SLICE_FAILED,
             ),
             self._epoch_id,
         )
 
         scheme.hold = _Hold.OPEN
-        scheme.next_run_at = self._clock() + timedelta(seconds=new_interval)
+        scheme.next_run_at = next_run_at
         await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
 
     def _resolve_scheme_amend(

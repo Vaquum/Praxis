@@ -358,6 +358,11 @@ class SchemeReplanned(_EventBase):
     the original schedule from SchemeInitialized, so a resumed scheme
     executes a plan its owner replaced.
 
+    The next-run timestamp travels with the plan for the same reason: taking
+    the interval from here and the timer from a separate progress event lets a
+    crash between the two appends pair a new interval with the schedule it
+    replaced, firing a slice far earlier than the amend intended.
+
     `clears_slice_failure` records that the amend also cleared a
     slice-failure freeze, so the permission to run again and the plan that
     permission applies to are the same durable fact. They must not be
@@ -373,6 +378,8 @@ class SchemeReplanned(_EventBase):
         interval_seconds (int): Seconds between slices after the amend.
         slice_qtys (tuple[Decimal, ...]): Full per-slice plan after the
             amend, including the slices already executed.
+        next_run_at (datetime | None): When the next slice is due under the
+            amended schedule, None when unscheduled.
         clears_slice_failure (bool): Whether the amend also cleared a
             slice-failure freeze.
     '''
@@ -381,6 +388,7 @@ class SchemeReplanned(_EventBase):
     slices_total: int
     interval_seconds: int
     slice_qtys: tuple[Decimal, ...]
+    next_run_at: datetime | None = None
     clears_slice_failure: bool = False
 
     def __post_init__(self) -> None:

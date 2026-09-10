@@ -1283,6 +1283,46 @@ async def test_resumed_drain_recancels_children_the_crash_left_working(
     assert resumed.active_children == {coid}
     assert resumed.drain_cancel_pending is True
 
-    await em._advance_due_schemes(em._accounts[_ACCT])
+    # Drive the real writer loop with the account gated: a GATED reconnect is
+    # the window a crashed abort resumes into, so a re-drive that only runs
+    # when the account is order-capable would never retire these rungs.
+    runtime = em._accounts[_ACCT]
+    runtime.reconciling = True
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
 
     assert em._venue_adapter.cancel_order.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_replay_pairs_the_amended_timer_with_the_amended_plan(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-timer000000000000000000000000'
+    amended_run_at = _T0 + timedelta(seconds=3600)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=0,
+            filled_qty=Decimal('0'), active_client_order_ids=(),
+            next_run_at=_T0 + timedelta(seconds=10),
+            state=SchemeState.RUNNING,
+        )),
+        (4, SchemeReplanned(
+            account_id=_ACCT, timestamp=_T0 + timedelta(seconds=1),
+            command_id=command_id, slices_total=2, interval_seconds=3600,
+            slice_qtys=(Decimal('0.5'), Decimal('0.5')),
+            next_run_at=amended_run_at,
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.interval_seconds == 3600
+    assert resumed.next_run_at == amended_run_at
