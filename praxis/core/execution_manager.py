@@ -313,6 +313,11 @@ class _SchemeReplayFold:
         replans: Per command, the last amend's plan, so a resumed scheme
             runs the schedule its owner amended to rather than the one it
             was initialized with.
+        replan_seq: Spine sequence of each recorded replan.
+        latest_state_seq: Spine sequence of each recorded progress event.
+            Ordering is decided on these rather than on timestamps: the
+            replay clock is constant within a bar, so equal or backward
+            wall-clock stamps would pick the older event.
         pending_terminals: Per draining command, the outcome it is waiting
             to emit, so the resumed hold and its payload come from the same
             event rather than being derived apart.
@@ -330,6 +335,8 @@ class _SchemeReplayFold:
     protection_frozen_ids: set[str] = field(default_factory=set)
     draining_ids: set[str] = field(default_factory=set)
     replans: dict[str, SchemeReplanned] = field(default_factory=dict)
+    replan_seq: dict[str, int] = field(default_factory=dict)
+    latest_state_seq: dict[str, int] = field(default_factory=dict)
     pending_terminals: dict[
         str, tuple[TradeStatus, SchemeState, str | None]
     ] = field(default_factory=dict)
@@ -1129,7 +1136,7 @@ class ExecutionManager:
         initiated_by_gen: dict[tuple[str, int], LadderAmendInitiated] = {}
         planned_by_gen: dict[tuple[str, int], LadderAmendPlanned] = {}
 
-        for _seq, event in events:
+        for seq, event in events:
             if isinstance(event, SchemeInitialized):
                 fold.inits.setdefault(event.command_id, event)
 
@@ -1138,6 +1145,7 @@ class ExecutionManager:
 
             elif isinstance(event, SchemeStateChanged):
                 fold.latest_state[event.command_id] = event
+                fold.latest_state_seq[event.command_id] = seq
 
             elif isinstance(event, SliceFailed):
                 fold.frozen_ids.add(event.command_id)
@@ -1148,6 +1156,7 @@ class ExecutionManager:
 
             elif isinstance(event, SchemeReplanned):
                 fold.replans[event.command_id] = event
+                fold.replan_seq[event.command_id] = seq
 
                 if event.clears_slice_failure:
                     # A protection freeze is not amend-clearable, so this
@@ -1894,7 +1903,11 @@ class ExecutionManager:
                 ),
                 cursor=state.cursor if state is not None else 0,
                 active_children=live_children,
-                next_run_at=self._resumed_next_run_at(state, replan),
+                next_run_at=self._resumed_next_run_at(
+                    state, replan,
+                    fold.latest_state_seq.get(command_id),
+                    fold.replan_seq.get(command_id),
+                ),
                 deadline=deadline,
                 hold=_resume_hold(
                     command_id, fold.frozen_ids,
@@ -1933,6 +1946,8 @@ class ExecutionManager:
     def _resumed_next_run_at(
         state: SchemeStateChanged | None,
         replan: SchemeReplanned | None,
+        state_seq: int | None,
+        replan_seq: int | None,
     ) -> datetime | None:
         '''Pick the timer that belongs to the plan being resumed.
 
@@ -1942,9 +1957,16 @@ class ExecutionManager:
         that matches the plan; the older progress timer belongs to the
         schedule the amend replaced.
 
+        Decided on spine sequence rather than timestamp. The replay clock is
+        constant within a bar, so equal stamps — and a backward clock step —
+        would select the stale progress timer while the replan holds the
+        newer durable position.
+
         Args:
             state (SchemeStateChanged | None): Last progress event, if any.
             replan (SchemeReplanned | None): Last amend, if any.
+            state_seq (int | None): Spine sequence of that progress event.
+            replan_seq (int | None): Spine sequence of that amend.
 
         Returns:
             datetime | None: The timer to resume with.
@@ -1953,10 +1975,13 @@ class ExecutionManager:
         if replan is None:
             return state.next_run_at if state is not None else None
 
-        if state is None or state.timestamp < replan.timestamp:
+        if state is None or state_seq is None or replan_seq is None:
             return replan.next_run_at
 
-        return state.next_run_at
+        if state_seq > replan_seq:
+            return state.next_run_at
+
+        return replan.next_run_at
 
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Apply an event to the account's trading-state and ledger projections.
@@ -3158,7 +3183,7 @@ class ExecutionManager:
         if runtime is not None:
             runtime.booting = True
 
-    def fail_account_startup(self, account_id: str) -> None:
+    async def fail_account_startup(self, account_id: str) -> None:
 
         '''Leave a failed boot parked, and refuse admissions to it.
 
@@ -3175,16 +3200,24 @@ class ExecutionManager:
         '''
 
         runtime = self._accounts.get(account_id)
-        if runtime is not None:
-            runtime.boot_failed = True
+        if runtime is None:
+            return
 
-            self._fail_pending_admissions(
-                runtime,
-                RuntimeError(
-                    f"account '{account_id}' failed startup and stays parked; "
-                    'restart required',
-                ),
-            )
+        runtime.boot_failed = True
+
+        self._fail_pending_admissions(
+            runtime,
+            RuntimeError(
+                f"account '{account_id}' failed startup and stays parked; "
+                'restart required',
+            ),
+        )
+
+        # The writer stays parked for good, so no later pass will retire the
+        # children a durable drain left working. Boot recovery has finished
+        # and nothing else owns the account, so this is the last chance to
+        # do it before shutdown.
+        await self._drive_pending_drains(runtime)
 
     def finish_account_startup(self, account_id: str) -> None:
         '''Release the account writer once boot recovery has completed.
@@ -6227,6 +6260,30 @@ class ExecutionManager:
             order (Order): The protective order that reached a terminal state.
         '''
 
+        version = max(
+            bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION,
+        )
+
+        # Durable before in-memory: a restart between this dispatch and the
+        # watchdog's resolution would otherwise find no unresolved phase to
+        # restore, and the open position would come back with neither a
+        # tracked bracket nor a pending remediation.
+        await self._event_spine.append(
+            ProtectionStateUnknown(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=bracket.command.command_id,
+                protection_version=version,
+                reason=(
+                    f'protective OCO {order.status.value}; awaiting venue '
+                    f'resolution'
+                ),
+                old_list_client_order_id=bracket.protection_client_order_id,
+                new_list_client_order_id=bracket.protection_client_order_id,
+            ),
+            self._epoch_id,
+        )
+
         bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
         bracket.unknown_since = self._clock()
         self.request_protection_scan(runtime.account_id)
@@ -6270,6 +6327,15 @@ class ExecutionManager:
         '''
 
         cmd = bracket.command
+
+        # An initial, never-amended OCO is revision zero, which
+        # `ProtectionFailed` refuses. Normalizing here rather than at each
+        # caller means a path that reaches remediation on an unamended
+        # bracket cannot raise before the durable marker, the flatten, and
+        # the hold — leaving the position unprotected and every later scan
+        # repeating the same failure.
+        version = max(version, _BRACKET_FIRST_PROTECTION_VERSION)
+
         await self._freeze_account_schemes(
             runtime,
             f'bracket protection failed: command_id={cmd.command_id} '

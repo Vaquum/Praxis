@@ -1311,8 +1311,11 @@ async def test_replay_pairs_the_amended_timer_with_the_amended_plan(
             next_run_at=_T0 + timedelta(seconds=10),
             state=SchemeState.RUNNING,
         )),
+        # Same wall-clock stamp as the progress event above: the replay clock
+        # is constant within a bar, so only the spine sequence distinguishes
+        # which of the two is the newer durable fact.
         (4, SchemeReplanned(
-            account_id=_ACCT, timestamp=_T0 + timedelta(seconds=1),
+            account_id=_ACCT, timestamp=_T0,
             command_id=command_id, slices_total=2, interval_seconds=3600,
             slice_qtys=(Decimal('0.5'), Decimal('0.5')),
             next_run_at=amended_run_at,

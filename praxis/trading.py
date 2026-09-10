@@ -616,7 +616,7 @@ class Trading:
                 account_id,
                 reason,
             )
-            self._execution_manager.fail_account_startup(account_id)
+            await self._execution_manager.fail_account_startup(account_id)
 
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''

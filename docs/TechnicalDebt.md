@@ -1236,17 +1236,17 @@ A single-order amend cancels the resting order, queries the venue for the author
 
 ## TD-135: Scheme-plan amend is in-memory only; a restart replays the original schedule — RESOLVED
 
-**RESOLVED**: an amend now appends [`SchemeReplanned`](praxis/core/domain/events.py) carrying the slice quantities, count, interval and next-run timestamp it produced, together with whether it cleared a slice-failure freeze. Resume rebuilds the plan from that event rather than from `SchemeInitialized`, and pairs it with the timer that belongs to it. Splitting the freeze from the plan was itself the defect: clearing the hold alone let a resumed scheme execute the schedule its owner had replaced and terminalize FILLED short of the target.
-
 **Origin**: WP-Praxis-0009 (8.6* scheme-plan amend)
-**Severity**: Low (safe — the scheme still works the remaining quantity; only the amended cadence/count is lost on restart)
+**Severity**: was Low on the assumption that only the amended cadence was lost. It was not: clearing the freeze durably while leaving the plan in memory let a resumed scheme execute the schedule its owner had replaced and terminalize FILLED short of the requested quantity
 **Module**: `praxis/core/execution_manager.py` (`_process_scheme_modify`, `_resume_schemes`)
 
-A TWAP / Time DCA / Scheduled VWAP amend updates the running `_LiveScheme` (remaining slice quantities, slice count, interval, next-run) in place and appends a `SchemeStateChanged`, but the amended plan itself is not persisted: `_resume_schemes` re-plans from the original `SchemeInitialized` (its slice count, interval, and weights). So after a restart a mid-flight amended scheme reverts to its original schedule — it still works the remaining quantity (no over-order, no lost fills), but the amended cadence/count is gone.
+**RESOLVED**: an amend now appends [`SchemeReplanned`](praxis/core/domain/events.py) carrying the slice quantities, count, interval and next-run timestamp it produced, together with whether it cleared a slice-failure freeze. Resume rebuilds the plan from that event rather than from `SchemeInitialized`, and pairs it with the timer that belongs to it. Splitting the freeze from the plan was itself the defect: clearing the hold alone let a resumed scheme execute the schedule its owner had replaced and terminalize FILLED short of the target.
+
+Historical description: a TWAP / Time DCA / Scheduled VWAP amend updated the running `_LiveScheme` in place — remaining slice quantities, slice count, interval, next run — and appended only a progress event, so `_resume_schemes` replanned from `SchemeInitialized` and the amended schedule did not survive a restart.
 
 A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-curve-to-remaining-slices normalization is ambiguous (the fired slices used the old curve), so `_process_scheme_modify` rejects a `ScheduledVwapModify.volume_weights` amend and accepts interval-only for VWAP.
 
-**When to fix**: before an amended schedule must survive a restart, or a strategy needs to re-shape a VWAP curve mid-flight. Persist the amended plan (a `SchemeAmended` event carrying the new slice quantities and interval) and apply the latest one in `_resume_schemes`; define and implement the VWAP remaining-curve semantics.
+**Still open**: the Scheduled VWAP weight-curve amend remains unsupported, tracked here rather than reopened as its own entry. The plan-persistence half is closed.
 
 ## TD-138: Protection-remediation redelivery is not idempotent at the Nexus receiver
 

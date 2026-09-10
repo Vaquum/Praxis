@@ -543,7 +543,7 @@ async def test_submit_abort_refuses_an_account_whose_boot_failed(
     _open_order(em._accounts[_ACCT])
     em._accepted_commands[_CMD] = _ACCT
 
-    em.fail_account_startup(_ACCT)
+    await em.fail_account_startup(_ACCT)
 
     with pytest.raises(ValueError, match='never be drained'):
         em.submit_abort(TradeAbort(
