@@ -1386,10 +1386,10 @@
 - Remove the unused `TradeOutcome.missed_iterations` and `TradeOutcome.missed_reason` constructor fields and attributes
 - Rename `ExecutionManager.drain_ws_events` to `drain_external_events` and `has_pending_ws_events` to `has_pending_external_events` to cover admission, legacy WebSocket, and dispatch queues
 - Replace `TwapParams` and `TimeDcaParams` with [`IntervalSliceParams`](praxis/core/domain/interval_slice_params.py), and `TwapModify` and `TimeDcaModify` with [`IntervalSliceModify`](praxis/core/domain/interval_slice_modify.py), without compatibility aliases; TIME_DCA command and modify payloads must use `num_slices` instead of `num_iterations`, while the execution-mode identifiers and TIME_DCA BUY-only rule remain unchanged
+- Advance the event database to schema 4 by folding symbol-proven legacy `fill_dedup` rows into `fill_dedup_v2`, verifying coverage per key, and dropping the old table; migration resumes after interruption, and older builds refuse the upgraded database, so preserve a pre-upgrade backup for rollback. This is an on-disk contract break: the DROP commits on its own, and a 0.96 build cannot open a database whose legacy table is gone, so downgrade is the pre-upgrade copy only
 
 ### NOTE
 
-- Advance the event database to schema 4 by folding symbol-proven legacy `fill_dedup` rows into `fill_dedup_v2`, verifying coverage per key, and dropping the old table; migration resumes after interruption, and older builds refuse the upgraded database, so preserve a pre-upgrade backup for rollback
 - Refuse missing or incompatible stored chain identity before the schema-four fold; gate each migration on its introducing version so an already-proven database does not repeat the legacy single-symbol proof
 
 ### Add
@@ -1413,6 +1413,8 @@
 - Fix unexpected account-writer exits to poison the account and fail pending admission waiters
 - Fix scheme resume kicking `next_run_at` to now while a child order is still live
 - Fix a failed boot unparking the account writer in `finally` before cleanup, so a load-filters / reconcile / flatten failure cannot advance schemes or place protection
+- Fix a failed boot leaving its writer parked with no way to refuse work: the writer stays parked so a not-ready account still cannot advance schemes or place protection, but the account is marked boot-failed and `admit` refuses it, so the WebSocket reader and the reconcile tick learn the account is down instead of blocking forever on a future the parked writer will never resolve while the stream is up and a recovery flatten may already rest at the venue. The not-ready log now names the reason that actually applied rather than always blaming the orphan sweep
+- Fix `_reconcile_fills` swallowing a `VenueError` from `query_trades`, which let a reconnect pass report success and release the account to IDLE with venue fills it never recovered, oversizing a later flatten. It now propagates, matching the documented contract and the `query_order` path
 - Fix order-reconciliation swallowing `VenueError` from `query_order`, which let reconnect treat a failed pass as success and release IDLE
 - Fix repository-source links in [`TechnicalDebt.md`](docs/TechnicalDebt.md) so the documentation site passes strict link validation
 
