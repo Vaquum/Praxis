@@ -168,6 +168,13 @@ const docs = [
     title: 'Slippage And Order Book'
   },
   {
+    source: 'docs/Metric-Snapshots.md',
+    dest: 'reference/metric-snapshots.md',
+    slug: '/reference/metric-snapshots',
+    sidebarPosition: 8,
+    title: 'Metric Snapshots'
+  },
+  {
     source: 'praxis/README.md',
     dest: 'packages/praxis.md',
     slug: '/packages/praxis',

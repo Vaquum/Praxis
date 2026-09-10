@@ -20,6 +20,10 @@ Typical fields include:
 - reason text
 - strategy attribution when relevant
 
+In v0.97.0, the unused `missed_iterations` and `missed_reason` fields are removed without aliases. Remove those constructor arguments and attribute reads from integrations; they never reported skipped-iteration telemetry. `slices_completed` and `slices_total` continue to describe scheme progress, not missed iterations.
+
+`filled_qty`, `cumulative_notional`, and `avg_fill_price` remain separate. An overfill can clamp the reported quantity to the command target while retaining venue notional and the actual average price; consumers must not recompute the average by dividing those two reported totals.
+
 ## When Outcomes Are Produced
 
 Praxis produces outcomes when commands reach a terminal result:
@@ -55,3 +59,4 @@ A future state described in the [Event Spine](Event-Spine.md) documentation woul
 - [Trade Lifecycle](Trade-Lifecycle.md)
 - [Trading](Trading.md)
 - [Event Spine](Event-Spine.md)
+- [Metric Snapshots](Metric-Snapshots.md)

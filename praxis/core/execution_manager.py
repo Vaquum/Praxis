@@ -5744,7 +5744,8 @@ class ExecutionManager:
         Marks the scheme for a terminal CANCELED outcome and cancels any
         still-working child at the venue. The single aggregated CANCELED
         outcome fires once every child has settled — immediately when none
-        are working, otherwise as the cancels confirm.
+        are working, otherwise as the cancels confirm. An in-flight ladder
+        amend retires both generations without placing replacement rungs.
         '''
 
         scheme = runtime.schemes.get(abort.command_id)
@@ -5765,6 +5766,11 @@ class ExecutionManager:
         )
         scheme.hold = _Hold.DRAINING
         scheme.next_run_at = None
+
+        if scheme.amend_phase is not None:
+            await self._drive_ladder_amend(runtime, scheme)
+            return
+
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
 
@@ -7866,12 +7872,18 @@ class ExecutionManager:
         every old rung, then fixes and persists the replacement plan; PLACING
         places the planned rungs. Each step is idempotent — already-terminal
         old rungs and already-resting new rungs are adopted — so re-driving
-        never double-cancels or double-places.
+        never double-cancels or double-places. A terminalizing scheme instead
+        retires both generations and emits its pending terminal outcome; it
+        never reaches replacement planning or placement.
         '''
 
         cmd = scheme.command
         ctx = scheme.amend_context
         if ctx is None:
+            return
+
+        if scheme.hold is _Hold.DRAINING:
+            await self._drain_ladder_amend(runtime, scheme, ctx)
             return
 
         new_params = LadderDcaParams(
@@ -7925,6 +7937,41 @@ class ExecutionManager:
             await self._place_ladder_generation(
                 runtime, cmd, scheme, ctx.new_generation, ctx.planned, new_params,
             )
+
+    async def _drain_ladder_amend(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        ctx: _LadderAmendContext,
+    ) -> None:
+
+        '''Cancel both amend generations and emit the pending terminal outcome.
+
+        Venue confirmation and fill backfill use the same retirement path as
+        an amend, so an uncertain cancel stays pending for the watchdog and
+        fills discovered during cancellation enter the final outcome.
+
+        Args:
+            runtime (_AccountRuntime): Account owning the ladder
+            scheme (_LiveScheme): Terminalizing ladder with an in-flight amend
+            ctx (_LadderAmendContext): Old and planned replacement generations
+        '''
+
+        for generation, count in (
+            (ctx.old_generation, ctx.old_slices_total),
+            (ctx.new_generation, len(ctx.planned or ())),
+        ):
+            retired = await self._retire_ladder_generation(
+                runtime, scheme.command, scheme, generation, count, ctx.new_generation,
+            )
+            if retired is None:
+                return
+
+        assert scheme.pending_terminal is not None
+        status, scheme_state, reason = scheme.pending_terminal
+        await self._finalize_scheme(
+            runtime, scheme, status=status, scheme_state=scheme_state, reason=reason,
+        )
 
     def _plan_ladder_amend(
         self,

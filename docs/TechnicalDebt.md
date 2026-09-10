@@ -645,15 +645,15 @@ After v0.66.0 folded `EPOCH_ID` into the InstanceState path (`STATE_BASE / <acco
 
 **Origin**: Greybeard pre-PR review of `chore/bump-nexus-0.54.0-and-wire-schedulers` (v0.69.0 scheduler wiring)
 **Severity**: Low today (only BTCUSDT deployments shipped; the codebase carries `_DEFAULT_SYMBOL = 'BTCUSDT'` assumptions in many sites). Becomes a correctness blocker the day a manifest adds a second symbol.
-**Module**: [`praxis/launcher.py`](praxis/launcher.py) `_build_nexus_runtime`'s `mark_price_provider` closure
+**Module**: [`praxis/launcher.py`](../praxis/launcher.py) `_build_nexus_runtime`'s `mark_price_provider` closure
 
-The MTM `mark_price_provider` wraps the existing [`_last_close_from_poller`](praxis/launcher.py) which only knows about `BTCUSDT`. To preserve the strict-no-partial-writes contract on `MtmLoop`, the provider returns `None` for any other symbol; `MtmLoop` interprets `None` as "mark unavailable for this symbol" and aborts the entire tick without writing any unrealized P&L for any position (per [`mtm_loop.py:189-203`](https://github.com/Vaquum/Nexus/blob/bd61a0a60eefe8c55ef43719c72081193f66e097/nexus/core/mtm_loop.py) "stale marks are preferred over half-marked snapshots"). The day a manifest adds a non-BTCUSDT sensor that opens a position, every MTM tick will silently abort for the BTC positions too, leaving the open book unmarked indefinitely — risk gates running blind to the open book, exactly the failure mode Nexus #76 + Praxis v0.69.0 just closed.
+The MTM `mark_price_provider` wraps the existing [`_last_close_from_poller`](../praxis/launcher.py) which only knows about `BTCUSDT`. To preserve the strict-no-partial-writes contract on `MtmLoop`, the provider returns `None` for any other symbol; `MtmLoop` interprets `None` as "mark unavailable for this symbol" and aborts the entire tick without writing any unrealized P&L for any position (per [`mtm_loop.py:189-203`](https://github.com/Vaquum/Nexus/blob/bd61a0a60eefe8c55ef43719c72081193f66e097/nexus/core/mtm_loop.py) "stale marks are preferred over half-marked snapshots"). The day a manifest adds a non-BTCUSDT sensor that opens a position, every MTM tick will silently abort for the BTC positions too, leaving the open book unmarked indefinitely — risk gates running blind to the open book, exactly the failure mode Nexus #76 + Praxis v0.69.0 just closed.
 
 The only operator signal will be a per-tick WARN log (`MtmLoop: mark price unavailable; tick aborted`) emitted from inside Nexus; nothing in Praxis surfaces it as a metric or health-loop alert.
 
 **When to fix**: Before any deployment that adds a manifest entry for a symbol other than BTCUSDT. Catches forward-looking — the day this matters, the system silently degrades.
 
-**Migration**: Extend [`MainCache`](praxis/market_data_cache.py) and [`_last_close_from_poller`](praxis/launcher.py) (and downstream the Limen bundle layer + `_DEFAULT_SYMBOL` usage in [`praxis/launcher.py`](praxis/launcher.py)) to be per-symbol-keyed rather than BTCUSDT-only. Concretely: replace `_last_close_from_poller(self._poller, kline_sizes)` with a per-symbol lookup `self._poller.get_last_close(symbol, kline_size)` and either (a) wire a `symbol_to_kline_size` map from the manifest so the MTM provider can resolve symbol → kline → last close, or (b) standardise on a single kline size for MTM (e.g. 60s) and key purely by symbol. The MTM provider then returns the per-symbol last close instead of `None`, and `MtmLoop` ticks proceed for any subset of symbols that have a fresh cache entry. The "abort on `None`" semantics is still correct for any symbol whose cache is empty / stale — it's the silent BTCUSDT-only fallback that's the issue.
+**Migration**: Extend `MainCache` and [`_last_close_from_poller`](../praxis/launcher.py) (and downstream the Limen bundle layer + `_DEFAULT_SYMBOL` usage in [`praxis/launcher.py`](../praxis/launcher.py)) to be per-symbol-keyed rather than BTCUSDT-only. Concretely: replace `_last_close_from_poller(self._poller, kline_sizes)` with a per-symbol lookup `self._poller.get_last_close(symbol, kline_size)` and either (a) wire a `symbol_to_kline_size` map from the manifest so the MTM provider can resolve symbol → kline → last close, or (b) standardise on a single kline size for MTM (e.g. 60s) and key purely by symbol. The MTM provider then returns the per-symbol last close instead of `None`, and `MtmLoop` ticks proceed for any subset of symbols that have a fresh cache entry. The "abort on `None`" semantics is still correct for any symbol whose cache is empty / stale — it's the silent BTCUSDT-only fallback that's the issue.
 
 A defensive intermediate: add a per-account or boot-time assertion that every symbol referenced by the manifest's wired sensors is in `kline_sizes` AND has a working last-close lookup; refuse to boot otherwise. Catches the misconfiguration loudly rather than letting it surface as a slow degradation in MTM.
 
@@ -661,7 +661,7 @@ A defensive intermediate: add a per-account or boot-time assertion that every sy
 
 **Origin**: Greybeard pre-PR review of `feat/binsim-depth-replica-guards` (v0.70.0 binsim depth-replica guards)
 **Severity**: Low — operationally noisy but not a correctness issue
-**Module**: [`praxis/binsim/feed.py`](praxis/binsim/feed.py) — the `_log.info('depth poll succeeded', ...)` block after `book.replace` in `poll_once`
+**Module**: [`praxis/binsim/feed.py`](../praxis/binsim/feed.py) — the `_log.info('depth poll succeeded', ...)` block after `book.replace` in `poll_once`
 
 The per-poll INFO diagnostic added in v0.70.0 fires on every successful upstream poll, so the binsim container log gains roughly `86,400 lines/day` at the default `BINSIM_POLL_INTERVAL_MS=1000` cadence. The volume is what the post-mortem-visibility goal required — operators need a continuous timeseries of what binsim was serving to reconstruct future incidents — but error/anomaly-only logging would carry the bulk of the diagnostic signal at ~1% of the line volume, and the persistent volume bumps the container's `json-file` log driver through its `max-size=50m`, `max-file=5` rotation window faster than the underlying app events do.
 
@@ -673,7 +673,7 @@ The per-poll INFO diagnostic added in v0.70.0 fires on every successful upstream
 
 **Origin**: Greybeard pre-PR review of `feat/binsim-depth-replica-guards` (v0.70.0 binsim depth-replica guards)
 **Severity**: Low today (current upstream + buy-only deployment have asymmetric tolerance for bid-side thinness), elevated the day either condition changes
-**Module**: [`praxis/binsim/feed.py`](praxis/binsim/feed.py) — the `if ask_depth < self._min_top20_depth_btc or bid_depth < self._min_top20_depth_btc:` check in `poll_once`
+**Module**: [`praxis/binsim/feed.py`](../praxis/binsim/feed.py) — the `if ask_depth < self._min_top20_depth_btc or bid_depth < self._min_top20_depth_btc:` check in `poll_once`
 
 The magnitude floor applies `min_top20_depth_btc` to both `ask_depth` and `bid_depth` with `or`. The live upstream mirror shows a persistent ask/bid asymmetry — observed at `5.64 BTC ask top-20` vs `0.41 BTC bid top-20` during the v0.70.0 work — and the current deployment is buy-only (sells only on exit), so ask-side thinness is the operational risk and bid-side thinness is mostly cosmetic. With one symmetric threshold any future tightening of `BINSIM_MIN_TOP20_DEPTH_BTC` past the current bid-side depth (e.g. raising the floor to 0.5 BTC) would force every poll to reject on the bid side even when the ask side — the side actually walked by every buy entry order — is healthy.
 
@@ -693,7 +693,7 @@ Originally deferred during the v0.71.0 pre-PR Greybeard pass: the three `MATERIA
 
 **Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
 **Severity**: Low (`clickhouse_connect` documents internal connection-pool reconnection on transport failures; observed in prod-equivalent staging that a ClickHouse restart does not stall the mirror), elevated if a future driver version drops the auto-reconnect guarantee
-**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) `main()` — `ch = clickhouse_connect.get_client(...)` called once at startup, then reused for every tick's `query` + `insert` for the process lifetime
+**Module**: [`observability/spine_mirror.py`](../observability/spine_mirror.py) `main()` — `ch = clickhouse_connect.get_client(...)` called once at startup, then reused for every tick's `query` + `insert` for the process lifetime
 
 The `clickhouse-connect` client is created exactly once in `main()` and never re-created. The library claims internal reconnection on broken-pipe / connection-reset, but the claim is not verified end-to-end against a `docker restart praxis-clickhouse`. Until the verification exists, a future driver bump or a corner-case transport failure could leave the mirror running with a permanently-dead client; the only signal would be every tick logging the same connection error and the backoff continuing forever.
 
@@ -705,7 +705,7 @@ The `clickhouse-connect` client is created exactly once in `main()` and never re
 
 **Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
 **Severity**: Low — currently survives the cold-start race via the mirror's `_RECOVERABLE_ERRORS` retry loop with exponential backoff; if `clickhouse_connect.get_client` or `_ensure_schema` raises during cold-start, the call site goes through `_backoff_seconds(consecutive_failures)` (doubling from 1s, clamped at 300s) and retries on the next iteration
-**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) — `praxis-spine-mirror.depends_on.praxis-clickhouse.condition: service_started` (and the same value on `praxis-grafana`)
+**Module**: [`observability/docker-compose.observability.yml`](../observability/docker-compose.observability.yml) — `praxis-spine-mirror.depends_on.praxis-clickhouse.condition: service_started` (and the same value on `praxis-grafana`)
 
 Compose's `service_started` condition fires when the container is up, not when ClickHouse's HTTP listener is accepting queries. The mirror's first-tick `_ensure_schema` race against ClickHouse boot is currently handled by the mirror's recoverable-error retry loop (TD-073 sibling), and Grafana's datasource provisioning happens lazily on first dashboard request so the same race is invisible. The mode is "works via retry"; a healthcheck-gated path would be "works by waiting".
 
@@ -717,13 +717,13 @@ Compose's `service_started` condition fires when the container is up, not when C
 
 **Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
 **Severity**: Low — operationally limiting, not a runtime defect; any host that puts Praxis state somewhere other than `/opt/praxis/state` (dev laptop, integration test rig, future multi-tenant deployment) needs an edit to the committed compose file
-**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) `praxis-spine-mirror.volumes` — `- /opt/praxis/state:/spine:ro`
+**Module**: [`observability/docker-compose.observability.yml`](../observability/docker-compose.observability.yml) `praxis-spine-mirror.volumes` — `- /opt/praxis/state:/spine:ro`
 
 The bind-mount source is a hardcoded host path. The deployment convention happens to be `/opt/praxis/state` and the rest of the Praxis launcher / state-store code shares that assumption, but the observability stack is the only Praxis surface that wires it in via a Compose file. A future move to `/var/lib/praxis` / per-tenant subdirs / a CI rig at `/tmp/praxis-test-state` requires editing the committed file rather than overriding an env var.
 
 **When to fix**: When the first non-default Praxis host needs to run the observability stack, OR when the launcher's `PRAXIS_STATE_DIR` env var (TD-001 lineage) lands and the operator wants the observability mount to follow the same knob.
 
-**Migration**: Replace the volume entry with `- ${PRAXIS_STATE_DIR:-/opt/praxis/state}:/spine:ro` and document the `PRAXIS_STATE_DIR` knob in [`observability/.env.example`](observability/.env.example). The default keeps existing deployments working without action.
+**Migration**: Replace the volume entry with `- ${PRAXIS_STATE_DIR:-/opt/praxis/state}:/spine:ro` and document the `PRAXIS_STATE_DIR` knob in [`observability/.env.example`](../observability/.env.example). The default keeps existing deployments working without action.
 
 ## TD-076: REMOVED — addressed in PR [#131](https://github.com/Vaquum/Praxis/pull/131) round-6 review
 
@@ -1419,3 +1419,13 @@ Scope note: the Nexus validator PRICE stage (`validate_price_stage`, `launcher.p
 Wiring `begin_account_startup` into that early return was tried and reverted. `_account_loop` reads `booting` at the top of each iteration, so parking a live writer takes effect only once its current iteration completes. Boot recovery would then be free to drain the admission queue while the writer is still inside `_drain_admission_queue` — two tasks appending and projecting the same account, which is the exact invariant the writer-admission primitive exists to hold. Trading a loud startup failure for a silent double-projector is the wrong trade.
 
 **When to fix**: when an account genuinely needs to re-enter recovery without a process restart. The fix needs a quiescence handshake — park, then wait for the writer to acknowledge it has left the drain path (an event the loop sets when it observes `booting`) — before recovery admits anything. Do not park a running writer without it.
+
+## TD-152: Partially filled protective OCOs lose amendability after restart
+
+**Origin**: Greybeard pre-PR review (issue #177, A4)
+**Severity**: Medium (remaining protection stays at the venue but cannot be amended through the bracket after restart)
+**Module**: `praxis/core/execution_manager.py` (`_resume_brackets`, `modifiable_command_ids`)
+
+`_resume_brackets` restores an ACTIVE bracket only when the protective parent projects as `OrderStatus.OPEN`. A partial protective fill changes that parent to `PARTIALLY_FILLED`, so replay retains the order and remaining position but skips the live bracket registration. With a 1-unit entry and a 0.2-unit protective fill, replay reconstructs a 0.8-unit position and a partially filled protective OCO, but no `runtime.brackets` entry for the command; bracket MODIFY is therefore unavailable. The same probe fails on the pre-audit implementation, so this is not a new regression. A4 explicitly covers confirmed-OPEN protection only.
+
+**When to fix**: before restart-safe amendment of partially executed protective orders is required. Restore nonterminal protective parents with their effective leg prices and version, verify remaining exposure across amend generations, and cover partial fills before and after restart without duplicating protection or previously booked fills.

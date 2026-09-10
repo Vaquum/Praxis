@@ -47,26 +47,30 @@ def build_snapshot_result(
     drawdown_duration_days: Sequence[float],
 ) -> dict[str, float | None]:
 
-    '''Reduce the computed distributions to the published metric triples.
+    '''Compute the published snapshot metric triples from return distributions.
 
-    Every argument is keyword-only: the series are same-shaped lists of
-    floats, so positional order would let two of them swap silently.
+    NOTE: All arguments are keyword-only to distinguish same-shaped series.
 
     Args:
-        edge_per_signal_bps: Per-in-position-step gross return, in bps.
-        trade_net: Per-trade net return as a fraction, scaled here.
-        trade_gross: Per-trade gross return as a fraction, paired with
-            `trade_net` to give the cost drag.
-        rolling_return_net_bps: Per-window net return in bps; also the
-            CVaR population.
-        return_on_exposure: Per-window return divided by that window's
-            in-position fraction, `None` for a window with no exposure.
-        drawdown_depth_bps: Per-episode trough depth, in bps.
-        drawdown_duration_days: Per-episode duration, in days.
+        edge_per_signal_bps (Sequence[float]): Per-in-position-step gross
+            return in bps
+        trade_net (Sequence[float]): Per-trade net return as a fraction,
+            scaled to bps here
+        trade_gross (Sequence[float]): Per-trade gross return as a fraction,
+            paired with `trade_net` to compute cost drag
+        rolling_return_net_bps (Sequence[float]): Per-window net return in bps,
+            also the CVaR population
+        return_on_exposure (Sequence[float | None]): Per-window net return in
+            bps divided by the in-position fraction, or `None` without exposure
+        drawdown_depth_bps (Sequence[float]): Per-episode trough depth in bps
+        drawdown_duration_days (Sequence[float]): Per-episode duration in days
 
     Returns:
-        Each distribution as `<name>_p5` / `_p50` / `_p95`, plus
-        `cvar_95_return_bps`. Missing values are `None`.
+        dict[str, float | None]: `edge_per_signal_bps`, `trade_pnl_net_bps`,
+            `cost_drag_bps`, `rolling_return_net_bps`, `return_on_exposure`,
+            `drawdown_depth_bps`, and `drawdown_duration_days` each suffixed
+            with `_p5`, `_p50`, and `_p95`, plus scalar `cvar_95_return_bps`,
+            with `None` for missing values
     '''
 
     trade_pnl_net_bps = [value * BPS_PER_UNIT for value in trade_net]

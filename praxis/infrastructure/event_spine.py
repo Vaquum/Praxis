@@ -78,6 +78,7 @@ __all__ = ['ChainVerificationError', 'EventSpine', 'SpineSchemaError']
 _log = logging.getLogger(__name__)
 
 _SCHEMA_VERSION = 4
+_CHAIN_IDENTITY_SCHEMA_VERSION = 1
 
 # The version whose migration proved the legacy dedup symbol. Databases below
 # it still need that proof run; databases at it were proven but never had their
@@ -464,6 +465,11 @@ class EventSpine:
         columns, a metadata table); v4 also drops `fill_dedup` once its
         rows are folded into `fill_dedup_v2`.
 
+        Schema v1 and later must retain this build's chain identity and
+        are checked before any schema writes. Only unversioned databases
+        initialize identity; they are checked after initialization and
+        before the dedup migrations.
+
         The migration and the version bump are ended by `commit()`, and
         each step is written to be resumable, so a crash mid-migration
         leaves the version un-advanced and the next boot re-runs the
@@ -472,7 +478,9 @@ class EventSpine:
         a separate connection sees an empty file until the first commit.
 
         Raises:
-            SpineSchemaError: If the on-disk schema is newer than supported.
+            SpineSchemaError: The schema is newer than supported, chain
+                identity is missing or incompatible, or legacy dedup cannot
+                be migrated safely
 
         Returns:
             None
@@ -487,6 +495,9 @@ class EventSpine:
             raise SpineSchemaError(msg)
 
         try:
+            if version >= _CHAIN_IDENTITY_SCHEMA_VERSION:
+                await self._require_chain_identity()
+
             async with self._conn.execute(_CREATE_TABLE):
                 pass
             async with self._conn.execute(_CREATE_INDEX):
@@ -500,20 +511,19 @@ class EventSpine:
             async with self._conn.execute(_CREATE_FUND_DEDUP):
                 pass
 
-            if version < _SCHEMA_VERSION:
-                if version < _PROVEN_DEDUP_SYMBOL_VERSION:
-                    await self._migrate_to_v1()
-                    await self._migrate_to_v3()
-
+            if version < _CHAIN_IDENTITY_SCHEMA_VERSION:
+                await self._migrate_to_v1()
                 await self._require_chain_identity()
 
-                if version < _FOLDED_DEDUP_VERSION:
-                    await self._migrate_to_v4()
+            if version < _PROVEN_DEDUP_SYMBOL_VERSION:
+                await self._migrate_to_v3()
 
+            if version < _FOLDED_DEDUP_VERSION:
+                await self._migrate_to_v4()
+
+            if version < _SCHEMA_VERSION:
                 async with self._conn.execute(f'PRAGMA user_version = {_SCHEMA_VERSION}'):
                     pass
-            else:
-                await self._require_chain_identity()
 
             await self._conn.commit()
         except Exception:
@@ -812,15 +822,19 @@ class EventSpine:
         alternative is discovering it at the first hashed row, by which
         time more has been written.
 
-        A database that carried no record of either is seeded by the v1
-        migration just before this runs, so it is this check\'s absence of
-        a stored value, not its disagreement, that would mean the metadata
-        was lost.
+        Schema v1 and later are checked before any schema writes, since
+        missing identity there means required metadata was lost. Only an
+        unversioned database may seed identity before this check, allowing
+        fresh or interrupted pre-version initialization to complete.
 
         Raises:
-            SpineSchemaError: A recorded value is missing or is not this
-                build\'s.
+            SpineSchemaError: The metadata table or a required identity key
+                is missing, or a recorded value differs from this build
         '''
+
+        if not await self._table_exists('spine_meta'):
+            msg = 'event spine is missing spine_meta; chain identity cannot be verified'
+            raise SpineSchemaError(msg)
 
         for key, expected in (
             (_META_CHAIN_VERSION, str(_CHAIN_VERSION)),

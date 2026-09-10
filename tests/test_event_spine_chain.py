@@ -563,6 +563,8 @@ async def test_unmatched_legacy_dedup_row_fails_closed() -> None:
 async def test_cross_account_same_trade_id_orphan_fails_closed() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         await conn.execute(_LEGACY_SCHEMA)
+        await conn.execute(event_spine._CREATE_META)
+        await EventSpine(conn)._migrate_to_v1()
         await conn.execute(
             'CREATE TABLE fill_dedup (epoch_id INTEGER, account_id TEXT, dedup_key TEXT, '
             'UNIQUE(epoch_id, account_id, dedup_key))'
@@ -627,6 +629,8 @@ async def test_non_string_fill_field_fails_closed_on_migration() -> None:
 async def test_legacy_dedup_rows_fold_into_v2_and_table_is_dropped() -> None:
     async with aiosqlite.connect(':memory:') as conn:
         await conn.execute(_LEGACY_SCHEMA)
+        await conn.execute(event_spine._CREATE_META)
+        await EventSpine(conn)._migrate_to_v1()
         await conn.execute(
             'CREATE TABLE fill_dedup (epoch_id INTEGER, account_id TEXT, dedup_key TEXT, '
             'UNIQUE(epoch_id, account_id, dedup_key))'
@@ -934,22 +938,55 @@ async def _set_meta(conn: aiosqlite.Connection, key: str, value: str) -> None:
     await conn.commit()
 
 
+async def _versioned_spine(conn: aiosqlite.Connection, version: int) -> EventSpine:
+    spine = EventSpine(conn)
+    await spine.ensure_schema()
+    await spine.append(_fill(500), _EPOCH)
+
+    if version < 4:
+        await conn.execute(
+            'CREATE TABLE fill_dedup (epoch_id INTEGER NOT NULL, '
+            'account_id TEXT NOT NULL, dedup_key TEXT NOT NULL, '
+            'UNIQUE(epoch_id, account_id, dedup_key))'
+        )
+        await conn.execute(
+            'INSERT INTO fill_dedup VALUES (?, ?, ?)', (_EPOCH, _ACCT, 'vt-500'),
+        )
+
+    if version < 3:
+        await conn.execute('DROP TABLE fill_dedup_v2')
+        await conn.execute(
+            'DELETE FROM spine_meta WHERE key = ?', ('legacy_dedup_symbol',),
+        )
+    elif version == 3:
+        await _set_meta(conn, 'legacy_dedup_symbol', 'BTCUSDT')
+
+    await conn.execute(f"PRAGMA user_version = {version}")
+    await conn.commit()
+    return spine
+
+
 @pytest.mark.asyncio
+@pytest.mark.parametrize('version', [1, 2, 3, 4])
 @pytest.mark.parametrize('key', ['chain_version', 'genesis_anchor'])
-async def test_missing_chain_identity_is_refused(key: str) -> None:
+async def test_missing_chain_identity_is_refused(version: int, key: str) -> None:
     '''A database that records nothing about the chain it holds cannot be
     attributed to this build, so it is refused rather than adopted.'''
 
     async with aiosqlite.connect(':memory:') as conn:
-        await EventSpine(conn).ensure_schema()
+        await _versioned_spine(conn, version)
         await conn.execute('DELETE FROM spine_meta WHERE key = ?', (key,))
         await conn.commit()
+        before = [line async for line in conn.iterdump()]
 
-        with pytest.raises(SpineSchemaError, match=f'missing {key!r}'):
+        with pytest.raises(SpineSchemaError, match=f"missing {key!r}"):
             await EventSpine(conn).ensure_schema()
+
+        assert [line async for line in conn.iterdump()] == before
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('version', [1, 2, 3, 4])
 @pytest.mark.parametrize(
     ('key', 'stale'),
     [
@@ -957,7 +994,7 @@ async def test_missing_chain_identity_is_refused(key: str) -> None:
         ('genesis_anchor', 'a' * 64),
     ],
 )
-async def test_foreign_chain_identity_is_refused(key: str, stale: str) -> None:
+async def test_foreign_chain_identity_is_refused(version: int, key: str, stale: str) -> None:
     '''A stale value is the case presence alone would accept.
 
     The metadata is written with INSERT OR IGNORE, so a database already
@@ -966,11 +1003,77 @@ async def test_foreign_chain_identity_is_refused(key: str, stale: str) -> None:
     '''
 
     async with aiosqlite.connect(':memory:') as conn:
-        await EventSpine(conn).ensure_schema()
+        await _versioned_spine(conn, version)
         await _set_meta(conn, key, stale)
+        before = [line async for line in conn.iterdump()]
 
         with pytest.raises(SpineSchemaError, match='another dialect'):
             await EventSpine(conn).ensure_schema()
+
+        assert [line async for line in conn.iterdump()] == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('version', [1, 2, 3, 4])
+async def test_versioned_db_without_identity_table_is_refused(version: int) -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        await _versioned_spine(conn, version)
+        await conn.execute('DROP TABLE spine_meta')
+        await conn.commit()
+        before = [line async for line in conn.iterdump()]
+
+        with pytest.raises(SpineSchemaError, match='missing spine_meta'):
+            await EventSpine(conn).ensure_schema()
+
+        assert [line async for line in conn.iterdump()] == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('version', [1, 2, 3, 4])
+async def test_intact_versioned_db_migrates_without_reseeding_identity(
+    version: int, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        spine = await _versioned_spine(conn, version)
+        before = await conn.execute_fetchall('SELECT * FROM events ORDER BY event_seq')
+
+        async def _unexpected_reseed() -> None:
+            pytest.fail('a versioned spine must not rerun identity initialization')
+
+        monkeypatch.setattr(spine, '_migrate_to_v1', _unexpected_reseed)
+        await spine.ensure_schema()
+
+        assert await _user_version(conn) == 4
+        assert not await _table_exists(conn, 'fill_dedup')
+        assert await conn.execute_fetchall('SELECT * FROM events ORDER BY event_seq') == before
+        assert await spine.append(_fill(500), _EPOCH) is None
+        await spine.verify_chain()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('key', ['chain_version', 'genesis_anchor'])
+async def test_unversioned_db_resumes_interrupted_identity_initialization(key: str) -> None:
+    async with aiosqlite.connect(':memory:') as conn:
+        await conn.execute(_LEGACY_SCHEMA)
+        await conn.execute(
+            'CREATE TABLE spine_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)'
+        )
+        identity = {
+            'chain_version': str(event_spine._CHAIN_VERSION),
+            'genesis_anchor': event_spine._GENESIS_ANCHOR,
+        }
+        await _set_meta(conn, key, identity[key])
+
+        spine = EventSpine(conn)
+        await spine.ensure_schema()
+
+        assert await _user_version(conn) == 4
+        stored = dict(await conn.execute_fetchall(
+            'SELECT key, value FROM spine_meta WHERE key IN (?, ?)', tuple(identity),
+        ))
+        assert stored == identity
+        await spine.append(_cmd(0), _EPOCH)
+        await spine.verify_chain()
 
 
 @pytest.mark.asyncio
