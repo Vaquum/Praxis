@@ -49,6 +49,7 @@ from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
     OrderRejectedError,
     SubmitResult,
+    VenueError,
     SymbolFilters,
     VenueAdapter,
 )
@@ -1369,3 +1370,62 @@ async def test_failed_boot_cancels_the_children_a_drain_left_working(
     await em.fail_account_startup(_ACCT)
 
     assert em._venue_adapter.cancel_order.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_gated_drain_retries_a_cancel_the_venue_refused(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    clock_holder: list[datetime],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-retry000000000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, _intent(command_id, coid, Decimal('0.5'))),
+        (4, OrderSubmitted(
+            account_id=_ACCT, timestamp=_T0, client_order_id=coid,
+            venue_order_id=f'v-{coid}',
+        )),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid,),
+            next_run_at=None, state=SchemeState.RUNNING,
+        )),
+        (6, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em._venue_adapter.cancel_order.side_effect = VenueError('venue refused')
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    runtime = em._accounts[_ACCT]
+    runtime.reconciling = True
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    first = em._venue_adapter.cancel_order.await_count
+
+    assert first >= 1
+    assert runtime.schemes[command_id].active_children == {coid}
+
+    # Still gated, and the child is still working because the venue refused.
+    # Without the interval the loop would never send a second cancel.
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert em._venue_adapter.cancel_order.await_count == first
+
+    clock_holder[0] = clock_holder[0] + timedelta(seconds=6)
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert em._venue_adapter.cancel_order.await_count > first
+    assert runtime.reconciling is True

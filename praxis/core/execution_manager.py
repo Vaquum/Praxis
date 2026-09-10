@@ -6409,11 +6409,12 @@ class ExecutionManager:
         behind order-capability would leave the rungs resting for exactly the
         state the backstop exists to cover.
 
-        The account loop passes `pending_only`, so it re-drives once for a
-        scheme that resumed mid-drain and then leaves it alone: a cancel per
-        child on every loop pass would keep re-cancelling orders that are
-        merely taking time to settle. Retrying is the reconcile tick's job,
-        which runs on its own cadence.
+        The account loop passes `pending_only`, so a scheme that resumed
+        mid-drain is re-driven once and then only after the retry interval:
+        a cancel per child on every loop pass would keep re-cancelling orders
+        that are merely taking time to settle, while never retrying would
+        strand a cancel the venue refused until the account became
+        order-capable. The reconcile tick drives unconditionally.
 
         Args:
             runtime (_AccountRuntime): Account whose drains to retire.
