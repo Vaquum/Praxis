@@ -19,6 +19,7 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
 )
+from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import (
     AccountNotRegisteredError,
@@ -528,5 +529,26 @@ async def test_one_drain_pass_defers_an_admission_made_during_dispatch(
 
     assert not runtime.admission_queue.empty()
     assert runtime.trading_state.positions[(_TRADE, _ACCT)].qty == Decimal('0.4')
+
+    await em.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_submit_abort_refuses_an_account_whose_boot_failed(
+    spine: EventSpine,
+) -> None:
+    outcomes: list[TradeOutcome] = []
+    em = _manager(spine, outcomes)
+    em.register_account(_ACCT, booting=True)
+    _open_order(em._accounts[_ACCT])
+    em._accepted_commands[_CMD] = _ACCT
+
+    em.fail_account_startup(_ACCT)
+
+    with pytest.raises(ValueError, match='never be drained'):
+        em.submit_abort(TradeAbort(
+            command_id=_CMD, account_id=_ACCT, reason='shutdown',
+            created_at=_T0,
+        ))
 
     await em.unregister_account(_ACCT)

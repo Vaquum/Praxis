@@ -64,8 +64,8 @@ __all__ = [
     'SchemeDraining',
     'SchemeFrozen',
     'SchemeInitialized',
+    'SchemeReplanned',
     'SchemeStateChanged',
-    'SchemeThawed',
     'SliceFailed',
     'TradeClosed',
     'TradeOutcomeProduced',
@@ -347,29 +347,41 @@ class SliceFailed(_EventBase):
 
 
 @dataclass(frozen=True)
-class SchemeThawed(_EventBase):
+class SchemeReplanned(_EventBase):
 
     '''
-    Represent a slice-failure freeze cleared by an amend.
+    Represent a scheme's schedule replaced by an amend.
 
-    A slice failure freezes a scheme durably through SliceFailed, and an
-    amend is allowed to clear that freeze. Without this event the clear
-    lives only in memory: replay would re-derive the freeze from the
-    SliceFailed still on the spine and the resumed scheme would never fire
-    again, so the live scheduler and the replayed one would disagree.
+    Carries the plan the amend produced, not merely the fact that one
+    happened. An amend rewrites the remaining slice quantities, the slice
+    count, and the interval in memory; without this event replay rebuilds
+    the original schedule from SchemeInitialized, so a resumed scheme
+    executes a plan its owner replaced.
 
-    A protection freeze is not amend-clearable, so this event never clears
-    one; the resumed hold keeps PROTECTION regardless of order.
+    `clears_slice_failure` records that the amend also cleared a
+    slice-failure freeze, so the permission to run again and the plan that
+    permission applies to are the same durable fact. They must not be
+    separated: clearing the freeze alone resumes a scheme onto a stale
+    schedule, which can under-fill the target and still terminalize FILLED.
+    A protection freeze is not amend-clearable and is never cleared here.
 
     Args:
         account_id (str): Account that owns this event.
         timestamp (datetime): Event time, must be timezone-aware.
-        command_id (str): Thawed scheme identifier.
-        reason (str): Why the freeze was cleared.
+        command_id (str): Amended scheme identifier.
+        slices_total (int): Slice count after the amend.
+        interval_seconds (int): Seconds between slices after the amend.
+        slice_qtys (tuple[Decimal, ...]): Full per-slice plan after the
+            amend, including the slices already executed.
+        clears_slice_failure (bool): Whether the amend also cleared a
+            slice-failure freeze.
     '''
 
     command_id: str
-    reason: str
+    slices_total: int
+    interval_seconds: int
+    slice_qtys: tuple[Decimal, ...]
+    clears_slice_failure: bool = False
 
     def __post_init__(self) -> None:
 
@@ -377,7 +389,20 @@ class SchemeThawed(_EventBase):
 
         name = type(self).__name__
         _require_str(name, 'command_id', self.command_id)
-        _require_str(name, 'reason', self.reason)
+
+        object.__setattr__(self, 'slice_qtys', tuple(self.slice_qtys))
+
+        if self.slices_total < 1:
+            msg = f'{name}.slices_total must be a positive int'
+            raise ValueError(msg)
+
+        if self.interval_seconds <= 0:
+            msg = f'{name}.interval_seconds must be a positive int'
+            raise ValueError(msg)
+
+        if not self.slice_qtys:
+            msg = f'{name}.slice_qtys must not be empty'
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True)
@@ -1926,7 +1951,7 @@ type Event = (
     | SchemeInitialized
     | SchemeStateChanged
     | SchemeFrozen
-    | SchemeThawed
+    | SchemeReplanned
     | SchemeDraining
     | OrderSubmitIntent
     | OrderSubmitted

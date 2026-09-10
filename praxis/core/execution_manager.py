@@ -50,7 +50,7 @@ from praxis.core.domain.events import (
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
     SchemeFrozen,
-    SchemeThawed,
+    SchemeReplanned,
     SchemeDraining,
     SchemeInitialized,
     SchemeStateChanged,
@@ -310,6 +310,9 @@ class _SchemeReplayFold:
             never cleared by a thaw.
         draining_ids: Commands whose terminal outcome is pending while
             children settle; outranks every freeze.
+        replans: Per command, the last amend's plan, so a resumed scheme
+            runs the schedule its owner amended to rather than the one it
+            was initialized with.
         pending_terminals: Per draining command, the outcome it is waiting
             to emit, so the resumed hold and its payload come from the same
             event rather than being derived apart.
@@ -326,6 +329,7 @@ class _SchemeReplayFold:
     frozen_ids: set[str] = field(default_factory=set)
     protection_frozen_ids: set[str] = field(default_factory=set)
     draining_ids: set[str] = field(default_factory=set)
+    replans: dict[str, SchemeReplanned] = field(default_factory=dict)
     pending_terminals: dict[
         str, tuple[TradeStatus, SchemeState, str | None]
     ] = field(default_factory=dict)
@@ -354,6 +358,7 @@ class _LiveScheme:
     cursor: int = 0
     active_children: set[str] = field(default_factory=set)
     pending_terminal: tuple[TradeStatus, SchemeState, str | None] | None = None
+    drain_cancel_pending: bool = False
     next_run_at: datetime | None = None
     deadline: datetime | None = None
     hold: _Hold = _Hold.OPEN
@@ -1141,11 +1146,14 @@ class ExecutionManager:
                 fold.frozen_ids.add(event.command_id)
                 fold.protection_frozen_ids.add(event.command_id)
 
-            elif isinstance(event, SchemeThawed):
-                # A protection freeze is not amend-clearable, so a thaw
-                # clears only the slice-failure freeze, exactly as the live
-                # amend path does.
-                fold.frozen_ids.discard(event.command_id)
+            elif isinstance(event, SchemeReplanned):
+                fold.replans[event.command_id] = event
+
+                if event.clears_slice_failure:
+                    # A protection freeze is not amend-clearable, so this
+                    # clears only the slice-failure freeze, exactly as the
+                    # live amend path does.
+                    fold.frozen_ids.discard(event.command_id)
 
             elif isinstance(event, SchemeDraining):
                 fold.draining_ids.add(event.command_id)
@@ -1284,6 +1292,9 @@ class ExecutionManager:
                 )
 
             scheme.pending_terminal = fold.pending_terminals.get(command_id)
+            scheme.drain_cancel_pending = (
+                scheme.hold is _Hold.DRAINING and bool(scheme.active_children)
+            )
 
             runtime.schemes[command_id] = scheme
             self._commands[command_id] = scheme.command
@@ -1865,11 +1876,22 @@ class ExecutionManager:
                 else None
             )
 
+            replan = fold.replans.get(command_id)
+
+            if replan is not None:
+                # The amend rewrote the remaining plan; resuming on the
+                # initialized one would run a schedule its owner replaced and
+                # can terminalize FILLED short of the target.
+                slice_qtys = list(replan.slice_qtys)
+
             scheme = _LiveScheme(
                 command=command,
                 slice_qtys=slice_qtys,
                 slices_total=len(slice_qtys),
-                interval_seconds=init.interval_seconds,
+                interval_seconds=(
+                    replan.interval_seconds if replan is not None
+                    else init.interval_seconds
+                ),
                 cursor=state.cursor if state is not None else 0,
                 active_children=live_children,
                 next_run_at=state.next_run_at if state is not None else None,
@@ -1881,6 +1903,9 @@ class ExecutionManager:
             )
 
             scheme.pending_terminal = fold.pending_terminals.get(command_id)
+            scheme.drain_cancel_pending = (
+                scheme.hold is _Hold.DRAINING and bool(scheme.active_children)
+            )
 
             if (
                 scheme.hold is _Hold.OPEN
@@ -2502,18 +2527,32 @@ class ExecutionManager:
         '''
         Validate and enqueue a TradeAbort to the priority queue.
 
+        Refused for an account whose startup failed: its writer is parked
+        for good and will never drain the priority queue, so accepting the
+        abort would report a cancellation that never happens. Shutdown
+        reads the refusal as "this command's orders are not being cancelled
+        for me" and cancels them directly instead.
+
         Args:
             abort (TradeAbort): Abort instruction targeting a command.
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
-            ValueError: If command_id is unknown or account_id mismatches.
+            ValueError: If command_id is unknown, account_id mismatches, or
+                the account's startup failed and its writer stays parked.
         '''
 
         runtime = self._accounts.get(abort.account_id)
         if runtime is None:
             msg = f"account_id '{abort.account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
+
+        if runtime.boot_failed:
+            msg = (
+                f"account '{abort.account_id}' failed startup and stays "
+                'parked; its abort would never be drained'
+            )
+            raise ValueError(msg)
 
         should_enqueue = validate_trade_abort(
             abort,
@@ -4108,11 +4147,31 @@ class ExecutionManager:
         if order is None:
             return
 
-        bracket = runtime.brackets.get(order.command_id)
-        if bracket is None or order.client_order_id != bracket.entry_client_order_id:
+        if order.status not in _TERMINAL_ORDER_STATUSES:
             return
 
-        if order.status not in _TERMINAL_ORDER_STATUSES:
+        if not isinstance(event, FillReceived):
+            # A protective OCO carries the bracket's exit command id, so it
+            # never resolves through the entry-keyed map; without this the
+            # bracket keeps reporting ACTIVE protection that no longer rests
+            # at the venue, and stays amendable through its entry id.
+            protective = next(
+                (
+                    live
+                    for live in runtime.brackets.values()
+                    if live.protection_client_order_id == order.client_order_id
+                    and live.protection_status is BracketProtectionStatus.ACTIVE
+                ),
+                None,
+            )
+
+            if protective is not None:
+                await self._on_protection_terminal(runtime, protective, order)
+
+                return
+
+        bracket = runtime.brackets.get(order.command_id)
+        if bracket is None or order.client_order_id != bracket.entry_client_order_id:
             return
 
         runtime.brackets.pop(order.command_id, None)
@@ -5139,6 +5198,19 @@ class ExecutionManager:
                 and now >= scheme.next_run_at
             )
 
+            if (
+                scheme.hold is _Hold.DRAINING
+                and scheme.amend_phase is None
+                and scheme.drain_cancel_pending
+                and scheme.active_children
+            ):
+                # A drain persisted before its cancels completed replays with
+                # the children still live. Expiry skips a draining scheme, so
+                # without re-driving here the rungs would rest for the life of
+                # the epoch behind a durable abort that never took effect.
+                scheme.drain_cancel_pending = False
+                await self._cancel_active_children(runtime, scheme)
+
             if due:
                 await self._advance_scheme_guarded(runtime, scheme, now)
             else:
@@ -6107,6 +6179,59 @@ class ExecutionManager:
             await self._event_spine.append(delivered, self._epoch_id)
             self._pending_remediations.pop(command_id, None)
 
+    async def _on_protection_terminal(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        order: Order,
+    ) -> None:
+        '''Resolve a bracket whose protective OCO reached a terminal status.
+
+        A leg fill closes the OCO through the ordinary fill path; reaching
+        this point means the list was cancelled, expired, or rejected. If the
+        entry still holds exposure the position is naked, so it goes through
+        the same freeze / flatten / hold remediation a definitive amend
+        failure does. With no exposure left the bracket has simply finished
+        and is dropped.
+
+        Args:
+            runtime (_AccountRuntime): Account that owns the bracket.
+            bracket (_LiveBracket): Bracket whose protection terminalized.
+            order (Order): The protective order that reached a terminal state.
+        '''
+
+        command_id = bracket.command.command_id
+        exit_command_id = bracket_exit_command_id(command_id)
+        entry_filled, _ = self._command_fill_totals(runtime, command_id)
+        exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
+        remainder = entry_filled - exit_filled
+
+        if remainder <= _ZERO:
+            runtime.brackets.pop(command_id, None)
+
+            return
+
+        bracket.protection_status = BracketProtectionStatus.FAILED
+
+        _log.warning(
+            'bracket protective OCO terminalized with exposure remaining; '
+            'remediating naked position: command_id=%s client_order_id=%s '
+            'status=%s remainder=%s',
+            command_id,
+            order.client_order_id,
+            order.status.value,
+            remainder,
+        )
+
+        await self._remediate_naked_bracket(
+            runtime,
+            bracket,
+            max(bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION),
+            f'protective OCO {order.status.value} with exposure remaining',
+            remainder,
+            (order.client_order_id,),
+        )
+
     async def _remediate_naked_bracket(
         self,
         runtime: _AccountRuntime,
@@ -6169,6 +6294,41 @@ class ExecutionManager:
             )
 
         await self.drain_protection_remediations(cmd.account_id)
+
+    async def resolve_pending_drains(self, account_id: str) -> None:
+        '''Re-drive a drain whose cancellations never completed.
+
+        A `SchemeDraining` is durable before its cancels are sent, so a crash
+        in that window replays a draining scheme whose children are still
+        working at the venue. Deadline expiry deliberately skips a draining
+        scheme and finalization waits for the children, so nothing else would
+        retire them: the abort would be durable and the rungs would keep
+        resting, and filling, for the life of the epoch.
+
+        Idempotent — an already-terminal child is adopted by
+        `_cancel_active_children` — so the tick can retry until the scheme
+        settles. A ladder mid-amend is left to the amend driver, which retires
+        both generations itself.
+
+        Args:
+            account_id (str): Account whose drains to re-drive.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        for scheme in list(runtime.schemes.values()):
+            if (
+                scheme.hold is not _Hold.DRAINING
+                or scheme.amend_phase is not None
+                or not scheme.active_children
+            ):
+                continue
+
+            scheme.drain_cancel_pending = False
+            await self._cancel_active_children(runtime, scheme)
+            await self._maybe_finalize_scheme(runtime, scheme)
 
     async def resolve_failed_flattens(self, account_id: str) -> None:
         '''Retry a failed bracket's flatten that never became durable in-session.
@@ -6354,6 +6514,7 @@ class ExecutionManager:
         '''
 
         resolvers = (
+            self.resolve_pending_drains,
             self.resolve_unknown_protection,
             self.drain_protection_remediations,
             self.resolve_ladder_amends,
@@ -9184,16 +9345,18 @@ class ExecutionManager:
 
         scheme.interval_seconds = new_interval
 
-        if scheme.hold is _Hold.SLICE_FAILED:
-            await self._event_spine.append(
-                SchemeThawed(
-                    account_id=runtime.account_id,
-                    timestamp=self._clock(),
-                    command_id=cmd.command_id,
-                    reason='amended after a slice failure',
-                ),
-                self._epoch_id,
-            )
+        await self._event_spine.append(
+            SchemeReplanned(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=cmd.command_id,
+                slices_total=scheme.slices_total,
+                interval_seconds=new_interval,
+                slice_qtys=tuple(scheme.slice_qtys),
+                clears_slice_failure=scheme.hold is _Hold.SLICE_FAILED,
+            ),
+            self._epoch_id,
+        )
 
         scheme.hold = _Hold.OPEN
         scheme.next_run_at = self._clock() + timedelta(seconds=new_interval)

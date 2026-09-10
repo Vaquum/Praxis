@@ -33,6 +33,7 @@ from praxis.core.domain.events import (
     BracketInitialized,
     Event,
     FillReceived,
+    OrderCanceled,
     OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
@@ -960,6 +961,40 @@ class TestBracketCrashRecovery:
         assert bracket.current_sl_stop_price == Decimal('48000')
 
         assert _RESUME_COMMAND_ID in em.modifiable_command_ids(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_terminal_protective_oco_stops_the_bracket_reporting_active(
+        self, mgr_factory: Any,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True, oco='submitted'))
+        await asyncio.sleep(0.3)
+
+        oco_coid = generate_client_order_id(
+            ExecutionMode.BRACKET, _RESUME_COMMAND_ID, sequence=1,
+        )
+
+        assert _RESUME_COMMAND_ID in em.modifiable_command_ids(_ACCT)
+
+        await em.admit(
+            _ACCT,
+            OrderCanceled(
+                account_id=_ACCT, timestamp=_T0, client_order_id=oco_coid,
+                venue_order_id='ol-1', reason='venue reconciliation',
+            ),
+        )
+        await asyncio.sleep(0.3)
+
+        bracket = em._accounts[_ACCT].brackets.get(_RESUME_COMMAND_ID)
+
+        assert (
+            bracket is None
+            or bracket.protection_status is not BracketProtectionStatus.ACTIVE
+        )
+        assert _RESUME_COMMAND_ID not in em.modifiable_command_ids(_ACCT)
 
     @pytest.mark.asyncio
     async def test_resume_fail_closed_when_amended_oco_projection_missing(

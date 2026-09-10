@@ -34,7 +34,7 @@ from praxis.core.domain.events import (
     OrderSubmitted,
     SchemeDraining,
     SchemeFrozen,
-    SchemeThawed,
+    SchemeReplanned,
     SchemeInitialized,
     SchemeStateChanged,
     SliceFailed,
@@ -1159,7 +1159,7 @@ async def test_replay_resumes_a_draining_scheme_without_rearming_it(
 
 
 @pytest.mark.asyncio
-async def test_replay_thaws_a_slice_failure_an_amend_cleared(
+async def test_replay_resumes_the_plan_an_amend_replaced_and_clears_its_freeze(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
 ) -> None:
     em, _ = mgr
@@ -1173,20 +1173,26 @@ async def test_replay_thaws_a_slice_failure_an_amend_cleared(
             account_id=_ACCT, timestamp=_T0, command_id=command_id,
             client_order_id=coid, reason='venue rejected',
         )),
-        (4, SchemeThawed(
+        (4, SchemeReplanned(
             account_id=_ACCT, timestamp=_T0, command_id=command_id,
-            reason='amended after a slice failure',
+            slices_total=2, interval_seconds=10,
+            slice_qtys=(Decimal('0.5'), Decimal('0.5')),
+            clears_slice_failure=True,
         )),
     ]
 
     em.register_account(_ACCT)
     em.replay_events(_ACCT, events)
 
-    assert em._accounts[_ACCT].schemes[command_id].hold is _Hold.OPEN
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.hold is _Hold.OPEN
+    assert resumed.slices_total == 2
+    assert resumed.slice_qtys == [Decimal('0.5'), Decimal('0.5')]
 
 
 @pytest.mark.asyncio
-async def test_replay_thaw_never_clears_a_protection_freeze(
+async def test_replay_replan_never_clears_a_protection_freeze(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
 ) -> None:
     em, _ = mgr
@@ -1199,9 +1205,11 @@ async def test_replay_thaw_never_clears_a_protection_freeze(
             account_id=_ACCT, timestamp=_T0, command_id=command_id,
             reason='naked protection remediation',
         )),
-        (4, SchemeThawed(
+        (4, SchemeReplanned(
             account_id=_ACCT, timestamp=_T0, command_id=command_id,
-            reason='amended after a slice failure',
+            slices_total=2, interval_seconds=10,
+            slice_qtys=(Decimal('0.5'), Decimal('0.5')),
+            clears_slice_failure=True,
         )),
     ]
 
@@ -1236,3 +1244,45 @@ async def test_draining_outranks_a_freeze_on_replay(
     em.replay_events(_ACCT, events)
 
     assert em._accounts[_ACCT].schemes[command_id].hold is _Hold.DRAINING
+
+
+@pytest.mark.asyncio
+async def test_resumed_drain_recancels_children_the_crash_left_working(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-redrv000000000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, _intent(command_id, coid, Decimal('0.5'))),
+        (4, OrderSubmitted(
+            account_id=_ACCT, timestamp=_T0, client_order_id=coid,
+            venue_order_id=f'v-{coid}',
+        )),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid,),
+            next_run_at=None, state=SchemeState.RUNNING,
+        )),
+        (6, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.hold is _Hold.DRAINING
+    assert resumed.active_children == {coid}
+    assert resumed.drain_cancel_pending is True
+
+    await em._advance_due_schemes(em._accounts[_ACCT])
+
+    assert em._venue_adapter.cancel_order.await_count >= 1
