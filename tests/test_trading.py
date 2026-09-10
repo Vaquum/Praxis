@@ -1240,11 +1240,68 @@ async def test_boot_poisoned_account_is_not_marked_ready(spine: EventSpine) -> N
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
     )
-    trading._execution_manager.is_poisoned = lambda _account_id: True
+    original_drain = trading._execution_manager.drain_external_events
+
+    async def _poison_during_drain(account_id: str) -> None:
+        await original_drain(account_id)
+        trading._execution_manager._accounts[account_id].poisoned = True
+
+    trading._execution_manager.drain_external_events = _poison_during_drain
 
     await trading.start()
 
+    runtime = trading._execution_manager._accounts['acc-1']
+
     assert 'acc-1' not in trading._ready_accounts
+    assert runtime.booting is True
+    assert runtime.boot_failed is True
+
+    with pytest.raises(RuntimeError, match='restart required'):
+        await trading._execution_manager.admit('acc-1', FillReceived(
+            account_id='acc-1', timestamp=_CREATED_AT,
+            client_order_id='SS-cmd1-00', venue_order_id='v-1',
+            venue_trade_id='t-boot', trade_id='trade-1', command_id='cmd-1',
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
+            price=Decimal('50000'), fee=Decimal('0'), fee_asset='USDT',
+            is_maker=False,
+        ))
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_on_reconnect_stays_gated_when_query_trades_fails(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    adapter._venue_orders['SS-cmd1-00'] = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        price=None,
+    )
+
+    async def _boom(*args: object, **kwargs: object) -> list[object]:
+        del args, kwargs
+        raise VenueError('timeout')
+
+    adapter.query_trades = _boom  # type: ignore[method-assign]
+
+    with pytest.raises(VenueError):
+        await trading._reconcile_account('acc-1')
+
+    await trading._reconcile_on_reconnect('acc-1')
+
+    assert trading._reconcile_phase.get('acc-1') is ReconcilePhase.GATED
     await trading.stop()
 
 
@@ -1546,7 +1603,7 @@ async def test_reconcile_account_tick_isolates_detector_failures(
 
 
 @pytest.mark.asyncio
-async def test_reconcile_fills_handles_venue_error(spine: EventSpine) -> None:
+async def test_reconcile_fills_propagates_venue_error(spine: EventSpine) -> None:
     trading, adapter = await _started_trading_with_recon_adapter(spine)
     order = _make_order()
     trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
@@ -1562,7 +1619,8 @@ async def test_reconcile_fills_handles_venue_error(spine: EventSpine) -> None:
 
     adapter.query_trades = fail_trades  # type: ignore[method-assign]
 
-    await trading._reconcile_fills('acc-1', order)
+    with pytest.raises(VenueError):
+        await trading._reconcile_fills('acc-1', order)
 
     events = await _trading_events(spine)
     assert len(events) == 0

@@ -597,23 +597,26 @@ class Trading:
             account_id, account_events,
         )
 
-        if account_ready and self._execution_manager.is_poisoned(account_id):
-            account_ready = False
-            _log.error(
-                'account %s not marked ready: projecting the events recovered '
-                'at boot fail-stopped the account (restart required)',
-                account_id,
-            )
+        poisoned = self._execution_manager.is_poisoned(account_id)
 
-        if account_ready:
+        if account_ready and not poisoned:
             self._execution_manager.finish_account_startup(account_id)
             self._ready_accounts.add(account_id)
         else:
-            _log.error(
-                'account %s not marked ready: an orphan venue open order could '
-                'not be cancelled during the boot sweep (fail closed)',
-                account_id,
+            reason = (
+                'projecting the events recovered at boot fail-stopped the '
+                'account'
+                if poisoned
+                else 'an orphan venue open order could not be cancelled '
+                'during the boot sweep'
             )
+            _log.error(
+                'account %s not marked ready: %s (fail closed, restart '
+                'required)',
+                account_id,
+                reason,
+            )
+            self._execution_manager.fail_account_startup(account_id)
 
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
@@ -974,7 +977,8 @@ class Trading:
                 order.client_order_id,
                 exc.args[0] if exc.args else str(exc),
             )
-            return
+
+            raise
 
         command_id = order.command_id
         trade_id = self._execution_manager.trade_id_for_command(command_id)

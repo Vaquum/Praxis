@@ -559,6 +559,7 @@ class _AccountRuntime:
         self.queue_reservations = 0
         self.reconciling = False
         self.booting = False
+        self.boot_failed = False
         self.poisoned = False
         self.protection_scan_requested = False
 
@@ -2641,6 +2642,13 @@ class ExecutionManager:
             msg = f"account '{account_id}' is poisoned; restart required"
             raise RuntimeError(msg)
 
+        if runtime.boot_failed:
+            msg = (
+                f"account '{account_id}' failed startup and stays parked; "
+                'restart required'
+            )
+            raise RuntimeError(msg)
+
         if recovery_owner:
             if not runtime.booting:
                 msg = (
@@ -3035,6 +3043,34 @@ class ExecutionManager:
         runtime = self._accounts.get(account_id)
         if runtime is not None:
             runtime.booting = True
+
+    def fail_account_startup(self, account_id: str) -> None:
+
+        '''Leave a failed boot parked, and refuse admissions to it.
+
+        A boot that ends not ready must not advance schemes or place
+        protection, so its writer stays parked. Parked alone is not enough:
+        `admit` queues for a writer that will never drain, so the WebSocket
+        reader and the reconcile tick would block on a future nobody resolves
+        while the stream is already up and a recovery flatten may already rest
+        at the venue. Admissions are refused instead, so a caller learns the
+        account is down rather than waiting for it.
+
+        Args:
+            account_id (str): Account whose startup failed.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is not None:
+            runtime.boot_failed = True
+
+            self._fail_pending_admissions(
+                runtime,
+                RuntimeError(
+                    f"account '{account_id}' failed startup and stays parked; "
+                    'restart required',
+                ),
+            )
 
     def finish_account_startup(self, account_id: str) -> None:
         '''Release the account writer once boot recovery has completed.
