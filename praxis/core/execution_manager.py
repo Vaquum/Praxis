@@ -139,6 +139,7 @@ __all__ = [
 _log = logging.getLogger(__name__)
 
 _QUEUE_POLL_INTERVAL = 0.1
+_DRAIN_CANCEL_RETRY_SECONDS = 5.0
 _ZERO = Decimal(0)
 _BPS_MULTIPLIER = Decimal('10000')
 _SLIPPAGE_BOOK_LIMIT = 20
@@ -366,6 +367,7 @@ class _LiveScheme:
     active_children: set[str] = field(default_factory=set)
     pending_terminal: tuple[TradeStatus, SchemeState, str | None] | None = None
     drain_cancel_pending: bool = False
+    drain_cancel_retry_at: datetime | None = None
     next_run_at: datetime | None = None
     deadline: datetime | None = None
     hold: _Hold = _Hold.OPEN
@@ -6424,13 +6426,46 @@ class ExecutionManager:
                 scheme.hold is not _Hold.DRAINING
                 or scheme.amend_phase is not None
                 or not scheme.active_children
-                or (pending_only and not scheme.drain_cancel_pending)
             ):
                 continue
 
+            now = self._clock()
+
+            if pending_only and not self._drain_cancel_due(scheme, now):
+                continue
+
             scheme.drain_cancel_pending = False
+            scheme.drain_cancel_retry_at = now + timedelta(
+                seconds=_DRAIN_CANCEL_RETRY_SECONDS,
+            )
             await self._cancel_active_children(runtime, scheme)
             await self._maybe_finalize_scheme(runtime, scheme)
+
+    @staticmethod
+    def _drain_cancel_due(scheme: _LiveScheme, now: datetime) -> bool:
+        '''Report whether a draining scheme's cancel should be re-sent.
+
+        True for the first re-drive after a resume, and thereafter once the
+        retry interval has elapsed. A cancel is best-effort and swallows its
+        venue error per child, so a scheme whose children are still working is
+        retried rather than left until the account becomes order-capable —
+        without re-cancelling on every pass of the loop while they settle.
+
+        Args:
+            scheme (_LiveScheme): The draining scheme.
+            now (datetime): Current time.
+
+        Returns:
+            bool: True when the cancel should be driven now.
+        '''
+
+        if scheme.drain_cancel_pending:
+            return True
+
+        return (
+            scheme.drain_cancel_retry_at is not None
+            and now >= scheme.drain_cancel_retry_at
+        )
 
     async def resolve_failed_flattens(self, account_id: str) -> None:
         '''Retry a failed bracket's flatten that never became durable in-session.

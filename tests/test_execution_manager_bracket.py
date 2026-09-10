@@ -39,6 +39,7 @@ from praxis.core.domain.events import (
     OrderSubmitted,
     ProtectionActive,
     ProtectionFailed,
+    ProtectionStateUnknown,
 )
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import ExecutionManager
@@ -1034,6 +1035,58 @@ class TestBracketCrashRecovery:
             or bracket.protection_status is not BracketProtectionStatus.ACTIVE
         )
         assert _RESUME_COMMAND_ID not in em.modifiable_command_ids(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_terminal_protection_handoff_is_durable_and_restores(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        em.replay_events(_ACCT, _bracket_boot_events(entry_filled=True, oco='submitted'))
+        await asyncio.sleep(0.3)
+
+        oco_coid = generate_client_order_id(
+            ExecutionMode.BRACKET, _RESUME_COMMAND_ID, sequence=1,
+        )
+
+        await em.admit(
+            _ACCT,
+            OrderCanceled(
+                account_id=_ACCT, timestamp=_T0, client_order_id=oco_coid,
+                venue_order_id='ol-1', reason='venue reconciliation',
+            ),
+        )
+        await asyncio.sleep(0.3)
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        handoffs = [
+            event for _seq, event in rows
+            if isinstance(event, ProtectionStateUnknown)
+            and event.command_id == _RESUME_COMMAND_ID
+        ]
+
+        assert len(handoffs) == 1
+        assert handoffs[0].protection_version >= 1
+        assert handoffs[0].old_list_client_order_id == oco_coid
+
+        # The boot fixture is replayed, not appended, so the restart needs it
+        # alongside what the live manager actually wrote to the spine.
+        boot = _bracket_boot_events(entry_filled=True, oco='submitted')
+        offset = max(seq for seq, _event in boot) + 1
+        combined = boot + [(offset + seq, event) for seq, event in rows]
+
+        restarted, _ = mgr_factory(_make_adapter())
+        restarted.register_account(_ACCT, booting=True)
+        restarted.replay_events(_ACCT, combined)
+
+        resumed = restarted._accounts[_ACCT].brackets[_RESUME_COMMAND_ID]
+
+        assert resumed.protection_status is BracketProtectionStatus.STATE_UNKNOWN
+        assert _RESUME_COMMAND_ID not in restarted.modifiable_command_ids(_ACCT)
+
+        await restarted.unregister_account(_ACCT)
 
     @pytest.mark.asyncio
     async def test_resume_fail_closed_when_amended_oco_projection_missing(

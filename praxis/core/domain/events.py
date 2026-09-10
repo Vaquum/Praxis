@@ -973,11 +973,19 @@ class ProtectionCancelConfirmed(_EventBase):
 class ProtectionStateUnknown(_EventBase):
 
     '''
-    Represent an ambiguous protective-OCO cancel/replace outcome.
+    Represent a protective OCO whose live state is not locally knowable.
 
     Written when the venue response to a cancel or replace is inconclusive
     (timeout or 5xx), so the amend halts in a known-unknown state pending
     reconciliation rather than assuming success or failure.
+
+    Also written when a protective OCO reports terminal — filled or
+    cancelled — while its bracket still tracks it as active. What replaced
+    the list cannot be read from the local projection, because a
+    cancellation can arrive before the sibling leg's fills project, so the
+    bracket is held here for the watchdog to resolve against the venue
+    instead. In that use there is no replacement and the two list ids are the
+    same terminalized list, which is the only candidate to re-query.
 
     Args:
         account_id (str): Account that owns this event.

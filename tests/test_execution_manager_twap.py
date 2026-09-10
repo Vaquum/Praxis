@@ -1329,3 +1329,43 @@ async def test_replay_pairs_the_amended_timer_with_the_amended_plan(
 
     assert resumed.interval_seconds == 3600
     assert resumed.next_run_at == amended_run_at
+
+
+@pytest.mark.asyncio
+async def test_failed_boot_cancels_the_children_a_drain_left_working(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-bootfail00000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, _intent(command_id, coid, Decimal('0.5'))),
+        (4, OrderSubmitted(
+            account_id=_ACCT, timestamp=_T0, client_order_id=coid,
+            venue_order_id=f'v-{coid}',
+        )),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid,),
+            next_run_at=None, state=SchemeState.RUNNING,
+        )),
+        (6, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT, booting=True)
+    em.replay_events(_ACCT, events)
+
+    assert em._venue_adapter.cancel_order.await_count == 0
+
+    # The writer stays parked for good, so this is the only pass that can
+    # retire the rungs before shutdown.
+    await em.fail_account_startup(_ACCT)
+
+    assert em._venue_adapter.cancel_order.await_count >= 1
