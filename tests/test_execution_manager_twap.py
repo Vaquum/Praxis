@@ -41,7 +41,9 @@ from praxis.core.domain.events import (
 )
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
 from praxis.core.domain.interval_slice_params import IntervalSliceParams
+from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
@@ -1429,3 +1431,65 @@ async def test_gated_drain_retries_a_cancel_the_venue_refused(
 
     assert em._venue_adapter.cancel_order.await_count > first
     assert runtime.reconciling is True
+
+
+@pytest.mark.asyncio
+async def test_live_abort_writes_the_drain_to_the_spine(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    spine: EventSpine,
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    em.submit_abort(TradeAbort(
+        command_id=command_id, account_id=_ACCT, reason='operator stop',
+        created_at=_T0,
+    ))
+    await asyncio.sleep(0.3)
+
+    drains = [
+        event for _seq, event in await spine.read(_EPOCH, after_seq=0)
+        if isinstance(event, SchemeDraining) and event.command_id == command_id
+    ]
+
+    assert len(drains) == 1
+    assert drains[0].status is TradeStatus.CANCELED
+    assert drains[0].scheme_state is SchemeState.CANCELED
+    assert drains[0].reason == 'operator stop'
+
+
+@pytest.mark.asyncio
+async def test_live_amend_writes_the_replan_to_the_spine(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    spine: EventSpine,
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    await em._process_modify(
+        em._accounts[_ACCT],
+        TradeModify(
+            command_id=command_id,
+            account_id=_ACCT,
+            modify_params=IntervalSliceModify(num_slices=5),
+            reason='operator replan',
+            created_at=_T0,
+        ),
+    )
+
+    replans = [
+        event for _seq, event in await spine.read(_EPOCH, after_seq=0)
+        if isinstance(event, SchemeReplanned) and event.command_id == command_id
+    ]
+    live = em._accounts[_ACCT].schemes[command_id]
+
+    assert len(replans) == 1
+    assert replans[0].slices_total == live.slices_total
+    assert list(replans[0].slice_qtys) == live.slice_qtys
+    assert replans[0].interval_seconds == live.interval_seconds
+    assert replans[0].next_run_at == live.next_run_at
+    assert replans[0].clears_slice_failure is False
