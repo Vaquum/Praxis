@@ -32,7 +32,9 @@ from praxis.core.domain.events import (
     OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
+    SchemeDraining,
     SchemeFrozen,
+    SchemeThawed,
     SchemeInitialized,
     SchemeStateChanged,
     SliceFailed,
@@ -1111,3 +1113,126 @@ async def test_freeze_account_schemes_freezes_many_and_skips_pending_terminal(
     assert frozen == [first]
     assert runtime.schemes[first].hold is _Hold.PROTECTION
     assert runtime.schemes[second].hold is _Hold.DRAINING
+
+
+def _twap_init(command_id: str) -> SchemeInitialized:
+    return SchemeInitialized(
+        account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+        execution_mode=ExecutionMode.TWAP, symbol='BTCUSDT', side=OrderSide.BUY,
+        total_qty=Decimal('1'), slices_total=2, interval_seconds=10,
+    )
+
+
+def _accepted(command_id: str) -> CommandAccepted:
+    return CommandAccepted(
+        account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+    )
+
+
+@pytest.mark.asyncio
+async def test_replay_resumes_a_draining_scheme_without_rearming_it(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-drain000000000000000000000000'
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.hold is _Hold.DRAINING
+    assert resumed.next_run_at is None
+    assert resumed.pending_terminal == (
+        TradeStatus.CANCELED, SchemeState.CANCELED, 'operator abort',
+    )
+
+
+@pytest.mark.asyncio
+async def test_replay_thaws_a_slice_failure_an_amend_cleared(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-thaw0000000000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SliceFailed(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            client_order_id=coid, reason='venue rejected',
+        )),
+        (4, SchemeThawed(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            reason='amended after a slice failure',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    assert em._accounts[_ACCT].schemes[command_id].hold is _Hold.OPEN
+
+
+@pytest.mark.asyncio
+async def test_replay_thaw_never_clears_a_protection_freeze(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-prot0000000000000000000000000'
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeFrozen(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            reason='naked protection remediation',
+        )),
+        (4, SchemeThawed(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            reason='amended after a slice failure',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    assert em._accounts[_ACCT].schemes[command_id].hold is _Hold.PROTECTION
+
+
+@pytest.mark.asyncio
+async def test_draining_outranks_a_freeze_on_replay(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-both0000000000000000000000000'
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeFrozen(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            reason='naked protection remediation',
+        )),
+        (4, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    assert em._accounts[_ACCT].schemes[command_id].hold is _Hold.DRAINING

@@ -1394,6 +1394,7 @@
 
 ### Add
 
+- Add [`SchemeDraining`](praxis/core/domain/events.py) and [`SchemeThawed`](praxis/core/domain/events.py), the two scheme hold transitions that had no durable representation. An abort or expiry appends `SchemeDraining` carrying the outcome it is waiting to emit, and an amend that clears a slice-failure freeze appends `SchemeThawed`, so `_resume_hold` reconstructs the hold a restart should see instead of re-deriving a stale one from the events that happened to be on the spine
 - Add regression coverage for abort during ladder cancel and placement phases, uncertain cancellation, replacement-generation fill backfill, and terminal replay
 - Add regression coverage for missing or foreign chain identity across schema versions, mutation-free rejection, intact upgrades, and interrupted unversioned initialization
 - Add regression coverage that an unusable scheme does not prevent a healthy scheme from replaying
@@ -1412,6 +1413,9 @@
 - Fix `TradingState.apply` to record `CommandAccepted` strategy attribution and preserve it in pure projection replay
 - Fix unexpected account-writer exits to poison the account and fail pending admission waiters
 - Fix scheme resume kicking `next_run_at` to now while a child order is still live
+- Fix an aborted or expired scheme replaying as a running one: the drain and the outcome it was waiting to emit lived only in memory, so a crash inside the drain window resumed a scheme with an empty child set and a due timer and re-armed a command that had already been aborted. `_begin_scheme_drain` appends the drain before setting it, and replay restores the hold and its pending outcome from that one event, so the two can no longer be derived apart (TD-153, TD-127 item 1)
+- Fix an amended scheme re-freezing on restart: clearing a slice-failure freeze was an in-memory write while `SliceFailed` stayed on the spine, so `_resume_hold` re-froze the scheme and the live and replayed holds disagreed. The clear is now durable, and a protection freeze — which no amend may clear — is still never thawed (TD-135, freeze half)
+- Fix an in-flight ladder amend posting replacement rungs for an aborted ladder after a crash: the driver already refused to place while draining, but replay could not reconstruct the drain, so the resumed amend ran on to placement
 - Fix a failed boot unparking the account writer in `finally` before cleanup, so a load-filters / reconcile / flatten failure cannot advance schemes or place protection
 - Fix a failed boot leaving its writer parked with no way to refuse work: the writer stays parked so a not-ready account still cannot advance schemes or place protection, but the account is marked boot-failed and `admit` refuses it, so the WebSocket reader and the reconcile tick learn the account is down instead of blocking forever on a future the parked writer will never resolve while the stream is up and a recovery flatten may already rest at the venue. The not-ready log now names the reason that actually applied rather than always blaming the orphan sweep
 - Fix `_reconcile_fills` swallowing a `VenueError` from `query_trades`, which let a reconnect pass report success and release the account to IDLE with venue fills it never recovered, oversizing a later flatten. It now propagates, matching the documented contract and the `query_order` path

@@ -1138,7 +1138,7 @@ Original gap: a scheme finalized only when every slice was submitted and every c
 
 **Resolved** in the 5.13 slice-failure slice (WP-Praxis-0007). `SchemeInitialized` persists `timeout_seconds`; each scheme carries an absolute `deadline` (`command.created_at + timeout`, reconstructed on resume from `SchemeInitialized.timestamp + timeout_seconds`). The scheduler checks the deadline every iteration ahead of advancement: a scheme still live at its deadline — a frozen scheme the Manager never acted on, or one stuck on a never-settling child — is force-expired (`_expire_scheme`): working children are cancelled and the single terminal outcome is EXPIRED once they drain. A 0 timeout means no deadline.
 
-## TD-127: Scheme resume residuals — non-durable abort and lot-step replan divergence
+## TD-127: Scheme resume residuals — non-durable abort (RESOLVED) and lot-step replan divergence
 
 **Origin**: WP-Praxis-0007 (scheme-resume slice; unstaged review)
 **Severity**: Medium (both are narrow crash / venue-change windows, not the common path)
@@ -1146,7 +1146,7 @@ Original gap: a scheme finalized only when every slice was submitted and every c
 
 Two residual gaps in boot resume:
 
-1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.hold` to `_Hold.SLICE_FAILED` (formerly the `frozen` flag), both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). `_resume_schemes` also kicks `next_run_at` to now when hold reconstructs as `OPEN`, the cursor is short of `slices_total`, and no child is live, so a mid-abort crash with no remaining children reschedules a slice rather than draining. Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
+1. **Non-durable abort / freeze — RESOLVED.** An abort now appends `SchemeDraining` and an amend that clears a slice-failure freeze appends `SchemeThawed`, so replay reconstructs the drain and the thaw instead of re-deriving a stale hold; a crash inside the drain window no longer replays as a running scheme with a due timer. Historical description: `TradeAbort` set `_LiveScheme.pending_terminal`, and a slice failure set `_LiveScheme.hold` to `_Hold.SLICE_FAILED` (formerly the `frozen` flag), both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). `_resume_schemes` also kicks `next_run_at` to now when hold reconstructs as `OPEN`, the cursor is short of `slices_total`, and no child is live, so a mid-abort crash with no remaining children reschedules a slice rather than draining. Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
 
 2. **Lot-step replan divergence.** Resume recomputes the slice plan with the venue's *current* `lot_step` (`plan_even_slices(total_qty, slices_total, lot_step)`). If the LOT_SIZE filter changed between init and resume, the remaining (unsubmitted) slice sizes differ from the original plan — already-submitted children are unaffected (durable on the spine), and the aggregate still targets `total_qty`, but the per-slice grid shifts. Fix: persist the original `lot_step` (a single Decimal, `_coerce`-safe) on `SchemeInitialized` and replan against it, so the grid is identical across a restart.
 
@@ -1235,6 +1235,8 @@ A single-order amend cancels the resting order, queries the venue for the author
 **When to fix**: before order-price amend runs unattended with a meaningful re-price SLA. Add the boot amend-repair pass (2) — which also reconstructs the held-amend park — and, if the window matters, the `cancelReplace`-based path (1).
 
 ## TD-135: Scheme-plan amend is in-memory only; a restart replays the original schedule
+
+**Partially resolved**: the freeze half is closed — an amend that clears a slice-failure freeze now appends `SchemeThawed`, so `_resume_hold` no longer re-freezes an amended scheme and the live and replayed holds agree. The plan half stands: the amended slice plan is still not carried on `SchemeStateChanged`, so `_resume_schemes` replans from `SchemeInitialized`.
 
 **Origin**: WP-Praxis-0009 (8.6* scheme-plan amend)
 **Severity**: Low (safe — the scheme still works the remaining quantity; only the amended cadence/count is lost on restart)
@@ -1432,7 +1434,7 @@ Wiring `begin_account_startup` into that early return was tried and reverted. `_
 
 ---
 
-## TD-153: `_LiveScheme.hold` and `pending_terminal` still encode drain twice
+## TD-153: `_LiveScheme.hold` and `pending_terminal` still encode drain twice — RESOLVED
 
 **Origin**: Greybeard pre-PR review (`feat/simplification-audit`)
 **Severity**: Low (writers currently set both together; the due-check treats `pending_terminal is None` as a defensive second gate)
@@ -1440,7 +1442,7 @@ Wiring `begin_account_startup` into that early return was tried and reverted. `_
 
 `_Hold.DRAINING` replaced the freeze booleans, but abort and expire still write a parallel `pending_terminal` tuple (`TradeStatus`, `SchemeState`, reason) and the due-check still consults both fields. A future writer that sets one without the other can either fire a slice on a terminalizing scheme or finalize without a status. The payload belongs on `DRAINING`, not on a second field.
 
-**When to fix**: when the next scheme-abort or expire change touches these writers. Fold the tuple into the hold (or a drain-only payload type) and drop the dual assignment.
+**Resolved**: both writers now go through `_begin_scheme_drain`, which appends a durable [`SchemeDraining`](praxis/core/domain/events.py) carrying the pending outcome and only then sets `pending_terminal` and `hold` together. Replay restores both from that one event via `_SchemeReplayFold.pending_terminals`, so the hold and its payload are no longer derived apart and the stranded `DRAINING` with no pending outcome cannot arise from either path. The `pending_terminal is None` clause in the due-check is kept as a defensive second gate.
 
 ---
 

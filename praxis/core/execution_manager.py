@@ -50,6 +50,8 @@ from praxis.core.domain.events import (
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
     SchemeFrozen,
+    SchemeThawed,
+    SchemeDraining,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -263,12 +265,19 @@ def _resume_hold(
     command_id: str,
     frozen_ids: set[str],
     protection_frozen_ids: set[str],
+    draining_ids: set[str],
 ) -> _Hold:
-    '''Derive a scheme's resumed hold from the replayed freeze sets.
+    '''Derive a scheme's resumed hold from the replayed hold events.
 
-    A protection freeze wins over a slice-failure freeze regardless of event
-    order; `protection_frozen_ids` is a subset of `frozen_ids`.
+    Holds the same precedence the live scheme does — DRAINING beats
+    PROTECTION beats SLICE_FAILED beats OPEN — so a resumed scheme cannot
+    hold something the running one would not have. A protection freeze wins
+    over a slice-failure freeze regardless of event order, and is never
+    cleared by a thaw; `protection_frozen_ids` is a subset of `frozen_ids`.
     '''
+
+    if command_id in draining_ids:
+        return _Hold.DRAINING
 
     if command_id in protection_frozen_ids:
         return _Hold.PROTECTION
@@ -294,9 +303,16 @@ class _SchemeReplayFold:
             that carried both.
         latest_state: Last `SchemeStateChanged` per command.
         terminal_outcomes: Commands that reached a terminal outcome.
-        frozen_ids: Commands frozen by a failed slice or a freeze.
+        frozen_ids: Commands frozen by a failed slice or a freeze, less
+            those an amend later thawed.
         protection_frozen_ids: Commands frozen by protection specifically,
-            which outranks a slice failure when the hold is resolved.
+            which outranks a slice failure when the hold is resolved and is
+            never cleared by a thaw.
+        draining_ids: Commands whose terminal outcome is pending while
+            children settle; outranks every freeze.
+        pending_terminals: Per draining command, the outcome it is waiting
+            to emit, so the resumed hold and its payload come from the same
+            event rather than being derived apart.
         ladder_completed: Per ladder, the last completed amend as
             `(generation, grid params, grid size)`.
         ladder_inflight: Per ladder, an amend still in flight as
@@ -309,6 +325,10 @@ class _SchemeReplayFold:
     terminal_outcomes: set[str] = field(default_factory=set)
     frozen_ids: set[str] = field(default_factory=set)
     protection_frozen_ids: set[str] = field(default_factory=set)
+    draining_ids: set[str] = field(default_factory=set)
+    pending_terminals: dict[
+        str, tuple[TradeStatus, SchemeState, str | None]
+    ] = field(default_factory=dict)
     ladder_completed: dict[str, tuple[int, LadderDcaParams, int]] = field(
         default_factory=dict,
     )
@@ -1121,6 +1141,20 @@ class ExecutionManager:
                 fold.frozen_ids.add(event.command_id)
                 fold.protection_frozen_ids.add(event.command_id)
 
+            elif isinstance(event, SchemeThawed):
+                # A protection freeze is not amend-clearable, so a thaw
+                # clears only the slice-failure freeze, exactly as the live
+                # amend path does.
+                fold.frozen_ids.discard(event.command_id)
+
+            elif isinstance(event, SchemeDraining):
+                fold.draining_ids.add(event.command_id)
+                fold.pending_terminals[event.command_id] = (
+                    event.status,
+                    event.scheme_state,
+                    event.reason,
+                )
+
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 fold.terminal_outcomes.add(event.command_id)
 
@@ -1220,7 +1254,10 @@ class ExecutionManager:
                     runtime, command_id,
                     replace(command, execution_params=baseline_params),
                     deadline, pending,
-                    _resume_hold(command_id, fold.frozen_ids, fold.protection_frozen_ids),
+                    _resume_hold(
+                        command_id, fold.frozen_ids,
+                        fold.protection_frozen_ids, fold.draining_ids,
+                    ),
                 )
             else:
                 generation, params, grid_size = fold.ladder_completed.get(
@@ -1240,10 +1277,13 @@ class ExecutionManager:
                     next_run_at=None,
                     deadline=deadline,
                     hold=_resume_hold(
-                        command_id, fold.frozen_ids, fold.protection_frozen_ids,
+                        command_id, fold.frozen_ids,
+                        fold.protection_frozen_ids, fold.draining_ids,
                     ),
                     amend_generation=generation,
                 )
+
+            scheme.pending_terminal = fold.pending_terminals.get(command_id)
 
             runtime.schemes[command_id] = scheme
             self._commands[command_id] = scheme.command
@@ -1834,11 +1874,17 @@ class ExecutionManager:
                 active_children=live_children,
                 next_run_at=state.next_run_at if state is not None else None,
                 deadline=deadline,
-                hold=_resume_hold(command_id, fold.frozen_ids, fold.protection_frozen_ids),
+                hold=_resume_hold(
+                    command_id, fold.frozen_ids,
+                    fold.protection_frozen_ids, fold.draining_ids,
+                ),
             )
+
+            scheme.pending_terminal = fold.pending_terminals.get(command_id)
 
             if (
                 scheme.hold is _Hold.OPEN
+                and scheme.pending_terminal is None
                 and scheme.cursor < scheme.slices_total
                 and scheme.next_run_at is None
                 and not live_children
@@ -5081,11 +5127,11 @@ class ExecutionManager:
                 await self._expire_scheme(runtime, scheme)
                 continue
 
-            # `pending_terminal is None` is implied by `hold is OPEN` (a
-            # terminal-pending scheme holds DRAINING); it is kept as a
-            # defensive guard so a slice can never fire on a terminalizing
-            # scheme even if a future writer leaves hold and pending_terminal
-            # inconsistent.
+            # `pending_terminal is None` is implied by `hold is OPEN`: both
+            # are set together by `_begin_scheme_drain` and restored together
+            # from the one `SchemeDraining` on replay, so they cannot
+            # disagree. Kept as a defensive second gate so a slice can never
+            # fire on a terminalizing scheme.
             due = (
                 scheme.hold is _Hold.OPEN
                 and scheme.pending_terminal is None
@@ -5796,13 +5842,13 @@ class ExecutionManager:
             abort.reason,
         )
 
-        scheme.pending_terminal = (
+        await self._begin_scheme_drain(
+            runtime,
+            scheme,
             TradeStatus.CANCELED,
             SchemeState.CANCELED,
             abort.reason,
         )
-        scheme.hold = _Hold.DRAINING
-        scheme.next_run_at = None
 
         if scheme.amend_phase is not None:
             await self._drive_ladder_amend(runtime, scheme)
@@ -5810,6 +5856,45 @@ class ExecutionManager:
 
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _begin_scheme_drain(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        status: TradeStatus,
+        scheme_state: SchemeState,
+        reason: str | None,
+    ) -> None:
+        '''Record a pending terminal outcome durably and stop scheduling.
+
+        The drain hold and the outcome it waits to emit are set here in one
+        place and appended before either is set, so a crash inside the drain
+        window replays as a draining scheme with its outcome intact rather
+        than as a running one with an empty child set and a due timer.
+
+        Args:
+            runtime (_AccountRuntime): Account that owns the scheme.
+            scheme (_LiveScheme): Scheme entering the drain.
+            status (TradeStatus): Terminal trade status awaiting the drain.
+            scheme_state (SchemeState): Terminal scheme state awaiting it.
+            reason (str | None): Why the scheme is terminalizing.
+        '''
+
+        await self._event_spine.append(
+            SchemeDraining(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=scheme.command.command_id,
+                status=status,
+                scheme_state=scheme_state,
+                reason=reason,
+            ),
+            self._epoch_id,
+        )
+
+        scheme.pending_terminal = (status, scheme_state, reason)
+        scheme.hold = _Hold.DRAINING
+        scheme.next_run_at = None
 
     async def _freeze_account_schemes(
         self,
@@ -7313,13 +7398,13 @@ class ExecutionManager:
             runtime.account_id,
         )
 
-        scheme.pending_terminal = (
+        await self._begin_scheme_drain(
+            runtime,
+            scheme,
             TradeStatus.EXPIRED,
             SchemeState.FAILED,
             'scheme deadline exceeded',
         )
-        scheme.hold = _Hold.DRAINING
-        scheme.next_run_at = None
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
 
@@ -9098,6 +9183,18 @@ class ExecutionManager:
             scheme.slices_total = new_total
 
         scheme.interval_seconds = new_interval
+
+        if scheme.hold is _Hold.SLICE_FAILED:
+            await self._event_spine.append(
+                SchemeThawed(
+                    account_id=runtime.account_id,
+                    timestamp=self._clock(),
+                    command_id=cmd.command_id,
+                    reason='amended after a slice failure',
+                ),
+                self._epoch_id,
+            )
+
         scheme.hold = _Hold.OPEN
         scheme.next_run_at = self._clock() + timedelta(seconds=new_interval)
         await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)

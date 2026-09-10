@@ -61,9 +61,11 @@ __all__ = [
     'ProtectionStateUnknown',
     'ReconciliationMismatch',
     'RegisterAccount',
+    'SchemeDraining',
     'SchemeFrozen',
     'SchemeInitialized',
     'SchemeStateChanged',
+    'SchemeThawed',
     'SliceFailed',
     'TradeClosed',
     'TradeOutcomeProduced',
@@ -342,6 +344,81 @@ class SliceFailed(_EventBase):
         _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class SchemeThawed(_EventBase):
+
+    '''
+    Represent a slice-failure freeze cleared by an amend.
+
+    A slice failure freezes a scheme durably through SliceFailed, and an
+    amend is allowed to clear that freeze. Without this event the clear
+    lives only in memory: replay would re-derive the freeze from the
+    SliceFailed still on the spine and the resumed scheme would never fire
+    again, so the live scheduler and the replayed one would disagree.
+
+    A protection freeze is not amend-clearable, so this event never clears
+    one; the resumed hold keeps PROTECTION regardless of order.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Thawed scheme identifier.
+        reason (str): Why the freeze was cleared.
+    '''
+
+    command_id: str
+    reason: str
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+        _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class SchemeDraining(_EventBase):
+
+    '''
+    Represent a scheme whose terminal outcome is pending while children drain.
+
+    An abort or an expiry stops scheduling and waits for the children still
+    working at the venue to settle before the single aggregated outcome
+    fires. Both the drain and the outcome it is waiting to emit lived only
+    in memory, so a crash inside the drain window replayed as a running
+    scheme with an empty child set and a due timer, and the resumer would
+    re-arm a scheme whose command had already been aborted.
+
+    Carrying the pending outcome here is what lets the resumed hold and the
+    pending outcome be reconstructed together rather than derived apart.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Draining scheme identifier.
+        status (TradeStatus): Terminal trade status awaiting the drain.
+        scheme_state (SchemeState): Terminal scheme state awaiting the drain.
+        reason (str | None): Why the scheme is terminalizing.
+    '''
+
+    command_id: str
+    status: TradeStatus
+    scheme_state: SchemeState
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+
+        if self.reason is not None:
+            _require_str(name, 'reason', self.reason)
 
 
 @dataclass(frozen=True)
@@ -1849,6 +1926,8 @@ type Event = (
     | SchemeInitialized
     | SchemeStateChanged
     | SchemeFrozen
+    | SchemeThawed
+    | SchemeDraining
     | OrderSubmitIntent
     | OrderSubmitted
     | OrderSubmitFailed
