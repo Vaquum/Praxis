@@ -18,6 +18,7 @@ from nexus.infrastructure.praxis_connector.protection_remediation import (
 )
 
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
+from praxis.core.bracket_exit_command_id import BRACKET_EXIT_COMMAND_SUFFIX
 from praxis.core.generate_client_order_id import praxis_command_fragment
 from praxis.core.domain.enums import (
     ExecutionMode,
@@ -59,6 +60,7 @@ _log = logging.getLogger(__name__)
 _BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
 _FUND_RECONCILE_OVERLAP = timedelta(days=7)
 _QUOTE_ASSET = 'USDT'
+_BRACKET_EXIT_SUFFIX = f'-{BRACKET_EXIT_COMMAND_SUFFIX}'
 _ZERO = Decimal(0)
 _BALANCE_TOLERANCE: dict[str, Decimal] = {
     'USDT': Decimal('0.01'),
@@ -617,6 +619,30 @@ class Trading:
                 reason,
             )
             await self._execution_manager.fail_account_startup(account_id)
+            await self._close_user_stream(account_id)
+
+    async def _close_user_stream(self, account_id: str) -> None:
+        '''Close an account's user stream and forget it.
+
+        A boot that ends not ready leaves its writer parked for good, so
+        nothing will ever read the socket again: fills, partials and rejects
+        would arrive at a consumer that cannot process them, and the venue
+        would keep a connection alive for a process that has stopped
+        listening. Closing it is the honest signal that this account is done
+        until a restart.
+
+        Args:
+            account_id (str): Account whose stream to close.
+        '''
+
+        stream = self._user_streams.pop(account_id, None)
+        if stream is None:
+            return
+
+        try:
+            await stream.close()
+        except Exception:  # noqa: BLE001
+            _log.exception('error closing user stream: %s', account_id)
 
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
@@ -666,6 +692,26 @@ class Trading:
                 in_flight = in_flight_by_account.get(account_id, set())
                 for order in open_orders.values():
                     if order.command_id in in_flight:
+                        continue
+
+                    if (
+                        order.order_type is OrderType.MARKET
+                        and order.command_id.endswith(_BRACKET_EXIT_SUFFIX)
+                    ):
+                        # A working recovery flatten is closing a position
+                        # this process can no longer supervise. Cancelling it
+                        # would hand the naked position back, so it is left
+                        # to fill. Narrow on purpose: the exit command also
+                        # carries the protective OCO, and only the MARKET
+                        # order is the flatten (TD-155).
+                        _log.warning(
+                            'shutdown leaving a working flatten in place: '
+                            'account=%s client_order_id=%s command_id=%s',
+                            account_id,
+                            order.client_order_id,
+                            order.command_id,
+                        )
+
                         continue
                     try:
                         if order.order_type == OrderType.OCO:

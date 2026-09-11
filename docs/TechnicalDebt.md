@@ -1455,3 +1455,24 @@ Wiring `begin_account_startup` into that early return was tried and reverted. `_
 Ladder amend phase is stored as `str | None` and compared to `'CANCELLING'` and `'PLACING'`. A typo or a third undocumented string is representable and would skip both driver branches. The durable fold already carries the same strings through `ladder_inflight`.
 
 **When to fix**: with the next ladder-amend change. Replace the string with an enum (or reuse the durable event type as the discriminant) and keep `None` as idle.
+
+## TD-155: Shutdown disposition is decided per command, not per order intent
+
+**Origin**: issue #177 pre-merge review (codex and grok, consulted on the shutdown contract)
+**Severity**: Medium — the narrow case that could strip protection is fixed; the contract underneath it is still wrong
+**Module**: `praxis/trading.py` (`Trading.stop`), `praxis/core/execution_manager.py` (`in_flight_command_ids`, `submit_abort`, `_process_abort`)
+
+`Trading.stop` builds one set of in-flight command ids, submits an abort for each, drops from that set any command whose abort was refused, and then cancels every open order whose command is not in the set. That single set carries two different meanings — "the abort owns these" and "do not cancel these" — and the overload is the defect: a refused abort is read as permission to cancel the command's orders directly, which is right for a resting entry and wrong for a working recovery flatten.
+
+A bracket's exit command id covers both its protective OCO and its MARKET flatten, so no command-level rule can separate them. The discriminator has to be the order's intent — a working reduce-only risk-off order — recorded when the flatten is posted and cleared when it terminalizes, and exposed by the execution manager rather than inferred in the shutdown loop.
+
+**Fixed narrowly**: shutdown no longer cancels an open MARKET order on a bracket exit command, so a recovery flatten posted during a failed boot is left to fill instead of handing the naked position back. That is an interim predicate, not the contract.
+
+**Still wrong**:
+- A protective OCO is cancelled unconditionally at shutdown, which strips the last protection from a position that is not flat. It should be cancelled only once a flatten is working or the position is confirmed closed.
+- Cancellation order is unspecified. Working entries and ladder rungs should be retired before anything reduce-only, or an entry fill after the flatten is sized leaves residue, or re-opens exposure the flatten just closed.
+- `_process_abort` builds a terminal CANCELED outcome after a venue cancellation failure, and treats NotFound as cancelled without resolving a possible fill.
+- The shutdown completion wait requires no open orders, which a deliberately preserved flatten or protective OCO will never satisfy; it should wait on the actions it required and report what it preserved.
+- A failed boot can exit with open size. That is the real outcome and it should be persisted for the next boot to adopt as owned recovery rather than swept as an orphan, not reported as a clean shutdown.
+
+**When to fix**: before live trading runs unattended across restarts. The pieces are an order-level risk-off marker, splitting the abort-ownership set from the do-not-cancel set, and a completion condition that distinguishes preserved from unresolved.

@@ -1110,6 +1110,78 @@ async def test_trading_shutdown_cancels_oco_orders_via_cancel_order_list(
     assert ('acc-1', 'oco-list-1') not in adapter.cancel_calls
 
 
+@pytest.mark.asyncio
+async def test_close_user_stream_closes_and_forgets_it(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    class _FakeStream:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    stream = _FakeStream()
+    trading._user_streams['acc-1'] = cast(Any, stream)
+
+    await trading._close_user_stream('acc-1')
+
+    assert stream.closed is True
+    assert 'acc-1' not in trading._user_streams
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_leaves_a_working_flatten_in_place(
+    spine: EventSpine,
+) -> None:
+    '''A recovery flatten must outlive shutdown, or the naked position returns.'''
+
+    from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    exit_command_id = bracket_exit_command_id('cmd-bracket')
+    orders = trading._execution_manager._accounts['acc-1'].trading_state.orders
+
+    orders['flatten-1'] = Order(
+        client_order_id='flatten-1', venue_order_id='venue-flatten-1',
+        account_id='acc-1', command_id=exit_command_id, symbol='BTCUSDT',
+        side=OrderSide.SELL, order_type=OrderType.MARKET, qty=Decimal('1'),
+        filled_qty=Decimal('0'), cumulative_notional=Decimal('0'), price=None,
+        stop_price=None, status=OrderStatus.OPEN,
+        created_at=_CREATED_AT, updated_at=_CREATED_AT,
+    )
+    orders['resting-entry'] = Order(
+        client_order_id='resting-entry', venue_order_id='venue-entry-1',
+        account_id='acc-1', command_id='cmd-other', symbol='BTCUSDT',
+        side=OrderSide.BUY, order_type=OrderType.LIMIT, qty=Decimal('1'),
+        filled_qty=Decimal('0'), cumulative_notional=Decimal('0'),
+        price=Decimal('50000'), stop_price=None, status=OrderStatus.OPEN,
+        created_at=_CREATED_AT, updated_at=_CREATED_AT,
+    )
+
+    await trading.stop()
+
+    assert ('acc-1', 'flatten-1') not in adapter.cancel_calls
+    assert ('acc-1', 'resting-entry') in adapter.cancel_calls
+
+
 class _ReconVenueAdapter(_InjectedVenueAdapter):
 
     def __init__(self) -> None:
@@ -1240,6 +1312,14 @@ async def test_boot_poisoned_account_is_not_marked_ready(spine: EventSpine) -> N
         event_spine=spine,
         venue_adapter=cast(VenueAdapter, adapter),
     )
+    closed_streams: list[str] = []
+    original_close = trading._close_user_stream
+
+    async def _record_close(account_id: str) -> None:
+        closed_streams.append(account_id)
+        await original_close(account_id)
+
+    trading._close_user_stream = _record_close
     original_drain = trading._execution_manager.drain_external_events
 
     async def _poison_during_drain(account_id: str) -> None:
@@ -1255,6 +1335,7 @@ async def test_boot_poisoned_account_is_not_marked_ready(spine: EventSpine) -> N
     assert 'acc-1' not in trading._ready_accounts
     assert runtime.booting is True
     assert runtime.boot_failed is True
+    assert closed_streams == ['acc-1']
 
     with pytest.raises(RuntimeError, match='restart required'):
         await trading._execution_manager.admit('acc-1', FillReceived(

@@ -2583,11 +2583,13 @@ class ExecutionManager:
         '''
         Validate and enqueue a TradeAbort to the priority queue.
 
-        Refused for an account whose startup failed: its writer is parked
-        for good and will never drain the priority queue, so accepting the
-        abort would report a cancellation that never happens. Shutdown
-        reads the refusal as "this command's orders are not being cancelled
-        for me" and cancels them directly instead.
+        Refused when no writer is left to drain it — a failed boot parks its
+        writer for good, and a writer whose task has exited is gone — so
+        accepting the abort would report a cancellation that never happens.
+        A poisoned writer that is still running is not refused: it keeps
+        draining its priority queue precisely so a risk-reducing abort still
+        lands. Shutdown reads the refusal as "this command's orders are not
+        being cancelled for me" and cancels them directly instead.
 
         Args:
             abort (TradeAbort): Abort instruction targeting a command.
@@ -2603,10 +2605,17 @@ class ExecutionManager:
             msg = f"account_id '{abort.account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
 
-        if runtime.boot_failed:
+        if runtime.boot_failed or (
+            runtime.task is not None and runtime.task.done()
+        ):
+            # Refused on whether the writer can still drain it, not on how it
+            # died. A parked failed boot and a writer whose task has exited
+            # both leave the abort sitting forever; a poisoned writer that is
+            # still ticking does process aborts, which is the risk reduction
+            # it exists for, so it is not refused here.
             msg = (
-                f"account '{abort.account_id}' failed startup and stays "
-                'parked; its abort would never be drained'
+                f"account '{abort.account_id}' has no running writer; its "
+                'abort would never be drained'
             )
             raise ValueError(msg)
 
