@@ -492,3 +492,36 @@ def test_tuple_hint_detection(hint: object, expected: bool) -> None:
     another generic must not.'''
 
     assert command_translator._is_tuple_hint(hint) is expected
+
+
+def test_time_dca_rejects_the_retired_num_iterations_key() -> None:
+    '''The renamed key must stay rejected, by name.
+
+    TIME_DCA and TWAP share `IntervalSliceParams`, whose count field is
+    `num_slices`; `num_iterations` was the pre-merge name and its removal is
+    a documented breaking change. A generic unknown-key rejection is what
+    enforces it today, so this pins the old key specifically: a later change
+    that softened unknown keys into being ignored would silently revive the
+    retired API instead of failing here.
+    '''
+
+    with pytest.raises(ValueError, match='unsupported keys'):
+        build_execution_params(
+            ExecutionMode.TIME_DCA,
+            {'num_iterations': 4, 'interval_seconds': 30},
+        )
+
+
+def test_time_dca_accepts_the_surviving_num_slices_key() -> None:
+
+    result = build_execution_params(
+        ExecutionMode.TIME_DCA, {'num_slices': 4, 'interval_seconds': 30},
+    )
+
+    assert result == IntervalSliceParams(num_slices=4, interval_seconds=30)
+
+
+def test_time_dca_modify_rejects_the_retired_num_iterations_key() -> None:
+
+    with pytest.raises(ValueError, match='unsupported keys'):
+        build_modify_params(ExecutionMode.TIME_DCA, {'num_iterations': 6})

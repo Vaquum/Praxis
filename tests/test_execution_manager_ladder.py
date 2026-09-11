@@ -1114,6 +1114,98 @@ class TestLadderAmendDurability:
         await restarted.unregister_account(_ACCT)
 
 
+class TestLadderAbortCrashResume:
+
+    @pytest.mark.asyncio
+    async def test_crash_between_abort_and_outcome_posts_no_replacement_rungs(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
+        spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''A durable abort must survive replay without the amend resuming.
+
+        The live driver refuses to place while the scheme is draining, but
+        that only holds if replay can reconstruct the drain. Asserting the
+        resumed scheme re-arms nothing, or re-cancels its children, does not
+        say the replacement rungs were never posted — which is the thing that
+        would put real orders back on the book for an aborted ladder.
+        '''
+
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        def _place_nothing(
+            *_args: Any, client_order_id: str = '', **_kwargs: Any,
+        ) -> SubmitResult:
+            # No replacement rung reaches the book, so a resumed driver has
+            # nothing already resting to adopt and would place them itself.
+            del client_order_id
+            raise TransientError('venue 5xx')
+
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+        adapter.submit_order.side_effect = _place_nothing
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        # The amend is still in flight, so a resumed driver would carry it on
+        # to placement if the abort did not survive the restart.
+        assert runtime.schemes[command_id].amend_phase == 'PLACING'
+
+        # Abort the ladder mid-amend, then crash before the outcome lands.
+        adapter.query_order.side_effect = TransientError('cancel unconfirmed')
+        await em._abort_scheme(runtime, TradeAbort(
+            command_id=command_id, account_id=_ACCT, reason='operator stop',
+            created_at=_T0,
+        ))
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        drains = [
+            event for _seq, event in events
+            if type(event).__name__ == 'SchemeDraining'
+            and event.command_id == command_id
+        ]
+
+        assert len(drains) == 1
+
+        # The crash lands once the drain is durable and before any of its
+        # consequences are: the rung cancels are unconfirmed and no terminal
+        # outcome was written, so replay sees an aborted ladder with both
+        # generations still live.
+        drain_seq = min(
+            seq for seq, event in events
+            if type(event).__name__ == 'SchemeDraining'
+        )
+        events = [
+            (seq, event)
+            for seq, event in events
+            if seq <= drain_seq
+        ]
+
+        await em.unregister_account(_ACCT)
+
+        restarted_adapter = AsyncMock(spec=VenueAdapter)
+        restarted_adapter.cached_filters.return_value = None
+        restarted, _outcomes = _restart(spine, restarted_adapter)
+        restarted.register_account(_ACCT)
+        restarted.replay_events(_ACCT, events)
+
+        resumed = restarted._accounts[_ACCT].schemes.get(command_id)
+
+        assert resumed is not None
+
+        restarted_adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+        await restarted.resolve_ladder_amends(_ACCT)
+
+        # The guarantee, asserted before the state that produces it: driving a
+        # resumed amend must not put replacement rungs back on the book for a
+        # ladder whose abort is already durable.
+        assert restarted_adapter.submit_order.await_count == 0
+        assert resumed.hold is _Hold.DRAINING
+
+        await restarted.unregister_account(_ACCT)
+
+
 class TestLadderResume:
 
     @pytest.mark.asyncio

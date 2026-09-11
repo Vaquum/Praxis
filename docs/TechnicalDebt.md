@@ -1452,6 +1452,18 @@ Wiring `begin_account_startup` into that early return was tried and reverted. `_
 **Severity**: Low (two values, four guards; tests pin `'CANCELLING'` / `'PLACING'`)
 **Module**: `praxis/core/execution_manager.py` (`_LiveScheme.amend_phase`, `_drive_ladder_amend`)
 
+**Contract note (issue #177 pre-merge review)**: the ladder's replacement-rung
+placement is idempotent — an already-resting rung is adopted rather than
+re-placed — so a resumed amend does not re-POST rungs it already put on the
+book. A regression test now drives a crashed mid-amend abort through replay and
+asserts the resolver posts nothing, but that assertion could not be made to
+fail by disabling the drain reconstruction: with the hold left OPEN and the
+amend still PLACING, the driver still posted nothing. The no-POST property is
+therefore held by the phase and adoption gating rather than by the DRAINING
+hold, and it is not known whether a path exists where the hold is the only
+thing preventing a POST. Worth resolving when this state machine is next
+touched, since the two mechanisms are being relied on interchangeably.
+
 Ladder amend phase is stored as `str | None` and compared to `'CANCELLING'` and `'PLACING'`. A typo or a third undocumented string is representable and would skip both driver branches. The durable fold already carries the same strings through `ladder_inflight`.
 
 **When to fix**: with the next ladder-amend change. Replace the string with an enum (or reuse the durable event type as the discriminant) and keep `None` as idle.
