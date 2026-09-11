@@ -3010,6 +3010,11 @@ class ExecutionManager:
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            RuntimeError: If the account has fail-stopped on a projection
+                failure, or its startup failed and its writer stays parked.
+                Its loop will never dequeue the command, so accepting one
+                would report an acceptance the account can never honour:
+                no order, no outcome, and nothing for the caller to act on.
             CommandQueueFullError: If the account's command queue is at
                 capacity; the command is rejected fail-closed before any
                 durable state is written.
@@ -3024,6 +3029,17 @@ class ExecutionManager:
         if runtime is None:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
+
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        if runtime.boot_failed:
+            msg = (
+                f"account '{account_id}' failed startup and stays parked; "
+                'restart required'
+            )
+            raise RuntimeError(msg)
 
         if command_id is not None:
             if not command_id:
@@ -3110,6 +3126,24 @@ class ExecutionManager:
                 self._accepted_commands.pop(command_id, None)
                 self._aborted_commands.pop(command_id, None)
                 raise
+
+            if runtime.poisoned or runtime.boot_failed:
+                # The append suspended, and the account died across it. The
+                # accept is already durable, so the command is terminalized
+                # rather than queued for a loop that will never read it.
+                await self._build_outcome(
+                    runtime,
+                    cmd,
+                    TradeStatus.REJECTED,
+                    filled_qty=_ZERO,
+                    avg_fill_price=None,
+                    reason=(
+                        f"account '{account_id}' became unavailable before "
+                        'the command was queued; restart required'
+                    ),
+                )
+
+                return command_id
 
             try:
                 runtime.command_queue.put_nowait(cmd)
@@ -3220,6 +3254,10 @@ class ExecutionManager:
         # and nothing else owns the account, so this is the last chance to
         # do it before shutdown.
         await self._drive_pending_drains(runtime)
+        await self._fail_queued_commands(
+            runtime,
+            f"account '{account_id}' failed startup and stays parked",
+        )
 
     def finish_account_startup(self, account_id: str) -> None:
         '''Release the account writer once boot recovery has completed.
@@ -3520,6 +3558,13 @@ class ExecutionManager:
 
                 await self._drive_pending_drains(runtime, pending_only=True)
 
+                if runtime.poisoned:
+                    await self._fail_queued_commands(
+                        runtime,
+                        f"account '{runtime.account_id}' is poisoned; "
+                        'restart required',
+                    )
+
                 if runtime.reconciling or runtime.poisoned:
                     await self._wait_for_work(runtime)
                     continue
@@ -3589,6 +3634,14 @@ class ExecutionManager:
                     f"account '{runtime.account_id}' writer stopped; "
                     'restart required',
                 ),
+            )
+            # The loop exits here, so the in-loop drain never runs again:
+            # anything already queued would sit there for the life of the
+            # process with no order, no outcome, and a caller still waiting.
+            await self._fail_queued_commands(
+                runtime,
+                f"account '{runtime.account_id}' writer stopped; "
+                'restart required',
             )
         finally:
             _log.info('account loop exited: %s', runtime.account_id)
@@ -6394,6 +6447,59 @@ class ExecutionManager:
             return
 
         await self._drive_pending_drains(runtime)
+
+    async def _fail_queued_commands(
+        self,
+        runtime: _AccountRuntime,
+        reason: str,
+    ) -> None:
+        '''Terminalize commands an account will never dequeue.
+
+        A poisoned or failed-boot account keeps its queue but never drains it,
+        so a command accepted before it died would sit there forever: no
+        order, no outcome, and a caller left waiting on a command it was told
+        had been accepted. Each queued command is rejected with a terminal
+        outcome instead, so the decision layer learns what happened to it.
+
+        Args:
+            runtime (_AccountRuntime): Account that will not run again.
+            reason (str): Why the command cannot be executed.
+        '''
+
+        while not runtime.command_queue.empty():
+            cmd = runtime.command_queue.get_nowait()
+
+            try:
+                await self._build_outcome(
+                    runtime,
+                    cmd,
+                    TradeStatus.REJECTED,
+                    filled_qty=_ZERO,
+                    avg_fill_price=None,
+                    reason=reason,
+                )
+            except asyncio.CancelledError:
+                runtime.command_queue.task_done()
+                raise
+            except Exception:  # noqa: BLE001
+                # The command is already off the queue and its outcome could
+                # not be produced, so nothing downstream will ever hear about
+                # it. Delivery cannot be retried from here — the machinery
+                # that would carry it is what just failed — so the account is
+                # poisoned to keep it from accepting anything further, and
+                # the command is named in the log for the operator the
+                # restart belongs to.
+                runtime.poisoned = True
+                _log.exception(
+                    'could not terminalize a queued command on a dead '
+                    'account; no outcome will reach the decision layer: '
+                    'command_id=%s account_id=%s',
+                    cmd.command_id,
+                    runtime.account_id,
+                )
+                runtime.command_queue.task_done()
+            else:
+                runtime.command_queue.task_done()
 
     async def _drive_pending_drains(
         self,

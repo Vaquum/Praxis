@@ -1493,3 +1493,111 @@ async def test_live_amend_writes_the_replan_to_the_spine(
     assert replans[0].interval_seconds == live.interval_seconds
     assert replans[0].next_run_at == live.next_run_at
     assert replans[0].clears_slice_failure is False
+
+
+@pytest.mark.asyncio
+async def test_submit_command_refuses_a_poisoned_account(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    em._accounts[_ACCT].poisoned = True
+
+    with pytest.raises(RuntimeError, match='poisoned'):
+        await em.submit_command(**_twap_kwargs())
+
+
+@pytest.mark.asyncio
+async def test_submit_command_refuses_an_account_whose_boot_failed(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT, booting=True)
+    await em.fail_account_startup(_ACCT)
+
+    with pytest.raises(RuntimeError, match='failed startup'):
+        await em.submit_command(**_twap_kwargs())
+
+
+@pytest.mark.asyncio
+async def test_a_command_queued_before_a_boot_failure_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    command_id = await em.submit_command(**_twap_kwargs())
+
+    assert not outcomes
+
+    await em.fail_account_startup(_ACCT)
+
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED
+    assert outcomes[0].filled_qty == Decimal('0')
+    assert em._accounts[_ACCT].command_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_a_command_queued_before_poisoning_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    command_id = await em.submit_command(**_twap_kwargs())
+    runtime = em._accounts[_ACCT]
+    runtime.poisoned = True
+    runtime.booting = False
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED
+    assert runtime.command_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_a_command_queued_when_the_writer_dies_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    command_id = await em.submit_command(**_twap_kwargs())
+    runtime = em._accounts[_ACCT]
+
+    async def _die(_runtime: object, **_kwargs: object) -> None:
+        msg = 'writer boom'
+        raise ValueError(msg)
+
+    em._drive_pending_drains = _die
+    runtime.booting = False
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert runtime.poisoned is True
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED
+
+
+@pytest.mark.asyncio
+async def test_a_command_accepted_across_a_dying_append_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    runtime = em._accounts[_ACCT]
+    original = em._event_spine.append
+
+    async def _die_during_append(event: object, epoch_id: int) -> int:
+        seq = await original(event, epoch_id)
+        # The account dies while the durable accept is still in flight.
+        runtime.boot_failed = True
+
+        return seq
+
+    em._event_spine.append = _die_during_append
+
+    command_id = await em.submit_command(**_twap_kwargs())
+
+    assert runtime.command_queue.empty()
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED

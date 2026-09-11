@@ -105,7 +105,7 @@ async def test_reconciling_gate_blocks_then_releases_command(
 
 
 @pytest.mark.asyncio
-async def test_projection_failure_poisons_and_blocks_commands(
+async def test_projection_failure_poisons_and_refuses_commands(
     spine: EventSpine,
     adapter: AsyncMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -127,7 +127,12 @@ async def test_projection_failure_poisons_and_blocks_commands(
 
     assert mgr.is_order_capable(_ACCT) is False
 
-    await mgr.submit_command(**_CMD_KWARGS)
+    # The command is refused outright rather than accepted onto a queue the
+    # poisoned loop will never drain: an accepted command that can never
+    # execute or terminalize tells the caller nothing it can act on.
+    with pytest.raises(RuntimeError, match='poisoned'):
+        await mgr.submit_command(**_CMD_KWARGS)
+
     await asyncio.sleep(0.3)
 
     events = await spine.read(_EPOCH, after_seq=0)
