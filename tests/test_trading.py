@@ -3504,3 +3504,27 @@ async def test_failed_boot_shutdown_preserves_a_replayed_recovery_flatten(
     await trading.stop()
 
     assert ('acc-1', flatten_id) not in adapter.cancel_calls
+
+
+@pytest.mark.asyncio
+async def test_clearing_the_remediation_callback_clears_it(spine: EventSpine) -> None:
+    '''Clearing must reach the execution manager as None, not as a no-op.
+
+    The manager reads the absence of a callback as nobody listening. A no-op
+    adapter tells it somebody is, so every pending remediation is handed over,
+    counted as delivered, and given a durable delivery record that boot replay
+    uses to exclude it.
+    '''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    async def _route(_remediation: object) -> None:
+        return
+
+    trading.set_on_protection_remediation(_route)
+
+    assert trading._execution_manager._on_protection_remediation is not None
+
+    trading.set_on_protection_remediation(None)
+
+    assert trading._execution_manager._on_protection_remediation is None

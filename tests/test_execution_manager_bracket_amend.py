@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -1363,6 +1364,62 @@ class TestBracketAmendReplaceFails:
         await em.drain_protection_remediations(_ACCT)
 
         assert calls['n'] == 2
+
+    @pytest.mark.asyncio
+    async def test_cleared_callback_leaves_remediations_pending_and_undelivered(
+        self, mgr_factory: Any, spine: EventSpine,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        '''With nobody listening, a remediation must stay owed.
+
+        Recording a delivery that never happened is durable: boot replay
+        excludes a remediation that has one, so the bracket protection Nexus
+        never heard about is permanently marked as heard.
+        '''
+
+        adapter = _make_adapter(
+            replacement_error=TransientError('venue 5xx'), new_list_status='REJECT',
+        )
+        adapter.query_balance = AsyncMock(
+            return_value=[BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0'))],
+        )
+        em, _ = mgr_factory(adapter)
+
+        # An AssertionError raised in here would be swallowed by the drain's
+        # own except, so the name is enforced by the mock rather than by it.
+        never_called = AsyncMock()
+
+        em.set_on_protection_remediation(never_called)
+        command_id = await _protected_bracket(em)
+        em.set_on_protection_remediation(None)
+        await em._process_modify(
+            em._accounts[_ACCT], _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        assert command_id in em._pending_remediations
+
+        caplog.clear()
+
+        with caplog.at_level(logging.ERROR, logger='praxis.core.execution_manager'):
+            await em.drain_protection_remediations(_ACCT)
+
+        never_called.assert_not_called()
+
+        # Absent listener, not a failed delivery: without the None guard the
+        # drain would invoke None, raise, and log the retry error.
+        assert not any(
+            'failed to deliver protection remediation' in record.message
+            for record in caplog.records
+        )
+
+        assert command_id in em._pending_remediations
+
+        events = await spine.read(epoch_id=_EPOCH)
+
+        assert not any(
+            isinstance(event, ProtectionRemediationDelivered)
+            for _seq, event in events
+        )
 
     @pytest.mark.asyncio
     async def test_seed_protection_remediations_redelivers_after_restart(

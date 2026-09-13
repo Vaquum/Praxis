@@ -492,8 +492,17 @@ class Trading:
 
         self._refuse_after_start('set_on_protection_remediation')
 
+        # Cleared means cleared. `_wrap_event_callback(None)` returns a no-op
+        # adapter, which is right for the callbacks Trading awaits
+        # unconditionally and wrong here: the execution manager reads the
+        # absence of a callback as nobody listening, and a no-op tells it
+        # somebody is. Every pending remediation would then be handed to the
+        # no-op, counted as delivered, dropped from the pending set, and given
+        # a durable `ProtectionRemediationDelivered` that boot replay uses to
+        # exclude it — so a remediation Nexus never saw would be permanently
+        # recorded as one it did.
         self._execution_manager.set_on_protection_remediation(
-            _wrap_event_callback(cb),
+            None if cb is None else _wrap_event_callback(cb),
         )
 
     async def start(self) -> None:
