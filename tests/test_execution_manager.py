@@ -1067,8 +1067,6 @@ class TestTradeOutcome:
         assert outcome.filled_qty == Decimal('1')
         assert outcome.status == TradeStatus.FILLED
 
-        # 0.7 fits the target and is admitted whole; only 0.3 of the second
-        # fill fits, and it is admitted at its own price.
         expected_notional = (
             Decimal('0.7') * Decimal('50000')
             + Decimal('0.3') * Decimal('50200')
@@ -2277,7 +2275,6 @@ class TestEmitWsOutcome:
                     (Decimal('0.5'), Decimal('50000')),
                     (Decimal('4.5'), Decimal('16000')),
                 ],
-                # The admitted half takes the later, lower price.
                 (Decimal('1'), Decimal('25000') + Decimal('0.5') * Decimal('16000')),
             ),
             (
@@ -2320,7 +2317,7 @@ class TestEmitWsOutcome:
         mgr.register_account(_ACCT)
         runtime = mgr._accounts[_ACCT]
         command_id = 'cmd-admit'
-        mgr._commands[command_id] = TradeCommand(
+        mgr._install_command(command_id, TradeCommand(
             command_id=command_id, trade_id=_TRADE, account_id=_ACCT,
             symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
             order_type=OrderType.MARKET, execution_mode=ExecutionMode.TWAP,
@@ -2328,7 +2325,7 @@ class TestEmitWsOutcome:
             timeout=300, reference_price=None,
             maker_preference=MakerPreference.NO_PREFERENCE,
             stp_mode=STPMode.NONE, created_at=_TS,
-        )
+        ))
 
         seen: list[Decimal] = []
 
@@ -2484,8 +2481,6 @@ class TestEmitWsOutcome:
         )
         mgr._install_command(exit_command_id, original)
 
-        # The protective exit terminalizes before the flatten is scheduled,
-        # which removes the command; the budget is what still knows the target.
         mgr._terminal_commands.add(exit_command_id)
         mgr._commands.pop(exit_command_id)
 
@@ -2570,8 +2565,6 @@ class TestEmitWsOutcome:
         mgr._install_command('cmd-acc', command)
         runtime = mgr._accounts[_ACCT]
 
-        # The third fill is the one that matters: if capping the total let
-        # the remaining room round back above zero, it would admit again.
         for index, qty in enumerate(
             [Decimal('1.5E-27'), Decimal('2'), Decimal('5')],
         ):

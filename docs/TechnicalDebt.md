@@ -1508,3 +1508,17 @@ This is not uniformly pre-existing. Before this change the WebSocket producer fo
 Praxis logs every discard at admission, naming the command, the quantity admitted and the quantity dropped, so the disagreement is observable while this is open.
 
 Closing this needs an explicit reconciliation channel — an inventory-adjustment outcome, or a delta the translator can send outside the target-bounded fields — plus a decision on whether Nexus's position guard should accept it. That is a cross-repo contract change, not a clamp.
+
+## TD-157: A fill whose command was never established is admitted uncapped
+
+**Origin**: issue #178 pre-merge review (Greybeard)
+**Severity**: Low — no production path reaches it, and it is reported when it happens
+**Module**: `praxis/core/execution_manager.py` (`_accumulate_accepted_fill`)
+
+Fill admission caps each fill against the budget recorded when its command's identity was established. When no budget is recorded, it logs an error and admits the fill in full — the uncapped output the rest of the change exists to prevent.
+
+Nothing reaches it today. Every writer of `_commands` records a budget, ordinary submission persists the intent before the venue call, the protective path records its budget before appending its own intent, and replay rebuilds budgets from the submit intents and scheme initializations on the spine, including for commands it deliberately does not rebuild as commands. A fill therefore cannot project before its budget exists.
+
+The branch is kept because the alternative is worse: refusing to admit a fill with no recorded budget would drop a real execution from everything downstream rather than merely over-reporting it, and `_accepted_command_totals` already fails closed for the inverse case of fills present with no admission entry. The asymmetry is deliberate — over-report a fill nobody budgeted, under-report nothing.
+
+Closing this means deciding what a fill for an unknown command actually is: a bug to halt on, or an orphan to reconcile through the existing orphan path, which already has machinery for executions Praxis cannot attribute.

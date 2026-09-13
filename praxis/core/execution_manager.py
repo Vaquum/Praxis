@@ -2411,32 +2411,17 @@ class ExecutionManager:
     def _admission_target(self, command_id: str) -> _AdmissionTarget | None:
         '''Return the budget a command's fills are admitted against.
 
-        Resolves from the live command the first time and caches it, so the
-        budget outlives both the command — terminal emission drops it from
-        `_commands`, and a fill arriving afterwards must still be capped —
-        and any later rewrite of it.
+        Recorded when the command's identity is established, so it outlives
+        the command itself: terminal emission drops it from `_commands`, and
+        a fill arriving afterwards must still be capped.
 
         Args:
             command_id (str): Command whose budget is wanted.
 
         Returns:
-            _AdmissionTarget | None: The budget, or None when the command
-                is unknown.
+            _AdmissionTarget | None: The budget, or None when no command of
+                that id was ever established.
         '''
-
-        cached = self._admission_targets.get(command_id)
-
-        if cached is not None:
-            return cached
-
-        cmd = self._commands.get(command_id)
-
-        if cmd is None:
-            return None
-
-        self._record_admission_target(
-            command_id, qty=cmd.qty, notional=cmd.quote_qty,
-        )
 
         return self._admission_targets.get(command_id)
 
@@ -4290,7 +4275,9 @@ class ExecutionManager:
             len(result.immediate_fills),
         )
 
-        filled_qty, _ = self._accepted_command_totals(runtime, cmd.command_id)
+        filled_qty, total_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
+        )
 
         if (
             cmd.is_quote_native
@@ -4305,9 +4292,6 @@ class ExecutionManager:
             await self._event_spine.append(quote_filled, self._epoch_id)
             runtime.trading_state.apply(quote_filled)
 
-        _admitted_qty, total_notional = self._accepted_command_totals(
-            runtime, cmd.command_id,
-        )
         avg_fill_price: Decimal | None = (
             total_notional / filled_qty if filled_qty > _ZERO else None
         )
@@ -4948,7 +4932,11 @@ class ExecutionManager:
                     oco_order.status, TradeStatus.FILLED,
                 ),
                 filled_qty=exit_filled,
-                avg_fill_price=exit_notional / exit_filled,
+                avg_fill_price=(
+                    exit_notional / exit_filled
+                    if exit_filled > _ZERO
+                    else None
+                ),
                 reason=None,
                 cumulative_notional=exit_notional,
             )
@@ -7694,7 +7682,11 @@ class ExecutionManager:
                     flat_order.status, TradeStatus.FILLED,
                 ),
                 filled_qty=flat_filled,
-                avg_fill_price=flat_notional / flat_filled,
+                avg_fill_price=(
+                    flat_notional / flat_filled
+                    if flat_filled > _ZERO
+                    else None
+                ),
                 reason=None,
                 cumulative_notional=flat_notional,
             )
@@ -7913,7 +7905,11 @@ class ExecutionManager:
                     flat_order.status, TradeStatus.FILLED,
                 ),
                 filled_qty=flat_filled,
-                avg_fill_price=flat_notional / flat_filled,
+                avg_fill_price=(
+                    flat_notional / flat_filled
+                    if flat_filled > _ZERO
+                    else None
+                ),
                 reason=None,
                 cumulative_notional=flat_notional,
             )
