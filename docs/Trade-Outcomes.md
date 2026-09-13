@@ -22,9 +22,11 @@ Typical fields include:
 
 In v0.97.0, the unused `missed_iterations` and `missed_reason` fields are removed without aliases. Remove those constructor arguments and attribute reads from integrations; they never reported skipped-iteration telemetry. `slices_completed` and `slices_total` continue to describe scheme progress, not missed iterations.
 
-In v0.98.0, `filled_qty`, `cumulative_notional`, and `avg_fill_price` describe the same fills and agree with one another. A venue can report more filled than was ordered; each fill is admitted only as far as the command's target allows, at the price that executed, and the excess is discarded. The reported average is the average of the admitted fills, so `cumulative_notional / filled_qty` reproduces `avg_fill_price` and consumers may recompute it.
+In v0.98.0, `filled_qty`, `cumulative_notional`, and `avg_fill_price` describe the same fills. A venue can report more filled than was ordered; each fill is admitted only as far as the command's budget allows, at the price that executed, and the excess is discarded. A command budgets either a base quantity (`qty`) or a quote spend (`quote_qty`), never both, and admission caps whichever one it declared — the other follows at the admitted fills' own prices.
 
-Previously the quantity was clamped to the target while the whole venue notional was retained, so those two totals described different sets of fills and dividing them gave a price several times the one that executed. Consumers that avoided the division to work around that no longer need to.
+For `filled_qty > 0`, `avg_fill_price` is `cumulative_notional / filled_qty` in Decimal arithmetic. When `filled_qty` is zero, `avg_fill_price` is `None`.
+
+Previously the two totals described different sets of fills, and neither producer was right: one capped the quantity while retaining the whole venue notional, so dividing them gave a price several times the one that executed; the other scaled the notional to match the capped quantity, which reported the right average but could fall below a notional already published for an earlier partial. Consumers that avoided the division to work around the first no longer need to.
 
 The discarded excess is real: Praxis books the full quantity and spend to the account ledger and carries it in the position it holds, and sizes protection and flattens from that raw exposure. Only the outcome is bounded. A decision layer reconstructing its position from outcomes is therefore short by any discarded amount until reconciled — see TD-156.
 

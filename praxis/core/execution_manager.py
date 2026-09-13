@@ -1162,7 +1162,7 @@ class ExecutionManager:
                     and event.command_id not in scheme_command_ids
                     and event.command_id not in self._commands
                 ):
-                    self._commands[event.command_id] = TradeCommand(
+                    self._install_command(event.command_id, TradeCommand(
                         command_id=event.command_id,
                         trade_id=event.trade_id,
                         account_id=event.account_id,
@@ -1182,7 +1182,7 @@ class ExecutionManager:
                         maker_preference=MakerPreference.NO_PREFERENCE,
                         stp_mode=STPMode.NONE,
                         created_at=event.timestamp,
-                    )
+                    ))
 
         self._resume_schemes(runtime, fold)
         self._resume_ladders(runtime, fold)

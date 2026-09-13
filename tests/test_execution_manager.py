@@ -4,8 +4,10 @@ Tests for praxis.core.execution_manager.ExecutionManager.
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import logging
+import pathlib
 import uuid
 from datetime import datetime, UTC
 from decimal import Decimal
@@ -2402,6 +2404,47 @@ class TestEmitWsOutcome:
         )
         assert filled_qty == Decimal('0.02')
         assert notional / filled_qty == Decimal('50000')
+
+    def test_only_the_installer_registers_a_command(self) -> None:
+        '''Registering a command must always record its admission budget.
+
+        A fill is capped against the budget recorded when its command was
+        registered, and nothing else caps it: a command present without one
+        admits its fills in full. `_install_command` writes both together, so
+        it has to be the only writer of the command map — a second one that
+        set the command alone would reintroduce uncapped admission silently,
+        and a lazy fallback cannot repair it, since by then the command may
+        carry an amend replacement's smaller quantity rather than the target
+        its earlier fills were admitted against.
+        '''
+
+        source = pathlib.Path('praxis/core/execution_manager.py').read_text()
+        tree = ast.parse(source)
+        installer = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == '_install_command'
+        )
+        allowed = set(range(installer.lineno, installer.end_lineno + 1))
+        writers = [
+            target.value.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Assign)
+            for target in node.targets
+            if isinstance(target, ast.Subscript)
+            and isinstance(target.value, ast.Attribute)
+            and target.value.attr == '_commands'
+        ]
+
+        assert writers, 'found no writer at all; this test has stopped looking'
+
+        outside = [line for line in writers if line not in allowed]
+
+        assert not outside, (
+            f'execution_manager.py:{outside} assigns into _commands outside '
+            f'_install_command; route it through the installer so the '
+            f'admission budget is recorded with the command'
+        )
 
     @pytest.mark.asyncio
     async def test_a_fill_after_terminalization_is_still_capped(
