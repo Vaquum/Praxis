@@ -15,6 +15,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from praxis.core.domain._require_str import _require_str
+from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
     CostBasisMethod,
     ExecutionMode,
@@ -60,8 +61,10 @@ __all__ = [
     'ProtectionStateUnknown',
     'ReconciliationMismatch',
     'RegisterAccount',
+    'SchemeDraining',
     'SchemeFrozen',
     'SchemeInitialized',
+    'SchemeReplanned',
     'SchemeStateChanged',
     'SliceFailed',
     'TradeClosed',
@@ -341,6 +344,114 @@ class SliceFailed(_EventBase):
         _require_str(name, 'command_id', self.command_id)
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'reason', self.reason)
+
+
+@dataclass(frozen=True)
+class SchemeReplanned(_EventBase):
+
+    '''
+    Represent a scheme's schedule replaced by an amend.
+
+    Carries the plan the amend produced, not merely the fact that one
+    happened. An amend rewrites the remaining slice quantities, the slice
+    count, and the interval in memory; without this event replay rebuilds
+    the original schedule from SchemeInitialized, so a resumed scheme
+    executes a plan its owner replaced.
+
+    The next-run timestamp travels with the plan for the same reason: taking
+    the interval from here and the timer from a separate progress event lets a
+    crash between the two appends pair a new interval with the schedule it
+    replaced, firing a slice far earlier than the amend intended.
+
+    `clears_slice_failure` records that the amend also cleared a
+    slice-failure freeze, so the permission to run again and the plan that
+    permission applies to are the same durable fact. They must not be
+    separated: clearing the freeze alone resumes a scheme onto a stale
+    schedule, which can under-fill the target and still terminalize FILLED.
+    A protection freeze is not amend-clearable and is never cleared here.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Amended scheme identifier.
+        slices_total (int): Slice count after the amend.
+        interval_seconds (int): Seconds between slices after the amend.
+        slice_qtys (tuple[Decimal, ...]): Full per-slice plan after the
+            amend, including the slices already executed.
+        next_run_at (datetime | None): When the next slice is due under the
+            amended schedule, None when unscheduled.
+        clears_slice_failure (bool): Whether the amend also cleared a
+            slice-failure freeze.
+    '''
+
+    command_id: str
+    slices_total: int
+    interval_seconds: int
+    slice_qtys: tuple[Decimal, ...]
+    next_run_at: datetime | None = None
+    clears_slice_failure: bool = False
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+
+        object.__setattr__(self, 'slice_qtys', tuple(self.slice_qtys))
+
+        if self.slices_total < 1:
+            msg = f'{name}.slices_total must be a positive int'
+            raise ValueError(msg)
+
+        if self.interval_seconds <= 0:
+            msg = f'{name}.interval_seconds must be a positive int'
+            raise ValueError(msg)
+
+        if not self.slice_qtys:
+            msg = f'{name}.slice_qtys must not be empty'
+            raise ValueError(msg)
+
+
+@dataclass(frozen=True)
+class SchemeDraining(_EventBase):
+
+    '''
+    Represent a scheme whose terminal outcome is pending while children drain.
+
+    An abort or an expiry stops scheduling and waits for the children still
+    working at the venue to settle before the single aggregated outcome
+    fires. Both the drain and the outcome it is waiting to emit lived only
+    in memory, so a crash inside the drain window replayed as a running
+    scheme with an empty child set and a due timer, and the resumer would
+    re-arm a scheme whose command had already been aborted.
+
+    Carrying the pending outcome here is what lets the resumed hold and the
+    pending outcome be reconstructed together rather than derived apart.
+
+    Args:
+        account_id (str): Account that owns this event.
+        timestamp (datetime): Event time, must be timezone-aware.
+        command_id (str): Draining scheme identifier.
+        status (TradeStatus): Terminal trade status awaiting the drain.
+        scheme_state (SchemeState): Terminal scheme state awaiting the drain.
+        reason (str | None): Why the scheme is terminalizing.
+    '''
+
+    command_id: str
+    status: TradeStatus
+    scheme_state: SchemeState
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+
+        super().__post_init__()
+
+        name = type(self).__name__
+        _require_str(name, 'command_id', self.command_id)
+
+        if self.reason is not None:
+            _require_str(name, 'reason', self.reason)
 
 
 @dataclass(frozen=True)
@@ -690,15 +801,25 @@ class BracketInitialized(_EventBase):
         side (OrderSide): Entry order direction.
         total_qty (Decimal): Entry base quantity.
         take_profit_price (Decimal | None): Absolute take-profit price.
+            Exactly one of this and `take_profit_offset_bps` must be set.
         take_profit_offset_bps (Decimal | None): Take-profit offset in basis
-            points from the entry average fill.
+            points from the entry average fill. Exactly one of this and
+            `take_profit_price` must be set.
         stop_loss_price (Decimal | None): Absolute stop-loss trigger price.
+            Exactly one of this and `stop_loss_offset_bps` must be set.
         stop_loss_offset_bps (Decimal | None): Stop-loss offset in basis
-            points from the entry average fill.
+            points from the entry average fill. Exactly one of this and
+            `stop_loss_price` must be set.
         stop_loss_limit_price (Decimal | None): Stop-loss limit price, or None
             for a stop-market stop-loss leg.
         timeout_seconds (int): Command deadline in seconds. Non-negative;
             0 means no deadline. Defaults to 0.
+
+    The leg fields default to None so the flat record can be built field by
+    field, not because a leg is optional: `__post_init__` validates them
+    through `BracketParams`, which requires both legs and exactly one form of
+    each. A bracket cannot carry a naked leg, and a persisted record that does
+    is refused at hydrate rather than resumed without protection.
     '''
 
     command_id: str
@@ -733,6 +854,17 @@ class BracketInitialized(_EventBase):
         if self.timeout_seconds < 0:
             msg = f'{name}.timeout_seconds must be non-negative'
             raise ValueError(msg)
+
+        # Validate the leg invariants (exactly-one-of price/offset per leg,
+        # positivity) at construction and hydrate; the params are intentionally
+        # not stored — the spine round-trips the flat fields.
+        BracketParams(
+            take_profit_price=self.take_profit_price,
+            take_profit_offset_bps=self.take_profit_offset_bps,
+            stop_loss_price=self.stop_loss_price,
+            stop_loss_offset_bps=self.stop_loss_offset_bps,
+            stop_loss_limit_price=self.stop_loss_limit_price,
+        )
 
 
 @dataclass(frozen=True)
@@ -841,11 +973,19 @@ class ProtectionCancelConfirmed(_EventBase):
 class ProtectionStateUnknown(_EventBase):
 
     '''
-    Represent an ambiguous protective-OCO cancel/replace outcome.
+    Represent a protective OCO whose live state is not locally knowable.
 
     Written when the venue response to a cancel or replace is inconclusive
     (timeout or 5xx), so the amend halts in a known-unknown state pending
     reconciliation rather than assuming success or failure.
+
+    Also written when a protective OCO reports terminal — filled or
+    cancelled — while its bracket still tracks it as active. What replaced
+    the list cannot be read from the local projection, because a
+    cancellation can arrive before the sibling leg's fills project, so the
+    bracket is held here for the watchdog to resolve against the venue
+    instead. In that use there is no replacement and the two list ids are the
+    same terminalized list, which is the only candidate to re-query.
 
     Args:
         account_id (str): Account that owns this event.
@@ -1747,7 +1887,7 @@ class OutcomeDeliveryContextRecorded(_EventBase):
     metadata: `strategy_id`, `is_entry`, `order_notional`,
     `estimated_fees`, `order_size`, `intended_full_close`) from the
     strategy `Action` at submit time and holds it only in the in-memory
-    `command_contexts` map, which is empty after a restart. Boot replay
+    `command_registrations` map, which is empty after a restart. Boot replay
     (TD-052) needs that context to re-route an unacked `TradeOutcomeProduced`
     through `OutcomeProcessor.process`. This event durably records the
     context on the spine at submit time, keyed by `command_id`, so the
@@ -1827,6 +1967,8 @@ type Event = (
     | SchemeInitialized
     | SchemeStateChanged
     | SchemeFrozen
+    | SchemeReplanned
+    | SchemeDraining
     | OrderSubmitIntent
     | OrderSubmitted
     | OrderSubmitFailed

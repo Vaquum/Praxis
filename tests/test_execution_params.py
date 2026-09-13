@@ -23,9 +23,8 @@ from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.time_dca_params import TimeDcaParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.domain.twap_params import TwapParams
 
 _TS = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -55,20 +54,20 @@ def test_bracket_rejects_non_positive() -> None:
 
 
 def test_twap_valid_and_bounds() -> None:
-    assert TwapParams(num_slices=4, interval_seconds=30)
+    assert IntervalSliceParams(num_slices=4, interval_seconds=30)
 
     with pytest.raises(ValueError, match='num_slices'):
-        TwapParams(num_slices=1, interval_seconds=30)
+        IntervalSliceParams(num_slices=1, interval_seconds=30)
 
     with pytest.raises(ValueError, match='interval_seconds'):
-        TwapParams(num_slices=4, interval_seconds=0)
+        IntervalSliceParams(num_slices=4, interval_seconds=0)
 
 
 def test_time_dca_valid_and_bounds() -> None:
-    assert TimeDcaParams(num_iterations=6, interval_seconds=3600)
+    assert IntervalSliceParams(num_slices=6, interval_seconds=3600)
 
-    with pytest.raises(ValueError, match='num_iterations'):
-        TimeDcaParams(num_iterations=1, interval_seconds=3600)
+    with pytest.raises(ValueError, match='num_slices'):
+        IntervalSliceParams(num_slices=1, interval_seconds=3600)
 
 
 def test_scheduled_vwap_valid_and_weight_sum() -> None:
@@ -137,7 +136,7 @@ def test_params_reject_non_finite_decimals() -> None:
 def test_params_registry_covers_every_mode() -> None:
     assert set(PARAMS_FOR_MODE) == set(ExecutionMode)
     assert PARAMS_FOR_MODE[ExecutionMode.SINGLE_SHOT] is SingleShotParams
-    assert PARAMS_FOR_MODE[ExecutionMode.TWAP] is TwapParams
+    assert PARAMS_FOR_MODE[ExecutionMode.TWAP] is IntervalSliceParams
     assert PARAMS_FOR_MODE[ExecutionMode.BRACKET] is BracketParams
 
 
@@ -161,28 +160,28 @@ def _command(mode: ExecutionMode, params: object, order_type: OrderType) -> Trad
 
 
 def test_trade_command_accepts_matching_params() -> None:
-    assert _command(ExecutionMode.TWAP, TwapParams(num_slices=4, interval_seconds=30), OrderType.MARKET)
+    assert _command(ExecutionMode.TWAP, IntervalSliceParams(num_slices=4, interval_seconds=30), OrderType.MARKET)
 
 
 def test_trade_command_rejects_mismatched_params() -> None:
-    with pytest.raises(TypeError, match='TwapParams'):
+    with pytest.raises(TypeError, match='IntervalSliceParams'):
         _command(ExecutionMode.TWAP, SingleShotParams(), OrderType.MARKET)
 
 
 def test_twap_params_reject_bool_fields() -> None:
     with pytest.raises(ValueError, match='interval_seconds'):
-        TwapParams(num_slices=4, interval_seconds=True)
+        IntervalSliceParams(num_slices=4, interval_seconds=True)
 
     with pytest.raises(ValueError, match='num_slices'):
-        TwapParams(num_slices=True, interval_seconds=30)
+        IntervalSliceParams(num_slices=True, interval_seconds=30)
 
 
 def test_time_dca_params_reject_bool_fields() -> None:
     with pytest.raises(ValueError, match='interval_seconds'):
-        TimeDcaParams(num_iterations=4, interval_seconds=True)
+        IntervalSliceParams(num_slices=4, interval_seconds=True)
 
-    with pytest.raises(ValueError, match='num_iterations'):
-        TimeDcaParams(num_iterations=True, interval_seconds=30)
+    with pytest.raises(ValueError, match='num_slices'):
+        IntervalSliceParams(num_slices=True, interval_seconds=30)
 
 
 def test_scheduled_vwap_params_reject_bool_interval() -> None:

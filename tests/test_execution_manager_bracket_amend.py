@@ -58,11 +58,11 @@ from praxis.core.domain.events import (
     SchemeInitialized,
 )
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
-from praxis.core.execution_manager import ExecutionManager, _LiveScheme
+from praxis.core.execution_manager import ExecutionManager, _Hold, _LiveScheme
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
@@ -334,7 +334,7 @@ def _inject_twap_scheme(runtime: Any, command_id: str) -> None:
         command_id=command_id, trade_id='twap-trade', account_id=_ACCT,
         symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
         order_type=OrderType.MARKET, execution_mode=ExecutionMode.TWAP,
-        execution_params=TwapParams(num_slices=4, interval_seconds=10),
+        execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
         timeout=3600, reference_price=None,
         maker_preference=MakerPreference.NO_PREFERENCE, stp_mode=STPMode.NONE,
         created_at=_T0,
@@ -506,6 +506,84 @@ class TestBracketAmendHappyPath:
         assert resumed_runtime.command_to_order[exit_command_id] == new_list
         assert new_list in resumed_runtime.trading_state.orders
         assert old_list in resumed_runtime.trading_state.closed_orders
+
+    @pytest.mark.asyncio
+    async def test_resume_rebuilds_amended_bracket_active_amendable(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        new_list = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=1, retry=1,
+        )
+        await em._process_modify(
+            runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        rows = await spine.read(epoch_id=_EPOCH)
+        resumed_adapter = _make_adapter()
+        resumed, _ = mgr_factory(resumed_adapter)
+        resumed.register_account(_ACCT)
+        resumed.replay_events(_ACCT, rows)
+        await asyncio.sleep(0.3)
+
+        bracket = resumed._accounts[_ACCT].brackets[command_id]
+        assert bracket.protection_status is BracketProtectionStatus.ACTIVE
+        assert bracket.protection_version == 1
+        assert bracket.protection_client_order_id == new_list
+        assert bracket.current_tp_price == _NEW_TP_PRICE
+        assert bracket.current_sl_stop_price == _SL_PRICE
+        assert command_id in resumed.modifiable_command_ids(_ACCT)
+        assert not any(
+            call['args'][_ORDER_TYPE_ARG_INDEX] is OrderType.OCO
+            for call in resumed_adapter.submit_calls
+        )
+
+    @pytest.mark.asyncio
+    async def test_resume_rebuilds_a_bracket_the_watchdog_re_tracked_pre_amend(
+        self, mgr_factory: Any, spine: EventSpine,
+    ) -> None:
+        adapter = _make_adapter()
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+        runtime = em._accounts[_ACCT]
+
+        old_list = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=1,
+        )
+        await em._process_modify(
+            runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        rows = [
+            (seq, event)
+            for seq, event in await spine.read(epoch_id=_EPOCH)
+            if not (
+                isinstance(event, OrderCanceled)
+                and event.client_order_id == old_list
+            )
+        ]
+        rows.append((rows[-1][0] + 1, ProtectionActive(
+            account_id=_ACCT,
+            timestamp=_T0,
+            command_id=command_id,
+            protection_version=1,
+            new_list_client_order_id=old_list,
+        )))
+
+        resumed, _ = mgr_factory(_make_adapter())
+        resumed.register_account(_ACCT)
+        resumed.replay_events(_ACCT, rows)
+
+        bracket = resumed._accounts[_ACCT].brackets[command_id]
+
+        assert bracket.protection_status is BracketProtectionStatus.ACTIVE
+        assert bracket.protection_client_order_id == old_list
+        assert bracket.current_tp_price == _TP_PRICE
+        assert command_id in resumed.modifiable_command_ids(_ACCT)
 
     @pytest.mark.asyncio
     async def test_amend_requested_snapshot_merges_unchanged_stop_loss(
@@ -1379,8 +1457,7 @@ class TestBracketAmendReplaceFails:
         await em._process_modify(runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE))
 
         assert runtime.brackets[command_id].protection_status is BracketProtectionStatus.FAILED
-        assert runtime.schemes['twap-1'].frozen is True
-        assert runtime.schemes['twap-1'].protection_frozen is True
+        assert runtime.schemes['twap-1'].hold is _Hold.PROTECTION
 
         rows = await spine.read(epoch_id=_EPOCH)
         frozen = [(seq, e) for seq, e in rows if isinstance(e, SchemeFrozen)]
@@ -1416,8 +1493,7 @@ class TestBracketAmendReplaceFails:
         restarted.replay_events(_ACCT, events)
 
         resumed = restarted._accounts[_ACCT].schemes['twap-1']
-        assert resumed.frozen is True
-        assert resumed.protection_frozen is True
+        assert resumed.hold is _Hold.PROTECTION
 
         await restarted.unregister_account(_ACCT)
 

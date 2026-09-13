@@ -1373,5 +1373,81 @@
 
 - Fix reconnect fill backfill missing OCO leg fills: [`_reconcile_fills`](praxis/core/execution_manager.py) now remaps a protective-leg `client_order_id` to its parent so a leg fill arriving during a WebSocket gap updates the bracket instead of leaving a ghost open position
 - Fix a slippage guard that passed when the venue book had no usable depth: [`estimate_slippage`](praxis/core/estimate_slippage.py) returns `None` on partial depth and the guard rejects a single-shot MARKET order it cannot price
-- Simplify the `TradingState` projection and boot replay/reconcile, prune unused event types while retaining their hydrators, and classify `MarkSampled` and launcher audit/ack appends as telemetry outside the state-machine contract
 - Split the reconcile-tick watchdogs into isolated failure domains so one detector's failure cannot stop the reconcile loop (TD-137)
+
+### Update
+
+- Update the `TradingState` projection and boot replay/reconcile, prune unused event types while retaining their hydrators, and classify `MarkSampled` and launcher audit/ack appends as telemetry outside the state-machine contract
+
+## v0.97.0 on 10th of September, 2026
+
+### BREAKING
+
+- Remove the unused `TradeOutcome.missed_iterations` and `TradeOutcome.missed_reason` constructor fields and attributes
+- Rename `ExecutionManager.drain_ws_events` to `drain_external_events` and `has_pending_ws_events` to `has_pending_external_events` to cover admission, legacy WebSocket, and dispatch queues
+- Replace `TwapParams` and `TimeDcaParams` with [`IntervalSliceParams`](praxis/core/domain/interval_slice_params.py), and `TwapModify` and `TimeDcaModify` with [`IntervalSliceModify`](praxis/core/domain/interval_slice_modify.py), without compatibility aliases; TIME_DCA command and modify payloads must use `num_slices` instead of `num_iterations`, while the execution-mode identifiers and TIME_DCA BUY-only rule remain unchanged
+- Advance the event database to schema 4 by folding symbol-proven legacy `fill_dedup` rows into `fill_dedup_v2`, verifying coverage per key, and dropping the old table; migration resumes after interruption, and older builds refuse the upgraded database, so preserve a pre-upgrade backup for rollback. This is an on-disk contract break: the DROP commits on its own, and a 0.96 build cannot open a database whose legacy table is gone, so downgrade is the pre-upgrade copy only
+
+### NOTE
+
+- Refuse missing or incompatible stored chain identity before the schema-four fold; gate each migration on its introducing version so an already-proven database does not repeat the legacy single-symbol proof
+
+### Add
+
+- Add [`SchemeDraining`](praxis/core/domain/events.py) and [`SchemeReplanned`](praxis/core/domain/events.py), the scheme transitions that had no durable representation. An abort or expiry appends `SchemeDraining` carrying the outcome it is waiting to emit; an amend appends `SchemeReplanned` carrying the slice quantities, count, interval and next-run timestamp it produced together with whether it cleared a slice-failure freeze. Replay rebuilds the hold a restart should see, the schedule that hold applies to, and the timer belonging to that schedule, rather than re-deriving any of them or pairing a new plan with the timer it replaced
+- Add regression coverage for abort during ladder cancel and placement phases, uncertain cancellation, replacement-generation fill backfill, and terminal replay
+- Add regression coverage for missing or foreign chain identity across schema versions, mutation-free rejection, intact upgrades, and interrupted unversioned initialization
+- Add regression coverage that an unusable scheme does not prevent a healthy scheme from replaying
+- Add regression coverage that scheme resume does not re-arm `next_run_at` while a child is still live
+
+### Fix
+
+- Fix aborting a protection-frozen ladder mid-amend to retire and confirm both rung generations without posting replacements, backfill cancellation-time fills, and emit one canceled outcome after confirmation
+- Fix boot recovery and stale-balance guards to cover every external-event queue and in-flight admissions, drain boot reactions to completion, and refuse readiness or flatten sizing after a projection fail-stop
+- Fix `BracketInitialized` hydration to validate complete protective-leg combinations through `BracketParams`
+- Fix confirmed-OPEN bracket protection replay to restore amendability, effective leg prices, and the list actually re-tracked by the watchdog
+- Fix `ExecutionReport` validation to require finite TRADE fills and commission, strip residual fill fields from non-TRADE reports, and log malformed frames with their order identity
+- Fix late fills on closed orders to update quantity and notional without reopening the order, keeping flatten remainder totals accurate
+- Fix missing chain identity on schema v1/v2 by validating versioned spines before schema writes and initializing identity only for unversioned databases
+- Fix re-entrant command registrations to retain the existing strategy attribution at both registration sites
+- Fix `TradingState.apply` to record `CommandAccepted` strategy attribution and preserve it in pure projection replay
+- Fix unexpected account-writer exits to poison the account and fail pending admission waiters
+- Fix scheme resume kicking `next_run_at` to now while a child order is still live
+- Fix an aborted or expired scheme replaying as a running one: the drain and the outcome it was waiting to emit lived only in memory, so a crash inside the drain window resumed a scheme with an empty child set and a due timer and re-armed a command that had already been aborted. `_begin_scheme_drain` appends the drain before setting it, and replay restores the hold and its pending outcome from that one event, so the two can no longer be derived apart (TD-153, TD-127 item 1)
+- Fix an amended scheme re-freezing on restart: clearing a slice-failure freeze was an in-memory write while `SliceFailed` stayed on the spine, so `_resume_hold` re-froze the scheme and the live and replayed holds disagreed. The clear is now durable, and a protection freeze — which no amend may clear — is still never thawed (TD-135, freeze half)
+- Fix an in-flight ladder amend posting replacement rungs for an aborted ladder after a crash: the driver already refused to place while draining, but replay could not reconstruct the drain, so the resumed amend ran on to placement
+- Fix a resumed drain never retiring the children the crash left working: the drain is durable before its cancels are sent, and deadline expiry deliberately skips a draining scheme, so a crash in that window left the rungs resting behind an abort that never took effect. A resumed drain re-drives its cancellations on the account writer ahead of the reconciling and poisoned gate, alongside the abort the priority queue already drains there, because a gated reconnect is the very window a crashed abort resumes into
+- Fix a confirmed-naked bracket raising before its remediation: an initial, never-amended OCO is revision zero, which `ProtectionFailed` refuses, so the durable marker, the market flatten and the Nexus hold were all skipped and every later scan repeated the failure with the position unprotected. The revision is normalized inside [`_remediate_naked_bracket`](praxis/core/execution_manager.py) rather than at each caller, two of which passed it raw
+- Fix the terminal-protection handoff being in-memory only: a restart between the terminal dispatch and the watchdog's resolution left no unresolved phase to restore, so an open position came back with neither a tracked bracket nor a pending remediation. `ProtectionStateUnknown` is appended before the in-memory transition, naming the terminalized list as the candidate to re-query
+- Fix replay choosing the resumed slice timer by wall clock: the replay clock is constant within a bar, so a progress event sharing a stamp with a later amend won and restored the schedule the amend replaced. Selection compares durable spine sequence, which is the order that actually happened
+- Fix a failed boot leaving the children of a durable drain resting at the venue: the writer parks for good and never reaches the re-drive, so boot failure retires them itself, at the point where recovery has finished and nothing else owns the account
+- Fix the resumed-drain re-drive re-cancelling on every pass of the account loop, and retry it on a bounded interval instead: children that are merely settling are not re-cancelled, while a cancel the venue refused is re-sent once the interval elapses rather than waiting for the account to become order-capable
+- Fix `submit_command` accepting work an account can never execute: a poisoned account, or one whose startup failed and parked its writer, never dequeues its command queue, so the caller was told a command was accepted that produced no order and no outcome. Both states are refused before any durable state is written, matching the sibling paths, and a command already queued when the account dies is terminalized REJECTED so the decision layer learns its fate — covering startup failure, the loop observing itself poisoned, the loop dying outright, and an account that dies across the durable accept's own append
+- Fix the abort refusal keying on the wrong condition: a failed boot parks its writer, but a writer that dies sets only `poisoned`, so its aborts were accepted and never drained. Refusal now asks whether a writer is still running; a poisoned writer that is still ticking still takes aborts, since draining a risk-reducing abort is what it is for
+- Fix shutdown cancelling a recovery flatten: refusing a failed boot's abort sent every one of its commands to the direct cancellation pass, including the one whose MARKET order was closing a naked position. A working flatten is left to fill, identified by the client order id its `FlattenInitiated` recorded — kept when the event is appended and rebuilt from the spine on replay. Neither the shape of a command id, which a caller may supply verbatim, nor the presence of a live bracket, which a failed protection does not leave behind, decides it (TD-155)
+- Fix a failed boot leaving its user stream connected with nobody to read it, so fills, partials and rejects no longer arrive at a consumer that cannot process them
+- Fix the protection watchdog querying the same order list twice when both of its candidate ids are the same list
+- Fix an amended scheme resuming onto the schedule it replaced: persisting only the permission to run again let replay clear the freeze while rebuilding the original plan from `SchemeInitialized`, which executed a stale slice and terminalized FILLED short of the target. The plan is carried with the permission, so the two cannot separate (TD-135)
+- Fix a bracket reporting live protection after its protective OCO reached a terminal state, by fill or by cancellation: the OCO carries the bracket's exit command id and a leg reports under its own, so neither resolved through the entry-keyed map and the bracket stayed ACTIVE and amendable with nothing resting at the venue. The list is now resolved through the leg-to-parent map and held STATE_UNKNOWN for the reconcile-tick watchdog, which re-queries the venue and re-tracks a list still working, closes the bracket when a leg filled, and remediates only a position it has confirmed naked — the local projection cannot size that flatten, since a cancellation can arrive before the sibling leg's fills project and would sell exposure the take-profit already closed
+- Fix shutdown skipping a failed-boot account's resting orders: `submit_abort` accepted an abort its parked writer would never drain, and shutdown then excluded those orders from the direct cancellation pass. The abort is refused, so the orders are cancelled directly
+- Fix a failed boot unparking the account writer in `finally` before cleanup, so a load-filters / reconcile / flatten failure cannot advance schemes or place protection
+- Fix a failed boot leaving its writer parked with no way to refuse work: the writer stays parked so a not-ready account still cannot advance schemes or place protection, but the account is marked boot-failed and `admit` refuses it, so the WebSocket reader and the reconcile tick learn the account is down instead of blocking forever on a future the parked writer will never resolve while the stream is up and a recovery flatten may already rest at the venue. The not-ready log now names the reason that actually applied rather than always blaming the orphan sweep
+- Fix `_reconcile_fills` swallowing a `VenueError` from `query_trades`, which let a reconnect pass report success and release the account to IDLE with venue fills it never recovered, oversizing a later flatten. It now propagates, matching the documented contract and the `query_order` path
+- Fix order-reconciliation swallowing `VenueError` from `query_order`, which let reconnect treat a failed pass as success and release IDLE
+- Fix repository-source links in [`TechnicalDebt.md`](docs/TechnicalDebt.md) so the documentation site passes strict link validation
+
+### Update
+
+- Refactor Binance request construction through `_ORDER_TYPE_SPECS`, preserving required-before-forbidden validation and rejecting a supplied MARKET price instead of silently dropping it
+- Refactor command and modify payload construction to derive accepted keys and tuple coercion from `PARAMS_FOR_MODE` and `MODIFY_PARAMS_FOR_MODE`
+- Refactor command registration into one `_CommandRegistration` record and run pre-registration failure cleanup through `_PreRegisteredSubmission.rollback`
+- Refactor reconciliation gates into `ReconcilePhase`, keeping disconnects, incomplete backfills, venue failures, and unexpected exits gated
+- Refactor replay inline fills to derive `ImmediateFill` from the recorded `VenueTrade`
+- Refactor scheme and ladder boot reconstruction to share one history fold while retaining separate initialization records
+- Refactor scheme holds into `_Hold` with explicit protection, slice-failure, and terminal-drain precedence
+- Refactor snapshot metric assembly into [`build_snapshot_result`](praxis/metrics/snapshot_result.py), sharing output keys, units, and rounding across the portfolio and Limen engines
+- Refactor the four Trading callback setters to share their startup guard and the launcher reconciliation routes to share runtime lookup
+- Refactor TWAP and Time DCA schedule construction and amendments to use the shared interval-slice parameter types
+- Update [`Event-Spine.md`](docs/Event-Spine.md) and [`Recovery-And-Reconciliation.md`](docs/Recovery-And-Reconciliation.md) for schema 4 and record the pre-existing partial-OCO replay limitation as TD-152 in [`TechnicalDebt.md`](docs/TechnicalDebt.md)
+- Update [`Execution-Manager.md`](docs/Execution-Manager.md) and [`Trade-Outcomes.md`](docs/Trade-Outcomes.md) with the v0.97.0 API migration and add the shared metric assembler contract in [`Metric-Snapshots.md`](docs/Metric-Snapshots.md)
+- Record TD-153 (`hold` vs `pending_terminal`) and TD-154 (ladder `amend_phase` strings) in [`TechnicalDebt.md`](docs/TechnicalDebt.md)

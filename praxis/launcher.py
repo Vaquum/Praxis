@@ -1552,9 +1552,9 @@ def _register_bracket_exit(
     trade id, on the side opposite the entry, for the entry quantity — lets
     the eventual protective fill reduce the position and release capital
     through the standard `OutcomeProcessor` exit path. Registration mirrors
-    the entry exactly (durable `append_delivery_context` plus the in-memory
-    `command_contexts` / `command_strategy_ids` registries under the registry
-    lock), so the exit context inherits the entry context's crash recovery.
+    the entry exactly (durable `append_delivery_context` plus an in-memory
+    `_CommandRegistration` under the registry lock), so the exit context
+    inherits the entry context's crash recovery.
 
     The exit `order_size` is the entry's planned size. This is exact for the
     current MARKET-only bracket entry, which fully fills before protection is
@@ -1588,15 +1588,16 @@ def _register_bracket_exit(
     )
     wiring.append_delivery_context(cmd.account_id, exit_context)
     with wiring.command_registry_lock:
-        wiring.command_strategy_ids[exit_command_id] = strategy_id
-        wiring.command_contexts[exit_command_id] = exit_context
+        wiring.command_registrations[exit_command_id] = _CommandRegistration(
+            strategy_id=strategy_id,
+            order_context=exit_context,
+        )
 
     return exit_command_id
 
 
 def _cleanup_bracket_exit_registration(
-    command_contexts: dict[str, OrderContext],
-    command_strategy_ids: dict[str, str],
+    command_registrations: dict[str, _CommandRegistration],
     command_registry_lock: threading.Lock,
     entry_command_id: str,
 ) -> None:
@@ -1606,21 +1607,19 @@ def _cleanup_bracket_exit_registration(
     (rejected, unfilled, or filled-then-flat) never places a protective
     OCO, so the protective-exit context pre-registered by
     `_register_bracket_exit` receives no outcome and would otherwise leak
-    one entry per failed bracket in both registries. Popping the derived
-    exit id is a no-op for a non-bracket entry, whose derived id was never
-    registered.
+    one registration per failed bracket. Popping the derived exit id is a
+    no-op for a non-bracket entry, whose derived id was never registered.
 
     Args:
-        command_contexts (dict[str, OrderContext]): OrderContext registry.
-        command_strategy_ids (dict[str, str]): strategy-id registry.
-        command_registry_lock (threading.Lock): guards both registries.
+        command_registrations (dict[str, _CommandRegistration]): The
+            command registration registry.
+        command_registry_lock (threading.Lock): guards the registry.
         entry_command_id (str): The terminated bracket entry command id.
     '''
 
     exit_command_id = bracket_exit_command_id(entry_command_id)
     with command_registry_lock:
-        command_contexts.pop(exit_command_id, None)
-        command_strategy_ids.pop(exit_command_id, None)
+        command_registrations.pop(exit_command_id, None)
 
 
 def _order_context_from_recorded(event: OutcomeDeliveryContextRecorded) -> OrderContext:
@@ -1857,6 +1856,38 @@ class _UnknownSubmission:
 
 
 @dataclass
+class _CommandRegistration:
+    '''In-flight registration state for one command, keyed by command_id.
+
+    Groups the three facets a live command carries — its owning strategy,
+    its routing `OrderContext`, and its unknown-handoff telemetry — into a
+    single record guarded by `command_registry_lock`, so the facets cannot
+    drift out of step (one popped while another lingers) and a reader
+    resolves them in one lookup.
+
+    The strategy mapping is registered first, before `send_command`, so
+    `order_context` is `None` until `_build_order_context` runs; a reader
+    seeing a record with `order_context is None` observes the intentional
+    pre-registration window (strategy known, context pending), distinct
+    from an entirely unknown command (no record). `unknown_submission` is
+    set only when a handoff times out and cleared on the first successful
+    outcome, while the record itself survives until terminal cleanup pops
+    it. Mutable by design: facets are attached and cleared in place under
+    the lock, never by replacing the record.
+
+    Args:
+        strategy_id: Owning strategy identifier.
+        order_context: Routing context once built, else `None`.
+        unknown_submission: Telemetry record while the handoff outcome is
+            unknown, else `None`.
+    '''
+
+    strategy_id: str
+    order_context: OrderContext | None = None
+    unknown_submission: _UnknownSubmission | None = None
+
+
+@dataclass
 class _PreRegisteredSubmission:
     '''Lifecycle handle for a command registered before outbound handoff.
 
@@ -1868,24 +1899,30 @@ class _PreRegisteredSubmission:
 
     The handle records exactly what it inserted so `rollback` is precise
     and idempotent. `mark_unknown` retains everything (the command may
-    still execute; a late outcome must resolve against it) and records
-    the command in `unknown_submissions` for the launcher's reconciler.
+    still execute; a late outcome must resolve against it) and stamps the
+    unknown-handoff telemetry onto the command's registration for the
+    launcher's reconciler. Both mutate the shared registration in place
+    under the lock and skip a registration already popped by rollback.
 
     Args:
         command_id: The deterministic command identity.
         strategy_id: Owning strategy.
-        command_strategy_ids: Registry the strategy mapping was inserted
-            into.
-        command_contexts: Registry the `OrderContext` was inserted into
-            (only when `context_registered`).
-        unknown_submissions: Registry that retains the command when the
-            handoff outcome is unknown.
+        command_registrations: Registry the command's `_CommandRegistration`
+            was inserted into; `rollback` pops it and `mark_unknown`
+            stamps its `unknown_submission`.
         capital_controller: For releasing the capital order on rollback.
-        lock: `command_registry_lock` guarding the registries.
+        lock: `command_registry_lock` guarding the registry.
         reservation_consumed: Whether `send_order` consumed the
             reservation into a capital order (so rollback releases the
             order, not the reservation).
-        context_registered: Whether an `OrderContext` was inserted.
+        registration_inserted: Whether this call created the command's
+            registration (vs finding one already present); rollback pops
+            the record only when this call inserted it, so a re-entrant
+            registration for a still-live command is never destroyed. A
+            re-entrant call therefore leaves the existing record's
+            `strategy_id` alone: rollback cannot restore what it did not
+            insert, so overwriting it would strip the live command's
+            attribution permanently on a failed second registration.
         action_type: `ENTER` or `EXIT`, recorded into the unknown record.
         symbol: Command symbol, recorded into the unknown record.
         side: `BUY` or `SELL`, recorded into the unknown record.
@@ -1898,13 +1935,11 @@ class _PreRegisteredSubmission:
 
     command_id: str
     strategy_id: str
-    command_strategy_ids: dict[str, str]
-    command_contexts: dict[str, OrderContext]
-    unknown_submissions: dict[str, _UnknownSubmission]
+    command_registrations: dict[str, _CommandRegistration]
     capital_controller: CapitalController
     lock: threading.Lock
     reservation_consumed: bool
-    context_registered: bool
+    registration_inserted: bool
     action_type: str
     symbol: str
     side: str
@@ -1931,7 +1966,9 @@ class _PreRegisteredSubmission:
         )
 
         with self.lock:
-            self.unknown_submissions[self.command_id] = record
+            registration = self.command_registrations.get(self.command_id)
+            if registration is not None:
+                registration.unknown_submission = record
 
     def rollback(self, error: BaseException) -> None:
         '''Undo every registration effect; idempotent.
@@ -1959,13 +1996,10 @@ class _PreRegisteredSubmission:
                 )
 
         with self.lock:
-            self.command_strategy_ids.pop(self.command_id, None)
-            if self.context_registered:
-                self.command_contexts.pop(self.command_id, None)
-            self.unknown_submissions.pop(self.command_id, None)
+            if self.registration_inserted:
+                self.command_registrations.pop(self.command_id, None)
             if self.bracket_exit_command_id is not None:
-                self.command_strategy_ids.pop(self.bracket_exit_command_id, None)
-                self.command_contexts.pop(self.bracket_exit_command_id, None)
+                self.command_registrations.pop(self.bracket_exit_command_id, None)
 
         _log.warning(
             'pre-registered submission rolled back',
@@ -1985,10 +2019,10 @@ class _PreRegisterWiring:
         pending_registrations: command_id -> (action, strategy_id, ctx),
             populated by the submitter's recording build_context so the
             callback can recover per-action metadata from `cmd` alone.
-        command_strategy_ids: strategy-id registry to insert into.
-        command_contexts: OrderContext registry to insert into.
-        unknown_submissions: registry retaining unknown-outcome commands.
-        command_registry_lock: lock guarding the three registries.
+        command_registrations: registry of `_CommandRegistration` by
+            command_id to register the strategy mapping and `OrderContext`
+            into and to retain the unknown-outcome telemetry.
+        command_registry_lock: lock guarding the registry.
         capital_controller: for `send_order` and rollback recovery.
         state: live InstanceState for position effects.
         positions_lock: guards position / pending_exit writes.
@@ -2002,9 +2036,7 @@ class _PreRegisterWiring:
     '''
 
     pending_registrations: dict[str, tuple[Action, str, ValidationRequestContext]]
-    command_strategy_ids: dict[str, str]
-    command_contexts: dict[str, OrderContext]
-    unknown_submissions: dict[str, _UnknownSubmission]
+    command_registrations: dict[str, _CommandRegistration]
     command_registry_lock: threading.Lock
     capital_controller: CapitalController
     state: InstanceState
@@ -2041,7 +2073,11 @@ def _make_pre_register(
         reservation_consumed = False
 
         with wiring.command_registry_lock:
-            wiring.command_strategy_ids[cmd.command_id] = strategy_id
+            registration = wiring.command_registrations.get(cmd.command_id)
+            registration_inserted = registration is None
+            if registration is None:
+                registration = _CommandRegistration(strategy_id=strategy_id)
+                wiring.command_registrations[cmd.command_id] = registration
 
             if decision.reservation is not None:
                 send_result = wiring.capital_controller.send_order(
@@ -2049,7 +2085,8 @@ def _make_pre_register(
                     cmd.command_id,
                 )
                 if not send_result.success:
-                    wiring.command_strategy_ids.pop(cmd.command_id, None)
+                    if registration_inserted:
+                        wiring.command_registrations.pop(cmd.command_id, None)
                     msg = (
                         f'send_order failed for {cmd.command_id}: '
                         f'{send_result.reason}'
@@ -2061,15 +2098,33 @@ def _make_pre_register(
         forced_trade_id: str | None = None
         bracket_exit_id: str | None = None
 
+        def _submission() -> _PreRegisteredSubmission:
+            return _PreRegisteredSubmission(
+                command_id=cmd.command_id,
+                strategy_id=strategy_id,
+                command_registrations=wiring.command_registrations,
+                capital_controller=wiring.capital_controller,
+                lock=wiring.command_registry_lock,
+                reservation_consumed=reservation_consumed,
+                registration_inserted=registration_inserted,
+                action_type=action.action_type.value,
+                symbol=cmd.symbol,
+                side=cmd.side.value,
+                order_notional=cmd.notional,
+                now=wiring.now,
+                rollback_position=rollback_position,
+                bracket_exit_command_id=bracket_exit_id,
+            )
+
         # Once `send_order` consumed the reservation into a capital order,
         # every step below must be exception-safe: if one raises,
         # `submit_actions`' catch calls `_release_granted_reservation`,
         # which is a no-op for an already-consumed reservation — leaking
-        # the capital order and the `command_strategy_ids` entry until
-        # boot reconcile. Mirror `rollback` here (undo the position
-        # effect, recover the orphaned order, pop the registries) before
+        # the capital order and the registration entry until boot
+        # reconcile. Run the handle's own `rollback` here before
         # re-raising so the cleanup contract does not depend on these
-        # helpers staying raise-free.
+        # helpers staying raise-free, and so this path can never drift
+        # from the rollback the caller would have run.
         try:
             if action.action_type == ActionType.ENTER:
                 forced_trade_id = cmd.command_id
@@ -2122,12 +2177,12 @@ def _make_pre_register(
                 forced_trade_id=forced_trade_id,
             )
 
-            context_registered = order_context is not None
-
             if order_context is not None:
                 wiring.append_delivery_context(cmd.account_id, order_context)
                 with wiring.command_registry_lock:
-                    wiring.command_contexts[cmd.command_id] = order_context
+                    registration = wiring.command_registrations.get(cmd.command_id)
+                    if registration is not None:
+                        registration.order_context = order_context
 
                 if (
                     action.action_type == ActionType.ENTER
@@ -2136,44 +2191,15 @@ def _make_pre_register(
                     bracket_exit_id = _register_bracket_exit(
                         wiring, cmd, order_context, strategy_id,
                     )
-        except BaseException:
+        except BaseException as exc:
             # BaseException, not Exception: a CancelledError after
             # `send_order` must still run the capital-recovery cleanup, or
             # the consumed reservation leaks. The cleanup re-raises, so
             # KeyboardInterrupt / SystemExit are not swallowed.
-            if rollback_position is not None:
-                rollback_position()
-            if reservation_consumed:
-                wiring.capital_controller.recover_orphaned_order(
-                    cmd.command_id,
-                    'submit_failed',
-                )
-            with wiring.command_registry_lock:
-                wiring.command_strategy_ids.pop(cmd.command_id, None)
-                wiring.command_contexts.pop(cmd.command_id, None)
-                if bracket_exit_id is not None:
-                    wiring.command_strategy_ids.pop(bracket_exit_id, None)
-                    wiring.command_contexts.pop(bracket_exit_id, None)
+            _submission().rollback(exc)
             raise
 
-        return _PreRegisteredSubmission(
-            command_id=cmd.command_id,
-            strategy_id=strategy_id,
-            command_strategy_ids=wiring.command_strategy_ids,
-            command_contexts=wiring.command_contexts,
-            unknown_submissions=wiring.unknown_submissions,
-            capital_controller=wiring.capital_controller,
-            lock=wiring.command_registry_lock,
-            reservation_consumed=reservation_consumed,
-            context_registered=context_registered,
-            action_type=action.action_type.value,
-            symbol=cmd.symbol,
-            side=cmd.side.value,
-            order_notional=cmd.notional,
-            now=wiring.now,
-            rollback_position=rollback_position,
-            bracket_exit_command_id=bracket_exit_id,
-        )
+        return _submission()
 
     return pre_register
 
@@ -2181,20 +2207,22 @@ def _make_pre_register(
 class _UnknownSubmissionMonitor:
     '''Periodically warn about commands stuck in SUBMISSION_UNKNOWN.
 
-    A command lands in `unknown_submissions` when its `send_command`
-    handoff timed out: the command may still be executing at the venue,
-    so the registration is retained and a late outcome will clear it
-    (`process_outcome` pops on the first successfully-processed outcome,
-    including ACK). This monitor surfaces the ones that never clear —
-    telemetry only, no venue query and no forced release.
+    A command's registration carries an `unknown_submission` when its
+    `send_command` handoff timed out: the command may still be executing
+    at the venue, so the registration is retained and a late outcome
+    clears the field (`process_outcome` clears it on the first
+    successfully-processed outcome, including ACK). This monitor surfaces
+    the ones that never clear — telemetry only, no venue query and no
+    forced release.
 
     Mirrors `SnapshotScheduler`'s `threading.Timer` cadence because the
-    `unknown_submissions` registry is guarded by `command_registry_lock`
+    `command_registrations` registry is guarded by `command_registry_lock`
     (a `threading.Lock`) and written from the `OutcomeLoop` worker
     thread.
 
     Args:
-        unknown_submissions: The launcher's unknown-submission registry.
+        command_registrations: The launcher's command registration
+            registry, scanned for entries carrying an `unknown_submission`.
         lock: `command_registry_lock` guarding the registry.
         now: Wall-clock UTC provider for age computation.
         warn_seconds: Age above which a command is reported.
@@ -2203,13 +2231,13 @@ class _UnknownSubmissionMonitor:
 
     def __init__(
         self,
-        unknown_submissions: dict[str, _UnknownSubmission],
+        command_registrations: dict[str, _CommandRegistration],
         lock: threading.Lock,
         now: Callable[[], datetime],
         warn_seconds: float,
         scan_seconds: float,
     ) -> None:
-        self._unknown_submissions = unknown_submissions
+        self._command_registrations = command_registrations
         self._lock = lock
         self._now = now
         self._warn_seconds = warn_seconds
@@ -2250,9 +2278,11 @@ class _UnknownSubmissionMonitor:
 
         with self._lock:
             aged = [
-                record
-                for record in self._unknown_submissions.values()
-                if (now - record.created_at).total_seconds() >= self._warn_seconds
+                registration.unknown_submission
+                for registration in self._command_registrations.values()
+                if registration.unknown_submission is not None
+                and (now - registration.unknown_submission.created_at).total_seconds()
+                >= self._warn_seconds
             ]
 
         if not aged:
@@ -2633,16 +2663,16 @@ class _AccountOutcomeWiring:
     stale `state.positions`.
 
     A regular (non-frozen) dataclass, matching `_NexusRuntime`: the
-    grouped members (`command_contexts`, `unpersisted_commands`, the
+    grouped members (`command_registrations`, `unpersisted_commands`, the
     lock) are themselves mutable and mutated through this container,
     which carries them by reference.
 
     Args:
         outcome_processor: The account's Nexus outcome processor.
-        command_contexts: Registry of in-flight `OrderContext`s by
-            command_id, shared with the submitter and `process_outcome`.
-        command_registry_lock: Lock guarding `command_contexts`,
-            `command_strategy_ids`, and `unpersisted_commands`.
+        command_registrations: Registry of in-flight `_CommandRegistration`
+            by command_id, shared with the submitter and `process_outcome`.
+        command_registry_lock: Lock guarding `command_registrations` and
+            `unpersisted_commands`.
         unpersisted_commands: Command ids whose in-memory mutation has
             not yet been durably persisted, each mapped to the
             generation stamped at its most recent marking. The
@@ -2667,22 +2697,17 @@ class _AccountOutcomeWiring:
             the discard would drop the unpersisted mutation.
         pending_generation: Monotonic counter feeding the generation
             stamps. Guarded by `command_registry_lock`.
-        account_id: The owning account, for skip telemetry.
-        command_strategy_ids: Registry of command_id to strategy_id,
-            shared with the submitter and the `OutcomeLoop`'s
-            `resolve_strategy_id`, and guarded by
-            `command_registry_lock` like the other registries. Read
-            here only for skip telemetry — whether a missing
-            `OrderContext` coincides with a missing strategy mapping
-            distinguishes the pre-registration race from a genuinely
-            unknown command.
+        account_id: The owning account, for skip telemetry. The strategy
+            mapping shares the `_CommandRegistration` read for skip
+            telemetry — whether a missing `OrderContext` coincides with a
+            missing registration distinguishes the pre-registration race
+            from a genuinely unknown command.
     '''
 
     outcome_processor: OutcomeProcessor
-    command_contexts: dict[str, OrderContext]
+    command_registrations: dict[str, _CommandRegistration]
     command_registry_lock: threading.Lock
     account_id: str
-    command_strategy_ids: dict[str, str]
     unpersisted_commands: dict[str, int] = field(default_factory=dict)
     pending_generation: int = 0
 
@@ -2766,6 +2791,17 @@ class Launcher:
         )
         self._outcome_queues: dict[str, queue.Queue[NexusTradeOutcome]] = {}
         self._outcome_translator = OutcomeTranslator(fee_rate=_DEFAULT_FEE_RATE)
+        # Two maps because they answer two questions with different answers
+        # in time, not one map written twice. The wiring says an account can
+        # be accounted for: it is published before the startup actions drain,
+        # inside the build, and stays available while Trading can still
+        # deliver a fill, which is past the shutdown sequencer. Membership of
+        # the runtimes says an account can be reached: only once the build has
+        # returned, so reconciliation and the ops endpoints never touch a
+        # half-built account, and removed before teardown, so nothing looks
+        # one up again while it is being dismantled — a caller already holding
+        # a reference keeps it. Collapsing them into one slot loses whichever
+        # edge it is published on.
         self._account_outcome_wiring: dict[str, _AccountOutcomeWiring] = {}
         self._account_outcome_wiring_lock = threading.Lock()
         self._nexus_runtimes: dict[str, _NexusRuntime] = {}
@@ -2850,10 +2886,11 @@ class Launcher:
         '''
 
         with wiring.command_registry_lock:
-            order_context = wiring.command_contexts.get(nexus_outcome.command_id)
-            has_strategy_mapping = (
-                nexus_outcome.command_id in wiring.command_strategy_ids
+            registration = wiring.command_registrations.get(nexus_outcome.command_id)
+            order_context = (
+                registration.order_context if registration is not None else None
             )
+            has_strategy_mapping = registration is not None
 
         if order_context is None:
             _log.warning(
@@ -2961,15 +2998,9 @@ class Launcher:
             self._trading.set_on_trade_outcome(_composed)
 
         def _route_fund_transaction(praxis_fund: FundTransaction) -> None:
-            with self._nexus_runtimes_lock:
-                runtime = self._nexus_runtimes.get(praxis_fund.account_id)
-
-            if runtime is None:
-                msg = (
-                    f'no nexus runtime for account {praxis_fund.account_id!r}; '
-                    'fund transaction not delivered'
-                )
-                raise _NexusRuntimeNotReadyError(msg)
+            runtime = self._require_routable_runtime(
+                praxis_fund.account_id, 'fund transaction',
+            )
 
             runtime.outcome_processor.process_fund_transaction(
                 translate_fund_transaction(praxis_fund),
@@ -2978,15 +3009,9 @@ class Launcher:
         def _route_reconciliation_mismatch(
             praxis_mismatch: ReconciliationMismatch,
         ) -> None:
-            with self._nexus_runtimes_lock:
-                runtime = self._nexus_runtimes.get(praxis_mismatch.account_id)
-
-            if runtime is None:
-                msg = (
-                    f'no nexus runtime for account {praxis_mismatch.account_id!r}; '
-                    'reconciliation mismatch not delivered'
-                )
-                raise _NexusRuntimeNotReadyError(msg)
+            runtime = self._require_routable_runtime(
+                praxis_mismatch.account_id, 'reconciliation mismatch',
+            )
 
             runtime.reconciliation_handler.process_reconciliation_mismatch(
                 translate_reconciliation_mismatch(praxis_mismatch),
@@ -2995,15 +3020,9 @@ class Launcher:
         def _route_protection_remediation(
             remediation: ProtectionRemediation,
         ) -> None:
-            with self._nexus_runtimes_lock:
-                runtime = self._nexus_runtimes.get(remediation.account_id)
-
-            if runtime is None:
-                msg = (
-                    f'no nexus runtime for account {remediation.account_id!r}; '
-                    'protection remediation not delivered'
-                )
-                raise _NexusRuntimeNotReadyError(msg)
+            runtime = self._require_routable_runtime(
+                remediation.account_id, 'protection remediation',
+            )
 
             runtime.protection_remediation_handler.process_protection_remediation(
                 remediation,
@@ -3196,7 +3215,7 @@ class Launcher:
         Appended at submit time on the Nexus submitter thread, before the
         command is handed to `send_command`, so boot replay (TD-052) can
         rebuild the `OrderContext` for an unacked outcome after a restart —
-        the in-memory `command_contexts` map does not survive one. Unlike
+        the in-memory `command_registrations` map does not survive one. Unlike
         `_append_outcome_acked`, this RAISES on append failure so the caller
         aborts the submission (unwinding capital / registry state) rather
         than submitting a command whose outcome could never be replayed.
@@ -3916,6 +3935,42 @@ class Launcher:
 
         _log.info('shutdown complete')
 
+    def _require_routable_runtime(
+        self,
+        account_id: str,
+        undelivered: str,
+    ) -> _NexusRuntime:
+
+        '''Return the account's published runtime, or refuse to deliver.
+
+        The caller's raise reaches the Trading reconciliation loop, which
+        holds the event undelivered — leaving the seen-marker unset or the
+        cursor un-advanced — so an account still starting up retries on the
+        next cycle rather than losing the event.
+
+        Args:
+            account_id (str): Account the event is addressed to.
+            undelivered (str): What is not being delivered, for the message.
+
+        Returns:
+            _NexusRuntime: The account's published runtime.
+
+        Raises:
+            _NexusRuntimeNotReadyError: The account has no published runtime.
+        '''
+
+        with self._nexus_runtimes_lock:
+            runtime = self._nexus_runtimes.get(account_id)
+
+        if runtime is None:
+            msg = (
+                f'no nexus runtime for account {account_id!r}; '
+                f'{undelivered} not delivered'
+            )
+            raise _NexusRuntimeNotReadyError(msg)
+
+        return runtime
+
     def _run_nexus_instance(
         self,
         inst: InstanceConfig,
@@ -4144,9 +4199,7 @@ class Launcher:
                 outcome_processor=outcome_processor,
             )
 
-        command_strategy_ids: dict[str, str] = {}
-        command_contexts: dict[str, OrderContext] = {}
-        unknown_submissions: dict[str, _UnknownSubmission] = {}
+        command_registrations: dict[str, _CommandRegistration] = {}
 
         def submitter(actions: list[Action], strategy_id: str) -> None:
             # `pending_registrations` is per-call, not shared: `submitter`
@@ -4154,9 +4207,8 @@ class Launcher:
             # OutcomeLoop (separate threads, no shared submission lock), so a
             # module-scoped dict would race — a concurrent call clearing it
             # between this call's `recording_build_context` populate and
-            # `pre_register`'s lookup. The shared registries
-            # (`command_strategy_ids` / `command_contexts` /
-            # `unknown_submissions`) stay shared and are guarded by
+            # `pre_register`'s lookup. The shared registry
+            # (`command_registrations`) stays shared and is guarded by
             # `command_registry_lock`.
             pending_registrations: dict[
                 str, tuple[Action, str, ValidationRequestContext]
@@ -4181,9 +4233,7 @@ class Launcher:
                 _make_pre_register(
                     _PreRegisterWiring(
                         pending_registrations=pending_registrations,
-                        command_strategy_ids=command_strategy_ids,
-                        command_contexts=command_contexts,
-                        unknown_submissions=unknown_submissions,
+                        command_registrations=command_registrations,
                         command_registry_lock=command_registry_lock,
                         capital_controller=capital_controller,
                         state=state,
@@ -4221,7 +4271,11 @@ class Launcher:
                     continue
 
                 with command_registry_lock:
-                    command_strategy_ids[outcome.command_id] = strategy_id
+                    registration = command_registrations.get(outcome.command_id)
+                    registration_inserted = registration is None
+                    if registration is None:
+                        registration = _CommandRegistration(strategy_id=strategy_id)
+                        command_registrations[outcome.command_id] = registration
 
                     if (
                         outcome.decision is not None
@@ -4245,7 +4299,8 @@ class Launcher:
                                     'reason': send_result.reason,
                                 },
                             )
-                            command_strategy_ids.pop(outcome.command_id, None)
+                            if registration_inserted:
+                                command_registrations.pop(outcome.command_id, None)
                             continue
 
                     forced_trade_id: str | None = None
@@ -4269,11 +4324,12 @@ class Launcher:
                     )
 
                     if order_context is not None:
-                        command_contexts[outcome.command_id] = order_context
+                        registration.order_context = order_context
 
         def resolve_strategy_id(outcome: Any) -> str | None:
             with command_registry_lock:
-                return command_strategy_ids.get(outcome.command_id)
+                registration = command_registrations.get(outcome.command_id)
+                return registration.strategy_id if registration is not None else None
 
         outcome_processor = OutcomeProcessor(
             capital_controller=capital_controller,
@@ -4284,10 +4340,9 @@ class Launcher:
 
         wiring = _AccountOutcomeWiring(
             outcome_processor=outcome_processor,
-            command_contexts=command_contexts,
+            command_registrations=command_registrations,
             command_registry_lock=command_registry_lock,
             account_id=inst.account_id,
-            command_strategy_ids=command_strategy_ids,
         )
         with self._account_outcome_wiring_lock:
             self._account_outcome_wiring[inst.account_id] = wiring
@@ -4311,13 +4366,13 @@ class Launcher:
                 )
             else:
                 with command_registry_lock:
-                    unknown_submissions.pop(outcome.command_id, None)
+                    registration = command_registrations.get(outcome.command_id)
+                    if registration is not None:
+                        registration.unknown_submission = None
 
             if outcome.outcome_type.is_terminal:
                 with command_registry_lock:
-                    command_contexts.pop(outcome.command_id, None)
-                    command_strategy_ids.pop(outcome.command_id, None)
-                    unknown_submissions.pop(outcome.command_id, None)
+                    command_registrations.pop(outcome.command_id, None)
                 entry_closed_without_position = False
                 if (
                     order_context.is_entry
@@ -4330,8 +4385,7 @@ class Launcher:
                             entry_closed_without_position = True
                 if entry_closed_without_position:
                     _cleanup_bracket_exit_registration(
-                        command_contexts,
-                        command_strategy_ids,
+                        command_registrations,
                         command_registry_lock,
                         outcome.command_id,
                     )
@@ -4407,7 +4461,10 @@ class Launcher:
 
         def process_outcome(outcome: NexusTradeOutcome) -> None:
             with command_registry_lock:
-                order_context = command_contexts.get(outcome.command_id)
+                registration = command_registrations.get(outcome.command_id)
+                order_context = (
+                    registration.order_context if registration is not None else None
+                )
 
             if order_context is None:
                 _log.warning(
@@ -4416,9 +4473,7 @@ class Launcher:
                 )
                 if outcome.outcome_type.is_terminal:
                     with command_registry_lock:
-                        command_contexts.pop(outcome.command_id, None)
-                        command_strategy_ids.pop(outcome.command_id, None)
-                        unknown_submissions.pop(outcome.command_id, None)
+                        command_registrations.pop(outcome.command_id, None)
                     recover_result = capital_controller.recover_orphaned_order(
                         outcome.command_id,
                         outcome.outcome_type.value,
@@ -4563,7 +4618,7 @@ class Launcher:
             _DEFAULT_UNKNOWN_SUBMISSION_SCAN_SECONDS,
         )
         unknown_submission_monitor = _UnknownSubmissionMonitor(
-            unknown_submissions=unknown_submissions,
+            command_registrations=command_registrations,
             lock=command_registry_lock,
             now=self._clock,
             warn_seconds=unknown_warn_seconds,

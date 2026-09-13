@@ -28,7 +28,7 @@ from praxis.core.domain.single_shot_modify import SingleShotModify
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.domain.trade_modify import TradeModify
-from praxis.core.domain.twap_modify import TwapModify
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
 from praxis.core.validate_trade_modify import validate_trade_modify
 
 _TS = datetime(2099, 1, 1, tzinfo=UTC)
@@ -91,7 +91,7 @@ class TestValidateTradeModify:
 
         with pytest.raises(ValueError, match='does not match execution mode'):
             validate_trade_modify(
-                _modify(modify_params=TwapModify(interval_seconds=30)),
+                _modify(modify_params=IntervalSliceModify(interval_seconds=30)),
                 commands,
                 set(),
             )

@@ -13,28 +13,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import numpy as np
 import polars as pl
 
+from praxis.metrics.metric_conventions import BPS_PER_UNIT, SECONDS_PER_DAY
 from praxis.metrics.metric_step import MetricStep
-from praxis.metrics.percentiles import finite_values, quantile_triple
+from praxis.metrics.snapshot_result import (
+    SNAPSHOT_METRIC_NAMES,
+    build_snapshot_result,
+)
 
 __all__ = ['SNAPSHOT_METRIC_NAMES', 'snapshot_metrics']
-
-_BPS_PER_UNIT = 10_000.0
-_DURATION_DECIMALS = 3
-_CVAR_QUANTILE = 0.05
-
-SNAPSHOT_METRIC_NAMES = (
-    'edge_per_signal_bps',
-    'trade_pnl_net_bps',
-    'cost_drag_bps',
-    'rolling_return_net_bps',
-    'return_on_exposure',
-    'drawdown_depth_bps',
-    'drawdown_duration_days',
-    'cvar_95_return_bps',
-)
 
 
 def snapshot_metrics(
@@ -56,38 +44,20 @@ def snapshot_metrics(
         single `cvar_95_return_bps`. Missing values are `None`.
     '''
 
-    edge_per_signal = [s.gross_return * _BPS_PER_UNIT for s in steps if s.in_position]
+    edge_per_signal = [s.gross_return * BPS_PER_UNIT for s in steps if s.in_position]
     trade_net, trade_gross = _trade_runs(steps)
-
-    trade_pnl_net_bps = [v * _BPS_PER_UNIT for v in trade_net]
-    cost_drag_bps = [(g - n) * _BPS_PER_UNIT for g, n in zip(trade_gross, trade_net, strict=True)]
     rolling_return_net_bps, return_on_exposure = _clock_window_returns(steps, clock_window)
     drawdown_depth_bps, drawdown_duration_days = _drawdown_episodes(steps)
 
-    triples: dict[str, Sequence[float | None]] = {
-        'edge_per_signal_bps': edge_per_signal,
-        'trade_pnl_net_bps': trade_pnl_net_bps,
-        'cost_drag_bps': cost_drag_bps,
-        'rolling_return_net_bps': rolling_return_net_bps,
-        'return_on_exposure': return_on_exposure,
-        'drawdown_depth_bps': drawdown_depth_bps,
-    }
-
-    result: dict[str, float | None] = {}
-
-    for name, values in triples.items():
-        p5, p50, p95 = quantile_triple(values)
-        result[f'{name}_p5'] = p5
-        result[f'{name}_p50'] = p50
-        result[f'{name}_p95'] = p95
-
-    p5, p50, p95 = quantile_triple(drawdown_duration_days, decimals=_DURATION_DECIMALS)
-    result['drawdown_duration_days_p5'] = p5
-    result['drawdown_duration_days_p50'] = p50
-    result['drawdown_duration_days_p95'] = p95
-    result['cvar_95_return_bps'] = _cvar(rolling_return_net_bps)
-
-    return result
+    return build_snapshot_result(
+        edge_per_signal_bps=edge_per_signal,
+        trade_net=trade_net,
+        trade_gross=trade_gross,
+        rolling_return_net_bps=rolling_return_net_bps,
+        return_on_exposure=return_on_exposure,
+        drawdown_depth_bps=drawdown_depth_bps,
+        drawdown_duration_days=drawdown_duration_days,
+    )
 
 
 def _trade_runs(steps: Sequence[MetricStep]) -> tuple[list[float], list[float]]:
@@ -150,9 +120,9 @@ def _clock_window_returns(
         pl.col('in_position').mean().alias('exposure'),
     )
 
-    rolling_bps = [value * _BPS_PER_UNIT for value in windowed['window_return']]
+    rolling_bps = [value * BPS_PER_UNIT for value in windowed['window_return']]
     return_on_exposure = [
-        window_return / exposure * _BPS_PER_UNIT if exposure > 0 else None
+        window_return / exposure * BPS_PER_UNIT if exposure > 0 else None
         for window_return, exposure in zip(
             windowed['window_return'], windowed['exposure'], strict=True,
         )
@@ -189,24 +159,14 @@ def _drawdown_episodes(steps: Sequence[MetricStep]) -> tuple[list[float], list[f
             trough = min(trough, drawdown)
 
         elif in_drawdown:
-            depths_bps.append(trough * _BPS_PER_UNIT)
-            durations_days.append((step.timestamp - start_time).total_seconds() / 86_400.0)
+            depths_bps.append(trough * BPS_PER_UNIT)
+            durations_days.append(
+                (step.timestamp - start_time).total_seconds() / SECONDS_PER_DAY,
+            )
             in_drawdown = False
             trough = 0.0
 
     if in_drawdown:
-        depths_bps.append(trough * _BPS_PER_UNIT)
+        depths_bps.append(trough * BPS_PER_UNIT)
 
     return depths_bps, durations_days
-
-
-def _cvar(rolling_return_net_bps: Sequence[float]) -> float | None:
-
-    values = finite_values(rolling_return_net_bps)
-
-    if values.size == 0:
-        return None
-
-    cutoff = np.quantile(values, _CVAR_QUANTILE, method='linear')
-
-    return round(float(values[values <= cutoff].mean()), 1)

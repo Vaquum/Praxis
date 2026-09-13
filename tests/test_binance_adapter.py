@@ -1087,6 +1087,104 @@ class TestBuildOrderParams:
                 stop_price=Decimal('49000'),
             )
 
+    def test_iceberg_on_unsupported_type_reports_iceberg_not_the_type(self) -> None:
+        '''The iceberg guard runs before the type lookup, so a type that is
+        both unsupported here and given an iceberg is told about the iceberg —
+        the thing the caller actually got wrong.'''
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='iceberg_qty is only supported for LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.OCO, Decimal('1.0'),
+                iceberg_qty=Decimal('0.5'),
+            )
+
+    def test_empty_time_in_force_falls_back_to_gtc(self) -> None:
+
+        adapter = _make_adapter()
+        params = adapter._build_order_params(
+            'BTCUSDT', OrderSide.BUY, OrderType.LIMIT, Decimal('1.0'),
+            price=Decimal('50000'), time_in_force='',
+        )
+
+        assert params['timeInForce'] == 'GTC'
+
+    def test_market_rejects_price(self) -> None:
+        '''A price on a MARKET order is meaningless, and the domain already
+        refuses one: Order.__post_init__ requires price be None for MARKET.
+        The builder used to accept and silently drop it.'''
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported for MARKET'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.MARKET, Decimal('1.0'),
+                price=Decimal('50000'),
+            )
+
+    def test_missing_required_reported_before_unsupported(self) -> None:
+        '''A type missing the trigger it needs reports that, not the price it
+        merely refuses to carry: required fields are checked before forbidden
+        ones, so the caller learns what to supply rather than what to drop.'''
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for STOP'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.STOP, Decimal('1.0'),
+                price=Decimal('50000'),
+            )
+
+    def test_take_profit_requires_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is required for TAKE_PROFIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.TAKE_PROFIT, Decimal('1.0'),
+            )
+
+    def test_tp_limit_requires_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is required for TP_LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.SELL, OrderType.TP_LIMIT, Decimal('1.0'),
+                stop_price=Decimal('49000'),
+            )
+
+    def test_limit_rejects_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is not supported for LIMIT'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.LIMIT, Decimal('1.0'),
+                price=Decimal('50000'), stop_price=Decimal('49000'),
+            )
+
+    def test_limit_ioc_rejects_stop_price(self) -> None:
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='stop_price is not supported for LIMIT_IOC'):
+            adapter._build_order_params(
+                'BTCUSDT', OrderSide.BUY, OrderType.LIMIT_IOC, Decimal('1.0'),
+                price=Decimal('50000'), stop_price=Decimal('49000'),
+            )
+
+    def test_conditional_limits_honour_custom_time_in_force(self) -> None:
+
+        adapter = _make_adapter()
+        stop_limit = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.STOP_LIMIT, Decimal('1.0'),
+            price=Decimal('48000'), stop_price=Decimal('49000'),
+            time_in_force='FOK',
+        )
+        tp_limit = adapter._build_order_params(
+            'BTCUSDT', OrderSide.SELL, OrderType.TP_LIMIT, Decimal('1.0'),
+            price=Decimal('52000'), stop_price=Decimal('51000'),
+            time_in_force='FOK',
+        )
+
+        assert stop_limit['timeInForce'] == 'FOK'
+        assert tp_limit['timeInForce'] == 'FOK'
+
     def test_client_order_id_included(self) -> None:
 
         adapter = _make_adapter()
@@ -1199,6 +1297,24 @@ class TestBuildQuoteNativeMarketParams:
                     OrderType.MARKET,
                     Decimal('0.001'),
                     quote_qty=Decimal('100'),
+                    client_order_id='x',
+                ),
+            )
+
+    def test_submit_order_base_qty_market_rejects_price(self) -> None:
+        '''The quote-native path already refused a price; the base-quantity
+        path forwarded it to the builder, which dropped it.'''
+
+        adapter = _make_adapter()
+        with pytest.raises(ValueError, match='price is not supported for MARKET'):
+            asyncio.run(
+                adapter.submit_order(
+                    _ACCOUNT_ID,
+                    'BTCUSDT',
+                    OrderSide.BUY,
+                    OrderType.MARKET,
+                    Decimal('0.001'),
+                    price=Decimal('50000'),
                     client_order_id='x',
                 ),
             )
@@ -2803,6 +2919,26 @@ class TestParseExecutionReport:
         result = adapter.parse_execution_report(data)
         assert result.execution_type == ExecutionType.CANCELED
         assert result.order_status == OrderStatus.CANCELED
+
+    def test_non_trade_report_strips_fill_fields(self) -> None:
+        '''The payload here still carries the TRADE fixture's fill data, which
+        a non-TRADE report has no execution to justify. The running total
+        survives so a cancel after a partial still reports what filled.'''
+
+        adapter = _make_adapter()
+        data = dict(_BINANCE_EXECUTION_REPORT_TRADE)
+        data['x'] = 'CANCELED'
+        data['X'] = 'CANCELED'
+
+        result = adapter.parse_execution_report(data)
+
+        assert result.last_filled_qty == Decimal('0')
+        assert result.last_filled_price == Decimal('0')
+        assert result.commission == Decimal('0')
+        assert result.commission_asset is None
+        assert result.venue_trade_id is None
+        assert result.is_maker is False
+        assert result.cumulative_filled_qty == Decimal('0.5')
 
     def test_replaced_order(self) -> None:
 

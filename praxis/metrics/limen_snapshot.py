@@ -14,31 +14,23 @@ from datetime import datetime
 
 import numpy as np
 
-from praxis.metrics.percentiles import finite_values, quantile_triple
+from praxis.metrics.metric_conventions import BPS_PER_UNIT, SECONDS_PER_DAY
+from praxis.metrics.snapshot_result import (
+    SNAPSHOT_METRIC_NAMES,
+    build_snapshot_result,
+)
 
 __all__ = ['LIMEN_SNAPSHOT_METRIC_NAMES', 'limen_snapshot']
 
-_BPS_PER_UNIT = 10_000.0
+# The Limen basis publishes the same schema as the portfolio basis; the name
+# is kept so a reader of this module sees which metrics it emits.
+LIMEN_SNAPSHOT_METRIC_NAMES = SNAPSHOT_METRIC_NAMES
+
 _DEFAULT_FEE_BPS = 5.0
 _DEFAULT_SLIP_BPS = 5.0
 _DEFAULT_LAG = 1
-_DURATION_DECIMALS = 3
-_CVAR_QUANTILE = 0.05
-_SECONDS_PER_DAY = 86_400.0
 _PRICE_CHANGE_RTOL = 1e-09
 _PRICE_CHANGE_ATOL = 1e-12
-
-LIMEN_SNAPSHOT_METRIC_NAMES = (
-    'edge_per_signal_bps',
-    'trade_pnl_net_bps',
-    'cost_drag_bps',
-    'rolling_return_net_bps',
-    'return_on_exposure',
-    'drawdown_depth_bps',
-    'drawdown_duration_days',
-    'cvar_95_return_bps',
-)
-
 
 def _shift(values: np.ndarray, periods: int, fill: float) -> np.ndarray:
 
@@ -158,8 +150,8 @@ def limen_snapshot(
     r_gross = np.where(entry_mask, r_entry, 0.0) + np.where(cont_mask, r_cont, 0.0)
     r_gross = np.where(np.isnan(r_gross), 0.0, r_gross)
 
-    fee = fee_bps / _BPS_PER_UNIT
-    slip = slip_bps / _BPS_PER_UNIT
+    fee = fee_bps / BPS_PER_UNIT
+    slip = slip_bps / BPS_PER_UNIT
     cost_mult = np.ones(size)
     cost_mult[entry_mask] *= (1.0 - fee) / (1.0 + slip)
     cost_mult[exit_mask] *= (1.0 - fee) * (1.0 - slip)
@@ -170,9 +162,7 @@ def limen_snapshot(
 
     trade_net, trade_gross = _trade_runs(pos, entry_mask, r_net, r_gross)
 
-    edge_per_signal = [float(v * _BPS_PER_UNIT) for v in r_gross[pos]]
-    trade_pnl_net_bps = [v * _BPS_PER_UNIT for v in trade_net]
-    cost_drag_bps = [(g - n) * _BPS_PER_UNIT for g, n in zip(trade_gross, trade_net, strict=True)]
+    edge_per_signal = [float(v * BPS_PER_UNIT) for v in r_gross[pos]]
     rolling_return_net_bps, return_on_exposure = _clock_window_returns(
         datetimes, eval_mask, pos, r_net,
     )
@@ -180,29 +170,15 @@ def limen_snapshot(
         eq_net, eval_mask, datetimes,
     )
 
-    result: dict[str, float | None] = {}
-    triples: dict[str, Sequence[float | None]] = {
-        'edge_per_signal_bps': edge_per_signal,
-        'trade_pnl_net_bps': trade_pnl_net_bps,
-        'cost_drag_bps': cost_drag_bps,
-        'rolling_return_net_bps': rolling_return_net_bps,
-        'return_on_exposure': return_on_exposure,
-        'drawdown_depth_bps': drawdown_depth_bps,
-    }
-
-    for name, values in triples.items():
-        p5, p50, p95 = quantile_triple(values)
-        result[f'{name}_p5'] = p5
-        result[f'{name}_p50'] = p50
-        result[f'{name}_p95'] = p95
-
-    p5, p50, p95 = quantile_triple(drawdown_duration_days, decimals=_DURATION_DECIMALS)
-    result['drawdown_duration_days_p5'] = p5
-    result['drawdown_duration_days_p50'] = p50
-    result['drawdown_duration_days_p95'] = p95
-    result['cvar_95_return_bps'] = _cvar(rolling_return_net_bps)
-
-    return result
+    return build_snapshot_result(
+        edge_per_signal_bps=edge_per_signal,
+        trade_net=trade_net,
+        trade_gross=trade_gross,
+        rolling_return_net_bps=rolling_return_net_bps,
+        return_on_exposure=return_on_exposure,
+        drawdown_depth_bps=drawdown_depth_bps,
+        drawdown_duration_days=drawdown_duration_days,
+    )
 
 
 def _trade_runs(
@@ -250,9 +226,9 @@ def _clock_window_returns(
         rows = windows[key]
         window_return = float(np.prod([1.0 + r_net[i] for i in rows]) - 1.0)
         exposure = float(np.mean([1.0 if pos[i] else 0.0 for i in rows]))
-        rolling_bps.append(window_return * _BPS_PER_UNIT)
+        rolling_bps.append(window_return * BPS_PER_UNIT)
         return_on_exposure.append(
-            window_return / exposure * _BPS_PER_UNIT if exposure > 0 else None,
+            window_return / exposure * BPS_PER_UNIT if exposure > 0 else None,
         )
 
     return rolling_bps, return_on_exposure
@@ -290,24 +266,12 @@ def _drawdown_episodes(
             trough = min(trough, drawdown)
 
         elif in_drawdown:
-            depths_bps.append(trough * _BPS_PER_UNIT)
-            durations_days.append((moment - start_time).total_seconds() / _SECONDS_PER_DAY)
+            depths_bps.append(trough * BPS_PER_UNIT)
+            durations_days.append((moment - start_time).total_seconds() / SECONDS_PER_DAY)
             in_drawdown = False
             trough = 0.0
 
     if in_drawdown:
-        depths_bps.append(trough * _BPS_PER_UNIT)
+        depths_bps.append(trough * BPS_PER_UNIT)
 
     return depths_bps, durations_days
-
-
-def _cvar(rolling_return_net_bps: Sequence[float]) -> float | None:
-
-    values = finite_values(rolling_return_net_bps)
-
-    if values.size == 0:
-        return None
-
-    cutoff = np.quantile(values, _CVAR_QUANTILE, method='linear')
-
-    return round(float(values[values <= cutoff].mean()), 1)

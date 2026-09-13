@@ -126,20 +126,20 @@ When a duplicate Praxis terminal outcome arrives for a `command_id` that has alr
 **Severity**: Low (transient, no current consumer trips it)
 **Module**: `praxis/launcher.py:1500-1533`
 
-`process_outcome` releases `command_registry_lock` (after popping `command_contexts` / `command_strategy_ids`) and then re-acquires `positions_lock` to delete the position. A predict tick that runs between the two acquisitions sees a position whose strategy-id mapping has already been popped. Today the strategy-context build path filters positions by `strategy_id` independently of the registry, so the worst case is a tick that briefly observes a position that's about to be removed — benign for current consumers.
+`process_outcome` releases `command_registry_lock` (after popping the command's `command_registrations` record, formerly the parallel `command_contexts` / `command_strategy_ids` maps) and then re-acquires `positions_lock` to delete the position. A predict tick that runs between the two acquisitions sees a position whose strategy-id mapping has already been popped. Today the strategy-context build path filters positions by `strategy_id` independently of the registry, so the worst case is a tick that briefly observes a position that's about to be removed — benign for current consumers.
 
-**When to fix**: If a future code path resolves positions through `command_strategy_ids`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
+**When to fix**: If a future code path resolves positions through the registration's `strategy_id`, OR if the registry pop and the position deletion need to be atomic for crash-consistency reasons.
 **Migration**: Hold a single shared lock through both mutations, OR adopt a single per-account state lock and drop the two-lock split entirely.
 
 ---
 
-## TD-029: `command_contexts` and `command_strategy_ids` leak when `_grow_position` / `_reduce_position` raises
+## TD-029: the command registration leaks when `_grow_position` / `_reduce_position` raises
 
 **Origin**: Round-14 8-pass aggregation
 **Severity**: Low (bounded; few raise sites)
 **Module**: `praxis/launcher.py` (`process_outcome` terminal-cleanup block after `outcome_processor.process(...)`); cross-repo `nexus/infrastructure/praxis_connector/outcome_processor.py:325-381` (raise sites)
 
-`process_outcome`'s registry purge (`command_contexts.pop` / `command_strategy_ids.pop`) sits behind `if outcome.outcome_type.is_terminal:` AFTER `outcome_processor.process(...)`. A `RuntimeError` from `_grow_position` (`outcome_processor.py:341, 348`) or `_reduce_position` (`:380, 386, 396`) unwinds the call site, skipping the purge. OutcomeLoop's outermost catch swallows it. Memory grows on each defective outcome.
+`process_outcome`'s registry purge (`command_registrations.pop`, formerly `command_contexts.pop` / `command_strategy_ids.pop`) sits behind `if outcome.outcome_type.is_terminal:` AFTER `outcome_processor.process(...)`. A `RuntimeError` from `_grow_position` (`outcome_processor.py:341, 348`) or `_reduce_position` (`:380, 386, 396`) unwinds the call site, skipping the purge. OutcomeLoop's outermost catch swallows it. Memory grows on each defective outcome.
 
 **When to fix**: When defective outcomes are observed in production (e.g., venue ID drift causing missing trade_id), OR when long-running deployments accumulate measurable memory growth.
 **Migration**: Wrap `outcome_processor.process(...)` in try/finally that unconditionally runs the registry purge for terminal types, OR couple with Nexus TD-048 (post-success exception path) for a unified fix.
@@ -483,7 +483,7 @@ Add tests covering: (1) rescue returns ImmediateFill tuple matching VenueTrade r
 **Severity**: Low (defense-in-depth; gated upstream by validator PRICE stage)
 **Module**: `praxis/launcher.py` (`_ensure_entry_position`); cross-repo: `nexus/infrastructure/praxis_connector/outcome_processor.py` (`_grow_position`)
 
-`_ensure_entry_position` logs a warning and returns when `ref_price is None` (the existing docstring justifies this as "logging the skip rather than raising keeps the submitter loop alive" on a branch that the validator PRICE stage is supposed to make unreachable). The submitter then registers `command_contexts[command_id] = order_context` — `_build_order_context` does not depend on `ref_price`. When the ENTER FILL arrives, `_handle_fill` ENTRY path: `order_fill` mutates capital (succeeds because the TrackedOrder is in WORKING state), then `_update_position_on_fill` → `_grow_position` raises `RuntimeError('entry fill for missing position')`. `OutcomeLoop` catches the exception and logs it. Net result: capital incremented (in_flight → position_notional) but no `Position` record in `state.positions` → drift between capital aggregates and positions.
+`_ensure_entry_position` logs a warning and returns when `ref_price is None` (the existing docstring justifies this as "logging the skip rather than raising keeps the submitter loop alive" on a branch that the validator PRICE stage is supposed to make unreachable). The submitter then attaches `order_context` to the command's `command_registrations` record — `_build_order_context` does not depend on `ref_price`. When the ENTER FILL arrives, `_handle_fill` ENTRY path: `order_fill` mutates capital (succeeds because the TrackedOrder is in WORKING state), then `_update_position_on_fill` → `_grow_position` raises `RuntimeError('entry fill for missing position')`. `OutcomeLoop` catches the exception and logs it. Net result: capital incremented (in_flight → position_notional) but no `Position` record in `state.positions` → drift between capital aggregates and positions.
 
 If an ENTER command is registered without a placeholder Position, a later ENTER fill can mutate `CapitalController` via `order_fill` and then raise in `_grow_position` because the position is missing. This leaves in-memory capital/position drift until restart. Today this is guarded by the validator PRICE stage (`_build_enter_context`'s no-price guard rejects the action before `_ensure_entry_position` runs), so the gap is defense-in-depth — only fires under a "deeper bug" path.
 
@@ -645,15 +645,15 @@ After v0.66.0 folded `EPOCH_ID` into the InstanceState path (`STATE_BASE / <acco
 
 **Origin**: Greybeard pre-PR review of `chore/bump-nexus-0.54.0-and-wire-schedulers` (v0.69.0 scheduler wiring)
 **Severity**: Low today (only BTCUSDT deployments shipped; the codebase carries `_DEFAULT_SYMBOL = 'BTCUSDT'` assumptions in many sites). Becomes a correctness blocker the day a manifest adds a second symbol.
-**Module**: [`praxis/launcher.py`](praxis/launcher.py) `_build_nexus_runtime`'s `mark_price_provider` closure
+**Module**: [`praxis/launcher.py`](../praxis/launcher.py) `_build_nexus_runtime`'s `mark_price_provider` closure
 
-The MTM `mark_price_provider` wraps the existing [`_last_close_from_poller`](praxis/launcher.py) which only knows about `BTCUSDT`. To preserve the strict-no-partial-writes contract on `MtmLoop`, the provider returns `None` for any other symbol; `MtmLoop` interprets `None` as "mark unavailable for this symbol" and aborts the entire tick without writing any unrealized P&L for any position (per [`mtm_loop.py:189-203`](https://github.com/Vaquum/Nexus/blob/bd61a0a60eefe8c55ef43719c72081193f66e097/nexus/core/mtm_loop.py) "stale marks are preferred over half-marked snapshots"). The day a manifest adds a non-BTCUSDT sensor that opens a position, every MTM tick will silently abort for the BTC positions too, leaving the open book unmarked indefinitely — risk gates running blind to the open book, exactly the failure mode Nexus #76 + Praxis v0.69.0 just closed.
+The MTM `mark_price_provider` wraps the existing [`_last_close_from_poller`](../praxis/launcher.py) which only knows about `BTCUSDT`. To preserve the strict-no-partial-writes contract on `MtmLoop`, the provider returns `None` for any other symbol; `MtmLoop` interprets `None` as "mark unavailable for this symbol" and aborts the entire tick without writing any unrealized P&L for any position (per [`mtm_loop.py:189-203`](https://github.com/Vaquum/Nexus/blob/bd61a0a60eefe8c55ef43719c72081193f66e097/nexus/core/mtm_loop.py) "stale marks are preferred over half-marked snapshots"). The day a manifest adds a non-BTCUSDT sensor that opens a position, every MTM tick will silently abort for the BTC positions too, leaving the open book unmarked indefinitely — risk gates running blind to the open book, exactly the failure mode Nexus #76 + Praxis v0.69.0 just closed.
 
 The only operator signal will be a per-tick WARN log (`MtmLoop: mark price unavailable; tick aborted`) emitted from inside Nexus; nothing in Praxis surfaces it as a metric or health-loop alert.
 
 **When to fix**: Before any deployment that adds a manifest entry for a symbol other than BTCUSDT. Catches forward-looking — the day this matters, the system silently degrades.
 
-**Migration**: Extend [`MainCache`](praxis/market_data_cache.py) and [`_last_close_from_poller`](praxis/launcher.py) (and downstream the Limen bundle layer + `_DEFAULT_SYMBOL` usage in [`praxis/launcher.py`](praxis/launcher.py)) to be per-symbol-keyed rather than BTCUSDT-only. Concretely: replace `_last_close_from_poller(self._poller, kline_sizes)` with a per-symbol lookup `self._poller.get_last_close(symbol, kline_size)` and either (a) wire a `symbol_to_kline_size` map from the manifest so the MTM provider can resolve symbol → kline → last close, or (b) standardise on a single kline size for MTM (e.g. 60s) and key purely by symbol. The MTM provider then returns the per-symbol last close instead of `None`, and `MtmLoop` ticks proceed for any subset of symbols that have a fresh cache entry. The "abort on `None`" semantics is still correct for any symbol whose cache is empty / stale — it's the silent BTCUSDT-only fallback that's the issue.
+**Migration**: Extend `MainCache` and [`_last_close_from_poller`](../praxis/launcher.py) (and downstream the Limen bundle layer + `_DEFAULT_SYMBOL` usage in [`praxis/launcher.py`](../praxis/launcher.py)) to be per-symbol-keyed rather than BTCUSDT-only. Concretely: replace `_last_close_from_poller(self._poller, kline_sizes)` with a per-symbol lookup `self._poller.get_last_close(symbol, kline_size)` and either (a) wire a `symbol_to_kline_size` map from the manifest so the MTM provider can resolve symbol → kline → last close, or (b) standardise on a single kline size for MTM (e.g. 60s) and key purely by symbol. The MTM provider then returns the per-symbol last close instead of `None`, and `MtmLoop` ticks proceed for any subset of symbols that have a fresh cache entry. The "abort on `None`" semantics is still correct for any symbol whose cache is empty / stale — it's the silent BTCUSDT-only fallback that's the issue.
 
 A defensive intermediate: add a per-account or boot-time assertion that every symbol referenced by the manifest's wired sensors is in `kline_sizes` AND has a working last-close lookup; refuse to boot otherwise. Catches the misconfiguration loudly rather than letting it surface as a slow degradation in MTM.
 
@@ -661,7 +661,7 @@ A defensive intermediate: add a per-account or boot-time assertion that every sy
 
 **Origin**: Greybeard pre-PR review of `feat/binsim-depth-replica-guards` (v0.70.0 binsim depth-replica guards)
 **Severity**: Low — operationally noisy but not a correctness issue
-**Module**: [`praxis/binsim/feed.py`](praxis/binsim/feed.py) — the `_log.info('depth poll succeeded', ...)` block after `book.replace` in `poll_once`
+**Module**: [`praxis/binsim/feed.py`](../praxis/binsim/feed.py) — the `_log.info('depth poll succeeded', ...)` block after `book.replace` in `poll_once`
 
 The per-poll INFO diagnostic added in v0.70.0 fires on every successful upstream poll, so the binsim container log gains roughly `86,400 lines/day` at the default `BINSIM_POLL_INTERVAL_MS=1000` cadence. The volume is what the post-mortem-visibility goal required — operators need a continuous timeseries of what binsim was serving to reconstruct future incidents — but error/anomaly-only logging would carry the bulk of the diagnostic signal at ~1% of the line volume, and the persistent volume bumps the container's `json-file` log driver through its `max-size=50m`, `max-file=5` rotation window faster than the underlying app events do.
 
@@ -673,7 +673,7 @@ The per-poll INFO diagnostic added in v0.70.0 fires on every successful upstream
 
 **Origin**: Greybeard pre-PR review of `feat/binsim-depth-replica-guards` (v0.70.0 binsim depth-replica guards)
 **Severity**: Low today (current upstream + buy-only deployment have asymmetric tolerance for bid-side thinness), elevated the day either condition changes
-**Module**: [`praxis/binsim/feed.py`](praxis/binsim/feed.py) — the `if ask_depth < self._min_top20_depth_btc or bid_depth < self._min_top20_depth_btc:` check in `poll_once`
+**Module**: [`praxis/binsim/feed.py`](../praxis/binsim/feed.py) — the `if ask_depth < self._min_top20_depth_btc or bid_depth < self._min_top20_depth_btc:` check in `poll_once`
 
 The magnitude floor applies `min_top20_depth_btc` to both `ask_depth` and `bid_depth` with `or`. The live upstream mirror shows a persistent ask/bid asymmetry — observed at `5.64 BTC ask top-20` vs `0.41 BTC bid top-20` during the v0.70.0 work — and the current deployment is buy-only (sells only on exit), so ask-side thinness is the operational risk and bid-side thinness is mostly cosmetic. With one symmetric threshold any future tightening of `BINSIM_MIN_TOP20_DEPTH_BTC` past the current bid-side depth (e.g. raising the floor to 0.5 BTC) would force every poll to reject on the bid side even when the ask side — the side actually walked by every buy entry order — is healthy.
 
@@ -693,7 +693,7 @@ Originally deferred during the v0.71.0 pre-PR Greybeard pass: the three `MATERIA
 
 **Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
 **Severity**: Low (`clickhouse_connect` documents internal connection-pool reconnection on transport failures; observed in prod-equivalent staging that a ClickHouse restart does not stall the mirror), elevated if a future driver version drops the auto-reconnect guarantee
-**Module**: [`observability/spine_mirror.py`](observability/spine_mirror.py) `main()` — `ch = clickhouse_connect.get_client(...)` called once at startup, then reused for every tick's `query` + `insert` for the process lifetime
+**Module**: [`observability/spine_mirror.py`](../observability/spine_mirror.py) `main()` — `ch = clickhouse_connect.get_client(...)` called once at startup, then reused for every tick's `query` + `insert` for the process lifetime
 
 The `clickhouse-connect` client is created exactly once in `main()` and never re-created. The library claims internal reconnection on broken-pipe / connection-reset, but the claim is not verified end-to-end against a `docker restart praxis-clickhouse`. Until the verification exists, a future driver bump or a corner-case transport failure could leave the mirror running with a permanently-dead client; the only signal would be every tick logging the same connection error and the backoff continuing forever.
 
@@ -705,7 +705,7 @@ The `clickhouse-connect` client is created exactly once in `main()` and never re
 
 **Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
 **Severity**: Low — currently survives the cold-start race via the mirror's `_RECOVERABLE_ERRORS` retry loop with exponential backoff; if `clickhouse_connect.get_client` or `_ensure_schema` raises during cold-start, the call site goes through `_backoff_seconds(consecutive_failures)` (doubling from 1s, clamped at 300s) and retries on the next iteration
-**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) — `praxis-spine-mirror.depends_on.praxis-clickhouse.condition: service_started` (and the same value on `praxis-grafana`)
+**Module**: [`observability/docker-compose.observability.yml`](../observability/docker-compose.observability.yml) — `praxis-spine-mirror.depends_on.praxis-clickhouse.condition: service_started` (and the same value on `praxis-grafana`)
 
 Compose's `service_started` condition fires when the container is up, not when ClickHouse's HTTP listener is accepting queries. The mirror's first-tick `_ensure_schema` race against ClickHouse boot is currently handled by the mirror's recoverable-error retry loop (TD-073 sibling), and Grafana's datasource provisioning happens lazily on first dashboard request so the same race is invisible. The mode is "works via retry"; a healthcheck-gated path would be "works by waiting".
 
@@ -717,13 +717,13 @@ Compose's `service_started` condition fires when the container is up, not when C
 
 **Origin**: Greybeard pre-PR review of `feat/observability-grafana-stack` (v0.71.0 observability stack)
 **Severity**: Low — operationally limiting, not a runtime defect; any host that puts Praxis state somewhere other than `/opt/praxis/state` (dev laptop, integration test rig, future multi-tenant deployment) needs an edit to the committed compose file
-**Module**: [`observability/docker-compose.observability.yml`](observability/docker-compose.observability.yml) `praxis-spine-mirror.volumes` — `- /opt/praxis/state:/spine:ro`
+**Module**: [`observability/docker-compose.observability.yml`](../observability/docker-compose.observability.yml) `praxis-spine-mirror.volumes` — `- /opt/praxis/state:/spine:ro`
 
 The bind-mount source is a hardcoded host path. The deployment convention happens to be `/opt/praxis/state` and the rest of the Praxis launcher / state-store code shares that assumption, but the observability stack is the only Praxis surface that wires it in via a Compose file. A future move to `/var/lib/praxis` / per-tenant subdirs / a CI rig at `/tmp/praxis-test-state` requires editing the committed file rather than overriding an env var.
 
 **When to fix**: When the first non-default Praxis host needs to run the observability stack, OR when the launcher's `PRAXIS_STATE_DIR` env var (TD-001 lineage) lands and the operator wants the observability mount to follow the same knob.
 
-**Migration**: Replace the volume entry with `- ${PRAXIS_STATE_DIR:-/opt/praxis/state}:/spine:ro` and document the `PRAXIS_STATE_DIR` knob in [`observability/.env.example`](observability/.env.example). The default keeps existing deployments working without action.
+**Migration**: Replace the volume entry with `- ${PRAXIS_STATE_DIR:-/opt/praxis/state}:/spine:ro` and document the `PRAXIS_STATE_DIR` knob in [`observability/.env.example`](../observability/.env.example). The default keeps existing deployments working without action.
 
 ## TD-076: REMOVED — addressed in PR [#131](https://github.com/Vaquum/Praxis/pull/131) round-6 review
 
@@ -828,7 +828,7 @@ Option 1 is the minimum-change path if `Ledger.fills` is confirmed never-read in
 
 **Origin**: TD-052 boot-replay deferral (codex review)
 **Severity**: Low (the authoritative pre-registration path records the context durably; this path is the unknown-submission fallback)
-**Module**: `praxis/launcher.py` (consumer-side `command_contexts` registration in `_build_nexus_runtime`)
+**Module**: `praxis/launcher.py` (consumer-side `command_registrations` registration in `_build_nexus_runtime`, formerly `command_contexts`)
 
 The pre-registration path (`pre_register`) appends `OutcomeDeliveryContextRecorded` durably before the `send_command` handoff, so a normal submission's context survives a restart. The legacy consumer-registration path — which rebuilds an `OrderContext` when an outcome arrives for a command with no pre-registered context — does NOT append the context, because by then the command has already been submitted and a durable record before the fact is impossible. An outcome whose context was only ever built on this path is not replayable after a restart (boot replay skips it with a no-context warning).
 
@@ -1138,7 +1138,7 @@ Original gap: a scheme finalized only when every slice was submitted and every c
 
 **Resolved** in the 5.13 slice-failure slice (WP-Praxis-0007). `SchemeInitialized` persists `timeout_seconds`; each scheme carries an absolute `deadline` (`command.created_at + timeout`, reconstructed on resume from `SchemeInitialized.timestamp + timeout_seconds`). The scheduler checks the deadline every iteration ahead of advancement: a scheme still live at its deadline — a frozen scheme the Manager never acted on, or one stuck on a never-settling child — is force-expired (`_expire_scheme`): working children are cancelled and the single terminal outcome is EXPIRED once they drain. A 0 timeout means no deadline.
 
-## TD-127: Scheme resume residuals — non-durable abort and lot-step replan divergence
+## TD-127: Scheme resume residuals — non-durable abort (RESOLVED) and lot-step replan divergence
 
 **Origin**: WP-Praxis-0007 (scheme-resume slice; unstaged review)
 **Severity**: Medium (both are narrow crash / venue-change windows, not the common path)
@@ -1146,7 +1146,7 @@ Original gap: a scheme finalized only when every slice was submitted and every c
 
 Two residual gaps in boot resume:
 
-1. **Non-durable abort / freeze.** `TradeAbort` sets `_LiveScheme.pending_terminal`, and a slice failure sets `_LiveScheme.frozen`, both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
+1. **Non-durable abort / freeze — RESOLVED.** An abort now appends `SchemeDraining` and an amend that clears a slice-failure freeze appends `SchemeReplanned`, so replay reconstructs the drain and the thaw instead of re-deriving a stale hold; a crash inside the drain window no longer replays as a running scheme with a due timer. Historical description: `TradeAbort` set `_LiveScheme.pending_terminal`, and a slice failure set `_LiveScheme.hold` to `_Hold.SLICE_FAILED` (formerly the `frozen` flag), both in memory only — neither is persisted until a terminal event lands. A crash after an abort begins, or while a scheme is frozen awaiting the Manager, leaves the durable state RUNNING, so `_resume_schemes` resumes it: an in-progress abort is silently lost (operator re-issues), and a frozen scheme re-attempts the failed slice rather than staying frozen (arguably fine — a transient failure retries; the deadline still bounds it). `_resume_schemes` also kicks `next_run_at` to now when hold reconstructs as `OPEN`, the cursor is short of `slices_total`, and no child is live, so a mid-abort crash with no remaining children reschedules a slice rather than draining. Fix: persist the pending-abort / frozen state (e.g. a durable `trade_abort_applied` or a `slice_failed`-aware `SchemeStateChanged`) and honour it on resume.
 
 2. **Lot-step replan divergence.** Resume recomputes the slice plan with the venue's *current* `lot_step` (`plan_even_slices(total_qty, slices_total, lot_step)`). If the LOT_SIZE filter changed between init and resume, the remaining (unsubmitted) slice sizes differ from the original plan — already-submitted children are unaffected (durable on the spine), and the aggregate still targets `total_qty`, but the per-slice grid shifts. Fix: persist the original `lot_step` (a single Decimal, `_coerce`-safe) on `SchemeInitialized` and replan against it, so the grid is identical across a restart.
 
@@ -1234,17 +1234,19 @@ A single-order amend cancels the resting order, queries the venue for the author
 
 **When to fix**: before order-price amend runs unattended with a meaningful re-price SLA. Add the boot amend-repair pass (2) — which also reconstructs the held-amend park — and, if the window matters, the `cancelReplace`-based path (1).
 
-## TD-135: Scheme-plan amend is in-memory only; a restart replays the original schedule
+## TD-135: Scheme-plan amend is in-memory only; a restart replays the original schedule — RESOLVED
 
 **Origin**: WP-Praxis-0009 (8.6* scheme-plan amend)
-**Severity**: Low (safe — the scheme still works the remaining quantity; only the amended cadence/count is lost on restart)
+**Severity**: was Low on the assumption that only the amended cadence was lost. It was not: clearing the freeze durably while leaving the plan in memory let a resumed scheme execute the schedule its owner had replaced and terminalize FILLED short of the requested quantity
 **Module**: `praxis/core/execution_manager.py` (`_process_scheme_modify`, `_resume_schemes`)
 
-A TWAP / Time DCA / Scheduled VWAP amend updates the running `_LiveScheme` (remaining slice quantities, slice count, interval, next-run) in place and appends a `SchemeStateChanged`, but the amended plan itself is not persisted: `_resume_schemes` re-plans from the original `SchemeInitialized` (its slice count, interval, and weights). So after a restart a mid-flight amended scheme reverts to its original schedule — it still works the remaining quantity (no over-order, no lost fills), but the amended cadence/count is gone.
+**RESOLVED**: an amend now appends [`SchemeReplanned`](praxis/core/domain/events.py) carrying the slice quantities, count, interval and next-run timestamp it produced, together with whether it cleared a slice-failure freeze. Resume rebuilds the plan from that event rather than from `SchemeInitialized`, and pairs it with the timer that belongs to it. Splitting the freeze from the plan was itself the defect: clearing the hold alone let a resumed scheme execute the schedule its owner had replaced and terminalize FILLED short of the target.
+
+Historical description: a TWAP / Time DCA / Scheduled VWAP amend updated the running `_LiveScheme` in place — remaining slice quantities, slice count, interval, next run — and appended only a progress event, so `_resume_schemes` replanned from `SchemeInitialized` and the amended schedule did not survive a restart.
 
 A Scheduled VWAP weight-curve amend is also not supported yet: the absolute-new-curve-to-remaining-slices normalization is ambiguous (the fired slices used the old curve), so `_process_scheme_modify` rejects a `ScheduledVwapModify.volume_weights` amend and accepts interval-only for VWAP.
 
-**When to fix**: before an amended schedule must survive a restart, or a strategy needs to re-shape a VWAP curve mid-flight. Persist the amended plan (a `SchemeAmended` event carrying the new slice quantities and interval) and apply the latest one in `_resume_schemes`; define and implement the VWAP remaining-curve semantics.
+**Still open**: the Scheduled VWAP weight-curve amend remains unsupported, tracked here rather than reopened as its own entry. The plan-persistence half is closed.
 
 ## TD-138: Protection-remediation redelivery is not idempotent at the Nexus receiver
 
@@ -1326,15 +1328,17 @@ This is a design limitation, not a defect in the trade-modify work: Praxis delib
 
 **When to fix**: when Praxis must detect drawdown of pre-adoption inventory (e.g., a commingled account it is expected to steward). Capture and project a durable opening-balance baseline at adoption, then reconcile absolute-to-absolute.
 
-## TD-144: Late fill on a closed order does not update the order's filled_qty
+## TD-144: Late fill on a closed order does not update the order's filled_qty — RESOLVED
 
 **Origin**: WP-Praxis-0010 (reconnect OCO leg-fill backfill fix)
-**Severity**: Low (benign today; the position is reduced correctly so there is no financial impact, and every `_command_fill_totals` caller is guarded for terminal commands)
+**Severity**: was Low on a premise that did not hold — the flatten-sizing callers are not guarded for terminal commands, so the under-report reached order sizing
 **Module**: `praxis/core/trading_state.py` (`_update_order_on_fill`, `_get_order`), `praxis/core/execution_manager.py` (`_command_fill_totals`)
 
 A fill applied to an order that has already moved to `closed_orders` — e.g. a protective OCO leg fill delivered or backfilled after a sibling leg cancelled the parent — reduces the position (`_update_position_on_fill`, keyed on `(trade_id, account_id)`) but does not update the closed order's `filled_qty` / `cumulative_notional`, because `_update_order_on_fill` looks orders up through `_get_order`, which scans only open `self.orders`. `_command_fill_totals` sums `filled_qty` across both open and closed orders, so it under-reports for such a command. This is benign today: every `_command_fill_totals` caller short-circuits terminal commands via the `command_id in self._terminal_commands` guard (e.g. `_emit_ws_outcome`), so the stale total is never read. It is a latent coupling — future code that totals a terminal command's fills without that guard would read a too-low value — and it is the general "late fill on a closed order" class, not OCO-specific.
 
-**When to fix**: in the reconciliation / audit-hardening pass, where accurate closed-order `filled_qty` has independent value. Update `_update_order_on_fill` to also apply the fill when the order is in `closed_orders`, with tests for the terminal-order re-fill semantics (no status flicker, no re-`_close_order`).
+**Correction**: the "benign today" rating rested on the claim that every `_command_fill_totals` caller short-circuits terminal commands. It does not. Of the caller sites, the three that size a flatten (`_flatten_bracket_remainder`, `_boot_reflatten`, and the bracket-amend remainder) read the totals for the *exit* command, whose protective OCO parent is closed by definition once a leg fills — exactly this case. The under-report overstated the remainder and biased the flatten toward selling more than the position held.
+
+**Resolved**: `_update_order_on_fill` now books a fill onto an order already in `closed_orders`, adding the quantity and notional and stamping `updated_at` while leaving the terminal status untouched, so the order neither flickers back to partially filled nor closes a second time. Pinned by `test_late_fill_on_a_closed_order_books_without_reopening_it` and `test_late_fill_on_a_filled_order_does_not_close_it_twice`.
 
 ## TD-145: RiskStageLimits is constructed empty; canonical drawdown/rolling-loss policy undecided
 
@@ -1393,3 +1397,96 @@ Scope note: the Nexus validator PRICE stage (`validate_price_stage`, `launcher.p
 `assert_reconstructs_clean` verifies that a recorded spine reconstructs cleanly (chain verification, per-account replay, projection invariants) and deterministically (two independent replays agree). Determinism is nearly tautological on its own: replaying a recorded spine and comparing it to a second replay of the same spine proves replay is a pure function of the events, not that the reconstruction matches what the live run actually held. True parity against a real captured paper session needs a golden `TradingState` snapshot captured by the runtime at record time (at shutdown or checkpoint); a spine alone does not carry the prior in-memory projection. Nothing in the runtime emits such a snapshot today. The harness also asserts the `TradingState` projection only — account-ledger parity is out of scope, and ledger replay requires a `RegisterAccount` event in the recording.
 
 **When to fix**: before a real captured paper spine is used as a pre-cutover gate (as opposed to authored-scenario regression tests, which hold the live manager in memory and use `assert_replays_equal` directly). Add a projection-snapshot serializer and a capture hook at shutdown/checkpoint so a recording bundles `spine` plus a serialized golden `TradingState`, then extend the harness with a golden-comparison mode; optionally include the account ledger in the recording contract.
+
+## TD-150: A TRADE report naming no commission asset is rejected, not booked
+
+**Origin**: WP-Praxis-0010 / issue #177 A11 (hold `ExecutionReport` to its execution type)
+**Severity**: Unknown pending venue evidence — no financial impact observed, and the pre-change code dropped the same report
+**Module**: `praxis/infrastructure/venue_adapter.py` (`_require_fill`), `praxis/trading.py` (`_on_execution_report`)
+
+`_require_fill` rejects a TRADE report whose `commission_asset` is absent, while its own docstring records that a zero commission is legitimate under a promotion or fee discount. Binance sources the field as `data.get('N')` with no default, so if the venue omits it on a zero-commission fill the report is rejected at construction and the fill is never booked. This is not a regression — before the change `_convert_execution_report` returned `None` for the same report, dropping it with a warning — but the constraint now lives in the domain type, where it is harder to relax, and the rejection reached the WebSocket handler's blanket `except` and was logged as a generic callback error. `_on_execution_report` now catches the `ValueError` and logs the discarded report with its client order id and execution type.
+
+**Open question**: whether Binance Spot ever emits an `executionReport` with `x=TRADE` and `N: null`. This has not been observed in a live frame, only reasoned about from the field's optionality. Resolving it needs a capture from the live user-data stream, not a code reading.
+
+**When to fix**: if a live capture shows a null `N` on a TRADE. The fix is to require `commission_asset` only when `commission` is non-zero, which also needs `FillReceived.fee_asset` relaxed to match, since it `_require_str`s the same field. Do not relax one without the other.
+
+## TD-151: An already-registered account cannot re-enter boot recovery
+
+**Origin**: issue #177 pre-PR review
+**Severity**: Low (fails closed — recovery admission raises rather than proceeding unsafely)
+**Module**: `praxis/trading_inbound.py` (`register_account`), `praxis/core/execution_manager.py` (`begin_account_startup`, `_account_loop`)
+
+`TradingInbound.register_account` treats an already-registered account as idempotent success and returns early, dropping `booting=True`. Boot recovery then calls `admit(..., recovery_owner=True)`, which requires a parked account and raises `RuntimeError("... is not parked; recovery admission requires booting=True")`. `ExecutionManager.begin_account_startup` exists for exactly this case and has no caller.
+
+Wiring `begin_account_startup` into that early return was tried and reverted. `_account_loop` reads `booting` at the top of each iteration, so parking a live writer takes effect only once its current iteration completes. Boot recovery would then be free to drain the admission queue while the writer is still inside `_drain_admission_queue` — two tasks appending and projecting the same account, which is the exact invariant the writer-admission primitive exists to hold. Trading a loud startup failure for a silent double-projector is the wrong trade.
+
+**When to fix**: when an account genuinely needs to re-enter recovery without a process restart. The fix needs a quiescence handshake — park, then wait for the writer to acknowledge it has left the drain path (an event the loop sets when it observes `booting`) — before recovery admits anything. Do not park a running writer without it.
+
+## TD-152: Partially filled protective OCOs lose amendability after restart
+
+**Origin**: Greybeard pre-PR review (issue #177, A4)
+**Severity**: Medium (remaining protection stays at the venue but cannot be amended through the bracket after restart)
+**Module**: `praxis/core/execution_manager.py` (`_resume_brackets`, `modifiable_command_ids`)
+
+`_resume_brackets` restores an ACTIVE bracket only when the protective parent projects as `OrderStatus.OPEN`. A partial protective fill changes that parent to `PARTIALLY_FILLED`, so replay retains the order and remaining position but skips the live bracket registration. With a 1-unit entry and a 0.2-unit protective fill, replay reconstructs a 0.8-unit position and a partially filled protective OCO, but no `runtime.brackets` entry for the command; bracket MODIFY is therefore unavailable. The same probe fails on the pre-audit implementation, so this is not a new regression. A4 explicitly covers confirmed-OPEN protection only.
+
+**When to fix**: before restart-safe amendment of partially executed protective orders is required. Restore nonterminal protective parents with their effective leg prices and version, verify remaining exposure across amend generations, and cover partial fills before and after restart without duplicating protection or previously booked fills.
+
+---
+
+## TD-153: `_LiveScheme.hold` and `pending_terminal` still encode drain twice — RESOLVED
+
+**Origin**: Greybeard pre-PR review (`feat/simplification-audit`)
+**Severity**: Low (writers currently set both together; the due-check treats `pending_terminal is None` as a defensive second gate)
+**Module**: `praxis/core/execution_manager.py` (`_LiveScheme`, `_abort_scheme`, `_expire_scheme`, `_advance_due_schemes`)
+
+`_Hold.DRAINING` replaced the freeze booleans, but abort and expire still write a parallel `pending_terminal` tuple (`TradeStatus`, `SchemeState`, reason) and the due-check still consults both fields. A future writer that sets one without the other can either fire a slice on a terminalizing scheme or finalize without a status. The payload belongs on `DRAINING`, not on a second field.
+
+**Resolved**: both writers now go through `_begin_scheme_drain`, which appends a durable [`SchemeDraining`](praxis/core/domain/events.py) carrying the pending outcome and only then sets `pending_terminal` and `hold` together. Replay restores both from that one event via `_SchemeReplayFold.pending_terminals`, so the hold and its payload are no longer derived apart and the stranded `DRAINING` with no pending outcome cannot arise from either path. The `pending_terminal is None` clause in the due-check is kept as a defensive second gate.
+
+---
+
+## TD-154: Ladder `amend_phase` is a pair of magic strings
+
+**Origin**: Greybeard pre-PR review (`feat/simplification-audit`)
+**Severity**: Low (two values, four guards; tests pin `'CANCELLING'` / `'PLACING'`)
+**Module**: `praxis/core/execution_manager.py` (`_LiveScheme.amend_phase`, `_drive_ladder_amend`)
+
+**Contract note (issue #177 pre-merge review)**: the ladder's replacement-rung
+placement is idempotent — an already-resting rung is adopted rather than
+re-placed — so a resumed amend does not re-POST rungs it already put on the
+book. A regression test now drives a crashed mid-amend abort through replay and
+asserts the resolver posts nothing, but that assertion could not be made to
+fail by disabling the drain reconstruction: with the hold left OPEN and the
+amend still PLACING, the driver still posted nothing. The no-POST property is
+therefore held by the phase and adoption gating rather than by the DRAINING
+hold, and it is not known whether a path exists where the hold is the only
+thing preventing a POST. Worth resolving when this state machine is next
+touched, since the two mechanisms are being relied on interchangeably.
+
+Ladder amend phase is stored as `str | None` and compared to `'CANCELLING'` and `'PLACING'`. A typo or a third undocumented string is representable and would skip both driver branches. The durable fold already carries the same strings through `ladder_inflight`.
+
+**When to fix**: with the next ladder-amend change. Replace the string with an enum (or reuse the durable event type as the discriminant) and keep `None` as idle.
+
+## TD-155: Shutdown disposition is decided per command, not per order intent
+
+**Origin**: issue #177 pre-merge review (codex and grok, consulted on the shutdown contract)
+**Severity**: Medium — the narrow case that could strip protection is fixed; the contract underneath it is still wrong
+**Module**: `praxis/trading.py` (`Trading.stop`), `praxis/core/execution_manager.py` (`in_flight_command_ids`, `submit_abort`, `_process_abort`)
+
+`Trading.stop` builds one set of in-flight command ids, submits an abort for each, drops from that set any command whose abort was refused, and then cancels every open order whose command is not in the set. That single set carries two different meanings — "the abort owns these" and "do not cancel these" — and the overload is the defect: a refused abort is read as permission to cancel the command's orders directly, which is right for a resting entry and wrong for a working recovery flatten.
+
+A bracket's exit command id covers both its protective OCO and its MARKET flatten, so no command-level rule can separate them, and the id is a pure derivation any caller can reproduce. The discriminator has to be the order's own recorded intent.
+
+**Fixed**: shutdown identifies a recovery flatten by the client order id its `FlattenInitiated` recorded, kept on the account when the event is appended and rebuilt from the spine on replay. That survives a failed protection, whose bracket is never rebuilt on resume, and cannot be spoofed by a caller-supplied command id. Two earlier attempts are recorded here because both looked adequate: matching the exit-id suffix spared any ordinary order wearing that shape, and matching the account's live brackets spared nothing at all for the one position that actually had a working flatten.
+
+One residue: an id is never removed from that set when its flatten terminalizes, so the set grows for the life of the epoch. Harmless today — shutdown only consults it for orders that are still open — but it is a per-epoch leak and a stale id would match a client order id reused within the epoch.
+
+**Still wrong**:
+- Preservation covers the flatten only. A protective OCO is cancelled unconditionally at shutdown, which strips the last protection from a position that is not flat. It should be cancelled only once a flatten is working or the position is confirmed closed.
+- Cancellation order is unspecified. Working entries and ladder rungs should be retired before anything reduce-only, or an entry fill after the flatten is sized leaves residue, or re-opens exposure the flatten just closed.
+- `_process_abort` builds a terminal CANCELED outcome after a venue cancellation failure, and treats NotFound as cancelled without resolving a possible fill.
+- The shutdown completion wait requires no open orders, which a deliberately preserved flatten or protective OCO will never satisfy; it should wait on the actions it required and report what it preserved.
+- A failed boot can exit with open size. That is the real outcome and it should be persisted for the next boot to adopt as owned recovery rather than swept as an orphan, not reported as a clean shutdown.
+
+**When to fix**: before live trading runs unattended across restarts. The pieces are an order-level risk-off marker, splitting the abort-ownership set from the do-not-cancel set, and a completion condition that distinguishes preserved from unresolved.

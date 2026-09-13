@@ -39,6 +39,7 @@ from nexus.strategy.action import Action, ActionType
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
 from praxis.launcher import (
     _cleanup_bracket_exit_registration,
+    _CommandRegistration,
     _make_pre_register,
     _PreRegisterWiring,
     _UnknownSubmission,
@@ -145,14 +146,11 @@ def _wiring(
     state: InstanceState,
     controller: CapitalController,
     pending: dict[str, tuple[Action, str, ValidationRequestContext]],
-    contexts: dict[str, OrderContext],
     append_delivery_context: Callable[[str, OrderContext], None] = lambda *_: None,
 ) -> _PreRegisterWiring:
     return _PreRegisterWiring(
         pending_registrations=pending,
-        command_strategy_ids={},
-        command_contexts=contexts,
-        unknown_submissions={},
+        command_registrations={},
         command_registry_lock=threading.Lock(),
         capital_controller=controller,
         state=state,
@@ -161,6 +159,15 @@ def _wiring(
         now=lambda: _NOW,
         append_delivery_context=append_delivery_context,
     )
+
+
+def _registered_context(
+    wiring: _PreRegisterWiring,
+    command_id: str,
+) -> OrderContext | None:
+    registration = wiring.command_registrations.get(command_id)
+
+    return registration.order_context if registration is not None else None
 
 
 def _granted_decision(
@@ -182,13 +189,12 @@ def test_enter_registers_before_handoff() -> None:
     cmd = _command('cmd-0000000000000001')
     action = _enter_action()
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-    contexts: dict[str, OrderContext] = {}
-    wiring = _wiring(state, controller, pending, contexts)
+    wiring = _wiring(state, controller, pending)
 
     handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
 
-    assert wiring.command_strategy_ids[cmd.command_id] == 'strat_a'
-    assert cmd.command_id in contexts
+    assert wiring.command_registrations[cmd.command_id].strategy_id == 'strat_a'
+    assert _registered_context(wiring, cmd.command_id) is not None
     assert cmd.command_id in controller._orders
     assert cmd.command_id in state.positions
     handle.mark_submitted(cmd.command_id)
@@ -213,20 +219,19 @@ def test_bracket_enter_pre_registers_protective_exit_context() -> None:
     cmd = _command('cmd-0000000000000001')
     action = _bracket_enter_action()
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-    contexts: dict[str, OrderContext] = {}
     persisted: list[OrderContext] = []
     wiring = _wiring(
-        state, controller, pending, contexts,
+        state, controller, pending,
         append_delivery_context=lambda _acct, ctx: persisted.append(ctx),
     )
 
     handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
 
     exit_id = bracket_exit_command_id(cmd.command_id)
-    assert exit_id in contexts
-    assert wiring.command_strategy_ids[exit_id] == 'strat_a'
+    exit_context = _registered_context(wiring, exit_id)
+    assert exit_context is not None
+    assert wiring.command_registrations[exit_id].strategy_id == 'strat_a'
 
-    exit_context = contexts[exit_id]
     assert exit_context.is_entry is False
     assert exit_context.side is OrderSide.SELL
     assert exit_context.trade_id == cmd.command_id
@@ -265,12 +270,12 @@ def test_bracket_short_entry_registers_buy_protective_exit() -> None:
         config=_config(),
     )
     pending = {cmd.command_id: (action, 'strat_a', ctx)}
-    contexts: dict[str, OrderContext] = {}
-    wiring = _wiring(state, controller, pending, contexts)
+    wiring = _wiring(state, controller, pending)
 
     _make_pre_register(wiring)(cmd, _granted_decision(controller))
 
-    exit_context = contexts[bracket_exit_command_id(cmd.command_id)]
+    exit_context = _registered_context(wiring, bracket_exit_command_id(cmd.command_id))
+    assert exit_context is not None
     assert exit_context.side is OrderSide.BUY
     assert exit_context.is_entry is False
 
@@ -278,39 +283,38 @@ def test_bracket_short_entry_registers_buy_protective_exit() -> None:
 def test_cleanup_bracket_exit_registration_pops_derived_id() -> None:
     entry_id = 'cmd-0000000000000001'
     exit_id = bracket_exit_command_id(entry_id)
-    contexts: dict[str, OrderContext] = {
-        exit_id: OrderContext(
-            command_id=exit_id,
+    registrations: dict[str, _CommandRegistration] = {
+        exit_id: _CommandRegistration(
             strategy_id='strat_a',
-            trade_id=entry_id,
-            side=OrderSide.SELL,
-            order_size=Decimal('0.01'),
-            order_notional=Decimal('500'),
-            estimated_fees=Decimal('0.5'),
-            is_entry=False,
-            intended_full_close=True,
+            order_context=OrderContext(
+                command_id=exit_id,
+                strategy_id='strat_a',
+                trade_id=entry_id,
+                side=OrderSide.SELL,
+                order_size=Decimal('0.01'),
+                order_notional=Decimal('500'),
+                estimated_fees=Decimal('0.5'),
+                is_entry=False,
+                intended_full_close=True,
+            ),
         ),
     }
-    strategy_ids = {exit_id: 'strat_a'}
 
     _cleanup_bracket_exit_registration(
-        contexts, strategy_ids, threading.Lock(), entry_id,
+        registrations, threading.Lock(), entry_id,
     )
 
-    assert exit_id not in contexts
-    assert exit_id not in strategy_ids
+    assert exit_id not in registrations
 
 
 def test_cleanup_bracket_exit_registration_is_noop_for_non_bracket() -> None:
-    contexts: dict[str, OrderContext] = {}
-    strategy_ids: dict[str, str] = {}
+    registrations: dict[str, _CommandRegistration] = {}
 
     _cleanup_bracket_exit_registration(
-        contexts, strategy_ids, threading.Lock(), 'cmd-0000000000000009',
+        registrations, threading.Lock(), 'cmd-0000000000000009',
     )
 
-    assert contexts == {}
-    assert strategy_ids == {}
+    assert registrations == {}
 
 
 def test_process_nexus_outcome_terminal_branch_cleans_bracket_exit() -> None:
@@ -353,12 +357,11 @@ def test_non_bracket_enter_registers_no_exit_context() -> None:
     cmd = _command('cmd-0000000000000001')
     action = _enter_action()
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-    contexts: dict[str, OrderContext] = {}
-    wiring = _wiring(state, controller, pending, contexts)
+    wiring = _wiring(state, controller, pending)
 
     _make_pre_register(wiring)(cmd, _granted_decision(controller))
 
-    assert bracket_exit_command_id(cmd.command_id) not in contexts
+    assert bracket_exit_command_id(cmd.command_id) not in wiring.command_registrations
 
 
 def test_bracket_rollback_removes_exit_registration() -> None:
@@ -367,17 +370,15 @@ def test_bracket_rollback_removes_exit_registration() -> None:
     cmd = _command('cmd-0000000000000001')
     action = _bracket_enter_action()
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-    contexts: dict[str, OrderContext] = {}
-    wiring = _wiring(state, controller, pending, contexts)
+    wiring = _wiring(state, controller, pending)
 
     handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
     exit_id = bracket_exit_command_id(cmd.command_id)
-    assert exit_id in contexts
+    assert exit_id in wiring.command_registrations
 
     handle.rollback(RuntimeError('send failed'))
 
-    assert exit_id not in contexts
-    assert exit_id not in wiring.command_strategy_ids
+    assert exit_id not in wiring.command_registrations
 
 
 def test_send_order_failure_raises_and_leaves_no_registration() -> None:
@@ -386,7 +387,7 @@ def test_send_order_failure_raises_and_leaves_no_registration() -> None:
     cmd = _command('cmd-0000000000000001')
     action = _enter_action()
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-    wiring = _wiring(state, controller, pending, {})
+    wiring = _wiring(state, controller, pending)
 
     decision = _granted_decision(controller)
     # consume the reservation under a throwaway id so pre_register's own
@@ -399,8 +400,46 @@ def test_send_order_failure_raises_and_leaves_no_registration() -> None:
     with pytest.raises(RuntimeError, match='send_order failed'):
         _make_pre_register(wiring)(cmd, decision)
 
-    assert cmd.command_id not in wiring.command_strategy_ids
-    assert cmd.command_id not in wiring.command_contexts
+    assert cmd.command_id not in wiring.command_registrations
+
+
+def test_send_order_failure_preserves_preexisting_registration() -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = _enter_action()
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+    wiring = _wiring(state, controller, pending)
+
+    existing_context = OrderContext(
+        command_id=cmd.command_id,
+        strategy_id='strat_prior',
+        trade_id=None,
+        side=OrderSide.BUY,
+        order_size=Decimal('0.01'),
+        order_notional=Decimal('500'),
+        estimated_fees=Decimal('0.5'),
+        is_entry=True,
+    )
+    existing_unknown = _unknown_record(cmd.command_id, _NOW)
+    wiring.command_registrations[cmd.command_id] = _CommandRegistration(
+        strategy_id='strat_prior',
+        order_context=existing_context,
+        unknown_submission=existing_unknown,
+    )
+
+    decision = _granted_decision(controller)
+    consumed = controller.send_order(
+        decision.reservation.reservation_id, 'throwaway-order',
+    )
+    assert consumed.success
+
+    with pytest.raises(RuntimeError, match='send_order failed'):
+        _make_pre_register(wiring)(cmd, decision)
+
+    registration = wiring.command_registrations[cmd.command_id]
+    assert registration.order_context is existing_context
+    assert registration.unknown_submission is existing_unknown
 
 
 def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
@@ -423,9 +462,7 @@ def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
 
     wiring = _PreRegisterWiring(
         pending_registrations=pending,
-        command_strategy_ids={},
-        command_contexts={},
-        unknown_submissions={},
+        command_registrations={},
         command_registry_lock=threading.Lock(),
         capital_controller=controller,
         state=state,
@@ -438,9 +475,49 @@ def test_post_send_order_exception_rolls_back_capital_and_registry() -> None:
     with pytest.raises(ValueError):
         _make_pre_register(wiring)(cmd, _granted_decision(controller))
 
-    assert cmd.command_id not in wiring.command_strategy_ids
+    assert cmd.command_id not in wiring.command_registrations
     assert cmd.command_id not in state.positions
     assert cmd.command_id not in controller._orders
+
+
+def test_post_send_order_exception_runs_handle_rollback(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    state = InstanceState(capital=CapitalState(capital_pool=Decimal('100000')))
+    controller = CapitalController(state.capital)
+    cmd = _command('cmd-0000000000000001')
+    action = Action(
+        action_type=ActionType.ENTER,
+        direction=OrderSide.BUY,
+        size=Decimal('0.01'),
+        execution_mode=ExecutionMode.SINGLE_SHOT,
+        order_type=OrderType.MARKET,
+        deadline=60,
+        command_id=cmd.command_id,
+    )
+    pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
+
+    wiring = _PreRegisterWiring(
+        pending_registrations=pending,
+        command_registrations={},
+        command_registry_lock=threading.Lock(),
+        capital_controller=controller,
+        state=state,
+        positions_lock=threading.Lock(),
+        fallback_price_provider=lambda: Decimal('-1'),
+        now=lambda: _NOW,
+        append_delivery_context=lambda *_: None,
+    )
+
+    with caplog.at_level(logging.WARNING), pytest.raises(ValueError):
+        _make_pre_register(wiring)(cmd, _granted_decision(controller))
+
+    rolled_back = [
+        record
+        for record in caplog.records
+        if 'pre-registered submission rolled back' in record.message
+    ]
+    assert len(rolled_back) == 1
 
 
 def test_exit_order_context_carries_captured_full_close() -> None:
@@ -473,14 +550,15 @@ def test_exit_order_context_carries_captured_full_close() -> None:
         config=_config(),
         intended_full_close=True,
     )
-    contexts: dict[str, OrderContext] = {}
     pending = {cmd.command_id: (action, 'strat_a', ctx)}
-    wiring = _wiring(state, controller, pending, contexts)
+    wiring = _wiring(state, controller, pending)
 
     _make_pre_register(wiring)(cmd, ValidationDecision(allowed=True, reservation=None))
 
     assert state.positions['trade-1'].pending_exit == Decimal('0.01')
-    assert contexts[cmd.command_id].intended_full_close is True
+    registered = _registered_context(wiring, cmd.command_id)
+    assert registered is not None
+    assert registered.intended_full_close is True
 
 
 def test_enter_rollback_removes_placeholder() -> None:
@@ -488,7 +566,7 @@ def test_enter_rollback_removes_placeholder() -> None:
     controller = CapitalController(state.capital)
     cmd = _command('cmd-0000000000000001')
     pending = {cmd.command_id: (_enter_action(), 'strat_a', _enter_ctx(cmd.command_id, state))}
-    wiring = _wiring(state, controller, pending, {})
+    wiring = _wiring(state, controller, pending)
 
     handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
     assert cmd.command_id in state.positions
@@ -496,7 +574,7 @@ def test_enter_rollback_removes_placeholder() -> None:
     handle.rollback(RuntimeError('boom'))
 
     assert cmd.command_id not in state.positions
-    assert cmd.command_id not in wiring.command_strategy_ids
+    assert cmd.command_id not in wiring.command_registrations
 
 
 def test_exit_rollback_decrements_pending_exit() -> None:
@@ -517,7 +595,7 @@ def test_exit_rollback_decrements_pending_exit() -> None:
     pending = {
         cmd.command_id: (action, 'strat_a', _exit_ctx(cmd.command_id, 'trade-1', state)),
     }
-    wiring = _wiring(state, controller, pending, {})
+    wiring = _wiring(state, controller, pending)
 
     decision = ValidationDecision(allowed=True, reservation=None)
     handle = _make_pre_register(wiring)(cmd, decision)
@@ -533,13 +611,15 @@ def test_mark_unknown_retains_registration_and_records_metadata() -> None:
     controller = CapitalController(state.capital)
     cmd = _command('cmd-0000000000000001')
     pending = {cmd.command_id: (_enter_action(), 'strat_a', _enter_ctx(cmd.command_id, state))}
-    wiring = _wiring(state, controller, pending, {})
+    wiring = _wiring(state, controller, pending)
 
     handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
     handle.mark_unknown(TimeoutError('submit timed out'))
 
-    assert cmd.command_id in wiring.command_strategy_ids
-    record = wiring.unknown_submissions[cmd.command_id]
+    registration = wiring.command_registrations[cmd.command_id]
+    assert registration.strategy_id == 'strat_a'
+    record = registration.unknown_submission
+    assert record is not None
     assert record.command_id == cmd.command_id
     assert record.strategy_id == 'strat_a'
     assert record.created_at == _NOW
@@ -562,7 +642,6 @@ def test_registries_populated_when_send_command_is_entered() -> None:
     pipeline = _build_validation_pipeline(nexus_config, controller)
 
     pending: dict[str, tuple[Action, str, ValidationRequestContext]] = {}
-    contexts: dict[str, OrderContext] = {}
 
     def build_context(
         action: Action,
@@ -591,9 +670,7 @@ def test_registries_populated_when_send_command_is_entered() -> None:
 
     wiring = _PreRegisterWiring(
         pending_registrations=pending,
-        command_strategy_ids={},
-        command_contexts=contexts,
-        unknown_submissions={},
+        command_registrations={},
         command_registry_lock=threading.Lock(),
         capital_controller=controller,
         state=state,
@@ -607,9 +684,14 @@ def test_registries_populated_when_send_command_is_entered() -> None:
 
     def fake_send_command(cmd: object) -> str:
         cid = cmd.command_id
-        observed['strategy_mapped'] = wiring.command_strategy_ids.get(cid) == 'strat_a'
+        registration = wiring.command_registrations.get(cid)
+        observed['strategy_mapped'] = (
+            registration is not None and registration.strategy_id == 'strat_a'
+        )
         observed['context_present'] = (
-            cid in contexts and contexts[cid].command_id == cid
+            registration is not None
+            and registration.order_context is not None
+            and registration.order_context.command_id == cid
         )
         observed['order_present'] = cid in controller._orders
         observed['placeholder_present'] = cid in state.positions
@@ -658,9 +740,14 @@ def _unknown_record(
 def test_monitor_scan_silent_below_threshold(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    registry = {'cmd-0000000000000001': _unknown_record('cmd-0000000000000001', _NOW)}
+    registry = {
+        'cmd-0000000000000001': _CommandRegistration(
+            strategy_id='strat_a',
+            unknown_submission=_unknown_record('cmd-0000000000000001', _NOW),
+        ),
+    }
     monitor = _UnknownSubmissionMonitor(
-        unknown_submissions=registry,
+        command_registrations=registry,
         lock=threading.Lock(),
         now=lambda: _NOW + timedelta(seconds=59),
         warn_seconds=60.0,
@@ -677,13 +764,19 @@ def test_monitor_scan_warns_above_threshold(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     registry = {
-        'cmd-0000000000000001': _unknown_record('cmd-0000000000000001', _NOW),
-        'cmd-0000000000000002': _unknown_record(
-            'cmd-0000000000000002', _NOW + timedelta(seconds=30),
+        'cmd-0000000000000001': _CommandRegistration(
+            strategy_id='strat_a',
+            unknown_submission=_unknown_record('cmd-0000000000000001', _NOW),
+        ),
+        'cmd-0000000000000002': _CommandRegistration(
+            strategy_id='strat_a',
+            unknown_submission=_unknown_record(
+                'cmd-0000000000000002', _NOW + timedelta(seconds=30),
+            ),
         ),
     }
     monitor = _UnknownSubmissionMonitor(
-        unknown_submissions=registry,
+        command_registrations=registry,
         lock=threading.Lock(),
         now=lambda: _NOW + timedelta(seconds=120),
         warn_seconds=60.0,
@@ -706,7 +799,7 @@ def test_monitor_scan_warns_above_threshold(
 
 def test_monitor_stop_cancels_pending_scan() -> None:
     monitor = _UnknownSubmissionMonitor(
-        unknown_submissions={},
+        command_registrations={},
         lock=threading.Lock(),
         now=lambda: _NOW,
         warn_seconds=60.0,
@@ -734,9 +827,9 @@ def _process_outcome_clears_on_success_not_failure() -> bool:
                 continue
             if not _is_not_result_success_test(stmt.test):
                 continue
-            failure_pops = _block_pops_unknown(stmt.body)
-            success_pops = _block_pops_unknown(stmt.orelse)
-            return success_pops and not failure_pops
+            failure_clears = _block_clears_unknown(stmt.body)
+            success_clears = _block_clears_unknown(stmt.orelse)
+            return success_clears and not failure_clears
     return False
 
 
@@ -749,26 +842,27 @@ def _is_not_result_success_test(test: ast.AST) -> bool:
     return isinstance(operand.value, ast.Name) and operand.value.id == 'result'
 
 
-def _block_pops_unknown(block: list[ast.stmt]) -> bool:
+def _block_clears_unknown(block: list[ast.stmt]) -> bool:
     for stmt in block:
         for node in ast.walk(stmt):
-            if not isinstance(node, ast.Call):
+            if not isinstance(node, ast.Assign):
                 continue
-            func = node.func
-            if not isinstance(func, ast.Attribute) or func.attr != 'pop':
-                continue
-            if (
-                isinstance(func.value, ast.Name)
-                and func.value.id == 'unknown_submissions'
-            ):
-                return True
+            for target in node.targets:
+                if (
+                    isinstance(target, ast.Attribute)
+                    and target.attr == 'unknown_submission'
+                    and isinstance(node.value, ast.Constant)
+                    and node.value.value is None
+                ):
+                    return True
     return False
 
 
 def test_process_outcome_clears_unknown_on_success_only() -> None:
     assert _process_outcome_clears_on_success_not_failure(), (
-        'launcher process_outcome must pop unknown_submissions in the '
-        'result.success branch and must NOT pop it in the failure branch'
+        'launcher process_outcome must clear registration.unknown_submission '
+        'in the result.success branch and must NOT clear it in the failure '
+        'branch'
     )
 
 
@@ -778,7 +872,6 @@ def test_delivery_context_appended_before_registration() -> None:
     cmd = _command('cmd-0000000000000010')
     action = _enter_action()
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-    contexts: dict[str, OrderContext] = {}
 
     recorded: list[tuple[str, OrderContext]] = []
 
@@ -786,7 +879,7 @@ def test_delivery_context_appended_before_registration() -> None:
         recorded.append((account_id, ctx))
 
     wiring = _wiring(
-        state, controller, pending, contexts, append_delivery_context=_record,
+        state, controller, pending, append_delivery_context=_record,
     )
 
     handle = _make_pre_register(wiring)(cmd, _granted_decision(controller))
@@ -803,17 +896,15 @@ def test_delivery_context_append_failure_aborts_submission() -> None:
     cmd = _command('cmd-0000000000000011')
     action = _enter_action()
     pending = {cmd.command_id: (action, 'strat_a', _enter_ctx(cmd.command_id, state))}
-    contexts: dict[str, OrderContext] = {}
 
     def _boom(_account_id: str, _ctx: OrderContext) -> None:
         raise RuntimeError('append failed')
 
     wiring = _wiring(
-        state, controller, pending, contexts, append_delivery_context=_boom,
+        state, controller, pending, append_delivery_context=_boom,
     )
 
     with pytest.raises(RuntimeError, match='append failed'):
         _make_pre_register(wiring)(cmd, _granted_decision(controller))
 
-    assert cmd.command_id not in contexts
-    assert cmd.command_id not in wiring.command_strategy_ids
+    assert cmd.command_id not in wiring.command_registrations

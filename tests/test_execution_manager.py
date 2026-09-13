@@ -42,7 +42,7 @@ from praxis.core.domain.chart_of_accounts import Account
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_command import TradeCommand
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import (
@@ -175,6 +175,28 @@ class TestSubmitCommand:
     async def test_unregistered_account_raises(self, mgr: ExecutionManager) -> None:
         with pytest.raises(AccountNotRegisteredError, match='not registered'):
             await mgr.submit_command(**_CMD_KWARGS)
+
+    @pytest.mark.asyncio
+    async def test_live_submit_records_strategy_attribution(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS, strategy_id='strat_001')
+
+        trading_state = mgr._accounts[_ACCT].trading_state
+
+        assert trading_state.trade_strategy_ids[_CMD_KWARGS['trade_id']] == 'strat_001'
+
+    @pytest.mark.asyncio
+    async def test_live_submit_without_strategy_records_nothing(
+        self,
+        mgr: ExecutionManager,
+    ) -> None:
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+
+        assert mgr._accounts[_ACCT].trading_state.trade_strategy_ids == {}
 
     @pytest.mark.asyncio
     async def test_caller_supplied_command_id_used_verbatim(
@@ -976,8 +998,6 @@ class TestTradeOutcome:
         assert outcome.target_qty == Decimal('1')
         assert outcome.slices_completed == 1
         assert outcome.slices_total == 1
-        assert outcome.missed_iterations is None
-        assert outcome.missed_reason is None
         assert outcome.created_at.tzinfo is not None
 
         await mgr.unregister_account(_ACCT)
@@ -1523,7 +1543,7 @@ class TestModeDispatch:
             qty=Decimal('1'),
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.TWAP,
-            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
             timeout=300,
             reference_price=None,
             maker_preference=MakerPreference.NO_PREFERENCE,
@@ -1548,7 +1568,7 @@ class TestCapabilityGate:
         **_CMD_KWARGS,
         'order_type': OrderType.MARKET,
         'execution_mode': ExecutionMode.TWAP,
-        'execution_params': TwapParams(num_slices=4, interval_seconds=10),
+        'execution_params': IntervalSliceParams(num_slices=4, interval_seconds=10),
     }
 
     @pytest.mark.asyncio

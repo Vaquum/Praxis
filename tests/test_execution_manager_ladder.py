@@ -45,7 +45,7 @@ from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.generate_client_order_id import generate_client_order_id
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     SubmitResult,
@@ -827,7 +827,7 @@ class TestLadderAmendDurability:
         ))
         await asyncio.sleep(0.2)
 
-        assert scheme.frozen is False
+        assert scheme.hold is _Hold.OPEN
         events = [e for _s, e in await spine.read(_EPOCH, after_seq=0)]
         assert not any(isinstance(e, SliceFailed) for e in events)
 
@@ -840,21 +840,156 @@ class TestLadderAmendDurability:
         command_id = await em.submit_command(**_ladder_kwargs())
         await asyncio.sleep(0.3)
         runtime = em._accounts[_ACCT]
-        scheme = runtime.schemes[command_id]
-        scheme.protection_frozen = True
 
+        rung_0 = generate_client_order_id(
+            ExecutionMode.LADDER_DCA, command_id, sequence=0, retry=0,
+        )
+
+        def _query(*_args: Any, client_order_id: str = '', **_kwargs: Any) -> VenueOrder:
+            if client_order_id == rung_0:
+                return _canceled_rung(Decimal('0'))
+
+            raise TransientError('venue 5xx')
+
+        adapter.query_order.side_effect = _query
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase == 'CANCELLING'
+
+        scheme.hold = _Hold.PROTECTION
+        adapter.query_order.side_effect = None
         adapter.query_order.return_value = _canceled_rung(Decimal('0'))
         placed_before = adapter.submit_order.await_count
-        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        await em.resolve_ladder_amends(_ACCT)
 
         assert scheme.amend_phase == 'PLACING'
         assert adapter.submit_order.await_count == placed_before
 
-        scheme.protection_frozen = False
+        scheme.hold = _Hold.OPEN
         await em.resolve_ladder_amends(_ACCT)
 
         assert scheme.amend_phase is None
         assert scheme.active_children == _gen_ids(command_id, 1)
+
+    @pytest.mark.parametrize('phase', ['CANCELLING', 'PLACING'])
+    @pytest.mark.asyncio
+    async def test_abort_protection_frozen_amend_never_places_replacement(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+        spine: EventSpine, phase: str,
+    ) -> None:
+        em, outcomes = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+        rung_0 = generate_client_order_id(
+            ExecutionMode.LADDER_DCA, command_id, sequence=0,
+        )
+
+        def _query(*_args: Any, client_order_id: str = '', **_kwargs: Any) -> VenueOrder:
+            if client_order_id == rung_0:
+                return _canceled_rung(Decimal('0'))
+
+            raise TransientError('venue 5xx')
+
+        adapter.query_order.side_effect = _query
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase == 'CANCELLING'
+        await em._freeze_account_schemes(runtime, 'protection lost')
+        adapter.query_order.side_effect = None
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+
+        if phase == 'PLACING':
+            await em.resolve_ladder_amends(_ACCT)
+
+        assert scheme.amend_phase == phase
+        placed_before = adapter.submit_order.await_count
+        await em._process_abort(runtime, TradeAbort(
+            command_id=command_id, account_id=_ACCT, reason='operator abort',
+            created_at=_T0,
+        ))
+        await em.resolve_ladder_amends(_ACCT)
+
+        assert adapter.submit_order.await_count == placed_before
+        assert command_id not in runtime.schemes
+        assert not runtime.trading_state.orders
+        assert len(outcomes) == 1
+        assert outcomes[0].status is TradeStatus.CANCELED
+        assert outcomes[0].filled_qty == Decimal('0')
+
+        restarted, _ = _restart(spine, adapter)
+        restarted.register_account(_ACCT, booting=True)
+        try:
+            restarted.replay_events(_ACCT, await spine.read(_EPOCH))
+            assert command_id not in restarted._accounts[_ACCT].schemes
+        finally:
+            await restarted.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_abort_mid_place_confirms_and_backfills_both_generations(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]], adapter: AsyncMock,
+    ) -> None:
+        em, outcomes = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+        old_rungs = _gen_ids(command_id, 0)
+        new_rung = generate_client_order_id(
+            ExecutionMode.LADDER_DCA, command_id, sequence=0, retry=1,
+        )
+
+        def _partial_place(
+            *_args: Any, client_order_id: str = '', **_kwargs: Any,
+        ) -> SubmitResult:
+            if client_order_id != new_rung:
+                raise TransientError('venue 5xx')
+
+            return SubmitResult(
+                venue_order_id=f"v-{client_order_id}", status=OrderStatus.OPEN,
+                immediate_fills=(),
+            )
+
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+        adapter.submit_order.side_effect = _partial_place
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+        scheme = runtime.schemes[command_id]
+        assert scheme.amend_phase == 'PLACING'
+        assert new_rung in scheme.active_children
+        await em._freeze_account_schemes(runtime, 'protection lost')
+        placed_before = adapter.submit_order.await_count
+        adapter.query_order.side_effect = TransientError('cancel unconfirmed')
+
+        await em._process_abort(runtime, TradeAbort(
+            command_id=command_id, account_id=_ACCT, reason='operator abort',
+            created_at=_T0,
+        ))
+
+        assert scheme.hold is _Hold.DRAINING
+        assert command_id in runtime.schemes
+        assert not outcomes
+        assert adapter.submit_order.await_count == placed_before
+
+        adapter.query_order.side_effect = None
+        adapter.query_order.return_value = _canceled_rung(Decimal('0.2'))
+        adapter.query_trades.return_value = [_rung_trade(new_rung, Decimal('0.2'))]
+        await em.resolve_ladder_amends(_ACCT)
+        await em.resolve_ladder_amends(_ACCT)
+
+        assert adapter.submit_order.await_count == placed_before
+        assert command_id not in runtime.schemes
+        assert not runtime.trading_state.orders
+        canceled_ids = {
+            call.kwargs['client_order_id'] for call in adapter.cancel_order.call_args_list
+        }
+        assert old_rungs | {new_rung} <= canceled_ids
+        assert len(outcomes) == 1
+        assert outcomes[0].status is TradeStatus.CANCELED
+        assert outcomes[0].filled_qty == Decimal('0.2')
+        assert outcomes[0].cumulative_notional == Decimal('9800')
 
     @pytest.mark.asyncio
     async def test_rejected_planned_rung_holds_placing_not_completed(
@@ -979,6 +1114,98 @@ class TestLadderAmendDurability:
         await restarted.unregister_account(_ACCT)
 
 
+class TestLadderAbortCrashResume:
+
+    @pytest.mark.asyncio
+    async def test_crash_between_abort_and_outcome_posts_no_replacement_rungs(
+        self, mgr: tuple[ExecutionManager, list[TradeOutcome]],
+        spine: EventSpine, adapter: AsyncMock,
+    ) -> None:
+        '''A durable abort must survive replay without the amend resuming.
+
+        The live driver refuses to place while the scheme is draining, but
+        that only holds if replay can reconstruct the drain. Asserting the
+        resumed scheme re-arms nothing, or re-cancels its children, does not
+        say the replacement rungs were never posted — which is the thing that
+        would put real orders back on the book for an aborted ladder.
+        '''
+
+        em, _ = mgr
+        em.register_account(_ACCT)
+        command_id = await em.submit_command(**_ladder_kwargs())
+        await asyncio.sleep(0.3)
+        runtime = em._accounts[_ACCT]
+
+        def _place_nothing(
+            *_args: Any, client_order_id: str = '', **_kwargs: Any,
+        ) -> SubmitResult:
+            # No replacement rung reaches the book, so a resumed driver has
+            # nothing already resting to adopt and would place them itself.
+            del client_order_id
+            raise TransientError('venue 5xx')
+
+        adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+        adapter.submit_order.side_effect = _place_nothing
+        await em._process_modify(runtime, _modify(command_id, price_levels=_NEW_LEVELS))
+
+        # The amend is still in flight, so a resumed driver would carry it on
+        # to placement if the abort did not survive the restart.
+        assert runtime.schemes[command_id].amend_phase == 'PLACING'
+
+        # Abort the ladder mid-amend, then crash before the outcome lands.
+        adapter.query_order.side_effect = TransientError('cancel unconfirmed')
+        await em._abort_scheme(runtime, TradeAbort(
+            command_id=command_id, account_id=_ACCT, reason='operator stop',
+            created_at=_T0,
+        ))
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        drains = [
+            event for _seq, event in events
+            if type(event).__name__ == 'SchemeDraining'
+            and event.command_id == command_id
+        ]
+
+        assert len(drains) == 1
+
+        # The crash lands once the drain is durable and before any of its
+        # consequences are: the rung cancels are unconfirmed and no terminal
+        # outcome was written, so replay sees an aborted ladder with both
+        # generations still live.
+        drain_seq = min(
+            seq for seq, event in events
+            if type(event).__name__ == 'SchemeDraining'
+        )
+        events = [
+            (seq, event)
+            for seq, event in events
+            if seq <= drain_seq
+        ]
+
+        await em.unregister_account(_ACCT)
+
+        restarted_adapter = AsyncMock(spec=VenueAdapter)
+        restarted_adapter.cached_filters.return_value = None
+        restarted, _outcomes = _restart(spine, restarted_adapter)
+        restarted.register_account(_ACCT)
+        restarted.replay_events(_ACCT, events)
+
+        resumed = restarted._accounts[_ACCT].schemes.get(command_id)
+
+        assert resumed is not None
+
+        restarted_adapter.query_order.return_value = _canceled_rung(Decimal('0'))
+        await restarted.resolve_ladder_amends(_ACCT)
+
+        # The guarantee, asserted before the state that produces it: driving a
+        # resumed amend must not put replacement rungs back on the book for a
+        # ladder whose abort is already durable.
+        assert restarted_adapter.submit_order.await_count == 0
+        assert resumed.hold is _Hold.DRAINING
+
+        await restarted.unregister_account(_ACCT)
+
+
 class TestLadderResume:
 
     @pytest.mark.asyncio
@@ -1010,7 +1237,7 @@ class TestLadderResume:
         restarted.replay_events(_ACCT, events)
 
         scheme = restarted._accounts[_ACCT].schemes[command_id]
-        assert scheme.state is SchemeState.RUNNING
+        assert scheme.hold is _Hold.OPEN
         assert len(scheme.active_children) == 2
         assert scheme.next_run_at is None
 
@@ -1097,7 +1324,7 @@ class TestLadderCrashDurability:
         scheme = em._accounts[_ACCT].schemes[_RESUME_COMMAND_ID]
         assert scheme.cursor == 1
         assert scheme.active_children == {_rung_coid(0)}
-        assert scheme.state is SchemeState.RUNNING
+        assert scheme.hold is _Hold.OPEN
         assert not any(o.status is TradeStatus.FILLED for o in outcomes)
 
     @pytest.mark.asyncio

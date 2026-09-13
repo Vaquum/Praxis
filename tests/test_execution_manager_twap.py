@@ -32,21 +32,26 @@ from praxis.core.domain.events import (
     OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
+    SchemeDraining,
     SchemeFrozen,
+    SchemeReplanned,
     SchemeInitialized,
     SchemeStateChanged,
     SliceFailed,
 )
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.domain.twap_params import TwapParams
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
+from praxis.core.domain.trade_modify import TradeModify
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.core.generate_client_order_id import generate_client_order_id
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
     OrderRejectedError,
     SubmitResult,
+    VenueError,
     SymbolFilters,
     VenueAdapter,
 )
@@ -68,7 +73,7 @@ def _twap_kwargs(**overrides: Any) -> dict[str, Any]:
         'qty': Decimal('1'),
         'order_type': OrderType.MARKET,
         'execution_mode': ExecutionMode.TWAP,
-        'execution_params': TwapParams(num_slices=4, interval_seconds=10),
+        'execution_params': IntervalSliceParams(num_slices=4, interval_seconds=10),
         'timeout': 3600,
         'reference_price': None,
         'maker_preference': MakerPreference.NO_PREFERENCE,
@@ -241,7 +246,7 @@ async def test_twap_emits_expected_spine_sequence(
 ) -> None:
     em, _ = mgr
     em.register_account(_ACCT)
-    await em.submit_command(**_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10)))
+    await em.submit_command(**_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10)))
     await asyncio.sleep(0.3)
     await _advance(clock_holder)
 
@@ -302,8 +307,7 @@ async def test_twap_slice_failure_freezes_and_reports_partial(
     assert partial.filled_qty == Decimal('0.25')
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
-    assert scheme.state is SchemeState.RUNNING
+    assert scheme.hold is _Hold.SLICE_FAILED
 
     await _advance(clock_holder)
     assert len(outcomes) == 1
@@ -370,7 +374,7 @@ async def test_twap_lot_aligned_slices_complete(
     em, outcomes = mgr
     em.register_account(_ACCT)
     await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=3, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=3, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
     await _advance(clock_holder)
@@ -471,7 +475,7 @@ async def test_twap_partial_immediate_fill_completes_via_ws(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 
@@ -554,7 +558,7 @@ async def test_twap_async_rejected_child_freezes_not_filled(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
     await _advance(clock_holder)
@@ -582,8 +586,7 @@ async def test_twap_async_rejected_child_freezes_not_filled(
     assert outcome.filled_qty == Decimal('0.5')
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
-    assert scheme.state is SchemeState.RUNNING
+    assert scheme.hold is _Hold.SLICE_FAILED
 
 
 @pytest.mark.asyncio
@@ -613,7 +616,7 @@ async def test_twap_abort_cancels_live_child_then_finalizes(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 
@@ -666,7 +669,7 @@ async def test_twap_slice_submit_failure_freezes_keeping_active_child(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(execution_params=TwapParams(num_slices=2, interval_seconds=10))
+        **_twap_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 
@@ -680,8 +683,7 @@ async def test_twap_slice_submit_failure_freezes_keeping_active_child(
     assert outcomes[0].status is TradeStatus.PARTIAL
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
-    assert scheme.state is SchemeState.RUNNING
+    assert scheme.hold is _Hold.SLICE_FAILED
     assert len(scheme.active_children) == 1
 
 
@@ -693,7 +695,7 @@ async def test_twap_deadline_expires_scheme(
     em, outcomes = mgr
     em.register_account(_ACCT)
     command_id = await em.submit_command(
-        **_twap_kwargs(timeout=30, execution_params=TwapParams(num_slices=4, interval_seconds=10))
+        **_twap_kwargs(timeout=30, execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
 
@@ -766,7 +768,7 @@ async def test_twap_resumes_from_replay_and_completes(
 
     resumed = restarted._accounts[_ACCT].schemes[command_id]
     assert len(restart_outcomes) == 0
-    assert resumed.state is SchemeState.RUNNING
+    assert resumed.hold is _Hold.OPEN
     assert resumed.cursor == 1
 
     for _ in range(3):
@@ -865,6 +867,48 @@ async def test_twap_resume_prunes_already_filled_active_child_and_finalizes(
 
 
 @pytest.mark.asyncio
+async def test_twap_resume_does_not_rearm_next_run_while_a_child_is_live(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    adapter: AsyncMock,
+) -> None:
+    em, outcomes = mgr
+    command_id = 'cmd-livech000000000000000000000000'
+    coid0 = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+    half = Decimal('0.5')
+
+    events = [
+        (1, CommandAccepted(account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE)),
+        (2, SchemeInitialized(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+            execution_mode=ExecutionMode.TWAP, symbol='BTCUSDT', side=OrderSide.BUY,
+            total_qty=Decimal('1'), slices_total=2, interval_seconds=10,
+        )),
+        (3, _intent(command_id, coid0, half)),
+        (4, OrderSubmitted(account_id=_ACCT, timestamp=_T0, client_order_id=coid0, venue_order_id=f'v-{coid0}')),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid0,), next_run_at=None,
+            state=SchemeState.RUNNING,
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    scheme = em._accounts[_ACCT].schemes[command_id]
+    assert scheme.hold is _Hold.OPEN
+    assert scheme.cursor == 1
+    assert scheme.active_children == {coid0}
+    assert scheme.next_run_at is None
+
+    await asyncio.sleep(0.3)
+
+    adapter.submit_order.assert_not_awaited()
+    assert len(outcomes) == 0
+    assert scheme.next_run_at is None
+
+
+@pytest.mark.asyncio
 async def test_scheme_missing_interval_is_unresumable_and_terminalized(
     mgr: tuple[ExecutionManager, list[TradeOutcome]],
 ) -> None:
@@ -931,7 +975,7 @@ async def test_twap_resume_stays_frozen_after_slice_failure(
     await em.reconcile_orphan_commands(_ACCT, events)
 
     scheme = em._accounts[_ACCT].schemes[command_id]
-    assert scheme.frozen is True
+    assert scheme.hold is _Hold.SLICE_FAILED
     assert scheme.cursor == 1
 
     await asyncio.sleep(0.3)
@@ -969,7 +1013,7 @@ async def test_freeze_account_schemes_stops_slices_and_persists(
     frozen = await em._freeze_account_schemes(runtime, 'protection lost')
 
     assert frozen == [command_id]
-    assert scheme.frozen is True
+    assert scheme.hold is _Hold.PROTECTION
     assert scheme.next_run_at is None
 
     events = await spine.read(_EPOCH, after_seq=0)
@@ -1039,7 +1083,7 @@ async def test_frozen_scheme_resumes_frozen_from_replay(
     restarted.replay_events(_ACCT, events)
 
     resumed = restarted._accounts[_ACCT].schemes[command_id]
-    assert resumed.frozen is True
+    assert resumed.hold is _Hold.PROTECTION
 
     submits_before = adapter.submit_order.await_count
     for _ in range(3):
@@ -1065,9 +1109,495 @@ async def test_freeze_account_schemes_freezes_many_and_skips_pending_terminal(
     runtime.schemes[second].pending_terminal = (
         TradeStatus.CANCELED, SchemeState.CANCELED, 'already terminalizing',
     )
+    runtime.schemes[second].hold = _Hold.DRAINING
 
     frozen = await em._freeze_account_schemes(runtime, 'protection lost')
 
     assert frozen == [first]
-    assert runtime.schemes[first].frozen is True
-    assert runtime.schemes[second].frozen is False
+    assert runtime.schemes[first].hold is _Hold.PROTECTION
+    assert runtime.schemes[second].hold is _Hold.DRAINING
+
+
+def _twap_init(command_id: str) -> SchemeInitialized:
+    return SchemeInitialized(
+        account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+        execution_mode=ExecutionMode.TWAP, symbol='BTCUSDT', side=OrderSide.BUY,
+        total_qty=Decimal('1'), slices_total=2, interval_seconds=10,
+    )
+
+
+def _accepted(command_id: str) -> CommandAccepted:
+    return CommandAccepted(
+        account_id=_ACCT, timestamp=_T0, command_id=command_id, trade_id=_TRADE,
+    )
+
+
+@pytest.mark.asyncio
+async def test_replay_resumes_a_draining_scheme_without_rearming_it(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-drain000000000000000000000000'
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.hold is _Hold.DRAINING
+    assert resumed.next_run_at is None
+    assert resumed.pending_terminal == (
+        TradeStatus.CANCELED, SchemeState.CANCELED, 'operator abort',
+    )
+
+
+@pytest.mark.asyncio
+async def test_replay_resumes_the_plan_an_amend_replaced_and_clears_its_freeze(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-thaw0000000000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SliceFailed(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            client_order_id=coid, reason='venue rejected',
+        )),
+        (4, SchemeReplanned(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            slices_total=2, interval_seconds=10,
+            slice_qtys=(Decimal('0.5'), Decimal('0.5')),
+            clears_slice_failure=True,
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.hold is _Hold.OPEN
+    assert resumed.slices_total == 2
+    assert resumed.slice_qtys == [Decimal('0.5'), Decimal('0.5')]
+
+
+@pytest.mark.asyncio
+async def test_replay_replan_never_clears_a_protection_freeze(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-prot0000000000000000000000000'
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeFrozen(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            reason='naked protection remediation',
+        )),
+        (4, SchemeReplanned(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            slices_total=2, interval_seconds=10,
+            slice_qtys=(Decimal('0.5'), Decimal('0.5')),
+            clears_slice_failure=True,
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    assert em._accounts[_ACCT].schemes[command_id].hold is _Hold.PROTECTION
+
+
+@pytest.mark.asyncio
+async def test_draining_outranks_a_freeze_on_replay(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-both0000000000000000000000000'
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeFrozen(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            reason='naked protection remediation',
+        )),
+        (4, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    assert em._accounts[_ACCT].schemes[command_id].hold is _Hold.DRAINING
+
+
+@pytest.mark.asyncio
+async def test_resumed_drain_recancels_children_the_crash_left_working(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-redrv000000000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, _intent(command_id, coid, Decimal('0.5'))),
+        (4, OrderSubmitted(
+            account_id=_ACCT, timestamp=_T0, client_order_id=coid,
+            venue_order_id=f'v-{coid}',
+        )),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid,),
+            next_run_at=None, state=SchemeState.RUNNING,
+        )),
+        (6, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.hold is _Hold.DRAINING
+    assert resumed.active_children == {coid}
+    assert resumed.drain_cancel_pending is True
+
+    # Drive the real writer loop with the account gated: a GATED reconnect is
+    # the window a crashed abort resumes into, so a re-drive that only runs
+    # when the account is order-capable would never retire these rungs.
+    runtime = em._accounts[_ACCT]
+    runtime.reconciling = True
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert em._venue_adapter.cancel_order.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_replay_pairs_the_amended_timer_with_the_amended_plan(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-timer000000000000000000000000'
+    amended_run_at = _T0 + timedelta(seconds=3600)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=0,
+            filled_qty=Decimal('0'), active_client_order_ids=(),
+            next_run_at=_T0 + timedelta(seconds=10),
+            state=SchemeState.RUNNING,
+        )),
+        # Same wall-clock stamp as the progress event above: the replay clock
+        # is constant within a bar, so only the spine sequence distinguishes
+        # which of the two is the newer durable fact.
+        (4, SchemeReplanned(
+            account_id=_ACCT, timestamp=_T0,
+            command_id=command_id, slices_total=2, interval_seconds=3600,
+            slice_qtys=(Decimal('0.5'), Decimal('0.5')),
+            next_run_at=amended_run_at,
+        )),
+    ]
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    resumed = em._accounts[_ACCT].schemes[command_id]
+
+    assert resumed.interval_seconds == 3600
+    assert resumed.next_run_at == amended_run_at
+
+
+@pytest.mark.asyncio
+async def test_failed_boot_cancels_the_children_a_drain_left_working(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-bootfail00000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, _intent(command_id, coid, Decimal('0.5'))),
+        (4, OrderSubmitted(
+            account_id=_ACCT, timestamp=_T0, client_order_id=coid,
+            venue_order_id=f'v-{coid}',
+        )),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid,),
+            next_run_at=None, state=SchemeState.RUNNING,
+        )),
+        (6, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em.register_account(_ACCT, booting=True)
+    em.replay_events(_ACCT, events)
+
+    assert em._venue_adapter.cancel_order.await_count == 0
+
+    # The writer stays parked for good, so this is the only pass that can
+    # retire the rungs before shutdown.
+    await em.fail_account_startup(_ACCT)
+
+    assert em._venue_adapter.cancel_order.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_gated_drain_retries_a_cancel_the_venue_refused(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    clock_holder: list[datetime],
+) -> None:
+    em, _ = mgr
+    command_id = 'cmd-retry000000000000000000000000'
+    coid = generate_client_order_id(ExecutionMode.TWAP, command_id, 0)
+
+    events = [
+        (1, _accepted(command_id)),
+        (2, _twap_init(command_id)),
+        (3, _intent(command_id, coid, Decimal('0.5'))),
+        (4, OrderSubmitted(
+            account_id=_ACCT, timestamp=_T0, client_order_id=coid,
+            venue_order_id=f'v-{coid}',
+        )),
+        (5, SchemeStateChanged(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id, cursor=1,
+            filled_qty=Decimal('0'), active_client_order_ids=(coid,),
+            next_run_at=None, state=SchemeState.RUNNING,
+        )),
+        (6, SchemeDraining(
+            account_id=_ACCT, timestamp=_T0, command_id=command_id,
+            status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+            reason='operator abort',
+        )),
+    ]
+
+    em._venue_adapter.cancel_order.side_effect = VenueError('venue refused')
+
+    em.register_account(_ACCT)
+    em.replay_events(_ACCT, events)
+
+    runtime = em._accounts[_ACCT]
+    runtime.reconciling = True
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    first = em._venue_adapter.cancel_order.await_count
+
+    assert first >= 1
+    assert runtime.schemes[command_id].active_children == {coid}
+
+    # Still gated, and the child is still working because the venue refused.
+    # Without the interval the loop would never send a second cancel.
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert em._venue_adapter.cancel_order.await_count == first
+
+    clock_holder[0] = clock_holder[0] + timedelta(seconds=6)
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert em._venue_adapter.cancel_order.await_count > first
+    assert runtime.reconciling is True
+
+
+@pytest.mark.asyncio
+async def test_live_abort_writes_the_drain_to_the_spine(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    spine: EventSpine,
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    em.submit_abort(TradeAbort(
+        command_id=command_id, account_id=_ACCT, reason='operator stop',
+        created_at=_T0,
+    ))
+    await asyncio.sleep(0.3)
+
+    drains = [
+        event for _seq, event in await spine.read(_EPOCH, after_seq=0)
+        if isinstance(event, SchemeDraining) and event.command_id == command_id
+    ]
+
+    assert len(drains) == 1
+    assert drains[0].status is TradeStatus.CANCELED
+    assert drains[0].scheme_state is SchemeState.CANCELED
+    assert drains[0].reason == 'operator stop'
+
+
+@pytest.mark.asyncio
+async def test_live_amend_writes_the_replan_to_the_spine(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+    spine: EventSpine,
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    command_id = await em.submit_command(**_twap_kwargs())
+    await asyncio.sleep(0.3)
+
+    await em._process_modify(
+        em._accounts[_ACCT],
+        TradeModify(
+            command_id=command_id,
+            account_id=_ACCT,
+            modify_params=IntervalSliceModify(num_slices=5),
+            reason='operator replan',
+            created_at=_T0,
+        ),
+    )
+
+    replans = [
+        event for _seq, event in await spine.read(_EPOCH, after_seq=0)
+        if isinstance(event, SchemeReplanned) and event.command_id == command_id
+    ]
+    live = em._accounts[_ACCT].schemes[command_id]
+
+    assert len(replans) == 1
+    assert replans[0].slices_total == live.slices_total
+    assert list(replans[0].slice_qtys) == live.slice_qtys
+    assert replans[0].interval_seconds == live.interval_seconds
+    assert replans[0].next_run_at == live.next_run_at
+    assert replans[0].clears_slice_failure is False
+
+
+@pytest.mark.asyncio
+async def test_submit_command_refuses_a_poisoned_account(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT)
+    em._accounts[_ACCT].poisoned = True
+
+    with pytest.raises(RuntimeError, match='poisoned'):
+        await em.submit_command(**_twap_kwargs())
+
+
+@pytest.mark.asyncio
+async def test_submit_command_refuses_an_account_whose_boot_failed(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, _ = mgr
+    em.register_account(_ACCT, booting=True)
+    await em.fail_account_startup(_ACCT)
+
+    with pytest.raises(RuntimeError, match='failed startup'):
+        await em.submit_command(**_twap_kwargs())
+
+
+@pytest.mark.asyncio
+async def test_a_command_queued_before_a_boot_failure_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    command_id = await em.submit_command(**_twap_kwargs())
+
+    assert not outcomes
+
+    await em.fail_account_startup(_ACCT)
+
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED
+    assert outcomes[0].filled_qty == Decimal('0')
+    assert em._accounts[_ACCT].command_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_a_command_queued_before_poisoning_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    command_id = await em.submit_command(**_twap_kwargs())
+    runtime = em._accounts[_ACCT]
+    runtime.poisoned = True
+    runtime.booting = False
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED
+    assert runtime.command_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_a_command_queued_when_the_writer_dies_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    command_id = await em.submit_command(**_twap_kwargs())
+    runtime = em._accounts[_ACCT]
+
+    async def _die(_runtime: object, **_kwargs: object) -> None:
+        msg = 'writer boom'
+        raise ValueError(msg)
+
+    em._drive_pending_drains = _die
+    runtime.booting = False
+    runtime.wake.set()
+    await asyncio.sleep(0.3)
+
+    assert runtime.poisoned is True
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED
+
+
+@pytest.mark.asyncio
+async def test_a_command_accepted_across_a_dying_append_is_terminalized(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    em, outcomes = mgr
+    em.register_account(_ACCT, booting=True)
+    runtime = em._accounts[_ACCT]
+    original = em._event_spine.append
+
+    async def _die_during_append(event: object, epoch_id: int) -> int:
+        seq = await original(event, epoch_id)
+        # The account dies while the durable accept is still in flight.
+        runtime.boot_failed = True
+
+        return seq
+
+    em._event_spine.append = _die_during_append
+
+    command_id = await em.submit_command(**_twap_kwargs())
+
+    assert runtime.command_queue.empty()
+    assert [o.command_id for o in outcomes] == [command_id]
+    assert outcomes[0].status is TradeStatus.REJECTED

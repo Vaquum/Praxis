@@ -39,6 +39,8 @@ from praxis.core.domain.execution_scheme import ExecutionScheme
 from praxis.core.domain.fill import Fill
 from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.modify_params import MODIFY_PARAMS_FOR_MODE, ModifyParams
@@ -48,14 +50,10 @@ from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_modify import SingleShotModify
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.time_dca_modify import TimeDcaModify
-from praxis.core.domain.time_dca_params import TimeDcaParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.domain.twap_modify import TwapModify
-from praxis.core.domain.twap_params import TwapParams
 
 __all__ = [
     'MODIFY_PARAMS_FOR_MODE',
@@ -71,6 +69,8 @@ __all__ = [
     'FillReceived',
     'IcebergModify',
     'IcebergParams',
+    'IntervalSliceModify',
+    'IntervalSliceParams',
     'LadderDcaModify',
     'LadderDcaParams',
     'MakerPreference',
@@ -95,14 +95,10 @@ __all__ = [
     'SchemeStateChanged',
     'SingleShotModify',
     'SingleShotParams',
-    'TimeDcaModify',
-    'TimeDcaParams',
     'TradeAbort',
     'TradeClosed',
     'TradeCommand',
     'TradeModify',
     'TradeOutcome',
     'TradeStatus',
-    'TwapModify',
-    'TwapParams',
 ]

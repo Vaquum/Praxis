@@ -14,7 +14,13 @@ import aiosqlite
 import pytest
 import pytest_asyncio
 
-from praxis.core.domain.enums import ExecutionMode, OrderSide, OrderType
+from praxis.core.domain.enums import (
+    ExecutionMode,
+    OrderSide,
+    OrderType,
+    SchemeState,
+    TradeStatus,
+)
 from praxis.core.domain.events import (
     BracketInitialized,
     OrderAmendInitiated,
@@ -42,7 +48,9 @@ from praxis.core.domain.events import (
     OrderSubmitted,
     RegisterAccount,
     SchemeFrozen,
+    SchemeDraining,
     SchemeInitialized,
+    SchemeReplanned,
     TradeClosed,
 )
 from praxis.infrastructure.event_spine import EventSpine
@@ -58,6 +66,32 @@ _VTRD = 'vt-001'
 _EPOCH = 1
 
 _ALL_EVENTS: list[Event] = [
+
+    SchemeDraining(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD,
+        status=TradeStatus.CANCELED, scheme_state=SchemeState.CANCELED,
+        reason='operator abort',
+    ),
+
+    SchemeDraining(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD,
+        status=TradeStatus.EXPIRED, scheme_state=SchemeState.FAILED,
+        reason=None,
+    ),
+
+    SchemeReplanned(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD,
+        slices_total=3, interval_seconds=3600,
+        slice_qtys=(Decimal('0.1875'), Decimal('0.1875'), Decimal('0.25')),
+        next_run_at=_TS, clears_slice_failure=True,
+    ),
+
+    SchemeReplanned(
+        account_id=_ACCT, timestamp=_TS, command_id=_CMD,
+        slices_total=2, interval_seconds=10,
+        slice_qtys=(Decimal('0.5'), Decimal('0.5')),
+        next_run_at=None,
+    ),
 
     CommandAccepted(
         account_id=_ACCT, timestamp=_TS,

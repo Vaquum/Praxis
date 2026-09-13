@@ -23,6 +23,8 @@ from praxis.core.domain.events import (
     LadderAmendStateUnknown,
     OrderAmendInitiated,
     SchemeFrozen,
+    SchemeReplanned,
+    SchemeDraining,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -87,6 +89,8 @@ _UNPROJECTED_EVENT_TYPES = _TRADING_STATE_EXEMPT_EVENT_TYPES | frozenset({
     OrderAcked,
     SliceFailed,
     SchemeFrozen,
+    SchemeReplanned,
+    SchemeDraining,
     BracketInitialized,
     OrderAmendInitiated,
     ReconciliationMismatch,
@@ -158,6 +162,7 @@ class TradingState:
         '''
 
         if isinstance(event, CommandAccepted):
+            self._on_command_accepted(event)
             return
 
         if isinstance(event, SchemeInitialized):
@@ -344,6 +349,27 @@ class TradingState:
         order.updated_at = event.timestamp
         self._close_order(event.client_order_id)
 
+    def _on_command_accepted(self, event: CommandAccepted) -> None:
+
+        '''Record the accepted command's strategy attribution.
+
+        The first fill on a trade reads this mapping to attribute the
+        position it opens, and the trade's close pops it. Recording it
+        here — rather than in the caller that appends the event — keeps
+        the projection self-contained, so a fold of the spine through
+        `apply` alone reconstructs attribution instead of leaving every
+        replayed position unattributed.
+
+        A command carrying no strategy leaves the key absent rather than
+        storing `None`, so the mapping holds only real attributions.
+        '''
+
+        if event.strategy_id is None:
+            return
+
+        with self._positions_lock:
+            self.trade_strategy_ids[event.trade_id] = event.strategy_id
+
     def _on_fill_received(self, event: FillReceived) -> None:
 
         '''Apply fill to order and position.'''
@@ -353,7 +379,23 @@ class TradingState:
 
     def _update_order_on_fill(self, event: FillReceived) -> None:
 
-        '''Update order filled quantity and status.'''
+        '''Update order filled quantity and status.
+
+        A fill can arrive after its order has already closed: a protective OCO
+        leg delivered or backfilled once a sibling leg cancelled the parent.
+        The quantity and notional are still booked, so a command's fill totals
+        stay accurate for the flatten sizing that reads them, but the order
+        keeps the terminal status it reached — it must not flicker back to
+        partially filled, and it must not close a second time.
+        '''
+
+        closed_order = self.closed_orders.get(event.client_order_id)
+        if closed_order is not None:
+            closed_order.filled_qty += event.qty
+            closed_order.cumulative_notional += event.qty * event.price
+            closed_order.updated_at = event.timestamp
+
+            return
 
         order = self._get_order('FillReceived', event.client_order_id)
         if order is None:
@@ -420,7 +462,7 @@ class TradingState:
         key = (event.trade_id, self.account_id)
         with self._positions_lock:
             pos = self.positions.pop(key, None)
-        self.trade_strategy_ids.pop(event.trade_id, None)
+            self.trade_strategy_ids.pop(event.trade_id, None)
         if pos is None:
             _log.debug(
                 'no position for TradeClosed (already cleaned up by '

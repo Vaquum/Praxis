@@ -110,7 +110,10 @@ class TradingInbound:
         Note:
             If execution runtime is already registered for account_id,
             registration is treated as idempotent success based on
-            execution registry state.
+            execution registry state. `booting` is NOT applied to an
+            already-registered runtime: parking a writer that is mid-iteration
+            would let boot recovery drain the admission queue alongside it, so
+            recovery admission fails loudly instead (TD-151).
         '''
 
         if not account_id:

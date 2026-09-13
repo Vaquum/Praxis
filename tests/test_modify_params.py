@@ -16,8 +16,7 @@ from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.modify_params import MODIFY_PARAMS_FOR_MODE, ModifyParams
 from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.single_shot_modify import SingleShotModify
-from praxis.core.domain.time_dca_modify import TimeDcaModify
-from praxis.core.domain.twap_modify import TwapModify
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
 
 
 class TestPartialAmend:
@@ -35,7 +34,7 @@ class TestPartialAmend:
         assert modify.limit_price is None
 
     def test_twap_amends_interval_only(self) -> None:
-        modify = TwapModify(interval_seconds=30)
+        modify = IntervalSliceModify(interval_seconds=30)
 
         assert modify.interval_seconds == 30
         assert modify.num_slices is None
@@ -48,8 +47,8 @@ class TestEmptyAmendRejected:
         BracketModify,
         IcebergModify,
         LadderDcaModify,
-        TwapModify,
-        TimeDcaModify,
+        IntervalSliceModify,
+        IntervalSliceModify,
         ScheduledVwapModify,
     ])
     def test_all_none_rejected(self, factory: type[ModifyParams]) -> None:
@@ -91,11 +90,11 @@ class TestFieldValidation:
 
     def test_twap_num_slices_below_minimum_rejected(self) -> None:
         with pytest.raises(ValueError, match='at least 2'):
-            TwapModify(num_slices=1)
+            IntervalSliceModify(num_slices=1)
 
     def test_twap_non_positive_interval_rejected(self) -> None:
         with pytest.raises(ValueError, match='positive int'):
-            TwapModify(interval_seconds=0)
+            IntervalSliceModify(interval_seconds=0)
 
 
 class TestRegistry:
@@ -105,7 +104,7 @@ class TestRegistry:
 
     def test_registry_maps_to_expected_types(self) -> None:
         assert MODIFY_PARAMS_FOR_MODE[ExecutionMode.ICEBERG] is IcebergModify
-        assert MODIFY_PARAMS_FOR_MODE[ExecutionMode.TWAP] is TwapModify
+        assert MODIFY_PARAMS_FOR_MODE[ExecutionMode.TWAP] is IntervalSliceModify
         assert MODIFY_PARAMS_FOR_MODE[ExecutionMode.BRACKET] is BracketModify
 
 
@@ -113,19 +112,19 @@ class TestBoolRejectedAsInt:
 
     def test_twap_interval_rejects_bool(self) -> None:
         with pytest.raises(ValueError, match='interval_seconds'):
-            TwapModify(interval_seconds=True)
+            IntervalSliceModify(interval_seconds=True)
 
     def test_twap_num_slices_rejects_bool(self) -> None:
         with pytest.raises(ValueError, match='num_slices'):
-            TwapModify(num_slices=True)
+            IntervalSliceModify(num_slices=True)
 
     def test_time_dca_interval_rejects_bool(self) -> None:
         with pytest.raises(ValueError, match='interval_seconds'):
-            TimeDcaModify(interval_seconds=True)
+            IntervalSliceModify(interval_seconds=True)
 
     def test_time_dca_iterations_rejects_bool(self) -> None:
-        with pytest.raises(ValueError, match='num_iterations'):
-            TimeDcaModify(num_iterations=True)
+        with pytest.raises(ValueError, match='num_slices'):
+            IntervalSliceModify(num_slices=True)
 
     def test_scheduled_vwap_interval_rejects_bool(self) -> None:
         with pytest.raises(ValueError, match='interval_seconds'):

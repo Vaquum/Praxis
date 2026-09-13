@@ -173,13 +173,14 @@ def _trade_closed() -> TradeClosed:
     )
 
 
-def _command_accepted() -> CommandAccepted:
+def _command_accepted(strategy_id: str | None = None) -> CommandAccepted:
 
     return CommandAccepted(
         account_id=_ACCT,
         timestamp=_TS,
         command_id=_CMD,
         trade_id=_TRADE,
+        strategy_id=strategy_id,
     )
 
 
@@ -196,12 +197,33 @@ def test_rejects_empty_account_id() -> None:
         TradingState(account_id='')
 
 
-def test_command_accepted_is_noop() -> None:
+def test_command_accepted_without_strategy_records_nothing() -> None:
 
     state = _state()
     state.apply(_command_accepted())
     assert state.orders == {}
     assert state.positions == {}
+    assert state.trade_strategy_ids == {}
+
+
+def test_command_accepted_records_strategy_attribution() -> None:
+
+    state = _state()
+    state.apply(_command_accepted(strategy_id='strat_001'))
+
+    assert state.trade_strategy_ids == {_TRADE: 'strat_001'}
+    assert state.orders == {}
+    assert state.positions == {}
+
+
+def test_replayed_command_accepted_attributes_the_opened_position() -> None:
+
+    state = _state()
+    state.apply(_command_accepted(strategy_id='strat_001'))
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+
+    assert state.positions[(_TRADE, _ACCT)].strategy_id == 'strat_001'
 
 
 def test_submit_intent_creates_submitting_order() -> None:
@@ -744,3 +766,34 @@ def test_apply_reconciliation_mismatch_is_noop(
         )
 
     assert 'unhandled event type' not in caplog.text
+
+
+def test_late_fill_on_a_closed_order_books_without_reopening_it() -> None:
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_canceled())
+    closed = state.closed_orders[_ORDER]
+
+    assert closed.status == OrderStatus.CANCELED
+    assert closed.filled_qty == Decimal('0')
+
+    state.apply(_fill_event(qty=Decimal('0.25')))
+
+    assert _ORDER not in state.orders
+    assert closed.status == OrderStatus.CANCELED
+    assert closed.filled_qty == Decimal('0.25')
+    assert closed.cumulative_notional == Decimal('0.25') * Decimal('50000')
+
+
+def test_late_fill_on_a_filled_order_does_not_close_it_twice() -> None:
+
+    state = _state()
+    state.apply(_submit_intent(qty=Decimal('1')))
+    state.apply(_fill_event(qty=Decimal('1')))
+    closed = state.closed_orders[_ORDER]
+
+    state.apply(_fill_event(qty=Decimal('0.5')))
+
+    assert closed.status == OrderStatus.FILLED
+    assert closed.filled_qty == Decimal('1.5')

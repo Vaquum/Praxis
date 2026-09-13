@@ -27,23 +27,27 @@ two sides do not share value strings (Nexus uses `CANCEL_*`, Praxis
 uses `EXPIRE_*`); `_STP_MODE_VALUE_MAP` records the semantic
 equivalence so the translation does not silently drop the value.
 
-`build_execution_params` extends this to every execution mode: it dispatches
-on the mode to the matching per-mode params dataclass (`SingleShotParams`,
-`TwapParams`, `BracketParams`, and the rest), rejecting keys outside the
-mode's field set and coercing list payloads to the tuples the dataclasses
-expect. SINGLE_SHOT keeps `build_single_shot_params` — it alone accepts an
-omitted (`None`) payload and type-checks Decimals directly; the other modes
-self-validate in their dataclass `__post_init__`.
+`build_execution_params` extends this to every execution mode, and
+`build_modify_params` does the same for amends. Both resolve the mode's
+dataclass through the canonical registries (`PARAMS_FOR_MODE`,
+`MODIFY_PARAMS_FOR_MODE`) and derive from it the keys the payload may carry
+and the fields whose list payloads coerce to tuples, so a mode is wired up
+by registering its params type alone — there is no second per-mode table
+here to drift from the dataclass it mirrors. Keys outside the mode's field
+set are rejected. SINGLE_SHOT keeps `build_single_shot_params` — it alone
+accepts an omitted (`None`) payload and type-checks Decimals directly; the
+other modes self-validate in their dataclass `__post_init__`.
 '''
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import fields
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from types import UnionType
+from typing import Annotated, Any, Union, get_args, get_origin, get_type_hints
 
-from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.enums import (
     ExecutionMode,
     MakerPreference,
@@ -51,21 +55,9 @@ from praxis.core.domain.enums import (
     OrderType,
     STPMode,
 )
-from praxis.core.domain.bracket_modify import BracketModify
-from praxis.core.domain.execution_params import ExecutionParams
-from praxis.core.domain.iceberg_modify import IcebergModify
-from praxis.core.domain.iceberg_params import IcebergParams
-from praxis.core.domain.ladder_dca_modify import LadderDcaModify
-from praxis.core.domain.ladder_dca_params import LadderDcaParams
-from praxis.core.domain.modify_params import ModifyParams
-from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
-from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
-from praxis.core.domain.single_shot_modify import SingleShotModify
+from praxis.core.domain.execution_params import PARAMS_FOR_MODE, ExecutionParams
+from praxis.core.domain.modify_params import MODIFY_PARAMS_FOR_MODE, ModifyParams
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.time_dca_modify import TimeDcaModify
-from praxis.core.domain.time_dca_params import TimeDcaParams
-from praxis.core.domain.twap_modify import TwapModify
-from praxis.core.domain.twap_params import TwapParams
 
 __all__ = [
     'build_execution_params',
@@ -78,37 +70,77 @@ __all__ = [
     'translate_stp_mode',
 ]
 
-_BRACKET_KEYS = frozenset({
-    'take_profit_price',
-    'take_profit_offset_bps',
-    'stop_loss_price',
-    'stop_loss_offset_bps',
-    'stop_loss_limit_price',
-})
-_TWAP_KEYS = frozenset({'num_slices', 'interval_seconds'})
-_TIME_DCA_KEYS = frozenset({'num_iterations', 'interval_seconds'})
-_SCHEDULED_VWAP_KEYS = frozenset({'interval_seconds', 'volume_weights'})
-_ICEBERG_KEYS = frozenset({'display_qty', 'limit_price'})
-_LADDER_DCA_KEYS = frozenset({'price_levels', 'level_weights'})
 
-_ALLOWED_KEYS = frozenset({'price', 'stop_price', 'stop_limit_price'})
+def _field_names(cls: type) -> frozenset[str]:
 
-_MODIFY_FOR_MODE: dict[
-    ExecutionMode, tuple[type[ModifyParams], str, frozenset[str], frozenset[str]]
-] = {
-    ExecutionMode.SINGLE_SHOT: (SingleShotModify, 'SINGLE_SHOT', _ALLOWED_KEYS, frozenset()),
-    ExecutionMode.BRACKET: (BracketModify, 'BRACKET', _BRACKET_KEYS, frozenset()),
-    ExecutionMode.TWAP: (TwapModify, 'TWAP', _TWAP_KEYS, frozenset()),
-    ExecutionMode.TIME_DCA: (TimeDcaModify, 'TIME_DCA', _TIME_DCA_KEYS, frozenset()),
-    ExecutionMode.SCHEDULED_VWAP: (
-        ScheduledVwapModify, 'SCHEDULED_VWAP', _SCHEDULED_VWAP_KEYS,
-        frozenset({'volume_weights'}),
-    ),
-    ExecutionMode.ICEBERG: (IcebergModify, 'ICEBERG', _ICEBERG_KEYS, frozenset()),
-    ExecutionMode.LADDER_DCA: (
-        LadderDcaModify, 'LADDER_DCA', _LADDER_DCA_KEYS,
-        frozenset({'price_levels', 'level_weights'}),
-    ),
+    '''Return the constructor-settable field names of a params dataclass.
+
+    Non-init fields are excluded: they cannot be passed to the dataclass
+    constructor, so they are not part of the payload's wire shape.
+    '''
+
+    return frozenset(field.name for field in fields(cls) if field.init)
+
+
+def _is_tuple_hint(hint: object) -> bool:
+
+    '''Whether a type hint is a tuple, including inside a union.
+
+    Recursion walks unions only, so a tuple nested in some other generic
+    (`list[tuple[int, ...]]`) is not mistaken for a tuple field whose list
+    payload should be coerced.
+    '''
+
+    hint = _unwrap_annotated(hint)
+
+    if hint is tuple or get_origin(hint) is tuple:
+        return True
+
+    if get_origin(hint) in (Union, UnionType):
+        return any(_is_tuple_hint(arg) for arg in get_args(hint))
+
+    return False
+
+
+def _unwrap_annotated(hint: object) -> object:
+
+    '''Strip `Annotated[...]` down to the type it wraps.'''
+
+    while get_origin(hint) is Annotated:
+        hint = get_args(hint)[0]
+
+    return hint
+
+
+def _tuple_field_names(cls: type) -> frozenset[str]:
+
+    '''Return the tuple-typed constructor field names of a params dataclass.
+
+    A Nexus payload ships JSON arrays for these, so `_build_from_mapping`
+    coerces the list to the tuple the dataclass declares.
+    '''
+
+    hints = get_type_hints(cls)
+
+    return frozenset(
+        field.name
+        for field in fields(cls)
+        if field.init and _is_tuple_hint(hints[field.name])
+    )
+
+
+# Derived once at import from the two canonical registries, so a params
+# dataclass and the payload keys accepted for its mode cannot drift, and an
+# unresolvable annotation fails at import rather than on the first command.
+_PARAMS_CLASSES: tuple[type, ...] = (
+    *PARAMS_FOR_MODE.values(),
+    *MODIFY_PARAMS_FOR_MODE.values(),
+)
+_FIELD_NAMES: dict[type, frozenset[str]] = {
+    cls: _field_names(cls) for cls in _PARAMS_CLASSES
+}
+_TUPLE_FIELD_NAMES: dict[type, frozenset[str]] = {
+    cls: _tuple_field_names(cls) for cls in _PARAMS_CLASSES
 }
 
 _STP_MODE_VALUE_MAP: dict[str, str] = {
@@ -239,16 +271,17 @@ def build_single_shot_params(
         )
         raise TypeError(msg)
 
-    unknown = set(value.keys()) - _ALLOWED_KEYS
+    allowed_keys = _FIELD_NAMES[SingleShotParams]
+    unknown = set(value.keys()) - allowed_keys
     if unknown:
         msg = (
             'execution_params has unsupported keys for SINGLE_SHOT: '
-            f'{sorted(unknown)} (allowed: {sorted(_ALLOWED_KEYS)})'
+            f'{sorted(unknown)} (allowed: {sorted(allowed_keys)})'
         )
         raise ValueError(msg)
 
     kwargs: dict[str, Decimal | None] = {}
-    for key in _ALLOWED_KEYS:
+    for key in allowed_keys:
         raw = value.get(key)
         if raw is None:
             kwargs[key] = None
@@ -319,7 +352,7 @@ def _build_from_mapping[P](
     return cls(**kwargs)
 
 
-def build_execution_params(  # noqa: PLR0911 - one return per execution mode
+def build_execution_params(
     mode: ExecutionMode,
     value: object,
 ) -> ExecutionParams:
@@ -345,32 +378,15 @@ def build_execution_params(  # noqa: PLR0911 - one return per execution mode
     if mode is ExecutionMode.SINGLE_SHOT:
         return build_single_shot_params(value)
 
-    if mode is ExecutionMode.BRACKET:
-        return _build_from_mapping(BracketParams, value, 'BRACKET', _BRACKET_KEYS)
+    cls = PARAMS_FOR_MODE.get(mode)
 
-    if mode is ExecutionMode.TWAP:
-        return _build_from_mapping(TwapParams, value, 'TWAP', _TWAP_KEYS)
+    if cls is None:
+        msg = f'no execution_params builder for mode {mode.value}'
+        raise ValueError(msg)
 
-    if mode is ExecutionMode.TIME_DCA:
-        return _build_from_mapping(TimeDcaParams, value, 'TIME_DCA', _TIME_DCA_KEYS)
-
-    if mode is ExecutionMode.SCHEDULED_VWAP:
-        return _build_from_mapping(
-            ScheduledVwapParams, value, 'SCHEDULED_VWAP', _SCHEDULED_VWAP_KEYS,
-            frozenset({'volume_weights'}),
-        )
-
-    if mode is ExecutionMode.ICEBERG:
-        return _build_from_mapping(IcebergParams, value, 'ICEBERG', _ICEBERG_KEYS)
-
-    if mode is ExecutionMode.LADDER_DCA:
-        return _build_from_mapping(
-            LadderDcaParams, value, 'LADDER_DCA', _LADDER_DCA_KEYS,
-            frozenset({'price_levels', 'level_weights'}),
-        )
-
-    msg = f'no execution_params builder for mode {mode.value}'
-    raise ValueError(msg)
+    return _build_from_mapping(
+        cls, value, mode.name, _FIELD_NAMES[cls], _TUPLE_FIELD_NAMES[cls],
+    )
 
 
 def build_modify_params(mode: ExecutionMode, value: object) -> ModifyParams:
@@ -396,12 +412,13 @@ def build_modify_params(mode: ExecutionMode, value: object) -> ModifyParams:
             mode has no amend builder.
     '''
 
-    entry = _MODIFY_FOR_MODE.get(mode)
-    if entry is None:
+    cls = MODIFY_PARAMS_FOR_MODE.get(mode)
+
+    if cls is None:
         msg = f'no modify_params builder for mode {mode.value}'
         raise ValueError(msg)
 
-    cls, label, allowed_keys, tuple_keys = entry
     return _build_from_mapping(
-        cls, value, label, allowed_keys, tuple_keys, payload_label='modify_params',
+        cls, value, mode.name, _FIELD_NAMES[cls], _TUPLE_FIELD_NAMES[cls],
+        payload_label='modify_params',
     )

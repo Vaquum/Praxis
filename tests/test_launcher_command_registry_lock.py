@@ -1,22 +1,26 @@
-'''Tests for the `command_strategy_ids` / `command_contexts` cross-thread
-visibility contract enforced by the launcher's `command_registry_lock`.
+'''Tests for the `command_registrations` cross-thread visibility contract
+enforced by the launcher's `command_registry_lock`.
+
+The one registration record carries both the strategy mapping and the
+`OrderContext`, written at different points; this file models those two
+writes as separate dicts to pin the ordering and torn-read invariants.
 
 Two layers of fixes are pinned by this file:
 
-PT-FIX-29 — both registry mutations (`command_strategy_ids[cid] = sid`
-and `command_contexts[cid] = order_context`) and the cross-thread reads
-of those registries (`process_outcome`, `resolve_strategy_id`) now go
-through the shared `command_registry_lock` so external observers never
-see a torn dict-state. The `TestCommandRegistryLock` class pins the
-torn-read invariant on both registration and terminal-pop paths.
+PT-FIX-29 — both registration writes (creating the record with its
+strategy mapping and attaching the `order_context`) and the cross-thread
+reads (`process_outcome`, `resolve_strategy_id`) now go through the
+shared `command_registry_lock` so external observers never see a torn
+state. The `TestCommandRegistryLock` class pins the torn-read invariant
+on both registration and terminal-pop paths.
 
-MAJOR-P (round 14) — `command_strategy_ids[cid] = sid` is written
-BEFORE `capital_controller.send_order` (was: written AFTER, AT THE END
-of the loop body, under one combined `with` block). Pre-fix a fast
-venue ACK landing during `send_order` / `_ensure_entry_position` /
+MAJOR-P (round 14) — the strategy mapping is registered BEFORE
+`capital_controller.send_order` (was: written AFTER, AT THE END of the
+loop body, under one combined `with` block). Pre-fix a fast venue ACK
+landing during `send_order` / `_ensure_entry_position` /
 `_build_order_context` would call `resolve_strategy_id` and miss,
-silently dropping the outcome. Post-fix the strategy_ids write happens
-at the TOP of the per-action loop body; the contexts write stays at
+silently dropping the outcome. Post-fix the strategy write happens
+at the TOP of the per-action loop body; the context write stays at
 the END (it needs `order_context` which is built later). On
 `send_order` failure the launcher also pops the early strategy_ids
 entry back out under the lock to avoid a registry zombie — that
@@ -258,14 +262,14 @@ def _submitter_pattern_post_major_p(
     order_context: Any,
     send_order_observer: list[bool],
 ) -> None:
-    '''Mirror the post-MAJOR-P submitter pattern: register
-    `command_strategy_ids` BEFORE `send_order` so OutcomeLoop can
-    resolve a fast venue ACK that arrives during `send_order` /
-    `_ensure_entry_position` / `_build_order_context`.
+    '''Mirror the post-MAJOR-P submitter pattern: register the strategy
+    mapping BEFORE `send_order` so OutcomeLoop can resolve a fast venue
+    ACK that arrives during `send_order` / `_ensure_entry_position` /
+    `_build_order_context`.
 
-    The `send_order_observer` captures whether `command_strategy_ids`
-    was populated at `send_order` invocation time. The test asserts
-    every observation is True.
+    The `send_order_observer` captures whether the strategy mapping was
+    populated at `send_order` invocation time. The test asserts every
+    observation is True.
     '''
 
     with lock:
@@ -283,7 +287,7 @@ def _submitter_pattern_post_major_p(
 
 
 class TestMajorPRegistryRaceWindow:
-    '''MAJOR-P: `command_strategy_ids` must be populated BEFORE
+    '''MAJOR-P: the strategy mapping must be populated BEFORE
     `send_order` is called so OutcomeLoop's `resolve_strategy_id`
     cannot miss for fast venue ACKs that arrive during the post-
     `send_command` processing window. Pre-fix the registration
@@ -298,7 +302,7 @@ class TestMajorPRegistryRaceWindow:
 
     def test_strategy_id_set_before_send_order(self) -> None:
         '''Pin the post-fix ordering invariant: at the moment
-        `send_order` runs, `command_strategy_ids[command_id]` is
+        `send_order` runs, the strategy mapping for `command_id` is
         already populated.
         '''
 
@@ -319,7 +323,7 @@ class TestMajorPRegistryRaceWindow:
             )
 
         assert all(observations), (
-            f'send_order observed command_strategy_ids missing for '
+            f'send_order observed the strategy mapping missing for '
             f'{observations.count(False)} of {len(observations)} commands'
         )
 
@@ -437,13 +441,14 @@ def _submitter_pattern_post_final_major_01(
 class TestFinalMajor01AtomicRegistration:
     '''FINAL-MAJOR-01: the launcher submitter holds
     `command_registry_lock` across the ENTIRE critical section
-    (`command_strategy_ids` write → `send_order` → `_ensure_entry_position`
-    → `_build_order_context` → `command_contexts` write). Pre-fix the
+    (strategy-mapping write → `send_order` → `_ensure_entry_position`
+    → `_build_order_context` → `order_context` write). Pre-fix the
     writes were under separate lock acquisitions with `send_order` /
     context build in between; a fast venue ACK or terminal non-fill
-    landing in that window would resolve the strategy_id, find
-    `command_contexts.get(...)` is None, and silently drop the outcome
-    — stranding `_orders[command_id]` and inflating capital aggregates.
+    landing in that window would resolve the strategy_id, find the
+    registration's `order_context` is None, and silently drop the
+    outcome — stranding `_orders[command_id]` and inflating capital
+    aggregates.
     '''
 
     def test_no_torn_observation_either_direction(self) -> None:

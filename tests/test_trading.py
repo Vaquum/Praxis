@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
+import logging
 import functools
 import queue
 from collections.abc import Sequence
@@ -42,7 +44,7 @@ from praxis.core.domain.events import (
     TradeOutcomeProduced,
 )
 from praxis.core.account_ledger import CostBasisMethod
-from praxis.core.domain.twap_params import TwapParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.execution_manager import (
@@ -71,7 +73,7 @@ from praxis.infrastructure.venue_adapter import (
     VenueOrder,
     VenueTrade,
 )
-from praxis.trading import Trading
+from praxis.trading import ReconcilePhase, Trading
 from praxis.trading_config import TradingConfig
 from praxis.trading_inbound import TradingInbound
 
@@ -1108,6 +1110,133 @@ async def test_trading_shutdown_cancels_oco_orders_via_cancel_order_list(
     assert ('acc-1', 'oco-list-1') not in adapter.cancel_calls
 
 
+@pytest.mark.asyncio
+async def test_close_user_stream_closes_and_forgets_it(spine: EventSpine) -> None:
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+
+    class _FakeStream:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    stream = _FakeStream()
+    trading._user_streams['acc-1'] = cast(Any, stream)
+
+    await trading._close_user_stream('acc-1')
+
+    assert stream.closed is True
+    assert 'acc-1' not in trading._user_streams
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_leaves_a_working_flatten_in_place(
+    spine: EventSpine,
+) -> None:
+    '''A recovery flatten must outlive shutdown, or the naked position returns.'''
+
+    from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    exit_command_id = bracket_exit_command_id('cmd-bracket')
+    runtime = trading._execution_manager._accounts['acc-1']
+    orders = runtime.trading_state.orders
+
+    # The bracket is deliberately absent: a protection that failed is not
+    # rebuilt on resume, which is exactly the state its flatten must survive.
+    assert not runtime.brackets
+
+    runtime.flatten_order_ids.add('flatten-1')
+
+    orders['flatten-1'] = Order(
+        client_order_id='flatten-1', venue_order_id='venue-flatten-1',
+        account_id='acc-1', command_id=exit_command_id, symbol='BTCUSDT',
+        side=OrderSide.SELL, order_type=OrderType.MARKET, qty=Decimal('1'),
+        filled_qty=Decimal('0'), cumulative_notional=Decimal('0'), price=None,
+        stop_price=None, status=OrderStatus.OPEN,
+        created_at=_CREATED_AT, updated_at=_CREATED_AT,
+    )
+    orders['resting-entry'] = Order(
+        client_order_id='resting-entry', venue_order_id='venue-entry-1',
+        account_id='acc-1', command_id='cmd-other', symbol='BTCUSDT',
+        side=OrderSide.BUY, order_type=OrderType.LIMIT, qty=Decimal('1'),
+        filled_qty=Decimal('0'), cumulative_notional=Decimal('0'),
+        price=Decimal('50000'), stop_price=None, status=OrderStatus.OPEN,
+        created_at=_CREATED_AT, updated_at=_CREATED_AT,
+    )
+
+    await trading.stop()
+
+    assert ('acc-1', 'flatten-1') not in adapter.cancel_calls
+    assert ('acc-1', 'resting-entry') in adapter.cancel_calls
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancels_an_entry_that_merely_looks_like_a_flatten(
+    spine: EventSpine,
+) -> None:
+    '''A caller may supply a command id shaped like a derived exit id.
+
+    The exit id is just the entry id with a suffix, so any caller-supplied
+    command can wear that shape. Only the durable record of a flatten this
+    account actually posted says which orders are real recovery flattens;
+    matching on the shape would leave an ordinary order resting at the venue
+    after shutdown.
+    '''
+
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    runtime = trading._execution_manager._accounts['acc-1']
+
+    assert not runtime.brackets
+
+    runtime.trading_state.orders['lookalike'] = Order(
+        client_order_id='lookalike', venue_order_id='venue-lookalike',
+        account_id='acc-1', command_id='operator-supplied-x', symbol='BTCUSDT',
+        side=OrderSide.BUY, order_type=OrderType.MARKET, qty=Decimal('1'),
+        filled_qty=Decimal('0'), cumulative_notional=Decimal('0'), price=None,
+        stop_price=None, status=OrderStatus.OPEN,
+        created_at=_CREATED_AT, updated_at=_CREATED_AT,
+    )
+
+    await trading.stop()
+
+    assert ('acc-1', 'lookalike') in adapter.cancel_calls
+
+
 class _ReconVenueAdapter(_InjectedVenueAdapter):
 
     def __init__(self) -> None:
@@ -1151,6 +1280,35 @@ class _ReconVenueAdapter(_InjectedVenueAdapter):
     ) -> CancelResult:
         del account_id, symbol, venue_order_id, client_order_id
         return CancelResult(venue_order_id='v-1', status=OrderStatus.CANCELED)
+
+
+def _execution_report(**overrides: Any) -> ExecutionReport:
+    '''Build a valid TRADE report, overridable per field.'''
+
+    fields: dict[str, Any] = {
+        'event_time': _CREATED_AT,
+        'symbol': 'BTCUSDT',
+        'client_order_id': 'SS-cmd1-00',
+        'side': OrderSide.BUY,
+        'order_type': OrderType.MARKET,
+        'original_qty': Decimal('1'),
+        'original_price': Decimal('0'),
+        'execution_type': ExecutionType.TRADE,
+        'order_status': OrderStatus.FILLED,
+        'reject_reason': 'NONE',
+        'venue_order_id': 'v-1',
+        'last_filled_qty': Decimal('1'),
+        'last_filled_price': Decimal('50000'),
+        'cumulative_filled_qty': Decimal('1'),
+        'commission': Decimal('0.001'),
+        'commission_asset': 'BTC',
+        'transaction_time': _CREATED_AT,
+        'venue_trade_id': 't-1',
+        'is_maker': False,
+    }
+    fields.update(overrides)
+
+    return ExecutionReport(**fields)
 
 
 def _make_order(
@@ -1198,6 +1356,92 @@ async def _started_trading_with_recon_adapter(
 
 
 @pytest.mark.asyncio
+async def test_boot_poisoned_account_is_not_marked_ready(spine: EventSpine) -> None:
+    adapter = _ReconVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    closed_streams: list[str] = []
+    original_close = trading._close_user_stream
+
+    async def _record_close(account_id: str) -> None:
+        closed_streams.append(account_id)
+        await original_close(account_id)
+
+    trading._close_user_stream = _record_close
+    original_drain = trading._execution_manager.drain_external_events
+
+    async def _poison_during_drain(account_id: str) -> None:
+        await original_drain(account_id)
+        trading._execution_manager._accounts[account_id].poisoned = True
+
+    trading._execution_manager.drain_external_events = _poison_during_drain
+
+    await trading.start()
+
+    runtime = trading._execution_manager._accounts['acc-1']
+
+    assert 'acc-1' not in trading._ready_accounts
+    assert runtime.booting is True
+    assert runtime.boot_failed is True
+    assert closed_streams == ['acc-1']
+
+    with pytest.raises(RuntimeError, match='restart required'):
+        await trading._execution_manager.admit('acc-1', FillReceived(
+            account_id='acc-1', timestamp=_CREATED_AT,
+            client_order_id='SS-cmd1-00', venue_order_id='v-1',
+            venue_trade_id='t-boot', trade_id='trade-1', command_id='cmd-1',
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
+            price=Decimal('50000'), fee=Decimal('0'), fee_asset='USDT',
+            is_maker=False,
+        ))
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_on_reconnect_stays_gated_when_query_trades_fails(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+
+    adapter._venue_orders['SS-cmd1-00'] = VenueOrder(
+        venue_order_id='v-1',
+        client_order_id='SS-cmd1-00',
+        status=OrderStatus.OPEN,
+        symbol='BTCUSDT',
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        qty=Decimal('1'),
+        filled_qty=Decimal('1'),
+        price=None,
+    )
+
+    async def _boom(*args: object, **kwargs: object) -> list[object]:
+        del args, kwargs
+        raise VenueError('timeout')
+
+    adapter.query_trades = _boom  # type: ignore[method-assign]
+
+    with pytest.raises(VenueError):
+        await trading._reconcile_account('acc-1')
+
+    await trading._reconcile_on_reconnect('acc-1')
+
+    assert trading._reconcile_phase.get('acc-1') is ReconcilePhase.GATED
+    await trading.stop()
+
+
+@pytest.mark.asyncio
 async def test_reconcile_account_skips_terminal_orders(spine: EventSpine) -> None:
     trading, _ = await _started_trading_with_recon_adapter(spine)
     order = _make_order(status=OrderStatus.FILLED, filled_qty=Decimal('1'))
@@ -1220,6 +1464,56 @@ async def test_reconcile_account_handles_not_found(spine: EventSpine) -> None:
 
     events = await _trading_events(spine)
     assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_account_propagates_venue_error(spine: EventSpine) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    async def _boom(
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> VenueOrder:
+        del account_id, symbol, venue_order_id, client_order_id
+        raise VenueError('timeout')
+
+    adapter.query_order = _boom  # type: ignore[method-assign]
+
+    with pytest.raises(VenueError, match='timeout'):
+        await trading._reconcile_account('acc-1')
+
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_on_reconnect_stays_gated_when_query_order_fails(
+    spine: EventSpine,
+) -> None:
+    trading, adapter = await _started_trading_with_recon_adapter(spine)
+    order = _make_order()
+    trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
+
+    async def _boom(
+        account_id: str,
+        symbol: str,
+        *,
+        venue_order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> VenueOrder:
+        del account_id, symbol, venue_order_id, client_order_id
+        raise VenueError('timeout')
+
+    adapter.query_order = _boom  # type: ignore[method-assign]
+
+    await trading._reconcile_on_reconnect('acc-1')
+
+    assert trading._reconcile_phase.get('acc-1') is ReconcilePhase.GATED
     await trading.stop()
 
 
@@ -1445,7 +1739,7 @@ async def test_reconcile_account_tick_isolates_detector_failures(
 
 
 @pytest.mark.asyncio
-async def test_reconcile_fills_handles_venue_error(spine: EventSpine) -> None:
+async def test_reconcile_fills_propagates_venue_error(spine: EventSpine) -> None:
     trading, adapter = await _started_trading_with_recon_adapter(spine)
     order = _make_order()
     trading._execution_manager._accounts['acc-1'].trading_state.orders['SS-cmd1-00'] = order
@@ -1461,7 +1755,8 @@ async def test_reconcile_fills_handles_venue_error(spine: EventSpine) -> None:
 
     adapter.query_trades = fail_trades  # type: ignore[method-assign]
 
-    await trading._reconcile_fills('acc-1', order)
+    with pytest.raises(VenueError):
+        await trading._reconcile_fills('acc-1', order)
 
     events = await _trading_events(spine)
     assert len(events) == 0
@@ -1647,6 +1942,25 @@ async def test_on_execution_report_ignores_non_binance_adapter(
     trading, _ = await _started_trading_with_recon_adapter(spine)
 
     await trading._on_execution_report('acc-1', {'e': 'executionReport'})
+
+    events = await _trading_events(spine)
+    assert len(events) == 0
+    await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_execution_report_discards_a_malformed_frame(
+    spine: EventSpine,
+) -> None:
+    import unittest.mock
+    trading, _ = await _started_trading_with_recon_adapter(spine)
+    adapter = unittest.mock.MagicMock(spec=BinanceAdapter)
+    adapter.parse_execution_report.side_effect = KeyError('l')
+    trading._venue_adapter = cast(VenueAdapter, adapter)
+
+    await trading._on_execution_report(
+        'acc-1', {'e': 'executionReport', 'c': 'coid-1', 'x': 'TRADE'},
+    )
 
     events = await _trading_events(spine)
     assert len(events) == 0
@@ -1982,74 +2296,169 @@ async def test_convert_execution_report_unknown_type(spine: EventSpine) -> None:
     await trading.stop()
 
 
-@pytest.mark.asyncio
-async def test_convert_execution_report_trade_missing_venue_trade_id(
-    spine: EventSpine,
-) -> None:
-    trading, _ = await _started_trading_with_recon_adapter(spine)
-    order = _make_order()
-    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
+def test_execution_report_trade_requires_venue_trade_id() -> None:
+    '''A TRADE that names no venue trade cannot be constructed: the report
+    claims an execution it carries no evidence of.'''
 
-    report = ExecutionReport(
-        event_time=_CREATED_AT,
-        symbol='BTCUSDT',
-        client_order_id='SS-cmd1-00',
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        original_qty=Decimal('1'),
-        original_price=Decimal('0'),
-        execution_type=ExecutionType.TRADE,
-        order_status=OrderStatus.FILLED,
-        reject_reason='NONE',
-        venue_order_id='v-1',
-        last_filled_qty=Decimal('1'),
-        last_filled_price=Decimal('50000'),
-        cumulative_filled_qty=Decimal('1'),
-        commission=Decimal('0.001'),
+    with pytest.raises(ValueError, match='must carry a venue_trade_id'):
+        _execution_report(execution_type=ExecutionType.TRADE, venue_trade_id=None)
+
+
+def test_execution_report_trade_requires_commission_asset() -> None:
+
+    with pytest.raises(ValueError, match='must carry a commission_asset'):
+        _execution_report(execution_type=ExecutionType.TRADE, commission_asset=None)
+
+
+@pytest.mark.parametrize('field', ['last_filled_qty', 'last_filled_price'])
+@pytest.mark.parametrize('value', [Decimal('0'), Decimal('-1'), Decimal('NaN')])
+def test_execution_report_trade_requires_positive_finite_fill(
+    field: str,
+    value: Decimal,
+) -> None:
+
+    with pytest.raises(ValueError, match='finite positive'):
+        _execution_report(execution_type=ExecutionType.TRADE, **{field: value})
+
+
+def test_execution_report_trade_allows_zero_and_negative_commission() -> None:
+    '''A zero fee is legitimate under a promotion, and a rebate is negative.'''
+
+    for commission in (Decimal('0'), Decimal('-0.0001')):
+        report = _execution_report(
+            execution_type=ExecutionType.TRADE, commission=commission,
+        )
+        assert report.commission == commission
+
+
+@pytest.mark.parametrize(
+    'execution_type',
+    [
+        ExecutionType.NEW,
+        ExecutionType.CANCELED,
+        ExecutionType.REPLACED,
+        ExecutionType.REJECTED,
+        ExecutionType.EXPIRED,
+        ExecutionType.TRADE_PREVENTION,
+    ],
+)
+def test_execution_report_non_trade_strips_fill_fields(
+    execution_type: ExecutionType,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Every non-TRADE type carries no execution, so residual fill data is
+    stripped and reported — while the running total survives.'''
+
+    with caplog.at_level(logging.WARNING):
+        report = _execution_report(
+            execution_type=execution_type,
+            last_filled_qty=Decimal('0.5'),
+            last_filled_price=Decimal('50000'),
+            cumulative_filled_qty=Decimal('0.5'),
+            commission=Decimal('0.0005'),
+            commission_asset='BTC',
+            venue_trade_id='t-99',
+            is_maker=True,
+        )
+
+    assert report.last_filled_qty == Decimal('0')
+    assert report.last_filled_price == Decimal('0')
+    assert report.commission == Decimal('0')
+    assert report.commission_asset is None
+    assert report.venue_trade_id is None
+    assert report.is_maker is False
+    assert report.cumulative_filled_qty == Decimal('0.5')
+
+    assert [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
+
+
+def test_execution_report_non_trade_maker_flag_alone_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''is_maker is a modality flag, not evidence of an execution, so a stray
+    bit is stripped without the anomaly warning.'''
+
+    with caplog.at_level(logging.WARNING):
+        report = _execution_report(
+            execution_type=ExecutionType.CANCELED,
+            last_filled_qty=Decimal('0'),
+            last_filled_price=Decimal('0'),
+            commission=Decimal('0'),
+            commission_asset=None,
+            venue_trade_id=None,
+            is_maker=True,
+        )
+
+    assert report.is_maker is False
+    assert not [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
+
+
+def test_execution_report_non_trade_strip_is_idempotent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    '''Re-normalising an already-stripped report changes nothing and is
+    silent, so a replayed report does not read as an anomaly.'''
+
+    stripped = _execution_report(
+        execution_type=ExecutionType.CANCELED,
+        venue_trade_id='t-99',
         commission_asset='BTC',
-        transaction_time=_CREATED_AT,
-        venue_trade_id=None,
-        is_maker=False,
     )
 
-    event = trading._convert_execution_report('acc-1', report, order)
-    assert event is None
-    await trading.stop()
+    caplog.clear()
+
+    with caplog.at_level(logging.WARNING):
+        again = dataclasses.replace(stripped)
+
+    assert again == stripped
+    assert not [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
 
 
-@pytest.mark.asyncio
-async def test_convert_execution_report_trade_missing_commission_asset(
-    spine: EventSpine,
+@pytest.mark.parametrize(
+    'value', [Decimal('NaN'), Decimal('Infinity'), Decimal('-Infinity')],
+)
+def test_execution_report_trade_rejects_non_finite_commission(value: Decimal) -> None:
+    '''A fee may be zero or a negative rebate, but it must be a real number.'''
+
+    with pytest.raises(ValueError, match='commission must be finite'):
+        _execution_report(execution_type=ExecutionType.TRADE, commission=value)
+
+
+@pytest.mark.parametrize('value', [Decimal('Infinity'), Decimal('-Infinity')])
+def test_execution_report_trade_rejects_infinite_fill(value: Decimal) -> None:
+
+    with pytest.raises(ValueError, match='finite positive'):
+        _execution_report(execution_type=ExecutionType.TRADE, last_filled_qty=value)
+
+
+def test_execution_report_non_trade_without_residuals_is_silent(
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    trading, _ = await _started_trading_with_recon_adapter(spine)
-    order = _make_order()
-    trading._execution_manager._command_trade_ids['cmd-1'] = 'trade-1'
 
-    report = ExecutionReport(
-        event_time=_CREATED_AT,
-        symbol='BTCUSDT',
-        client_order_id='SS-cmd1-00',
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        original_qty=Decimal('1'),
-        original_price=Decimal('0'),
-        execution_type=ExecutionType.TRADE,
-        order_status=OrderStatus.FILLED,
-        reject_reason='NONE',
-        venue_order_id='v-1',
-        last_filled_qty=Decimal('1'),
-        last_filled_price=Decimal('50000'),
-        cumulative_filled_qty=Decimal('1'),
-        commission=Decimal('0.001'),
-        commission_asset=None,
-        transaction_time=_CREATED_AT,
-        venue_trade_id='t-1',
-        is_maker=False,
-    )
+    with caplog.at_level(logging.WARNING):
+        report = _execution_report(
+            execution_type=ExecutionType.CANCELED,
+            last_filled_qty=Decimal('0'),
+            last_filled_price=Decimal('0'),
+            commission=Decimal('0'),
+            commission_asset=None,
+            venue_trade_id=None,
+        )
 
-    event = trading._convert_execution_report('acc-1', report, order)
-    assert event is None
-    await trading.stop()
+    assert report.venue_trade_id is None
+    assert not [
+        record for record in caplog.records
+        if 'carried fill data; stripping' in record.message
+    ]
 
 
 @pytest.mark.asyncio
@@ -2710,6 +3119,7 @@ async def test_boot_sweep_cancel_failure_leaves_account_not_ready(spine: EventSp
 
     assert adapter.cancelled == []
     assert 'acc-1' not in trading._ready_accounts
+    assert trading._execution_manager._accounts['acc-1'].booting is True
 
 
 @pytest.mark.asyncio
@@ -2883,7 +3293,7 @@ async def test_trading_default_config_gates_non_single_shot_mode(
             qty=Decimal('1'),
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.TWAP,
-            execution_params=TwapParams(num_slices=4, interval_seconds=10),
+            execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
             timeout=300,
             reference_price=None,
             maker_preference=MakerPreference.NO_PREFERENCE,
@@ -2918,7 +3328,7 @@ async def test_trading_config_enables_named_mode(spine: EventSpine) -> None:
         qty=Decimal('1'),
         order_type=OrderType.MARKET,
         execution_mode=ExecutionMode.TWAP,
-        execution_params=TwapParams(num_slices=4, interval_seconds=10),
+        execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
         timeout=300,
         reference_price=None,
         maker_preference=MakerPreference.NO_PREFERENCE,
@@ -2991,3 +3401,106 @@ async def test_trading_shutdown_rejects_modifies(spine: EventSpine) -> None:
 
     trading._stopping = False
     await trading.stop()
+
+
+@pytest.mark.parametrize(
+    'setter',
+    [
+        'set_on_trade_outcome',
+        'set_on_fund_transaction',
+        'set_on_reconciliation_mismatch',
+        'set_on_protection_remediation',
+    ],
+)
+@pytest.mark.asyncio
+async def test_every_callback_setter_refuses_after_start(
+    spine: EventSpine,
+    setter: str,
+) -> None:
+    '''All four setters share one guard, and each still names itself.
+
+    The replay loop and in-flight order coroutines hold the callback they
+    were handed, so swapping one mid-flight would race the outcomes it is
+    there to receive.
+    '''
+
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, _InjectedVenueAdapter()),
+    )
+
+    await trading.start()
+    try:
+        expected = (
+            rf'^{setter} must not be called once Trading\.start\(\) has begun$'
+        )
+        with pytest.raises(RuntimeError, match=expected):
+            getattr(trading, setter)(None)
+    finally:
+        await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_failed_boot_shutdown_preserves_a_replayed_recovery_flatten(
+    spine: EventSpine,
+) -> None:
+    '''The flatten must outlive the bracket that ordered it.
+
+    A protection that failed is not rebuilt on resume, so nothing in the
+    runtime still ties the working MARKET order to a bracket. Only the
+    durable FlattenInitiated record identifies it, and shutdown has to honour
+    that or it cancels the order closing a naked position.
+    '''
+
+    import unittest.mock
+
+    from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+    from praxis.core.domain.events import FlattenInitiated
+
+    flatten_id = 'BK-flatten-999'
+    exit_command_id = bracket_exit_command_id('cmd-bracket')
+
+    await spine.append(RegisterAccount(account_id='acc-1', timestamp=_CREATED_AT), 1)
+    await spine.append(FlattenInitiated(
+        account_id='acc-1', timestamp=_CREATED_AT, command_id='cmd-bracket',
+        protection_version=1, qty=Decimal('1'), client_order_id=flatten_id,
+    ), 1)
+    await spine.append(OrderSubmitIntent(
+        account_id='acc-1', timestamp=_CREATED_AT, command_id=exit_command_id,
+        trade_id='trade-1', client_order_id=flatten_id, symbol='BTCUSDT',
+        side=OrderSide.SELL, order_type=OrderType.MARKET, qty=Decimal('1'),
+        price=None,
+    ), 1)
+    await spine.append(OrderSubmitted(
+        account_id='acc-1', timestamp=_CREATED_AT, client_order_id=flatten_id,
+        venue_order_id='venue-flatten',
+    ), 1)
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    trading._sweep_orphan_venue_orders = unittest.mock.AsyncMock(return_value=False)
+
+    await trading.start()
+
+    runtime = trading._execution_manager._accounts['acc-1']
+
+    assert runtime.boot_failed is True
+    assert not runtime.brackets
+    assert flatten_id in runtime.trading_state.orders
+    assert flatten_id in trading._execution_manager.protective_flatten_order_ids('acc-1')
+
+    await trading.stop()
+
+    assert ('acc-1', flatten_id) not in adapter.cancel_calls

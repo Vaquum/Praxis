@@ -29,7 +29,7 @@ from praxis.core.domain.enums import (
 from praxis.core.domain.events import Event, SchemeInitialized
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.trade_outcome import TradeOutcome
-from praxis.core.execution_manager import ExecutionManager
+from praxis.core.execution_manager import ExecutionManager, _Hold
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
@@ -283,7 +283,7 @@ async def test_vwap_resumes_weighted_plan_from_replay(
     restarted.replay_events(_ACCT, events)
 
     resumed = restarted._accounts[_ACCT].schemes[command_id]
-    assert resumed.state is SchemeState.RUNNING
+    assert resumed.hold is _Hold.OPEN
     assert resumed.slice_qtys == [Decimal('0.5'), Decimal('0.3'), Decimal('0.2')]
     assert resumed.cursor == 1
 
@@ -320,6 +320,65 @@ def _vwap_init(volume_weights: tuple[Decimal, ...], slices_total: int) -> list[t
             ),
         ),
     ]
+
+
+_HEALTHY_COMMAND_ID = '33333333-4444-5555-6666-777777777777'
+
+
+def _vwap_init_for(
+    command_id: str,
+    volume_weights: tuple[Decimal, ...],
+    slices_total: int,
+    seq: int,
+) -> tuple[int, Event]:
+    return (
+        seq,
+        SchemeInitialized(
+            account_id=_ACCT,
+            timestamp=_T0,
+            command_id=command_id,
+            trade_id=_TRADE,
+            execution_mode=ExecutionMode.SCHEDULED_VWAP,
+            symbol='BTCUSDT',
+            side=OrderSide.BUY,
+            total_qty=Decimal('1'),
+            slices_total=slices_total,
+            interval_seconds=10,
+            timeout_seconds=3600,
+            volume_weights=volume_weights,
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_unusable_scheme_does_not_stop_a_healthy_one_replaying(
+    mgr: tuple[ExecutionManager, list[TradeOutcome]],
+) -> None:
+    '''A scheme the writer could not have produced is skipped, not fatal.
+
+    The event deliberately validates its fields one at a time and not the
+    relationships between them. Both writers build it from a params object
+    that has already checked those relationships, so a violation means the
+    record is foreign or damaged — and refusing it here would refuse it at
+    decode, taking down the whole account's replay rather than the one
+    scheme that cannot be rebuilt.
+    '''
+
+    em, _ = mgr
+    em.register_account(_ACCT)
+
+    em.replay_events(_ACCT, [
+        _vwap_init_for(_RESUME_COMMAND_ID, (Decimal('0.5'), Decimal('0.9')), 2, 1),
+        _vwap_init_for(
+            _HEALTHY_COMMAND_ID, (Decimal('0.5'), Decimal('0.5')), 2, 2,
+        ),
+    ])
+    await asyncio.sleep(0.1)
+
+    schemes = em._accounts[_ACCT].schemes
+
+    assert _RESUME_COMMAND_ID not in schemes
+    assert _HEALTHY_COMMAND_ID in schemes
 
 
 @pytest.mark.asyncio

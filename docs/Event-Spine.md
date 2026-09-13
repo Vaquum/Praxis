@@ -22,18 +22,19 @@ Today it stores:
 
 ## Current Schema
 
-The schema is versioned by `PRAGMA user_version` and advanced by a transactional, fail-closed-on-newer migration in `EventSpine.ensure_schema`. The shipped version is 3:
+The schema is versioned by `PRAGMA user_version` and advanced by a transactional, fail-closed-on-newer migration in `EventSpine.ensure_schema`. Each migration is gated on the version that introduced it, so a database already past one does not re-run it. The shipped version is 4:
 
 - `events(event_seq, epoch_id, timestamp, event_type, payload, prev_hash, hash)`
 - index on `(epoch_id, event_seq)`
-- `fill_dedup(epoch_id, account_id, dedup_key)` — legacy, bare venue trade id
 - `fill_dedup_v2(epoch_id, account_id, symbol, dedup_key)` — per-symbol key
 - `reconcile_cursor(account_id, symbol, last_confirmed_trade_id, last_confirmed_ts, epoch_id, updated_at)` — durable myTrades cursor, keyed on `(account_id, symbol)`, outlives epochs
 - `spine_meta(key, value)` — chain version, genesis anchor, and the one proven legacy dedup symbol
 
 The `prev_hash`/`hash` columns hold a SHA-256 chain over a length-framed preimage (domain marker, chain version, predecessor hash, `event_seq`, `epoch_id`, timestamp, event type, payload), computed per append under the same lock. Legacy rows written before the chain keep a NULL-hash prefix and are not backfilled.
 
-`fill_dedup_v2` prevents the same fill from being counted twice, per symbol, when venue reconnection or reconciliation replays old fills. `FillReceived` dedup dual-reads the legacy `fill_dedup` table only for the single symbol proven present before migration; the version 3 migration fails closed if the legacy table spans more than one symbol or holds an unmatched row.
+Because the chain version and the genesis anchor are both mixed into every hash, a database recording different ones holds a chain in another dialect — one this build can neither extend honestly nor verify. Schema v1 and later must retain both identity keys and the `spine_meta` table. `ensure_schema` checks them against this build before any schema writes, including table creation, and refuses missing or incompatible identity without recreating it. Only an unversioned database (`user_version = 0`) may initialize identity, including resuming interrupted initialization; that identity is checked before the dedup migrations. A versioned database that lost identity requires operator investigation, not automatic reseeding.
+
+`fill_dedup_v2` prevents the same fill from being counted twice, per symbol, when venue reconnection or reconciliation replays old fills. The version 3 migration proved the single symbol the legacy `fill_dedup` table held, failing closed if it spanned more than one symbol or held an unmatched row; the version 4 migration replays those rows into `fill_dedup_v2` under that proven symbol and drops the legacy table, so dedup now has one home and an append performs one read rather than two. The fold confirms each key present in `fill_dedup_v2` before dropping anything, key by key rather than by count, and is written to be resumed rather than rolled back — an interrupted migration completes on the next open.
 
 ## What It Guarantees
 

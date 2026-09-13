@@ -9,6 +9,7 @@ import threading
 from collections import defaultdict
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
+from enum import Enum
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
@@ -71,6 +72,46 @@ _TERMINAL_ORDER_STATUSES = frozenset({
 })
 
 
+class ReconcilePhase(Enum):
+    '''The per-account reconcile gate state, a single source of truth.
+
+    Replaces the former `_reconciling_accounts` / `_reconcile_rerun_pending`
+    sets and the derived `ExecutionManager` gate bit, which could disagree.
+    An absent account is `IDLE`. The execution-manager gate bit is derived as
+    `phase is not IDLE` and set from one place, so the two can never diverge.
+
+    - `IDLE`: not gated; command submission proceeds.
+    - `GATED`: submission blocked, no reconcile pass running (a WS disconnect,
+      a fail-closed pass, or a pass that ended while the stream was down). The
+      next reconnect starts a pass.
+    - `RUNNING`: one reconcile pass is executing; the stream is up and no
+      further edge arrived, so the pass releases to `IDLE` on success.
+    - `RUNNING_RERUN_PENDING`: a pass is executing and a reconnect edge arrived
+      during it, so exactly one more pass runs before release.
+    - `RUNNING_GATE_PENDING`: a pass is executing and a disconnect edge arrived
+      during it, so the pass ends `GATED` rather than releasing — the stream is
+      down and the account must not become order-capable.
+
+    A `RUNNING*` phase is the sole running token: a re-entrant reconnect finds
+    the account running and only requests a rerun, never starting a second
+    pass, and a disconnect keeps the token (`RUNNING_GATE_PENDING`) rather than
+    dropping to `GATED` mid-pass.
+    '''
+
+    IDLE = 'IDLE'
+    GATED = 'GATED'
+    RUNNING = 'RUNNING'
+    RUNNING_RERUN_PENDING = 'RUNNING_RERUN_PENDING'
+    RUNNING_GATE_PENDING = 'RUNNING_GATE_PENDING'
+
+
+_RUNNING_PHASES = frozenset({
+    ReconcilePhase.RUNNING,
+    ReconcilePhase.RUNNING_RERUN_PENDING,
+    ReconcilePhase.RUNNING_GATE_PENDING,
+})
+
+
 def _utc_now() -> datetime:
     '''Return the current UTC time.'''
 
@@ -82,11 +123,15 @@ def _wrap_event_callback[E](
 ) -> Callable[[E], Awaitable[None]]:
     '''Adapt a sync-or-async event callback into an always-async adapter.
 
-    Mirrors `set_on_trade_outcome`'s adapter: the returned coroutine
-    awaits the result when it is awaitable and treats it as a plain
-    return otherwise, covering coroutine functions, sync callables,
-    `AsyncMock`, and `functools.partial` wrappers. A `None` callback
-    yields a no-op adapter so callers can fire unconditionally.
+    The returned coroutine awaits the result when it is awaitable and
+    treats it as a plain return otherwise, covering coroutine functions,
+    sync callables, `AsyncMock`, and `functools.partial` wrappers.
+
+    A `None` callback yields a NO-OP adapter, which is what the callers
+    that `await` their callback unconditionally need. It is therefore the
+    wrong wrapper for a callback installed on the execution manager: that
+    reads `None` as "nobody is listening", and a no-op would instead tell
+    it someone is.
 
     Args:
         cb: The sync or async callback, or `None` for a no-op.
@@ -200,8 +245,7 @@ class Trading:
         self._managed_accounts: set[str] = set()
         self._user_streams: dict[str, BinanceUserStream] = {}
         self._ready_accounts: set[str] = set()
-        self._reconciling_accounts: set[str] = set()
-        self._reconcile_rerun_pending: set[str] = set()
+        self._reconcile_phase: dict[str, ReconcilePhase] = {}
         self._fund_reconcile_cursor: dict[str, datetime] = {}
         self._fund_reconcile_cutover: dict[str, datetime] = {}
         self._balance_mismatch_seen: dict[tuple[str, str], Decimal] = {}
@@ -300,6 +344,29 @@ class Trading:
 
         q.put_nowait(outcome)
 
+    def _refuse_after_start(self, method_name: str) -> None:
+        '''Refuse to swap a callback once startup has begun.
+
+        The replay loop and in-flight order coroutines hold the callback
+        they were given, so exchanging it mid-flight would race with the
+        outcomes it is meant to receive. Both conditions are needed:
+        `start()` binds the loop before it marks itself started, so the
+        loop is what catches an install attempted during startup.
+
+        Args:
+            method_name (str): Setter being called, named in the error.
+
+        Raises:
+            RuntimeError: Startup has begun.
+        '''
+
+        if self._started or self._loop is not None:
+            msg = (
+                f'{method_name} must not be called once '
+                f'Trading.start() has begun'
+            )
+            raise RuntimeError(msg)
+
     def set_on_trade_outcome(
         self,
         cb: Callable[[TradeOutcome], None] | Callable[[TradeOutcome], Awaitable[None]] | None,
@@ -335,12 +402,7 @@ class Trading:
                 `self._started`) and after start completes.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_trade_outcome must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_trade_outcome')
 
         if cb is None:
             self._execution_manager.set_on_trade_outcome(None)
@@ -377,12 +439,7 @@ class Trading:
             RuntimeError: If called once `start()` has begun.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_fund_transaction must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_fund_transaction')
 
         self._on_fund_transaction = _wrap_event_callback(cb)
 
@@ -408,12 +465,7 @@ class Trading:
             RuntimeError: If called once `start()` has begun.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_reconciliation_mismatch must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_reconciliation_mismatch')
 
         self._on_reconciliation_mismatch = _wrap_event_callback(cb)
 
@@ -438,12 +490,7 @@ class Trading:
             RuntimeError: If called once `start()` has begun.
         '''
 
-        if self._started or self._loop is not None:
-            msg = (
-                'set_on_protection_remediation must not be called once '
-                'Trading.start() has begun'
-            )
-            raise RuntimeError(msg)
+        self._refuse_after_start('set_on_protection_remediation')
 
         self._execution_manager.set_on_protection_remediation(
             _wrap_event_callback(cb),
@@ -494,73 +541,106 @@ class Trading:
 
         account_ready = False
 
-        try:
-            self._execution_manager.replay_events(account_id, account_events)
-            await self._execution_manager.register_account_on_spine(account_id)
-            await self._execution_manager.reconcile_orphan_commands(
-                account_id, account_events,
+        self._execution_manager.replay_events(account_id, account_events)
+        await self._execution_manager.register_account_on_spine(account_id)
+        await self._execution_manager.reconcile_orphan_commands(
+            account_id, account_events,
+        )
+
+        symbols = set(self._execution_manager.active_symbols(account_id))
+        symbols |= self._bootstrap_filter_symbols
+        symbols |= {
+            event.symbol
+            for _seq, event in account_events
+            if isinstance(event, BracketInitialized)
+        }
+        if symbols:
+            await self._venue_adapter.load_filters(sorted(symbols))
+
+        self._execution_manager.seed_protection_remediations(account_events)
+        self._seed_fund_reconcile_cursor(account_id, account_events)
+
+        account_ready = await self._sweep_orphan_venue_orders(account_id)
+
+        if isinstance(self._venue_adapter, BinanceAdapter):
+            adapter = self._venue_adapter
+
+            async def on_message(data: dict[str, Any]) -> None:
+                await self._on_execution_report(account_id, data)
+
+            async def on_disconnect() -> None:
+                self._on_stream_disconnect(account_id)
+
+            async def on_reconnect() -> None:
+                await self._reconcile_on_reconnect(account_id)
+
+            stream = BinanceUserStream(
+                adapter=adapter,
+                account_id=account_id,
+                on_message=on_message,
+                on_disconnect=on_disconnect,
+                on_reconnect=on_reconnect,
+            )
+            await stream.initiate_connection()
+            self._user_streams[account_id] = stream
+            await self._reconcile_on_reconnect(
+                account_id, recovery_owner=True,
+            )
+        else:
+            await self._reconcile_account(
+                account_id, recovery_owner=True,
             )
 
-            symbols = set(self._execution_manager.active_symbols(account_id))
-            symbols |= self._bootstrap_filter_symbols
-            symbols |= {
-                event.symbol
-                for _seq, event in account_events
-                if isinstance(event, BracketInitialized)
-            }
-            if symbols:
-                await self._venue_adapter.load_filters(sorted(symbols))
+        await self._execution_manager.drain_external_events(account_id)
 
-            self._execution_manager.seed_protection_remediations(account_events)
-            self._seed_fund_reconcile_cursor(account_id, account_events)
+        await self._execution_manager.recover_incomplete_flattens(
+            account_id, account_events,
+        )
 
-            account_ready = await self._sweep_orphan_venue_orders(account_id)
+        poisoned = self._execution_manager.is_poisoned(account_id)
 
-            if isinstance(self._venue_adapter, BinanceAdapter):
-                adapter = self._venue_adapter
-
-                async def on_message(data: dict[str, Any]) -> None:
-                    await self._on_execution_report(account_id, data)
-
-                async def on_disconnect() -> None:
-                    self._execution_manager.set_reconciling(account_id, True)
-
-                async def on_reconnect() -> None:
-                    await self._reconcile_on_reconnect(account_id)
-
-                stream = BinanceUserStream(
-                    adapter=adapter,
-                    account_id=account_id,
-                    on_message=on_message,
-                    on_disconnect=on_disconnect,
-                    on_reconnect=on_reconnect,
-                )
-                await stream.initiate_connection()
-                self._user_streams[account_id] = stream
-                await self._reconcile_on_reconnect(
-                    account_id, recovery_owner=True,
-                )
-            else:
-                await self._reconcile_account(
-                    account_id, recovery_owner=True,
-                )
-
-            await self._execution_manager.drain_ws_events(account_id)
-
-            await self._execution_manager.recover_incomplete_flattens(
-                account_id, account_events,
-            )
-        finally:
+        if account_ready and not poisoned:
             self._execution_manager.finish_account_startup(account_id)
-
-        if account_ready:
             self._ready_accounts.add(account_id)
         else:
-            _log.error(
-                'account %s not marked ready: an orphan venue open order could '
-                'not be cancelled during the boot sweep (fail closed)',
-                account_id,
+            reason = (
+                'projecting the events recovered at boot fail-stopped the '
+                'account'
+                if poisoned
+                else 'an orphan venue open order could not be cancelled '
+                'during the boot sweep'
             )
+            _log.error(
+                'account %s not marked ready: %s (fail closed, restart '
+                'required)',
+                account_id,
+                reason,
+            )
+            await self._execution_manager.fail_account_startup(account_id)
+            await self._close_user_stream(account_id)
+
+    async def _close_user_stream(self, account_id: str) -> None:
+        '''Close an account's user stream and forget it.
+
+        A boot that ends not ready leaves its writer parked for good, so
+        nothing will ever read the socket again: fills, partials and rejects
+        would arrive at a consumer that cannot process them, and the venue
+        would keep a connection alive for a process that has stopped
+        listening. Closing it is the honest signal that this account is done
+        until a restart.
+
+        Args:
+            account_id (str): Account whose stream to close.
+        '''
+
+        stream = self._user_streams.pop(account_id, None)
+        if stream is None:
+            return
+
+        try:
+            await stream.close()
+        except Exception:  # noqa: BLE001
+            _log.exception('error closing user stream: %s', account_id)
 
     async def stop(self) -> None:
         '''Stop runtime and cleanup managed account registrations.'''
@@ -608,8 +688,32 @@ class Trading:
                 except AccountNotRegisteredError:
                     continue
                 in_flight = in_flight_by_account.get(account_id, set())
+                protective_flattens = (
+                    self._execution_manager.protective_flatten_order_ids(
+                        account_id,
+                    )
+                )
                 for order in open_orders.values():
                     if order.command_id in in_flight:
+                        continue
+
+                    if order.client_order_id in protective_flattens:
+                        # A working recovery flatten is closing a position
+                        # this process can no longer supervise. Cancelling it
+                        # would hand the naked position back, so it is left
+                        # to fill. Identified by the durable record of the
+                        # flatten this account posted, so it survives a
+                        # bracket that failed protection and was never
+                        # rebuilt on resume, and so an ordinary order cannot
+                        # be spared by wearing a familiar-looking id.
+                        _log.warning(
+                            'shutdown leaving a working flatten in place: '
+                            'account=%s client_order_id=%s command_id=%s',
+                            account_id,
+                            order.client_order_id,
+                            order.command_id,
+                        )
+
                         continue
                     try:
                         if order.order_type == OrderType.OCO:
@@ -677,6 +781,7 @@ class Trading:
                     await self._inbound.unregister_account(account_id)
                     self._managed_accounts.discard(account_id)
                     self._ready_accounts.discard(account_id)
+                    self._reconcile_phase.pop(account_id, None)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:  # noqa: BLE001
@@ -708,6 +813,7 @@ class Trading:
                 _log.exception('error unregistering account during cleanup: %s', account_id)
             self._managed_accounts.discard(account_id)
             self._ready_accounts.discard(account_id)
+            self._reconcile_phase.pop(account_id, None)
 
     def _require_started(self) -> None:
         if not self._started:
@@ -732,6 +838,9 @@ class Trading:
     ) -> None:
         '''
         Reconcile projected state against venue for open orders.
+
+        A missing venue order is skipped. Any other `VenueError` propagates
+        so `_reconcile_on_reconnect` can keep the account gated.
 
         Args:
             account_id (str): Account identifier to reconcile.
@@ -758,13 +867,6 @@ class Trading:
                 _log.warning(
                     'order not found on venue during reconciliation: %s',
                     client_order_id,
-                )
-                continue
-            except VenueError as exc:
-                _log.warning(
-                    'venue error during reconciliation: %s %s',
-                    client_order_id,
-                    exc.args[0] if exc.args else str(exc),
                 )
                 continue
 
@@ -923,7 +1025,8 @@ class Trading:
                 order.client_order_id,
                 exc.args[0] if exc.args else str(exc),
             )
-            return
+
+            raise
 
         command_id = order.command_id
         trade_id = self._execution_manager.trade_id_for_command(command_id)
@@ -1119,7 +1222,7 @@ class Trading:
             account_id (str): Account identifier to reconcile.
         '''
 
-        if self._execution_manager.has_pending_ws_events(account_id):
+        if self._execution_manager.has_pending_external_events(account_id):
             return
 
         expected_balances = self._execution_manager.get_asset_balances(account_id)
@@ -1136,7 +1239,7 @@ class Trading:
             return
 
         if (
-            self._execution_manager.has_pending_ws_events(account_id)
+            self._execution_manager.has_pending_external_events(account_id)
             or self._execution_manager.get_asset_balances(account_id) != expected_balances
         ):
             return
@@ -1279,6 +1382,45 @@ class Trading:
 
         self._execution_manager.request_protection_scan(account_id)
 
+    def _set_reconcile_phase(
+        self, account_id: str, phase: ReconcilePhase,
+    ) -> None:
+        '''Set an account's reconcile phase and derive the execution gate.
+
+        The phase map is the single source of truth; the execution-manager gate
+        bit is `phase is not IDLE`, set from here so the two never diverge. An
+        `IDLE` account drops out of the map. A gate update for an account that
+        has already been unregistered is a no-op.
+        '''
+
+        if phase is ReconcilePhase.IDLE:
+            self._reconcile_phase.pop(account_id, None)
+        else:
+            self._reconcile_phase[account_id] = phase
+
+        try:
+            self._execution_manager.set_reconciling(
+                account_id, phase is not ReconcilePhase.IDLE,
+            )
+        except AccountNotRegisteredError:
+            self._reconcile_phase.pop(account_id, None)
+
+    def _on_stream_disconnect(self, account_id: str) -> None:
+        '''Gate an account whose WebSocket stream dropped.
+
+        A disconnect while a reconcile pass runs keeps the running token as
+        `RUNNING_GATE_PENDING` so the pass ends gated (the stream is down) and
+        no second pass starts; otherwise the account moves to `GATED`.
+        '''
+
+        phase = self._reconcile_phase.get(account_id, ReconcilePhase.IDLE)
+        if phase in _RUNNING_PHASES:
+            self._set_reconcile_phase(
+                account_id, ReconcilePhase.RUNNING_GATE_PENDING,
+            )
+        else:
+            self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
+
     async def _reconcile_on_reconnect(
         self, account_id: str, *, recovery_owner: bool = False,
     ) -> None:
@@ -1288,23 +1430,27 @@ class Trading:
         Runs at boot (after the stream opens) and on every WS reconnect
         edge. Holds the account's submission gate while it backfills
         myTrades from the durable cursor and reconciles open orders, then
-        releases the gate only when the backfill fully drained. A truncated
-        backfill (page cap) or a venue failure leaves the account gated
-        (fail-closed) until a later reconcile drains it or a restart. A
-        reconnect arriving mid-pass schedules exactly one rerun.
+        releases the gate only when the backfill fully drained AND the stream
+        stayed up. A truncated backfill (page cap), a venue failure, or a
+        disconnect that arrived mid-pass leaves the account gated (fail-closed)
+        until a later reconnect drains it or a restart. A reconnect arriving
+        mid-pass schedules exactly one rerun.
 
         Args:
             account_id (str): Account identifier.
+            recovery_owner (bool): True only when boot/reconnect recovery owns
+                a parked account, threaded to the admit path.
         '''
 
-        if account_id in self._reconciling_accounts:
-            self._reconcile_rerun_pending.add(account_id)
+        if self._reconcile_phase.get(account_id) in _RUNNING_PHASES:
+            self._set_reconcile_phase(
+                account_id, ReconcilePhase.RUNNING_RERUN_PENDING,
+            )
             return
 
-        self._reconciling_accounts.add(account_id)
+        self._set_reconcile_phase(account_id, ReconcilePhase.RUNNING)
         try:
             while True:
-                self._execution_manager.set_reconciling(account_id, True)
                 try:
                     complete = await self._backfill_account(
                         account_id, recovery_owner=recovery_owner,
@@ -1318,6 +1464,7 @@ class Trading:
                         account_id,
                         exc.args[0] if exc.args else str(exc),
                     )
+                    self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
                     return
 
                 if not complete:
@@ -1326,15 +1473,28 @@ class Trading:
                         'reconcile drains it: %s',
                         account_id,
                     )
+                    self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
                     return
 
-                if account_id not in self._reconcile_rerun_pending:
-                    self._execution_manager.set_reconciling(account_id, False)
+                phase = self._reconcile_phase.get(account_id)
+                if phase is ReconcilePhase.RUNNING_RERUN_PENDING:
+                    self._set_reconcile_phase(account_id, ReconcilePhase.RUNNING)
+                    continue
+                if phase is ReconcilePhase.RUNNING:
+                    self._set_reconcile_phase(account_id, ReconcilePhase.IDLE)
                     return
-                self._reconcile_rerun_pending.discard(account_id)
+                # RUNNING_GATE_PENDING (a disconnect arrived mid-pass), or any
+                # unexpected phase (e.g. the account was unregistered mid-pass):
+                # fail closed rather than release the gate. Only an
+                # undisturbed RUNNING pass releases to IDLE.
+                self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
+                return
         finally:
-            self._reconciling_accounts.discard(account_id)
-            self._reconcile_rerun_pending.discard(account_id)
+            if self._reconcile_phase.get(account_id) in _RUNNING_PHASES:
+                # An unexpected exit (a bug, a task cancellation) while a pass
+                # is still marked running must leave the account gated, never
+                # order-capable.
+                self._set_reconcile_phase(account_id, ReconcilePhase.GATED)
 
     async def _backfill_account(
         self, account_id: str, *, recovery_owner: bool = False,
@@ -1530,7 +1690,9 @@ class Trading:
                 venue_order.status.value,
             )
 
-    async def _on_execution_report(self, account_id: str, data: dict[str, Any]) -> None:
+    async def _on_execution_report(  # noqa: PLR0911 - one return per discard reason
+        self, account_id: str, data: dict[str, Any],
+    ) -> None:
         '''
         Process incoming WebSocket execution report.
 
@@ -1545,7 +1707,18 @@ class Trading:
         if not isinstance(self._venue_adapter, BinanceAdapter):
             return
 
-        report = self._venue_adapter.parse_execution_report(data)
+        try:
+            report = self._venue_adapter.parse_execution_report(data)
+        except (ValueError, KeyError, TypeError, ArithmeticError):
+            _log.exception(
+                'discarding malformed execution report: account_id=%s '
+                'client_order_id=%s execution_type=%s',
+                account_id,
+                data.get('c'),
+                data.get('x'),
+            )
+
+            return
         trading_state = self._execution_manager.get_trading_state(account_id)
         if trading_state is None:
             _log.warning('execution report for unknown account: %s', account_id)
@@ -1579,7 +1752,7 @@ class Trading:
 
         await self._execution_manager.admit(account_id, event)
 
-    def _convert_execution_report(  # noqa: PLR0911
+    def _convert_execution_report(
         self,
         account_id: str,
         report: Any,
@@ -1600,12 +1773,6 @@ class Trading:
         ts = report.transaction_time
 
         if report.execution_type == ExecutionType.TRADE:
-            if report.venue_trade_id is None:
-                _log.warning('TRADE report missing venue_trade_id')
-                return None
-            if not report.commission_asset:
-                _log.warning('TRADE report missing commission_asset')
-                return None
             trade_id = self._execution_manager.trade_id_for_command(order.command_id)
             if trade_id is None:
                 _log.warning(
@@ -1680,6 +1847,7 @@ class Trading:
         await self._inbound.unregister_account(account_id)
         self._managed_accounts.discard(account_id)
         self._ready_accounts.discard(account_id)
+        self._reconcile_phase.pop(account_id, None)
 
     async def submit_command(
         self,

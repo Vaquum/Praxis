@@ -1,25 +1,26 @@
 '''
-TWAP execution mode parameters.
+Interval-slicing execution mode parameters.
 
-Defines the slice count and interval for a time-weighted average price
-order. The command quantity is split into num_slices equal market slices
-submitted interval_seconds apart.
+Defines the slice count and interval shared by the modes that split a command
+into a fixed number of equal MARKET children submitted a fixed number of
+seconds apart. TWAP spreads a position over time; Time DCA accumulates one.
+The schedule is the same, so the parameters are.
 '''
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ['TwapParams']
+__all__ = ['IntervalSliceParams']
 
 _MIN_SLICES = 2
 
 
 @dataclass(frozen=True)
-class TwapParams:
+class IntervalSliceParams:
 
     '''
-    Parameters for TWAP execution mode.
+    Parameters for an interval-sliced execution mode.
 
     Args:
         num_slices (int): Number of equal slices, at least 2.
@@ -38,7 +39,7 @@ class TwapParams:
             or not isinstance(self.num_slices, int)
             or self.num_slices < _MIN_SLICES
         ):
-            msg = f'TwapParams.num_slices must be an int at least {_MIN_SLICES}'
+            msg = f'IntervalSliceParams.num_slices must be an int at least {_MIN_SLICES}'
             raise ValueError(msg)
 
         if (
@@ -46,5 +47,5 @@ class TwapParams:
             or not isinstance(self.interval_seconds, int)
             or self.interval_seconds <= 0
         ):
-            msg = 'TwapParams.interval_seconds must be a positive int'
+            msg = 'IntervalSliceParams.interval_seconds must be a positive int'
             raise ValueError(msg)

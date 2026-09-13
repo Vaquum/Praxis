@@ -26,7 +26,7 @@ from praxis.core.domain.enums import (
     STPMode,
     TradeStatus,
 )
-from praxis.core.domain.time_dca_params import TimeDcaParams
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_outcome import TradeOutcome
 from praxis.core.execution_manager import ExecutionManager
@@ -55,7 +55,7 @@ def _dca_kwargs(**overrides: Any) -> dict[str, Any]:
         'qty': Decimal('1'),
         'order_type': OrderType.MARKET,
         'execution_mode': ExecutionMode.TIME_DCA,
-        'execution_params': TimeDcaParams(num_iterations=4, interval_seconds=10),
+        'execution_params': IntervalSliceParams(num_slices=4, interval_seconds=10),
         'timeout': 3600,
         'reference_price': None,
         'maker_preference': MakerPreference.NO_PREFERENCE,
@@ -161,7 +161,7 @@ async def test_time_dca_emits_time_dca_scheme_initialized(
     em, _ = mgr
     em.register_account(_ACCT)
     await em.submit_command(
-        **_dca_kwargs(execution_params=TimeDcaParams(num_iterations=2, interval_seconds=10))
+        **_dca_kwargs(execution_params=IntervalSliceParams(num_slices=2, interval_seconds=10))
     )
     await asyncio.sleep(0.3)
     await _advance(clock_holder)

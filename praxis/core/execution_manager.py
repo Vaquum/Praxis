@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, UTC
+from enum import Enum
 from decimal import Decimal
 
 from praxis.core.account_ledger import AccountLedger
@@ -49,6 +50,8 @@ from praxis.core.domain.events import (
     ProtectionReplaceSubmitted,
     ProtectionStateUnknown,
     SchemeFrozen,
+    SchemeReplanned,
+    SchemeDraining,
     SchemeInitialized,
     SchemeStateChanged,
     CommandAccepted,
@@ -85,18 +88,16 @@ from praxis.core.domain.bracket_modify import BracketModify
 from praxis.core.domain.bracket_params import BracketParams
 from praxis.core.domain.execution_params import ExecutionParams
 from praxis.core.domain.iceberg_params import IcebergParams
+from praxis.core.domain.interval_slice_modify import IntervalSliceModify
+from praxis.core.domain.interval_slice_params import IntervalSliceParams
 from praxis.core.domain.ladder_dca_modify import LadderDcaModify
 from praxis.core.domain.ladder_dca_params import LadderDcaParams
 from praxis.core.domain.scheduled_vwap_params import ScheduledVwapParams
 from praxis.core.domain.single_shot_params import SingleShotParams
-from praxis.core.domain.time_dca_params import TimeDcaParams
-from praxis.core.domain.twap_params import TwapParams
 from praxis.core.domain.trade_abort import TradeAbort
 from praxis.core.domain.trade_modify import TradeModify
 from praxis.core.domain.iceberg_modify import IcebergModify
 from praxis.core.domain.single_shot_modify import SingleShotModify
-from praxis.core.domain.twap_modify import TwapModify
-from praxis.core.domain.time_dca_modify import TimeDcaModify
 from praxis.core.domain.scheduled_vwap_modify import ScheduledVwapModify
 from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import (
@@ -138,6 +139,7 @@ __all__ = [
 _log = logging.getLogger(__name__)
 
 _QUEUE_POLL_INTERVAL = 0.1
+_DRAIN_CANCEL_RETRY_SECONDS = 5.0
 _ZERO = Decimal(0)
 _BPS_MULTIPLIER = Decimal('10000')
 _SLIPPAGE_BOOK_LIMIT = 20
@@ -242,6 +244,111 @@ class ExecutionModeNotEnabledError(ValueError):
     '''
 
 
+class _Hold(Enum):
+    '''The scheduler hold state of a live scheme.
+
+    A single state replaces the former `frozen` / `protection_frozen` /
+    `state` fields. `OPEN` advances slices normally; `SLICE_FAILED` is a
+    slice-failure freeze that an interval-scheme amend can clear back to
+    `OPEN`; `PROTECTION` is a protection-remediation freeze that no amend
+    clears; `DRAINING` means a terminal outcome is pending while active
+    children drain, and overrides any prior freeze. Precedence when set:
+    `DRAINING` > `PROTECTION` > `SLICE_FAILED` > `OPEN`.
+    '''
+
+    OPEN = 'OPEN'
+    SLICE_FAILED = 'SLICE_FAILED'
+    PROTECTION = 'PROTECTION'
+    DRAINING = 'DRAINING'
+
+
+def _resume_hold(
+    command_id: str,
+    frozen_ids: set[str],
+    protection_frozen_ids: set[str],
+    draining_ids: set[str],
+) -> _Hold:
+    '''Derive a scheme's resumed hold from the replayed hold events.
+
+    Holds the same precedence the live scheme does — DRAINING beats
+    PROTECTION beats SLICE_FAILED beats OPEN — so a resumed scheme cannot
+    hold something the running one would not have. A protection freeze wins
+    over a slice-failure freeze regardless of event order, and is never
+    cleared by a thaw; `protection_frozen_ids` is a subset of `frozen_ids`.
+    '''
+
+    if command_id in draining_ids:
+        return _Hold.DRAINING
+
+    if command_id in protection_frozen_ids:
+        return _Hold.PROTECTION
+
+    if command_id in frozen_ids:
+        return _Hold.SLICE_FAILED
+
+    return _Hold.OPEN
+
+
+@dataclass
+class _SchemeReplayFold:
+    '''What one pass over a replayed history tells both scheme resumers.
+
+    Built once and read after, so the collections stay ordinary mutables
+    rather than pretending to a frozen-ness a dataclass cannot give the
+    dicts and sets inside it.
+
+    Args:
+        inits: First `SchemeInitialized` per command, any mode.
+        ladder_inits: First LADDER_DCA init per command, kept apart so
+            neither resumer can take the other's init for a command id
+            that carried both.
+        latest_state: Last `SchemeStateChanged` per command.
+        terminal_outcomes: Commands that reached a terminal outcome.
+        frozen_ids: Commands frozen by a failed slice or a freeze, less
+            those an amend later thawed.
+        protection_frozen_ids: Commands frozen by protection specifically,
+            which outranks a slice failure when the hold is resolved and is
+            never cleared by a thaw.
+        draining_ids: Commands whose terminal outcome is pending while
+            children settle; outranks every freeze.
+        replans: Per command, the last amend's plan, so a resumed scheme
+            runs the schedule its owner amended to rather than the one it
+            was initialized with.
+        replan_seq: Spine sequence of each recorded replan.
+        latest_state_seq: Spine sequence of each recorded progress event.
+            Ordering is decided on these rather than on timestamps: the
+            replay clock is constant within a bar, so equal or backward
+            wall-clock stamps would pick the older event.
+        pending_terminals: Per draining command, the outcome it is waiting
+            to emit, so the resumed hold and its payload come from the same
+            event rather than being derived apart.
+        ladder_completed: Per ladder, the last completed amend as
+            `(generation, grid params, grid size)`.
+        ladder_inflight: Per ladder, an amend still in flight as
+            `(initiated, planned, phase)`.
+    '''
+
+    inits: dict[str, SchemeInitialized] = field(default_factory=dict)
+    ladder_inits: dict[str, SchemeInitialized] = field(default_factory=dict)
+    latest_state: dict[str, SchemeStateChanged] = field(default_factory=dict)
+    terminal_outcomes: set[str] = field(default_factory=set)
+    frozen_ids: set[str] = field(default_factory=set)
+    protection_frozen_ids: set[str] = field(default_factory=set)
+    draining_ids: set[str] = field(default_factory=set)
+    replans: dict[str, SchemeReplanned] = field(default_factory=dict)
+    replan_seq: dict[str, int] = field(default_factory=dict)
+    latest_state_seq: dict[str, int] = field(default_factory=dict)
+    pending_terminals: dict[
+        str, tuple[TradeStatus, SchemeState, str | None]
+    ] = field(default_factory=dict)
+    ladder_completed: dict[str, tuple[int, LadderDcaParams, int]] = field(
+        default_factory=dict,
+    )
+    ladder_inflight: dict[
+        str, tuple[LadderAmendInitiated, LadderAmendPlanned | None, str]
+    ] = field(default_factory=dict)
+
+
 @dataclass
 class _LiveScheme:
     '''In-memory scheduler state for a running multi-slice scheme.
@@ -259,11 +366,11 @@ class _LiveScheme:
     cursor: int = 0
     active_children: set[str] = field(default_factory=set)
     pending_terminal: tuple[TradeStatus, SchemeState, str | None] | None = None
+    drain_cancel_pending: bool = False
+    drain_cancel_retry_at: datetime | None = None
     next_run_at: datetime | None = None
     deadline: datetime | None = None
-    frozen: bool = False
-    protection_frozen: bool = False
-    state: SchemeState = SchemeState.RUNNING
+    hold: _Hold = _Hold.OPEN
     amend_generation: int = 0
     amend_phase: str | None = None
     amend_context: _LadderAmendContext | None = None
@@ -355,11 +462,8 @@ def _scheme_schedule(params: ExecutionParams) -> tuple[int, int]:
     dispatch admits only `_SCHEME_MODES`.
     '''
 
-    if isinstance(params, TwapParams):
+    if isinstance(params, IntervalSliceParams):
         return params.num_slices, params.interval_seconds
-
-    if isinstance(params, TimeDcaParams):
-        return params.num_iterations, params.interval_seconds
 
     if isinstance(params, ScheduledVwapParams):
         return len(params.volume_weights), params.interval_seconds
@@ -430,11 +534,10 @@ def _rebuild_scheme_params(
     command's params need not be stored to resume the schedule.
     '''
 
-    if mode is ExecutionMode.TWAP:
-        return TwapParams(num_slices=slices_total, interval_seconds=interval_seconds)
-
-    if mode is ExecutionMode.TIME_DCA:
-        return TimeDcaParams(num_iterations=slices_total, interval_seconds=interval_seconds)
+    if mode in (ExecutionMode.TWAP, ExecutionMode.TIME_DCA):
+        return IntervalSliceParams(
+            num_slices=slices_total, interval_seconds=interval_seconds,
+        )
 
     if mode is ExecutionMode.SCHEDULED_VWAP:
         return ScheduledVwapParams(
@@ -477,6 +580,7 @@ class _AccountRuntime:
         self.admission_queue: asyncio.Queue[
             tuple[Event, asyncio.Future[int | None]]
         ] = asyncio.Queue()
+        self.admissions_in_flight = 0
         self.wake = asyncio.Event()
         self.trading_state = trading_state
         self.account_ledger = account_ledger
@@ -489,6 +593,8 @@ class _AccountRuntime:
         self.queue_reservations = 0
         self.reconciling = False
         self.booting = False
+        self.boot_failed = False
+        self.flatten_order_ids: set[str] = set()
         self.poisoned = False
         self.protection_scan_requested = False
 
@@ -739,6 +845,32 @@ class ExecutionManager:
             symbols.add(pos.symbol)
         return symbols
 
+    def protective_flatten_order_ids(self, account_id: str) -> frozenset[str]:
+
+        '''
+        Return the client order ids of recovery flattens this account posted.
+
+        Taken from the durable `FlattenInitiated` record rather than from the
+        live brackets, because the bracket is exactly what a failed protection
+        does not leave behind: `_resume_brackets` does not rebuild one whose
+        protection failed, and boot re-flatten works from a local bracket it
+        never registers. Asking the runtime map would answer "no flatten" for
+        precisely the position that has one.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            frozenset[str]: Client order ids of flattens this account
+                initiated, empty when the account is unknown.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return frozenset()
+
+        return frozenset(runtime.flatten_order_ids)
+
     def get_open_orders(self, account_id: str) -> dict[str, Order]:
         '''
         Return a copy of open orders for an account.
@@ -882,11 +1014,11 @@ class ExecutionManager:
         amendable -= {
             command_id
             for command_id, scheme in runtime.schemes.items()
-            if scheme.protection_frozen
+            if scheme.hold is _Hold.PROTECTION
             or scheme.amend_phase is not None
-            or scheme.pending_terminal is not None
+            or scheme.hold is _Hold.DRAINING
             or (
-                scheme.frozen
+                scheme.hold is not _Hold.OPEN
                 and scheme.command.execution_mode is ExecutionMode.LADDER_DCA
             )
         }
@@ -950,20 +1082,21 @@ class ExecutionManager:
 
         self._bridge_legacy_registration(runtime, events)
 
-        scheme_command_ids = {
-            event.command_id
-            for _seq, event in events
-            if isinstance(event, SchemeInitialized)
-        }
+        fold = self._fold_scheme_replay(events)
+        scheme_command_ids = set(fold.inits)
 
         for _seq, event in events:
             self._project(runtime, event)
 
+            if isinstance(event, FlattenInitiated):
+                # The flatten outlives the bracket that ordered it: a failed
+                # protection is not rebuilt on resume, so this durable record
+                # is the only thing that still identifies the order closing
+                # the position.
+                runtime.flatten_order_ids.add(event.client_order_id)
+
             if isinstance(event, CommandAccepted):
                 self._accepted_commands[event.command_id] = account_id
-
-                if event.strategy_id is not None:
-                    runtime.trading_state.trade_strategy_ids[event.trade_id] = event.strategy_id
 
             if isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
                 self._terminal_commands.add(event.command_id)
@@ -1014,66 +1147,89 @@ class ExecutionManager:
                         created_at=event.timestamp,
                     )
 
-        self._resume_schemes(runtime, events)
-        self._resume_ladders(runtime, events)
+        self._resume_schemes(runtime, fold)
+        self._resume_ladders(runtime, fold)
         self._resume_brackets(runtime, events)
         self._resume_unknown_protection(runtime, events)
 
-    def _resume_ladders(
+    def _fold_scheme_replay(
         self,
-        runtime: _AccountRuntime,
         events: list[tuple[int, Event]],
-    ) -> None:
-        '''Rebuild live ladder state for non-terminal ladders after replay.
+    ) -> _SchemeReplayFold:
+        '''Gather what resuming a scheme or a ladder needs, in one pass.
 
-        A ladder posts all of its resting LIMIT rungs at start, so resume
-        does not replan or resubmit — it rebuilds the `_LiveScheme` with the
-        replayed cursor and the rungs still working (`active_client_order_ids`
-        whose order is not terminal), leaving `next_run_at` None so the
-        account loop only finalizes it once every rung settles. A ladder with
-        a terminal outcome, a non-RUNNING state, too few persisted levels, or
-        a malformed init is not resumed.
+        Both resumers ask the same questions of the history — which schemes
+        were initialized, what state each reached, which terminalized, which
+        froze — so they ask them together rather than each walking the log.
+
+        The two keep their inits apart. A ladder resumes from the first
+        ladder init and a scheme from the first init of any mode, and a
+        single shared choice would let one steal the other's init if a
+        command id ever carried both.
         '''
 
-        inits: dict[str, SchemeInitialized] = {}
-        latest_state: dict[str, SchemeStateChanged] = {}
-        terminal_outcomes: set[str] = set()
-        frozen_ids: set[str] = set()
-        protection_frozen_ids: set[str] = set()
-        completed: dict[str, tuple[int, LadderDcaParams, int]] = {}
-        inflight: dict[
-            str, tuple[LadderAmendInitiated, LadderAmendPlanned | None, str]
-        ] = {}
+        fold = _SchemeReplayFold()
         initiated_by_gen: dict[tuple[str, int], LadderAmendInitiated] = {}
         planned_by_gen: dict[tuple[str, int], LadderAmendPlanned] = {}
 
-        for _seq, event in events:
-            if (
-                isinstance(event, SchemeInitialized)
-                and event.execution_mode is ExecutionMode.LADDER_DCA
-            ):
-                inits.setdefault(event.command_id, event)
+        for seq, event in events:
+            if isinstance(event, SchemeInitialized):
+                fold.inits.setdefault(event.command_id, event)
+
+                if event.execution_mode is ExecutionMode.LADDER_DCA:
+                    fold.ladder_inits.setdefault(event.command_id, event)
+
             elif isinstance(event, SchemeStateChanged):
-                latest_state[event.command_id] = event
+                fold.latest_state[event.command_id] = event
+                fold.latest_state_seq[event.command_id] = seq
+
             elif isinstance(event, SliceFailed):
-                frozen_ids.add(event.command_id)
+                fold.frozen_ids.add(event.command_id)
+
             elif isinstance(event, SchemeFrozen):
-                frozen_ids.add(event.command_id)
-                protection_frozen_ids.add(event.command_id)
+                fold.frozen_ids.add(event.command_id)
+                fold.protection_frozen_ids.add(event.command_id)
+
+            elif isinstance(event, SchemeReplanned):
+                fold.replans[event.command_id] = event
+                fold.replan_seq[event.command_id] = seq
+
+                if event.clears_slice_failure:
+                    # A protection freeze is not amend-clearable, so this
+                    # clears only the slice-failure freeze, exactly as the
+                    # live amend path does.
+                    fold.frozen_ids.discard(event.command_id)
+
+            elif isinstance(event, SchemeDraining):
+                fold.draining_ids.add(event.command_id)
+                fold.pending_terminals[event.command_id] = (
+                    event.status,
+                    event.scheme_state,
+                    event.reason,
+                )
+
             elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
-                terminal_outcomes.add(event.command_id)
+                fold.terminal_outcomes.add(event.command_id)
+
             elif isinstance(event, LadderAmendInitiated):
                 initiated_by_gen[(event.command_id, event.generation)] = event
-                inflight[event.command_id] = (event, None, 'CANCELLING')
+                fold.ladder_inflight[event.command_id] = (event, None, 'CANCELLING')
+
             elif isinstance(event, LadderAmendPlanned):
                 planned_by_gen[(event.command_id, event.generation)] = event
-                pending = inflight.get(event.command_id)
+                pending = fold.ladder_inflight.get(event.command_id)
+
                 if pending is not None:
-                    inflight[event.command_id] = (pending[0], event, 'PLACING')
+                    fold.ladder_inflight[event.command_id] = (pending[0], event, 'PLACING')
+
             elif isinstance(event, LadderAmendStateUnknown):
-                pending = inflight.get(event.command_id)
+                pending = fold.ladder_inflight.get(event.command_id)
+
                 if pending is not None:
-                    inflight[event.command_id] = (pending[0], pending[1], event.phase)
+                    fold.ladder_inflight[event.command_id] = (
+                        pending[0], pending[1], event.phase,
+                    )
+
             elif isinstance(event, LadderAmendCompleted):
                 init_e = initiated_by_gen.get((event.command_id, event.generation))
                 planned_e = planned_by_gen.get((event.command_id, event.generation))
@@ -1086,19 +1242,40 @@ class ExecutionManager:
                     if init_e is not None
                     else None
                 )
+
                 if grid_params is not None:
-                    completed[event.command_id] = (
+                    fold.ladder_completed[event.command_id] = (
                         event.generation, grid_params, grid_size,
                     )
-                inflight.pop(event.command_id, None)
-            elif isinstance(event, LadderAmendAborted):
-                inflight.pop(event.command_id, None)
 
-        for command_id, init in inits.items():
-            if command_id in terminal_outcomes:
+                fold.ladder_inflight.pop(event.command_id, None)
+
+            elif isinstance(event, LadderAmendAborted):
+                fold.ladder_inflight.pop(event.command_id, None)
+
+        return fold
+
+    def _resume_ladders(
+        self,
+        runtime: _AccountRuntime,
+        fold: _SchemeReplayFold,
+    ) -> None:
+        '''Rebuild live ladder state for non-terminal ladders after replay.
+
+        A ladder posts all of its resting LIMIT rungs at start, so resume
+        does not replan or resubmit — it rebuilds the `_LiveScheme` with the
+        replayed cursor and the rungs still working (`active_client_order_ids`
+        whose order is not terminal), leaving `next_run_at` None so the
+        account loop only finalizes it once every rung settles. A ladder with
+        a terminal outcome, a non-RUNNING state, too few persisted levels, or
+        a malformed init is not resumed.
+        '''
+
+        for command_id, init in fold.ladder_inits.items():
+            if command_id in fold.terminal_outcomes:
                 continue
 
-            state = latest_state.get(command_id)
+            state = fold.latest_state.get(command_id)
             scheme_state = state.state if state is not None else SchemeState.RUNNING
             if scheme_state is not SchemeState.RUNNING:
                 continue
@@ -1120,9 +1297,9 @@ class ExecutionManager:
                 else None
             )
 
-            pending = inflight.get(command_id)
+            pending = fold.ladder_inflight.get(command_id)
             if pending is not None:
-                _gen, baseline_params, _grid = completed.get(
+                _gen, baseline_params, _grid = fold.ladder_completed.get(
                     command_id, (0, command.execution_params, init.slices_total),
                 )
                 assert isinstance(baseline_params, LadderDcaParams)
@@ -1130,10 +1307,13 @@ class ExecutionManager:
                     runtime, command_id,
                     replace(command, execution_params=baseline_params),
                     deadline, pending,
-                    command_id in frozen_ids, command_id in protection_frozen_ids,
+                    _resume_hold(
+                        command_id, fold.frozen_ids,
+                        fold.protection_frozen_ids, fold.draining_ids,
+                    ),
                 )
             else:
-                generation, params, grid_size = completed.get(
+                generation, params, grid_size = fold.ladder_completed.get(
                     command_id, (0, command.execution_params, init.slices_total),
                 )
                 assert isinstance(params, LadderDcaParams)
@@ -1149,10 +1329,17 @@ class ExecutionManager:
                     active_children=live_children,
                     next_run_at=None,
                     deadline=deadline,
-                    frozen=command_id in frozen_ids,
-                    protection_frozen=command_id in protection_frozen_ids,
+                    hold=_resume_hold(
+                        command_id, fold.frozen_ids,
+                        fold.protection_frozen_ids, fold.draining_ids,
+                    ),
                     amend_generation=generation,
                 )
+
+            scheme.pending_terminal = fold.pending_terminals.get(command_id)
+            scheme.drain_cancel_pending = (
+                scheme.hold is _Hold.DRAINING and bool(scheme.active_children)
+            )
 
             runtime.schemes[command_id] = scheme
             self._commands[command_id] = scheme.command
@@ -1160,11 +1347,11 @@ class ExecutionManager:
             self._command_trade_ids[command_id] = init.trade_id
 
             _log.info(
-                'resumed ladder from replay: command_id=%s active=%d frozen=%s '
+                'resumed ladder from replay: command_id=%s active=%d hold=%s '
                 'generation=%d amend_phase=%s',
                 command_id,
                 len(scheme.active_children),
-                scheme.frozen,
+                scheme.hold.value,
                 scheme.amend_generation,
                 scheme.amend_phase,
             )
@@ -1176,8 +1363,7 @@ class ExecutionManager:
         command: TradeCommand,
         deadline: datetime | None,
         pending: tuple[LadderAmendInitiated, LadderAmendPlanned | None, str],
-        frozen: bool,
-        protection_frozen: bool,
+        hold: _Hold,
     ) -> _LiveScheme:
         '''Rebuild a ladder whose amend was in flight at the crash.
 
@@ -1234,8 +1420,7 @@ class ExecutionManager:
             active_children=old_live | new_live,
             next_run_at=None,
             deadline=deadline,
-            frozen=frozen,
-            protection_frozen=protection_frozen,
+            hold=hold,
             amend_generation=old_generation,
             amend_phase=phase,
             amend_context=context,
@@ -1346,51 +1531,66 @@ class ExecutionManager:
         runtime: _AccountRuntime,
         events: list[tuple[int, Event]],
     ) -> None:
-        '''Rebuild live bracket state for incomplete brackets after replay.
+        '''Rebuild live bracket state for every resumable bracket after replay.
 
-        For each `BracketInitialized` whose protective OCO was not confirmed
-        placed, a `_LiveBracket` is registered so the account loop can place
-        protection: immediately for an already-filled entry
-        (`_place_pending_bracket_protection`), or from `_on_bracket_event`
-        when a still-open entry fills. A protective OCO is treated as
-        confirmed when its order projection exists and is past SUBMITTING
-        (OPEN, filled, canceled, or a REJECTED submit failure); a SUBMITTING
-        projection means the submit was persisted but never venue-confirmed
-        (a crash between the intent and the response), so it is re-placed —
-        the deterministic list client order id makes the retry idempotent via
-        the OCO rescue. A bracket that carries a durable `ProtectionFailed` was
-        already remediated inline (freeze, flatten, hold) and is not re-placed —
-        even if the process crashed before the exit's `OrderSubmitFailed` left
-        the OCO projection SUBMITTING — because `recover_incomplete_flattens`
-        finishes the flatten from that same marker. A malformed init that cannot
-        rebuild valid params is skipped.
+        For each `BracketInitialized` (whose entry order still projects), the
+        current protective OCO — the initial deterministic list id, or the
+        `new_list_client_order_id` of the latest `ProtectionActive` after an
+        amend — determines the rebuild:
+
+        - a confirmed `OPEN` OCO rebuilds an ACTIVE `_LiveBracket` so the
+          resting protection stays amendable across the restart, with its
+          resolved legs restored from the completed amend snapshot (amended)
+          or re-derived from the entry average (initial). `protection_placed`
+          is set so the account loop never re-submits the resting OCO;
+        - a `SUBMITTING` or missing OCO registers a pending `_LiveBracket` so
+          the account loop places protection — immediately for an already
+          filled entry (`_place_pending_bracket_protection`), or from
+          `_on_bracket_event` when a still-open entry fills; the deterministic
+          list id makes the eventual placement idempotent via the OCO rescue;
+        - a terminal OCO that is not mid-amend leaves nothing to rebuild.
+
+        A bracket whose latest protection phase is an unresolved amend
+        (`ProtectionAmendRequested` / `ProtectionStateUnknown` not closed by a
+        `ProtectionActive` / `ProtectionFailed`) is skipped here and owned by
+        `_resume_unknown_protection`. A bracket whose latest terminal protection
+        event is `ProtectionFailed` was already remediated inline (freeze,
+        flatten, hold) and is not rebuilt; a later `ProtectionActive` clears the
+        failed marker so a retried-and-restored protection resumes ACTIVE.
+        `BracketInitialized` validates its leg invariants at construction and
+        hydrate, so a malformed init cannot reach replay; the rebuild's
+        `ValueError` guard is retained as defense-in-depth.
         '''
 
         inits: dict[str, BracketInitialized] = {}
+        latest_active: dict[str, ProtectionActive] = {}
+        amends: dict[str, dict[int, ProtectionAmendRequested]] = {}
+        unresolved_amend: set[str] = set()
         remediated: set[str] = set()
         for _seq, event in events:
             if isinstance(event, BracketInitialized):
                 inits[event.command_id] = event
 
+            elif isinstance(event, ProtectionAmendRequested):
+                unresolved_amend.add(event.command_id)
+                amends.setdefault(event.command_id, {})[
+                    event.protection_version
+                ] = event
+
+            elif isinstance(event, ProtectionStateUnknown):
+                unresolved_amend.add(event.command_id)
+
+            elif isinstance(event, ProtectionActive):
+                unresolved_amend.discard(event.command_id)
+                remediated.discard(event.command_id)
+                latest_active[event.command_id] = event
+
             elif isinstance(event, ProtectionFailed):
+                unresolved_amend.discard(event.command_id)
                 remediated.add(event.command_id)
 
         for command_id, init in inits.items():
-            if command_id in remediated:
-                continue
-
-            entry_client_order_id = generate_client_order_id(
-                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
-            )
-            oco_client_order_id = generate_client_order_id(
-                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_PROTECTION_SEQUENCE,
-            )
-
-            oco_order = self._scheme_child_order(runtime, oco_client_order_id)
-            if oco_order is not None and oco_order.status is not OrderStatus.SUBMITTING:
-                continue
-
-            if self._scheme_child_order(runtime, entry_client_order_id) is None:
+            if command_id in unresolved_amend or command_id in remediated:
                 continue
 
             try:
@@ -1403,6 +1603,102 @@ class ExecutionManager:
                     runtime.account_id,
                 )
 
+                continue
+
+            entry_client_order_id = generate_client_order_id(
+                ExecutionMode.BRACKET, command_id, sequence=_BRACKET_ENTRY_SEQUENCE,
+            )
+            entry_order = self._scheme_child_order(runtime, entry_client_order_id)
+            if entry_order is None:
+                continue
+
+            active = latest_active.get(command_id)
+            if active is not None:
+                oco_client_order_id = active.new_list_client_order_id
+                protection_version = active.protection_version
+            else:
+                oco_client_order_id = generate_client_order_id(
+                    ExecutionMode.BRACKET, command_id,
+                    sequence=_BRACKET_PROTECTION_SEQUENCE,
+                )
+                protection_version = 0
+
+            oco_order = self._scheme_child_order(runtime, oco_client_order_id)
+
+            if oco_order is not None and oco_order.status is OrderStatus.OPEN:
+                avg_entry_price = (
+                    entry_order.cumulative_notional / entry_order.filled_qty
+                    if entry_order.filled_qty > _ZERO
+                    else None
+                )
+                amend = None
+                if active is not None:
+                    # Keyed on the list that is actually resting, not on the
+                    # version: the STATE_UNKNOWN watchdog re-tracks whichever
+                    # candidate the venue confirms working, so an amend whose
+                    # cancel never landed leaves the pre-amend list active at
+                    # the amended version. The legs to restore are the ones
+                    # belonging to that list, and an active naming no recorded
+                    # amend is the initial placement, whose legs derive from
+                    # the entry average.
+                    amend = next(
+                        (
+                            candidate
+                            for candidate in amends.get(command_id, {}).values()
+                            if candidate.new_list_client_order_id
+                            == active.new_list_client_order_id
+                        ),
+                        None,
+                    )
+
+                if avg_entry_price is None:
+                    # An OPEN OCO with no filled entry is an inconsistent
+                    # durable state: fail closed and leave it to reconciliation
+                    # rather than resume a bracket whose legs cannot be derived.
+                    continue
+
+                current_tp: Decimal | None
+                current_sl_stop: Decimal | None
+                current_sl_limit: Decimal | None
+                if amend is not None:
+                    current_tp = amend.take_profit_price
+                    current_sl_stop = amend.stop_loss_price
+                    current_sl_limit = amend.stop_loss_limit_price
+                else:
+                    current_tp, current_sl_stop, current_sl_limit = (
+                        self._bracket_protective_prices(command, avg_entry_price)
+                    )
+
+                runtime.brackets[command_id] = _LiveBracket(
+                    command=command,
+                    entry_client_order_id=entry_client_order_id,
+                    protection_placed=True,
+                    protection_status=BracketProtectionStatus.ACTIVE,
+                    protection_version=protection_version,
+                    protection_client_order_id=oco_client_order_id,
+                    avg_entry_price=avg_entry_price,
+                    current_tp_price=current_tp,
+                    current_sl_stop_price=current_sl_stop,
+                    current_sl_limit_price=current_sl_limit,
+                )
+                _log.info(
+                    'bracket resumed with active protection: command_id=%s '
+                    'version=%d account_id=%s',
+                    command_id,
+                    protection_version,
+                    runtime.account_id,
+                )
+
+                continue
+
+            if active is not None:
+                # An amended protection whose current OCO is not OPEN (terminal,
+                # or a crash-window projection gap) must not fall through to the
+                # pending path, which would re-place the stale initial OCO;
+                # reconciliation resolves it.
+                continue
+
+            if oco_order is not None and oco_order.status is not OrderStatus.SUBMITTING:
                 continue
 
             runtime.brackets[command_id] = _LiveBracket(
@@ -1541,7 +1837,7 @@ class ExecutionManager:
     def _resume_schemes(
         self,
         runtime: _AccountRuntime,
-        events: list[tuple[int, Event]],
+        fold: _SchemeReplayFold,
     ) -> None:
         '''Rebuild live scheme state for non-terminal schemes after replay.
 
@@ -1557,30 +1853,11 @@ class ExecutionManager:
         are not resumed.
         '''
 
-        inits: dict[str, SchemeInitialized] = {}
-        latest_state: dict[str, SchemeStateChanged] = {}
-        terminal_outcomes: set[str] = set()
-        frozen_ids: set[str] = set()
-        protection_frozen_ids: set[str] = set()
-
-        for _seq, event in events:
-            if isinstance(event, SchemeInitialized):
-                inits.setdefault(event.command_id, event)
-            elif isinstance(event, SchemeStateChanged):
-                latest_state[event.command_id] = event
-            elif isinstance(event, SliceFailed):
-                frozen_ids.add(event.command_id)
-            elif isinstance(event, SchemeFrozen):
-                frozen_ids.add(event.command_id)
-                protection_frozen_ids.add(event.command_id)
-            elif isinstance(event, TradeOutcomeProduced) and event.status in _TERMINAL_STATUSES:
-                terminal_outcomes.add(event.command_id)
-
-        for command_id, init in inits.items():
-            if command_id in terminal_outcomes:
+        for command_id, init in fold.inits.items():
+            if command_id in fold.terminal_outcomes:
                 continue
 
-            state = latest_state.get(command_id)
+            state = fold.latest_state.get(command_id)
             scheme_state = state.state if state is not None else SchemeState.RUNNING
             if scheme_state is not SchemeState.RUNNING:
                 continue
@@ -1644,23 +1921,47 @@ class ExecutionManager:
                 else None
             )
 
+            replan = fold.replans.get(command_id)
+
+            if replan is not None:
+                # The amend rewrote the remaining plan; resuming on the
+                # initialized one would run a schedule its owner replaced and
+                # can terminalize FILLED short of the target.
+                slice_qtys = list(replan.slice_qtys)
+
             scheme = _LiveScheme(
                 command=command,
                 slice_qtys=slice_qtys,
                 slices_total=len(slice_qtys),
-                interval_seconds=init.interval_seconds,
+                interval_seconds=(
+                    replan.interval_seconds if replan is not None
+                    else init.interval_seconds
+                ),
                 cursor=state.cursor if state is not None else 0,
                 active_children=live_children,
-                next_run_at=state.next_run_at if state is not None else None,
+                next_run_at=self._resumed_next_run_at(
+                    state, replan,
+                    fold.latest_state_seq.get(command_id),
+                    fold.replan_seq.get(command_id),
+                ),
                 deadline=deadline,
-                frozen=command_id in frozen_ids,
-                protection_frozen=command_id in protection_frozen_ids,
+                hold=_resume_hold(
+                    command_id, fold.frozen_ids,
+                    fold.protection_frozen_ids, fold.draining_ids,
+                ),
+            )
+
+            scheme.pending_terminal = fold.pending_terminals.get(command_id)
+            scheme.drain_cancel_pending = (
+                scheme.hold is _Hold.DRAINING and bool(scheme.active_children)
             )
 
             if (
-                not scheme.frozen
+                scheme.hold is _Hold.OPEN
+                and scheme.pending_terminal is None
                 and scheme.cursor < scheme.slices_total
                 and scheme.next_run_at is None
+                and not live_children
             ):
                 scheme.next_run_at = self._clock()
 
@@ -1670,12 +1971,53 @@ class ExecutionManager:
             self._command_trade_ids[command_id] = init.trade_id
 
             _log.info(
-                'resumed scheme from replay: command_id=%s cursor=%d active=%d frozen=%s',
+                'resumed scheme from replay: command_id=%s cursor=%d active=%d hold=%s',
                 command_id,
                 scheme.cursor,
                 len(scheme.active_children),
-                scheme.frozen,
+                scheme.hold.value,
             )
+
+    @staticmethod
+    def _resumed_next_run_at(
+        state: SchemeStateChanged | None,
+        replan: SchemeReplanned | None,
+        state_seq: int | None,
+        replan_seq: int | None,
+    ) -> datetime | None:
+        '''Pick the timer that belongs to the plan being resumed.
+
+        A progress event appended after the amend carries the amended
+        schedule's timer and is the newer fact. When the amend committed and
+        the progress append did not, the replan's own timer is the only one
+        that matches the plan; the older progress timer belongs to the
+        schedule the amend replaced.
+
+        Decided on spine sequence rather than timestamp. The replay clock is
+        constant within a bar, so equal stamps — and a backward clock step —
+        would select the stale progress timer while the replan holds the
+        newer durable position.
+
+        Args:
+            state (SchemeStateChanged | None): Last progress event, if any.
+            replan (SchemeReplanned | None): Last amend, if any.
+            state_seq (int | None): Spine sequence of that progress event.
+            replan_seq (int | None): Spine sequence of that amend.
+
+        Returns:
+            datetime | None: The timer to resume with.
+        '''
+
+        if replan is None:
+            return state.next_run_at if state is not None else None
+
+        if state is None or state_seq is None or replan_seq is None:
+            return replan.next_run_at
+
+        if state_seq > replan_seq:
+            return state.next_run_at
+
+        return replan.next_run_at
 
     def _project(self, runtime: _AccountRuntime, event: Event) -> None:
         '''Apply an event to the account's trading-state and ledger projections.
@@ -1959,13 +2301,11 @@ class ExecutionManager:
         in-memory running sum that a crash discarded.
 
         Note:
-            A fill applied to an order after it moved to `closed_orders` does
-            not update that order's `filled_qty` (`_update_order_on_fill` is
-            open-order-only), so this total under-reports for a command with a
-            late or backfilled fill on an already-closed order. Every caller
-            short-circuits terminal commands via `_terminal_commands`, so the
-            stale total is never read today; do not rely on this helper for a
-            terminal command with late fills (TD-144).
+            A fill applied to an order after it moved to `closed_orders` — a
+            protective OCO leg delivered once a sibling leg cancelled the
+            parent — is booked onto the closed order, so the total holds for
+            the flatten sizing that reads it on an exit command whose OCO
+            parent is closed by definition once a leg fills.
         '''
 
         filled_qty = _ZERO
@@ -2138,29 +2478,33 @@ class ExecutionManager:
 
         return runtime.account_ledger.read_asset_balances()
 
-    def has_pending_ws_events(self, account_id: str) -> bool:
+    def has_pending_external_events(self, account_id: str) -> bool:
         '''
-        Return whether the account has events queued but not yet projected.
+        Return whether the account has events queued but not yet settled.
 
-        WS fills and reconciliation events (including fund transactions) are
-        appended to the spine and then queued for the account coroutine to
-        project. Until that queue drains, the ledger projection lags the
-        spine, so a balance comparison against the venue would be stale. A
-        True result means the projection is not yet caught up.
+        WS fills and reconciliation events (including fund transactions) reach
+        the account through `admit`, which queues them for the writer to
+        append and project and then queues their dispatch. Until all three
+        queues drain, the ledger projection lags the spine or its reactions
+        have yet to run, so a balance comparison against the venue would be
+        stale. A True result means the account is not yet caught up.
 
         Args:
             account_id (str): Account identifier to query.
 
         Returns:
-            bool: True when events await projection; False when the account is
-                unregistered or fully drained.
+            bool: True when events await projection or dispatch; False when
+                the account is unregistered or fully drained.
         '''
 
         runtime = self._accounts.get(account_id)
         if runtime is None:
             return False
 
-        return not runtime.ws_event_queue.empty()
+        return (
+            runtime.admissions_in_flight > 0
+            or self._has_queued_external_events(runtime)
+        )
 
     def get_account_trade_pnls(self, account_id: str) -> dict[str, TradePnL]:
         '''
@@ -2255,13 +2599,12 @@ class ExecutionManager:
 
         self._modifiable_snapshot.pop(account_id, None)
 
-        unregister_error = AccountNotRegisteredError(
-            f"account_id '{account_id}' is not registered",
+        self._fail_pending_admissions(
+            runtime,
+            AccountNotRegisteredError(
+                f"account_id '{account_id}' is not registered",
+            ),
         )
-        while not runtime.admission_queue.empty():
-            _event, future = runtime.admission_queue.get_nowait()
-            if not future.cancelled():
-                future.set_exception(unregister_error)
 
         if runtime.task is not None:
             runtime.task.cancel()
@@ -2274,18 +2617,42 @@ class ExecutionManager:
         '''
         Validate and enqueue a TradeAbort to the priority queue.
 
+        Refused when no writer is left to drain it — a failed boot parks its
+        writer for good, and a writer whose task has exited is gone — so
+        accepting the abort would report a cancellation that never happens.
+        A poisoned writer that is still running is not refused: it keeps
+        draining its priority queue precisely so a risk-reducing abort still
+        lands. Shutdown reads the refusal as "this command's orders are not
+        being cancelled for me" and cancels them directly instead.
+
         Args:
             abort (TradeAbort): Abort instruction targeting a command.
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
-            ValueError: If command_id is unknown or account_id mismatches.
+            ValueError: If command_id is unknown, account_id mismatches, or
+                no writer is left to drain the abort — the account's startup
+                failed and parked it, or its writer task has exited.
         '''
 
         runtime = self._accounts.get(abort.account_id)
         if runtime is None:
             msg = f"account_id '{abort.account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
+
+        if runtime.boot_failed or (
+            runtime.task is not None and runtime.task.done()
+        ):
+            # Refused on whether the writer can still drain it, not on how it
+            # died. A parked failed boot and a writer whose task has exited
+            # both leave the abort sitting forever; a poisoned writer that is
+            # still ticking does process aborts, which is the risk reduction
+            # it exists for, so it is not refused here.
+            msg = (
+                f"account '{abort.account_id}' has no running writer; its "
+                'abort would never be drained'
+            )
+            raise ValueError(msg)
 
         should_enqueue = validate_trade_abort(
             abort,
@@ -2403,9 +2770,9 @@ class ExecutionManager:
         The writer-admission primitive for events produced off the account
         writer — WebSocket fills, reconnect backfill fills and terminals, and
         reconciled fund transactions. The single writer task is the sole
-        appender and projector for a running account, so admission hands the
-        event to the writer via `admission_queue` and awaits the sequence the
-        writer assigns; the writer appends and projects it in turn with its
+        appender and projector of those events for a running account, so
+        admission hands the event to the writer via `admission_queue` and
+        awaits the sequence the writer assigns; the writer appends and projects it in turn with its
         own command work, and no other task appends between the writer's
         append and its projection. A per-account lock around admission alone
         was not enough: it serialized admissions against one another but not
@@ -2458,6 +2825,13 @@ class ExecutionManager:
 
         if runtime.poisoned:
             msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        if runtime.boot_failed:
+            msg = (
+                f"account '{account_id}' failed startup and stays parked; "
+                'restart required'
+            )
             raise RuntimeError(msg)
 
         if recovery_owner:
@@ -2573,6 +2947,27 @@ class ExecutionManager:
 
         runtime.protection_scan_requested = True
 
+    def is_poisoned(self, account_id: str) -> bool:
+
+        '''
+        Report whether an account has fail-stopped on a projection failure.
+
+        Distinct from `is_order_capable`, which also reports False while the
+        account reconciles. Reconciling is a transient gate the reconcile
+        phase already governs; poisoning is terminal until restart, so the
+        two must not be conflated by a caller that only asks about the latter.
+
+        Args:
+            account_id (str): Account identifier.
+
+        Returns:
+            bool: True when the account is registered and poisoned.
+        '''
+
+        runtime = self._accounts.get(account_id)
+
+        return runtime is not None and runtime.poisoned
+
     def is_order_capable(self, account_id: str) -> bool:
 
         '''
@@ -2659,6 +3054,11 @@ class ExecutionManager:
 
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
+            RuntimeError: If the account has fail-stopped on a projection
+                failure, or its startup failed and its writer stays parked.
+                Its loop will never dequeue the command, so accepting one
+                would report an acceptance the account can never honour:
+                no order, no outcome, and nothing for the caller to act on.
             CommandQueueFullError: If the account's command queue is at
                 capacity; the command is rejected fail-closed before any
                 durable state is written.
@@ -2673,6 +3073,17 @@ class ExecutionManager:
         if runtime is None:
             msg = f"account_id '{account_id}' is not registered"
             raise AccountNotRegisteredError(msg)
+
+        if runtime.poisoned:
+            msg = f"account '{account_id}' is poisoned; restart required"
+            raise RuntimeError(msg)
+
+        if runtime.boot_failed:
+            msg = (
+                f"account '{account_id}' failed startup and stays parked; "
+                'restart required'
+            )
+            raise RuntimeError(msg)
 
         if command_id is not None:
             if not command_id:
@@ -2760,6 +3171,24 @@ class ExecutionManager:
                 self._aborted_commands.pop(command_id, None)
                 raise
 
+            if runtime.poisoned or runtime.boot_failed:
+                # The append suspended, and the account died across it. The
+                # accept is already durable, so the command is terminalized
+                # rather than queued for a loop that will never read it.
+                await self._build_outcome(
+                    runtime,
+                    cmd,
+                    TradeStatus.REJECTED,
+                    filled_qty=_ZERO,
+                    avg_fill_price=None,
+                    reason=(
+                        f"account '{account_id}' became unavailable before "
+                        'the command was queued; restart required'
+                    ),
+                )
+
+                return command_id
+
             try:
                 runtime.command_queue.put_nowait(cmd)
             except asyncio.QueueFull:
@@ -2779,8 +3208,12 @@ class ExecutionManager:
         self._commands[command_id] = cmd
         self._command_trade_ids[command_id] = trade_id
 
-        if strategy_id is not None:
-            runtime.trading_state.trade_strategy_ids[trade_id] = strategy_id
+        # Applied directly rather than through `_project`, whose projection
+        # failure is a fail-stop that poisons the account. A raise here still
+        # propagates out of submit_command after the durable append, but it
+        # reports one command's failure rather than taking the whole account
+        # down for a command that is already accepted and queued.
+        runtime.trading_state.apply(event)
 
         _log.info(
             'command accepted: command_id=%s trade_id=%s account_id=%s',
@@ -2817,9 +3250,10 @@ class ExecutionManager:
 
         The boot path registers the account with `booting=True` so the writer
         is parked from creation; this is the equivalent for a runtime that was
-        registered live and must re-enter recovery. Setting `booting` parks the
-        whole loop — no drain, no projection, no dispatch — so boot recovery is
-        the sole owner until `finish_account_startup`.
+        registered live and must re-enter recovery. The flag is read at the top
+        of each loop iteration, so the writer parks once its current iteration
+        finishes — no further drain, projection, or dispatch — leaving boot
+        recovery the sole owner until `finish_account_startup`.
 
         Args:
             account_id (str): Account entering boot recovery.
@@ -2828,6 +3262,46 @@ class ExecutionManager:
         runtime = self._accounts.get(account_id)
         if runtime is not None:
             runtime.booting = True
+
+    async def fail_account_startup(self, account_id: str) -> None:
+
+        '''Leave a failed boot parked, and refuse admissions to it.
+
+        A boot that ends not ready must not advance schemes or place
+        protection, so its writer stays parked. Parked alone is not enough:
+        `admit` queues for a writer that will never drain, so the WebSocket
+        reader and the reconcile tick would block on a future nobody resolves
+        while the stream is already up and a recovery flatten may already rest
+        at the venue. Admissions are refused instead, so a caller learns the
+        account is down rather than waiting for it.
+
+        Args:
+            account_id (str): Account whose startup failed.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        runtime.boot_failed = True
+
+        self._fail_pending_admissions(
+            runtime,
+            RuntimeError(
+                f"account '{account_id}' failed startup and stays parked; "
+                'restart required',
+            ),
+        )
+
+        # The writer stays parked for good, so no later pass will retire the
+        # children a durable drain left working. Boot recovery has finished
+        # and nothing else owns the account, so this is the last chance to
+        # do it before shutdown.
+        await self._drive_pending_drains(runtime)
+        await self._fail_queued_commands(
+            runtime,
+            f"account '{account_id}' failed startup and stays parked",
+        )
 
     def finish_account_startup(self, account_id: str) -> None:
         '''Release the account writer once boot recovery has completed.
@@ -2840,7 +3314,7 @@ class ExecutionManager:
         if runtime is not None:
             runtime.booting = False
 
-    async def drain_ws_events(self, account_id: str) -> None:
+    async def drain_external_events(self, account_id: str) -> None:
         '''Project and dispatch every queued external event on the caller.
 
         Called only by boot recovery while the writer is parked, so recovery
@@ -2855,7 +3329,68 @@ class ExecutionManager:
 
         runtime = self._accounts.get(account_id)
         if runtime is not None and runtime.booting:
+            await self._drain_external_events(runtime, until_empty=True)
+
+    def _fail_pending_admissions(
+        self,
+        runtime: _AccountRuntime,
+        error: Exception,
+    ) -> None:
+        '''Hand every admission still waiting on the writer an error.
+
+        A caller of `admit` awaits the sequence the writer will assign, so a
+        writer that will never run again has to fail its waiters: left alone
+        they wait forever, and the WebSocket reader and the reconcile tick
+        wait with them rather than reporting that the account is down.
+        '''
+
+        while not runtime.admission_queue.empty():
+            _event, future = runtime.admission_queue.get_nowait()
+            if not future.cancelled():
+                future.set_exception(error)
+
+    async def _drain_external_events(
+        self,
+        runtime: _AccountRuntime,
+        *,
+        until_empty: bool = False,
+    ) -> None:
+        '''Drain every queue an external event can be waiting in.
+
+        Admitted events are appended and projected out of `admission_queue`
+        and only then dispatched out of `dispatch_queue`, so a caller that
+        drains one and not the others reads a projection that still lags the
+        events already handed to the account.
+
+        Boot recovery passes `until_empty` because it must read its own
+        writes before it sizes a remediation, and dispatching one event can
+        admit another that a single pass would leave behind. The account loop
+        takes one pass: it is already a loop, and draining to empty ahead of
+        the priority queue would let a sustained fill stream starve a queued
+        abort.
+
+        Args:
+            runtime (_AccountRuntime): Account whose queues to drain.
+            until_empty (bool): Repeat until no queue holds an event.
+        '''
+
+        while True:
+            await self._drain_admission_queue(runtime)
             await self._drain_ws_events(runtime)
+            await self._drain_dispatch_queue(runtime)
+
+            if not until_empty or not self._has_queued_external_events(runtime):
+                return
+
+    @staticmethod
+    def _has_queued_external_events(runtime: _AccountRuntime) -> bool:
+        '''Report whether any queue still holds an external event.'''
+
+        return (
+            not runtime.admission_queue.empty()
+            or not runtime.ws_event_queue.empty()
+            or not runtime.dispatch_queue.empty()
+        )
 
     async def _drain_ws_events(self, runtime: _AccountRuntime) -> None:
         '''Project AND dispatch every queued WebSocket/reconcile event.
@@ -2891,12 +3426,15 @@ class ExecutionManager:
     async def _drain_admission_queue(self, runtime: _AccountRuntime) -> None:
         '''Append, project, and queue dispatch for every admitted event.
 
-        The writer is the sole appender and projector for a running account,
-        so an admitted fill, terminal, or fund event is appended and projected
-        here in sequence with the writer's own command work; the append and
-        projection order can never diverge from the spine order. Each waiting
-        caller's future is completed with the assigned sequence (or None on
-        dedup); a cancelled waiter never cancels the durable append. Dispatch
+        The writer is the sole appender and projector of external events for a
+        running account, so an admitted fill, terminal, or fund event is
+        appended and projected here in sequence with the writer's own command
+        work, so the append and projection order can never diverge from the
+        spine order. A command's own `CommandAccepted` is appended and
+        projected by the submitting task before the command reaches this queue
+        at all. Each waiting caller's future is completed with the assigned
+        sequence (or None on dedup); a cancelled waiter never cancels the
+        durable append. Dispatch
         is deferred to `_drain_dispatch_queue`, as for a recovery-owner
         admission.
 
@@ -2908,6 +3446,7 @@ class ExecutionManager:
 
         while not runtime.admission_queue.empty():
             event, future = runtime.admission_queue.get_nowait()
+            runtime.admissions_in_flight += 1
 
             try:
                 seq = await self._append_project_admitted(
@@ -2934,6 +3473,9 @@ class ExecutionManager:
             except Exception as exc:  # noqa: BLE001
                 if not future.cancelled():
                     future.set_exception(exc)
+
+            finally:
+                runtime.admissions_in_flight -= 1
 
     async def _drain_dispatch_queue(self, runtime: _AccountRuntime) -> None:
         '''Dispatch every admitted event the writer has yet to react to.
@@ -3005,9 +3547,7 @@ class ExecutionManager:
                     await asyncio.sleep(_QUEUE_POLL_INTERVAL)
                     continue
 
-                await self._drain_admission_queue(runtime)
-                await self._drain_ws_events(runtime)
-                await self._drain_dispatch_queue(runtime)
+                await self._drain_external_events(runtime)
 
                 deferred_modifies: list[TradeModify] = []
                 while not runtime.priority_queue.empty():
@@ -3059,6 +3599,15 @@ class ExecutionManager:
                 self._modifiable_snapshot[runtime.account_id] = frozenset(
                     self.modifiable_command_ids(runtime.account_id),
                 )
+
+                await self._drive_pending_drains(runtime, pending_only=True)
+
+                if runtime.poisoned:
+                    await self._fail_queued_commands(
+                        runtime,
+                        f"account '{runtime.account_id}' is poisoned; "
+                        'restart required',
+                    )
 
                 if runtime.reconciling or runtime.poisoned:
                     await self._wait_for_work(runtime)
@@ -3116,6 +3665,28 @@ class ExecutionManager:
         except asyncio.CancelledError:
             _log.info('account loop cancelled: %s', runtime.account_id)
             raise
+        except Exception:  # noqa: BLE001
+            runtime.poisoned = True
+            _log.exception(
+                'account loop died; poisoning account (fail-stop, restart '
+                'required): account_id=%s',
+                runtime.account_id,
+            )
+            self._fail_pending_admissions(
+                runtime,
+                RuntimeError(
+                    f"account '{runtime.account_id}' writer stopped; "
+                    'restart required',
+                ),
+            )
+            # The loop exits here, so the in-loop drain never runs again:
+            # anything already queued would sit there for the life of the
+            # process with no order, no outcome, and a caller still waiting.
+            await self._fail_queued_commands(
+                runtime,
+                f"account '{runtime.account_id}' writer stopped; "
+                'restart required',
+            )
         finally:
             _log.info('account loop exited: %s', runtime.account_id)
 
@@ -3739,11 +4310,34 @@ class ExecutionManager:
         if order is None:
             return
 
-        bracket = runtime.brackets.get(order.command_id)
-        if bracket is None or order.client_order_id != bracket.entry_client_order_id:
+        if order.status not in _TERMINAL_ORDER_STATUSES:
             return
 
-        if order.status not in _TERMINAL_ORDER_STATUSES:
+        # A protective OCO carries the bracket's exit command id, so it never
+        # resolves through the entry-keyed map; without this the bracket keeps
+        # reporting ACTIVE protection that no longer rests at the venue, and
+        # stays amendable through its entry id. A leg reports under its own id,
+        # so resolve it to the parent list first.
+        protective_id = runtime.trading_state.oco_leg_parent.get(
+            order.client_order_id, order.client_order_id,
+        )
+        protective = next(
+            (
+                live
+                for live in runtime.brackets.values()
+                if live.protection_client_order_id == protective_id
+                and live.protection_status is BracketProtectionStatus.ACTIVE
+            ),
+            None,
+        )
+
+        if protective is not None:
+            await self._on_protection_terminal(runtime, protective, order)
+
+            return
+
+        bracket = runtime.brackets.get(order.command_id)
+        if bracket is None or order.client_order_id != bracket.entry_client_order_id:
             return
 
         runtime.brackets.pop(order.command_id, None)
@@ -4750,7 +5344,7 @@ class ExecutionManager:
 
         for scheme in list(runtime.schemes.values()):
             if (
-                scheme.pending_terminal is None
+                scheme.hold is not _Hold.DRAINING
                 and scheme.amend_phase is None
                 and scheme.deadline is not None
                 and now >= scheme.deadline
@@ -4758,9 +5352,13 @@ class ExecutionManager:
                 await self._expire_scheme(runtime, scheme)
                 continue
 
+            # `pending_terminal is None` is implied by `hold is OPEN`: both
+            # are set together by `_begin_scheme_drain` and restored together
+            # from the one `SchemeDraining` on replay, so they cannot
+            # disagree. Kept as a defensive second gate so a slice can never
+            # fire on a terminalizing scheme.
             due = (
-                scheme.state is SchemeState.RUNNING
-                and not scheme.frozen
+                scheme.hold is _Hold.OPEN
                 and scheme.pending_terminal is None
                 and scheme.next_run_at is not None
                 and now >= scheme.next_run_at
@@ -5295,7 +5893,7 @@ class ExecutionManager:
             )
             return
 
-        if scheme.frozen:
+        if scheme.hold is not _Hold.OPEN:
             return
 
         if scheme.cursor >= scheme.slices_total:
@@ -5344,8 +5942,7 @@ class ExecutionManager:
 
             if (
                 order.status is not OrderStatus.FILLED
-                and scheme.pending_terminal is None
-                and not scheme.frozen
+                and scheme.hold is _Hold.OPEN
             ):
                 await self._on_slice_failure(
                     runtime,
@@ -5426,7 +6023,6 @@ class ExecutionManager:
         '''
 
         cmd = scheme.command
-        scheme.state = scheme_state
         scheme.next_run_at = None
         scheme.active_children.clear()
         runtime.schemes.pop(cmd.command_id, None)
@@ -5456,7 +6052,8 @@ class ExecutionManager:
         Marks the scheme for a terminal CANCELED outcome and cancels any
         still-working child at the venue. The single aggregated CANCELED
         outcome fires once every child has settled — immediately when none
-        are working, otherwise as the cancels confirm.
+        are working, otherwise as the cancels confirm. An in-flight ladder
+        amend retires both generations without placing replacement rungs.
         '''
 
         scheme = runtime.schemes.get(abort.command_id)
@@ -5470,14 +6067,59 @@ class ExecutionManager:
             abort.reason,
         )
 
-        scheme.pending_terminal = (
+        await self._begin_scheme_drain(
+            runtime,
+            scheme,
             TradeStatus.CANCELED,
             SchemeState.CANCELED,
             abort.reason,
         )
-        scheme.next_run_at = None
+
+        if scheme.amend_phase is not None:
+            await self._drive_ladder_amend(runtime, scheme)
+            return
+
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
+
+    async def _begin_scheme_drain(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        status: TradeStatus,
+        scheme_state: SchemeState,
+        reason: str | None,
+    ) -> None:
+        '''Record a pending terminal outcome durably and stop scheduling.
+
+        The drain hold and the outcome it waits to emit are set here in one
+        place and appended before either is set, so a crash inside the drain
+        window replays as a draining scheme with its outcome intact rather
+        than as a running one with an empty child set and a due timer.
+
+        Args:
+            runtime (_AccountRuntime): Account that owns the scheme.
+            scheme (_LiveScheme): Scheme entering the drain.
+            status (TradeStatus): Terminal trade status awaiting the drain.
+            scheme_state (SchemeState): Terminal scheme state awaiting it.
+            reason (str | None): Why the scheme is terminalizing.
+        '''
+
+        await self._event_spine.append(
+            SchemeDraining(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=scheme.command.command_id,
+                status=status,
+                scheme_state=scheme_state,
+                reason=reason,
+            ),
+            self._epoch_id,
+        )
+
+        scheme.pending_terminal = (status, scheme_state, reason)
+        scheme.hold = _Hold.DRAINING
+        scheme.next_run_at = None
 
     async def _freeze_account_schemes(
         self,
@@ -5507,7 +6149,7 @@ class ExecutionManager:
         frozen: list[str] = []
 
         for command_id, scheme in runtime.schemes.items():
-            if scheme.protection_frozen or scheme.pending_terminal is not None:
+            if scheme.hold in (_Hold.PROTECTION, _Hold.DRAINING):
                 continue
 
             event = SchemeFrozen(
@@ -5518,8 +6160,7 @@ class ExecutionManager:
             )
             await self._event_spine.append(event, self._epoch_id)
 
-            scheme.frozen = True
-            scheme.protection_frozen = True
+            scheme.hold = _Hold.PROTECTION
             scheme.next_run_at = None
             frozen.append(command_id)
 
@@ -5691,6 +6332,69 @@ class ExecutionManager:
             await self._event_spine.append(delivered, self._epoch_id)
             self._pending_remediations.pop(command_id, None)
 
+    async def _on_protection_terminal(
+        self,
+        runtime: _AccountRuntime,
+        bracket: _LiveBracket,
+        order: Order,
+    ) -> None:
+        '''Hand a bracket whose protective OCO terminalized to the watchdog.
+
+        The list is gone from the venue, so the bracket must stop reporting
+        ACTIVE protection and stop being amendable. What replaced it is not
+        knowable from the local projection: a cancellation can arrive before
+        the sibling leg's fills project, so a remainder derived from local
+        totals alone can size a flatten for exposure the take-profit already
+        closed and sell the position twice.
+
+        STATE_UNKNOWN is the state that question already has an answer for.
+        The reconcile-tick watchdog re-queries the venue and resolves it from
+        venue truth — re-tracking a list still working, closing the bracket
+        when a leg filled, and remediating only a position it has confirmed
+        naked.
+
+        Args:
+            runtime (_AccountRuntime): Account that owns the bracket.
+            bracket (_LiveBracket): Bracket whose protection terminalized.
+            order (Order): The protective order that reached a terminal state.
+        '''
+
+        version = max(
+            bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION,
+        )
+
+        # Durable before in-memory: a restart between this dispatch and the
+        # watchdog's resolution would otherwise find no unresolved phase to
+        # restore, and the open position would come back with neither a
+        # tracked bracket nor a pending remediation.
+        await self._event_spine.append(
+            ProtectionStateUnknown(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=bracket.command.command_id,
+                protection_version=version,
+                reason=(
+                    f'protective OCO {order.status.value}; awaiting venue '
+                    f'resolution'
+                ),
+                old_list_client_order_id=bracket.protection_client_order_id,
+                new_list_client_order_id=bracket.protection_client_order_id,
+            ),
+            self._epoch_id,
+        )
+
+        bracket.protection_status = BracketProtectionStatus.STATE_UNKNOWN
+        bracket.unknown_since = self._clock()
+        self.request_protection_scan(runtime.account_id)
+
+        _log.warning(
+            'bracket protective OCO terminalized; holding STATE_UNKNOWN for '
+            'venue resolution: command_id=%s client_order_id=%s status=%s',
+            bracket.command.command_id,
+            order.client_order_id,
+            order.status.value,
+        )
+
     async def _remediate_naked_bracket(
         self,
         runtime: _AccountRuntime,
@@ -5722,6 +6426,15 @@ class ExecutionManager:
         '''
 
         cmd = bracket.command
+
+        # An initial, never-amended OCO is revision zero, which
+        # `ProtectionFailed` refuses. Normalizing here rather than at each
+        # caller means a path that reaches remediation on an unamended
+        # bracket cannot raise before the durable marker, the flatten, and
+        # the hold — leaving the position unprotected and every later scan
+        # repeating the same failure.
+        version = max(version, _BRACKET_FIRST_PROTECTION_VERSION)
+
         await self._freeze_account_schemes(
             runtime,
             f'bracket protection failed: command_id={cmd.command_id} '
@@ -5753,6 +6466,158 @@ class ExecutionManager:
             )
 
         await self.drain_protection_remediations(cmd.account_id)
+
+    async def resolve_pending_drains(self, account_id: str) -> None:
+        '''Re-drive a drain whose cancellations never completed.
+
+        A `SchemeDraining` is durable before its cancels are sent, so a crash
+        in that window replays a draining scheme whose children are still
+        working at the venue. Deadline expiry deliberately skips a draining
+        scheme and finalization waits for the children, so nothing else would
+        retire them: the abort would be durable and the rungs would keep
+        resting, and filling, for the life of the epoch.
+
+        Idempotent — an already-terminal child is adopted by
+        `_cancel_active_children` — so the tick can retry until the scheme
+        settles. A ladder mid-amend is left to the amend driver, which retires
+        both generations itself.
+
+        Args:
+            account_id (str): Account whose drains to re-drive.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return
+
+        await self._drive_pending_drains(runtime)
+
+    async def _fail_queued_commands(
+        self,
+        runtime: _AccountRuntime,
+        reason: str,
+    ) -> None:
+        '''Terminalize commands an account will never dequeue.
+
+        A poisoned or failed-boot account keeps its queue but never drains it,
+        so a command accepted before it died would sit there forever: no
+        order, no outcome, and a caller left waiting on a command it was told
+        had been accepted. Each queued command is rejected with a terminal
+        outcome instead, so the decision layer learns what happened to it.
+
+        Args:
+            runtime (_AccountRuntime): Account that will not run again.
+            reason (str): Why the command cannot be executed.
+        '''
+
+        while not runtime.command_queue.empty():
+            cmd = runtime.command_queue.get_nowait()
+
+            try:
+                await self._build_outcome(
+                    runtime,
+                    cmd,
+                    TradeStatus.REJECTED,
+                    filled_qty=_ZERO,
+                    avg_fill_price=None,
+                    reason=reason,
+                )
+            except asyncio.CancelledError:
+                runtime.command_queue.task_done()
+                raise
+            except Exception:  # noqa: BLE001
+                # The command is already off the queue and its outcome could
+                # not be produced, so nothing downstream will ever hear about
+                # it. Delivery cannot be retried from here — the machinery
+                # that would carry it is what just failed — so the account is
+                # poisoned to keep it from accepting anything further, and
+                # the command is named in the log for the operator the
+                # restart belongs to.
+                runtime.poisoned = True
+                _log.exception(
+                    'could not terminalize a queued command on a dead '
+                    'account; no outcome will reach the decision layer: '
+                    'command_id=%s account_id=%s',
+                    cmd.command_id,
+                    runtime.account_id,
+                )
+                runtime.command_queue.task_done()
+            else:
+                runtime.command_queue.task_done()
+
+    async def _drive_pending_drains(
+        self,
+        runtime: _AccountRuntime,
+        *,
+        pending_only: bool = False,
+    ) -> None:
+        '''Retire the children a durable drain left working at the venue.
+
+        Runs ahead of the reconciling and poisoned gate, alongside the abort
+        the priority queue already drains in those states. A GATED reconnect
+        is precisely the window a crashed abort resumes into, so gating this
+        behind order-capability would leave the rungs resting for exactly the
+        state the backstop exists to cover.
+
+        The account loop passes `pending_only`, so a scheme that resumed
+        mid-drain is re-driven once and then only after the retry interval:
+        a cancel per child on every loop pass would keep re-cancelling orders
+        that are merely taking time to settle, while never retrying would
+        strand a cancel the venue refused until the account became
+        order-capable. The reconcile tick drives unconditionally.
+
+        Args:
+            runtime (_AccountRuntime): Account whose drains to retire.
+            pending_only (bool): Drive only the schemes due a cancel — the
+                one flagged after a resume, and thereafter those whose retry
+                interval has elapsed.
+        '''
+
+        for scheme in list(runtime.schemes.values()):
+            if (
+                scheme.hold is not _Hold.DRAINING
+                or scheme.amend_phase is not None
+                or not scheme.active_children
+            ):
+                continue
+
+            now = self._clock()
+
+            if pending_only and not self._drain_cancel_due(scheme, now):
+                continue
+
+            scheme.drain_cancel_pending = False
+            scheme.drain_cancel_retry_at = now + timedelta(
+                seconds=_DRAIN_CANCEL_RETRY_SECONDS,
+            )
+            await self._cancel_active_children(runtime, scheme)
+            await self._maybe_finalize_scheme(runtime, scheme)
+
+    @staticmethod
+    def _drain_cancel_due(scheme: _LiveScheme, now: datetime) -> bool:
+        '''Report whether a draining scheme's cancel should be re-sent.
+
+        True for the first re-drive after a resume, and thereafter once the
+        retry interval has elapsed. A cancel is best-effort and swallows its
+        venue error per child, so a scheme whose children are still working is
+        retried rather than left until the account becomes order-capable —
+        without re-cancelling on every pass of the loop while they settle.
+
+        Args:
+            scheme (_LiveScheme): The draining scheme.
+            now (datetime): Current time.
+
+        Returns:
+            bool: True when the cancel should be driven now.
+        '''
+
+        if scheme.drain_cancel_pending:
+            return True
+
+        return (
+            scheme.drain_cancel_retry_at is not None
+            and now >= scheme.drain_cancel_retry_at
+        )
 
     async def resolve_failed_flattens(self, account_id: str) -> None:
         '''Retry a failed bracket's flatten that never became durable in-session.
@@ -5938,6 +6803,7 @@ class ExecutionManager:
         '''
 
         resolvers = (
+            self.resolve_pending_drains,
             self.resolve_unknown_protection,
             self.drain_protection_remediations,
             self.resolve_ladder_amends,
@@ -6013,14 +6879,14 @@ class ExecutionManager:
                 continue
 
             cmd = bracket.command
-            candidates = [
+            candidates = list(dict.fromkeys(
                 candidate
                 for candidate in (
                     bracket.pending_replacement_client_order_id,
                     bracket.protection_client_order_id,
                 )
                 if candidate is not None
-            ]
+            ))
 
             working: tuple[str, VenueOrderList] | None = None
             query_failed = False
@@ -6342,6 +7208,7 @@ class ExecutionManager:
             client_order_id=client_order_id,
         )
         await self._event_spine.append(flatten, self._epoch_id)
+        runtime.flatten_order_ids.add(client_order_id)
 
         await self._submit_flatten_order(
             runtime, cmd, exit_command_id, protective_side, qty, client_order_id,
@@ -6839,7 +7706,18 @@ class ExecutionManager:
             command=cmd, entry_client_order_id=entry_client_order_id,
         )
         exit_command_id = bracket_exit_command_id(command_id)
-        await self._drain_ws_events(runtime)
+        await self._drain_external_events(runtime, until_empty=True)
+
+        if runtime.poisoned:
+            _log.warning(
+                'flatten recovery abandoned: account poisoned while draining '
+                'the events it would size from: command_id=%s account_id=%s',
+                command_id,
+                runtime.account_id,
+            )
+
+            return
+
         entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
         exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_filled
@@ -6887,7 +7765,8 @@ class ExecutionManager:
         )
         await self._event_spine.append(failed, self._epoch_id)
 
-        scheme.frozen = True
+        if scheme.hold is _Hold.OPEN:
+            scheme.hold = _Hold.SLICE_FAILED
         scheme.next_run_at = None
 
         await self._emit_scheme_partial(runtime, scheme, reason)
@@ -6970,12 +7849,13 @@ class ExecutionManager:
             runtime.account_id,
         )
 
-        scheme.pending_terminal = (
+        await self._begin_scheme_drain(
+            runtime,
+            scheme,
             TradeStatus.EXPIRED,
             SchemeState.FAILED,
             'scheme deadline exceeded',
         )
-        scheme.next_run_at = None
         await self._cancel_active_children(runtime, scheme)
         await self._maybe_finalize_scheme(runtime, scheme)
 
@@ -7243,7 +8123,7 @@ class ExecutionManager:
         if scheme is not None:
             if isinstance(
                 modify.modify_params,
-                (TwapModify, TimeDcaModify, ScheduledVwapModify),
+                (IntervalSliceModify, ScheduledVwapModify),
             ):
                 await self._process_scheme_modify(runtime, scheme, modify)
             elif isinstance(modify.modify_params, LadderDcaModify):
@@ -7492,7 +8372,7 @@ class ExecutionManager:
             )
             return
 
-        if scheme.frozen or scheme.pending_terminal is not None:
+        if scheme.hold is not _Hold.OPEN:
             _log.warning(
                 'ladder modify rejected: ladder frozen or stopping, not '
                 'amendable: command_id=%s',
@@ -7565,12 +8445,18 @@ class ExecutionManager:
         every old rung, then fixes and persists the replacement plan; PLACING
         places the planned rungs. Each step is idempotent — already-terminal
         old rungs and already-resting new rungs are adopted — so re-driving
-        never double-cancels or double-places.
+        never double-cancels or double-places. A terminalizing scheme instead
+        retires both generations and emits its pending terminal outcome; it
+        never reaches replacement planning or placement.
         '''
 
         cmd = scheme.command
         ctx = scheme.amend_context
         if ctx is None:
+            return
+
+        if scheme.hold is _Hold.DRAINING:
+            await self._drain_ladder_amend(runtime, scheme, ctx)
             return
 
         new_params = LadderDcaParams(
@@ -7612,7 +8498,7 @@ class ExecutionManager:
             scheme.amend_phase = 'PLACING'
 
         if scheme.amend_phase == 'PLACING':
-            if scheme.protection_frozen:
+            if scheme.hold is _Hold.PROTECTION:
                 _log.info(
                     'ladder amend placement held: protection frozen, no new '
                     'rungs placed: command_id=%s',
@@ -7624,6 +8510,41 @@ class ExecutionManager:
             await self._place_ladder_generation(
                 runtime, cmd, scheme, ctx.new_generation, ctx.planned, new_params,
             )
+
+    async def _drain_ladder_amend(
+        self,
+        runtime: _AccountRuntime,
+        scheme: _LiveScheme,
+        ctx: _LadderAmendContext,
+    ) -> None:
+
+        '''Cancel both amend generations and emit the pending terminal outcome.
+
+        Venue confirmation and fill backfill use the same retirement path as
+        an amend, so an uncertain cancel stays pending for the watchdog and
+        fills discovered during cancellation enter the final outcome.
+
+        Args:
+            runtime (_AccountRuntime): Account owning the ladder
+            scheme (_LiveScheme): Terminalizing ladder with an in-flight amend
+            ctx (_LadderAmendContext): Old and planned replacement generations
+        '''
+
+        for generation, count in (
+            (ctx.old_generation, ctx.old_slices_total),
+            (ctx.new_generation, len(ctx.planned or ())),
+        ):
+            retired = await self._retire_ladder_generation(
+                runtime, scheme.command, scheme, generation, count, ctx.new_generation,
+            )
+            if retired is None:
+                return
+
+        assert scheme.pending_terminal is not None
+        status, scheme_state, reason = scheme.pending_terminal
+        await self._finalize_scheme(
+            runtime, scheme, status=status, scheme_state=scheme_state, reason=reason,
+        )
 
     def _plan_ladder_amend(
         self,
@@ -8641,12 +9562,14 @@ class ExecutionManager:
         cmd = scheme.command
         params = modify.modify_params
         assert cmd.qty is not None
-        assert isinstance(params, (TwapModify, TimeDcaModify, ScheduledVwapModify))
+        assert isinstance(params, (IntervalSliceModify, ScheduledVwapModify))
 
-        if scheme.protection_frozen:
+        if scheme.hold in (_Hold.PROTECTION, _Hold.DRAINING):
             _log.warning(
-                'modify rejected: scheme is frozen by a protection remediation '
-                'and cannot be resumed by an amend: command_id=%s',
+                'modify rejected: scheme is %s and cannot be resumed by an '
+                'amend: command_id=%s',
+                'terminalizing' if scheme.hold is _Hold.DRAINING
+                else 'frozen by a protection remediation',
                 cmd.command_id,
             )
             return
@@ -8711,13 +9634,30 @@ class ExecutionManager:
             scheme.slices_total = new_total
 
         scheme.interval_seconds = new_interval
-        scheme.frozen = False
-        scheme.next_run_at = self._clock() + timedelta(seconds=new_interval)
+
+        next_run_at = self._clock() + timedelta(seconds=new_interval)
+
+        await self._event_spine.append(
+            SchemeReplanned(
+                account_id=runtime.account_id,
+                timestamp=self._clock(),
+                command_id=cmd.command_id,
+                slices_total=scheme.slices_total,
+                interval_seconds=new_interval,
+                slice_qtys=tuple(scheme.slice_qtys),
+                next_run_at=next_run_at,
+                clears_slice_failure=scheme.hold is _Hold.SLICE_FAILED,
+            ),
+            self._epoch_id,
+        )
+
+        scheme.hold = _Hold.OPEN
+        scheme.next_run_at = next_run_at
         await self._append_scheme_progress(runtime, scheme, SchemeState.RUNNING)
 
     def _resolve_scheme_amend(
         self,
-        params: TwapModify | TimeDcaModify | ScheduledVwapModify,
+        params: IntervalSliceModify | ScheduledVwapModify,
         current_total: int,
         current_interval: int,
     ) -> tuple[int, int]:
@@ -8736,16 +9676,8 @@ class ExecutionManager:
             else current_interval
         )
 
-        if isinstance(params, TwapModify):
+        if isinstance(params, IntervalSliceModify):
             total = params.num_slices if params.num_slices is not None else current_total
-            return total, interval
-
-        if isinstance(params, TimeDcaModify):
-            total = (
-                params.num_iterations
-                if params.num_iterations is not None
-                else current_total
-            )
             return total, interval
 
         return current_total, interval
