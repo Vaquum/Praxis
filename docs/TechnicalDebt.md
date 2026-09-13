@@ -1476,12 +1476,14 @@ Ladder amend phase is stored as `str | None` and compared to `'CANCELLING'` and 
 
 `Trading.stop` builds one set of in-flight command ids, submits an abort for each, drops from that set any command whose abort was refused, and then cancels every open order whose command is not in the set. That single set carries two different meanings — "the abort owns these" and "do not cancel these" — and the overload is the defect: a refused abort is read as permission to cancel the command's orders directly, which is right for a resting entry and wrong for a working recovery flatten.
 
-A bracket's exit command id covers both its protective OCO and its MARKET flatten, so no command-level rule can separate them. The discriminator has to be the order's intent — a working reduce-only risk-off order — recorded when the flatten is posted and cleared when it terminalizes, and exposed by the execution manager rather than inferred in the shutdown loop.
+A bracket's exit command id covers both its protective OCO and its MARKET flatten, so no command-level rule can separate them, and the id is a pure derivation any caller can reproduce. The discriminator has to be the order's own recorded intent.
 
-**Fixed narrowly**: shutdown no longer cancels an open MARKET order on a bracket exit command, so a recovery flatten posted during a failed boot is left to fill instead of handing the naked position back. That is an interim predicate, not the contract.
+**Fixed**: shutdown identifies a recovery flatten by the client order id its `FlattenInitiated` recorded, kept on the account when the event is appended and rebuilt from the spine on replay. That survives a failed protection, whose bracket is never rebuilt on resume, and cannot be spoofed by a caller-supplied command id. Two earlier attempts are recorded here because both looked adequate: matching the exit-id suffix spared any ordinary order wearing that shape, and matching the account's live brackets spared nothing at all for the one position that actually had a working flatten.
+
+One residue: an id is never removed from that set when its flatten terminalizes, so the set grows for the life of the epoch. Harmless today — shutdown only consults it for orders that are still open — but it is a per-epoch leak and a stale id would match a client order id reused within the epoch.
 
 **Still wrong**:
-- A protective OCO is cancelled unconditionally at shutdown, which strips the last protection from a position that is not flat. It should be cancelled only once a flatten is working or the position is confirmed closed.
+- Preservation covers the flatten only. A protective OCO is cancelled unconditionally at shutdown, which strips the last protection from a position that is not flat. It should be cancelled only once a flatten is working or the position is confirmed closed.
 - Cancellation order is unspecified. Working entries and ladder rungs should be retired before anything reduce-only, or an entry fill after the flatten is sized leaves residue, or re-opens exposure the flatten just closed.
 - `_process_abort` builds a terminal CANCELED outcome after a venue cancellation failure, and treats NotFound as cancelled without resolving a possible fill.
 - The shutdown completion wait requires no open orders, which a deliberately preserved flatten or protective OCO will never satisfy; it should wait on the actions it required and report what it preserved.

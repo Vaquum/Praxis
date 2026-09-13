@@ -1196,9 +1196,10 @@ async def test_shutdown_cancels_an_entry_that_merely_looks_like_a_flatten(
     '''A caller may supply a command id shaped like a derived exit id.
 
     The exit id is just the entry id with a suffix, so any caller-supplied
-    command can wear that shape. Only the account's own brackets say which
-    exits are real; matching on the shape would leave an ordinary order
-    resting at the venue after shutdown.
+    command can wear that shape. Only the durable record of a flatten this
+    account actually posted says which orders are real recovery flattens;
+    matching on the shape would leave an ordinary order resting at the venue
+    after shutdown.
     '''
 
     from praxis.core.domain.order import Order
