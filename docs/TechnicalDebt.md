@@ -1490,3 +1490,21 @@ One residue: an id is never removed from that set when its flatten terminalizes,
 - A failed boot can exit with open size. That is the real outcome and it should be persisted for the next boot to adopt as owned recovery rather than swept as an orphan, not reported as a clean shutdown.
 
 **When to fix**: before live trading runs unattended across restarts. The pieces are an order-level risk-off marker, splitting the abort-ownership set from the do-not-cancel set, and a completion condition that distinguishes preserved from unresolved.
+
+## TD-156: An admitted overfill is invisible to Nexus's position and capital accounting
+
+**Origin**: issue #178 pre-merge review (codex and grok, consulted on the fill-admission contract)
+**Severity**: High — Praxis records and sizes the excess correctly, but Nexus carries a position short by it and capital reserved below what was actually spent, and an exit Nexus sizes from its own book leaves the residual behind
+**Module**: `praxis/core/execution_manager.py` (`_accumulate_accepted_fill`), `praxis/outcome_translator.py`
+
+`TradeOutcome` enforces `filled_qty <= target_qty`, so a venue that reports more filled than was ordered cannot be reported to Nexus as it happened. Fill admission resolves that by discarding the excess at the fill that breaches the target: the outcome reports the quantity ordered at the average of the fills that fit, and stays monotonic against every partial already published.
+
+The excess is not lost inside Praxis. `AccountLedger` books the raw fill — full quantity into inventory, full spend out of cash — and `TradingState.positions` projects the raw quantity too, so everything Praxis sizes from real exposure is correct: scheme and ladder remainders, amend remainders, protection sizing and flatten sizing all read the raw command totals, and a flatten therefore closes the quantity actually held, excess included.
+
+What is missing is the other book. `OutcomeTranslator` forwards only the admitted size and notional, so Nexus's outcome-driven position and capital accounting never learns about a genuine excess. Praxis and Nexus then disagree about the size of the position by the discarded amount. Praxis owns flatten sizing, so this does not strand exposure in the bracket-protection path; it does mean a Nexus-driven exit is sized to Nexus's smaller belief and leaves the excess behind, and Nexus's capital controller reserves less than was actually spent.
+
+This is not uniformly pre-existing. Before this change the WebSocket producer forwarded the raw notional alongside the capped quantity, so Nexus saw the full spend against an understated size — wrong, and the reason the implied price came out several times the real one, but not an understatement of capital. Admission now suppresses the excess spend as well, so the direction of Nexus's error changes: its capital usage is understated where it was previously overstated against a too-small size. The position understatement is pre-existing; the capital understatement is new.
+
+Praxis logs every discard at admission, naming the command, the quantity admitted and the quantity dropped, so the disagreement is observable while this is open.
+
+Closing this needs an explicit reconciliation channel — an inventory-adjustment outcome, or a delta the translator can send outside the target-bounded fields — plus a decision on whether Nexus's position guard should accept it. That is a cross-repo contract change, not a clamp.
