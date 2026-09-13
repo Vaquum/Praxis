@@ -1467,6 +1467,7 @@
 
 ### Update
 
+- Update [`Trade-Outcomes.md`](docs/Trade-Outcomes.md) for the admitted-fill contract: `filled_qty`, `cumulative_notional` and `avg_fill_price` now describe the same fills, so consumers may recompute the average from the totals rather than avoiding the division
 - Record TD-156 (an admitted overfill is invisible to Nexus's position and capital accounting) in [`TechnicalDebt.md`](docs/TechnicalDebt.md)
 - Record TD-157 (a fill whose command was never established is admitted uncapped) in [`TechnicalDebt.md`](docs/TechnicalDebt.md)
 - Update every `TradeOutcome` producer to report the admitted totals — the single-shot submit path, both scheme terminal paths, the scheme partial, the three amend emissions, the bracket entry recovery, the bracket OCO exit, both flatten paths, and the immediate iceberg — replacing four separate notional-scaling clamps and three quantity-only caps. Raw totals are kept where they mean real exposure: position sizing, protection sizing, and flatten pricing all continue to act on the quantity actually held, including an overfilled excess, and the account ledger continues to book the full spend

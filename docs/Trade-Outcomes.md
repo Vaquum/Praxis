@@ -22,7 +22,11 @@ Typical fields include:
 
 In v0.97.0, the unused `missed_iterations` and `missed_reason` fields are removed without aliases. Remove those constructor arguments and attribute reads from integrations; they never reported skipped-iteration telemetry. `slices_completed` and `slices_total` continue to describe scheme progress, not missed iterations.
 
-`filled_qty`, `cumulative_notional`, and `avg_fill_price` remain separate. An overfill can clamp the reported quantity to the command target while retaining venue notional and the actual average price; consumers must not recompute the average by dividing those two reported totals.
+In v0.98.0, `filled_qty`, `cumulative_notional`, and `avg_fill_price` describe the same fills and agree with one another. A venue can report more filled than was ordered; each fill is admitted only as far as the command's target allows, at the price that executed, and the excess is discarded. The reported average is the average of the admitted fills, so `cumulative_notional / filled_qty` reproduces `avg_fill_price` and consumers may recompute it.
+
+Previously the quantity was clamped to the target while the whole venue notional was retained, so those two totals described different sets of fills and dividing them gave a price several times the one that executed. Consumers that avoided the division to work around that no longer need to.
+
+The discarded excess is real: Praxis books the full quantity and spend to the account ledger and carries it in the position it holds, and sizes protection and flattens from that raw exposure. Only the outcome is bounded. A decision layer reconstructing its position from outcomes is therefore short by any discarded amount until reconciled — see TD-156.
 
 ## When Outcomes Are Produced
 
