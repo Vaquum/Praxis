@@ -1158,8 +1158,13 @@ async def test_shutdown_leaves_a_working_flatten_in_place(
 
     exit_command_id = bracket_exit_command_id('cmd-bracket')
     runtime = trading._execution_manager._accounts['acc-1']
-    runtime.brackets['cmd-bracket'] = cast(Any, object())
     orders = runtime.trading_state.orders
+
+    # The bracket is deliberately absent: a protection that failed is not
+    # rebuilt on resume, which is exactly the state its flatten must survive.
+    assert not runtime.brackets
+
+    runtime.flatten_order_ids.add('flatten-1')
 
     orders['flatten-1'] = Order(
         client_order_id='flatten-1', venue_order_id='venue-flatten-1',
@@ -3436,3 +3441,65 @@ async def test_every_callback_setter_refuses_after_start(
             getattr(trading, setter)(None)
     finally:
         await trading.stop()
+
+
+@pytest.mark.asyncio
+async def test_failed_boot_shutdown_preserves_a_replayed_recovery_flatten(
+    spine: EventSpine,
+) -> None:
+    '''The flatten must outlive the bracket that ordered it.
+
+    A protection that failed is not rebuilt on resume, so nothing in the
+    runtime still ties the working MARKET order to a bracket. Only the
+    durable FlattenInitiated record identifies it, and shutdown has to honour
+    that or it cancels the order closing a naked position.
+    '''
+
+    import unittest.mock
+
+    from praxis.core.bracket_exit_command_id import bracket_exit_command_id
+    from praxis.core.domain.events import FlattenInitiated
+
+    flatten_id = 'BK-flatten-999'
+    exit_command_id = bracket_exit_command_id('cmd-bracket')
+
+    await spine.append(RegisterAccount(account_id='acc-1', timestamp=_CREATED_AT), 1)
+    await spine.append(FlattenInitiated(
+        account_id='acc-1', timestamp=_CREATED_AT, command_id='cmd-bracket',
+        protection_version=1, qty=Decimal('1'), client_order_id=flatten_id,
+    ), 1)
+    await spine.append(OrderSubmitIntent(
+        account_id='acc-1', timestamp=_CREATED_AT, command_id=exit_command_id,
+        trade_id='trade-1', client_order_id=flatten_id, symbol='BTCUSDT',
+        side=OrderSide.SELL, order_type=OrderType.MARKET, qty=Decimal('1'),
+        price=None,
+    ), 1)
+    await spine.append(OrderSubmitted(
+        account_id='acc-1', timestamp=_CREATED_AT, client_order_id=flatten_id,
+        venue_order_id='venue-flatten',
+    ), 1)
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+    trading._sweep_orphan_venue_orders = unittest.mock.AsyncMock(return_value=False)
+
+    await trading.start()
+
+    runtime = trading._execution_manager._accounts['acc-1']
+
+    assert runtime.boot_failed is True
+    assert not runtime.brackets
+    assert flatten_id in runtime.trading_state.orders
+    assert flatten_id in trading._execution_manager.protective_flatten_order_ids('acc-1')
+
+    await trading.stop()
+
+    assert ('acc-1', flatten_id) not in adapter.cancel_calls

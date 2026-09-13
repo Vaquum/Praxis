@@ -594,6 +594,7 @@ class _AccountRuntime:
         self.reconciling = False
         self.booting = False
         self.boot_failed = False
+        self.flatten_order_ids: set[str] = set()
         self.poisoned = False
         self.protection_scan_requested = False
 
@@ -844,32 +845,31 @@ class ExecutionManager:
             symbols.add(pos.symbol)
         return symbols
 
-    def protective_exit_command_ids(self, account_id: str) -> frozenset[str]:
-        '''
-        Return the exit command ids of the account's tracked brackets.
+    def protective_flatten_order_ids(self, account_id: str) -> frozenset[str]:
 
-        The exit id is derived, so it can be computed for any string; asking
-        the account which brackets it actually holds is what separates a real
-        protective exit from a caller-supplied command that merely looks like
-        one. Shutdown uses this to leave a working flatten in place without
-        sparing an ordinary order whose id happens to share the shape.
+        '''
+        Return the client order ids of recovery flattens this account posted.
+
+        Taken from the durable `FlattenInitiated` record rather than from the
+        live brackets, because the bracket is exactly what a failed protection
+        does not leave behind: `_resume_brackets` does not rebuild one whose
+        protection failed, and boot re-flatten works from a local bracket it
+        never registers. Asking the runtime map would answer "no flatten" for
+        precisely the position that has one.
 
         Args:
             account_id (str): Account identifier to query.
 
         Returns:
-            frozenset[str]: Exit command ids for every tracked bracket, empty
-                when the account is unknown or holds none.
+            frozenset[str]: Client order ids of flattens this account
+                initiated, empty when the account is unknown.
         '''
 
         runtime = self._accounts.get(account_id)
         if runtime is None:
             return frozenset()
 
-        return frozenset(
-            bracket_exit_command_id(command_id)
-            for command_id in runtime.brackets
-        )
+        return frozenset(runtime.flatten_order_ids)
 
     def get_open_orders(self, account_id: str) -> dict[str, Order]:
         '''
@@ -1087,6 +1087,13 @@ class ExecutionManager:
 
         for _seq, event in events:
             self._project(runtime, event)
+
+            if isinstance(event, FlattenInitiated):
+                # The flatten outlives the bracket that ordered it: a failed
+                # protection is not rebuilt on resume, so this durable record
+                # is the only thing that still identifies the order closing
+                # the position.
+                runtime.flatten_order_ids.add(event.client_order_id)
 
             if isinstance(event, CommandAccepted):
                 self._accepted_commands[event.command_id] = account_id
@@ -7201,6 +7208,7 @@ class ExecutionManager:
             client_order_id=client_order_id,
         )
         await self._event_spine.append(flatten, self._epoch_id)
+        runtime.flatten_order_ids.add(client_order_id)
 
         await self._submit_flatten_order(
             runtime, cmd, exit_command_id, protective_side, qty, client_order_id,

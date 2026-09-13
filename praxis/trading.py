@@ -688,8 +688,8 @@ class Trading:
                 except AccountNotRegisteredError:
                     continue
                 in_flight = in_flight_by_account.get(account_id, set())
-                protective_exits = (
-                    self._execution_manager.protective_exit_command_ids(
+                protective_flattens = (
+                    self._execution_manager.protective_flatten_order_ids(
                         account_id,
                     )
                 )
@@ -697,20 +697,15 @@ class Trading:
                     if order.command_id in in_flight:
                         continue
 
-                    if (
-                        order.order_type is OrderType.MARKET
-                        and order.command_id in protective_exits
-                    ):
+                    if order.client_order_id in protective_flattens:
                         # A working recovery flatten is closing a position
                         # this process can no longer supervise. Cancelling it
                         # would hand the naked position back, so it is left
-                        # to fill. Matched against the account's own brackets
-                        # rather than the shape of the id: the exit id is
-                        # derivable from any string, and a caller may supply
-                        # a command id that looks exactly like one. Narrow on
-                        # purpose — the exit command also carries the
-                        # protective OCO, and only the MARKET order is the
-                        # flatten (TD-155).
+                        # to fill. Identified by the durable record of the
+                        # flatten this account posted, so it survives a
+                        # bracket that failed protection and was never
+                        # rebuilt on resume, and so an ordinary order cannot
+                        # be spared by wearing a familiar-looking id.
                         _log.warning(
                             'shutdown leaving a working flatten in place: '
                             'account=%s client_order_id=%s command_id=%s',
