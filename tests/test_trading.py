@@ -1157,7 +1157,9 @@ async def test_shutdown_leaves_a_working_flatten_in_place(
     trading._ready_accounts.add('acc-1')
 
     exit_command_id = bracket_exit_command_id('cmd-bracket')
-    orders = trading._execution_manager._accounts['acc-1'].trading_state.orders
+    runtime = trading._execution_manager._accounts['acc-1']
+    runtime.brackets['cmd-bracket'] = cast(Any, object())
+    orders = runtime.trading_state.orders
 
     orders['flatten-1'] = Order(
         client_order_id='flatten-1', venue_order_id='venue-flatten-1',
@@ -1180,6 +1182,53 @@ async def test_shutdown_leaves_a_working_flatten_in_place(
 
     assert ('acc-1', 'flatten-1') not in adapter.cancel_calls
     assert ('acc-1', 'resting-entry') in adapter.cancel_calls
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancels_an_entry_that_merely_looks_like_a_flatten(
+    spine: EventSpine,
+) -> None:
+    '''A caller may supply a command id shaped like a derived exit id.
+
+    The exit id is just the entry id with a suffix, so any caller-supplied
+    command can wear that shape. Only the account's own brackets say which
+    exits are real; matching on the shape would leave an ordinary order
+    resting at the venue after shutdown.
+    '''
+
+    from praxis.core.domain.order import Order
+
+    adapter = _CancelTrackingVenueAdapter()
+    trading = Trading(
+        config=TradingConfig(
+            epoch_id=1,
+            account_credentials={'acc-1': Credentials(api_key='key', api_secret='secret')},
+            shutdown_timeout=0.1,
+        ),
+        event_spine=spine,
+        venue_adapter=cast(VenueAdapter, adapter),
+    )
+
+    await trading.start()
+    trading.register_account('acc-1')
+    trading._ready_accounts.add('acc-1')
+
+    runtime = trading._execution_manager._accounts['acc-1']
+
+    assert not runtime.brackets
+
+    runtime.trading_state.orders['lookalike'] = Order(
+        client_order_id='lookalike', venue_order_id='venue-lookalike',
+        account_id='acc-1', command_id='operator-supplied-x', symbol='BTCUSDT',
+        side=OrderSide.BUY, order_type=OrderType.MARKET, qty=Decimal('1'),
+        filled_qty=Decimal('0'), cumulative_notional=Decimal('0'), price=None,
+        stop_price=None, status=OrderStatus.OPEN,
+        created_at=_CREATED_AT, updated_at=_CREATED_AT,
+    )
+
+    await trading.stop()
+
+    assert ('acc-1', 'lookalike') in adapter.cancel_calls
 
 
 class _ReconVenueAdapter(_InjectedVenueAdapter):

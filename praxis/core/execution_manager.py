@@ -844,6 +844,33 @@ class ExecutionManager:
             symbols.add(pos.symbol)
         return symbols
 
+    def protective_exit_command_ids(self, account_id: str) -> frozenset[str]:
+        '''
+        Return the exit command ids of the account's tracked brackets.
+
+        The exit id is derived, so it can be computed for any string; asking
+        the account which brackets it actually holds is what separates a real
+        protective exit from a caller-supplied command that merely looks like
+        one. Shutdown uses this to leave a working flatten in place without
+        sparing an ordinary order whose id happens to share the shape.
+
+        Args:
+            account_id (str): Account identifier to query.
+
+        Returns:
+            frozenset[str]: Exit command ids for every tracked bracket, empty
+                when the account is unknown or holds none.
+        '''
+
+        runtime = self._accounts.get(account_id)
+        if runtime is None:
+            return frozenset()
+
+        return frozenset(
+            bracket_exit_command_id(command_id)
+            for command_id in runtime.brackets
+        )
+
     def get_open_orders(self, account_id: str) -> dict[str, Order]:
         '''
         Return a copy of open orders for an account.
@@ -2597,7 +2624,8 @@ class ExecutionManager:
         Raises:
             AccountNotRegisteredError: If account_id is not registered.
             ValueError: If command_id is unknown, account_id mismatches, or
-                the account's startup failed and its writer stays parked.
+                no writer is left to drain the abort — the account's startup
+                failed and parked it, or its writer task has exited.
         '''
 
         runtime = self._accounts.get(abort.account_id)
@@ -6533,8 +6561,9 @@ class ExecutionManager:
 
         Args:
             runtime (_AccountRuntime): Account whose drains to retire.
-            pending_only (bool): Only drive schemes still flagged as needing
-                their post-resume re-drive.
+            pending_only (bool): Drive only the schemes due a cancel — the
+                one flagged after a resume, and thereafter those whose retry
+                interval has elapsed.
         '''
 
         for scheme in list(runtime.schemes.values()):

@@ -18,7 +18,6 @@ from nexus.infrastructure.praxis_connector.protection_remediation import (
 )
 
 from praxis.core.execution_manager import AccountNotRegisteredError, ExecutionManager
-from praxis.core.bracket_exit_command_id import BRACKET_EXIT_COMMAND_SUFFIX
 from praxis.core.generate_client_order_id import praxis_command_fragment
 from praxis.core.domain.enums import (
     ExecutionMode,
@@ -60,7 +59,6 @@ _log = logging.getLogger(__name__)
 _BACKFILL_BOOTSTRAP_LOOKBACK = timedelta(hours=24)
 _FUND_RECONCILE_OVERLAP = timedelta(days=7)
 _QUOTE_ASSET = 'USDT'
-_BRACKET_EXIT_SUFFIX = f'-{BRACKET_EXIT_COMMAND_SUFFIX}'
 _ZERO = Decimal(0)
 _BALANCE_TOLERANCE: dict[str, Decimal] = {
     'USDT': Decimal('0.01'),
@@ -690,20 +688,29 @@ class Trading:
                 except AccountNotRegisteredError:
                     continue
                 in_flight = in_flight_by_account.get(account_id, set())
+                protective_exits = (
+                    self._execution_manager.protective_exit_command_ids(
+                        account_id,
+                    )
+                )
                 for order in open_orders.values():
                     if order.command_id in in_flight:
                         continue
 
                     if (
                         order.order_type is OrderType.MARKET
-                        and order.command_id.endswith(_BRACKET_EXIT_SUFFIX)
+                        and order.command_id in protective_exits
                     ):
                         # A working recovery flatten is closing a position
                         # this process can no longer supervise. Cancelling it
                         # would hand the naked position back, so it is left
-                        # to fill. Narrow on purpose: the exit command also
-                        # carries the protective OCO, and only the MARKET
-                        # order is the flatten (TD-155).
+                        # to fill. Matched against the account's own brackets
+                        # rather than the shape of the id: the exit id is
+                        # derivable from any string, and a caller may supply
+                        # a command id that looks exactly like one. Narrow on
+                        # purpose — the exit command also carries the
+                        # protective OCO, and only the MARKET order is the
+                        # flatten (TD-155).
                         _log.warning(
                             'shutdown leaving a working flatten in place: '
                             'account=%s client_order_id=%s command_id=%s',
