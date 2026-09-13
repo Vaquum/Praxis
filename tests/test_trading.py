@@ -40,6 +40,7 @@ from praxis.core.domain.events import (
     OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
+    ProtectionRemediationDelivered,
     RegisterAccount,
     TradeOutcomeProduced,
 )
@@ -2912,6 +2913,50 @@ async def test_set_on_trade_outcome_clear_with_none(spine: EventSpine) -> None:
     trading.set_on_trade_outcome(None)
 
     assert trading.execution_manager._on_trade_outcome is None
+
+
+@pytest.mark.asyncio
+async def test_clearing_protection_remediation_leaves_them_pending(
+    spine: EventSpine,
+) -> None:
+    '''Clearing the callback must hold remediations, not record them delivered.
+
+    Adapting `None` into a no-op installs a listener that always succeeds, so
+    the drain's `is None` guard never fires: every pending remediation is
+    handed to the no-op, counted as delivered, dropped from the pending set,
+    and given a `ProtectionRemediationDelivered`. Boot replay skips
+    remediations with a recorded delivery, so a protection failure that was
+    never reported to Nexus is durably marked as reported.
+    '''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    trading.set_on_protection_remediation(None)
+
+    manager = trading.execution_manager
+
+    assert manager._on_protection_remediation is None
+
+    manager._record_protection_remediation(
+        account_id='acc-1',
+        command_id='cmd-prot',
+        protection_version=1,
+        reason='protective order rejected',
+    )
+
+    await manager.drain_protection_remediations('acc-1')
+
+    assert 'cmd-prot' in manager._pending_remediations, (
+        'a cleared callback must leave the remediation pending for the next '
+        'cycle, not consume it'
+    )
+
+    events = await spine.read(1, after_seq=0)
+
+    assert not [
+        event for event in events
+        if isinstance(event, ProtectionRemediationDelivered)
+    ], 'no delivery may be recorded when nobody was listening'
 
 
 @pytest.mark.asyncio
