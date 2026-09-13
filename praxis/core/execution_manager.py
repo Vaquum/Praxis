@@ -2456,6 +2456,11 @@ class ExecutionManager:
         own price. Leaving it uncapped would relocate the same overfill to
         the one order type where notional is the controlled variable.
 
+        Admission fails closed. A fill whose command recorded no budget is
+        not admitted at all, rather than admitted in full: there is nothing
+        to bound it with, and reporting a quantity nobody ordered is the
+        failure this exists to prevent.
+
         Fills dedup before they are appended, and an appended event projects
         once, so no fill is admitted twice.
 
@@ -2470,19 +2475,32 @@ class ExecutionManager:
         target = self._admission_target(event.command_id)
 
         if target is None:
+            # Nothing bounds a fill whose command recorded no budget, so
+            # admitting it would report a quantity nobody ordered against a
+            # target that cannot contain it. The ledger and the position
+            # project the raw fill regardless, so refusing here costs the
+            # outcome, not the books: Praxis still holds and can still close
+            # what the venue filled, and the decision layer is told less
+            # rather than more.
             _log.error(
-                'admitting a fill against no recorded budget; the command was '
-                'never installed, so nothing caps this quantity',
+                'fill has no recorded budget to be admitted against; '
+                'reporting nothing filled for it. Its command was registered '
+                'without one, which `_install_command` exists to make '
+                'impossible',
                 extra={
                     'command_id': event.command_id,
                     'client_order_id': event.client_order_id,
                     'qty': str(event.qty),
+                    'command_known': event.command_id in self._commands,
                 },
             )
-            taken_qty = event.qty
-            taken_notional = taken_qty * event.price
+            runtime.accepted_fill_totals.setdefault(
+                event.command_id, (_ZERO, _ZERO),
+            )
 
-        elif target.qty is not None:
+            return
+
+        if target.qty is not None:
             taken_qty = min(event.qty, target.qty - accepted_qty)
             taken_notional = taken_qty * event.price
 

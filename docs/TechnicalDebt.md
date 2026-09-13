@@ -1509,16 +1509,18 @@ Praxis logs every discard at admission, naming the command, the quantity admitte
 
 Closing this needs an explicit reconciliation channel — an inventory-adjustment outcome, or a delta the translator can send outside the target-bounded fields — plus a decision on whether Nexus's position guard should accept it. That is a cross-repo contract change, not a clamp.
 
-## TD-157: A fill whose command was never established is admitted uncapped
+## TD-157: A fill whose command recorded no budget is reported as nothing filled
 
-**Origin**: issue #178 pre-merge review (Greybeard)
-**Severity**: Low — no production path reaches it, and it is reported when it happens
+**Origin**: issue #178 pre-merge review (Greybeard, then the pre-merge reviewers on the enforcement question)
+**Severity**: Low — no production path reaches it, it fails closed, and it is reported when it happens
 **Module**: `praxis/core/execution_manager.py` (`_accumulate_accepted_fill`)
 
-Fill admission caps each fill against the budget recorded when its command's identity was established. When no budget is recorded, it logs an error and admits the fill in full — the uncapped output the rest of the change exists to prevent.
+Fill admission caps each fill against the budget recorded when its command's identity was established. When no budget is recorded there is nothing to bound the fill with, so it is not admitted at all and the command reports nothing filled for it.
 
 Nothing reaches it today. Every writer of `_commands` records a budget, ordinary submission persists the intent before the venue call, the protective path records its budget before appending its own intent, and replay rebuilds budgets from the submit intents and scheme initializations on the spine, including for commands it deliberately does not rebuild as commands. A fill therefore cannot project before its budget exists.
 
-The branch is kept because the alternative is worse: refusing to admit a fill with no recorded budget would drop a real execution from everything downstream rather than merely over-reporting it, and `_accepted_command_totals` already fails closed for the inverse case of fills present with no admission entry. The asymmetry is deliberate — over-report a fill nobody budgeted, under-report nothing.
+It fails closed rather than open. Admitting the fill in full would report a quantity nobody ordered against a target that cannot contain it; refusing costs only the outcome, because the account ledger and the position projection both record the raw fill regardless, so Praxis still holds what the venue filled and can still close it. The decision layer is told less rather than more, which is the same direction as TD-156.
+
+Two guards cover it. `_install_command` is the only assignment into the command map, so a command cannot be registered without its budget; an AST test fails on any other direct subscript assignment to that map, which catches the regression that produced this concern but not every bypass — an annotated assignment, a `.update()`, an aliased write, or dropping the budget recording from the installer itself would all pass it. The behavioural guard is the fail-closed branch above, which acts on the state rather than on how it was reached.
 
 Closing this means deciding what a fill for an unknown command actually is: a bug to halt on, or an orphan to reconcile through the existing orphan path, which already has machinery for executions Praxis cannot attribute.

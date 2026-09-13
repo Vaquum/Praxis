@@ -2405,17 +2405,81 @@ class TestEmitWsOutcome:
         assert filled_qty == Decimal('0.02')
         assert notional / filled_qty == Decimal('50000')
 
+    @pytest.mark.asyncio
+    async def test_a_command_registered_without_a_budget_admits_nothing(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''The state the installer prevents must still be safe if it occurs.
+
+        A command present with no recorded budget is the one state in which
+        nothing bounds a fill. Guarding only the source that produces it
+        witnesses the convention, not the danger, so admission fails closed
+        on the state itself: the fill is reported as nothing rather than
+        reported in full against a target that cannot contain it. The ledger
+        and the position project the raw fill either way, so what is held
+        and what can be closed are unaffected.
+        '''
+
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        runtime = mgr._accounts[_ACCT]
+
+        mgr._commands['cmd-unbudgeted'] = TradeCommand(
+            command_id='cmd-unbudgeted', trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
+            order_type=OrderType.MARKET,
+            execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(), timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+
+        assert 'cmd-unbudgeted' not in mgr._admission_targets
+
+        mgr._accumulate_accepted_fill(
+            runtime,
+            FillReceived(
+                account_id=_ACCT, timestamp=_TS,
+                client_order_id='u-0', venue_order_id='v-u',
+                venue_trade_id='vt-u', trade_id=_TRADE,
+                command_id='cmd-unbudgeted', symbol='BTCUSDT',
+                side=OrderSide.BUY, qty=Decimal('5'), price=Decimal('10'),
+                fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+            ),
+        )
+
+        assert runtime.accepted_fill_totals['cmd-unbudgeted'] == (
+            Decimal('0'), Decimal('0'),
+        ), 'a fill with no budget was admitted'
+
+        assert mgr._accepted_command_totals(runtime, 'cmd-unbudgeted') == (
+            Decimal('0'), Decimal('0'),
+        )
+
+        await mgr.unregister_account(_ACCT)
+
     def test_only_the_installer_registers_a_command(self) -> None:
         '''Registering a command must always record its admission budget.
 
         A fill is capped against the budget recorded when its command was
-        registered, and nothing else caps it: a command present without one
-        admits its fills in full. `_install_command` writes both together, so
-        it has to be the only writer of the command map — a second one that
-        set the command alone would reintroduce uncapped admission silently,
-        and a lazy fallback cannot repair it, since by then the command may
-        carry an amend replacement's smaller quantity rather than the target
-        its earlier fills were admitted against.
+        registered. `_install_command` writes both together, so it has to be
+        the only writer of the command map — a second one that set the
+        command alone would leave a command with no budget, and a lazy
+        fallback cannot repair that, since by then the command may carry an
+        amend replacement's smaller quantity rather than the target its
+        earlier fills were admitted against.
+
+        This checks source shape, not behaviour: it catches a direct
+        subscript assignment, which is the regression it was written for,
+        and not an annotated assignment, a `.update()`, an aliased write, or
+        the installer itself dropping the budget. What makes the resulting
+        state safe is that admission refuses a fill with no budget — see
+        `test_a_command_registered_without_a_budget_admits_nothing`.
         '''
 
         source = pathlib.Path('praxis/core/execution_manager.py').read_text()
