@@ -35,10 +35,12 @@ from praxis.core.domain.events import (
     OrderSubmitIntent,
     OrderSubmitted,
     RegisterAccount,
+    SchemeInitialized,
     TradeOutcomeProduced,
 )
 from praxis.core.account_ledger import CostBasisMethod
 from praxis.core.domain.chart_of_accounts import Account
+from praxis.core.domain.order import Order
 from praxis.core.domain.iceberg_params import IcebergParams
 from praxis.core.domain.single_shot_params import SingleShotParams
 from praxis.core.domain.trade_command import TradeCommand
@@ -1064,32 +1066,31 @@ class TestTradeOutcome:
         outcome: TradeOutcome = callback.call_args[0][0]
         assert outcome.filled_qty == Decimal('1')
         assert outcome.status == TradeStatus.FILLED
-        unclamped_qty = Decimal('0.7') + Decimal('0.5')
-        expected_vwap = (
-            Decimal('0.7') * Decimal('50000')
-            + Decimal('0.5') * Decimal('50200')
-        ) / unclamped_qty
-        assert outcome.avg_fill_price == expected_vwap
 
-        unclamped_notional = (
+        # 0.7 fits the target and is admitted whole; only 0.3 of the second
+        # fill fits, and it is admitted at its own price.
+        expected_notional = (
             Decimal('0.7') * Decimal('50000')
-            + Decimal('0.5') * Decimal('50200')
+            + Decimal('0.3') * Decimal('50200')
         )
-        expected_clamped_notional = (
-            unclamped_notional * Decimal('1') / unclamped_qty
+        assert outcome.cumulative_notional == expected_notional
+        assert outcome.avg_fill_price == expected_notional / Decimal('1')
+
+        scaled_notional = (
+            (Decimal('0.7') * Decimal('50000') + Decimal('0.5') * Decimal('50200'))
+            * Decimal('1')
+            / (Decimal('0.7') + Decimal('0.5'))
         )
-        assert outcome.cumulative_notional == expected_clamped_notional, (
-            f'PR #85 review: _process_command overfill clamp must scale '
-            f'total_notional to match clamped filled_qty so cumulative_notional '
-            f'stays consistent with filled_qty downstream in OutcomeTranslator. '
-            f'got cumulative_notional={outcome.cumulative_notional} '
-            f'expected={expected_clamped_notional} '
-            f'(filled_qty={outcome.filled_qty})'
+        assert outcome.cumulative_notional != scaled_notional, (
+            'scaling the whole notional down to the clamped quantity reports '
+            'the VWAP of fills that were not all admitted, and can land below '
+            'a notional already published for an earlier partial, which makes '
+            'the incremental delta negative and drops the terminal outcome'
         )
         derived_avg = outcome.cumulative_notional / outcome.filled_qty
-        assert derived_avg == expected_vwap, (
-            f'cumulative_notional / filled_qty must round-trip to avg_fill_price '
-            f'after the clamp; got {derived_avg} expected {expected_vwap}'
+        assert derived_avg == outcome.avg_fill_price, (
+            f'cumulative_notional / filled_qty must round-trip to '
+            f'avg_fill_price; got {derived_avg} expected {outcome.avg_fill_price}'
         )
 
         await mgr.unregister_account(_ACCT)
@@ -2235,14 +2236,555 @@ class TestEmitWsOutcome:
         outcome: TradeOutcome = callback.call_args[0][0]
         assert outcome.filled_qty == Decimal('1')
         assert outcome.target_qty == Decimal('1')
-        assert outcome.cumulative_notional == Decimal('5') * Decimal('50000'), (
-            f'PR #85 round-6 review: WS overfill clamp must NOT scale '
-            f'cumulative_notional. Pre-fix the scaling would have produced '
-            f'250000 * 1 / 5 = 50000, which on a multi-emit sequence with '
-            f'an earlier larger PARTIAL would make the cumulative go BACKWARD '
-            f'and trip OutcomeTranslator delta_notional < 0. Post-fix the '
-            f'venue-side cumulative is forwarded verbatim. '
+        assert outcome.cumulative_notional == Decimal('1') * Decimal('50000'), (
+            f'The overfill admits only the increment that fits, carrying that '
+            f'slice notional. Forwarding the venue cumulative verbatim kept '
+            f'the cumulative monotonic — the PR #85 round-6 concern — but made '
+            f'the implied average the notional of every fill over the accepted '
+            f'size, which reported 250000 for a fill that happened at 50000. '
+            f'Scaling the snapshot instead reports the right average and makes '
+            f'the cumulative fall below an earlier PARTIAL, which is the '
+            f'negative delta_notional that drops the terminal outcome. '
+            f'Admitting per increment holds both: see '
+            f'test_ws_partial_then_overfill_keeps_cumulative_monotonic for the '
+            f'monotonicity this no longer gets for free. '
             f'got cumulative_notional={outcome.cumulative_notional}'
+        )
+        assert outcome.avg_fill_price == Decimal('50000')
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ('name', 'fills', 'expected'),
+        [
+            (
+                'one fill overshooting the target',
+                [(Decimal('5'), Decimal('50000'))],
+                (Decimal('1'), Decimal('50000')),
+            ),
+            (
+                'a partial then a fill overshooting the remainder',
+                [
+                    (Decimal('0.5'), Decimal('50000')),
+                    (Decimal('4.5'), Decimal('50000')),
+                ],
+                (Decimal('1'), Decimal('50000')),
+            ),
+            (
+                'a partial then an overshoot after the price fell',
+                [
+                    (Decimal('0.5'), Decimal('50000')),
+                    (Decimal('4.5'), Decimal('16000')),
+                ],
+                # The admitted half takes the later, lower price.
+                (Decimal('1'), Decimal('25000') + Decimal('0.5') * Decimal('16000')),
+            ),
+            (
+                'a duplicate arriving once already at target',
+                [
+                    (Decimal('1'), Decimal('50000')),
+                    (Decimal('1'), Decimal('50000')),
+                ],
+                (Decimal('1'), Decimal('50000')),
+            ),
+            (
+                'many small fills totalling more than the target',
+                [(Decimal('0.4'), Decimal('50000'))] * 4,
+                (Decimal('1'), Decimal('50000')),
+            ),
+        ],
+        ids=lambda v: v if isinstance(v, str) else '',
+    )
+    async def test_admitted_fill_totals_stop_at_the_target(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+        name: str,
+        fills: list[tuple[Decimal, Decimal]],
+        expected: tuple[Decimal, Decimal],
+    ) -> None:
+        '''Admission is a property of the fills, not of how they are observed.
+
+        Each fill is admitted as far as the target allows, at its own price.
+        The excess is discarded rather than capped after the fact, so the
+        quantity holds the invariant, the notional never falls, and the
+        implied average is the price of what was taken.
+        '''
+
+        del name
+
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        runtime = mgr._accounts[_ACCT]
+        command_id = 'cmd-admit'
+        mgr._commands[command_id] = TradeCommand(
+            command_id=command_id, trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
+            order_type=OrderType.MARKET, execution_mode=ExecutionMode.TWAP,
+            execution_params=IntervalSliceParams(num_slices=4, interval_seconds=10),
+            timeout=300, reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+
+        seen: list[Decimal] = []
+
+        for index, (qty, price) in enumerate(fills):
+            mgr._accumulate_accepted_fill(
+                runtime,
+                FillReceived(
+                    account_id=_ACCT, timestamp=_TS, client_order_id=f'c-{index}',
+                    venue_order_id=f'v-{index}', venue_trade_id=f'vt-{index}',
+                    trade_id=_TRADE, command_id=command_id, symbol='BTCUSDT',
+                    side=OrderSide.BUY, qty=qty, price=price, fee=Decimal('0'),
+                    fee_asset='USDT', is_maker=False,
+                ),
+            )
+            accepted_qty, accepted_notional = runtime.accepted_fill_totals[command_id]
+
+            assert accepted_qty <= Decimal('1')
+
+            seen.append(accepted_notional)
+
+        assert runtime.accepted_fill_totals[command_id] == expected
+        assert seen == sorted(seen)
+
+    @pytest.mark.asyncio
+    async def test_quote_native_fills_are_capped_on_spend(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A quote-native command budgets spend, so spend is what caps it.
+
+        Exempting quote-native orders from admission relocates the overfill
+        to the one order type where notional is the controlled variable.
+        The admitted quantity follows from the spend that fit, at the price
+        that executed, so notional over quantity stays the real average.
+        '''
+
+        command = TradeCommand(
+            command_id='cmd-quote', trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=None,
+            quote_qty=Decimal('1000'),
+            order_type=OrderType.MARKET, execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(), timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        mgr._install_command('cmd-quote', command)
+        runtime = mgr._accounts[_ACCT]
+
+        for index, (qty, price) in enumerate(
+            [(Decimal('0.01'), Decimal('50000')), (Decimal('0.02'), Decimal('50000'))],
+        ):
+            mgr._accumulate_accepted_fill(
+                runtime,
+                FillReceived(
+                    account_id=_ACCT, timestamp=_TS,
+                    client_order_id=f'q-{index}', venue_order_id=f'v-{index}',
+                    venue_trade_id=f'vt-{index}', trade_id=_TRADE,
+                    command_id='cmd-quote', symbol='BTCUSDT',
+                    side=OrderSide.BUY, qty=qty, price=price,
+                    fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+                ),
+            )
+
+        filled_qty, notional = runtime.accepted_fill_totals['cmd-quote']
+
+        assert notional == Decimal('1000'), (
+            f'spend {notional} exceeded the 1000 budget'
+        )
+        assert filled_qty == Decimal('0.02')
+        assert notional / filled_qty == Decimal('50000')
+
+    @pytest.mark.asyncio
+    async def test_a_fill_after_terminalization_is_still_capped(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''Terminalization drops the command; the budget must outlive it.
+
+        A late or duplicate fill can arrive after the command terminalized
+        and was removed. Resolving the budget from the command map alone
+        found nothing and admitted the fill uncapped, so the quantity a
+        restart replayed disagreed with the one live recorded.
+        '''
+
+        command = TradeCommand(
+            command_id='cmd-late', trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
+            order_type=OrderType.MARKET, execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(), timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        mgr._install_command('cmd-late', command)
+
+        mgr._terminal_commands.add('cmd-late')
+        mgr._commands.pop('cmd-late')
+
+        runtime = mgr._accounts[_ACCT]
+        mgr._accumulate_accepted_fill(
+            runtime,
+            FillReceived(
+                account_id=_ACCT, timestamp=_TS,
+                client_order_id='late-0', venue_order_id='v-late',
+                venue_trade_id='vt-late', trade_id=_TRADE,
+                command_id='cmd-late', symbol='BTCUSDT',
+                side=OrderSide.BUY, qty=Decimal('2'), price=Decimal('10'),
+                fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+            ),
+        )
+
+        assert runtime.accepted_fill_totals['cmd-late'] == (
+            Decimal('1'), Decimal('10'),
+        )
+
+    def test_a_flatten_keeps_the_exit_target_it_inherits(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A flatten is sized to the remainder but targets the whole exit.
+
+        The flatten replaces a protective exit that may already have filled
+        part of the position, and it is submitted for what is left. Taking
+        that remainder as the exit command's target would report the fills
+        accumulated under the id across both orders as exceeding it, and
+        outcome construction would reject them.
+        '''
+
+        exit_command_id = 'cmd-exit'
+        original = TradeCommand(
+            command_id=exit_command_id, trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.SELL, qty=Decimal('1'),
+            order_type=OrderType.MARKET, execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(), timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr._install_command(exit_command_id, original)
+
+        # The protective exit terminalizes before the flatten is scheduled,
+        # which removes the command; the budget is what still knows the target.
+        mgr._terminal_commands.add(exit_command_id)
+        mgr._commands.pop(exit_command_id)
+
+        flatten = mgr._flatten_exit_command(
+            original, exit_command_id, OrderSide.SELL, Decimal('0.6'),
+        )
+
+        assert flatten.qty == Decimal('1'), (
+            f'flatten took the {flatten.qty} remainder as the exit target'
+        )
+
+    def test_an_abort_reports_the_command_target_not_the_replacement(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''An amended command's abort answers to the original target.
+
+        An amend rests a replacement order for what was left, so that order's
+        quantity is smaller than the command's. Reporting it as the target
+        alongside fills accumulated across both orders understates what was
+        asked for, and can suppress the replacement's delta when the original
+        partial already reached Nexus.
+        '''
+
+        command = TradeCommand(
+            command_id='cmd-abort', trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=Decimal('1'),
+            order_type=OrderType.LIMIT, execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(price=Decimal('10')), timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr._install_command('cmd-abort', command)
+
+        replacement = Order(
+            account_id=_ACCT, client_order_id='SS-abort-01',
+            venue_order_id='v-1', command_id='cmd-abort', symbol='BTCUSDT',
+            side=OrderSide.BUY, order_type=OrderType.LIMIT,
+            qty=Decimal('0.6'), price=Decimal('10'),
+            filled_qty=Decimal('0.2'), cumulative_notional=Decimal('2'),
+            stop_price=None, status=OrderStatus.CANCELED,
+            created_at=_TS, updated_at=_TS,
+        )
+
+        assert mgr._abort_target_qty(replacement) == Decimal('1')
+
+    @pytest.mark.asyncio
+    async def test_accumulated_totals_cannot_round_past_the_budget(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''Bounding each increment does not bound the running total.
+
+        Both the remaining-room subtraction and the final addition round at
+        Decimal's working precision, so a budget carried to full precision
+        can be stepped past by a fill whose own increment fits. The
+        accumulated field is bounded, not just the increment: outcome
+        construction rejects a quantity above the target, and a quote budget
+        stepped past is spend that was never authorized.
+        '''
+
+        budget = Decimal('1.000000000000000000000000003')
+        command = TradeCommand(
+            command_id='cmd-acc', trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=budget,
+            order_type=OrderType.MARKET, execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(), timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        mgr._install_command('cmd-acc', command)
+        runtime = mgr._accounts[_ACCT]
+
+        # The third fill is the one that matters: if capping the total let
+        # the remaining room round back above zero, it would admit again.
+        for index, qty in enumerate(
+            [Decimal('1.5E-27'), Decimal('2'), Decimal('5')],
+        ):
+            mgr._accumulate_accepted_fill(
+                runtime,
+                FillReceived(
+                    account_id=_ACCT, timestamp=_TS,
+                    client_order_id=f'a-{index}', venue_order_id=f'v-{index}',
+                    venue_trade_id=f'vt-{index}', trade_id=_TRADE,
+                    command_id='cmd-acc', symbol='BTCUSDT',
+                    side=OrderSide.BUY, qty=qty, price=Decimal('1'),
+                    fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+                ),
+            )
+
+        filled_qty, _notional = runtime.accepted_fill_totals['cmd-acc']
+
+        assert filled_qty <= budget, (
+            f'admitted {filled_qty} stepped past the {budget} budget'
+        )
+        assert filled_qty == budget, (
+            f'admitted {filled_qty} short of the {budget} budget'
+        )
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_quote_native_spend_survives_decimal_rounding(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''The admitted spend may never round its way past the budget.
+
+        Deriving the quantity by dividing the remaining spend by the price
+        and multiplying back is not exact at Decimal's working precision: a
+        budget of 2 at a price of 14 recovers a product one unit in the last
+        place above 2. Nexus's capital controller rejects a notional above
+        what remains, so the excess has to be clipped rather than rounded.
+        '''
+
+        command = TradeCommand(
+            command_id='cmd-round', trade_id=_TRADE, account_id=_ACCT,
+            symbol='BTCUSDT', side=OrderSide.BUY, qty=None,
+            quote_qty=Decimal('2'),
+            order_type=OrderType.MARKET, execution_mode=ExecutionMode.SINGLE_SHOT,
+            execution_params=SingleShotParams(), timeout=300,
+            reference_price=None,
+            maker_preference=MakerPreference.NO_PREFERENCE,
+            stp_mode=STPMode.NONE, created_at=_TS,
+        )
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        mgr._install_command('cmd-round', command)
+        runtime = mgr._accounts[_ACCT]
+
+        mgr._accumulate_accepted_fill(
+            runtime,
+            FillReceived(
+                account_id=_ACCT, timestamp=_TS,
+                client_order_id='r-0', venue_order_id='v-r',
+                venue_trade_id='vt-r', trade_id=_TRADE,
+                command_id='cmd-round', symbol='BTCUSDT',
+                side=OrderSide.BUY, qty=Decimal('1000'), price=Decimal('14'),
+                fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+            ),
+        )
+
+        _filled, notional = runtime.accepted_fill_totals['cmd-round']
+
+        assert notional <= Decimal('2'), (
+            f'admitted spend {notional} rounded past the 2 budget'
+        )
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_replay_of_an_amended_order_keeps_the_original_target(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''An amend must not shrink the budget its earlier fills used.
+
+        An amend replaces the resting remainder, so the replacement order
+        carries `qty=remainder` while the command's own target is unchanged.
+        Rebuilding the command from every intent let the replacement's
+        smaller quantity become the target on replay, and fills already
+        admitted against the original target then exceeded it, so the
+        remainder was silently dropped. No overfill is involved: this is an
+        ordinary amended order.
+        '''
+
+        command_id = 'cmd-amend-replay'
+        trade_id = 'trade-amend-replay'
+
+        await spine.append(CommandAccepted(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+        ), _EPOCH)
+        await spine.append(OrderSubmitIntent(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+            client_order_id='SS-amend-00', symbol='BTCUSDT',
+            side=OrderSide.BUY, order_type=OrderType.LIMIT,
+            qty=Decimal('1'), price=Decimal('100000'),
+            stop_price=None, stop_limit_price=None,
+        ), _EPOCH)
+        await spine.append(FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id='SS-amend-00', venue_order_id='v-0',
+            venue_trade_id='vt-0', trade_id=trade_id,
+            command_id=command_id, symbol='BTCUSDT',
+            side=OrderSide.BUY, qty=Decimal('0.5'), price=Decimal('100000'),
+            fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+        ), _EPOCH)
+        await spine.append(OrderSubmitIntent(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+            client_order_id='SS-amend-01', symbol='BTCUSDT',
+            side=OrderSide.BUY, order_type=OrderType.LIMIT,
+            qty=Decimal('0.5'), price=Decimal('10'),
+            stop_price=None, stop_limit_price=None,
+        ), _EPOCH)
+        await spine.append(FillReceived(
+            account_id=_ACCT, timestamp=_TS,
+            client_order_id='SS-amend-01', venue_order_id='v-1',
+            venue_trade_id='vt-1', trade_id=trade_id,
+            command_id=command_id, symbol='BTCUSDT',
+            side=OrderSide.BUY, qty=Decimal('0.1'), price=Decimal('10'),
+            fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+        ), _EPOCH)
+
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        events = await spine.read(_EPOCH, after_seq=0)
+        mgr.replay_events(
+            _ACCT, [(q, e) for q, e in events if e.account_id == _ACCT],
+        )
+
+        runtime = mgr._accounts[_ACCT]
+        admitted = runtime.accepted_fill_totals[command_id]
+
+        assert admitted == (Decimal('0.6'), Decimal('50001')), (
+            f'replay admitted {admitted}; the replacement order\'s remainder '
+            f'must not become the command target'
+        )
+        assert mgr._commands[command_id].qty == Decimal('1')
+
+        await mgr.unregister_account(_ACCT)
+
+    @pytest.mark.asyncio
+    async def test_replay_of_a_scheme_admits_against_its_total(
+        self,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''Scheme fills must be capped on replay as they were live.
+
+        Replay keeps scheme commands out of `_commands` until the schemes
+        are resumed, which happens after every fill has projected. Fills
+        reaching admission with no command were admitted uncapped, so a
+        restart turned a scheme that had overfilled into a larger position
+        than the one live recorded. `SchemeInitialized` carries the total,
+        so the budget is seeded before the fills replay.
+        '''
+
+        command_id = 'cmd-scheme-replay'
+        trade_id = 'trade-scheme-replay'
+
+        await spine.append(CommandAccepted(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+        ), _EPOCH)
+        await spine.append(SchemeInitialized(
+            account_id=_ACCT, timestamp=_TS,
+            command_id=command_id, trade_id=trade_id,
+            execution_mode=ExecutionMode.TWAP, symbol='BTCUSDT',
+            side=OrderSide.BUY, total_qty=Decimal('1'),
+            slices_total=2, interval_seconds=10, timeout_seconds=300,
+        ), _EPOCH)
+
+        for index, (qty, price) in enumerate(
+            [(Decimal('0.5'), Decimal('100000')), (Decimal('1'), Decimal('10'))],
+        ):
+            await spine.append(FillReceived(
+                account_id=_ACCT, timestamp=_TS,
+                client_order_id=f'TW-{index}', venue_order_id=f'v-{index}',
+                venue_trade_id=f'vt-{index}', trade_id=trade_id,
+                command_id=command_id, symbol='BTCUSDT',
+                side=OrderSide.BUY, qty=qty, price=price,
+                fee=Decimal('0'), fee_asset='USDT', is_maker=False,
+            ), _EPOCH)
+
+        mgr = ExecutionManager(
+            event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        )
+        mgr.register_account(_ACCT)
+        events = await spine.read(_EPOCH, after_seq=0)
+        mgr.replay_events(
+            _ACCT, [(q, e) for q, e in events if e.account_id == _ACCT],
+        )
+
+        runtime = mgr._accounts[_ACCT]
+        admitted = runtime.accepted_fill_totals[command_id]
+
+        assert admitted == (Decimal('1'), Decimal('50005')), (
+            f'replay admitted {admitted}; a scheme absent from _commands '
+            f'during the fill loop must still be capped at its total_qty'
         )
 
         await mgr.unregister_account(_ACCT)
