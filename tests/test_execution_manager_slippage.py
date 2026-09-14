@@ -26,6 +26,9 @@ from praxis.core.domain.trade_command import TradeCommand
 from praxis.core.estimate_slippage import SlippageEstimate
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.event_spine import EventSpine
+from praxis.core.domain.events import TradeOutcomeProduced
+from praxis.core.domain.trade_outcome import TradeOutcome
+from praxis.launcher import _trade_outcome_from_produced
 from praxis.infrastructure.venue_adapter import (
     ImmediateFill,
     OrderBookLevel,
@@ -432,3 +435,241 @@ def test_slippage_guard_skips_limit_orders_on_missing_estimate() -> None:
     assert _guard_manager(Decimal('20'))._slippage_guard_reason(
         limit_cmd, None,
     ) is None
+
+
+def _filled_result(price: Decimal) -> SubmitResult:
+
+    return SubmitResult(
+        venue_order_id='venue-1',
+        status=OrderStatus.FILLED,
+        immediate_fills=(
+            ImmediateFill(
+                venue_trade_id='t-outcome',
+                qty=Decimal('1'),
+                price=price,
+                fee=Decimal('0.001'),
+                fee_asset='BTC',
+                is_maker=False,
+            ),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_outcome_carries_the_slippage_it_logs(
+    spine: EventSpine,
+    adapter: AsyncMock,
+) -> None:
+    '''Both measures must reach the outcome, not only the log.
+
+    They were computed per fill and written to two `_log.info` lines and
+    nowhere else, so nothing downstream could read what execution had cost:
+    not the decision layer, not the Event Spine, not a later analysis of
+    the epoch. The values are the same ones the log lines carry.
+    '''
+
+    outcomes: list[TradeOutcome] = []
+
+    async def capture(outcome: TradeOutcome) -> None:
+        outcomes.append(outcome)
+
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        on_trade_outcome=capture,
+    )
+    adapter.submit_order.return_value = _filled_result(Decimal('50020'))
+    manager.register_account(_ACCT)
+
+    await manager.submit_command(
+        **{**_CMD_KWARGS, 'reference_price': Decimal('49950')},
+    )
+    await asyncio.sleep(0.3)
+
+    terminal = [o for o in outcomes if o.is_terminal]
+
+    assert terminal, 'no terminal outcome produced'
+
+    outcome = terminal[-1]
+
+    assert outcome.execution_slippage_bps == Decimal('4')
+    assert outcome.arrival_slippage_bps == Decimal(
+        '14.01401401401401401401401401',
+    )
+
+    await manager.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_slippage_is_none_when_its_inputs_are_absent(
+    spine: EventSpine,
+    adapter: AsyncMock,
+) -> None:
+    '''A measure with no input is absent, not zero.
+
+    Zero is a real reading — it says execution landed on the reference. A
+    command that carried no reference price has no arrival measure at all,
+    and the two must not be reported as the same thing.
+    '''
+
+    outcomes: list[TradeOutcome] = []
+
+    async def capture(outcome: TradeOutcome) -> None:
+        outcomes.append(outcome)
+
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        on_trade_outcome=capture,
+    )
+    adapter.submit_order.return_value = _filled_result(Decimal('50020'))
+    manager.register_account(_ACCT)
+
+    await manager.submit_command(**_CMD_KWARGS)
+    await asyncio.sleep(0.3)
+
+    terminal = [o for o in outcomes if o.is_terminal]
+
+    assert terminal
+
+    assert terminal[-1].arrival_slippage_bps is None
+    assert terminal[-1].execution_slippage_bps == Decimal('4')
+
+    await manager.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_slippage_survives_the_spine(
+    spine: EventSpine,
+    adapter: AsyncMock,
+) -> None:
+    '''A replayed outcome must report what the produced one reported.
+
+    The inputs the measures are derived from — the pre-submission estimate
+    and the command's reference price — are not on the spine, so an outcome
+    rebuilt from the record cannot recompute them. Persisting the measures
+    is what keeps a restart from reporting None where the live run
+    reported a number.
+    '''
+
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+    )
+    adapter.submit_order.return_value = _filled_result(Decimal('50020'))
+    manager.register_account(_ACCT)
+
+    await manager.submit_command(
+        **{**_CMD_KWARGS, 'reference_price': Decimal('49950')},
+    )
+    await asyncio.sleep(0.3)
+
+    produced = [
+        event for _, event in await spine.read(_EPOCH, after_seq=0)
+        if isinstance(event, TradeOutcomeProduced)
+    ]
+
+    assert produced
+
+    record = produced[-1]
+
+    assert record.execution_slippage_bps == Decimal('4')
+    assert record.arrival_slippage_bps == Decimal(
+        '14.01401401401401401401401401',
+    )
+
+    rebuilt = _trade_outcome_from_produced(record)
+
+    assert rebuilt.execution_slippage_bps == record.execution_slippage_bps
+    assert rebuilt.arrival_slippage_bps == record.arrival_slippage_bps
+
+    await manager.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_a_sell_below_the_benchmark_reads_negative(
+    spine: EventSpine,
+    adapter: AsyncMock,
+) -> None:
+    '''The measures are signed displacement, not side-adjusted cost.
+
+    A SELL filling below its benchmark is the worse outcome and reads
+    negative, where a BUY filling below its benchmark is the better one and
+    reads the same. A consumer treating the sign as quality would read this
+    backwards for one side, so the convention is pinned rather than left to
+    be inferred from a BUY-only test.
+    '''
+
+    outcomes: list[TradeOutcome] = []
+
+    async def capture(outcome: TradeOutcome) -> None:
+        outcomes.append(outcome)
+
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        on_trade_outcome=capture,
+    )
+    adapter.submit_order.return_value = _filled_result(Decimal('49950'))
+    manager.register_account(_ACCT)
+
+    await manager.submit_command(
+        **{
+            **_CMD_KWARGS,
+            'side': OrderSide.SELL,
+            'reference_price': Decimal('50000'),
+        },
+    )
+    await asyncio.sleep(0.3)
+
+    terminal = [o for o in outcomes if o.is_terminal]
+
+    assert terminal
+
+    arrival = terminal[-1].arrival_slippage_bps
+
+    assert arrival is not None
+    assert arrival < Decimal('0'), (
+        f'a sell {arrival} bps from its reference should read negative'
+    )
+    assert arrival == Decimal('-10')
+
+    await manager.unregister_account(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_arrival_is_measured_when_no_estimate_was_taken(
+    spine: EventSpine,
+    adapter: AsyncMock,
+) -> None:
+    '''One measure missing must not suppress the other.
+
+    They have separate inputs: the estimate is a pre-submission book query
+    that can fail, the reference price comes with the command. A failed
+    query leaves execution slippage absent and arrival slippage intact.
+    '''
+
+    outcomes: list[TradeOutcome] = []
+
+    async def capture(outcome: TradeOutcome) -> None:
+        outcomes.append(outcome)
+
+    manager = ExecutionManager(
+        event_spine=spine, epoch_id=_EPOCH, venue_adapter=adapter,
+        on_trade_outcome=capture,
+    )
+    adapter.query_order_book.side_effect = TransientError('depth unavailable')
+    adapter.submit_order.return_value = _filled_result(Decimal('50020'))
+    manager.register_account(_ACCT)
+
+    await manager.submit_command(
+        **{**_CMD_KWARGS, 'reference_price': Decimal('49950')},
+    )
+    await asyncio.sleep(0.3)
+
+    terminal = [o for o in outcomes if o.is_terminal]
+
+    assert terminal
+
+    assert terminal[-1].execution_slippage_bps is None
+    assert terminal[-1].arrival_slippage_bps == Decimal(
+        '14.01401401401401401401401401',
+    )
+
+    await manager.unregister_account(_ACCT)

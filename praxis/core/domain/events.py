@@ -1766,6 +1766,12 @@ class TradeOutcomeProduced(_EventBase):
             the other input the translator needs to derive fill deltas.
         target_qty (Decimal | None): Command target quantity, used by the
             translator to derive `remaining_size`. None when unknown.
+        execution_slippage_bps (Decimal | None): Execution slippage in
+            basis points, persisted so a replayed outcome carries the
+            measure the produced one did. Defaults to None so events
+            written before this field hydrate cleanly.
+        arrival_slippage_bps (Decimal | None): Arrival slippage in basis
+            points, persisted for the same reason. Defaults to None.
     '''
 
     command_id: str
@@ -1775,6 +1781,8 @@ class TradeOutcomeProduced(_EventBase):
     filled_qty: Decimal = _ZERO
     cumulative_notional: Decimal = _ZERO
     target_qty: Decimal | None = None
+    execution_slippage_bps: Decimal | None = None
+    arrival_slippage_bps: Decimal | None = None
 
     def __post_init__(self) -> None:
 

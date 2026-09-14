@@ -1658,6 +1658,11 @@ def _trade_outcome_from_produced(event: TradeOutcomeProduced) -> TradeOutcome:
     deterministic Nexus outcomes. `avg_fill_price` is the recorded VWAP
     (`cumulative_notional / filled_qty`) or None with no fills, and the
     single-shot slice counts are 1 — none of which the translator reads.
+    The slippage measures are carried from the record rather than
+    recomputed, since the inputs they were derived from — the
+    pre-submission estimate and the command's reference price — are not on
+    the spine, so a replayed outcome would otherwise report None where the
+    produced one reported a measure.
 
     Args:
         event (TradeOutcomeProduced): Persisted outcome record.
@@ -1685,6 +1690,8 @@ def _trade_outcome_from_produced(event: TradeOutcomeProduced) -> TradeOutcome:
         reason=event.reason,
         created_at=event.timestamp,
         cumulative_notional=event.cumulative_notional,
+        execution_slippage_bps=event.execution_slippage_bps,
+        arrival_slippage_bps=event.arrival_slippage_bps,
     )
 
 

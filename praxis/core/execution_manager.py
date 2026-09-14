@@ -2534,10 +2534,11 @@ class ExecutionManager:
         if taken_qty < event.qty:
             _log.warning(
                 'fill exceeds what its command budgeted; admitting only the '
-                'part that fits. The remainder is held and booked as real '
-                'inventory and spend, but is not reported to the decision '
-                'layer, whose position is short by it until reconciled '
-                '(TD-156)',
+                'part that fits. The remainder is booked as real inventory '
+                'and spend but not reported, so the decision layer and the '
+                'account disagree about this position until reconciled. Note '
+                'the reported quantity is not the wallet balance either: a '
+                'buy is charged its commission in base (TD-156, #183)',
                 extra={
                     'command_id': event.command_id,
                     'client_order_id': event.client_order_id,
@@ -4314,6 +4315,9 @@ class ExecutionManager:
             total_notional / filled_qty if filled_qty > _ZERO else None
         )
 
+        execution_slippage_bps: Decimal | None = None
+        arrival_slippage_bps: Decimal | None = None
+
         if estimate is not None and avg_fill_price is not None:
             execution_slippage_bps = (
                 (avg_fill_price - estimate.mid_price)
@@ -4405,6 +4409,8 @@ class ExecutionManager:
             avg_fill_price=avg_fill_price,
             reason=reason,
             cumulative_notional=total_notional,
+            execution_slippage_bps=execution_slippage_bps,
+            arrival_slippage_bps=arrival_slippage_bps,
         )
 
     async def _process_bracket(
@@ -10432,6 +10438,8 @@ class ExecutionManager:
             filled_qty=outcome.filled_qty,
             cumulative_notional=outcome.cumulative_notional,
             target_qty=outcome.target_qty,
+            execution_slippage_bps=outcome.execution_slippage_bps,
+            arrival_slippage_bps=outcome.arrival_slippage_bps,
         )
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
@@ -10575,6 +10583,8 @@ class ExecutionManager:
         avg_fill_price: Decimal | None,
         reason: str | None,
         cumulative_notional: Decimal = _ZERO,
+        execution_slippage_bps: Decimal | None = None,
+        arrival_slippage_bps: Decimal | None = None,
     ) -> TradeOutcome:
         '''
         Construct TradeOutcome, emit spine events, and invoke callback.
@@ -10586,6 +10596,12 @@ class ExecutionManager:
             filled_qty (Decimal): Cumulative filled quantity.
             avg_fill_price (Decimal | None): VWAP of fills.
             reason (str | None): Descriptive reason for status.
+            execution_slippage_bps (Decimal | None): Execution slippage in
+                basis points, when the submitting path measured it. Only
+                that path holds the pre-submission estimate, so every other
+                producer leaves it None rather than inventing one.
+            arrival_slippage_bps (Decimal | None): Arrival slippage in
+                basis points, on the same terms.
             cumulative_notional (Decimal): Venue-side cumulative notional
                 (sum of qty * price across fills). Carried verbatim from
                 `Order.cumulative_notional` for FINAL-MAJOR-07 so the
@@ -10611,6 +10627,8 @@ class ExecutionManager:
             reason=reason,
             created_at=ts,
             cumulative_notional=cumulative_notional,
+            execution_slippage_bps=execution_slippage_bps,
+            arrival_slippage_bps=arrival_slippage_bps,
         )
 
         if outcome.is_terminal:
@@ -10640,6 +10658,8 @@ class ExecutionManager:
             filled_qty=outcome.filled_qty,
             cumulative_notional=outcome.cumulative_notional,
             target_qty=outcome.target_qty,
+            execution_slippage_bps=outcome.execution_slippage_bps,
+            arrival_slippage_bps=outcome.arrival_slippage_bps,
         )
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
