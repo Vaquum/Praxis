@@ -544,7 +544,6 @@ class TestBracketLifecycle:
         assert exit_outcomes[0].trade_id == _TRADE
 
     @pytest.mark.asyncio
-    @pytest.mark.asyncio
     async def test_protection_is_sized_to_what_the_entry_delivered(
         self, mgr_factory: Any,
     ) -> None:

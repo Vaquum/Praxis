@@ -915,15 +915,39 @@ def test_a_partial_reduction_sets_no_close_marker() -> None:
     assert state.has_emptied_marker(_TRADE, _ACCT) is False
 
 
-def test_replayed_closes_do_not_leave_a_pending_marker() -> None:
+def test_a_replayed_close_retires_its_own_marker() -> None:
 
-    '''A close in replayed history must not be reported a second time.
+    '''Replaying a completed close must not leave a second one owed.
 
-    Replay reprojects the fills that emptied a position, so it sets a marker
-    for every close in the history it reads. Those closes already have their
-    `TradeClosed` on the spine — replay rebuilds state rather than producing
-    events — so a marker surviving into live operation would be consumed by
-    the next close check and emit a duplicate.
+    Replay reprojects the fill that emptied the position, setting the
+    marker again, and then reprojects the close that already answered it.
+    The close retiring its own marker is what keeps a rebuilt history from
+    producing a duplicate.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+    state.apply(TradeClosed(
+        account_id=_ACCT, timestamp=_TS2, trade_id=_TRADE, command_id=_CMD,
+    ))
+
+    assert (_TRADE, _ACCT) not in state.positions
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
+
+
+def test_a_close_lost_to_a_crash_is_still_owed_after_replay() -> None:
+
+    '''A history ending between the fill and its close still owes one.
+
+    The reducing fill is durable and the close is not — the crash window.
+    Clearing markers wholesale at the end of replay closed the duplicate
+    case and silently discarded this one, leaving the ledger's trade open
+    with nothing left to reopen it.
     '''
 
     state = TradingState(_ACCT)
@@ -935,10 +959,7 @@ def test_replayed_closes_do_not_leave_a_pending_marker() -> None:
     )
 
     assert (_TRADE, _ACCT) not in state.positions
-
-    state.discard_emptied_markers()
-
-    assert state.has_emptied_marker(_TRADE, _ACCT) is False
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True
 
 
 def test_an_order_accumulates_the_commission_charged_in_base() -> None:

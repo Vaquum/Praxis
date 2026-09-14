@@ -1184,8 +1184,6 @@ class ExecutionManager:
                         created_at=event.timestamp,
                     ))
 
-        runtime.trading_state.discard_emptied_markers()
-
         self._resume_schemes(runtime, fold)
         self._resume_ladders(runtime, fold)
         self._resume_brackets(runtime, events)
@@ -4882,6 +4880,20 @@ class ExecutionManager:
         '''
 
         if bracket.protection_placed:
+            return
+
+        if qty <= _ZERO:
+            # Nothing is held, so there is nothing to protect. Reached when
+            # an entry has already been exited in full by the time delayed
+            # or resumed placement runs. Left unplaced rather than marked
+            # placed, so a later fill on this bracket still gets protection,
+            # and short of the exit command, which cannot be built for a
+            # zero quantity.
+            _log.info(
+                'bracket protection skipped; nothing held: command_id=%s',
+                bracket.command.command_id,
+            )
+
             return
 
         bracket.protection_placed = True

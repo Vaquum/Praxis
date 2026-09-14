@@ -519,20 +519,6 @@ class TradingState:
                     self.trade_strategy_ids.pop(event.trade_id, None)
                     self._emptied_by_fill.add(key)
 
-    def discard_emptied_markers(self) -> None:
-
-        '''Drop the close markers accumulated while replaying history.
-
-        Replay reprojects the fills that emptied a position, so it sets a
-        marker for every close in the history it reads. Those closes already
-        have their `TradeClosed` on the spine — replay is rebuilding state,
-        not producing events — so a marker surviving into live operation
-        would be consumed by the next close check and emit a second one.
-        '''
-
-        with self._positions_lock:
-            self._emptied_by_fill.clear()
-
     def has_emptied_marker(self, trade_id: str, account_id: str) -> bool:
 
         '''Report, once, that a reducing fill emptied a trade's position.
@@ -549,6 +535,13 @@ class TradingState:
         `TradeClosed` projects, so an append that fails leaves it standing
         and the close is produced on the next attempt rather than lost with
         the read that preceded the failure.
+
+        That is also what makes replay correct without special handling. A
+        history carrying both the reducing fill and its close reprojects
+        both, and the close retires the marker the fill set. A history that
+        ends between them — the crash window where the fill is durable and
+        the close is not — leaves the marker standing, which is exactly the
+        close still owed.
 
         Args:
             trade_id (str): Trade to check.

@@ -398,7 +398,6 @@ def _mgr_on(spine: EventSpine, adapter: AsyncMock) -> ExecutionManager:
 class TestBracketAmendHappyPath:
 
     @pytest.mark.asyncio
-    @pytest.mark.asyncio
     async def test_amend_replaces_protection_for_what_is_held(
         self, mgr_factory: Any,
     ) -> None:
