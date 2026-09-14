@@ -30,7 +30,7 @@ Previously the two totals described different sets of fills, and neither produce
 
 The discarded excess is real: Praxis books the full quantity and spend to the account ledger and carries it in the position it holds, and sizes protection and flattens from that raw exposure. Only the outcome is bounded.
 
-A decision layer reconstructing its position from outcomes will not match what the account holds, and the sign of the difference is not fixed. It is short by any discarded excess, and long by the commission on a buy, which a spot venue charges in the asset received rather than in quote. Neither the reported quantity nor the raw position is the wallet balance — see TD-156 and #183.
+A decision layer reconstructing its position from outcomes will not match what the account holds, and the sign of the difference is not fixed: it is short by any discarded excess and long by the commission a spot venue charges in the asset received. The position projection and the ledger's lots both carry what was delivered, net of that commission, so they agree with the wallet; the reported quantity is the one that does not. An outcome is an execution record, not an inventory feed — see TD-156.
 
 ## When Outcomes Are Produced
 

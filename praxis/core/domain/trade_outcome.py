@@ -84,9 +84,9 @@ class TradeOutcome:
     trade requested.
 
     `filled_qty` is the only quantity these may be multiplied by. Joining
-    them to a position or a wallet balance mixes populations: the position
-    carries the excess these exclude, and a wallet carries a base
-    commission no price displacement accounts for (see TD-156 and #183).
+    them to a position or a wallet balance mixes populations: both carry
+    what the venue delivered net of commission, which is neither the
+    quantity these measure nor priced by them (see TD-156).
     '''
 
     command_id: str
