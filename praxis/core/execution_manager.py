@@ -2536,9 +2536,9 @@ class ExecutionManager:
                 'fill exceeds what its command budgeted; admitting only the '
                 'part that fits. The remainder is booked as real inventory '
                 'and spend but not reported, so the decision layer and the '
-                'account disagree about this position until reconciled. Note '
-                'the reported quantity is not the wallet balance either: a '
-                'buy is charged its commission in base (TD-156, #183)',
+                'account disagree about this position until reconciled. The '
+                'difference has no fixed sign: the excess makes it short, a '
+                'base commission makes it long (TD-156)',
                 extra={
                     'command_id': event.command_id,
                     'client_order_id': event.client_order_id,
@@ -4591,7 +4591,12 @@ class ExecutionManager:
         )
 
         await self._place_bracket_protection(
-            runtime, bracket, raw_filled_qty, avg_entry_price,
+            runtime,
+            bracket,
+            self._owned_qty(
+                runtime, cmd.account_id, cmd.trade_id, raw_filled_qty,
+            ),
+            avg_entry_price,
         )
 
         return outcome
@@ -4666,7 +4671,15 @@ class ExecutionManager:
 
         avg_entry_price = order.cumulative_notional / order.filled_qty
         await self._place_bracket_protection(
-            runtime, bracket, order.filled_qty, avg_entry_price,
+            runtime,
+            bracket,
+            self._owned_qty(
+                runtime,
+                bracket.command.account_id,
+                bracket.command.trade_id,
+                order.filled_qty,
+            ),
+            avg_entry_price,
         )
 
     async def _place_pending_bracket_protection(self, runtime: _AccountRuntime) -> None:
@@ -4696,7 +4709,15 @@ class ExecutionManager:
             avg_entry_price = entry_order.cumulative_notional / entry_order.filled_qty
             await self._recover_bracket_entry_outcome(runtime, bracket)
             await self._place_bracket_protection(
-                runtime, bracket, entry_order.filled_qty, avg_entry_price,
+                runtime,
+                bracket,
+                self._owned_qty(
+                    runtime,
+                    bracket.command.account_id,
+                    bracket.command.trade_id,
+                    entry_order.filled_qty,
+                ),
+                avg_entry_price,
             )
 
     async def _recover_bracket_entry_outcome(
@@ -4744,6 +4765,46 @@ class ExecutionManager:
             reason=None,
             cumulative_notional=cumulative_notional,
         )
+
+    def _owned_qty(
+        self,
+        runtime: _AccountRuntime,
+        account_id: str,
+        trade_id: str,
+        reported: Decimal,
+    ) -> Decimal:
+
+        '''Return the base quantity a trade can actually sell.
+
+        An order reports what the venue filled; the account receives that
+        less a commission, which a spot venue charges in the asset a buy
+        receives. Sizing a protective exit from the reported quantity asks
+        to sell base the account does not hold, so the order is refused for
+        insufficient balance, or fills out of another trade's inventory.
+
+        The position projection carries what was delivered, so it is the
+        quantity to protect. The reported quantity stands in only when no
+        position is projected — a protective exit for an entry that left no
+        position has nothing to size against, and the caller's own guards
+        decide what happens next.
+
+        Args:
+            runtime (_AccountRuntime): Account holding the projection.
+            account_id (str): Account the trade belongs to.
+            trade_id (str): Trade whose holdings are wanted.
+            reported (Decimal): Venue-reported quantity to fall back on.
+
+        Returns:
+            Decimal: Base quantity held for the trade.
+        '''
+
+        positions = runtime.trading_state.snapshot_positions()
+        pos = positions.get((trade_id, account_id))
+
+        if pos is None or pos.qty <= _ZERO:
+            return reported
+
+        return min(pos.qty, reported)
 
     async def _place_bracket_protection(
         self,
@@ -7492,7 +7553,17 @@ class ExecutionManager:
         free = await self._free_asset_balance(cmd.account_id, cap_asset)
 
         if protective_side is OrderSide.SELL:
-            cap = free
+            # The free balance is the account's, not this trade's. Capping a
+            # sell on it alone lets a flatten reach into another trade's
+            # inventory when this one holds less than the remainder its
+            # gross order totals imply — which a buy's base commission
+            # guarantees it does.
+            cap = min(
+                free,
+                self._owned_qty(
+                    runtime, cmd.account_id, cmd.trade_id, remainder,
+                ),
+            )
             market_price = await self._current_flatten_sell_price(cmd, avg_entry_price)
         else:
             buy_price = await self._conservative_flatten_buy_price(cmd, avg_entry_price)
@@ -10689,6 +10760,11 @@ class ExecutionManager:
         (already removed by an exact-zero reduction) needs no further
         `TradeClosed`.
 
+        An exactly-sized exit is reported closed on the strength of a
+        marker the projection sets as it empties, rather than by treating
+        every absent position as closed — a trade that never opened one
+        must not produce a close.
+
         Quantity-aware (TD-096): the fill has already been applied to
         `trading_state`, so `pos.qty` is the post-fill remaining. A
         reducing fill closes the position only when that remainder is
@@ -10707,7 +10783,14 @@ class ExecutionManager:
         pos = positions.get((trade_id, account_id))
 
         if pos is None:
-            return False
+            # An exactly-sized exit removes the position as it lands, so
+            # there is nothing here to measure and a trade that never held
+            # one looks the same. The projection is already correct either
+            # way; the account ledger is not, since `TradeClosed` is what
+            # marks the trade closed there.
+            return runtime.trading_state.take_emptied_marker(
+                trade_id, account_id,
+            )
 
         if side == pos.side:
             return False

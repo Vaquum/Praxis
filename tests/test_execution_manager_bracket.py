@@ -485,6 +485,8 @@ def _fill(
     price: Decimal,
     venue_trade_id: str,
     venue_order_id: str,
+    fee: Decimal = Decimal('0'),
+    fee_asset: str = 'USDT',
 ) -> FillReceived:
     return FillReceived(
         account_id=_ACCT,
@@ -498,8 +500,8 @@ def _fill(
         side=side,
         qty=qty,
         price=price,
-        fee=Decimal('0'),
-        fee_asset='USDT',
+        fee=fee,
+        fee_asset=fee_asset,
         is_maker=False,
     )
 
@@ -540,6 +542,52 @@ class TestBracketLifecycle:
         assert exit_outcomes[0].status is TradeStatus.FILLED
         assert exit_outcomes[0].filled_qty == Decimal('1')
         assert exit_outcomes[0].trade_id == _TRADE
+
+    @pytest.mark.asyncio
+    @pytest.mark.asyncio
+    async def test_protection_is_sized_to_what_the_entry_delivered(
+        self, mgr_factory: Any,
+    ) -> None:
+        '''A protective exit may only sell base the account holds.
+
+        A spot venue charges a buy's commission in the asset received, so an
+        entry reporting a gross quantity delivers less. Sizing protection
+        from the reported quantity asks to sell base the account does not
+        have: the venue refuses it for insufficient balance, leaving the
+        position naked, or it fills out of another trade's inventory.
+        '''
+
+        adapter = _make_adapter(entry_fills=False)
+        em, _outcomes = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        command_id = await em.submit_command(**_bracket_kwargs())
+        await asyncio.sleep(0.3)
+
+        entry_client_order_id = generate_client_order_id(
+            ExecutionMode.BRACKET, command_id, sequence=0,
+        )
+        em.enqueue_ws_event(
+            _ACCT,
+            _fill(
+                client_order_id=entry_client_order_id,
+                command_id=command_id,
+                side=OrderSide.BUY,
+                qty=Decimal('1'),
+                price=_ENTRY_PRICE,
+                venue_trade_id='t-entry-fee',
+                venue_order_id='v-entry',
+                fee=Decimal('0.001'),
+                fee_asset='BTC',
+            ),
+        )
+        await asyncio.sleep(0.3)
+
+        oco = _oco_call(adapter)
+
+        assert oco['args'][_QTY_ARG_INDEX] == Decimal('0.999'), (
+            f"protection sized {oco['args'][_QTY_ARG_INDEX]} against 0.999 held"
+        )
 
     @pytest.mark.asyncio
     async def test_async_entry_fill_places_protection(
