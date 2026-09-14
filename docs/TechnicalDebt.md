@@ -1499,7 +1499,9 @@ One residue: an id is never removed from that set when its flatten terminalizes,
 
 `TradeOutcome` enforces `filled_qty <= target_qty`, so a venue that reports more filled than was ordered cannot be reported to Nexus as it happened. Fill admission resolves that by discarding the excess at the fill that breaches the target: the outcome reports the quantity ordered at the average of the fills that fit, and stays monotonic against every partial already published.
 
-The excess is not lost inside Praxis. `AccountLedger` books the raw fill — full quantity into inventory, full spend out of cash — and `TradingState.positions` projects the raw quantity too, so everything Praxis sizes from real exposure is correct: scheme and ladder remainders, amend remainders, protection sizing and flatten sizing all read the raw command totals, and a flatten therefore closes the quantity actually held, excess included.
+The excess is not lost inside Praxis. `AccountLedger` books the raw fill and `TradingState.positions` projects the raw quantity, and the paths that size from exposure — scheme and ladder remainders, amend remainders, protection sizing, flatten sizing — all read those raw totals rather than the admitted ones.
+
+Raw is not the same as held, and on a buy it is larger. A spot taker commission is charged in the received asset, so the wallet receives `qty - fee` where the position is credited `qty`. Three quantities therefore describe one buy and no two of them agree: the outcome reports the admitted quantity, the position carries the raw one, and the wallet holds the raw one less the commission. A flatten sized from the position asks for more base than the account has (see #183), and the direction of Nexus's error is not fixed: with an overfill small enough that the commission exceeds it, Nexus's outcome-derived position is above the wallet rather than below it. Target 1 with a raw fill of 1.0005 and a commission of 0.0010005 leaves the wallet at 0.9994995 while Nexus is told 1.
 
 What is missing is the other book. `OutcomeTranslator` forwards only the admitted size and notional, so Nexus's outcome-driven position and capital accounting never learns about a genuine excess. Praxis and Nexus then disagree about the size of the position by the discarded amount. Praxis owns flatten sizing, so this does not strand exposure in the bracket-protection path; it does mean a Nexus-driven exit is sized to Nexus's smaller belief and leaves the excess behind, and Nexus's capital controller reserves less than was actually spent.
 
@@ -1524,3 +1526,17 @@ It fails closed rather than open. Admitting the fill in full would report a quan
 Two guards cover it. `_install_command` is the only assignment into the command map, so a command cannot be registered without its budget; an AST test fails on any other direct subscript assignment to that map, which catches the regression that produced this concern but not every bypass — an annotated assignment, a `.update()`, an aliased write, or dropping the budget recording from the installer itself would all pass it. The behavioural guard is the fail-closed branch above, which acts on the state rather than on how it was reached.
 
 Closing this means deciding what a fill for an unknown command actually is: a bug to halt on, or an orphan to reconcile through the existing orphan path, which already has machinery for executions Praxis cannot attribute.
+
+## TD-158: The spine persists slippage as a quotient rather than the prices it was derived from
+
+**Origin**: issue #172 pre-merge review
+**Severity**: Low — the recorded values are correct; the shape constrains what can be done with them later
+**Module**: `praxis/core/domain/events.py` (`TradeOutcomeProduced`), `praxis/core/execution_manager.py`
+
+`TradeOutcomeProduced` carries `execution_slippage_bps` and `arrival_slippage_bps` as computed numbers. The two prices they are derived from — the mid price sampled before submission, and the command's reference price — are not recorded anywhere, so the quotient is the only durable trace of either.
+
+That is why it is persisted at all. A replayed outcome cannot recompute what it cannot see, and reporting no measurement after a restart where the live run reported one would make the record disagree with itself about the same event.
+
+The cost is that the arithmetic is now frozen into the log. A record written today and a record written after any change to how the average fill price is derived — the admitted-totals change in this same release is exactly such a change — are two different measurements under one field name, and nothing distinguishes them. Recording the inputs instead would make slippage a view over facts, so a formula change would re-derive the whole history rather than split it into vintages.
+
+Closing this means adding the sampled mid and the reference price to the outcome record and deriving the measures at the point of use. The existing fields would stay for records already written.

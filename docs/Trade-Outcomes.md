@@ -28,7 +28,9 @@ For `filled_qty > 0`, `avg_fill_price` is `cumulative_notional / filled_qty` in 
 
 Previously the two totals described different sets of fills, and neither producer was right: one capped the quantity while retaining the whole venue notional, so dividing them gave a price several times the one that executed; the other scaled the notional to match the capped quantity, which reported the right average but could fall below a notional already published for an earlier partial. Consumers that avoided the division to work around the first no longer need to.
 
-The discarded excess is real: Praxis books the full quantity and spend to the account ledger and carries it in the position it holds, and sizes protection and flattens from that raw exposure. Only the outcome is bounded. A decision layer reconstructing its position from outcomes is therefore short by any discarded amount until reconciled — see TD-156.
+The discarded excess is real: Praxis books the full quantity and spend to the account ledger and carries it in the position it holds, and sizes protection and flattens from that raw exposure. Only the outcome is bounded.
+
+A decision layer reconstructing its position from outcomes will not match what the account holds, and the sign of the difference is not fixed. It is short by any discarded excess, and long by the commission on a buy, which a spot venue charges in the asset received rather than in quote. Neither the reported quantity nor the raw position is the wallet balance — see TD-156 and #183.
 
 ## When Outcomes Are Produced
 
