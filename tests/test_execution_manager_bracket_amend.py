@@ -144,6 +144,8 @@ def _make_adapter(
     leg_filled: dict[str, Decimal] | None = None,
     new_list_status: str | None = None,
     replacement_status: OrderStatus = OrderStatus.OPEN,
+    entry_fee: Decimal = Decimal('0'),
+    entry_fee_asset: str = 'USDT',
 ) -> AsyncMock:
     mock = AsyncMock(spec=VenueAdapter)
     submit_calls: list[dict[str, Any]] = []
@@ -177,8 +179,8 @@ def _make_adapter(
                     venue_trade_id='t-entry',
                     qty=args[_QTY_ARG_INDEX],
                     price=_ENTRY_PRICE,
-                    fee=Decimal('0'),
-                    fee_asset='USDT',
+                    fee=entry_fee,
+                    fee_asset=entry_fee_asset,
                     is_maker=False,
                 ),
             ),
@@ -394,6 +396,41 @@ def _mgr_on(spine: EventSpine, adapter: AsyncMock) -> ExecutionManager:
 
 
 class TestBracketAmendHappyPath:
+
+    @pytest.mark.asyncio
+    @pytest.mark.asyncio
+    async def test_amend_replaces_protection_for_what_is_held(
+        self, mgr_factory: Any,
+    ) -> None:
+        '''A protective amend may only cover base the account holds.
+
+        Amending the protective prices cancels the resting list and submits
+        a replacement, sized from the exposure the entry left. That exposure
+        was reconstructed from what the venue reported filling, and a spot
+        venue charges a buy's commission in the asset received, so the
+        replacement asked to sell base the account does not have — the
+        original protection was already sized correctly, and the first
+        amend undid it.
+        '''
+
+        adapter = _make_adapter(
+            entry_fee=Decimal('0.001'), entry_fee_asset='BTC',
+        )
+        em, _ = mgr_factory(adapter)
+        command_id = await _protected_bracket(em)
+
+        runtime = em._accounts[_ACCT]
+
+        await em._process_modify(
+            runtime, _modify(command_id, take_profit_price=_NEW_TP_PRICE),
+        )
+
+        replacement = _oco_calls(adapter)[-1]
+
+        assert replacement['args'][_QTY_ARG_INDEX] == Decimal('0.999'), (
+            f"amend replaced protection for "
+            f"{replacement['args'][_QTY_ARG_INDEX]} against 0.999 held"
+        )
 
     @pytest.mark.asyncio
     async def test_amend_take_profit_cancels_old_replaces_new(

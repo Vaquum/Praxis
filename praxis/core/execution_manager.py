@@ -1184,6 +1184,8 @@ class ExecutionManager:
                         created_at=event.timestamp,
                     ))
 
+        runtime.trading_state.discard_emptied_markers()
+
         self._resume_schemes(runtime, fold)
         self._resume_ladders(runtime, fold)
         self._resume_brackets(runtime, events)
@@ -2604,6 +2606,46 @@ class ExecutionManager:
             )
 
         return _ZERO, _ZERO
+
+    def _command_delivered_qty(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+    ) -> Decimal:
+
+        '''Return the base quantity a command's fills actually delivered.
+
+        `_command_fill_totals` reports what the venue filled. A spot venue
+        charges a buy's commission in the asset received, so the account
+        receives less than that, and anything asking how much of a position
+        is still held — how much remains unprotected, how much a protective
+        amend must cover, whether an exit has closed it — is asking about
+        the delivered quantity, not the filled one. Sizing a sell from the
+        filled quantity asks the venue for base the account does not have.
+
+        Order accounting is the other question and stays on the filled
+        totals: a command that ordered a quantity and received it is
+        complete, and the commission is a cost rather than a shortfall.
+
+        Args:
+            runtime (_AccountRuntime): Account holding the projections.
+            command_id (str): Command whose delivered quantity is wanted.
+
+        Returns:
+            Decimal: Filled quantity less the commission charged in base.
+        '''
+
+        filled_qty, _ = self._command_fill_totals(runtime, command_id)
+        base_fee = _ZERO
+
+        for order in (
+            *runtime.trading_state.orders.values(),
+            *runtime.trading_state.closed_orders.values(),
+        ):
+            if order.command_id == command_id:
+                base_fee += order.base_fee
+
+        return filled_qty - base_fee
 
     def _command_fill_totals(
         self,
@@ -4783,10 +4825,15 @@ class ExecutionManager:
         insufficient balance, or fills out of another trade's inventory.
 
         The position projection carries what was delivered, so it is the
-        quantity to protect. The reported quantity stands in only when no
-        position is projected — a protective exit for an entry that left no
-        position has nothing to size against, and the caller's own guards
-        decide what happens next.
+        quantity to protect, and the reported quantity is a ceiling on it so
+        another command's holdings on the same trade cannot inflate this
+        order.
+
+        No position means nothing to sell. Gross fills are not evidence of
+        current holdings — an entry that filled and then fully exited leaves
+        a residue in any total reconstructed from them — so an absent
+        projection yields zero rather than falling back to what the venue
+        once reported.
 
         Args:
             runtime (_AccountRuntime): Account holding the projection.
@@ -4802,7 +4849,7 @@ class ExecutionManager:
         pos = positions.get((trade_id, account_id))
 
         if pos is None or pos.qty <= _ZERO:
-            return reported
+            return _ZERO
 
         return min(pos.qty, reported)
 
@@ -7315,7 +7362,7 @@ class ExecutionManager:
 
         cmd = bracket.command
         exit_command_id = bracket_exit_command_id(cmd.command_id)
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
         protective_side = (
             OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
@@ -7419,7 +7466,7 @@ class ExecutionManager:
 
         cmd = bracket.command
         exit_command_id = bracket_exit_command_id(cmd.command_id)
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_projected
         if remainder <= _ZERO:
@@ -8148,7 +8195,7 @@ class ExecutionManager:
 
             return
 
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_filled
         _log.warning(
@@ -9432,7 +9479,7 @@ class ExecutionManager:
         assert tp_price is not None
         assert sl_stop_price is not None
 
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_command_id = bracket_exit_command_id(cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
         old_oco_order = self._scheme_child_order(runtime, old_list_client_order_id)
@@ -10788,7 +10835,7 @@ class ExecutionManager:
             # one looks the same. The projection is already correct either
             # way; the account ledger is not, since `TradeClosed` is what
             # marks the trade closed there.
-            return runtime.trading_state.take_emptied_marker(
+            return runtime.trading_state.has_emptied_marker(
                 trade_id, account_id,
             )
 

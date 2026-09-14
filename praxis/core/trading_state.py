@@ -65,6 +65,28 @@ __all__ = ['TradingState']
 
 _BASE_ASSET = 'BTC'
 
+
+def _base_fee_of(event: FillReceived) -> Decimal:
+
+    '''Return the part of a fill's commission charged in the base asset.
+
+    A spot venue charges the commission in the asset the trade receives, so
+    only a buy is charged in base. A sell's commission is quote and leaves
+    its base leg exact.
+
+    Args:
+        event (FillReceived): Fill being projected.
+
+    Returns:
+        Decimal: Base-denominated commission, zero when charged in quote.
+    '''
+
+    if event.side is OrderSide.BUY and event.fee_asset == _BASE_ASSET:
+        return event.fee
+
+    return _ZERO
+
+
 _log = logging.getLogger(__name__)
 
 _ZERO = Decimal(0)
@@ -396,6 +418,7 @@ class TradingState:
         if closed_order is not None:
             closed_order.filled_qty += event.qty
             closed_order.cumulative_notional += event.qty * event.price
+            closed_order.base_fee += _base_fee_of(event)
             closed_order.updated_at = event.timestamp
 
             return
@@ -406,6 +429,7 @@ class TradingState:
 
         order.filled_qty += event.qty
         order.cumulative_notional += event.qty * event.price
+        order.base_fee += _base_fee_of(event)
         order.updated_at = event.timestamp
 
         if order.qty is None:
@@ -432,10 +456,7 @@ class TradingState:
             Decimal: Base quantity actually delivered by this fill.
         '''
 
-        if event.side is OrderSide.BUY and event.fee_asset == _BASE_ASSET:
-            return event.qty - event.fee
-
-        return event.qty
+        return event.qty - _base_fee_of(event)
 
     def _update_position_on_fill(self, event: FillReceived) -> None:
 
@@ -498,7 +519,21 @@ class TradingState:
                     self.trade_strategy_ids.pop(event.trade_id, None)
                     self._emptied_by_fill.add(key)
 
-    def take_emptied_marker(self, trade_id: str, account_id: str) -> bool:
+    def discard_emptied_markers(self) -> None:
+
+        '''Drop the close markers accumulated while replaying history.
+
+        Replay reprojects the fills that emptied a position, so it sets a
+        marker for every close in the history it reads. Those closes already
+        have their `TradeClosed` on the spine — replay is rebuilding state,
+        not producing events — so a marker surviving into live operation
+        would be consumed by the next close check and emit a second one.
+        '''
+
+        with self._positions_lock:
+            self._emptied_by_fill.clear()
+
+    def has_emptied_marker(self, trade_id: str, account_id: str) -> bool:
 
         '''Report, once, that a reducing fill emptied a trade's position.
 
@@ -510,7 +545,10 @@ class TradingState:
         what marks the trade closed in the account ledger, and that
         projection is left saying the trade is open.
 
-        Consumed on read so one emptying produces one close.
+        Reports without consuming. The marker is cleared when the durable
+        `TradeClosed` projects, so an append that fails leaves it standing
+        and the close is produced on the next attempt rather than lost with
+        the read that preceded the failure.
 
         Args:
             trade_id (str): Trade to check.
@@ -524,12 +562,7 @@ class TradingState:
         key = (trade_id, account_id)
 
         with self._positions_lock:
-            if key not in self._emptied_by_fill:
-                return False
-
-            self._emptied_by_fill.discard(key)
-
-            return True
+            return key in self._emptied_by_fill
 
     def _on_trade_closed(self, event: TradeClosed) -> None:
 
@@ -539,6 +572,7 @@ class TradingState:
         with self._positions_lock:
             pos = self.positions.pop(key, None)
             self.trade_strategy_ids.pop(event.trade_id, None)
+            self._emptied_by_fill.discard(key)
         if pos is None:
             _log.debug(
                 'no position for TradeClosed (already cleaned up by '

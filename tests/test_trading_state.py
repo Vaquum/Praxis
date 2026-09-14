@@ -869,8 +869,8 @@ def test_an_exactly_emptied_position_is_reported_once() -> None:
     A reducing fill that lands exactly on zero removes the position, so the
     close cannot be recognised from the projection afterwards. Treating
     every absent position as closed would report a close for a trade that
-    never opened one, so the emptying itself is what is recorded, and it is
-    consumed on read.
+    never opened one, so the emptying itself is what is recorded, and the
+    durable close is what retires it.
     '''
 
     state = TradingState(_ACCT)
@@ -882,15 +882,24 @@ def test_an_exactly_emptied_position_is_reported_once() -> None:
     )
 
     assert (_TRADE, _ACCT) not in state.positions
-    assert state.take_emptied_marker(_TRADE, _ACCT) is True
-    assert state.take_emptied_marker(_TRADE, _ACCT) is False
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True
+
+    # Reading does not retire it: an append that fails must leave the close
+    # to be produced on the next attempt rather than lose it with the read.
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True
+
+    state.apply(TradeClosed(
+        account_id=_ACCT, timestamp=_TS2, trade_id=_TRADE, command_id=_CMD,
+    ))
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
 
 
 def test_a_trade_that_never_opened_reports_no_close() -> None:
 
     state = TradingState(_ACCT)
 
-    assert state.take_emptied_marker('trade-never', _ACCT) is False
+    assert state.has_emptied_marker('trade-never', _ACCT) is False
 
 
 def test_a_partial_reduction_sets_no_close_marker() -> None:
@@ -903,4 +912,71 @@ def test_a_partial_reduction_sets_no_close_marker() -> None:
         ),
     )
 
-    assert state.take_emptied_marker(_TRADE, _ACCT) is False
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
+
+
+def test_replayed_closes_do_not_leave_a_pending_marker() -> None:
+
+    '''A close in replayed history must not be reported a second time.
+
+    Replay reprojects the fills that emptied a position, so it sets a marker
+    for every close in the history it reads. Those closes already have their
+    `TradeClosed` on the spine — replay rebuilds state rather than producing
+    events — so a marker surviving into live operation would be consumed by
+    the next close check and emit a duplicate.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions
+
+    state.discard_emptied_markers()
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
+
+
+def test_an_order_accumulates_the_commission_charged_in_base() -> None:
+
+    '''An order must record what it was charged in the asset it received.
+
+    Exposure is reconstructed from order totals — how much of an entry is
+    still held, how much a protective amend must cover, whether an exit
+    closed it. Those totals report what the venue filled, and a buy delivers
+    less, so without the commission beside them a fully exited trade looks
+    to be holding the fee and is routed into flattening for it.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_submit_intent())
+    state.apply(_submitted())
+    state.apply(_fill_event(qty=Decimal('1'), fee=Decimal('0.001')))
+
+    order = state.orders.get(_ORDER) or state.closed_orders.get(_ORDER)
+
+    assert order is not None
+    assert order.filled_qty == Decimal('1')
+    assert order.base_fee == Decimal('0.001')
+    assert order.filled_qty - order.base_fee == Decimal('0.999')
+
+
+def test_a_sell_records_no_base_commission() -> None:
+
+    '''A sell is charged in quote, so its base leg is exact.'''
+
+    state = TradingState(_ACCT)
+    state.apply(_submit_intent())
+    state.apply(_submitted())
+    state.apply(
+        _fill_event(qty=Decimal('1'), side=OrderSide.SELL, fee=Decimal('5')),
+    )
+
+    order = state.orders.get(_ORDER) or state.closed_orders.get(_ORDER)
+
+    assert order is not None
+    assert order.base_fee == Decimal('0')
