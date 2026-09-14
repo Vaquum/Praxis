@@ -248,8 +248,8 @@ async def test_market_buy_through_binsim_records_actual_fill_details(
     fill = fills[0]
     assert fill.qty == Decimal('0.5')
     assert fill.price == Decimal('101.00')
-    assert fill.fee_asset == 'USDT'
-    assert fill.fee == Decimal('101.00') * Decimal('0.5') * Decimal('0.001')
+    assert fill.fee_asset == 'BTC'
+    assert fill.fee == Decimal('0.5') * Decimal('0.001')
 
 
 @pytest.mark.asyncio

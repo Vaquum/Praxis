@@ -445,8 +445,16 @@ async def _submit_order(request: web.Request) -> web.Response:
 
     filled_qty = sum((q for _, q in walk), Decimal('0'))
 
+    # A taker commission is charged in the asset the trade receives: base
+    # on a BUY, quote on a SELL.
     fills_with_fees = [
-        (price, level_qty, level_qty * price * _TAKER_FEE_RATE)
+        (
+            price,
+            level_qty,
+            level_qty * _TAKER_FEE_RATE
+            if side is OrderSide.BUY
+            else level_qty * price * _TAKER_FEE_RATE,
+        )
         for price, level_qty in walk
     ]
 

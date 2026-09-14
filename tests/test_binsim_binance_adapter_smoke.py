@@ -177,8 +177,8 @@ async def test_adapter_submit_order_parses_market_buy_response(adapter: BinanceA
     assert len(fills) == 1
     assert fills[0].price == Decimal('101.00')
     assert fills[0].qty == Decimal('0.5')
-    assert fills[0].fee == Decimal('101.00') * Decimal('0.5') * Decimal('0.001')
-    assert fills[0].fee_asset == 'USDT'
+    assert fills[0].fee == Decimal('0.5') * Decimal('0.001')
+    assert fills[0].fee_asset == 'BTC'
     assert fills[0].is_maker is False
 
 
@@ -219,7 +219,7 @@ async def test_adapter_submit_order_then_balance_reflects_fill(adapter: BinanceA
     by_asset = {b.asset: b for b in balances}
 
     expected_notional = Decimal('101.00') * Decimal('0.5')
-    expected_fee = expected_notional * Decimal('0.001')
+    expected_fee = Decimal('0.5') * Decimal('0.001')
 
-    assert by_asset['USDT'].free == Decimal('100000') - expected_notional - expected_fee
-    assert by_asset['BTC'].free == Decimal('5.0') + Decimal('0.5')
+    assert by_asset['USDT'].free == Decimal('100000') - expected_notional
+    assert by_asset['BTC'].free == Decimal('5.0') + Decimal('0.5') - expected_fee

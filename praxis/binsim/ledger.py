@@ -32,6 +32,26 @@ _log = get_logger(__name__)
 _SNAPSHOT_FILENAME = 'binsim_ledger.json'
 _QUOTE_ASSET = 'USDT'
 _BASE_ASSET = 'BTC'
+
+
+def _fee_asset_for(side: OrderSide) -> str:
+
+    '''Return the asset a taker commission is charged in for a side.
+
+    Binance charges the taker commission in the asset the trade
+    receives: the base asset on a BUY, the quote asset on a SELL. A
+    simulator that charged both in quote would leave the full base
+    quantity on the books where the venue leaves `qty * (1 - rate)`,
+    and every buy would diverge from live by the taker rate.
+
+    Args:
+        side (OrderSide): Side of the trade being settled.
+
+    Returns:
+        str: Asset symbol the commission is denominated in.
+    '''
+
+    return _BASE_ASSET if side is OrderSide.BUY else _QUOTE_ASSET
 _ZERO = Decimal(0)
 _API_KEY_BYTES = 32
 
@@ -258,11 +278,15 @@ class Ledger:
         qty: Decimal,
         price: Decimal,
         fee: Decimal,
-        fee_asset: str = _QUOTE_ASSET,
+        fee_asset: str | None = None,
         timestamp: datetime | None = None,
     ) -> LedgerFill:
 
         '''Settle one fill against an account: debit/credit, append, snapshot.
+
+        The commission is charged in the asset the side receives, as the
+        venue charges it: base on a BUY, quote on a SELL. `fee_asset`
+        defaults to that asset and may be passed only to assert it.
 
         Returns the recorded `LedgerFill` with the ledger-assigned
         `trade_id` so the HTTP layer can echo it back in the
@@ -271,7 +295,8 @@ class Ledger:
         Raises:
             KeyError: account not registered.
             ValueError: qty/price/fee non-positive (fee may be zero),
-                fee_asset is not USDT, or timestamp is naive.
+                fee_asset is not the one the side receives, or timestamp
+                is naive.
             InsufficientBalanceError: settling the fill would drive a
                 balance below zero.
         '''
@@ -290,9 +315,21 @@ class Ledger:
         if fee < _ZERO:
             raise ValueError(f'fee must be non-negative, got {fee}')
 
-        if fee_asset != _QUOTE_ASSET:
+        if side is OrderSide.BUY and fee >= qty:
             raise ValueError(
-                f'fee_asset must be {_QUOTE_ASSET} for MMVP, got {fee_asset!r}'
+                f'fee {fee} is not smaller than the {qty} received on a '
+                f'BUY; a taker commission is charged in the asset the '
+                f'trade receives, and `AccountLedger` rejects a base fee '
+                f'that leaves no quantity behind'
+            )
+
+        if fee_asset is None:
+            fee_asset = _fee_asset_for(side)
+
+        if fee_asset != _fee_asset_for(side):
+            raise ValueError(
+                f'fee_asset must be {_fee_asset_for(side)} for a '
+                f'{side.value}, got {fee_asset!r}'
             )
 
         ts = _resolve_timestamp(timestamp)
@@ -336,8 +373,14 @@ class Ledger:
         '''Settle a multi-level market order atomically with dedup.
 
         `fills` is a list of `(price, qty, fee)` per level produced by
-        walking the order book. All settlement happens under the
-        ledger lock: balances reflect the aggregate notional + fees,
+        walking the order book. Each `fee` is denominated in the asset
+        its side receives, as Binance charges a taker commission: base
+        on a BUY, quote on a SELL. A BUY therefore credits
+        `qty - fee` base and debits the full notional in quote, where a
+        SELL debits `qty` base and credits `notional - fee` quote.
+
+        All settlement happens under the ledger lock: balances reflect
+        the aggregate notional and fees,
         each level becomes its own `LedgerFill` with a fresh monotonic
         `trade_id`, the assigned `order_id` is returned for the
         Binance-shaped POST response, and the `client_order_id` is
@@ -352,7 +395,8 @@ class Ledger:
         Raises:
             KeyError: account not registered.
             ValueError: fills empty, client_order_id empty, qty/price/fee
-                non-positive (fee may be zero), or timestamp naive.
+                non-positive (fee may be zero), a BUY fee larger than the
+                quantity it is charged against, or timestamp naive.
             DuplicateClientOrderIdError: `client_order_id` already
                 recorded against this account.
             InsufficientBalanceError: settling the aggregate would
@@ -382,6 +426,14 @@ class Ledger:
             if fee < _ZERO:
                 raise ValueError(f'fee must be non-negative, got {fee}')
 
+            if side is OrderSide.BUY and fee >= qty:
+                raise ValueError(
+                    f'fee {fee} is not smaller than the {qty} received on a '
+                    f'BUY; a taker commission is charged in the asset the '
+                    f'trade receives, and `AccountLedger` rejects a base fee '
+                    f'that leaves no quantity behind'
+                )
+
         ts = _resolve_timestamp(timestamp)
 
         async with self._lock:
@@ -399,14 +451,9 @@ class Ledger:
             new_btc = account.btc
 
             for price, qty, fee in fills:
-                notional = qty * price
-
-                if side is OrderSide.BUY:
-                    new_usdt -= notional + fee
-                    new_btc += qty
-                else:
-                    new_usdt += notional - fee
-                    new_btc -= qty
+                delta_usdt, delta_btc = _fill_deltas(side, qty, qty * price, fee)
+                new_usdt += delta_usdt
+                new_btc += delta_btc
 
             if new_usdt < _ZERO:
                 raise InsufficientBalanceError(
@@ -428,7 +475,7 @@ class Ledger:
                     qty=qty,
                     price=price,
                     fee=fee,
-                    fee_asset=_QUOTE_ASSET,
+                    fee_asset=_fee_asset_for(side),
                     timestamp=ts,
                 )
                 records.append(record)
@@ -541,6 +588,38 @@ class Ledger:
             raise
 
 
+def _fill_deltas(
+    side: OrderSide,
+    qty: Decimal,
+    notional: Decimal,
+    fee: Decimal,
+) -> tuple[Decimal, Decimal]:
+
+    '''Return the (quote, base) balance deltas one fill settles to.
+
+    The commission is charged in the asset the side receives, so a BUY
+    debits the full notional in quote and credits `qty - fee` in base,
+    while a SELL debits `qty` in base and credits `notional - fee` in
+    quote. Both entry points settle through here: reporting the
+    commission in one asset while deducting it from another is the
+    failure this consolidates away.
+
+    Args:
+        side (OrderSide): Side being settled.
+        qty (Decimal): Base quantity filled, gross of commission.
+        notional (Decimal): Quote notional of the fill.
+        fee (Decimal): Commission, in the asset the side receives.
+
+    Returns:
+        tuple[Decimal, Decimal]: Quote delta and base delta.
+    '''
+
+    if side is OrderSide.BUY:
+        return -notional, qty - fee
+
+    return notional - fee, -qty
+
+
 def _settle(
     account: Account,
     side: OrderSide,
@@ -551,12 +630,9 @@ def _settle(
 
     '''Compute post-fill (usdt, btc); raise if either would go negative.'''
 
-    if side is OrderSide.BUY:
-        new_usdt = account.usdt - notional - fee
-        new_btc = account.btc + qty
-    else:
-        new_usdt = account.usdt + notional - fee
-        new_btc = account.btc - qty
+    delta_usdt, delta_btc = _fill_deltas(side, qty, notional, fee)
+    new_usdt = account.usdt + delta_usdt
+    new_btc = account.btc + delta_btc
 
     if new_usdt < _ZERO:
         raise InsufficientBalanceError(
