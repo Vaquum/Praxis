@@ -151,7 +151,7 @@ class TradingState:
             raise ValueError(msg)
         self.account_id = account_id
         self.positions: dict[tuple[str, str], Position] = {}
-        self._emptied_by_fill: set[tuple[str, str]] = set()
+        self._emptied_by_fill: dict[tuple[str, str], int] = {}
         self.orders: dict[str, Order] = {}
         self.closed_orders: dict[str, Order] = {}
         self.trade_strategy_ids: dict[str, str] = {}
@@ -517,7 +517,9 @@ class TradingState:
                 if new_qty == _ZERO:
                     del self.positions[key]
                     self.trade_strategy_ids.pop(event.trade_id, None)
-                    self._emptied_by_fill.add(key)
+                    self._emptied_by_fill[key] = (
+                        self._emptied_by_fill.get(key, 0) + 1
+                    )
 
     def has_emptied_marker(self, trade_id: str, account_id: str) -> bool:
 
@@ -543,6 +545,10 @@ class TradingState:
         the close is not — leaves the marker standing, which is exactly the
         close still owed.
 
+        Emptyings are counted rather than flagged. A trade id whose position
+        is emptied, re-opened and emptied again before either close becomes
+        durable owes two, and a flag would report one.
+
         Args:
             trade_id (str): Trade to check.
             account_id (str): Account the trade belongs to.
@@ -555,7 +561,7 @@ class TradingState:
         key = (trade_id, account_id)
 
         with self._positions_lock:
-            return key in self._emptied_by_fill
+            return self._emptied_by_fill.get(key, 0) > 0
 
     def _on_trade_closed(self, event: TradeClosed) -> None:
 
@@ -565,7 +571,12 @@ class TradingState:
         with self._positions_lock:
             pos = self.positions.pop(key, None)
             self.trade_strategy_ids.pop(event.trade_id, None)
-            self._emptied_by_fill.discard(key)
+            owed = self._emptied_by_fill.get(key, 0)
+
+            if owed > 1:
+                self._emptied_by_fill[key] = owed - 1
+            else:
+                self._emptied_by_fill.pop(key, None)
         if pos is None:
             _log.debug(
                 'no position for TradeClosed (already cleaned up by '

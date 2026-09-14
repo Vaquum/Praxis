@@ -4885,10 +4885,15 @@ class ExecutionManager:
         if qty <= _ZERO:
             # Nothing is held, so there is nothing to protect. Reached when
             # an entry has already been exited in full by the time delayed
-            # or resumed placement runs. Left unplaced rather than marked
-            # placed, so a later fill on this bracket still gets protection,
-            # and short of the exit command, which cannot be built for a
-            # zero quantity.
+            # or resumed placement runs, and short of the exit command,
+            # which cannot be built for a zero quantity.
+            #
+            # The bracket is put back and left unclaimed. Every caller
+            # removes it before placing and only a successful placement
+            # returns it, so returning here without restoring it would drop
+            # the registration a later fill needs to find — the entry would
+            # deliver holdings that nothing then protects.
+            runtime.brackets[bracket.command.command_id] = bracket
             _log.info(
                 'bracket protection skipped; nothing held: command_id=%s',
                 bracket.command.command_id,

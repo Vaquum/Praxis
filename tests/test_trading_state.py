@@ -1001,3 +1001,42 @@ def test_a_sell_records_no_base_commission() -> None:
 
     assert order is not None
     assert order.base_fee == Decimal('0')
+
+
+def test_two_emptyings_before_either_close_owe_two() -> None:
+
+    '''Each emptying owes its own close.
+
+    A trade id whose position is emptied, re-opened and emptied again
+    before either close becomes durable owes two. Recording the fact as a
+    flag rather than a count would report one, and the second close would
+    never be produced.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+    state.apply(_fill_event(client_order_id='buy-2', qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-2', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    closed = TradeClosed(
+        account_id=_ACCT, timestamp=_TS2, trade_id=_TRADE, command_id=_CMD,
+    )
+
+    state.apply(closed)
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True, (
+        'the second close was dropped by the first'
+    )
+
+    state.apply(closed)
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
