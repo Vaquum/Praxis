@@ -3311,12 +3311,23 @@ class TestTradeClosedPositionSemantics:
         assert (_TRADE, _ACCT) not in positions
 
     @pytest.mark.asyncio
-    async def test_exact_full_exit_clears_position_without_trade_closed(
+    async def test_exact_full_exit_reports_the_trade_closed(
         self,
         mgr: ExecutionManager,
         spine: EventSpine,
         adapter: AsyncMock,
     ) -> None:
+        '''An exit that lands exactly on zero must still report a close.
+
+        It used not to. The position is removed as the fill lands, so by the
+        time the close is evaluated there is nothing to inspect and a trade
+        that never opened one looks identical. That was judged harmless
+        because the position projection is already correct either way — but
+        `TradeClosed` is also what marks the trade closed in the account
+        ledger, which was left saying the trade is open, and a correctly
+        sized exit is exactly the case that reaches zero.
+        '''
+
         adapter.submit_order.side_effect = [
             SubmitResult(
                 venue_order_id='v-entry',
@@ -3357,7 +3368,7 @@ class TestTradeClosedPositionSemantics:
 
         events = await spine.read(_EPOCH, after_seq=0)
         types = [type(e).__name__ for _, e in events]
-        assert 'TradeClosed' not in types
+        assert 'TradeClosed' in types
 
         positions = mgr.pull_positions(_ACCT)
         assert (_TRADE, _ACCT) not in positions

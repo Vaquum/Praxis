@@ -129,6 +129,7 @@ class TradingState:
             raise ValueError(msg)
         self.account_id = account_id
         self.positions: dict[tuple[str, str], Position] = {}
+        self._emptied_by_fill: set[tuple[str, str]] = set()
         self.orders: dict[str, Order] = {}
         self.closed_orders: dict[str, Order] = {}
         self.trade_strategy_ids: dict[str, str] = {}
@@ -495,6 +496,40 @@ class TradingState:
                 if new_qty == _ZERO:
                     del self.positions[key]
                     self.trade_strategy_ids.pop(event.trade_id, None)
+                    self._emptied_by_fill.add(key)
+
+    def take_emptied_marker(self, trade_id: str, account_id: str) -> bool:
+
+        '''Report, once, that a reducing fill emptied a trade's position.
+
+        A reducing fill that lands exactly on zero removes the position, so
+        by the time a caller asks whether the fill closed the trade there is
+        nothing left to inspect, and a trade that never held a position
+        looks identical to one just closed. The position projection does not
+        care — it is already correct either way — but `TradeClosed` is also
+        what marks the trade closed in the account ledger, and that
+        projection is left saying the trade is open.
+
+        Consumed on read so one emptying produces one close.
+
+        Args:
+            trade_id (str): Trade to check.
+            account_id (str): Account the trade belongs to.
+
+        Returns:
+            bool: Whether a reducing fill emptied this position since the
+                last call.
+        '''
+
+        key = (trade_id, account_id)
+
+        with self._positions_lock:
+            if key not in self._emptied_by_fill:
+                return False
+
+            self._emptied_by_fill.discard(key)
+
+            return True
 
     def _on_trade_closed(self, event: TradeClosed) -> None:
 

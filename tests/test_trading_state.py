@@ -860,3 +860,47 @@ def test_selling_what_is_held_closes_the_position() -> None:
     assert (_TRADE, _ACCT) not in state.positions, (
         'selling the full held quantity left a position open'
     )
+
+
+def test_an_exactly_emptied_position_is_reported_once() -> None:
+
+    '''The close marker must fire once and only for a real emptying.
+
+    A reducing fill that lands exactly on zero removes the position, so the
+    close cannot be recognised from the projection afterwards. Treating
+    every absent position as closed would report a close for a trade that
+    never opened one, so the emptying itself is what is recorded, and it is
+    consumed on read.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions
+    assert state.take_emptied_marker(_TRADE, _ACCT) is True
+    assert state.take_emptied_marker(_TRADE, _ACCT) is False
+
+
+def test_a_trade_that_never_opened_reports_no_close() -> None:
+
+    state = TradingState(_ACCT)
+
+    assert state.take_emptied_marker('trade-never', _ACCT) is False
+
+
+def test_a_partial_reduction_sets_no_close_marker() -> None:
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('2')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    assert state.take_emptied_marker(_TRADE, _ACCT) is False
