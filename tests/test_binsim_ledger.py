@@ -10,12 +10,16 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import os
+
 import pytest
 
 from praxis.binsim.ledger import (
     DuplicateClientOrderIdError,
     InsufficientBalanceError,
     Ledger,
+    StateDirLockedError,
+    exclusive_state_lock,
 )
 from praxis.core.domain.enums import OrderSide
 
@@ -1144,3 +1148,131 @@ async def test_register_account_rejects_non_finite_initial_balance(tmp_path: Pat
 
     with pytest.raises(ValueError, match='initial balances must be finite'):
         await ledger.register_account(_ACCT, args['initial_usdt'], args['initial_btc'])
+
+
+@pytest.mark.asyncio
+async def test_state_lock_refuses_a_second_holder(tmp_path: Path) -> None:
+
+    '''Two processes must not both hold one state directory's ledger.
+
+    Both the server and the `register` admin command write the snapshot
+    whole from their own in-memory state, so whichever writes second
+    discards the other's work: `register` reverts every fill persisted
+    since it loaded, and the server's next write drops the account
+    `register` just minted. The atomic tempfile-and-rename guards a write
+    from tearing, not two writers from racing.
+    '''
+
+    with (
+        exclusive_state_lock(tmp_path),
+        pytest.raises(StateDirLockedError, match='another process holds'),
+        exclusive_state_lock(tmp_path),
+    ):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_state_lock_is_released_for_the_next_holder(tmp_path: Path) -> None:
+
+    with exclusive_state_lock(tmp_path):
+        pass
+
+    with exclusive_state_lock(tmp_path):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_state_lock_is_released_when_the_body_raises(tmp_path: Path) -> None:
+
+    with (
+        pytest.raises(RuntimeError, match='boom'),
+        exclusive_state_lock(tmp_path),
+    ):
+        msg = 'boom'
+        raise RuntimeError(msg)
+
+    with exclusive_state_lock(tmp_path):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_both_entry_points_settle_a_buy_identically(tmp_path: Path) -> None:
+
+    '''`apply_fill` and `apply_order` must agree on where the fee lands.
+
+    They settled through separate arithmetic, so changing one left the
+    other reporting a commission in the received asset while still
+    deducting it from quote — the balance and the commission it was
+    supposedly charged for describing different trades.
+    '''
+
+    one = _new_ledger(tmp_path / 'one')
+    await one.register_account(_ACCT, Decimal('10000'))
+    await one.apply_fill(
+        _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+        Decimal('0.0001'), timestamp=_TS,
+    )
+
+    other = _new_ledger(tmp_path / 'other')
+    await other.register_account(_ACCT, Decimal('10000'))
+    await other.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0.0001'))],
+        client_order_id='cid-1', timestamp=_TS,
+    )
+
+    assert await one.balance(_ACCT) == await other.balance(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_rejects_a_buy_fee_equal_to_the_quantity(
+    tmp_path: Path,
+) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='not smaller than'):
+        await ledger.apply_fill(
+            _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+            Decimal('0.1'),
+        )
+
+
+@pytest.mark.asyncio
+async def test_state_lock_refuses_a_second_spelling_of_one_directory(
+    tmp_path: Path,
+) -> None:
+
+    '''One directory reached two ways is still one ledger.
+
+    The lock guards a snapshot, not a path string. This holds because the
+    lock is taken on the file's inode rather than on the name used to
+    reach it, so it would survive resolving the path being removed — it
+    pins the property, not the line that appears to implement it.
+    '''
+
+    real = tmp_path / 'state'
+    real.mkdir()
+    link = tmp_path / 'via-symlink'
+    link.symlink_to(real)
+
+    with (
+        exclusive_state_lock(real),
+        pytest.raises(StateDirLockedError, match='another process holds'),
+        exclusive_state_lock(link),
+    ):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_state_lock_names_the_holding_process(tmp_path: Path) -> None:
+
+    with (
+        exclusive_state_lock(tmp_path),
+        pytest.raises(StateDirLockedError) as excinfo,
+        exclusive_state_lock(tmp_path),
+    ):
+        pass
+
+    assert f'pid {os.getpid()}' in str(excinfo.value)

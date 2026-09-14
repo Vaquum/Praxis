@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import hashlib
 import json
 import os
 import secrets
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -30,6 +33,87 @@ __all__ = [
 _log = get_logger(__name__)
 
 _SNAPSHOT_FILENAME = 'binsim_ledger.json'
+_LOCK_FILENAME = 'binsim_ledger.lock'
+
+
+@contextmanager
+def exclusive_state_lock(state_dir: Path) -> Iterator[None]:
+
+    '''Hold the exclusive advisory lock on a state directory's ledger.
+
+    The snapshot is written whole from whichever process holds the ledger
+    in memory, so two processes cannot share it: an admin command that
+    loads it, mutates it and writes it back discards every fill the
+    server persisted after that load, and the server's next write
+    discards the admin command's. The atomic tempfile-and-rename guards a
+    single write from tearing; it cannot order two independent writers.
+
+    The server takes this lock for its lifetime and an admin command
+    takes it for the length of its read-modify-write, so the second one
+    to start fails instead of silently reverting the other's work.
+
+    Args:
+        state_dir (Path): Directory holding the ledger snapshot.
+
+    Yields:
+        None: With the lock held.
+
+    Raises:
+        StateDirLockedError: Another process holds the lock.
+    '''
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+    # Resolved so the path named in a conflict is absolute. Two spellings
+    # of one directory already conflict without it, since the lock is held
+    # on the file's inode rather than on the name used to reach it.
+    lock_path = state_dir.resolve() / _LOCK_FILENAME
+
+    # Opened without truncating: 'w' would empty the file before the lock
+    # is even attempted, erasing the holder's pid for the very caller that
+    # needs to report it.
+    with lock_path.open('a+') as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            holder = _lock_holder(lock_path)
+            msg = (
+                f'another process holds the binsim ledger at '
+                f'{lock_path.parent}{holder}; stop it before running this '
+                f'command'
+            )
+            raise StateDirLockedError(msg) from exc
+
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f'{os.getpid()}\n')
+        handle.flush()
+
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _lock_holder(lock_path: Path) -> str:
+
+    '''Return a parenthesised pid for the lock holder, or empty.
+
+    Best effort: the file is written by whoever holds the lock, and a
+    reader that cannot see it still gets a usable message.
+
+    Args:
+        lock_path (Path): Lock file to read.
+
+    Returns:
+        str: ` (held by pid N)` or an empty string.
+    '''
+
+    try:
+        recorded = lock_path.read_text().strip()
+    except OSError:
+        return ''
+
+    return f' (held by pid {recorded})' if recorded else ''
 _QUOTE_ASSET = 'USDT'
 _BASE_ASSET = 'BTC'
 
@@ -54,6 +138,11 @@ def _fee_asset_for(side: OrderSide) -> str:
     return _BASE_ASSET if side is OrderSide.BUY else _QUOTE_ASSET
 _ZERO = Decimal(0)
 _API_KEY_BYTES = 32
+
+
+class StateDirLockedError(RuntimeError):
+
+    '''Raised when another process already holds a state directory's ledger.'''
 
 
 class InsufficientBalanceError(Exception):
