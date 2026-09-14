@@ -13,7 +13,7 @@ import logging
 import threading
 from decimal import Decimal
 
-from praxis.core.domain.enums import OrderStatus
+from praxis.core.domain.enums import OrderSide, OrderStatus
 from praxis.core.domain.events import (
     BracketInitialized,
     LadderAmendAborted,
@@ -62,6 +62,8 @@ from praxis.core.domain.order import Order
 from praxis.core.domain.position import Position
 
 __all__ = ['TradingState']
+
+_BASE_ASSET = 'BTC'
 
 _log = logging.getLogger(__name__)
 
@@ -413,11 +415,50 @@ class TradingState:
         else:
             order.status = OrderStatus.PARTIALLY_FILLED
 
+    @staticmethod
+    def _position_qty(event: FillReceived) -> Decimal:
+
+        '''Return the base quantity a fill adds to or removes from holdings.
+
+        The commission is charged in the asset the side receives, so it is
+        the buy that arrives short: a sell's commission is quote and leaves
+        the base leg exact.
+
+        Args:
+            event (FillReceived): Fill being projected.
+
+        Returns:
+            Decimal: Base quantity actually delivered by this fill.
+        '''
+
+        if event.side is OrderSide.BUY and event.fee_asset == _BASE_ASSET:
+            return event.qty - event.fee
+
+        return event.qty
+
     def _update_position_on_fill(self, event: FillReceived) -> None:
 
-        '''Update or create position from fill.'''
+        '''Update or create position from fill, net of a base commission.
+
+        A position is inventory: it must say what the account holds. A spot
+        venue charges a taker commission in the asset the trade receives, so
+        a buy delivers `qty - fee` base while reporting a gross `qty`.
+        Crediting the gross quantity left a position above the wallet by the
+        commission on every buy, which compounds: a trade closed by selling
+        everything actually held then left a remainder open above the lot
+        step, and a flatten sized from the position asked for more base than
+        the account had.
+
+        `AccountLedger` already nets it out of its lots, so this is what
+        makes the two agree. Command-level fill totals stay gross, because
+        those answer a different question — a command that ordered a
+        quantity and received it is complete, and the commission is a cost
+        rather than a shortfall.
+
+        '''
 
         key = (event.trade_id, event.account_id)
+        qty = self._position_qty(event)
 
         with self._positions_lock:
             pos = self.positions.get(key)
@@ -428,20 +469,20 @@ class TradingState:
                     trade_id=event.trade_id,
                     symbol=event.symbol,
                     side=event.side,
-                    qty=event.qty,
+                    qty=qty,
                     avg_entry_price=event.price,
                     strategy_id=self.trade_strategy_ids.get(event.trade_id),
                 )
                 return
 
             if event.side == pos.side:
-                new_qty = pos.qty + event.qty
+                new_qty = pos.qty + qty
                 pos.avg_entry_price = (
-                    (pos.qty * pos.avg_entry_price + event.qty * event.price) / new_qty
+                    (pos.qty * pos.avg_entry_price + qty * event.price) / new_qty
                 )
                 pos.qty = new_qty
             else:
-                new_qty = pos.qty - event.qty
+                new_qty = pos.qty - qty
                 if new_qty < _ZERO:
                     _log.warning(
                         'position qty went negative: trade_id=%s account=%s qty=%s',

@@ -639,7 +639,7 @@ async def test_trading_start_replays_events_into_account_state() -> None:
 
     state = trading.execution_manager._accounts['acc-1'].trading_state
     assert ('trade-1', 'acc-1') in state.positions
-    assert state.positions[('trade-1', 'acc-1')].qty == Decimal('1')
+    assert state.positions[('trade-1', 'acc-1')].qty == Decimal('0.999')
     assert 'SS-abc-00' in state.orders
     assert trading.execution_manager._accepted_commands == {
         'cmd-1': 'acc-1', 'cmd-2': 'acc-1',
@@ -2547,7 +2547,7 @@ async def test_concurrent_ws_fills_no_corruption(spine: EventSpine) -> None:
     for i in range(5):
         assert (f'trade-{i}', 'acc-1') in state.positions
         pos = state.positions[(f'trade-{i}', 'acc-1')]
-        assert pos.qty == Decimal('1')
+        assert pos.qty == Decimal('0.999')
 
     await trading.stop()
 
@@ -2626,8 +2626,8 @@ async def test_concurrent_fills_and_reconciliation_no_corruption(spine: EventSpi
     state = trading._execution_manager._accounts['acc-1'].trading_state
     assert ('trade-ws', 'acc-1') in state.positions
     assert ('trade-recon', 'acc-1') in state.positions
-    assert state.positions[('trade-ws', 'acc-1')].qty == Decimal('1')
-    assert state.positions[('trade-recon', 'acc-1')].qty == Decimal('1')
+    assert state.positions[('trade-ws', 'acc-1')].qty == Decimal('0.999')
+    assert state.positions[('trade-recon', 'acc-1')].qty == Decimal('0.999')
 
     await trading.stop()
 

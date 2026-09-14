@@ -3136,7 +3136,7 @@ class TestTradeClosedPositionSemantics:
 
         positions = mgr.pull_positions(_ACCT)
         assert (_TRADE, _ACCT) in positions
-        assert positions[(_TRADE, _ACCT)].qty == Decimal('1')
+        assert positions[(_TRADE, _ACCT)].qty == Decimal('0.999')
 
     @pytest.mark.asyncio
     async def test_closing_fill_emits_trade_closed_and_clears_position(
@@ -3166,7 +3166,7 @@ class TestTradeClosedPositionSemantics:
                 immediate_fills=(
                     ImmediateFill(
                         venue_trade_id='t-exit',
-                        qty=Decimal('0.99999'),
+                        qty=Decimal('0.99899'),
                         price=Decimal('51000'),
                         fee=Decimal('0.001'),
                         fee_asset='BTC',
@@ -3179,7 +3179,7 @@ class TestTradeClosedPositionSemantics:
         await mgr.submit_command(**_CMD_KWARGS)
         await asyncio.sleep(0.3)
 
-        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('0.99999')}
+        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('0.99899')}
         await mgr.submit_command(**exit_kwargs)
         await asyncio.sleep(0.3)
 
@@ -3248,7 +3248,7 @@ class TestTradeClosedPositionSemantics:
         assert 'TradeClosed' not in types
 
         positions = mgr.pull_positions(_ACCT)
-        assert positions[(_TRADE, _ACCT)].qty == Decimal('0.6')
+        assert positions[(_TRADE, _ACCT)].qty == Decimal('0.599')
 
     @pytest.mark.asyncio
     async def test_sub_lot_residue_exit_emits_trade_closed(
@@ -3286,7 +3286,7 @@ class TestTradeClosedPositionSemantics:
                 immediate_fills=(
                     ImmediateFill(
                         venue_trade_id='t-exit',
-                        qty=Decimal('0.99999'),
+                        qty=Decimal('0.99899'),
                         price=Decimal('51000'),
                         fee=Decimal('0.001'),
                         fee_asset='BTC',
@@ -3299,7 +3299,7 @@ class TestTradeClosedPositionSemantics:
         await mgr.submit_command(**_CMD_KWARGS)
         await asyncio.sleep(0.3)
 
-        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('0.99999')}
+        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('0.99899')}
         await mgr.submit_command(**exit_kwargs)
         await asyncio.sleep(0.3)
 
@@ -3351,7 +3351,7 @@ class TestTradeClosedPositionSemantics:
         await mgr.submit_command(**_CMD_KWARGS)
         await asyncio.sleep(0.3)
 
-        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('1')}
+        exit_kwargs = {**_CMD_KWARGS, 'side': OrderSide.SELL, 'qty': Decimal('0.99899')}
         await mgr.submit_command(**exit_kwargs)
         await asyncio.sleep(0.3)
 

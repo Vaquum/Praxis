@@ -102,6 +102,7 @@ def _fill_event(
     qty: Decimal = Decimal('1'),
     price: Decimal = Decimal('50000'),
     side: OrderSide = OrderSide.BUY,
+    fee: Decimal = Decimal('0'),
 ) -> FillReceived:
 
     return FillReceived(
@@ -116,7 +117,7 @@ def _fill_event(
         side=side,
         qty=qty,
         price=price,
-        fee=Decimal('0.001'),
+        fee=fee,
         fee_asset='BTC',
         is_maker=True,
     )
@@ -797,3 +798,65 @@ def test_late_fill_on_a_filled_order_does_not_close_it_twice() -> None:
 
     assert closed.status == OrderStatus.FILLED
     assert closed.filled_qty == Decimal('1.5')
+
+
+def test_a_buy_position_is_net_of_its_base_commission() -> None:
+
+    '''A position must say what the account holds, not what the venue quoted.
+
+    A spot venue charges a taker commission in the asset the trade
+    receives, so a buy reporting a gross quantity delivers `qty - fee`.
+    Crediting the gross quantity put the position above the wallet by the
+    commission on every buy, and `AccountLedger` already nets it out of its
+    lots, so the two disagreed about the same trade.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1'), fee=Decimal('0.001')))
+
+    pos = state.positions[(_TRADE, _ACCT)]
+
+    assert pos.qty == Decimal('0.999')
+
+
+def test_a_sell_position_is_not_reduced_by_a_quote_commission() -> None:
+
+    '''A sell's commission is quote, so its base leg is exact.
+
+    Netting it out of the base quantity would under-reduce the position and
+    leave a residue that never closes.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('2')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('2'),
+            side=OrderSide.SELL,
+        ),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions
+
+
+def test_selling_what_is_held_closes_the_position() -> None:
+
+    '''The defect this prevents: a full close leaving a phantom remainder.
+
+    Buying 1 and selling everything the account received used to leave the
+    commission behind as an open position above the lot step, so the trade
+    stayed open against inventory that no longer existed.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1'), fee=Decimal('0.001')))
+
+    held = state.positions[(_TRADE, _ACCT)].qty
+
+    state.apply(
+        _fill_event(client_order_id='sell-1', qty=held, side=OrderSide.SELL),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions, (
+        'selling the full held quantity left a position open'
+    )
