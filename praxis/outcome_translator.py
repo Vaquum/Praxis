@@ -7,6 +7,15 @@ The Praxis `TradeOutcome` carries cumulative aggregate state per command
 `remaining_size`). The two share only `command_id`; bridging them is a
 launcher-side concern so neither subsystem leaks types into the other.
 
+`execution_slippage_bps` and `arrival_slippage_bps` stop here. The Praxis
+outcome carries both and the Event Spine persists them, so they survive a
+restart and are available to anything reading the spine, but the Nexus
+outcome has no field for either and the translator does not invent one.
+Carrying them across needs a field on the Nexus side, which is a change in
+that repository rather than a shape this translator can widen; tracked as
+Vaquum/Nexus#112. Nothing is lost while that is open — the measures are on
+the Praxis outcome and persisted on the spine.
+
 A single Praxis outcome can produce zero, one, or two Nexus outcomes
 depending on prior state:
 

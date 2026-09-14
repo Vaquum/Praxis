@@ -484,7 +484,11 @@ class Trading:
 
         Args:
             cb: Sync `(ProtectionRemediation) -> None`, async equivalent, any
-                callable returning an awaitable, or `None` to clear.
+                callable returning an awaitable, or `None` to clear. `None`
+                is passed through rather than adapted: the execution manager
+                reads `None` as nobody listening and holds remediations
+                pending, where a no-op adapter would let it record each one
+                as delivered and drop it for good.
 
         Raises:
             RuntimeError: If called once `start()` has begun.
@@ -493,7 +497,7 @@ class Trading:
         self._refuse_after_start('set_on_protection_remediation')
 
         self._execution_manager.set_on_protection_remediation(
-            _wrap_event_callback(cb),
+            None if cb is None else _wrap_event_callback(cb),
         )
 
     async def start(self) -> None:

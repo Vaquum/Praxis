@@ -58,6 +58,35 @@ class TradeOutcome:
             `total_notional / filled_qty` for `avg_fill_price`). Must be
             non-negative; must be zero when `filled_qty` is zero. Default
             `_ZERO` for synthetic / no-fill outcomes (boot-orphan REJECTED).
+        execution_slippage_bps (Decimal | None): Signed displacement of
+            `avg_fill_price` from the mid price sampled before submission,
+            in basis points, as `(avg - mid) / mid * 10000`. Not an
+            execution cost: it is not adjusted for side, so a SELL filling
+            below the mid reads negative while being the worse outcome.
+            None means no measurement is attached to this outcome, which
+            covers a command with no estimate, nothing filled, a record
+            written before the field existed, and — the case most likely
+            to surprise — any outcome from a producer that does not
+            measure. Only the submitting path holds the pre-submission
+            estimate, so a WebSocket-driven outcome for the same command
+            reports None even where an earlier immediate one carried a
+            number.
+        arrival_slippage_bps (Decimal | None): Signed displacement of
+            `avg_fill_price` from the decision layer's reference price, in
+            basis points, on the same terms and with the same meaning of
+            None.
+
+    Both are measured against `avg_fill_price` as reported here, which is
+    the average of the fills admitted against `target_qty` rather than of
+    every fill the venue returned. They are displacements of an execution
+    price, exclusive of commission — not an all-in acquisition cost — and
+    they do not describe an overfill's excess, which was never part of the
+    trade requested.
+
+    `filled_qty` is the only quantity these may be multiplied by. Joining
+    them to a position or a wallet balance mixes populations: both carry
+    what the venue delivered net of commission, which is neither the
+    quantity these measure nor priced by them (see TD-156).
     '''
 
     command_id: str
@@ -72,6 +101,8 @@ class TradeOutcome:
     reason: str | None
     created_at: datetime
     cumulative_notional: Decimal = _ZERO
+    execution_slippage_bps: Decimal | None = None
+    arrival_slippage_bps: Decimal | None = None
 
     def __post_init__(self) -> None:
 

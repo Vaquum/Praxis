@@ -45,6 +45,11 @@ class Order:
             exclusive with `quote_qty`; exactly one must be set.
         quote_qty (Decimal | None): Quote-asset spend for quote-native
             MARKET BUY. Mutually exclusive with `qty`.
+        base_fee (Decimal): Commission this order was charged in the base
+            asset, accumulated across its fills. A spot venue charges a
+            buy's commission in the asset received, so the order delivered
+            `filled_qty - base_fee`; anything sizing a sell needs that
+            rather than the quantity the venue reported filling.
         filled_qty (Decimal): Cumulative filled quantity, must be non-negative.
         cumulative_notional (Decimal): Running total of fill_qty * fill_price for VWAP.
         price (Decimal | None): Limit price, must be positive if set. None for market orders.
@@ -70,6 +75,7 @@ class Order:
     created_at: datetime
     updated_at: datetime
     quote_qty: Decimal | None = None
+    base_fee: Decimal = _ZERO
 
     @property
     def is_quote_native(self) -> bool:

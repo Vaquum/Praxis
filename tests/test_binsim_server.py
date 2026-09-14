@@ -256,8 +256,8 @@ async def test_account_reflects_post_fill_balances(tmp_path: Path) -> None:
         )
         payload = await resp.json()
         balances = {b['asset']: b for b in payload['balances']}
-        assert Decimal(balances['USDT']['free']) == Decimal('10000') - Decimal('10') - Decimal('0.01')
-        assert Decimal(balances['BTC']['free']) == Decimal('0.6')
+        assert Decimal(balances['USDT']['free']) == Decimal('10000') - Decimal('10')
+        assert Decimal(balances['BTC']['free']) == Decimal('0.6') - Decimal('0.01')
     finally:
         await client.close()
 
@@ -462,6 +462,8 @@ async def _make_client_with_fresh_book(
     return client, book, ledger, poller, signed_headers
 
 
+_MIN_NOTIONAL_FOR_TEST = Decimal('5.00000000')
+
 _POST_BASE_PARAMS = {
     'symbol': 'BTCUSDT',
     'side': 'BUY',
@@ -470,6 +472,190 @@ _POST_BASE_PARAMS = {
     'newClientOrderId': 'cid-1',
     'signature': 'deadbeef',
 }
+
+
+@pytest.mark.asyncio
+async def test_notional_filter_is_priced_without_slippage(
+    tmp_path: Path,
+) -> None:
+
+    '''The notional filter must be evaluated at the reference price.
+
+    The venue prices this filter independently of the order. Evaluating it
+    on the executed notional instead lets slippage decide the outcome: an
+    order too small to meet the minimum at the mid walks into worse levels,
+    and the notional it accrues on the way carries it over a threshold it
+    should have been rejected against.
+    '''
+
+    client, book, _, _, signed_headers = await _make_client_with_fresh_book(
+        tmp_path,
+    )
+
+    # 0.002 at the 1.00 top of book is a notional of 0.002, far under the
+    # 5.00 minimum. Walking into the 10000.00 level accrues 10.001, which
+    # an executed-notional check would accept.
+    book.replace(
+        [(Decimal('0.50'), Decimal('100.0'))],
+        [(Decimal('1.00'), Decimal('0.001')), (Decimal('10000.00'), Decimal('1.0'))],
+        _UID + 1,
+        _TS,
+    )
+
+    try:
+        resp = await client.post(
+            '/api/v3/order',
+            headers=signed_headers,
+            params={**_POST_BASE_PARAMS, 'quantity': '0.002'},
+        )
+
+        assert resp.status == 400
+
+        payload = await resp.json()
+
+        assert payload['code'] == -1013
+        assert 'NOTIONAL' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_quote_order_reports_a_quantity_on_the_lot_step(
+    tmp_path: Path,
+) -> None:
+
+    '''A quote-denominated buy must report a tradeable base quantity.
+
+    Dividing a spend by price reaches a quantity at full Decimal
+    precision, which the symbol does not trade at. The ladder itself is
+    trimmed to the step, so the executed quantity, the quantity settled
+    into the ledger and the quantity reported all agree and all sit on the
+    step — snapping only the reported total would leave the books holding
+    a quantity the venue would never fill.
+    '''
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(
+        tmp_path,
+    )
+
+    try:
+        resp = await client.post(
+            '/api/v3/order',
+            headers=signed_headers,
+            params={
+                'symbol': 'BTCUSDT',
+                'side': 'BUY',
+                'type': 'MARKET',
+                'quoteOrderQty': '50.00',
+                'newClientOrderId': 'cid-quote-step',
+                'signature': 'deadbeef',
+            },
+        )
+
+        assert resp.status == 200
+
+        payload = await resp.json()
+        executed = Decimal(payload['executedQty'])
+
+        # 50.00 / 101.00 divides to 0.4950495049... , which the symbol
+        # cannot trade; the ladder is trimmed to the step below it.
+        assert executed == Decimal('0.49504')
+        assert executed % Decimal('0.00001') == Decimal('0')
+        assert payload['origQty'] == payload['executedQty']
+
+        settled = sum(
+            (Decimal(f['qty']) for f in payload['fills']), Decimal('0'),
+        )
+
+        assert settled == executed
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_a_quantity_off_the_lot_step(
+    tmp_path: Path,
+) -> None:
+
+    '''A quantity the advertised LOT_SIZE filter forbids must be rejected.
+
+    `exchangeInfo` advertises a step size, a minimum and a maximum, and the
+    order path did not apply any of them: orders off the step were filled
+    and reported at a precision the symbol does not trade at, where the
+    venue answers -1013.
+    '''
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        resp = await client.post(
+            '/api/v3/order',
+            headers=signed_headers,
+            params={**_POST_BASE_PARAMS, 'quantity': '0.500005'},
+        )
+
+        assert resp.status == 400
+
+        payload = await resp.json()
+
+        assert payload['code'] == -1013
+        assert 'LOT_SIZE' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_a_quantity_below_the_minimum(
+    tmp_path: Path,
+) -> None:
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        resp = await client.post(
+            '/api/v3/order',
+            headers=signed_headers,
+            params={**_POST_BASE_PARAMS, 'quantity': '0.000001'},
+        )
+
+        assert resp.status == 400
+
+        payload = await resp.json()
+
+        assert payload['code'] == -1013
+        assert 'LOT_SIZE' in payload['msg']
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_order_rejects_a_notional_below_the_minimum(
+    tmp_path: Path,
+) -> None:
+
+    '''An executed notional under minNotional must be rejected.
+
+    The filter is advertised and was never applied, so dust orders the
+    venue answers -1013 for were filled and settled instead.
+    '''
+
+    client, _, _, _, signed_headers = await _make_client_with_fresh_book(tmp_path)
+
+    try:
+        resp = await client.post(
+            '/api/v3/order',
+            headers=signed_headers,
+            params={**_POST_BASE_PARAMS, 'quantity': '0.00001'},
+        )
+
+        assert resp.status == 400
+
+        payload = await resp.json()
+
+        assert payload['code'] == -1013
+        assert 'NOTIONAL' in payload['msg']
+    finally:
+        await client.close()
 
 
 @pytest.mark.asyncio
@@ -498,8 +684,8 @@ async def test_post_order_buy_fills_walks_book_returns_fills(tmp_path: Path) -> 
         assert len(fills) == 1
         assert fills[0]['price'] == '101.00'
         assert fills[0]['qty'] == '0.5'
-        assert fills[0]['commissionAsset'] == 'USDT'
-        assert Decimal(fills[0]['commission']) == Decimal('101.00') * Decimal('0.5') * Decimal('0.001')
+        assert fills[0]['commissionAsset'] == 'BTC'
+        assert Decimal(fills[0]['commission']) == Decimal('0.5') * Decimal('0.001')
     finally:
         await client.close()
 
@@ -656,9 +842,9 @@ async def test_post_order_updates_ledger_balances(tmp_path: Path) -> None:
 
         usdt, btc = await ledger.balance(_ACCOUNT_ID)
         expected_notional = Decimal('101.00') * Decimal('0.5')
-        expected_fee = expected_notional * Decimal('0.001')
-        assert usdt == Decimal('10000') - expected_notional - expected_fee
-        assert btc == Decimal('0.5') + Decimal('0.5')
+        expected_fee = Decimal('0.5') * Decimal('0.001')
+        assert usdt == Decimal('10000') - expected_notional
+        assert btc == Decimal('0.5') + Decimal('0.5') - expected_fee
     finally:
         await client.close()
 

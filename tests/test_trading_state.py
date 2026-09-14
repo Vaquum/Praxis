@@ -102,6 +102,7 @@ def _fill_event(
     qty: Decimal = Decimal('1'),
     price: Decimal = Decimal('50000'),
     side: OrderSide = OrderSide.BUY,
+    fee: Decimal = Decimal('0'),
 ) -> FillReceived:
 
     return FillReceived(
@@ -116,7 +117,7 @@ def _fill_event(
         side=side,
         qty=qty,
         price=price,
-        fee=Decimal('0.001'),
+        fee=fee,
         fee_asset='BTC',
         is_maker=True,
     )
@@ -797,3 +798,245 @@ def test_late_fill_on_a_filled_order_does_not_close_it_twice() -> None:
 
     assert closed.status == OrderStatus.FILLED
     assert closed.filled_qty == Decimal('1.5')
+
+
+def test_a_buy_position_is_net_of_its_base_commission() -> None:
+
+    '''A position must say what the account holds, not what the venue quoted.
+
+    A spot venue charges a taker commission in the asset the trade
+    receives, so a buy reporting a gross quantity delivers `qty - fee`.
+    Crediting the gross quantity put the position above the wallet by the
+    commission on every buy, and `AccountLedger` already nets it out of its
+    lots, so the two disagreed about the same trade.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1'), fee=Decimal('0.001')))
+
+    pos = state.positions[(_TRADE, _ACCT)]
+
+    assert pos.qty == Decimal('0.999')
+
+
+def test_a_sell_position_is_not_reduced_by_a_quote_commission() -> None:
+
+    '''A sell's commission is quote, so its base leg is exact.
+
+    Netting it out of the base quantity would under-reduce the position and
+    leave a residue that never closes.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('2')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('2'),
+            side=OrderSide.SELL,
+        ),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions
+
+
+def test_selling_what_is_held_closes_the_position() -> None:
+
+    '''The defect this prevents: a full close leaving a phantom remainder.
+
+    Buying 1 and selling everything the account received used to leave the
+    commission behind as an open position above the lot step, so the trade
+    stayed open against inventory that no longer existed.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1'), fee=Decimal('0.001')))
+
+    held = state.positions[(_TRADE, _ACCT)].qty
+
+    state.apply(
+        _fill_event(client_order_id='sell-1', qty=held, side=OrderSide.SELL),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions, (
+        'selling the full held quantity left a position open'
+    )
+
+
+def test_an_exactly_emptied_position_is_reported_once() -> None:
+
+    '''The close marker must fire once and only for a real emptying.
+
+    A reducing fill that lands exactly on zero removes the position, so the
+    close cannot be recognised from the projection afterwards. Treating
+    every absent position as closed would report a close for a trade that
+    never opened one, so the emptying itself is what is recorded, and the
+    durable close is what retires it.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True
+
+    # Reading does not retire it: an append that fails must leave the close
+    # to be produced on the next attempt rather than lose it with the read.
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True
+
+    state.apply(TradeClosed(
+        account_id=_ACCT, timestamp=_TS2, trade_id=_TRADE, command_id=_CMD,
+    ))
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
+
+
+def test_a_trade_that_never_opened_reports_no_close() -> None:
+
+    state = TradingState(_ACCT)
+
+    assert state.has_emptied_marker('trade-never', _ACCT) is False
+
+
+def test_a_partial_reduction_sets_no_close_marker() -> None:
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('2')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
+
+
+def test_a_replayed_close_retires_its_own_marker() -> None:
+
+    '''Replaying a completed close must not leave a second one owed.
+
+    Replay reprojects the fill that emptied the position, setting the
+    marker again, and then reprojects the close that already answered it.
+    The close retiring its own marker is what keeps a rebuilt history from
+    producing a duplicate.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+    state.apply(TradeClosed(
+        account_id=_ACCT, timestamp=_TS2, trade_id=_TRADE, command_id=_CMD,
+    ))
+
+    assert (_TRADE, _ACCT) not in state.positions
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False
+
+
+def test_a_close_lost_to_a_crash_is_still_owed_after_replay() -> None:
+
+    '''A history ending between the fill and its close still owes one.
+
+    The reducing fill is durable and the close is not — the crash window.
+    Clearing markers wholesale at the end of replay closed the duplicate
+    case and silently discarded this one, leaving the ledger's trade open
+    with nothing left to reopen it.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    assert (_TRADE, _ACCT) not in state.positions
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True
+
+
+def test_an_order_accumulates_the_commission_charged_in_base() -> None:
+
+    '''An order must record what it was charged in the asset it received.
+
+    Exposure is reconstructed from order totals — how much of an entry is
+    still held, how much a protective amend must cover, whether an exit
+    closed it. Those totals report what the venue filled, and a buy delivers
+    less, so without the commission beside them a fully exited trade looks
+    to be holding the fee and is routed into flattening for it.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_submit_intent())
+    state.apply(_submitted())
+    state.apply(_fill_event(qty=Decimal('1'), fee=Decimal('0.001')))
+
+    order = state.orders.get(_ORDER) or state.closed_orders.get(_ORDER)
+
+    assert order is not None
+    assert order.filled_qty == Decimal('1')
+    assert order.base_fee == Decimal('0.001')
+    assert order.filled_qty - order.base_fee == Decimal('0.999')
+
+
+def test_a_sell_records_no_base_commission() -> None:
+
+    '''A sell is charged in quote, so its base leg is exact.'''
+
+    state = TradingState(_ACCT)
+    state.apply(_submit_intent())
+    state.apply(_submitted())
+    state.apply(
+        _fill_event(qty=Decimal('1'), side=OrderSide.SELL, fee=Decimal('5')),
+    )
+
+    order = state.orders.get(_ORDER) or state.closed_orders.get(_ORDER)
+
+    assert order is not None
+    assert order.base_fee == Decimal('0')
+
+
+def test_two_emptyings_before_either_close_owe_two() -> None:
+
+    '''Each emptying owes its own close.
+
+    A trade id whose position is emptied, re-opened and emptied again
+    before either close becomes durable owes two. Recording the fact as a
+    flag rather than a count would report one, and the second close would
+    never be produced.
+    '''
+
+    state = TradingState(_ACCT)
+    state.apply(_fill_event(qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-1', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+    state.apply(_fill_event(client_order_id='buy-2', qty=Decimal('1')))
+    state.apply(
+        _fill_event(
+            client_order_id='sell-2', qty=Decimal('1'), side=OrderSide.SELL,
+        ),
+    )
+
+    closed = TradeClosed(
+        account_id=_ACCT, timestamp=_TS2, trade_id=_TRADE, command_id=_CMD,
+    )
+
+    state.apply(closed)
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is True, (
+        'the second close was dropped by the first'
+    )
+
+    state.apply(closed)
+
+    assert state.has_emptied_marker(_TRADE, _ACCT) is False

@@ -5,9 +5,11 @@ Default invocation runs the HTTP+WS server:
     python -m praxis.binsim
 
 The `register` subcommand mints an api_key for a new account, prints
-it on stdout, and exits. The server MUST be stopped before running
-`register` — both processes write the same ledger snapshot file and
-have no inter-process lock:
+it on stdout, and exits. The server must be stopped before running
+`register`: both write the same ledger snapshot whole, so whichever
+writes second discards the other's work. That is enforced by an
+exclusive advisory lock on the state directory rather than left to the
+operator, and `register` exits non-zero while a server holds it:
 
     python -m praxis.binsim register --account-id acc-1 --initial-usdt 10000
 '''
@@ -25,7 +27,11 @@ from pathlib import Path
 
 from praxis.binsim.book import OrderBook
 from praxis.binsim.feed import DepthPoller
-from praxis.binsim.ledger import Ledger
+from praxis.binsim.ledger import (
+    Ledger,
+    StateDirLockedError,
+    exclusive_state_lock,
+)
 from praxis.binsim.server import BinsimServer
 from praxis.infrastructure.observability import configure_logging, get_logger
 
@@ -241,10 +247,13 @@ async def _register(
     initial_btc: Decimal,
 ) -> str:
 
-    ledger = Ledger(state_dir)
-    await ledger.load()
+    with exclusive_state_lock(state_dir):
+        ledger = Ledger(state_dir)
+        await ledger.load()
 
-    return await ledger.register_account(account_id, initial_usdt, initial_btc)
+        return await ledger.register_account(
+            account_id, initial_usdt, initial_btc,
+        )
 
 
 def _parse_decimal_arg(name: str, raw: str) -> Decimal:
@@ -280,9 +289,15 @@ def main(argv: list[str] | None = None) -> None:
         initial_usdt = _parse_decimal_arg('initial-usdt', args.initial_usdt)
         initial_btc = _parse_decimal_arg('initial-btc', args.initial_btc)
 
-        minted = asyncio.run(
-            _register(Path(state_dir_raw), args.account_id, initial_usdt, initial_btc),
-        )
+        try:
+            minted = asyncio.run(
+                _register(
+                    Path(state_dir_raw), args.account_id,
+                    initial_usdt, initial_btc,
+                ),
+            )
+        except StateDirLockedError as exc:
+            raise SystemExit(str(exc)) from exc
         # Intended: print the minted api_key on stdout so the operator
         # can capture it. The ledger only persists a SHA-256 hash, so
         # this is the operator's one chance to grab it.
@@ -291,7 +306,12 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     config = _parse_env(dict(os.environ))
-    asyncio.run(_run(config))
+
+    try:
+        with exclusive_state_lock(config.state_dir):
+            asyncio.run(_run(config))
+    except StateDirLockedError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == '__main__':

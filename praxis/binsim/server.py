@@ -82,6 +82,7 @@ _BINANCE_CODE_BAD_REQUEST = -1100
 _BINANCE_CODE_UNKNOWN_SYMBOL = -1121
 _BINANCE_CODE_ORDER_REJECTED = -2010
 _BINANCE_CODE_NO_SUCH_ORDER = -2013
+_BINANCE_CODE_FILTER_FAILURE = -1013
 
 _VALID_SIDES = ('BUY', 'SELL')
 _VALID_TYPES = ('MARKET',)
@@ -98,20 +99,43 @@ _SYMBOL: Final[str] = 'BTCUSDT'
 _BASE_ASSET: Final[str] = 'BTC'
 _QUOTE_ASSET: Final[str] = 'USDT'
 
+# Verified against Binance's published BTCUSDT filters. `maxNotional`
+# (9000000) and `applyMaxToMarket` (false) are omitted because the venue
+# does not apply that ceiling to market orders and binsim is market-only,
+# `MARKET_LOT_SIZE` is omitted as an accepted scope restriction, not as an
+# equivalence: the venue publishes a maxQty (128.60889380 at the time of
+# capture) below the 9000 enforced here, so a market order between the two
+# is accepted here and rejected there. That size is far outside anything
+# Praxis submits, and the published value changes, so pinning it would go
+# stale silently.
+_TICK_SIZE: Final[Decimal] = Decimal('0.01000000')
+_STEP_SIZE: Final[Decimal] = Decimal('0.00001000')
+_MIN_QTY: Final[Decimal] = Decimal('0.00001000')
+_MAX_QTY: Final[Decimal] = Decimal('9000.00000000')
+_MIN_NOTIONAL: Final[Decimal] = Decimal('5.00000000')
+_AVG_PRICE_MINS: Final[int] = 5
+
+# Advertised from the same constants the order path enforces, so the two
+# cannot drift: the filters were previously published and never applied.
 _FILTERS_PAYLOAD: Final[dict[str, object]] = {
     'symbol': _SYMBOL,
     'status': 'TRADING',
     'baseAsset': _BASE_ASSET,
     'quoteAsset': _QUOTE_ASSET,
     'filters': [
-        {'filterType': 'PRICE_FILTER', 'tickSize': '0.01000000'},
+        {'filterType': 'PRICE_FILTER', 'tickSize': str(_TICK_SIZE)},
         {
             'filterType': 'LOT_SIZE',
-            'stepSize': '0.00001000',
-            'minQty': '0.00001000',
-            'maxQty': '9000.00000000',
+            'stepSize': str(_STEP_SIZE),
+            'minQty': str(_MIN_QTY),
+            'maxQty': str(_MAX_QTY),
         },
-        {'filterType': 'NOTIONAL', 'minNotional': '5.00000000'},
+        {
+            'filterType': 'NOTIONAL',
+            'minNotional': str(_MIN_NOTIONAL),
+            'applyMinToMarket': True,
+            'avgPriceMins': _AVG_PRICE_MINS,
+        },
     ],
 }
 
@@ -413,7 +437,9 @@ async def _submit_order(request: web.Request) -> web.Response:
                 ),
             )
 
+        walk = _rewalk_on_step(book, side, walk)
         qty = sum((q for _, q in walk), Decimal('0'))
+        _enforce_lot_size(qty)
     else:
         qty = _parse_decimal_param(qty_raw, 'quantity')
 
@@ -422,6 +448,8 @@ async def _submit_order(request: web.Request) -> web.Response:
                 status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_BAD_REQUEST,
                 msg=f'quantity must be positive, got {qty_raw!r}',
             )
+
+        _enforce_lot_size(qty)
 
         try:
             walk = book.consume_qty_for_market_order(side, qty)
@@ -445,10 +473,20 @@ async def _submit_order(request: web.Request) -> web.Response:
 
     filled_qty = sum((q for _, q in walk), Decimal('0'))
 
+    # A taker commission is charged in the asset the trade receives: base
+    # on a BUY, quote on a SELL.
     fills_with_fees = [
-        (price, level_qty, level_qty * price * _TAKER_FEE_RATE)
+        (
+            price,
+            level_qty,
+            level_qty * _TAKER_FEE_RATE
+            if side is OrderSide.BUY
+            else level_qty * price * _TAKER_FEE_RATE,
+        )
         for price, level_qty in walk
     ]
+
+    _enforce_min_notional(filled_qty, _reference_price(book))
 
     try:
         order_id, records = await ledger.apply_order(
@@ -506,6 +544,155 @@ async def _submit_order(request: web.Request) -> web.Response:
             for record in records
         ],
     })
+
+
+def _snap_to_step(qty: Decimal) -> Decimal:
+
+    '''Round a quantity down to the advertised lot step.
+
+    The venue reports base quantities on the step, so a quote-denominated
+    order that divides out to arbitrary precision is truncated rather than
+    reported at a precision the symbol does not trade at.
+
+    Args:
+        qty (Decimal): Unsnapped base quantity.
+
+    Returns:
+        Decimal: Largest multiple of the step size not exceeding `qty`.
+    '''
+
+    return (qty // _STEP_SIZE) * _STEP_SIZE
+
+
+def _rewalk_on_step(
+    book: OrderBook,
+    side: OrderSide,
+    walk: list[tuple[Decimal, Decimal]],
+) -> list[tuple[Decimal, Decimal]]:
+
+    '''Re-walk a fill ladder for the largest quantity on the lot step.
+
+    A quote-denominated order divides a spend by price and reaches a
+    quantity the symbol cannot trade. The ladder is rebuilt for the step
+    below it rather than adjusted in place: summing the original ladder
+    rounds at the working precision before the excess is known, so
+    subtracting that excess from the final level leaves a quantity carrying
+    the error rather than the exact remainder. Walking the book again for
+    the snapped target derives each level from the book, so every quantity
+    is exact and the fills, the commissions and the reported total agree.
+
+    Args:
+        book (OrderBook): Book to re-walk.
+        side (OrderSide): Side being taken.
+        walk (list[tuple[Decimal, Decimal]]): Ladder from the quote walk.
+
+    Returns:
+        list[tuple[Decimal, Decimal]]: Ladder for the snapped quantity,
+            empty when nothing reaches a whole step.
+    '''
+
+    snapped = _snap_to_step(sum((qty for _, qty in walk), Decimal('0')))
+
+    if snapped <= Decimal('0'):
+        return []
+
+    return book.consume_qty_for_market_order(side, snapped)
+
+
+def _enforce_lot_size(qty: Decimal) -> None:
+
+    '''Reject a quantity the advertised LOT_SIZE filter forbids.
+
+    Args:
+        qty (Decimal): Requested base quantity.
+
+    Raises:
+        _BinsimHTTPError: quantity is below minQty, above maxQty, or off
+            the step.
+    '''
+
+    if qty < _MIN_QTY or qty > _MAX_QTY:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_FILTER_FAILURE,
+            msg=(
+                f'Filter failure: LOT_SIZE: quantity {qty} outside '
+                f'[{_MIN_QTY}, {_MAX_QTY}]'
+            ),
+        )
+
+    if qty % _STEP_SIZE != Decimal('0'):
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_FILTER_FAILURE,
+            msg=(
+                f'Filter failure: LOT_SIZE: quantity {qty} is not a multiple '
+                f'of stepSize {_STEP_SIZE}'
+            ),
+        )
+
+
+def _reference_price(book: OrderBook) -> Decimal | None:
+
+    '''Return the price the notional filter is evaluated against.
+
+    The venue evaluates this filter against a price it publishes
+    independently of the order, falling back to a volume-weighted average
+    over `avgPriceMins` minutes. binsim keeps only the current book, so it
+    substitutes the mid.
+
+    The mid rather than the top of the taken side, because the taken side
+    is biased by the spread and biased in opposite directions per side: a
+    BUY priced at the ask is credited a larger notional than the venue
+    would credit it and passes a minimum it should fail, while a SELL
+    priced at the bid is credited a smaller one and fails a minimum it
+    should pass. The mid is wrong by at most half the spread and wrong the
+    same way for both sides.
+
+    Two divergences from the venue remain and are accepted, not fixed. A
+    price above its own recent average — a pump — inflates the notional
+    here and admits sizes the venue would reject; a price below it rejects
+    sizes the venue would admit. A pass here is therefore not evidence that
+    the venue would accept the same order.
+
+    Args:
+        book (OrderBook): Book the order is priced against.
+
+    Returns:
+        Decimal | None: Mid price, or None when either side is empty.
+    '''
+
+    if not book.bids or not book.asks:
+        return None
+
+    return (book.bids[0][0] + book.asks[0][0]) / Decimal('2')
+
+
+def _enforce_min_notional(qty: Decimal, reference_price: Decimal | None) -> None:
+
+    '''Reject an order whose notional is below the advertised minimum.
+
+    Args:
+        qty (Decimal): Base quantity being ordered.
+        reference_price (Decimal | None): Price the filter is evaluated
+            against; the check is skipped when the book cannot price it,
+            since the staleness gate already refuses an unpriceable order.
+
+    Raises:
+        _BinsimHTTPError: notional is below minNotional.
+    '''
+
+    if reference_price is None:
+        return
+
+    notional = qty * reference_price
+
+    if notional < _MIN_NOTIONAL:
+        raise _binance_error(
+            status=_HTTP_BAD_REQUEST, code=_BINANCE_CODE_FILTER_FAILURE,
+            msg=(
+                f'Filter failure: NOTIONAL: notional {notional} below '
+                f'minNotional {_MIN_NOTIONAL}'
+            ),
+        )
 
 
 def _parse_decimal_param(raw: str | None, name: str) -> Decimal:

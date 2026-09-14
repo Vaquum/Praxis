@@ -40,6 +40,7 @@ from praxis.core.domain.events import (
     OrderRejected,
     OrderSubmitIntent,
     OrderSubmitted,
+    ProtectionRemediationDelivered,
     RegisterAccount,
     TradeOutcomeProduced,
 )
@@ -638,7 +639,7 @@ async def test_trading_start_replays_events_into_account_state() -> None:
 
     state = trading.execution_manager._accounts['acc-1'].trading_state
     assert ('trade-1', 'acc-1') in state.positions
-    assert state.positions[('trade-1', 'acc-1')].qty == Decimal('1')
+    assert state.positions[('trade-1', 'acc-1')].qty == Decimal('0.999')
     assert 'SS-abc-00' in state.orders
     assert trading.execution_manager._accepted_commands == {
         'cmd-1': 'acc-1', 'cmd-2': 'acc-1',
@@ -2546,7 +2547,7 @@ async def test_concurrent_ws_fills_no_corruption(spine: EventSpine) -> None:
     for i in range(5):
         assert (f'trade-{i}', 'acc-1') in state.positions
         pos = state.positions[(f'trade-{i}', 'acc-1')]
-        assert pos.qty == Decimal('1')
+        assert pos.qty == Decimal('0.999')
 
     await trading.stop()
 
@@ -2625,8 +2626,8 @@ async def test_concurrent_fills_and_reconciliation_no_corruption(spine: EventSpi
     state = trading._execution_manager._accounts['acc-1'].trading_state
     assert ('trade-ws', 'acc-1') in state.positions
     assert ('trade-recon', 'acc-1') in state.positions
-    assert state.positions[('trade-ws', 'acc-1')].qty == Decimal('1')
-    assert state.positions[('trade-recon', 'acc-1')].qty == Decimal('1')
+    assert state.positions[('trade-ws', 'acc-1')].qty == Decimal('0.999')
+    assert state.positions[('trade-recon', 'acc-1')].qty == Decimal('0.999')
 
     await trading.stop()
 
@@ -2912,6 +2913,50 @@ async def test_set_on_trade_outcome_clear_with_none(spine: EventSpine) -> None:
     trading.set_on_trade_outcome(None)
 
     assert trading.execution_manager._on_trade_outcome is None
+
+
+@pytest.mark.asyncio
+async def test_clearing_protection_remediation_leaves_them_pending(
+    spine: EventSpine,
+) -> None:
+    '''Clearing the callback must hold remediations, not record them delivered.
+
+    Adapting `None` into a no-op installs a listener that always succeeds, so
+    the drain's `is None` guard never fires: every pending remediation is
+    handed to the no-op, counted as delivered, dropped from the pending set,
+    and given a `ProtectionRemediationDelivered`. Boot replay skips
+    remediations with a recorded delivery, so a protection failure that was
+    never reported to Nexus is durably marked as reported.
+    '''
+
+    trading = Trading(config=TradingConfig(epoch_id=1), event_spine=spine)
+
+    trading.set_on_protection_remediation(None)
+
+    manager = trading.execution_manager
+
+    assert manager._on_protection_remediation is None
+
+    manager._record_protection_remediation(
+        account_id='acc-1',
+        command_id='cmd-prot',
+        protection_version=1,
+        reason='protective order rejected',
+    )
+
+    await manager.drain_protection_remediations('acc-1')
+
+    assert 'cmd-prot' in manager._pending_remediations, (
+        'a cleared callback must leave the remediation pending for the next '
+        'cycle, not consume it'
+    )
+
+    events = await spine.read(1, after_seq=0)
+
+    assert not [
+        event for event in events
+        if isinstance(event, ProtectionRemediationDelivered)
+    ], 'no delivery may be recorded when nobody was listening'
 
 
 @pytest.mark.asyncio

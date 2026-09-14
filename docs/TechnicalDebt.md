@@ -1490,3 +1490,57 @@ One residue: an id is never removed from that set when its flatten terminalizes,
 - A failed boot can exit with open size. That is the real outcome and it should be persisted for the next boot to adopt as owned recovery rather than swept as an orphan, not reported as a clean shutdown.
 
 **When to fix**: before live trading runs unattended across restarts. The pieces are an order-level risk-off marker, splitting the abort-ownership set from the do-not-cancel set, and a completion condition that distinguishes preserved from unresolved.
+
+## TD-156: An admitted overfill is invisible to Nexus's position and capital accounting
+
+**Origin**: issue #178 pre-merge review (codex and grok, consulted on the fill-admission contract)
+**Severity**: High — Praxis records and sizes the excess correctly, but Nexus carries a position short by it and capital reserved below what was actually spent, and an exit Nexus sizes from its own book leaves the residual behind
+**Module**: `praxis/core/execution_manager.py` (`_accumulate_accepted_fill`), `praxis/outcome_translator.py`
+
+`TradeOutcome` enforces `filled_qty <= target_qty`, so a venue that reports more filled than was ordered cannot be reported to Nexus as it happened. Fill admission resolves that by discarding the excess at the fill that breaches the target: the outcome reports the quantity ordered at the average of the fills that fit, and stays monotonic against every partial already published.
+
+The excess is not lost inside Praxis. `AccountLedger` books the raw fill and `TradingState.positions` projects the raw quantity, and the paths that size from exposure — scheme and ladder remainders, amend remainders, protection sizing, flatten sizing — all read those raw totals rather than the admitted ones.
+
+Since #183 the position, the ledger's lots and the wallet agree: all three carry `qty - fee`, the quantity a buy actually delivers once its base commission is taken. What the decision layer is told is a different number — the admitted quantity, capped at the command's target — and it differs from what is held by `discarded excess - base commission`.
+
+That difference has no fixed sign. A large overfill leaves the decision layer short of what is held; an overfill smaller than the commission leaves it long. Target 1 with a raw fill of 1.0005 and a commission of 0.0010005 leaves 0.9994995 in the wallet while the decision layer is told 1.
+
+The paths that size from exposure are split along that line deliberately. Scheme and ladder remainders and ordinary amend completion read the gross command totals, because a command that ordered a quantity and received it is complete and the commission is a cost rather than a shortfall. Bracket protection, bracket recovery and bracket flattening size from the position, because they sell base and may only sell what is held.
+
+What is missing is the other book. `OutcomeTranslator` forwards only the admitted size and notional, so Nexus's outcome-driven position and capital accounting never learns about a genuine excess. Praxis and Nexus then disagree about the size of the position by the discarded amount. Praxis owns flatten sizing, so this does not strand exposure in the bracket-protection path; it does mean a Nexus-driven exit is sized to Nexus's smaller belief and leaves the excess behind, and Nexus's capital controller reserves less than was actually spent.
+
+This is not uniformly pre-existing. Before this change the WebSocket producer forwarded the raw notional alongside the capped quantity, so Nexus saw the full spend against an understated size — wrong, and the reason the implied price came out several times the real one, but not an understatement of capital. Admission now suppresses the excess spend as well, so the direction of Nexus's error changes: its capital usage is understated where it was previously overstated against a too-small size. The position understatement is pre-existing; the capital understatement is new.
+
+Praxis logs every discard at admission, naming the command, the quantity admitted and the quantity dropped, so the disagreement is observable while this is open.
+
+Closing this needs an explicit reconciliation channel — an inventory-adjustment outcome, or a delta the translator can send outside the target-bounded fields — plus a decision on whether Nexus's position guard should accept it. That is a cross-repo contract change, not a clamp.
+
+## TD-157: A fill whose command recorded no budget is reported as nothing filled
+
+**Origin**: issue #178 pre-merge review (Greybeard, then the pre-merge reviewers on the enforcement question)
+**Severity**: Low — no production path reaches it, it fails closed, and it is reported when it happens
+**Module**: `praxis/core/execution_manager.py` (`_accumulate_accepted_fill`)
+
+Fill admission caps each fill against the budget recorded when its command's identity was established. When no budget is recorded there is nothing to bound the fill with, so it is not admitted at all and the command reports nothing filled for it.
+
+Nothing reaches it today. Every writer of `_commands` records a budget, ordinary submission persists the intent before the venue call, the protective path records its budget before appending its own intent, and replay rebuilds budgets from the submit intents and scheme initializations on the spine, including for commands it deliberately does not rebuild as commands. A fill therefore cannot project before its budget exists.
+
+It fails closed rather than open. Admitting the fill in full would report a quantity nobody ordered against a target that cannot contain it; refusing costs only the outcome, because the account ledger and the position projection both record the raw fill regardless, so Praxis still holds what the venue filled and can still close it. The decision layer is told less rather than more, which is the same direction as TD-156.
+
+Two guards cover it. `_install_command` is the only assignment into the command map, so a command cannot be registered without its budget; an AST test fails on any other direct subscript assignment to that map, which catches the regression that produced this concern but not every bypass — an annotated assignment, a `.update()`, an aliased write, or dropping the budget recording from the installer itself would all pass it. The behavioural guard is the fail-closed branch above, which acts on the state rather than on how it was reached.
+
+Closing this means deciding what a fill for an unknown command actually is: a bug to halt on, or an orphan to reconcile through the existing orphan path, which already has machinery for executions Praxis cannot attribute.
+
+## TD-158: The spine persists slippage as a quotient rather than the prices it was derived from
+
+**Origin**: issue #172 pre-merge review
+**Severity**: Low — the recorded values are correct; the shape constrains what can be done with them later
+**Module**: `praxis/core/domain/events.py` (`TradeOutcomeProduced`), `praxis/core/execution_manager.py`
+
+`TradeOutcomeProduced` carries `execution_slippage_bps` and `arrival_slippage_bps` as computed numbers. The two prices they are derived from — the mid price sampled before submission, and the command's reference price — are not recorded anywhere, so the quotient is the only durable trace of either.
+
+That is why it is persisted at all. A replayed outcome cannot recompute what it cannot see, and reporting no measurement after a restart where the live run reported one would make the record disagree with itself about the same event.
+
+The cost is that the arithmetic is now frozen into the log. A record written today and a record written after any change to how the average fill price is derived — the admitted-totals change in this same release is exactly such a change — are two different measurements under one field name, and nothing distinguishes them. Recording the inputs instead would make slippage a view over facts, so a formula change would re-derive the whole history rather than split it into vintages.
+
+Closing this means adding the sampled mid and the reference price to the outcome record and deriving the measures at the point of use. The existing fields would stay for records already written.

@@ -595,8 +595,35 @@ class _AccountRuntime:
         self.booting = False
         self.boot_failed = False
         self.flatten_order_ids: set[str] = set()
+        self.accepted_fill_totals: dict[str, tuple[Decimal, Decimal]] = {}
         self.poisoned = False
         self.protection_scan_requested = False
+
+
+@dataclass(frozen=True)
+class _AdmissionTarget:
+
+    '''
+    Record the budget a command's fills are admitted against.
+
+    Captured once, when the command's identity is first established, and
+    never revised. A command's budget is immutable in live execution — an
+    amend replaces the resting remainder and rewrites `execution_params`,
+    never `qty` — so anything that re-derives the budget later, from a
+    replacement order or a resumed scheme, is reading a smaller number
+    than the one the fills were admitted against.
+
+    Exactly one field is set: `qty` for a size-native command, `notional`
+    for a quote-native one, matching `TradeCommand`'s own exclusivity.
+
+    Args:
+        qty (Decimal | None): Base-size budget, or None when quote-native.
+        notional (Decimal | None): Quote-spend budget, or None when
+            size-native.
+    '''
+
+    qty: Decimal | None
+    notional: Decimal | None
 
 
 class ExecutionManager:
@@ -663,6 +690,7 @@ class ExecutionManager:
         self._accounts: dict[str, _AccountRuntime] = {}
         self._accepted_commands: dict[str, str] = {}
         self._terminal_commands: set[str] = set()
+        self._admission_targets: dict[str, _AdmissionTarget] = {}
         self._modifiable_snapshot: dict[str, frozenset[str]] = {}
         self._commands: dict[str, TradeCommand] = {}
         self._aborted_commands: dict[str, str] = {}
@@ -1095,6 +1123,11 @@ class ExecutionManager:
                 # the position.
                 runtime.flatten_order_ids.add(event.client_order_id)
 
+            if isinstance(event, SchemeInitialized):
+                self._record_admission_target(
+                    event.command_id, qty=event.total_qty, notional=None,
+                )
+
             if isinstance(event, CommandAccepted):
                 self._accepted_commands[event.command_id] = account_id
 
@@ -1110,22 +1143,26 @@ class ExecutionManager:
                 if amended is not None and isinstance(
                     amended.execution_params, (IcebergParams, SingleShotParams),
                 ):
-                    self._commands[event.command_id] = replace(
+                    self._install_command(event.command_id, replace(
                         amended,
                         execution_params=self._amended_order_params(
                             amended, event.price, event.display_qty,
                         ),
-                    )
+                    ))
 
             if isinstance(event, OrderSubmitIntent):
                 self._command_trade_ids[event.command_id] = event.trade_id
                 runtime.command_to_order[event.command_id] = event.client_order_id
+                self._record_admission_target(
+                    event.command_id, qty=event.qty, notional=event.quote_qty,
+                )
 
                 if (
                     event.command_id not in self._terminal_commands
                     and event.command_id not in scheme_command_ids
+                    and event.command_id not in self._commands
                 ):
-                    self._commands[event.command_id] = TradeCommand(
+                    self._install_command(event.command_id, TradeCommand(
                         command_id=event.command_id,
                         trade_id=event.trade_id,
                         account_id=event.account_id,
@@ -1145,7 +1182,7 @@ class ExecutionManager:
                         maker_preference=MakerPreference.NO_PREFERENCE,
                         stp_mode=STPMode.NONE,
                         created_at=event.timestamp,
-                    )
+                    ))
 
         self._resume_schemes(runtime, fold)
         self._resume_ladders(runtime, fold)
@@ -1342,7 +1379,7 @@ class ExecutionManager:
             )
 
             runtime.schemes[command_id] = scheme
-            self._commands[command_id] = scheme.command
+            self._install_command(command_id, scheme.command)
             self._accepted_commands[command_id] = runtime.account_id
             self._command_trade_ids[command_id] = init.trade_id
 
@@ -1966,7 +2003,7 @@ class ExecutionManager:
                 scheme.next_run_at = self._clock()
 
             runtime.schemes[command_id] = scheme
-            self._commands[command_id] = command
+            self._install_command(command_id, command)
             self._accepted_commands[command_id] = runtime.account_id
             self._command_trade_ids[command_id] = init.trade_id
 
@@ -2040,6 +2077,9 @@ class ExecutionManager:
             return
 
         runtime.trading_state.apply(event)
+
+        if isinstance(event, FillReceived):
+            self._accumulate_accepted_fill(runtime, event)
 
         if isinstance(event, FillReceived | TradeClosed):
             self._project_to_ledger(runtime, event)
@@ -2287,6 +2327,324 @@ class ExecutionManager:
 
         await self._dispatch_outcome_with_retry(outcome, source='orphan')
 
+    def _install_command(self, command_id: str, cmd: TradeCommand) -> None:
+        '''Register a command and capture the budget its fills answer to.
+
+        The budget is taken here, when the command's identity is
+        established, rather than at the first fill: a command can terminalize
+        before it ever fills, and a fill arriving afterwards would otherwise
+        find no command and be admitted uncapped.
+
+        Args:
+            command_id (str): Command identifier being registered.
+            cmd (TradeCommand): The command to register.
+        '''
+
+        self._commands[command_id] = cmd
+        self._record_admission_target(
+            command_id,
+            qty=cmd.qty,
+            notional=cmd.quote_qty,
+            report_conflict=True,
+        )
+
+    def _record_admission_target(
+        self,
+        command_id: str,
+        *,
+        qty: Decimal | None,
+        notional: Decimal | None,
+        report_conflict: bool = False,
+    ) -> None:
+        '''Record a command's admission budget the first time it is seen.
+
+        First write wins. Later callers pass a budget re-derived from
+        whatever order is resting at the time — an amend replacement
+        carries only the remainder — and taking that would shrink the
+        target the earlier fills were already admitted against.
+
+        `report_conflict` is for callers offering a whole command's own
+        budget, where a second, different one means the target changed under
+        fills already admitted against the first. Order intents do not set
+        it: a scheme child and an amend replacement both carry an order size
+        smaller than the command's budget as a matter of course, and
+        reporting those would bury the case worth seeing.
+
+        Args:
+            command_id (str): Command the budget belongs to.
+            qty (Decimal | None): Base-size budget, None when quote-native.
+            notional (Decimal | None): Quote-spend budget, None otherwise.
+            report_conflict (bool): Whether a differing second budget is an
+                invariant violation worth reporting.
+        '''
+
+        if qty is None and notional is None:
+            return
+
+        recorded = self._admission_targets.get(command_id)
+
+        if recorded is not None:
+            if report_conflict and (
+                recorded.qty != qty or recorded.notional != notional
+            ):
+                _log.error(
+                    'a second budget was offered for a command that already '
+                    'has one; keeping the first, since the fills admitted so '
+                    'far answer to it. A budget that legitimately changes '
+                    'needs the totals admitted against the old one revised '
+                    'with it',
+                    extra={
+                        'command_id': command_id,
+                        'recorded_qty': str(recorded.qty),
+                        'recorded_notional': str(recorded.notional),
+                        'offered_qty': str(qty),
+                        'offered_notional': str(notional),
+                    },
+                )
+
+            return
+
+        self._admission_targets[command_id] = _AdmissionTarget(
+            qty=qty, notional=notional,
+        )
+
+    def _admission_target(self, command_id: str) -> _AdmissionTarget | None:
+        '''Return the budget a command's fills are admitted against.
+
+        Recorded when the command's identity is established, so it outlives
+        the command itself: terminal emission drops it from `_commands`, and
+        a fill arriving afterwards must still be capped.
+
+        Args:
+            command_id (str): Command whose budget is wanted.
+
+        Returns:
+            _AdmissionTarget | None: The budget, or None when no command of
+                that id was ever established.
+        '''
+
+        return self._admission_targets.get(command_id)
+
+    def _accumulate_accepted_fill(
+        self,
+        runtime: _AccountRuntime,
+        event: FillReceived,
+    ) -> None:
+        '''Admit one projected fill as far as its command's budget allows.
+
+        A venue can report more filled than was ordered — duplicate or
+        out-of-order fills, or rounding past the target — while an outcome
+        must satisfy `filled_qty <= target_qty`. Clamping the aggregate is
+        what goes wrong: capping the quantity and keeping the whole notional
+        makes the implied average the spend of every fill over the accepted
+        size, reporting a price several times what executed; scaling the
+        notional down to match reports the right average but can drop the
+        cumulative below a notional already published for an earlier partial,
+        and a negative delta is rejected, losing the terminal outcome.
+
+        So admission happens here, per fill, where the quantity and the price
+        that executed are both known: the excess is discarded at the fill
+        that breaches the budget, and every earlier fill keeps its own price.
+        Accumulating at the projection rather than at the outcome makes the
+        totals a property of the fills themselves — the same answer whether
+        the fills arrive singly, drain from the queue in one batch, settle
+        immediately on submission, or come back from replay, all of which
+        project here.
+
+        A quote-native command budgets the spend rather than the size, so it
+        is capped on notional and the admitted quantity follows at the fill's
+        own price. Leaving it uncapped would relocate the same overfill to
+        the one order type where notional is the controlled variable.
+
+        Admission fails closed. A fill whose command recorded no budget is
+        not admitted at all, rather than admitted in full: there is nothing
+        to bound it with, and reporting a quantity nobody ordered is the
+        failure this exists to prevent.
+
+        Fills dedup before they are appended, and an appended event projects
+        once, so no fill is admitted twice.
+
+        Args:
+            runtime (_AccountRuntime): Account holding the accepted totals.
+            event (FillReceived): The fill being projected.
+        '''
+
+        accepted_qty, accepted_notional = runtime.accepted_fill_totals.get(
+            event.command_id, (_ZERO, _ZERO),
+        )
+        target = self._admission_target(event.command_id)
+
+        if target is None:
+            # Nothing bounds a fill whose command recorded no budget, so
+            # admitting it would report a quantity nobody ordered against a
+            # target that cannot contain it. The ledger and the position
+            # project the raw fill regardless, so refusing here costs the
+            # outcome, not the books: Praxis still holds and can still close
+            # what the venue filled, and the decision layer is told less
+            # rather than more.
+            _log.error(
+                'fill has no recorded budget to be admitted against; '
+                'reporting nothing filled for it. Its command was registered '
+                'without one, which `_install_command` exists to make '
+                'impossible',
+                extra={
+                    'command_id': event.command_id,
+                    'client_order_id': event.client_order_id,
+                    'qty': str(event.qty),
+                    'command_known': event.command_id in self._commands,
+                },
+            )
+            runtime.accepted_fill_totals.setdefault(
+                event.command_id, (_ZERO, _ZERO),
+            )
+
+            return
+
+        if target.qty is not None:
+            taken_qty = min(event.qty, target.qty - accepted_qty)
+            taken_notional = taken_qty * event.price
+
+        else:
+            assert target.notional is not None
+            room = target.notional - accepted_notional
+            taken_qty = min(event.qty, room / event.price)
+            # Dividing by the price and multiplying back is not exact at
+            # Decimal's working precision, and the product can land a unit in
+            # the last place above the room it was derived from. The spend is
+            # the budgeted quantity here, so it is the one that must not be
+            # exceeded.
+            taken_notional = min(taken_qty * event.price, room)
+
+        # Bounding the increment does not bound the running total: the
+        # remaining-room subtraction above and this addition both round. The
+        # budgeted field is capped here and the admitted increment is then
+        # taken back from the capped total, so what this fill is recorded as
+        # admitting and what the totals actually moved by are one number.
+        total_qty = accepted_qty + taken_qty
+        total_notional = accepted_notional + taken_notional
+
+        if target is not None and target.qty is not None:
+            total_qty = min(total_qty, target.qty)
+            taken_qty = total_qty - accepted_qty
+
+        if target is not None and target.notional is not None:
+            total_notional = min(total_notional, target.notional)
+            taken_notional = total_notional - accepted_notional
+
+        if taken_qty < event.qty:
+            _log.warning(
+                'fill exceeds what its command budgeted; admitting only the '
+                'part that fits. The remainder is booked as real inventory '
+                'and spend but not reported, so the decision layer and the '
+                'account disagree about this position until reconciled. The '
+                'difference has no fixed sign: the excess makes it short, a '
+                'base commission makes it long (TD-156)',
+                extra={
+                    'command_id': event.command_id,
+                    'client_order_id': event.client_order_id,
+                    'fill_qty': str(event.qty),
+                    'admitted_qty': str(taken_qty),
+                    'discarded_qty': str(event.qty - taken_qty),
+                    'price': str(event.price),
+                },
+            )
+
+        if taken_qty <= _ZERO or taken_notional <= _ZERO:
+            runtime.accepted_fill_totals[event.command_id] = (
+                accepted_qty, accepted_notional,
+            )
+
+            return
+
+        runtime.accepted_fill_totals[event.command_id] = (
+            total_qty, total_notional,
+        )
+
+    def _accepted_command_totals(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+    ) -> tuple[Decimal, Decimal]:
+        '''Return the fill totals admitted for a command.
+
+        Every fill that projects records an entry, so a command with no
+        entry has had no fill and reports nothing filled. Nonzero raw totals
+        without an admission entry mean a fill reached the projection without
+        being admitted, which cannot happen by construction; that is reported
+        as the invariant violation it is, and still answers zero, because
+        returning the raw totals is exactly the uncapped output this
+        accounting exists to prevent.
+
+        Args:
+            runtime (_AccountRuntime): Account to read.
+            command_id (str): Command whose admitted totals are wanted.
+
+        Returns:
+            tuple[Decimal, Decimal]: Admitted filled quantity and notional.
+        '''
+
+        admitted = runtime.accepted_fill_totals.get(command_id)
+
+        if admitted is not None:
+            return admitted
+
+        raw_qty, raw_notional = self._command_fill_totals(runtime, command_id)
+
+        if raw_qty > _ZERO or raw_notional > _ZERO:
+            _log.error(
+                'command has projected fills but no admitted totals; '
+                'reporting nothing filled. A fill reached the ledger without '
+                'projecting through fill admission, and the raw totals are '
+                'the uncapped output this accounting exists to prevent',
+                extra={
+                    'command_id': command_id,
+                    'raw_filled_qty': str(raw_qty),
+                    'raw_notional': str(raw_notional),
+                },
+            )
+
+        return _ZERO, _ZERO
+
+    def _command_delivered_qty(
+        self,
+        runtime: _AccountRuntime,
+        command_id: str,
+    ) -> Decimal:
+
+        '''Return the base quantity a command's fills actually delivered.
+
+        `_command_fill_totals` reports what the venue filled. A spot venue
+        charges a buy's commission in the asset received, so the account
+        receives less than that, and anything asking how much of a position
+        is still held — how much remains unprotected, how much a protective
+        amend must cover, whether an exit has closed it — is asking about
+        the delivered quantity, not the filled one. Sizing a sell from the
+        filled quantity asks the venue for base the account does not have.
+
+        Order accounting is the other question and stays on the filled
+        totals: a command that ordered a quantity and received it is
+        complete, and the commission is a cost rather than a shortfall.
+
+        Args:
+            runtime (_AccountRuntime): Account holding the projections.
+            command_id (str): Command whose delivered quantity is wanted.
+
+        Returns:
+            Decimal: Filled quantity less the commission charged in base.
+        '''
+
+        filled_qty, _ = self._command_fill_totals(runtime, command_id)
+        base_fee = _ZERO
+
+        for order in (
+            *runtime.trading_state.orders.values(),
+            *runtime.trading_state.closed_orders.values(),
+        ):
+            if order.command_id == command_id:
+                base_fee += order.base_fee
+
+        return filled_qty - base_fee
+
     def _command_fill_totals(
         self,
         runtime: _AccountRuntime,
@@ -2349,13 +2707,10 @@ class ExecutionManager:
             return
 
         ts = self._clock()
-        filled_qty, cumulative_notional = self._command_fill_totals(runtime, command_id)
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, command_id,
+        )
         target_qty = scheme.total_qty
-
-        if filled_qty > target_qty:
-            if filled_qty > _ZERO:
-                cumulative_notional = cumulative_notional * target_qty / filled_qty
-            filled_qty = target_qty
 
         avg_fill_price = (
             cumulative_notional / filled_qty if filled_qty > _ZERO else None
@@ -3205,7 +3560,7 @@ class ExecutionManager:
         finally:
             runtime.queue_reservations -= 1
 
-        self._commands[command_id] = cmd
+        self._install_command(command_id, cmd)
         self._command_trade_ids[command_id] = trade_id
 
         # Applied directly rather than through `_project`, whose projection
@@ -3979,7 +4334,9 @@ class ExecutionManager:
             len(result.immediate_fills),
         )
 
-        filled_qty = sum((f.qty for f in result.immediate_fills), _ZERO)
+        filled_qty, total_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
+        )
 
         if (
             cmd.is_quote_native
@@ -3994,15 +4351,12 @@ class ExecutionManager:
             await self._event_spine.append(quote_filled, self._epoch_id)
             runtime.trading_state.apply(quote_filled)
 
-        if filled_qty > _ZERO:
-            total_notional: Decimal = sum(
-                (f.qty * f.price for f in result.immediate_fills),
-                _ZERO,
-            )
-            avg_fill_price: Decimal | None = total_notional / filled_qty
-        else:
-            total_notional = _ZERO
-            avg_fill_price = None
+        avg_fill_price: Decimal | None = (
+            total_notional / filled_qty if filled_qty > _ZERO else None
+        )
+
+        execution_slippage_bps: Decimal | None = None
+        arrival_slippage_bps: Decimal | None = None
 
         if estimate is not None and avg_fill_price is not None:
             execution_slippage_bps = (
@@ -4044,16 +4398,6 @@ class ExecutionManager:
                 status = TradeStatus.PENDING
         else:
             assert cmd.qty is not None
-            if filled_qty > cmd.qty:
-                _log.warning(
-                    'overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
-                    cmd.command_id,
-                    filled_qty,
-                    cmd.qty,
-                )
-                if filled_qty > _ZERO:
-                    total_notional = total_notional * cmd.qty / filled_qty
-                filled_qty = cmd.qty
             if filled_qty >= cmd.qty:
                 status = TradeStatus.FILLED
             elif filled_qty > _ZERO:
@@ -4105,6 +4449,8 @@ class ExecutionManager:
             avg_fill_price=avg_fill_price,
             reason=reason,
             cumulative_notional=total_notional,
+            execution_slippage_bps=execution_slippage_bps,
+            arrival_slippage_bps=arrival_slippage_bps,
         )
 
     async def _process_bracket(
@@ -4193,9 +4539,8 @@ class ExecutionManager:
         if entry_order is not None and entry_order.status in _TERMINAL_ORDER_STATUSES:
             return await self._settle_bracket_entry(runtime, bracket, entry_order)
 
-        filled_qty = entry_order.filled_qty if entry_order is not None else _ZERO
-        cumulative_notional = (
-            entry_order.cumulative_notional if entry_order is not None else _ZERO
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
         )
         avg_fill_price = (
             cumulative_notional / filled_qty if filled_qty > _ZERO else None
@@ -4240,10 +4585,13 @@ class ExecutionManager:
         assert cmd.qty is not None
         runtime.brackets.pop(cmd.command_id, None)
 
-        filled_qty = entry_order.filled_qty
-        cumulative_notional = entry_order.cumulative_notional
+        raw_filled_qty = entry_order.filled_qty
+        raw_notional = entry_order.cumulative_notional
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
+        )
 
-        if filled_qty <= _ZERO:
+        if raw_filled_qty <= _ZERO:
             _log.warning(
                 'bracket entry settled without fill; no protection: '
                 'command_id=%s status=%s',
@@ -4262,7 +4610,7 @@ class ExecutionManager:
                 reason='bracket entry unfilled',
             )
 
-        avg_entry_price = cumulative_notional / filled_qty
+        avg_entry_price = raw_notional / raw_filled_qty
 
         status = (
             TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
@@ -4273,13 +4621,22 @@ class ExecutionManager:
             cmd,
             status,
             filled_qty=filled_qty,
-            avg_fill_price=avg_entry_price,
+            avg_fill_price=(
+                cumulative_notional / filled_qty
+                if filled_qty > _ZERO
+                else None
+            ),
             reason=None,
             cumulative_notional=cumulative_notional,
         )
 
         await self._place_bracket_protection(
-            runtime, bracket, filled_qty, avg_entry_price,
+            runtime,
+            bracket,
+            self._owned_qty(
+                runtime, cmd.account_id, cmd.trade_id, raw_filled_qty,
+            ),
+            avg_entry_price,
         )
 
         return outcome
@@ -4354,7 +4711,15 @@ class ExecutionManager:
 
         avg_entry_price = order.cumulative_notional / order.filled_qty
         await self._place_bracket_protection(
-            runtime, bracket, order.filled_qty, avg_entry_price,
+            runtime,
+            bracket,
+            self._owned_qty(
+                runtime,
+                bracket.command.account_id,
+                bracket.command.trade_id,
+                order.filled_qty,
+            ),
+            avg_entry_price,
         )
 
     async def _place_pending_bracket_protection(self, runtime: _AccountRuntime) -> None:
@@ -4382,16 +4747,23 @@ class ExecutionManager:
                 continue
 
             avg_entry_price = entry_order.cumulative_notional / entry_order.filled_qty
-            await self._recover_bracket_entry_outcome(runtime, bracket, entry_order)
+            await self._recover_bracket_entry_outcome(runtime, bracket)
             await self._place_bracket_protection(
-                runtime, bracket, entry_order.filled_qty, avg_entry_price,
+                runtime,
+                bracket,
+                self._owned_qty(
+                    runtime,
+                    bracket.command.account_id,
+                    bracket.command.trade_id,
+                    entry_order.filled_qty,
+                ),
+                avg_entry_price,
             )
 
     async def _recover_bracket_entry_outcome(
         self,
         runtime: _AccountRuntime,
         bracket: _LiveBracket,
-        entry_order: Order,
     ) -> None:
         '''Emit the entry outcome for a resumed bracket whose fill preceded a crash.
 
@@ -4406,7 +4778,6 @@ class ExecutionManager:
         Args:
             runtime (_AccountRuntime): Per-account state to update.
             bracket (_LiveBracket): The resumed bracket.
-            entry_order (Order): The terminal, filled entry order projection.
         '''
 
         cmd = bracket.command
@@ -4414,7 +4785,9 @@ class ExecutionManager:
             return
 
         assert cmd.qty is not None
-        filled_qty = entry_order.filled_qty
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
+        )
         status = (
             TradeStatus.FILLED if filled_qty >= cmd.qty else TradeStatus.PARTIAL
         )
@@ -4424,10 +4797,59 @@ class ExecutionManager:
             cmd,
             status,
             filled_qty=filled_qty,
-            avg_fill_price=entry_order.cumulative_notional / filled_qty,
+            avg_fill_price=(
+                cumulative_notional / filled_qty
+                if filled_qty > _ZERO
+                else None
+            ),
             reason=None,
-            cumulative_notional=entry_order.cumulative_notional,
+            cumulative_notional=cumulative_notional,
         )
+
+    def _owned_qty(
+        self,
+        runtime: _AccountRuntime,
+        account_id: str,
+        trade_id: str,
+        reported: Decimal,
+    ) -> Decimal:
+
+        '''Return the base quantity a trade can actually sell.
+
+        An order reports what the venue filled; the account receives that
+        less a commission, which a spot venue charges in the asset a buy
+        receives. Sizing a protective exit from the reported quantity asks
+        to sell base the account does not hold, so the order is refused for
+        insufficient balance, or fills out of another trade's inventory.
+
+        The position projection carries what was delivered, so it is the
+        quantity to protect, and the reported quantity is a ceiling on it so
+        another command's holdings on the same trade cannot inflate this
+        order.
+
+        No position means nothing to sell. Gross fills are not evidence of
+        current holdings — an entry that filled and then fully exited leaves
+        a residue in any total reconstructed from them — so an absent
+        projection yields zero rather than falling back to what the venue
+        once reported.
+
+        Args:
+            runtime (_AccountRuntime): Account holding the projection.
+            account_id (str): Account the trade belongs to.
+            trade_id (str): Trade whose holdings are wanted.
+            reported (Decimal): Venue-reported quantity to fall back on.
+
+        Returns:
+            Decimal: Base quantity held for the trade.
+        '''
+
+        positions = runtime.trading_state.snapshot_positions()
+        pos = positions.get((trade_id, account_id))
+
+        if pos is None or pos.qty <= _ZERO:
+            return _ZERO
+
+        return min(pos.qty, reported)
 
     async def _place_bracket_protection(
         self,
@@ -4460,6 +4882,25 @@ class ExecutionManager:
         if bracket.protection_placed:
             return
 
+        if qty <= _ZERO:
+            # Nothing is held, so there is nothing to protect. Reached when
+            # an entry has already been exited in full by the time delayed
+            # or resumed placement runs, and short of the exit command,
+            # which cannot be built for a zero quantity.
+            #
+            # The bracket is put back and left unclaimed. Every caller
+            # removes it before placing and only a successful placement
+            # returns it, so returning here without restoring it would drop
+            # the registration a later fill needs to find — the entry would
+            # deliver holdings that nothing then protects.
+            runtime.brackets[bracket.command.command_id] = bracket
+            _log.info(
+                'bracket protection skipped; nothing held: command_id=%s',
+                bracket.command.command_id,
+            )
+
+            return
+
         bracket.protection_placed = True
         cmd = bracket.command
 
@@ -4480,6 +4921,8 @@ class ExecutionManager:
             tp_price, sl_stop_price, sl_limit_price,
         )
         now = self._clock()
+
+        self._record_admission_target(exit_command_id, qty=qty, notional=None)
 
         intent = OrderSubmitIntent(
             account_id=cmd.account_id,
@@ -4566,7 +5009,7 @@ class ExecutionManager:
 
             return
 
-        self._commands[exit_command_id] = exit_cmd
+        self._install_command(exit_command_id, exit_cmd)
         self._command_trade_ids[exit_command_id] = cmd.trade_id
         runtime.command_to_order[exit_command_id] = client_order_id
 
@@ -4627,16 +5070,24 @@ class ExecutionManager:
             and oco_order.status in _TERMINAL_ORDER_STATUSES
             and oco_order.filled_qty > _ZERO
         ):
+            exit_filled, exit_notional = self._accepted_command_totals(
+                runtime, exit_cmd.command_id,
+            )
+
             await self._build_outcome(
                 runtime,
                 exit_cmd,
                 _TERMINAL_ORDER_TO_TRADE_STATUS.get(
                     oco_order.status, TradeStatus.FILLED,
                 ),
-                filled_qty=oco_order.filled_qty,
-                avg_fill_price=oco_order.cumulative_notional / oco_order.filled_qty,
+                filled_qty=exit_filled,
+                avg_fill_price=(
+                    exit_notional / exit_filled
+                    if exit_filled > _ZERO
+                    else None
+                ),
                 reason=None,
-                cumulative_notional=oco_order.cumulative_notional,
+                cumulative_notional=exit_notional,
             )
 
     def _bracket_legs_valid_for_entry(
@@ -4923,9 +5374,9 @@ class ExecutionManager:
             if seq is not None:
                 self._project(runtime, fill_event)
 
-        order = runtime.trading_state.orders.get(client_order_id)
-        filled_qty = order.filled_qty if order is not None else _ZERO
-        cumulative_notional = order.cumulative_notional if order is not None else _ZERO
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
+        )
         avg_fill_price = (
             cumulative_notional / filled_qty if filled_qty > _ZERO else None
         )
@@ -6029,7 +6480,9 @@ class ExecutionManager:
 
         await self._append_scheme_progress(runtime, scheme, scheme_state)
 
-        filled_qty, cumulative_notional = self._command_fill_totals(runtime, cmd.command_id)
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
+        )
 
         await self._emit_scheme_terminal(
             runtime,
@@ -6926,7 +7379,7 @@ class ExecutionManager:
 
         cmd = bracket.command
         exit_command_id = bracket_exit_command_id(cmd.command_id)
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
         protective_side = (
             OrderSide.SELL if cmd.side is OrderSide.BUY else OrderSide.BUY
@@ -6979,7 +7432,7 @@ class ExecutionManager:
         remainder = entry_filled - (exit_projected - candidate_projected + exit_venue)
         if remainder <= _ZERO:
             exit_cmd = self._commands.get(exit_command_id)
-            exit_filled, exit_notional = self._command_fill_totals(
+            exit_filled, exit_notional = self._accepted_command_totals(
                 runtime, exit_command_id,
             )
             if exit_cmd is not None and exit_filled > _ZERO:
@@ -7030,7 +7483,7 @@ class ExecutionManager:
 
         cmd = bracket.command
         exit_command_id = bracket_exit_command_id(cmd.command_id)
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_projected
         if remainder <= _ZERO:
@@ -7164,7 +7617,17 @@ class ExecutionManager:
         free = await self._free_asset_balance(cmd.account_id, cap_asset)
 
         if protective_side is OrderSide.SELL:
-            cap = free
+            # The free balance is the account's, not this trade's. Capping a
+            # sell on it alone lets a flatten reach into another trade's
+            # inventory when this one holds less than the remainder its
+            # gross order totals imply — which a buy's base commission
+            # guarantees it does.
+            cap = min(
+                free,
+                self._owned_qty(
+                    runtime, cmd.account_id, cmd.trade_id, remainder,
+                ),
+            )
             market_price = await self._current_flatten_sell_price(cmd, avg_entry_price)
         else:
             buy_price = await self._conservative_flatten_buy_price(cmd, avg_entry_price)
@@ -7221,7 +7684,22 @@ class ExecutionManager:
         protective_side: OrderSide,
         qty: Decimal,
     ) -> TradeCommand:
-        '''Build the MARKET exit command the flatten order settles under.'''
+        '''Build the MARKET exit command the flatten order settles under.
+
+        A flatten can follow a protective exit that already filled part of
+        the position, and it is submitted for the remainder. The exit
+        command's own target is the whole position it closes, not that
+        remainder: the outcome reports fills accumulated across both orders
+        under this one id, so taking the remainder as the target would
+        report more filled than targeted and fail outcome construction.
+        '''
+
+        recorded = self._admission_targets.get(exit_command_id)
+        target_qty = (
+            recorded.qty
+            if recorded is not None and recorded.qty is not None
+            else qty
+        )
 
         return TradeCommand(
             command_id=exit_command_id,
@@ -7229,7 +7707,7 @@ class ExecutionManager:
             account_id=cmd.account_id,
             symbol=cmd.symbol,
             side=protective_side,
-            qty=qty,
+            qty=target_qty,
             order_type=OrderType.MARKET,
             execution_mode=ExecutionMode.SINGLE_SHOT,
             execution_params=SingleShotParams(),
@@ -7301,7 +7779,7 @@ class ExecutionManager:
 
             result = rescued
 
-        self._commands[exit_command_id] = exit_cmd
+        self._install_command(exit_command_id, exit_cmd)
         self._command_trade_ids[exit_command_id] = cmd.trade_id
         runtime.command_to_order[exit_command_id] = client_order_id
 
@@ -7352,16 +7830,24 @@ class ExecutionManager:
             and flat_order.status in _TERMINAL_ORDER_STATUSES
             and flat_order.filled_qty > _ZERO
         ):
+            flat_filled, flat_notional = self._accepted_command_totals(
+                runtime, exit_cmd.command_id,
+            )
+
             await self._build_outcome(
                 runtime,
                 exit_cmd,
                 _TERMINAL_ORDER_TO_TRADE_STATUS.get(
                     flat_order.status, TradeStatus.FILLED,
                 ),
-                filled_qty=flat_order.filled_qty,
-                avg_fill_price=flat_order.cumulative_notional / flat_order.filled_qty,
+                filled_qty=flat_filled,
+                avg_fill_price=(
+                    flat_notional / flat_filled
+                    if flat_filled > _ZERO
+                    else None
+                ),
                 reason=None,
-                cumulative_notional=flat_order.cumulative_notional,
+                cumulative_notional=flat_notional,
             )
 
     async def recover_incomplete_flattens(
@@ -7510,7 +7996,7 @@ class ExecutionManager:
         exit_cmd = self._flatten_exit_command(
             cmd, exit_command_id, protective_side, venue_order.qty,
         )
-        self._commands[exit_command_id] = exit_cmd
+        self._install_command(exit_command_id, exit_cmd)
         self._command_trade_ids[exit_command_id] = cmd.trade_id
         runtime.command_to_order[exit_command_id] = client_order_id
 
@@ -7567,16 +8053,24 @@ class ExecutionManager:
 
         flat_order = self._scheme_child_order(runtime, client_order_id)
         if flat_order is not None and flat_order.filled_qty > _ZERO:
+            flat_filled, flat_notional = self._accepted_command_totals(
+                runtime, exit_cmd.command_id,
+            )
+
             await self._build_outcome(
                 runtime,
                 exit_cmd,
                 _TERMINAL_ORDER_TO_TRADE_STATUS.get(
                     flat_order.status, TradeStatus.FILLED,
                 ),
-                filled_qty=flat_order.filled_qty,
-                avg_fill_price=flat_order.cumulative_notional / flat_order.filled_qty,
+                filled_qty=flat_filled,
+                avg_fill_price=(
+                    flat_notional / flat_filled
+                    if flat_filled > _ZERO
+                    else None
+                ),
                 reason=None,
-                cumulative_notional=flat_order.cumulative_notional,
+                cumulative_notional=flat_notional,
             )
 
         _log.info(
@@ -7718,7 +8212,7 @@ class ExecutionManager:
 
             return
 
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_filled, _ = self._command_fill_totals(runtime, exit_command_id)
         remainder = entry_filled - exit_filled
         _log.warning(
@@ -7781,18 +8275,15 @@ class ExecutionManager:
 
         Mirrors `_emit_scheme_terminal` but leaves the scheme live: no
         terminal command bookkeeping, no `TradeClosed`. The aggregated fills
-        so far are derived from the child order projections and clamped to
-        the command target.
+        so far are the totals admitted for the command as its child fills
+        projected.
         '''
 
         cmd = scheme.command
         ts = self._clock()
-        filled_qty, cumulative_notional = self._command_fill_totals(runtime, cmd.command_id)
-
-        if cmd.qty is not None and filled_qty > cmd.qty:
-            if filled_qty > _ZERO:
-                cumulative_notional = cumulative_notional * cmd.qty / filled_qty
-            filled_qty = cmd.qty
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, cmd.command_id,
+        )
 
         avg_fill_price = (
             cumulative_notional / filled_qty if filled_qty > _ZERO else None
@@ -7873,25 +8364,13 @@ class ExecutionManager:
     ) -> TradeOutcome:
         '''Build the aggregated terminal `TradeOutcome` for a scheme command.
 
-        Mirrors `_build_outcome` for a multi-slice parent: clamps an
-        overfill to the command target, records terminal command
-        bookkeeping, closes the position when the aggregated fills reduce
+        Mirrors `_build_outcome` for a multi-slice parent: records terminal
+        command bookkeeping, closes the position when the aggregated fills reduce
         it to dust, appends `TradeOutcomeProduced`, and dispatches the
         single outcome to the Manager callback.
         '''
 
         ts = self._clock()
-
-        if cmd.qty is not None and filled_qty > cmd.qty:
-            _log.warning(
-                'scheme overfill detected: command_id=%s filled_qty=%s target_qty=%s; clamping',
-                cmd.command_id,
-                filled_qty,
-                cmd.qty,
-            )
-            if filled_qty > _ZERO:
-                cumulative_notional = cumulative_notional * cmd.qty / filled_qty
-            filled_qty = cmd.qty
 
         avg_fill_price = (
             cumulative_notional / filled_qty if filled_qty > _ZERO else None
@@ -8035,9 +8514,13 @@ class ExecutionManager:
             await self._event_spine.append(canceled, self._epoch_id)
             runtime.trading_state.apply(canceled)
 
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, abort.command_id,
+        )
         avg_fill_price: Decimal | None = None
+
         if filled_qty > _ZERO:
-            avg_fill_price = order.cumulative_notional / filled_qty
+            avg_fill_price = cumulative_notional / filled_qty
 
         trade_id = self._command_trade_ids.get(abort.command_id)
         if trade_id is None:
@@ -8056,6 +8539,7 @@ class ExecutionManager:
             trade_id,
             filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
+            cumulative_notional=cumulative_notional,
             reason=reason,
         )
 
@@ -8828,7 +9312,7 @@ class ExecutionManager:
 
         new_command = replace(cmd, execution_params=new_params)
         scheme.command = new_command
-        self._commands[cmd.command_id] = new_command
+        self._install_command(cmd.command_id, new_command)
         scheme.amend_generation = generation
         scheme.amend_phase = None
         scheme.amend_context = None
@@ -9012,7 +9496,7 @@ class ExecutionManager:
         assert tp_price is not None
         assert sl_stop_price is not None
 
-        entry_filled, _ = self._command_fill_totals(runtime, cmd.command_id)
+        entry_filled = self._command_delivered_qty(runtime, cmd.command_id)
         exit_command_id = bracket_exit_command_id(cmd.command_id)
         exit_projected, _ = self._command_fill_totals(runtime, exit_command_id)
         old_oco_order = self._scheme_child_order(runtime, old_list_client_order_id)
@@ -9866,9 +10350,9 @@ class ExecutionManager:
         await self._event_spine.append(submitted, self._epoch_id)
         runtime.trading_state.apply(submitted)
 
-        self._commands[cmd.command_id] = replace(
+        self._install_command(cmd.command_id, replace(
             cmd, execution_params=self._amended_order_params(cmd, price, display_qty),
-        )
+        ))
 
         for fill in result.immediate_fills:
             fill_event = FillReceived(
@@ -9907,7 +10391,7 @@ class ExecutionManager:
         '''
 
         assert cmd.qty is not None
-        filled_qty, cumulative_notional = self._command_fill_totals(
+        filled_qty, cumulative_notional = self._accepted_command_totals(
             runtime, cmd.command_id,
         )
         avg_fill_price = (
@@ -9925,7 +10409,7 @@ class ExecutionManager:
             runtime,
             cmd,
             status,
-            filled_qty=min(filled_qty, cmd.qty),
+            filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             reason=None,
             cumulative_notional=cumulative_notional,
@@ -9945,7 +10429,7 @@ class ExecutionManager:
         '''
 
         assert cmd.qty is not None
-        filled_qty, cumulative_notional = self._command_fill_totals(
+        filled_qty, cumulative_notional = self._accepted_command_totals(
             runtime, cmd.command_id,
         )
         avg_fill_price = (
@@ -9956,7 +10440,7 @@ class ExecutionManager:
             runtime,
             cmd,
             TradeStatus.FILLED,
-            filled_qty=min(filled_qty, cmd.qty),
+            filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             reason=None,
             cumulative_notional=cumulative_notional,
@@ -9979,7 +10463,7 @@ class ExecutionManager:
         '''
 
         assert cmd.qty is not None
-        filled_qty, cumulative_notional = self._command_fill_totals(
+        filled_qty, cumulative_notional = self._accepted_command_totals(
             runtime, cmd.command_id,
         )
         avg_fill_price = (
@@ -9990,11 +10474,34 @@ class ExecutionManager:
             runtime,
             cmd,
             TradeStatus.CANCELED,
-            filled_qty=min(filled_qty, cmd.qty),
+            filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             reason=reason,
             cumulative_notional=cumulative_notional,
         )
+
+    def _abort_target_qty(self, order: Order) -> Decimal | None:
+        '''Return the command target an abort outcome reports against.
+
+        The resting order can be an amend replacement placed for what was
+        left, so its own quantity is smaller than the command's target while
+        the fills reported are the command's. The recorded budget is the
+        target the whole command answered to; the order's quantity stands in
+        only when no budget was recorded.
+
+        Args:
+            order (Order): The order the abort cancelled.
+
+        Returns:
+            Decimal | None: Target quantity for the outcome.
+        '''
+
+        target = self._admission_targets.get(order.command_id)
+
+        if target is None or target.qty is None:
+            return order.qty
+
+        return target.qty
 
     async def _build_abort_outcome(
         self,
@@ -10004,6 +10511,7 @@ class ExecutionManager:
         *,
         filled_qty: Decimal,
         avg_fill_price: Decimal | None,
+        cumulative_notional: Decimal,
         reason: str | None,
     ) -> TradeOutcome:
         '''
@@ -10013,8 +10521,9 @@ class ExecutionManager:
             runtime (_AccountRuntime): Per-account state to update.
             order (Order): Order being aborted.
             trade_id (str): Trade identifier from _command_trade_ids.
-            filled_qty (Decimal): Cumulative filled quantity.
-            avg_fill_price (Decimal | None): VWAP of fills.
+            filled_qty (Decimal): Quantity admitted for the command.
+            avg_fill_price (Decimal | None): VWAP of the admitted fills.
+            cumulative_notional (Decimal): Notional admitted for the command.
             reason (str | None): Abort reason.
 
         Returns:
@@ -10028,14 +10537,14 @@ class ExecutionManager:
             trade_id=trade_id,
             account_id=order.account_id,
             status=TradeStatus.CANCELED,
-            target_qty=order.qty,
+            target_qty=self._abort_target_qty(order),
             filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
             slices_completed=1,
             slices_total=1,
             reason=reason,
             created_at=ts,
-            cumulative_notional=order.cumulative_notional,
+            cumulative_notional=cumulative_notional,
         )
 
         self._terminal_commands.add(order.command_id)
@@ -10064,6 +10573,8 @@ class ExecutionManager:
             filled_qty=outcome.filled_qty,
             cumulative_notional=outcome.cumulative_notional,
             target_qty=outcome.target_qty,
+            execution_slippage_bps=outcome.execution_slippage_bps,
+            arrival_slippage_bps=outcome.arrival_slippage_bps,
         )
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
@@ -10130,7 +10641,12 @@ class ExecutionManager:
         if runtime.command_to_order.get(command_id) != client_order_id:
             return
 
-        filled_qty, cumulative_notional = self._command_fill_totals(runtime, command_id)
+        raw_filled_qty, _raw_notional = self._command_fill_totals(
+            runtime, command_id,
+        )
+        filled_qty, cumulative_notional = self._accepted_command_totals(
+            runtime, command_id,
+        )
 
         avg_fill_price: Decimal | None = (
             cumulative_notional / filled_qty if filled_qty > _ZERO else None
@@ -10138,20 +10654,20 @@ class ExecutionManager:
 
         emitted_filled_qty = filled_qty
         emitted_cumulative_notional = cumulative_notional
-        if not cmd.is_quote_native:
-            assert cmd.qty is not None
-            if emitted_filled_qty > cmd.qty:
-                _log.warning(
-                    'WS-driven filled_qty exceeds command target_qty; '
-                    'clamping to target. Likely cause: duplicate / out-of-order '
-                    'venue fills or venue rounding past the order qty',
-                    extra={
-                        'command_id': command_id,
-                        'order_filled_qty': str(order.filled_qty),
-                        'target_qty': str(cmd.qty),
-                    },
-                )
-                emitted_filled_qty = cmd.qty
+
+        if raw_filled_qty > filled_qty:
+            _log.warning(
+                'WS-driven filled_qty exceeds command target_qty; admitting '
+                'only the increment that fits. Likely cause: duplicate / '
+                'out-of-order venue fills or venue rounding past the order qty',
+                extra={
+                    'command_id': command_id,
+                    'order_filled_qty': str(order.filled_qty),
+                    'raw_filled_qty': str(raw_filled_qty),
+                    'accepted_filled_qty': str(filled_qty),
+                    'target_qty': str(cmd.qty),
+                },
+            )
 
         if isinstance(event, FillReceived):
             fully_filled = (
@@ -10202,6 +10718,8 @@ class ExecutionManager:
         avg_fill_price: Decimal | None,
         reason: str | None,
         cumulative_notional: Decimal = _ZERO,
+        execution_slippage_bps: Decimal | None = None,
+        arrival_slippage_bps: Decimal | None = None,
     ) -> TradeOutcome:
         '''
         Construct TradeOutcome, emit spine events, and invoke callback.
@@ -10213,6 +10731,12 @@ class ExecutionManager:
             filled_qty (Decimal): Cumulative filled quantity.
             avg_fill_price (Decimal | None): VWAP of fills.
             reason (str | None): Descriptive reason for status.
+            execution_slippage_bps (Decimal | None): Execution slippage in
+                basis points, when the submitting path measured it. Only
+                that path holds the pre-submission estimate, so every other
+                producer leaves it None rather than inventing one.
+            arrival_slippage_bps (Decimal | None): Arrival slippage in
+                basis points, on the same terms.
             cumulative_notional (Decimal): Venue-side cumulative notional
                 (sum of qty * price across fills). Carried verbatim from
                 `Order.cumulative_notional` for FINAL-MAJOR-07 so the
@@ -10238,6 +10762,8 @@ class ExecutionManager:
             reason=reason,
             created_at=ts,
             cumulative_notional=cumulative_notional,
+            execution_slippage_bps=execution_slippage_bps,
+            arrival_slippage_bps=arrival_slippage_bps,
         )
 
         if outcome.is_terminal:
@@ -10267,6 +10793,8 @@ class ExecutionManager:
             filled_qty=outcome.filled_qty,
             cumulative_notional=outcome.cumulative_notional,
             target_qty=outcome.target_qty,
+            execution_slippage_bps=outcome.execution_slippage_bps,
+            arrival_slippage_bps=outcome.arrival_slippage_bps,
         )
         await self._event_spine.append(produced, self._epoch_id)
         runtime.trading_state.apply(produced)
@@ -10296,6 +10824,11 @@ class ExecutionManager:
         (already removed by an exact-zero reduction) needs no further
         `TradeClosed`.
 
+        An exactly-sized exit is reported closed on the strength of a
+        marker the projection sets as it empties, rather than by treating
+        every absent position as closed — a trade that never opened one
+        must not produce a close.
+
         Quantity-aware (TD-096): the fill has already been applied to
         `trading_state`, so `pos.qty` is the post-fill remaining. A
         reducing fill closes the position only when that remainder is
@@ -10314,7 +10847,14 @@ class ExecutionManager:
         pos = positions.get((trade_id, account_id))
 
         if pos is None:
-            return False
+            # An exactly-sized exit removes the position as it lands, so
+            # there is nothing here to measure and a trade that never held
+            # one looks the same. The projection is already correct either
+            # way; the account ledger is not, since `TradeClosed` is what
+            # marks the trade closed there.
+            return runtime.trading_state.has_emptied_marker(
+                trade_id, account_id,
+            )
 
         if side == pos.side:
             return False

@@ -10,12 +10,16 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import os
+
 import pytest
 
 from praxis.binsim.ledger import (
     DuplicateClientOrderIdError,
     InsufficientBalanceError,
     Ledger,
+    StateDirLockedError,
+    exclusive_state_lock,
 )
 from praxis.core.domain.enums import OrderSide
 
@@ -119,8 +123,10 @@ async def test_apply_fill_buy_debits_usdt_credits_btc(tmp_path: Path) -> None:
     )
 
     usdt, btc = await ledger.balance(_ACCT)
-    assert usdt == Decimal('10000') - Decimal('10') - Decimal('0.01')
-    assert btc == Decimal('0.1')
+    assert usdt == Decimal('10000') - Decimal('10')
+    assert btc == Decimal('0.1') - Decimal('0.01')
+    assert fill.fee_asset == 'BTC'
+    assert fill.qty == Decimal('0.1')
     assert fill.trade_id == '1'
 
 
@@ -174,24 +180,40 @@ async def test_apply_fill_records_fee_and_fee_asset(tmp_path: Path) -> None:
     ledger = _new_ledger(tmp_path)
     await ledger.register_account(_ACCT, Decimal('10000'))
 
-    fill = await ledger.apply_fill(
+    buy = await ledger.apply_fill(
         _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
-        Decimal('0.123'), timestamp=_TS,
+        Decimal('0.0001'), timestamp=_TS,
     )
 
-    assert fill.fee == Decimal('0.123')
-    assert fill.fee_asset == 'USDT'
+    assert buy.fee == Decimal('0.0001')
+    assert buy.fee_asset == 'BTC'
+
+    sell = await ledger.apply_fill(
+        _ACCT, OrderSide.SELL, Decimal('0.05'), Decimal('100'),
+        Decimal('0.005'), timestamp=_TS,
+    )
+
+    assert sell.fee == Decimal('0.005')
+    assert sell.fee_asset == 'USDT'
 
 
 @pytest.mark.asyncio
-async def test_apply_fill_rejects_non_usdt_fee_asset(tmp_path: Path) -> None:
+async def test_apply_fill_rejects_a_fee_asset_the_side_does_not_receive(
+    tmp_path: Path,
+) -> None:
 
     ledger = _new_ledger(tmp_path)
     await ledger.register_account(_ACCT, Decimal('10000'))
 
-    with pytest.raises(ValueError, match='fee_asset must be USDT'):
+    with pytest.raises(ValueError, match='fee_asset must be BTC for a BUY'):
         await ledger.apply_fill(
             _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+            Decimal('0'), fee_asset='USDT',
+        )
+
+    with pytest.raises(ValueError, match='fee_asset must be USDT for a SELL'):
+        await ledger.apply_fill(
+            _ACCT, OrderSide.SELL, Decimal('0.1'), Decimal('100'),
             Decimal('0'), fee_asset='BTC',
         )
 
@@ -286,13 +308,13 @@ async def test_apply_fill_buy_raises_when_usdt_insufficient(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
-async def test_apply_fill_buy_includes_fee_in_balance_check(tmp_path: Path) -> None:
+async def test_apply_fill_buy_checks_the_notional_against_quote(tmp_path: Path) -> None:
 
     ledger = _new_ledger(tmp_path)
-    await ledger.register_account(_ACCT, Decimal('10'))
+    await ledger.register_account(_ACCT, Decimal('9'))
 
     with pytest.raises(InsufficientBalanceError, match='USDT would be'):
-        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0.01'))
+        await ledger.apply_fill(_ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'), Decimal('0.0001'))
 
 
 @pytest.mark.asyncio
@@ -363,8 +385,8 @@ async def test_load_restores_balances_and_counters(tmp_path: Path) -> None:
     await ledger2.load()
 
     usdt, btc = await ledger2.balance(_ACCT)
-    assert usdt == Decimal('10000') - Decimal('10') - Decimal('0.01') + Decimal('5.5') - Decimal('0.005')
-    assert btc == Decimal('0.05')
+    assert usdt == Decimal('10000') - Decimal('10') + Decimal('5.5') - Decimal('0.005')
+    assert btc == Decimal('0.1') - Decimal('0.01') - Decimal('0.05')
 
     fills = await ledger2.fills(_ACCT)
     assert fills == []
@@ -598,10 +620,11 @@ async def test_apply_order_single_level_buy(tmp_path: Path) -> None:
     assert len(fills) == 1
     assert fills[0].trade_id == '1'
     assert fills[0].qty == Decimal('0.1')
+    assert fills[0].fee_asset == 'BTC'
 
     usdt, btc = await ledger.balance(_ACCT)
-    assert usdt == Decimal('10000') - Decimal('10') - Decimal('0.01')
-    assert btc == Decimal('0.1')
+    assert usdt == Decimal('10000') - Decimal('10')
+    assert btc == Decimal('0.1') - Decimal('0.01')
 
 
 @pytest.mark.asyncio
@@ -625,8 +648,8 @@ async def test_apply_order_walks_multiple_levels(tmp_path: Path) -> None:
     usdt, btc = await ledger.balance(_ACCT)
     expected_notional = Decimal('100') + Decimal('50.5')
     expected_fees = Decimal('0.1') + Decimal('0.0505')
-    assert usdt == Decimal('10000') - expected_notional - expected_fees
-    assert btc == Decimal('1.5')
+    assert usdt == Decimal('10000') - expected_notional
+    assert btc == Decimal('1.5') - expected_fees
 
 
 @pytest.mark.asyncio
@@ -810,9 +833,67 @@ async def test_apply_order_aggregates_balance_check_across_levels(tmp_path: Path
 async def test_apply_order_includes_per_level_fees_in_balance(tmp_path: Path) -> None:
 
     ledger = _new_ledger(tmp_path)
-    await ledger.register_account(_ACCT, Decimal('10.10'))
+    await ledger.register_account(_ACCT, Decimal('10000'))
 
     with pytest.raises(InsufficientBalanceError, match='USDT would be'):
+        await ledger.apply_order(
+            _ACCT, OrderSide.SELL,
+            [(Decimal('100'), Decimal('0.1'), Decimal('20000'))],
+            client_order_id='cid-1',
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_buy_keeps_the_base_binance_would_keep(tmp_path: Path) -> None:
+
+    '''A simulated BUY must leave the base balance a real BUY leaves.
+
+    Binance charges a taker commission in the asset the trade receives, so
+    a BUY that fills `qty` leaves `qty * (1 - rate)` base and debits the
+    full notional in quote. Charging it in quote instead left the whole
+    `qty` on the books, and the base balance diverged from live by the
+    taker rate on every buy — silently, since both sides still balanced.
+    A SELL is charged in quote either way and is unaffected.
+    '''
+
+    rate = Decimal('0.001')
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    qty = Decimal('2')
+    price = Decimal('100')
+
+    await ledger.apply_order(
+        _ACCT, OrderSide.BUY, [(price, qty, qty * rate)],
+        client_order_id='cid-buy',
+    )
+
+    usdt, btc = await ledger.balance(_ACCT)
+
+    assert btc == qty * (Decimal('1') - rate)
+    assert usdt == Decimal('10000') - qty * price
+
+    sell_qty = Decimal('1')
+    await ledger.apply_order(
+        _ACCT, OrderSide.SELL, [(price, sell_qty, sell_qty * price * rate)],
+        client_order_id='cid-sell',
+    )
+
+    usdt_after, btc_after = await ledger.balance(_ACCT)
+
+    assert btc_after == btc - sell_qty
+    assert usdt_after == usdt + sell_qty * price * (Decimal('1') - rate)
+
+
+@pytest.mark.asyncio
+async def test_apply_order_rejects_a_buy_fee_larger_than_it_is_charged_on(
+    tmp_path: Path,
+) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match=r'not smaller than the 0\.1 received'):
         await ledger.apply_order(
             _ACCT, OrderSide.BUY,
             [(Decimal('100'), Decimal('0.1'), Decimal('0.20'))],
@@ -1067,3 +1148,131 @@ async def test_register_account_rejects_non_finite_initial_balance(tmp_path: Pat
 
     with pytest.raises(ValueError, match='initial balances must be finite'):
         await ledger.register_account(_ACCT, args['initial_usdt'], args['initial_btc'])
+
+
+@pytest.mark.asyncio
+async def test_state_lock_refuses_a_second_holder(tmp_path: Path) -> None:
+
+    '''Two processes must not both hold one state directory's ledger.
+
+    Both the server and the `register` admin command write the snapshot
+    whole from their own in-memory state, so whichever writes second
+    discards the other's work: `register` reverts every fill persisted
+    since it loaded, and the server's next write drops the account
+    `register` just minted. The atomic tempfile-and-rename guards a write
+    from tearing, not two writers from racing.
+    '''
+
+    with (
+        exclusive_state_lock(tmp_path),
+        pytest.raises(StateDirLockedError, match='another process holds'),
+        exclusive_state_lock(tmp_path),
+    ):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_state_lock_is_released_for_the_next_holder(tmp_path: Path) -> None:
+
+    with exclusive_state_lock(tmp_path):
+        pass
+
+    with exclusive_state_lock(tmp_path):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_state_lock_is_released_when_the_body_raises(tmp_path: Path) -> None:
+
+    with (
+        pytest.raises(RuntimeError, match='boom'),
+        exclusive_state_lock(tmp_path),
+    ):
+        msg = 'boom'
+        raise RuntimeError(msg)
+
+    with exclusive_state_lock(tmp_path):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_both_entry_points_settle_a_buy_identically(tmp_path: Path) -> None:
+
+    '''`apply_fill` and `apply_order` must agree on where the fee lands.
+
+    They settled through separate arithmetic, so changing one left the
+    other reporting a commission in the received asset while still
+    deducting it from quote — the balance and the commission it was
+    supposedly charged for describing different trades.
+    '''
+
+    one = _new_ledger(tmp_path / 'one')
+    await one.register_account(_ACCT, Decimal('10000'))
+    await one.apply_fill(
+        _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+        Decimal('0.0001'), timestamp=_TS,
+    )
+
+    other = _new_ledger(tmp_path / 'other')
+    await other.register_account(_ACCT, Decimal('10000'))
+    await other.apply_order(
+        _ACCT, OrderSide.BUY,
+        [(Decimal('100'), Decimal('0.1'), Decimal('0.0001'))],
+        client_order_id='cid-1', timestamp=_TS,
+    )
+
+    assert await one.balance(_ACCT) == await other.balance(_ACCT)
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_rejects_a_buy_fee_equal_to_the_quantity(
+    tmp_path: Path,
+) -> None:
+
+    ledger = _new_ledger(tmp_path)
+    await ledger.register_account(_ACCT, Decimal('10000'))
+
+    with pytest.raises(ValueError, match='not smaller than'):
+        await ledger.apply_fill(
+            _ACCT, OrderSide.BUY, Decimal('0.1'), Decimal('100'),
+            Decimal('0.1'),
+        )
+
+
+@pytest.mark.asyncio
+async def test_state_lock_refuses_a_second_spelling_of_one_directory(
+    tmp_path: Path,
+) -> None:
+
+    '''One directory reached two ways is still one ledger.
+
+    The lock guards a snapshot, not a path string. This holds because the
+    lock is taken on the file's inode rather than on the name used to
+    reach it, so it would survive resolving the path being removed — it
+    pins the property, not the line that appears to implement it.
+    '''
+
+    real = tmp_path / 'state'
+    real.mkdir()
+    link = tmp_path / 'via-symlink'
+    link.symlink_to(real)
+
+    with (
+        exclusive_state_lock(real),
+        pytest.raises(StateDirLockedError, match='another process holds'),
+        exclusive_state_lock(link),
+    ):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_state_lock_names_the_holding_process(tmp_path: Path) -> None:
+
+    with (
+        exclusive_state_lock(tmp_path),
+        pytest.raises(StateDirLockedError) as excinfo,
+        exclusive_state_lock(tmp_path),
+    ):
+        pass
+
+    assert f'pid {os.getpid()}' in str(excinfo.value)
