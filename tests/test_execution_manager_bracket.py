@@ -26,6 +26,7 @@ from praxis.core.domain.enums import (
     OrderStatus,
     OrderType,
     STPMode,
+    SubmitFailureClass,
     TradeStatus,
 )
 from praxis.core.bracket_exit_command_id import bracket_exit_command_id
@@ -48,9 +49,11 @@ from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     BalanceEntry,
     ImmediateFill,
+    LocalOrderRejectedError,
     NotFoundError,
     OrderBookLevel,
     OrderBookSnapshot,
+    OrderRejectedError,
     OrderSubmitTimeoutError,
     SubmitResult,
     SymbolFilters,
@@ -432,6 +435,74 @@ class TestBracketDegenerate:
 
         bracket = em._accounts[_ACCT].brackets[command_id]
         assert bracket.protection_status is BracketProtectionStatus.FAILED
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ('oco_error', 'expected_class', 'expected_code'),
+        [
+            (
+                LocalOrderRejectedError('lot size', -1013, 'LOT_SIZE'),
+                SubmitFailureClass.ADAPTER,
+                None,
+            ),
+            (
+                OrderRejectedError('rejected', -2010, 'INSUFFICIENT_BALANCE'),
+                SubmitFailureClass.VENUE,
+                -2010,
+            ),
+            (
+                TransientError('oco 5xx'),
+                SubmitFailureClass.UNKNOWN,
+                None,
+            ),
+        ],
+    )
+    async def test_protection_failure_is_classified_from_its_exception(
+        self,
+        mgr_factory: Any,
+        spine: EventSpine,
+        oco_error: Exception,
+        expected_class: SubmitFailureClass,
+        expected_code: int | None,
+    ) -> None:
+
+        '''Attribute the exit's failure to the side that actually refused.
+
+        This path caught its exception and did not pass it on, so the
+        failure it recorded carried no attribution and no venue code.
+        '''
+
+        filters = SymbolFilters(
+            symbol='BTCUSDT',
+            tick_size=Decimal('0.01'),
+            lot_step=Decimal('0.00001'),
+            lot_min=Decimal('0.00001'),
+            lot_max=Decimal('100'),
+            min_notional=Decimal('10'),
+            base_asset='BTC',
+            quote_asset='USDT',
+        )
+        adapter = _make_adapter(oco_error=oco_error, filters=filters)
+        adapter.query_order_list.side_effect = NotFoundError('no such list')
+        adapter.query_balance = AsyncMock(
+            return_value=[
+                BalanceEntry(asset='BTC', free=Decimal('1'), locked=Decimal('0')),
+            ],
+        )
+        em, _outcomes = mgr_factory(adapter)
+        em.register_account(_ACCT)
+
+        await em.submit_command(**_bracket_kwargs())
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        failed = [
+            e for _s, e in events if isinstance(e, OrderSubmitFailed)
+        ]
+
+        assert len(failed) == 1
+        assert failed[0].failure_class is expected_class
+        assert failed[0].venue_code == expected_code
 
     @pytest.mark.asyncio
     async def test_remediated_initial_failure_not_replaced_on_boot(

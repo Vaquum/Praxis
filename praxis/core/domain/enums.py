@@ -10,7 +10,24 @@ from __future__ import annotations
 from enum import Enum
 
 
-__all__ = ['BracketProtectionStatus', 'CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'SchemeState', 'TradeStatus']
+__all__ = ['BracketProtectionStatus', 'CostBasisMethod', 'ExecutionMode', 'ExecutionType', 'FundDirection', 'MakerPreference', 'OrderSide', 'OrderStatus', 'OrderType', 'STPMode', 'SchemeState', 'SubmitFailureClass', 'TradeStatus']
+
+
+class SubmitFailureClass(Enum):
+
+    '''Where a submit failure was decided.
+
+    A rejection reaching `OrderSubmitFailed` has already been flattened to
+    prose, and the two classes want different responses: a venue refusing a
+    duplicate client order id is an idempotency condition, while an adapter
+    refusing an order on a filter or a stale book is a local condition the
+    venue never saw. Telemetry that cannot separate them rolls both into one
+    bucket, and an alerting rule cannot branch on text.
+    '''
+
+    VENUE = 'VENUE'
+    ADAPTER = 'ADAPTER'
+    UNKNOWN = 'UNKNOWN'
 
 
 class OrderSide(Enum):

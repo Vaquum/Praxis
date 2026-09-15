@@ -32,6 +32,7 @@ from praxis.core.domain.enums import (
     OrderType,
     SchemeState,
     STPMode,
+    SubmitFailureClass,
     TradeStatus,
 )
 from praxis.core.domain.events import (
@@ -114,6 +115,7 @@ from praxis.core.plan_even_slices import plan_even_slices
 from praxis.core.plan_weighted_slices import plan_weighted_slices
 from praxis.core.trading_state import TradingState
 from praxis.core.validate_trade_abort import validate_trade_abort
+from praxis.core.classify_submit_failure import classify_submit_failure
 from praxis.core.validate_trade_modify import validate_trade_modify
 from praxis.core.validate_trade_command import validate_trade_command
 from praxis.infrastructure.event_spine import EventSpine
@@ -4283,17 +4285,17 @@ class ExecutionManager:
             )
             if rescued is None:
                 return await self._record_submit_failed(
-                    runtime, cmd, client_order_id, str(exc.args[0]),
+                    runtime, cmd, client_order_id, str(exc.args[0]), exc,
                 )
             result = rescued
             post_venue_ts = self._clock()
         except VenueError as exc:
             return await self._record_submit_failed(
-                runtime, cmd, client_order_id, str(exc.args[0]),
+                runtime, cmd, client_order_id, str(exc.args[0]), exc,
             )
         except ValueError as exc:
             return await self._record_submit_failed(
-                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}', exc,
             )
 
         submitted = OrderSubmitted(
@@ -4957,6 +4959,7 @@ class ExecutionManager:
                 runtime, bracket, exit_cmd, client_order_id, qty,
                 'bracket protective legs on the wrong side of the entry fill',
                 (),
+                SubmitFailureClass.ADAPTER,
             )
 
             return
@@ -4988,6 +4991,7 @@ class ExecutionManager:
                     runtime, bracket, exit_cmd, client_order_id, qty,
                     f'bracket protective OCO submit failed: {exc.args[0]}',
                     (client_order_id,),
+                    error=exc,
                 )
 
                 return
@@ -5005,6 +5009,7 @@ class ExecutionManager:
                 runtime, bracket, exit_cmd, client_order_id, qty,
                 f'bracket protective OCO failed: {exc}',
                 (client_order_id,),
+                error=exc,
             )
 
             return
@@ -5331,17 +5336,17 @@ class ExecutionManager:
             )
             if rescued is None:
                 return await self._record_submit_failed(
-                    runtime, cmd, client_order_id, str(exc.args[0]),
+                    runtime, cmd, client_order_id, str(exc.args[0]), exc,
                 )
             result = rescued
             post_venue_ts = self._clock()
         except VenueError as exc:
             return await self._record_submit_failed(
-                runtime, cmd, client_order_id, str(exc.args[0]),
+                runtime, cmd, client_order_id, str(exc.args[0]), exc,
             )
         except ValueError as exc:
             return await self._record_submit_failed(
-                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+                runtime, cmd, client_order_id, f'adapter rejected params: {exc}', exc,
             )
 
         submitted = OrderSubmitted(
@@ -5404,6 +5409,7 @@ class ExecutionManager:
         cmd: TradeCommand,
         client_order_id: str,
         reason: str,
+        error: Exception | None = None,
     ) -> TradeOutcome:
         '''Persist `OrderSubmitFailed` and emit a REJECTED `TradeOutcome`.
 
@@ -5411,7 +5417,9 @@ class ExecutionManager:
         salvage and for direct venue rejections (round-18 MAJOR-002).
         '''
 
-        await self._append_submit_failed(runtime, cmd, client_order_id, reason)
+        await self._append_submit_failed(
+            runtime, cmd, client_order_id, reason, error,
+        )
 
         return await self._build_outcome(
             runtime,
@@ -5428,19 +5436,31 @@ class ExecutionManager:
         cmd: TradeCommand,
         client_order_id: str,
         reason: str,
+        error: Exception | None = None,
+        failure_class: SubmitFailureClass | None = None,
     ) -> None:
         '''Persist an `OrderSubmitFailed` event and apply it, no outcome.
 
         The event-only half of a submit failure. Single-shot follows it
         with a REJECTED `TradeOutcome`; a scheme slice defers the outcome
         to the scheme's single terminal emission, so it stops here.
+
+        `error` is the failure itself where the caller caught one, so the
+        event records which side refused the order rather than leaving that
+        recoverable only by matching on the reason text. `failure_class`
+        states it directly, for a caller that knows the side without having
+        an exception to hand.
         '''
 
+        derived, venue_code = classify_submit_failure(error)
+        failure_class = failure_class or derived
         failed = OrderSubmitFailed(
             account_id=cmd.account_id,
             timestamp=self._clock(),
             client_order_id=client_order_id,
             reason=reason,
+            failure_class=failure_class,
+            venue_code=venue_code,
         )
         await self._event_spine.append(failed, self._epoch_id)
         runtime.trading_state.apply(failed)
@@ -5975,19 +5995,20 @@ class ExecutionManager:
             )
             if rescued is None:
                 await self._append_submit_failed(
-                    runtime, cmd, client_order_id, str(exc.args[0]),
+                    runtime, cmd, client_order_id, str(exc.args[0]), exc,
                 )
                 return None
             result = rescued
             post_venue_ts = self._clock()
         except VenueError as exc:
             await self._append_submit_failed(
-                runtime, cmd, client_order_id, str(exc.args[0]),
+                runtime, cmd, client_order_id, str(exc.args[0]), exc,
             )
             return None
         except ValueError as exc:
             await self._append_submit_failed(
-                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+                runtime, cmd, client_order_id,
+                f'adapter rejected params: {exc}', exc,
             )
             return None
 
@@ -6201,19 +6222,20 @@ class ExecutionManager:
             )
             if rescued is None:
                 await self._append_submit_failed(
-                    runtime, cmd, client_order_id, str(exc.args[0]),
+                    runtime, cmd, client_order_id, str(exc.args[0]), exc,
                 )
                 return None
             result = rescued
             post_venue_ts = self._clock()
         except VenueError as exc:
             await self._append_submit_failed(
-                runtime, cmd, client_order_id, str(exc.args[0]),
+                runtime, cmd, client_order_id, str(exc.args[0]), exc,
             )
             return None
         except ValueError as exc:
             await self._append_submit_failed(
-                runtime, cmd, client_order_id, f'adapter rejected params: {exc}',
+                runtime, cmd, client_order_id,
+                f'adapter rejected params: {exc}', exc,
             )
             return None
 
@@ -7129,6 +7151,8 @@ class ExecutionManager:
         qty: Decimal,
         reason: str,
         oco_candidates: tuple[str, ...],
+        failure_class: SubmitFailureClass | None = None,
+        error: Exception | None = None,
     ) -> None:
         '''Remediate a bracket whose initial protective OCO failed (TD-130).
 
@@ -7146,6 +7170,12 @@ class ExecutionManager:
         flatten re-checks the venue for a live leg before selling; it is empty
         only when the OCO was never POSTed (wrong-side legs), where a second
         sell is impossible and the guard is safely skipped.
+
+        `error` is the submit failure where one was caught, so the exit's
+        `OrderSubmitFailed` is classified from the type that was raised
+        rather than from this path's assumption about which side refused.
+        `failure_class` states it directly for the wrong-side-legs branch,
+        which refuses the order here with no exception to hand.
         '''
 
         version = max(bracket.protection_version, _BRACKET_FIRST_PROTECTION_VERSION)
@@ -7154,7 +7184,8 @@ class ExecutionManager:
             runtime, bracket, version, reason, qty, oco_candidates,
         )
         await self._append_submit_failed(
-            runtime, exit_cmd, client_order_id, reason,
+            runtime, exit_cmd, client_order_id, reason, error,
+            failure_class=failure_class,
         )
 
     async def _working_protective_oco(
@@ -7773,6 +7804,7 @@ class ExecutionManager:
                     exit_cmd,
                     client_order_id,
                     str(exc.args[0]) if exc.args else str(exc),
+                    exc,
                 )
 
                 return
@@ -10327,7 +10359,7 @@ class ExecutionManager:
             if rescued is None:
                 reason = str(exc.args[0]) if exc.args else str(exc)
                 await self._append_submit_failed(
-                    runtime, cmd, new_client_order_id, reason,
+                    runtime, cmd, new_client_order_id, reason, exc,
                 )
                 await self._emit_amend_failed(runtime, cmd, reason)
                 return
@@ -10336,7 +10368,7 @@ class ExecutionManager:
         except (VenueError, ValueError) as exc:
             reason = str(exc.args[0]) if exc.args else str(exc)
             await self._append_submit_failed(
-                runtime, cmd, new_client_order_id, reason,
+                runtime, cmd, new_client_order_id, reason, exc,
             )
             await self._emit_amend_failed(runtime, cmd, reason)
             return
