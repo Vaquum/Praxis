@@ -23,6 +23,7 @@ from praxis.core.domain.enums import (
     OrderSide,
     OrderType,
     SchemeState,
+    SubmitFailureClass,
     TradeStatus,
 )
 
@@ -298,11 +299,25 @@ class OrderSubmitFailed(_EventBase):
         account_id (str): Account that owns this event.
         timestamp (datetime): Event time, must be timezone-aware.
         client_order_id (str): Deterministic client order identifier.
-        reason (str): Failure reason from venue or internal logic.
+        reason (str): Human-readable failure detail.
+        failure_class (SubmitFailureClass): Whether the venue refused the
+            order or the adapter refused it before the venue saw it. The
+            reason text carries both classes and cannot be told apart
+            without matching on it. Defaults to `UNKNOWN` so events written
+            before this field hydrate cleanly, and for failures that are
+            genuinely neither.
+        venue_code (int | None): The venue's own error code where it
+            supplied one, so a consumer can branch on the condition rather
+            than on prose. None for an adapter-side refusal, which the
+            venue never saw, and for a venue failure that carried no code.
+            A `bool` is refused rather than accepted as the `0` or `1` its
+            int-hood would otherwise make it.
     '''
 
     client_order_id: str
     reason: str
+    failure_class: SubmitFailureClass = SubmitFailureClass.UNKNOWN
+    venue_code: int | None = None
 
     def __post_init__(self) -> None:
 
@@ -311,6 +326,13 @@ class OrderSubmitFailed(_EventBase):
         name = type(self).__name__
         _require_str(name, 'client_order_id', self.client_order_id)
         _require_str(name, 'reason', self.reason)
+
+        if self.venue_code is not None and (
+            isinstance(self.venue_code, bool)
+            or not isinstance(self.venue_code, int)
+        ):
+            msg = f'{name}.venue_code must be an int or None'
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True)

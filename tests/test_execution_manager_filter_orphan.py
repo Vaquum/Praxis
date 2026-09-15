@@ -35,21 +35,28 @@ from praxis.core.domain.enums import (
     OrderStatus,
     OrderType,
     STPMode,
+    SubmitFailureClass,
     TradeStatus,
 )
 from praxis.core.domain.events import (
     CommandAccepted,
+    OrderSubmitFailed,
     OrderSubmitIntent,
     OrderSubmitted,
     TradeOutcomeProduced,
 )
 from praxis.core.domain.single_shot_params import SingleShotParams
+from praxis.core.classify_submit_failure import classify_submit_failure
 from praxis.core.execution_manager import ExecutionManager
 from praxis.infrastructure.event_spine import EventSpine
 from praxis.infrastructure.venue_adapter import (
     OrderBookLevel,
-    OrderBookSnapshot,
+    DuplicateClientOrderIdError,
     LocalOrderRejectedError,
+    OrderBookSnapshot,
+    OrderRejectedError,
+    OrderSubmitTimeoutError,
+    TransientError,
     SubmitResult,
     VenueAdapter,
 )
@@ -141,6 +148,75 @@ class TestLocalFilterRejectionEndsAsRejected:
             e for _, e in events if isinstance(e, TradeOutcomeProduced)
         )
         assert terminal.status == TradeStatus.REJECTED
+
+
+    @pytest.mark.asyncio
+    async def test_an_adapter_rejection_is_recorded_as_one(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A refusal the venue never saw must say so.
+
+        The exception types already carry this — `LocalOrderRejectedError`
+        exists to say the order never reached the venue — and the event
+        flattened it into prose alongside the venue's own rejections. A
+        consumer could only tell them apart by matching on text, and the two
+        want different responses: a filter refusal is a local condition, a
+        duplicate client order id is an idempotency condition.
+        '''
+
+        adapter.submit_order.side_effect = LocalOrderRejectedError(
+            'qty 0.0001 is below lot minimum 0.001',
+            venue_code=-1013,
+            reason='qty 0.0001 is below lot minimum 0.001',
+        )
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        failed = next(
+            e for _, e in events if isinstance(e, OrderSubmitFailed)
+        )
+
+        assert failed.failure_class is SubmitFailureClass.ADAPTER
+        assert failed.venue_code is None, (
+            'an order the venue never saw carries no venue code'
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_venue_rejection_carries_its_code(
+        self,
+        mgr: ExecutionManager,
+        spine: EventSpine,
+        adapter: AsyncMock,
+    ) -> None:
+        '''A venue refusal records the code it answered with.
+
+        Recovering the condition from the reason text is what this replaces:
+        the code is what a consumer can branch on.
+        '''
+
+        adapter.submit_order.side_effect = OrderRejectedError(
+            'Account has insufficient balance for requested action.',
+            venue_code=-2010,
+            reason='insufficient balance',
+        )
+
+        mgr.register_account(_ACCT)
+        await mgr.submit_command(**_CMD_KWARGS)
+        await asyncio.sleep(0.3)
+
+        events = await spine.read(_EPOCH, after_seq=0)
+        failed = next(
+            e for _, e in events if isinstance(e, OrderSubmitFailed)
+        )
+
+        assert failed.failure_class is SubmitFailureClass.VENUE
+        assert failed.venue_code == -2010
 
 
 class TestReconcileOrphanIntentWithoutFollowup:
@@ -243,3 +319,119 @@ class TestReconcileOrphanIntentWithoutFollowup:
             and e.command_id == 'cmd-not-orphan'
         ]
         assert terminals == []
+
+
+class TestSubmitFailureClassification:
+
+    '''Cover which side a submit failure is attributed to.
+
+    The exception types already say whether the venue ever saw the order.
+    A type that does not say must not be guessed into a bucket that an
+    alerting rule would then trust.
+    '''
+
+    def test_a_local_rejection_is_adapter_side(self) -> None:
+
+        '''The order never reached the venue.'''
+
+        error = LocalOrderRejectedError('filter', -1013, 'LOT_SIZE')
+
+        assert classify_submit_failure(error) == (
+            SubmitFailureClass.ADAPTER,
+            None,
+        )
+
+    def test_a_venue_rejection_keeps_its_code(self) -> None:
+
+        '''The venue answered with a code worth branching on.'''
+
+        error = OrderRejectedError('rejected', -2010, 'INSUFFICIENT_BALANCE')
+
+        assert classify_submit_failure(error) == (
+            SubmitFailureClass.VENUE,
+            -2010,
+        )
+
+    @pytest.mark.parametrize(
+        'error',
+        [
+            OrderSubmitTimeoutError('transport', client_order_id='c-1'),
+            TransientError('venue 5xx'),
+        ],
+    )
+    def test_a_transport_failure_is_unknown_not_a_venue_refusal(
+        self,
+        error: Exception,
+    ) -> None:
+
+        '''Transport failed; the venue may or may not hold the order.'''
+
+        assert classify_submit_failure(error) == (
+            SubmitFailureClass.UNKNOWN,
+            None,
+        )
+
+    def test_a_duplicate_id_recovers_the_code_it_was_raised_from(
+        self,
+    ) -> None:
+
+        '''The adapter raises in place of the venue's own rejection.'''
+
+        cause = OrderRejectedError('dup', -2022, 'Duplicate order sent')
+        error = DuplicateClientOrderIdError('duplicate', client_order_id='c-1')
+        error.__cause__ = cause
+
+        assert classify_submit_failure(error) == (
+            SubmitFailureClass.VENUE,
+            -2022,
+        )
+
+    def test_a_duplicate_id_without_a_cause_still_classifies(self) -> None:
+
+        '''A refusal with no recoverable code is still the venue's.'''
+
+        error = DuplicateClientOrderIdError('duplicate', client_order_id='c-1')
+
+        assert classify_submit_failure(error) == (
+            SubmitFailureClass.VENUE,
+            None,
+        )
+
+    def test_an_adapter_value_error_is_adapter_side(self) -> None:
+
+        '''Rejected parameters never left the process.'''
+
+        assert classify_submit_failure(
+            ValueError('bad quantity'),
+        ) == (SubmitFailureClass.ADAPTER, None)
+
+    def test_an_unrecognised_failure_is_not_guessed(self) -> None:
+
+        '''A type that does not say which side refused says unknown.'''
+
+        assert classify_submit_failure(
+            RuntimeError('event loop closed'),
+        ) == (SubmitFailureClass.UNKNOWN, None)
+
+    def test_no_exception_is_not_guessed(self) -> None:
+
+        '''A caller describing its own failure states no side.'''
+
+        assert classify_submit_failure(None) == (
+            SubmitFailureClass.UNKNOWN,
+            None,
+        )
+
+    def test_a_bool_venue_code_is_refused(self) -> None:
+
+        '''`True` is an int by inheritance but never a venue's code.'''
+
+        with pytest.raises(ValueError, match='venue_code must be an int'):
+            OrderSubmitFailed(
+                account_id='acc-1',
+                timestamp=datetime(2026, 9, 15, tzinfo=UTC),
+                client_order_id='c-1',
+                reason='rejected',
+                failure_class=SubmitFailureClass.VENUE,
+                venue_code=True,
+            )

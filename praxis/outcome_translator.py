@@ -7,14 +7,32 @@ The Praxis `TradeOutcome` carries cumulative aggregate state per command
 `remaining_size`). The two share only `command_id`; bridging them is a
 launcher-side concern so neither subsystem leaks types into the other.
 
-`execution_slippage_bps` and `arrival_slippage_bps` stop here. The Praxis
-outcome carries both and the Event Spine persists them, so they survive a
-restart and are available to anything reading the spine, but the Nexus
-outcome has no field for either and the translator does not invent one.
-Carrying them across needs a field on the Nexus side, which is a change in
-that repository rather than a shape this translator can widen; tracked as
-Vaquum/Nexus#112. Nothing is lost while that is open — the measures are on
-the Praxis outcome and persisted on the spine.
+`execution_slippage_bps` and `arrival_slippage_bps` cross this boundary on
+every outcome that carries a fill, each one a snapshot of the command to
+date rather than a measure of that increment. Both are quotients against
+the cumulative `avg_fill_price`, and the prices behind them are not
+persisted (TD-158), so no per-increment series can be recovered here and
+none is invented.
+
+Forwarding them on each fill is what makes them arrive at all. Only the
+submitting path holds the pre-submission mid, so the measured outcome is
+typically the immediate response — often a `PARTIAL` — while the
+WebSocket-driven outcomes that complete the command carry nothing. Holding
+the measure back for a later event assumes a later event will have one,
+which for the ordinary multi-event command is false.
+
+A consumer wanting one number per command takes the latest measurement it
+received, not the latest outcome: an outcome carrying no measure says
+nothing was measured on it, never that the earlier measure was retracted,
+so coalescing the two loses the number on exactly the commands this
+forwards it for. Weighting each by its own outcome's `fill_size`
+double-counts, because the measure spans every fill so far while the size
+spans one increment.
+
+`ACK` and the terminal outcomes carry neither: the Nexus type refuses a
+measurement on an outcome with no fill, because an acknowledgement or a
+cancellation reporting execution quality would be describing an execution
+that did not happen.
 
 A single Praxis outcome can produce zero, one, or two Nexus outcomes
 depending on prior state:
@@ -278,6 +296,8 @@ class OutcomeTranslator:
             fill_notional=delta_notional,
             actual_fees=actual_fees,
             remaining_size=remaining_size,
+            execution_slippage_bps=outcome.execution_slippage_bps,
+            arrival_slippage_bps=outcome.arrival_slippage_bps,
         )
 
     def _build_filled(
@@ -300,6 +320,8 @@ class OutcomeTranslator:
             fill_price=delta_price,
             fill_notional=delta_notional,
             actual_fees=actual_fees,
+            execution_slippage_bps=outcome.execution_slippage_bps,
+            arrival_slippage_bps=outcome.arrival_slippage_bps,
         )
 
     def _build_rejected(self, outcome: PraxisTradeOutcome) -> NexusTradeOutcome:

@@ -40,6 +40,8 @@ def _praxis_outcome(
     avg_fill_price: Decimal | None = None,
     cumulative_notional: Decimal | None = None,
     reason: str | None = None,
+    execution_slippage_bps: Decimal | None = None,
+    arrival_slippage_bps: Decimal | None = None,
 ) -> PraxisTradeOutcome:
 
     if cumulative_notional is None:
@@ -61,6 +63,8 @@ def _praxis_outcome(
         reason=reason,
         created_at=_TS,
         cumulative_notional=cumulative_notional,
+        execution_slippage_bps=execution_slippage_bps,
+        arrival_slippage_bps=arrival_slippage_bps,
     )
 
 
@@ -590,3 +594,269 @@ def test_replay_reproduces_identical_outcome_ids() -> None:
     replay_ids = [o.outcome_id for s in sequence for o in replay.translate(s)]
 
     assert replay_ids == live_ids
+
+
+class TestSlippageForwarding:
+
+    '''Cover the crossing of the two execution-quality measures.
+
+    Both are quotients against the cumulative `avg_fill_price`, so each
+    one is a snapshot of the command to date rather than a measure of the
+    increment its outcome carries. Every fill-bearing outcome forwards
+    whatever its Praxis outcome held.
+    '''
+
+    def test_filled_carries_both_measures(self) -> None:
+
+        '''A single-shot fill carries the command's measures.'''
+
+        translator = OutcomeTranslator()
+
+        result = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.FILLED,
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('12.5'),
+                arrival_slippage_bps=Decimal('-3'),
+            ),
+        )
+
+        filled = result[-1]
+
+        assert filled.outcome_type == TradeOutcomeType.FILLED
+        assert filled.execution_slippage_bps == Decimal('12.5')
+        assert filled.arrival_slippage_bps == Decimal('-3')
+
+    def test_ack_carries_neither_measure(self) -> None:
+
+        '''The acknowledgement synthesised alongside a fill stays bare.'''
+
+        translator = OutcomeTranslator()
+
+        result = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.FILLED,
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('12.5'),
+                arrival_slippage_bps=Decimal('-3'),
+            ),
+        )
+
+        ack = result[0]
+
+        assert ack.outcome_type == TradeOutcomeType.ACK
+        assert ack.execution_slippage_bps is None
+        assert ack.arrival_slippage_bps is None
+
+    def test_measured_partial_delivers_before_an_unmeasured_completion(
+        self,
+    ) -> None:
+
+        '''The submitting path measures; the stream that completes does not.
+
+        Only the submitting path holds the pre-submission mid, so the
+        immediate response carries the measures and the WebSocket-driven
+        outcome completing the command carries none. Withholding the
+        first would lose them entirely.
+        '''
+
+        translator = OutcomeTranslator()
+
+        submitted = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.PARTIAL,
+                target_qty=Decimal('2'),
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('5'),
+                arrival_slippage_bps=Decimal('7'),
+            ),
+        )
+        completed = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.FILLED,
+                target_qty=Decimal('2'),
+                filled_qty=Decimal('2'),
+                avg_fill_price=Decimal('110'),
+            ),
+        )
+
+        partial = submitted[-1]
+        filled = completed[-1]
+
+        assert partial.outcome_type == TradeOutcomeType.PARTIAL
+        assert partial.execution_slippage_bps == Decimal('5')
+        assert partial.arrival_slippage_bps == Decimal('7')
+        assert filled.outcome_type == TradeOutcomeType.FILLED
+        assert filled.execution_slippage_bps is None
+        assert filled.arrival_slippage_bps is None
+
+    def test_each_fill_reports_the_measure_it_was_given(self) -> None:
+
+        '''A re-measured command reports each snapshot as it arrives.'''
+
+        translator = OutcomeTranslator()
+
+        first = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.PARTIAL,
+                target_qty=Decimal('2'),
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('5'),
+            ),
+        )
+        second = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.FILLED,
+                target_qty=Decimal('2'),
+                filled_qty=Decimal('2'),
+                avg_fill_price=Decimal('110'),
+                execution_slippage_bps=Decimal('9'),
+            ),
+        )
+
+        assert first[-1].execution_slippage_bps == Decimal('5')
+        assert second[-1].execution_slippage_bps == Decimal('9')
+
+    @pytest.mark.parametrize(
+        'status',
+        [TradeStatus.CANCELED, TradeStatus.EXPIRED],
+    )
+    def test_part_filled_terminal_reports_on_its_partial(
+        self,
+        status: TradeStatus,
+    ) -> None:
+
+        '''A command ending part-filled reports on the closing partial.'''
+
+        translator = OutcomeTranslator()
+
+        result = translator.translate(
+            _praxis_outcome(
+                status=status,
+                target_qty=Decimal('2'),
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('4'),
+                arrival_slippage_bps=Decimal('6'),
+            ),
+        )
+
+        partial = result[-2]
+        terminal = result[-1]
+
+        assert partial.outcome_type == TradeOutcomeType.PARTIAL
+        assert partial.execution_slippage_bps == Decimal('4')
+        assert partial.arrival_slippage_bps == Decimal('6')
+        assert terminal.outcome_type is not TradeOutcomeType.PARTIAL
+        assert terminal.execution_slippage_bps is None
+        assert terminal.arrival_slippage_bps is None
+
+    def test_unfilled_cancel_reports_nothing(self) -> None:
+
+        '''A command that never filled has no execution to describe.'''
+
+        translator = OutcomeTranslator()
+
+        result = translator.translate(
+            _praxis_outcome(status=TradeStatus.CANCELED, reason='timeout'),
+        )
+
+        assert all(o.execution_slippage_bps is None for o in result)
+        assert all(o.arrival_slippage_bps is None for o in result)
+
+    def test_rejected_reports_nothing(self) -> None:
+
+        '''A refused command has no execution to describe.'''
+
+        translator = OutcomeTranslator()
+
+        result = translator.translate(
+            _praxis_outcome(status=TradeStatus.REJECTED, reason='margin'),
+        )
+
+        assert result[-1].outcome_type == TradeOutcomeType.REJECTED
+        assert result[-1].execution_slippage_bps is None
+        assert result[-1].arrival_slippage_bps is None
+
+    def test_one_measure_crosses_without_the_other(self) -> None:
+
+        '''The two travel independently, as their inputs arrive.'''
+
+        translator = OutcomeTranslator()
+
+        result = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.FILLED,
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('8'),
+            ),
+        )
+
+        filled = result[-1]
+
+        assert filled.execution_slippage_bps == Decimal('8')
+        assert filled.arrival_slippage_bps is None
+
+    def test_zero_is_forwarded_rather_than_dropped(self) -> None:
+
+        '''Landing on the benchmark is a measurement, not an absence.'''
+
+        translator = OutcomeTranslator()
+
+        result = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.FILLED,
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('0'),
+                arrival_slippage_bps=Decimal('0'),
+            ),
+        )
+
+        filled = result[-1]
+
+        assert filled.execution_slippage_bps == Decimal('0')
+        assert filled.arrival_slippage_bps == Decimal('0')
+
+    def test_completion_bearing_no_new_fill_loses_nothing(self) -> None:
+
+        '''A completion adding no quantity has already been reported.
+
+        A quote-native command can report PARTIAL at the quantity it
+        finally holds and only afterwards report FILLED. The second
+        outcome adds no increment, so the translator emits nothing for
+        it — and nothing is lost, because the PARTIAL already carried
+        the measures.
+        '''
+
+        translator = OutcomeTranslator()
+
+        working = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.PARTIAL,
+                target_qty=None,
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('3'),
+                arrival_slippage_bps=Decimal('5'),
+            ),
+        )
+        completion = translator.translate(
+            _praxis_outcome(
+                status=TradeStatus.FILLED,
+                target_qty=None,
+                filled_qty=Decimal('1'),
+                avg_fill_price=Decimal('100'),
+                execution_slippage_bps=Decimal('3'),
+                arrival_slippage_bps=Decimal('5'),
+            ),
+        )
+
+        assert working[-1].execution_slippage_bps == Decimal('3')
+        assert working[-1].arrival_slippage_bps == Decimal('5')
+        assert completion == []
