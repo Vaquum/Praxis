@@ -7,7 +7,9 @@
 - **Sections** named for what they contain.
 - **Links in the prose**, on the terms themselves, wherever another article owns the term. A reader who meets a word they do not know clicks it where they meet it.
 
-The check blocks on a missing lead, on a lead that opens with "This", and on `## What it is`, `## Overview` or `## Introduction`, which are prompts rather than section names. It also blocks on a term another article owns appearing unlinked.
+The check blocks on a missing lead, on a lead that opens with "This", and on `## What it is`, `## Overview` or `## Introduction`, which are prompts rather than section names.
+
+It also blocks on a term another article owns appearing unlinked — but only for terms whose string cannot mean anything else, such as `priority line` or `order book`. Ordinary words like *fill*, *run* and *held* mean one thing in "counted as filled" and another in "too thin to fill", and no string match separates them. Those are asked of the reviewer instead, as part of every review: **which mentions of an owned term are the concept and should link, and which are ordinary usage that should not.**
 
 ## Say what a thing is
 
@@ -70,4 +72,4 @@ A cited file that cannot be found is a failure too, not a skip.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 08:02 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 20:05 UTC

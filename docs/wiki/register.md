@@ -45,7 +45,7 @@ Numbering starts at P2-11 because the harvest already bound P2-01 to P2-04 to mo
 
 Order follows dependency. A venue and an account own nothing else and are used most. The book and the order types come next because the two price articles rest on both without defining either. A fill is one execution at the venue; holdings are what a fill changes, netting a fee the command's own total does not. The spine is what package 1 calls writing down and recording, which currently stand unexplained. Outcomes own *partial*, which is a report status and not a kind of fill — that distinction is why a fill and an outcome are two rows and not one. Runs own *slice*; ladders are a separate arm of the dispatch that submits every rung at once, so neither folds into the other. A hidden-size order is a third arm again, sending one order for the whole amount while showing the venue a smaller one. Deadlines are seeded rather than held back because there are two clocks, not one: unstarted work is judged from when it was accepted, and a run that has started is judged from a fresh window opened when it started.
 
-Two costs are known before tracing starts. Each article makes every unlinked mention of its term in package 1 a check failure, so each carries a pass back through the existing ten. And the term check matches on substring, so *fill* will catch "until the order is filled" and "too thin to fill" in the book-walk article, and *held* is used for an account being on hold as well as for inventory. Either the check learns to exclude a phrase, or those sentences are reworded.
+Two costs are known before tracing starts. Each article makes every unlinked mention of its term in package 1 a check failure, so each carries a pass back through the existing ten. And the term check only carries terms whose string cannot mean anything else. *fill*, *run* and *held* are ordinary words — "counted as filled" is the concept, "too thin to fill" is not — so they stay out of the check and their linking is asked of the reviewer on every pass instead.
 
 ### Held back from package 2
 
@@ -144,4 +144,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 17:42 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 20:05 UTC
