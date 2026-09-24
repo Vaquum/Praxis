@@ -1498,3 +1498,17 @@
 ### Change
 
 - Pin `vaquum-nexus` to `0afbd53` for the two new `TradeOutcome` fields
+
+## v0.100.0 on 24th of September, 2026
+
+### Add
+
+- Add a wiki under [`docs/wiki`](docs/wiki/README.md) explaining how Praxis and Nexus work, in plain words, for a reader who cannot read `execution_manager.py` to find out. Ten articles, each named for its subject and opening with a sentence defining it: what a trade, a request and an order are and which answers which question; how an order is placed; when a send's outcome is unknown; what a reply Praxis cannot read leads to; the likely-price check and the arithmetic behind it; the account worker, the priority line it empties, and the work already under way it carries on between them; and cancellation. Terms link where they appear, and an article that outgrows its limit is split rather than lengthened, so six of the ten exist because another outgrew the limit while being made accurate
+
+- Add the machinery the wiki is checked against: a register carrying every topic and everything found while tracing, a ledger marking each file uncovered, partial or covered, an article template, and the commit each article was written from. Every claim an article makes lives in its front matter with the lines it rests on — 318 citations across 136 claims, all resolving at the recorded commit — where the checker reads them and the reader does not
+
+- Add [`check_wiki.py`](scripts/check_wiki.py), seventeen checks that fail closed, each added after a defect of its kind had already reached a finished article. On citations: a range landing in a docstring, on a log call, on a signature with no body, past the end of its file, in a file that cannot be resolved, or across two mutually exclusive branches — both halves of an `if`/`else` and sibling `except` handlers — without the row marking them as alternatives. On voice: a missing lead paragraph, a lead opening with "This", a prompt heading such as `## What it is`, a definition by negation, and a double negative. On structure: the word limit counted over headings and prose but not navigation links, evidence appearing in the body, a missing metadata block, and a term another article owns appearing unlinked. Each was proved by reintroducing the defect and confirming the failure
+
+- Record U-03 in [`the register`](docs/wiki/register.md): a ladder cancelled before its first rung, reaching `_start_ladder` before its deadline, passes a zero slice total into the terminal emitter, `TradeOutcome` refuses a non-positive total, and the `ValueError` is caught and logged. No outcome is produced at the time. The command survives as an accepted command with no intent, so the next start classes it a boot orphan and reports it `REJECTED` — the caller is told, but only after a restart, and as a rejection rather than a cancellation
+
+- Record what the wiki is not sure about in the register rather than asserting it: that the venue feed repairs a record written off after an unanswerable lookup, and that a schedule change is lost on restart. Both appear in docstrings, neither is established by any body, and both are marked unverified with the docstring named
