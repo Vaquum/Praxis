@@ -45,7 +45,19 @@ Numbering starts at P2-11 because the harvest already bound P2-01 to P2-04 to mo
 
 Order follows dependency. A venue and an account own nothing else and are used most. The book and the order types come next because the two price articles rest on both without defining either. A fill is one execution at the venue; holdings are what a fill changes, netting a fee the command's own total does not. The spine is what package 1 calls writing down and recording, which currently stand unexplained. Outcomes own *partial*, which is a report status and not a kind of fill — that distinction is why a fill and an outcome are two rows and not one. Runs own *slice*; ladders are a separate arm of the dispatch that submits every rung at once, so neither folds into the other. A hidden-size order is a third arm again, sending one order for the whole amount while showing the venue a smaller one. Deadlines are seeded rather than held back because there are two clocks, not one: unstarted work is judged from when it was accepted, and a run that has started is judged from a fresh window opened when it started.
 
-Two costs are known before tracing starts. Each article makes every unlinked mention of its term in package 1 a check failure, so each carries a pass back through the existing ten. And the term check only carries terms whose string cannot mean anything else. *fill*, *run* and *held* are ordinary words — "counted as filled" is the concept, "too thin to fill" is not — so they stay out of the check and their linking is asked of the reviewer on every pass instead.
+Two costs are known before tracing starts. Each article makes every unlinked mention of its term in package 1 a check failure, so each carries a pass back through the existing ten. And the term check only carries terms whose string cannot mean anything else. The rest were put to a reviewer against all ten bodies, phrase by phrase, before any of these articles is written. The mentions that must *not* link:
+
+| Phrase | In | Why not |
+|---|---|---|
+| "until the order is filled", "too thin to fill" | estimating the likely price | the book walk completing, not a recorded execution |
+| "a held or failed account", "on hold", "what holds a pass back" | the worker, the priority line, work already under way | an account suspended, not inventory |
+| "the run stays on the books" | work already under way | an idiom; neither the order book nor a spine write |
+| "this runs early", "cancellations still run", "until the money runs out" | work already under way, the priority line, estimating | execution order and exhaustion, not a fed-out run |
+| "when a send's outcome is unknown" | its own title, and two links to it | whether the send arrived, not the request's outcome |
+| "refuse the order on the result", "stopped by the result" | the likely-price check | the calculation's result |
+| "the worker logs it", "the record is put back for a later pass" | a reply that cannot be read, work already under way | diagnostic logging and retry state, not spine writes |
+
+Two facts fall out of that pass. The spine's subject is carried entirely without its name — "writes down", "records", "the intent stays recorded" across five articles — so a string check would have found none of it. And *partial* appears in no body at all, so the second half of P2-18 has nothing in package 1 to attach to yet.
 
 ### Held back from package 2
 
@@ -144,4 +156,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 20:05 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 20:11 UTC
