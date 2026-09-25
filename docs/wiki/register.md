@@ -29,10 +29,19 @@ Seeded, not traced. No article exists for these yet.
 |---|---|---|---|
 | P2-11 | What a venue is, and what Praxis asks of one | written | [what-a-venue-is.md](atoms/what-a-venue-is.md) |
 | P2-12 | What an account is | written | [what-an-account-is.md](atoms/what-an-account-is.md) |
-| P2-13 | The order book, and what a venue publishes in it | seeded | — |
-| P2-14 | Order types, and what a market order means here | seeded | — |
-| P2-15 | What a fill is | seeded | — |
-| P2-16 | Holdings, and how a fill changes them | seeded | — |
+| P2-13 | The order book, and what a venue publishes in it | written | [the-order-book.md](atoms/the-order-book.md) |
+| P2-26 | The kept copy of the book, and the two checks that read it | written | [the-kept-book.md](atoms/the-kept-book.md) |
+| P2-27 | The places the order type alone changes the outcome | written | [where-the-order-type-decides.md](atoms/where-the-order-type-decides.md) |
+| P2-28 | The prices each order type must and must not name | written | [the-prices-an-order-must-name.md](atoms/the-prices-an-order-must-name.md) |
+| P2-29 | The two projections a fill is handed to, and what each keeps | written | [what-a-fill-changes.md](atoms/what-a-fill-changes.md) |
+| P2-30 | When the commission comes out of the amount credited | written | [the-commission-and-the-amount.md](atoms/the-commission-and-the-amount.md) |
+| P2-31 | What a fill does to the order it belongs to | written | [fills-and-the-order.md](atoms/fills-and-the-order.md) |
+| P2-32 | Where a repeated fill is caught, and what counts as the same one | written | [where-duplicates-stop.md](atoms/where-duplicates-stop.md) |
+| P2-33 | What happens when a commission equals or exceeds the fill it is charged on | written | [when-the-commission-swallows-the-fill.md](atoms/when-the-commission-swallows-the-fill.md) |
+| P2-34 | Where a projection failure lands, and which ones stop the account | written | [when-a-projection-fails.md](atoms/when-a-projection-fails.md) |
+| P2-14 | Order types, and what a market order means here | written | [order-types.md](atoms/order-types.md) |
+| P2-15 | What a fill is | written | [what-a-fill-is.md](atoms/what-a-fill-is.md) |
+| P2-16 | Holdings, and how a fill changes them | written | [holdings.md](atoms/holdings.md) |
 | P2-17 | The event spine, and what writing down means | seeded | — |
 | P2-18 | Outcomes, and what partial reports | seeded | — |
 | P2-19 | Runs, and the slices they are fed out in | seeded | — |
@@ -108,6 +117,7 @@ Found while answering package 1, not answered by it. These enter the next packag
 | How a trade is modified | Built on cancellation, which is now written. The next subject in line. | unassigned |
 | Does the venue feed actually repair a record written off after an unanswerable lookup? | H-025 shows the claim lives only in a docstring. | unassigned |
 | Is the deferred ladder-cancel report (U-03) worth raising against Praxis? | A caller waiting on that cancellation hears nothing until a restart, and then hears "rejected as a boot orphan" rather than "cancelled". Weaker than first recorded, since the report is not lost. | unassigned |
+| Is the hardcoded base asset in the holdings fee-netting (U-04) a live defect? | Holdings net a buy's commission only when the fee asset is `'BTC'`. On any other symbol the record sits above the wallet by the commission on every buy — the compounding error the netting exists to prevent. Prod trades one symbol today, so the reach depends on whether a second is ever added. | unassigned |
 | Does a schedule change survive a restart? | H-040 shows the docstring and TD-135 both say it is lost. Neither is a body. | unassigned |
 
 ## Harvest
@@ -159,8 +169,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-043 | A plain single order still pending or partly filled once its acceptance deadline has passed is cancelled at the venue and reported expired. A not-found cancel still counts as expired; a failed one carries the failure in the reason. None of the ten bodies says this happens. | `execution_manager.py` 4411-4436 | P2-23 | folds into P2-23; P1-02 now states it and links there |
 | H-044 | A run or a ladder that has started is judged against a new window opened at its start, not against the clock its command was accepted on. | `execution_manager.py` 5784-5787 and 6128-6131, against 2925 | P2-23 | folds into P2-23 |
 | H-042 | A ladder cancelled before its first rung, reaching `_start_ladder` before its deadline, passes a zero slice total into the terminal emitter. `TradeOutcome` refuses it, the `ValueError` is caught and logged, and no outcome is produced at the time. The command survives as an accepted command with no intent, so the next start classes it a boot orphan and dispatches a REJECTED outcome. The caller is told, but only after a restart, and as a rejection rather than a cancellation. | `execution_manager.py` 6077-6081 into 8411-8423, refused by `trade_outcome.py` 146-148, swallowed at 4012-4019; recovered at 2254-2275 into 2297-2330 | P1-04 | U-03 corrected: a deferred, mislabelled report, not a lost one |
+| H-045 | The base-asset commission is netted out of holdings only where the fee asset equals a hardcoded `'BTC'`. A buy of any other symbol whose commission is charged in that symbol's base asset is credited gross, which is the condition the netting was written to remove. | `trading_state.py` 66 with the test at 84-85, netted at 483 | P2-16 | raised as U-04; the money ledger refuses a second symbol outright and that refusal is swallowed |
+| H-046 | The `Fill` domain type validates its fields and carries a deduplication key, and nothing in the live path constructs one. Every fill flows as a `FillReceived` event instead. Exported from `domain/__init__` and exercised only by `test_domain_core.py`. | no construction site in `praxis/core` or `praxis/infrastructure`; built at `tests/test_domain_core.py` 35 | P2-15 | recorded; article describes the event |
+| H-047 | A first BUY whose fee asset is `'BTC'` and whose fee equals the filled quantity exactly creates a holding of zero. `Position` permits zero, and the branch that drops an emptied record runs only for a reducing fill, so the empty record stands; a later same-side fill delivering zero against it divides zero by zero. A larger such fee makes the quantity negative and `Position` refuses construction. A sell, or any other fee asset, keeps the gross quantity and is unaffected. The money ledger refuses the same fill, and that refusal is swallowed. | `trading_state.py` 483 into 487-498, permitted by `position.py` 52-53, dropped only at 518-522, divided at 500-503; ledger refusal at `account_ledger.py` 305-307 swallowed by `execution_manager.py` 2092-2098 | P2-16 | recorded; P2-33 states the landings, including the second zero-delivery fill failing on the empty record |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | 10070-10071 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-25 18:14 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-25 19:59 UTC

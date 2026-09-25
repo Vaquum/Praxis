@@ -8,8 +8,20 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 
 - [What a venue is](atoms/what-a-venue-is.md) — what Praxis asks of whatever it sends orders to.
 - [What an account is](atoms/what-an-account-is.md) — the name that owns work, and what registering one creates.
-
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — the three names in play, and which one answers which question.
+- [Order types](atoms/order-types.md) — the eight kinds, and how each one reaches the venue.
+- [The prices an order must name](atoms/the-prices-an-order-must-name.md) — the set each kind owns, and what never passes the check.
+- [What a fill is](atoms/what-a-fill-is.md) — one execution the venue reports, and what it must have.
+- [Where duplicates stop](atoms/where-duplicates-stop.md) — the record's refusal, and what counts as the same execution.
+- [What a fill changes](atoms/what-a-fill-changes.md) — the two projections it is handed to, and what each keeps.
+- [When a projection fails](atoms/when-a-projection-fails.md) — the guards around the account loop, and which failures stop it.
+- [Fills and the order](atoms/fills-and-the-order.md) — the totals, the status, and a fill that arrives after the end.
+- [Holdings](atoms/holdings.md) — what an account has from a trade, and when the record goes away.
+- [The commission and the amount](atoms/the-commission-and-the-amount.md) — when a fill credits less than it reports.
+- [When the commission swallows the fill](atoms/when-the-commission-swallows-the-fill.md) — a commission at or above the amount, and the four ways it lands.
+- [Where the order type decides](atoms/where-the-order-type-decides.md) — the places the kind alone changes the outcome.
+- [The order book](atoms/the-order-book.md) — what a venue publishes, who asks for it, and how deep each asker looks.
+- [The kept book](atoms/the-kept-book.md) — the copy Praxis polls for, and the two checks that read it.
 
 ## Getting an order to the venue
 
@@ -41,8 +53,8 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 
 An article that outgrows the limit is split rather than lengthened, so the wiki grows sideways.
 
-This wiki is early. Fifteen articles exist. Almost every file in both projects is untouched. The ledger lists them.
+This wiki is early. Twenty-eight articles exist. Almost every file in both projects is untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-25 18:14 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-25 19:59 UTC

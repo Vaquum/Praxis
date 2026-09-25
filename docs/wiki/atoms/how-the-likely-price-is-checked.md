@@ -2,7 +2,7 @@
 row: P1-05
 baseline: 49aa659
 created: 2026-09-20 16:58 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-25 19:00 UTC
 evidence:
   - claim: "Every other kind is routed elsewhere before this path"
     source: "`execution_manager.py` 3994-4009, with a defensive refusal for anything that still arrives at 4170-4188, returning instead of reaching the fetch at 4192-4197"
@@ -29,7 +29,7 @@ evidence:
 ---
 # The likely-price check
 
-Before a plain single [order](what-a-trade-is.md) is sent, Praxis tries to compare [what it would likely average](how-the-likely-price-is-worked-out.md) against the middle of the order book, and can refuse the order on the result.
+Before a plain single [order](what-a-trade-is.md) is sent, Praxis tries to compare [what it would likely average](how-the-likely-price-is-worked-out.md) against the middle of the [order book](the-order-book.md), and can refuse the order on the result.
 
 Anything asking to be fed out over time, laddered, given a separate display size, or wrapped with protection is queued the same way but carried out along its own path, and never reaches this check. Work fed out or laddered is ended unstarted if its deadline has already passed; a bracket or a hidden-size order is not checked for that.
 

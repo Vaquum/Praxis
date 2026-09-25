@@ -2,7 +2,7 @@
 row: P2-11
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-25 18:58 UTC
 evidence:
   - claim: "Execution holds one venue and calls it by name throughout"
     source: "stored once at `execution_manager.py` 679"
@@ -63,7 +63,7 @@ Outside execution, two places do ask what it really is: a live stream of executi
 
 **Do this**: place an order, cancel one, cancel a linked pair.
 
-**Tell me**: what became of an order or a linked pair, what the [account](what-an-account-is.md) holds and has traded, what the [order book](how-the-likely-price-is-worked-out.md) looks like now, what the symbol's rules are, what transfers have settled, and what the keys may do.
+**Tell me**: what became of an order or a linked pair, what the [account](what-an-account-is.md) holds and has traded, what the [order book](the-order-book.md) looks like now, what the symbol's rules are, what transfers have settled, and what the keys may do.
 
 One thing that sounds like an ask is not. Snapping an amount onto the venue's grid reads rules already cached, and hands the amount straight back where nothing is.
 

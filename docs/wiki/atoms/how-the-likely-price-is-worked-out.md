@@ -2,7 +2,7 @@
 row: P1-06
 baseline: 49aa659
 created: 2026-09-20 17:33 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-25 19:00 UTC
 evidence:
   - claim: "The book is fetched before the walk"
     source: "`execution_manager.py` 4192-4205"
@@ -27,7 +27,7 @@ evidence:
 ---
 # Estimating the likely price
 
-Praxis estimates what [an order](what-a-trade-is.md) would average if it went to the venue right now, by walking the order book. The figure it produces feeds [the likely-price check](how-the-likely-price-is-checked.md).
+Praxis estimates what [an order](what-a-trade-is.md) would average if it went to the venue right now, by walking the [order book](the-order-book.md). The figure it produces feeds [the likely-price check](how-the-likely-price-is-checked.md).
 
 ## The walk
 

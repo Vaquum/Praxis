@@ -37,12 +37,22 @@ OWNED_TERMS = {
     'how-waiting-work-is-drained.md': ("account's worker", 'priority line'),
     'how-a-trade-is-cancelled.md': ('cancellation',),
     'how-an-order-is-placed.md': ('submitted work',),
-    'how-the-likely-price-is-checked.md': ('likely price',),
-    'how-the-likely-price-is-worked-out.md': ('order book',),
+    'how-the-likely-price-is-checked.md': ('likely-price check',),
+    'the-order-book.md': ('order book',),
 }
 LINE_REF = re.compile(r'\b(\d{2,5})(?:-(\d{2,5}))?\b')
 FILE_REF = re.compile(r'`([A-Za-z_][A-Za-z0-9_/]*\.py)`')
 LINK_ONLY = re.compile(r'-\s*\[[^]]+\]\([^)]+\.md\)')
+_TITLE = (
+    r'(?:\s+(?:"(?:[^"\\]|\\.)*"'
+    r"|'(?:[^'\\]|\\.)*'"
+    r'|\((?:[^)\\]|\\.)*\)))?'
+)
+MD_LINK = re.compile(r'\]\(\s*<?([^)\s>]+)>?' + _TITLE + r'\s*\)')
+REF_LINK = re.compile(r'\[([^\]]+)\]\[([^\]]*)\]')
+REF_SHORTCUT = re.compile(r'\[([^\]]+)\](?![(\[])')
+REF_DEF = re.compile(r'^ {0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?', re.MULTILINE)
+HEADING = re.compile(r'^#{1,6}\s+(.+?)\s*$', re.MULTILINE)
 SOURCE_FILES = {
     'execution_manager': Path('praxis/core/execution_manager.py'),
     'trading_state': Path('praxis/core/trading_state.py'),
@@ -183,7 +193,7 @@ def _resolve_source(name: str) -> Path | None:
 
     stem = name[:-3] if name.endswith('.py') else name
 
-    for root in (Path('praxis'), Path('../Nexus/nexus'), Path('scripts')):
+    for root in (Path('praxis'), Path('../Nexus/nexus'), Path('scripts'), Path('tests')):
         if not root.is_dir():
             continue
 
@@ -440,6 +450,75 @@ def _unlinked_terms(page: Path, body: str) -> list[str]:
     return missing
 
 
+def _label(name: str) -> str:
+
+    return ' '.join(name.split()).casefold()
+
+
+def _anchors(text: str) -> set[str]:
+
+    slugs = set()
+
+    for heading in HEADING.findall(text):
+        slug = re.sub(r'[^a-z0-9 -]', '', heading.lower()).replace(' ', '-')
+        slugs.add(slug)
+
+    return slugs
+
+
+def _broken_links(page: Path, body: str) -> list[str]:
+
+    broken: list[str] = []
+    definitions: dict[str, str] = {}
+    spans: list[tuple[int, int]] = []
+
+    for match in REF_DEF.finditer(body):
+        spans.append((match.start(), match.end()))
+        definitions.setdefault(_label(match.group(1)), match.group(2))
+
+    targets = list(MD_LINK.findall(body))
+
+    for match in REF_LINK.finditer(body):
+        text, label = match.groups()
+        key = _label(label or text)
+
+        if key not in definitions:
+            broken.append(f'refers to [{label or text}], which is never defined')
+            continue
+
+        targets.append(definitions[key])
+
+    for match in REF_SHORTCUT.finditer(body):
+        key = _label(match.group(1))
+
+        if key in definitions and not any(
+            start <= match.start() < end for start, end in spans
+        ):
+            targets.append(definitions[key])
+
+    for target in targets:
+        if target.startswith(('http://', 'https://', 'mailto:')):
+            continue
+
+        path, _, anchor = target.partition('#')
+
+        if path:
+            resolved = (page.parent / path).resolve()
+
+            if not resolved.exists():
+                broken.append(f'links to {path}, which does not exist')
+                continue
+
+            text = resolved.read_text() if resolved.is_file() else ''
+        else:
+            text = body
+
+        if anchor and anchor not in _anchors(text):
+            broken.append(f'links to {target}, whose heading does not exist')
+
+    return broken
+
+
 def _split_front_matter(text: str) -> tuple[str, str]:
 
     if not text.startswith('---\n'):
@@ -491,6 +570,10 @@ def _check_page(
                 f'{rel}: last modified {stamp.group(2)} disagrees with '
                 f'last commit {committed}',
             )
+
+    failures.extend(
+        f'{rel}: {note}' for note in _broken_links(page, body if meta else text)
+    )
 
     if page.parent.name != 'atoms':
         return failures
