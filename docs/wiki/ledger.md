@@ -10,13 +10,18 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 
 | File | State | Rows |
 |---|---|---|
-| `praxis/core/execution_manager.py` | partial | P1-01 to P1-10 |
+| `praxis/core/execution_manager.py` | partial | P1-01 to P1-10, P2-11 to P2-25 |
 | `praxis/core/trading_state.py` | partial | P1-01 |
 | `praxis/core/validate_trade_abort.py` | partial | P1-04 |
 | `praxis/core/domain/trade_outcome.py` | partial | P1-04 |
-| `praxis/infrastructure/binance_adapter.py` | partial | P1-07, P1-10 |
+| `praxis/infrastructure/binance_adapter.py` | partial | P1-07, P1-10, P2-11, P2-25 |
+| `praxis/trading.py` | partial | P2-11, P2-12 |
+| `praxis/trading_inbound.py` | partial | P2-12 |
+| `praxis/infrastructure/replay_venue_adapter.py` | partial | P2-12 |
+| `praxis/core/trade_command.py` | partial | P2-24 |
+| `praxis/core/validate_trade_command.py` | partial | P2-24 |
 | `praxis/core/estimate_slippage.py` | partial | P1-06 |
-| the other 89 | uncovered | — |
+| the other 84 | uncovered | — |
 
 `execution_manager.py` is 10,867 lines. Ten rows touching it makes it `partial` by a wide margin, not nearly covered.
 
@@ -30,4 +35,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 08:02 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-25 18:14 UTC

@@ -2,7 +2,7 @@
 row: P1-03
 baseline: 49aa659
 created: 2026-09-20 16:30 UTC
-modified: 2026-09-24 08:02 UTC
+modified: 2026-09-25 18:14 UTC
 evidence:
   - claim: "One worker per account; a second registration is refused"
     source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"

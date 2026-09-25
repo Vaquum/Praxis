@@ -2,7 +2,7 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-09-24 08:02 UTC
+modified: 2026-09-25 18:14 UTC
 evidence:
   - claim: "The cancellation retry runs before the point a held or failed account leaves"
     source: "`execution_manager.py` 3960, ahead of the leaving point at 3969-3971"

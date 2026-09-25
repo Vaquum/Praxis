@@ -2,7 +2,7 @@
 row: P1-08
 baseline: 49aa659
 created: 2026-09-23 08:19 UTC
-modified: 2026-09-24 08:02 UTC
+modified: 2026-09-25 18:14 UTC
 evidence:
   - claim: "The line is emptied every pass once the account has started"
     source: "`execution_manager.py` 3910-3911, unless a still-starting account stops at 3903-3905"

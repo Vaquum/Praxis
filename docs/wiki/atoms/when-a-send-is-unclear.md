@@ -2,7 +2,7 @@
 row: P1-07
 baseline: 49aa659
 created: 2026-09-23 08:18 UTC
-modified: 2026-09-24 08:02 UTC
+modified: 2026-09-25 18:14 UTC
 evidence:
   - claim: "A transport failure leaving the retry loop on an order send is wrapped as a submit timeout"
     source: "`binance_adapter.py` 1637-1643, wrapping what leaves the loop at 680, either built there at 660-662 or raised at 1135-1137 and caught instead at 595-596"

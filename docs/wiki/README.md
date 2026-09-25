@@ -6,10 +6,14 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 
 ## The vocabulary
 
+- [What a venue is](atoms/what-a-venue-is.md) — what Praxis asks of whatever it sends orders to.
+- [What an account is](atoms/what-an-account-is.md) — the name that owns work, and what registering one creates.
+
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — the three names in play, and which one answers which question.
 
 ## Getting an order to the venue
 
+- [What turns work away](atoms/what-turns-work-away.md) — the gates before anything is written down.
 - [Order placement](atoms/how-an-order-is-placed.md) — the two stages, and what each one does.
 - [When a send's outcome is unknown](atoms/when-a-send-is-unclear.md) — the failures that settle nothing, and what Praxis asks the venue.
 - [A reply that cannot be read](atoms/a-reply-that-cannot-be-read.md) — four endings, depending on where the reading fails.
@@ -18,6 +22,11 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 - [The account worker](atoms/how-waiting-work-is-drained.md) — the circuit each account goes round, and what it takes from where.
 - [The priority line](atoms/the-priority-line.md) — where cancellations and changes wait, and why they go first.
 - [Work already under way](atoms/work-already-under-way.md) — what the worker carries on with between the two queues.
+
+## Time running out
+
+- [Deadlines](atoms/deadlines.md) — two clocks, and the moments each is read.
+- [The expiry cancel](atoms/the-expiry-cancel.md) — what the venue's answer changes, and when nothing is reported.
 
 ## Stopping one
 
@@ -32,8 +41,8 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 
 An article that outgrows the limit is split rather than lengthened, so the wiki grows sideways.
 
-This wiki is early. Ten articles exist. Almost every file in both projects is untouched. The ledger lists them.
+This wiki is early. Fifteen articles exist. Almost every file in both projects is untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-24 08:02 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-25 18:14 UTC

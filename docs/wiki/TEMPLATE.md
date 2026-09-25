@@ -30,7 +30,7 @@ Evidence is apparatus. It is how the article is checked, not part of what it say
 row: P1-02
 baseline: 49aa659
 created: 2026-09-20 15:52 UTC
-modified: 2026-09-24 08:02 UTC
+modified: 2026-09-25 18:14 UTC
 evidence:
   - claim: "A full queue is refused"
     source: "`execution_manager.py` 3497-3511"
@@ -72,4 +72,4 @@ A cited file that cannot be found is a failure too, not a skip.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 20:05 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-25 18:14 UTC

@@ -27,8 +27,8 @@ Seeded, not traced. No article exists for these yet.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
-| P2-11 | What a venue is, and what Praxis asks of one | seeded | — |
-| P2-12 | What an account is | seeded | — |
+| P2-11 | What a venue is, and what Praxis asks of one | written | [what-a-venue-is.md](atoms/what-a-venue-is.md) |
+| P2-12 | What an account is | written | [what-an-account-is.md](atoms/what-an-account-is.md) |
 | P2-13 | The order book, and what a venue publishes in it | seeded | — |
 | P2-14 | Order types, and what a market order means here | seeded | — |
 | P2-15 | What a fill is | seeded | — |
@@ -39,7 +39,9 @@ Seeded, not traced. No article exists for these yet.
 | P2-20 | Ladders, and their rungs | seeded | — |
 | P2-21 | Protection, and the order that carries it | seeded | — |
 | P2-22 | Hidden-size orders, and what the venue shows | seeded | — |
-| P2-23 | Deadlines, and the two clocks they run on | seeded | — |
+| P2-23 | Deadlines, and the two clocks they run on | written | [deadlines.md](atoms/deadlines.md) |
+| P2-24 | What turns work away before it is queued | written | [what-turns-work-away.md](atoms/what-turns-work-away.md) |
+| P2-25 | The expiry cancel | written | [the-expiry-cancel.md](atoms/the-expiry-cancel.md) |
 
 Numbering starts at P2-11 because the harvest already bound P2-01 to P2-04 to modification, the bracket change, run cancellation and the schedule change. Those rows now name their subject rather than an ID that pointed at nothing.
 
@@ -58,6 +60,11 @@ Two costs are known before tracing starts. Each article makes every unlinked men
 | "the worker logs it", "the record is put back for a later pass" | a reply that cannot be read, work already under way | diagnostic logging and retry state, not spine writes |
 
 Two facts fall out of that pass. The spine's subject is carried entirely without its name — "writes down", "records", "the intent stays recorded" across five articles — so a string check would have found none of it. And *partial* appears in no body at all, so the second half of P2-18 has nothing in package 1 to attach to yet.
+
+
+Five are written: venue, account, deadlines, and two carved out while writing them — the expiry cancel from deadlines, and the pre-queue gates from order placement, both because stating their branches accurately took the parent past the cap.
+
+A second reviewer read the first four of these until its account ran out of credit. Everything since has had one reviewer only, and all five changed after that second one last read them. They want another pass when it is available.
 
 ### Held back from package 2
 
@@ -149,11 +156,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-038 | A new total at or below what has already fired is refused. Shrinking below what is done is not how you stop a scheme; cancelling is. | 10062-10065 | schedule change | folds into the schedule change |
 | H-039 | A successful change resumes a scheme frozen by a failed slice, but one frozen for protection reasons cannot be resumed this way and the change is refused. | 10065-10068, 10083-10087 | schedule change | folds into the schedule change |
 | H-040 | That a restart loses a schedule change is asserted by the docstring at 10068-10070 and by TD-135. Neither is a body. Re-trace the restart path before any article repeats it. | docstring only; body not traced | schedule change | blocked: needs a body trace |
-| H-043 | A plain single order still pending or partly filled once its acceptance deadline has passed is cancelled at the venue and reported expired. A not-found cancel still counts as expired; a failed one carries the failure in the reason. None of the ten bodies says this happens. | `execution_manager.py` 4411-4436 | P2-23 | folds into P2-23; needs a pass back through P1-02 |
+| H-043 | A plain single order still pending or partly filled once its acceptance deadline has passed is cancelled at the venue and reported expired. A not-found cancel still counts as expired; a failed one carries the failure in the reason. None of the ten bodies says this happens. | `execution_manager.py` 4411-4436 | P2-23 | folds into P2-23; P1-02 now states it and links there |
 | H-044 | A run or a ladder that has started is judged against a new window opened at its start, not against the clock its command was accepted on. | `execution_manager.py` 5784-5787 and 6128-6131, against 2925 | P2-23 | folds into P2-23 |
 | H-042 | A ladder cancelled before its first rung, reaching `_start_ladder` before its deadline, passes a zero slice total into the terminal emitter. `TradeOutcome` refuses it, the `ValueError` is caught and logged, and no outcome is produced at the time. The command survives as an accepted command with no intent, so the next start classes it a boot orphan and dispatches a REJECTED outcome. The caller is told, but only after a restart, and as a rejection rather than a cancellation. | `execution_manager.py` 6077-6081 into 8411-8423, refused by `trade_outcome.py` 146-148, swallowed at 4012-4019; recovered at 2254-2275 into 2297-2330 | P1-04 | U-03 corrected: a deferred, mislabelled report, not a lost one |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | 10070-10071 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-24 20:11 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-25 18:14 UTC
