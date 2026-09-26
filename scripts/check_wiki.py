@@ -7,6 +7,7 @@ whether the register missed a behaviour, stay with the reviewer.
 from __future__ import annotations
 
 import ast
+import functools
 import re
 import shutil
 import subprocess
@@ -72,14 +73,116 @@ SOURCE_FILES = {
 }
 DEFAULT_SOURCE = 'execution_manager'
 PROSE_WORD_CAP = 300
+BASELINE = '49aa659'
+NEXUS_ROOT = Path('../Nexus')
+NEXUS_BASELINE = '953477a'
+BASELINE_RE = re.compile(r'^baseline:\s*(\S+)\s*$', re.MULTILINE)
+CREATED_RE = re.compile(r'^created:\s*(.+?)\s*$', re.MULTILINE)
+SEARCH_PREFIXES = ('praxis/', 'nexus/', 'scripts/', 'tests/')
 _MAX_SPAN = 60
 GIT = shutil.which('git')
+
+
+@functools.cache
+def _repo_root() -> Path | None:
+
+    if GIT is None:
+        return None
+
+    result = subprocess.run(  # noqa: S603
+        [GIT, 'rev-parse', '--show-toplevel'],
+        capture_output=True, text=True, check=False,
+    )
+
+    if result.returncode != 0:
+        return None
+
+    return Path(result.stdout.strip())
+
+
+class BaselineReadError(OSError):
+    '''A cited file could not be read at the baseline it is pinned to.'''
+
+
+def _pins() -> list[tuple[Path, str]]:
+
+    roots = [(_repo_root(), BASELINE)]
+
+    if NEXUS_ROOT.is_dir():
+        roots.append((NEXUS_ROOT.resolve(), NEXUS_BASELINE))
+
+    return [(root, commit) for root, commit in roots if root is not None]
+
+
+def _pin(path: Path) -> tuple[Path, str, Path] | None:
+    '''Return the deepest pinned repository containing `path`, and its commit.'''
+
+    resolved = path.resolve()
+    matches: list[tuple[Path, str, Path]] = []
+
+    for root, commit in _pins():
+
+        try:
+            matches.append((root, commit, resolved.relative_to(root)))
+        except ValueError:
+            continue
+
+    if not matches:
+        return None
+
+    return max(matches, key=lambda match: len(match[0].parts))
+
+
+@functools.cache
+def _pinned_paths(root: Path, commit: str) -> tuple[str, ...]:
+
+    if GIT is None:
+        msg = 'git is unavailable, so no pinned tree can be listed'
+        raise BaselineReadError(msg)
+
+    result = subprocess.run(  # noqa: S603
+        [GIT, 'ls-tree', '-r', '--name-only', commit],
+        capture_output=True, text=True, check=False, cwd=root,
+    )
+
+    if result.returncode != 0:
+        msg = f'{root}: cannot list the tree at {commit}'
+        raise BaselineReadError(msg)
+
+    return tuple(result.stdout.splitlines())
+
+
+@functools.cache
+def _source_text(path: Path) -> str:
+    '''Return the file's content at the baseline its repository is pinned to.'''
+
+    if GIT is None:
+        msg = f'{path}: git is unavailable, so no baseline can be read'
+        raise BaselineReadError(msg)
+
+    pinned = _pin(path)
+
+    if pinned is None:
+        msg = f'{path}: lies outside every pinned repository'
+        raise BaselineReadError(msg)
+
+    root, commit, relative = pinned
+    result = subprocess.run(  # noqa: S603
+        [GIT, 'show', f'{commit}:{relative.as_posix()}'],
+        capture_output=True, text=True, check=False, cwd=root,
+    )
+
+    if result.returncode != 0:
+        msg = f'{path}: absent from {commit}'
+        raise BaselineReadError(msg)
+
+    return result.stdout
 
 
 def _docstring_lines(path: Path) -> set[int]:
 
     try:
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(_source_text(path))
     except (OSError, SyntaxError):
         return set()
 
@@ -121,7 +224,7 @@ def _claims_alternatives(row: str) -> bool:
 def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
 
     try:
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(_source_text(path))
     except (OSError, SyntaxError):
         return []
 
@@ -172,10 +275,13 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
     return pairs
 
 
-def _exclusive_citations(starts: list[tuple[str, int]], cache: dict) -> str | None:
+def _exclusive_citations(
+    cited: list[tuple[str, int, int]], cache: dict,
+) -> str | None:
+    '''Report a pair of citations landing on both sides of a branch.'''
 
-    for i, (key, a) in enumerate(starts):
-        for other_key, b in starts[i + 1:]:
+    for i, (key, a, _) in enumerate(cited):
+        for other_key, b, _unused in cited[i + 1:]:
             if other_key != key:
                 continue
 
@@ -187,23 +293,27 @@ def _exclusive_citations(starts: list[tuple[str, int]], cache: dict) -> str | No
 
 
 def _resolve_source(name: str) -> Path | None:
+    '''Resolve a cited basename against the pinned trees, not the working one.'''
 
     if name in SOURCE_FILES:
         return SOURCE_FILES[name]
 
     stem = name[:-3] if name.endswith('.py') else name
+    wanted = f'{stem}.py'
 
-    for root in (Path('praxis'), Path('../Nexus/nexus'), Path('scripts'), Path('tests')):
-        if not root.is_dir():
-            continue
+    for prefix in SEARCH_PREFIXES:
 
-        found = sorted(root.rglob(f'{stem}.py'))
+        for root, commit in _pins():
+            found = sorted(
+                entry for entry in _pinned_paths(root, commit)
+                if entry.startswith(prefix) and entry.rsplit('/', 1)[-1] == wanted
+            )
 
-        if len(found) == 1:
-            return found[0]
+            if len(found) == 1:
+                return root / found[0]
 
-        if found:
-            return None
+            if found:
+                return None
 
     return None
 
@@ -223,7 +333,7 @@ def _row_sources(row: str) -> list[tuple[int, str]]:
 def _signature_lines(path: Path) -> set[int]:
 
     try:
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(_source_text(path))
     except (OSError, SyntaxError):
         return set()
 
@@ -278,7 +388,7 @@ def _log_lines(path: Path) -> set[int]:
     lines: set[int] = set()
 
     try:
-        source = path.read_text().splitlines()
+        source = _source_text(path).splitlines()
     except OSError:
         return lines
 
@@ -298,19 +408,29 @@ def _docstring_citations(text: str, cache: dict[str, set[int]]) -> list[str]:
             continue
 
         sources = _row_sources(row)
-        starts: list[tuple[str, int]] = []
+        cited: list[tuple[str, int, int]] = []
 
         for match in LINE_REF.finditer(row):
             before = [key for pos, key in sources if pos < match.start()]
             key = before[-1] if before else DEFAULT_SOURCE
-            path = _resolve_source(key)
 
-            if path is None or not path.exists():
+            try:
+                path = _resolve_source(key)
+            except BaselineReadError as exc:
+                bad.append(f'{key}:{match.group(0)} ({exc})')
+                continue
+
+            if path is None:
                 bad.append(f'{key}:{match.group(0)} (unresolved source file)')
                 continue
 
             if f'{key}#len' not in cache:
-                cache[f'{key}#len'] = len(path.read_text().splitlines())
+
+                try:
+                    cache[f'{key}#len'] = len(_source_text(path).splitlines())
+                except BaselineReadError as exc:
+                    bad.append(f'{key}:{match.group(0)} ({exc})')
+                    continue
 
             if int(match.group(2) or match.group(1)) > cache[f'{key}#len']:
                 bad.append(
@@ -329,8 +449,8 @@ def _docstring_citations(text: str, cache: dict[str, set[int]]) -> list[str]:
             logs = cache[f'{key}#log']
             sigs = cache[f'{key}#sig']
             start = int(match.group(1))
-            starts.append((key, start))
             end = int(match.group(2) or start)
+            cited.append((key, start, end))
             span = list(range(start, min(end, start + _MAX_SPAN) + 1))
             inside = [n for n in span if n in known]
 
@@ -343,7 +463,7 @@ def _docstring_citations(text: str, cache: dict[str, set[int]]) -> list[str]:
             elif all(n in sigs for n in span):
                 bad.append(f'{key}:{match.group(0)} (signature only)')
 
-        clash = _exclusive_citations(starts, cache)
+        clash = _exclusive_citations(cited, cache)
 
         if clash is not None and not _claims_alternatives(row):
             bad.append(clash)
@@ -615,6 +735,24 @@ def _check_page(
     if words > PROSE_WORD_CAP:
         failures.append(
             f'{rel}: {words} words of prose exceeds the {PROSE_WORD_CAP} cap; split it',
+        )
+
+    made = CREATED_RE.search(meta) if meta else None
+
+    if made is not None and stamp is not None and made.group(1) > stamp.group(2):
+        failures.append(
+            f'{rel}: created {made.group(1)} is after last modified '
+            f'{stamp.group(2)}',
+        )
+
+    baseline = BASELINE_RE.search(meta)
+
+    if baseline is None:
+        failures.append(f'{rel}: metadata names no baseline commit')
+    elif baseline.group(1) != BASELINE:
+        failures.append(
+            f'{rel}: baseline {baseline.group(1)} is not {BASELINE}, '
+            'which every citation is resolved against',
         )
 
     claimed = ROW_ID.findall(meta)

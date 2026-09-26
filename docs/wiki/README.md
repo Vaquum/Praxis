@@ -12,6 +12,10 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 - [Order types](atoms/order-types.md) — the eight kinds, and how each one reaches the venue.
 - [The prices an order must name](atoms/the-prices-an-order-must-name.md) — the set each kind owns, and what never passes the check.
 - [What a fill is](atoms/what-a-fill-is.md) — one execution the venue reports, and what it must have.
+- [The event spine](atoms/the-event-spine.md) — where events are written down, in what order, and what is refused.
+- [The chain](atoms/the-chain.md) — the marks sealing one row to the next, and what they are worth.
+- [What the chain proves](atoms/what-the-chain-proves.md) — the three refusals, and what none of them tells you.
+- [What the chain misses](atoms/what-the-chain-misses.md) — the changes a walk goes straight past.
 - [Where duplicates stop](atoms/where-duplicates-stop.md) — the record's refusal, and what counts as the same execution.
 - [What a fill changes](atoms/what-a-fill-changes.md) — the two projections it is handed to, and what each keeps.
 - [When a projection fails](atoms/when-a-projection-fails.md) — the guards around the account loop, and which failures stop it.
@@ -53,8 +57,8 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 
 An article that outgrows the limit is split rather than lengthened, so the wiki grows sideways.
 
-This wiki is early. Twenty-eight articles exist. Almost every file in both projects is untouched. The ledger lists them.
+This wiki is early. Thirty-two articles exist. Almost every file in both projects is untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-25 19:59 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-26 17:41 UTC

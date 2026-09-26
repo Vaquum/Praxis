@@ -39,10 +39,13 @@ Seeded, not traced. No article exists for these yet.
 | P2-32 | Where a repeated fill is caught, and what counts as the same one | written | [where-duplicates-stop.md](atoms/where-duplicates-stop.md) |
 | P2-33 | What happens when a commission equals or exceeds the fill it is charged on | written | [when-the-commission-swallows-the-fill.md](atoms/when-the-commission-swallows-the-fill.md) |
 | P2-34 | Where a projection failure lands, and which ones stop the account | written | [when-a-projection-fails.md](atoms/when-a-projection-fails.md) |
+| P2-35 | The hashes sealing one row to the next | written | [the-chain.md](atoms/the-chain.md) |
+| P2-36 | What a walk of the chain refuses, and what it leaves unsaid | written | [what-the-chain-proves.md](atoms/what-the-chain-proves.md) |
+| P2-37 | The changes a walk of the chain does not catch | written | [what-the-chain-misses.md](atoms/what-the-chain-misses.md) |
 | P2-14 | Order types, and what a market order means here | written | [order-types.md](atoms/order-types.md) |
 | P2-15 | What a fill is | written | [what-a-fill-is.md](atoms/what-a-fill-is.md) |
 | P2-16 | Holdings, and how a fill changes them | written | [holdings.md](atoms/holdings.md) |
-| P2-17 | The event spine, and what writing down means | seeded | — |
+| P2-17 | The event spine, and what writing down means | written | [the-event-spine.md](atoms/the-event-spine.md) |
 | P2-18 | Outcomes, and what partial reports | seeded | — |
 | P2-19 | Runs, and the slices they are fed out in | seeded | — |
 | P2-20 | Ladders, and their rungs | seeded | — |
@@ -172,8 +175,10 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-045 | The base-asset commission is netted out of holdings only where the fee asset equals a hardcoded `'BTC'`. A buy of any other symbol whose commission is charged in that symbol's base asset is credited gross, which is the condition the netting was written to remove. | `trading_state.py` 66 with the test at 84-85, netted at 483 | P2-16 | raised as U-04; the money ledger refuses a second symbol outright and that refusal is swallowed |
 | H-046 | The `Fill` domain type validates its fields and carries a deduplication key, and nothing in the live path constructs one. Every fill flows as a `FillReceived` event instead. Exported from `domain/__init__` and exercised only by `test_domain_core.py`. | no construction site in `praxis/core` or `praxis/infrastructure`; built at `tests/test_domain_core.py` 35 | P2-15 | recorded; article describes the event |
 | H-047 | A first BUY whose fee asset is `'BTC'` and whose fee equals the filled quantity exactly creates a holding of zero. `Position` permits zero, and the branch that drops an emptied record runs only for a reducing fill, so the empty record stands; a later same-side fill delivering zero against it divides zero by zero. A larger such fee makes the quantity negative and `Position` refuses construction. A sell, or any other fee asset, keeps the gross quantity and is unaffected. The money ledger refuses the same fill, and that refusal is swallowed. | `trading_state.py` 483 into 487-498, permitted by `position.py` 52-53, dropped only at 518-522, divided at 500-503; ledger refusal at `account_ledger.py` 305-307 swallowed by `execution_manager.py` 2092-2098 | P2-16 | recorded; P2-33 states the landings, including the second zero-delivery fill failing on the empty record |
+| H-048 | Truncating the event spine is not detected. `verify_chain` walks the rows present, checking each backward link and recomputing each hash, and finishes without comparing the final row against any recorded tip or count. `spine_meta` stores the chain version, the genesis anchor and a legacy dedup symbol, and no expected tip. Removing a suffix of rows therefore leaves a chain that verifies, with no mark recomputed. | walked at `event_spine.py` 1254-1291 with no tip comparison; the meta keys at 100-102, written at 593-595 | P2-37 | recorded; P2-37 states truncation among the escapes |
+| H-049 | Clearing the `hash` column on every row makes `verify_chain` treat the whole spine as the legacy prefix and skip it entirely. `in_legacy_prefix` starts true and is only cleared by the first hashed row, so an all-unhashed spine passes every check without one being run, and the contents can be changed freely with no mark recomputed and no row removed. Cheaper than the truncation of H-048, which at least leaves the surviving rows sealed. | `event_spine.py` 1255 into 1261-1269, with 1270 never reached | P2-37 | recorded; P2-37 states it among the escapes |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | 10070-10071 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-25 19:59 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-26 17:41 UTC

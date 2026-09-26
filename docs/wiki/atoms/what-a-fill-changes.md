@@ -2,7 +2,7 @@
 row: P2-29
 baseline: 49aa659
 created: 2026-09-26 05:58 UTC
-modified: 2026-09-25 19:59 UTC
+modified: 2026-09-26 17:41 UTC
 evidence:
   - claim: "Two projections are told, one after the other"
     source: "`execution_manager.py` 2081 and 2086-2087"

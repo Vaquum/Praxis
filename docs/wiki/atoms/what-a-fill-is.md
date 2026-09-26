@@ -2,7 +2,7 @@
 row: P2-15
 baseline: 49aa659
 created: 2026-09-26 05:44 UTC
-modified: 2026-09-25 19:55 UTC
+modified: 2026-09-26 17:41 UTC
 evidence:
   - claim: "A fill carries venue and Praxis names, symbol, side, amount, price, fee and fee asset, and whether it was posted or taken"
     source: "built with all of them at `execution_manager.py` 4312-4326"

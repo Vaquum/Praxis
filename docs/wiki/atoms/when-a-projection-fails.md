@@ -2,7 +2,7 @@
 row: P2-34
 baseline: 49aa659
 created: 2026-09-26 07:02 UTC
-modified: 2026-09-25 20:03 UTC
+modified: 2026-09-26 17:41 UTC
 evidence:
   - claim: "The call handing an event to the order-and-holdings projection carries no guard"
     source: "`execution_manager.py` 2081"
