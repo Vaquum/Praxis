@@ -55,7 +55,7 @@ Seeded, not traced. No article exists for these yet.
 | P2-16 | Holdings, and how a fill changes them | written | [holdings.md](atoms/holdings.md) |
 | P2-17 | The event spine, and what writing down means | written | [the-event-spine.md](atoms/the-event-spine.md) |
 | P2-18 | Outcomes, and what partial reports | written | [what-an-outcome-is.md](atoms/what-an-outcome-is.md) |
-| P2-19 | Runs, and the slices they are fed out in | seeded | — |
+| P2-19 | Runs, and the slices they are fed out in | written | [work-fed-out-over-time.md](atoms/work-fed-out-over-time.md) |
 | P2-20 | Ladders, and their rungs | seeded | — |
 | P2-21 | Protection, and the order that carries it | seeded | — |
 | P2-22 | Hidden-size orders, and what the venue shows | seeded | — |
@@ -192,4 +192,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 09:42 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 21:33 UTC

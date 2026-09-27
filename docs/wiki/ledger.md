@@ -23,7 +23,8 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/infrastructure/replay_venue_adapter.py` | partial | P2-12 |
 | `praxis/core/trade_command.py` | partial | P2-24 |
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-24, P2-27, P2-28 |
-| `praxis/core/domain/enums.py` | partial | P2-14 |
+| `praxis/core/domain/enums.py` | partial | P2-14, P2-19 |
+| `praxis/core/domain/execution_scheme.py` | full | P2-19 |
 | `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32 |
 | `praxis/infrastructure/book_cache.py` | full | P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | P2-26 |
@@ -42,4 +43,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 07:58 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 21:33 UTC
