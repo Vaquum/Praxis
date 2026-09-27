@@ -2,7 +2,7 @@
 row: P1-10
 baseline: 49aa659
 created: 2026-09-23 20:04 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:18 UTC
 evidence:
   - claim: "On a send, a body that will not parse as JSON is wrapped as a transport failure"
     source: "`binance_adapter.py` 592 caught at 660-662, leaving at 680, wrapped at 1637-1643"
@@ -16,9 +16,9 @@ evidence:
     source: "`execution_manager.py` 7791-7812"
   - claim: "An unrecognised status on a plain send is recorded failed"
     source: "`binance_adapter.py` 897, recorded at `execution_manager.py` 4296-4299"
-  - claim: "On a flatten send the same status escapes, that sender catching venue errors alone"
+  - claim: "On an order closing a position out send the same status escapes, that sender catching venue errors alone"
     source: "`execution_manager.py` 7791-7813"
-  - claim: "A field that will not convert escapes every handler on the send path"
+  - claim: "A field that will not convert is caught by none of the handlers on the send path"
     source: "`binance_adapter.py` 940, outside the handler at `execution_manager.py` 4296"
   - claim: "It is then only logged, with the intent already recorded"
     source: "logged at `execution_manager.py` 4012-4019, the intent written at 4264"
@@ -57,7 +57,7 @@ On a plain send, a venue error whose own body will not parse is recorded failed.
 
 ## It may go nowhere at all
 
-A field that will not convert inside an otherwise readable body escapes every handler on the send path. [The worker](how-waiting-work-is-drained.md) logs it and the intent stays recorded, with nothing learning what became of the request.
+A field that will not convert inside an otherwise readable reply is caught by none of the handlers on the send path. [The worker](how-waiting-work-is-drained.md) logs it and the intent stays recorded, with nothing learning what became of the request.
 
 Elsewhere the ending depends on the caller: on a lookup from a plain send it leaves the send neither adopted nor written off; under a slice it ends the run rejected; on a protective order it can stop the account.
 

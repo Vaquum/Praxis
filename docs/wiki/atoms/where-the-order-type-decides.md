@@ -2,7 +2,7 @@
 row: P2-27
 baseline: 49aa659
 created: 2026-09-25 19:01 UTC
-modified: 2026-09-25 19:06 UTC
+modified: 2026-09-27 11:09 UTC
 evidence:
   - claim: "A market order is the only kind the likely-price check can turn back"
     source: "`execution_manager.py` 4064-4065"
@@ -37,11 +37,11 @@ It is also the only kind that may be sized in money rather than in coin. An orde
 
 ## The linked pair
 
-A linked pair is asked after and cancelled through calls meant for pairs, where a single order takes the ordinary ones. That choice is made in five places and nowhere else: when [its deadline passes](the-expiry-cancel.md), when [a send goes unanswered](when-a-send-is-unclear.md), when [it is cancelled outright](how-a-trade-is-cancelled.md), on the sweep that clears orders at shutdown, and on the reconciliation that clears leftovers at the next start.
+A linked pair is asked about and cancelled through calls meant for pairs, where a single order takes the ordinary ones. That choice is made when [its deadline passes](the-expiry-cancel.md), when [a send goes unanswered](when-a-send-is-unclear.md), when [it is cancelled outright](how-a-trade-is-cancelled.md), when orders are cleared at shutdown, and when leftovers are cleared at the next start — and nowhere else.
 
 ## The resting limit order
 
-A price change is refused for anything but a limit order still resting at the venue. That rule governs one path — a single order being amended. A bracket changing its protective prices is routed away before the rule is reached, and changes them by cancelling the pair and putting up a new one.
+A price change is refused for anything but a limit order still resting at the venue. That rule governs one path — a single order being amended. A request to change the protective prices attached to an opening order is sent elsewhere before the rule is reached, and changes them by cancelling the pair and putting up a new one.
 
 ## Related
 

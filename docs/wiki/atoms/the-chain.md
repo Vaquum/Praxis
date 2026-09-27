@@ -2,7 +2,7 @@
 row: P2-35
 baseline: 49aa659
 created: 2026-09-26 08:27 UTC
-modified: 2026-09-26 17:41 UTC
+modified: 2026-09-27 13:46 UTC
 evidence:
   - claim: "Each row is given the hash of the one before and its own over its own fields"
     source: "`event_spine.py` 1165-1176"
@@ -21,23 +21,23 @@ evidence:
 ---
 # The chain
 
-Each row in [the event spine](the-event-spine.md) is given two marks: the hash of the row before it, and its own hash taken over its own fields. That links the rows into a **chain**, so that changing what a row says and leaving its marks alone puts the two out of agreement.
+Each row in [the event spine](the-event-spine.md) stores two codes: one drawn from the row before it, and one drawn from its own contents. That links the rows into a **chain**, so that changing what a row says and leaving its codes alone puts the two out of agreement.
 
-The first hashed row anchors to a marker the record keeps for itself. A record that has lost that marker is refused rather than anchored on a guess.
+The first row that has a code takes a starting code the spine keeps for itself, in place of the earlier row it has none to draw from. So does a row whose predecessor has no code. A spine that has lost that starting code is refused rather than started from a guess.
 
-## The rows with no marks
+## The rows with no codes
 
-A spine may begin with rows written before the sealing was introduced. Those carry no hash.
+A spine may begin with rows written before the stamping was introduced. Those carry no codes.
 
-They are outside all of it. [The walk](what-the-chain-proves.md) passes over them while they last, and nothing it checks is checked of them. A spine still ending in such a row anchors its next row to the marker, as though starting afresh.
+Those older rows are not checked. [The check](what-the-chain-proves.md) skips them while they last. A spine still ending in such a row takes the starting code for its next row, as though beginning afresh.
 
-## What the marks are worth
+## What the codes can reveal
 
-A change to a marked row alone shows up, because the stored mark and the fields beside it stop agreeing.
+A change to a stamped row alone shows up, because the stored code and the contents beside it stop agreeing.
 
-Altering a marked row with marked rows after it is worse than that for whoever tries it. The next row's backward link then points at a hash that no longer exists, so every marked row after the altered one has to be redone as well, out to the end.
+Altering a stamped row that has stamped rows after it costs more than that. The next row's stored code for the one before it then points at a code that no longer exists, so every stamped row after the altered one has to be redone as well, out to the end.
 
-That is the strength of it, and it is narrower than it sounds. [Several kinds of change](what-the-chain-misses.md) go through without a mark being recomputed at all.
+That is what the codes catch, and it is narrower than it sounds. [Several kinds of change](what-the-chain-misses.md) go through without a code being worked out again at all.
 
 ## Related
 

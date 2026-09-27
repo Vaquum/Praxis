@@ -2,7 +2,7 @@
 row: P1-07
 baseline: 49aa659
 created: 2026-09-23 08:18 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:15 UTC
 evidence:
   - claim: "A transport failure leaving the retry loop on an order send is wrapped as a submit timeout"
     source: "`binance_adapter.py` 1637-1643, wrapping what leaves the loop at 680, either built there at 660-662 or raised at 1135-1137 and caught instead at 595-596"
@@ -10,7 +10,7 @@ evidence:
     source: "`binance_adapter.py` 1628-1631"
   - claim: "One rejection code is wrapped as a duplicate name, whatever its reason"
     source: "`binance_adapter.py` 1644-1651 with 94, the handler reading only the code"
-  - claim: "Other venue errors and bad parameters are recorded failed on the spot"
+  - claim: "Other venue errors and settings the venue will not accept are recorded failed on the spot"
     source: "either `execution_manager.py` 4292-4295 or 4296-4299"
   - claim: "Either wrap triggers a lookup before the send is called failed"
     source: "`execution_manager.py` 4282-4290"
@@ -33,9 +33,9 @@ A call to the venue can fail without settling whether the order reached it. Prax
 
 ## What counts as unresolved
 
-Two wrapped failures are chased. Both wrappers cover more than their names suggest: transport failures of several kinds — a timeout, a dropped connection, a server error, a body that will not parse — become the first, and a single venue rejection code becomes the second, whatever the venue gave as its reason.
+Two kinds of failure send Praxis back to the venue to ask. Both kinds cover more than their names suggest: transport failures of several kinds — a timeout, a dropped connection, a server error, a body that will not parse — become the first, and a single venue rejection code becomes the second, whatever the venue gave as its reason.
 
-Other venue errors and bad parameters are recorded failed on the spot. [A reply Praxis cannot read](a-reply-that-cannot-be-read.md) has several endings of its own, and some of them record nothing.
+Other venue errors and settings the venue will not accept are recorded failed on the spot. [A reply Praxis cannot read](a-reply-that-cannot-be-read.md) ends several ways of its own, and some of them record nothing.
 
 ## Related
 

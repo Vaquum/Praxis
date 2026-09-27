@@ -33,12 +33,12 @@ Seeded, not traced. No article exists for these yet.
 | P2-26 | The kept copy of the book, and the two checks that read it | written | [the-kept-book.md](atoms/the-kept-book.md) |
 | P2-27 | The places the order type alone changes the outcome | written | [where-the-order-type-decides.md](atoms/where-the-order-type-decides.md) |
 | P2-28 | The prices each order type must and must not name | written | [the-prices-an-order-must-name.md](atoms/the-prices-an-order-must-name.md) |
-| P2-29 | The two projections a fill is handed to, and what each keeps | written | [what-a-fill-changes.md](atoms/what-a-fill-changes.md) |
+| P2-29 | The two running pictures a fill updates, and what each keeps | written | [what-a-fill-changes.md](atoms/what-a-fill-changes.md) |
 | P2-30 | When the commission comes out of the amount credited | written | [the-commission-and-the-amount.md](atoms/the-commission-and-the-amount.md) |
 | P2-31 | What a fill does to the order it belongs to | written | [fills-and-the-order.md](atoms/fills-and-the-order.md) |
 | P2-32 | Where a repeated fill is caught, and what counts as the same one | written | [where-duplicates-stop.md](atoms/where-duplicates-stop.md) |
 | P2-33 | What happens when a commission equals or exceeds the fill it is charged on | written | [when-the-commission-swallows-the-fill.md](atoms/when-the-commission-swallows-the-fill.md) |
-| P2-34 | Where a projection failure lands, and which ones stop the account | written | [when-a-projection-fails.md](atoms/when-a-projection-fails.md) |
+| P2-34 | Where a failed update lands, and which ones stop the account | written | [when-an-update-fails.md](atoms/when-an-update-fails.md) |
 | P2-35 | The hashes sealing one row to the next | written | [the-chain.md](atoms/the-chain.md) |
 | P2-36 | What a walk of the chain refuses, and what it leaves unsaid | written | [what-the-chain-proves.md](atoms/what-the-chain-proves.md) |
 | P2-37 | The changes a walk of the chain does not catch | written | [what-the-chain-misses.md](atoms/what-the-chain-misses.md) |
@@ -48,6 +48,7 @@ Seeded, not traced. No article exists for these yet.
 | P2-41 | What settles a replayed outcome, and what leaves it owed | written | [outcomes-that-never-come-back.md](atoms/outcomes-that-never-come-back.md) |
 | P2-42 | The figures an outcome is never checked against | written | [what-an-outcome-does-not-check.md](atoms/what-an-outcome-does-not-check.md) |
 | P2-43 | What the slice counts and the progress figure are worth, by producer | written | [the-figures-an-outcome-reports.md](atoms/the-figures-an-outcome-reports.md) |
+| P2-45 | What a venue refusal says, and how each kind is read | written | [what-a-refusal-says.md](atoms/what-a-refusal-says.md) |
 | P2-44 | Which caller a restart offers an outcome to again, and which it does not | written | [who-a-restart-tells-again.md](atoms/who-a-restart-tells-again.md) |
 | P2-14 | Order types, and what a market order means here | written | [order-types.md](atoms/order-types.md) |
 | P2-15 | What a fill is | written | [what-a-fill-is.md](atoms/what-a-fill-is.md) |
@@ -191,4 +192,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 07:51 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 09:42 UTC

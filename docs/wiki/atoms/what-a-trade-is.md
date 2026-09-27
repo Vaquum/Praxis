@@ -2,7 +2,7 @@
 row: P1-01
 baseline: 49aa659
 created: 2026-09-20 15:52 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 10:58 UTC
 evidence:
   - claim: "A request carries a name of its own alongside the trade name"
     source: "a supplied name is refused when empty at `execution_manager.py` 3446-3448, when too short by `generate_client_order_id.py` 105-110 called from `execution_manager.py` 3450, or when already in use at 3452-3457; where none was supplied one is generated instead at 3459; both carried at 3461-3463"
@@ -31,15 +31,15 @@ evidence:
 ---
 # Trades, requests and orders
 
-A **trade**, a **request** and an **order** are three names Praxis keeps, at three different scales. A trade names work that arrived from outside. A request names one piece of work carried out under it. An order names one [send to the venue](how-an-order-is-placed.md).
+A **trade**, a **request** and an **order** are three things Praxis tracks separately, from largest to smallest. A trade names work that arrived from outside. A request names one piece of work carried out under it. An order names one [send to the venue](how-an-order-is-placed.md).
 
 ## Trade
 
-A name from outside, carried along so related work can be recognised. Holdings are counted under it.
+A name supplied from outside, carried along so related work can be recognised. Holdings are counted under it.
 
 ## Request
 
-One piece of work, tracked under a name of its own and carrying the trade name too. Requests arrive from outside, and Praxis raises some itself: once an opening order has finished with something filled and holdings still open, it builds a second request for the protective order.
+One piece of work, tracked under a name of its own and carrying the trade name too. Requests arrive from outside, and Praxis creates some itself: once an opening order has finished with something filled and holdings still open, it builds a second request for the protective order.
 
 ## Order
 
@@ -49,7 +49,7 @@ One send to the venue. Praxis names and records it before making the call, and s
 
 One trade can cover more than one request, and one request can send more than one order.
 
-Opening a protected position is submitted once: Praxis sends the opening order, then raises that second request under the same trade. A request fed out over time sends an order per slice, all under that one request. The first goes at once; [the account worker](how-waiting-work-is-drained.md) releases each later one when its interval has come and nothing has halted the run.
+Opening a protected position is submitted once: Praxis sends the opening order, then raises that second request under the same trade. A request spread over time sends one order per part, each part called a slice, all under that one request. The first goes at once; [the account worker](how-waiting-work-is-drained.md) releases each later one when its wait has passed and nothing has stopped the work.
 
 ## Matching a result to a name
 

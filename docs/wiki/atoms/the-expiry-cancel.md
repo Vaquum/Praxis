@@ -2,7 +2,7 @@
 row: P2-25
 baseline: 49aa659
 created: 2026-09-25 08:00 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 13:46 UTC
 evidence:
   - claim: "The order is marked expired before the venue is asked anything"
     source: "`execution_manager.py` 4415-4417"
@@ -27,27 +27,27 @@ evidence:
 ---
 # The expiry cancel
 
-When an order is found past its [deadline](deadlines.md), Praxis marks it expired, asks the [venue](what-a-venue-is.md) to cancel it, and reports. The mark comes first, so what the venue says next only decides how much is written down.
+When an order is found past its [deadline](deadlines.md), Praxis marks it expired, asks the [venue](what-a-venue-is.md) to cancel it, and reports. The order is marked expired first, so what the venue says next only decides what else is written down.
 
 ## What the venue's answer changes
 
 A venue that reports no such order leaves the mark standing, and the expiry is recorded against the order itself.
 
-Any other venue failure clears the mark instead. Nothing is recorded against the order, and the failure is carried in the reason.
+Any other venue failure clears the mark instead. Nothing is added to the order itself, and the failure is carried in the report's reason.
 
 Either way the request is reported expired. So being told a request expired does not say whether the order at the venue was actually stopped.
 
 ## When nothing is reported at all
 
-A cancel reply that [lacks a field, or carries an unfamiliar status](a-reply-that-cannot-be-read.md), reaches neither of those endings. It leaves the whole attempt before any report is built, and only a log is left behind.
+A cancel reply that [lacks a field, or carries an unfamiliar status](a-reply-that-cannot-be-read.md), reaches neither of those endings. It ends the whole attempt before any report is built, leaving only a line in the log.
 
-For a linked pair that is narrower: its status is supplied rather than read, so only a missing list id does it.
+For a linked pair it is narrower: its status is supplied rather than read, so only a missing name for the pair does it.
 
 A body that will not parse at all is different again — that counts as a venue failure, so the request is still reported expired.
 
 ## The same reply on other cancels
 
-A run's children are cancelled elsewhere, and there the same unreadable body is caught and skipped, leaving the run waiting on children. A failure reading a *field* there stops the account, but only where the drain or a wind-up asked; an abort or the repair sweep logs it and carries on.
+The orders of work carried out as several orders are cancelled elsewhere, and there the same unreadable body is caught and skipped, leaving the run waiting on children. A failure reading a *field* there stops the account, but only where the winding-up asked for it; a [cancellation from outside](how-a-trade-is-cancelled.md), or the repair pass, logs it and carries on.
 
 ## Related
 

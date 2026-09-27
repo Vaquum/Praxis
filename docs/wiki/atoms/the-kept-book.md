@@ -2,7 +2,7 @@
 row: P2-26
 baseline: 49aa659
 created: 2026-09-25 19:08 UTC
-modified: 2026-09-26 17:41 UTC
+modified: 2026-09-27 11:18 UTC
 evidence:
   - claim: "A copy of the latest book per symbol, held in memory with its arrival time"
     source: "`book_cache.py` 38 for the store, 44-45 for the write, 29-31 for what a copy holds"
@@ -27,15 +27,15 @@ evidence:
 ---
 # The kept book
 
-The **kept book** is Praxis's own copy of the latest [order book](the-order-book.md) for a symbol, held in memory with the time it arrived, so a check can read a price without waiting on the [venue](what-a-venue-is.md).
+The **kept book** is Praxis's own copy of the latest [order book](the-order-book.md) for a trading pair, held in memory with the time it arrived, so a check can read a price without waiting on the [venue](what-a-venue-is.md).
 
-One poller runs for each symbol being traded. Every couple of seconds it fetches five levels and overwrites that symbol's copy.
+One background task runs for each trading pair. Every couple of seconds it fetches five levels and overwrites that symbol's copy.
 
 ## What reads it
 
 Two readers use the copy, and neither talks to the venue.
 
-One serves the checks a request passes before it is accepted. It always builds the gap between the best buy and sell prices, and how old the copy is. It builds a third figure — how far the middle of that gap sits from the price the strategy expected — only when a strategy price came with the request and is above zero.
+One serves the checks a request passes before it is accepted. It always builds the gap between the best buy and sell prices, and how old the copy is. It builds a third figure — how far the middle of that gap sits from the price the request expected — only when a strategy price came with the request and is above zero.
 
 The other reads the middle of the gap alone, to turn an amount of money into an amount of coin.
 
@@ -45,7 +45,7 @@ Both return nothing in the same four cases: no copy has arrived, one side is emp
 
 The store begins empty, and only a successful poll puts anything in it.
 
-So where a poller fails to start, both readers stay silent for that symbol for as long as the host runs. A poll that fails after earlier ones succeeded is different: it is logged, the loop carries on, and both readers go on answering from a copy that is growing older.
+So where that background task fails to start, neither check can answer for that pair for as long as the host runs. A poll that fails after earlier ones succeeded is different: it is logged, the loop carries on, and both checks go on answering from a copy that is growing older.
 
 ## Related
 

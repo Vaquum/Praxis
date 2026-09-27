@@ -2,7 +2,7 @@
 row: P2-37
 baseline: 49aa659
 created: 2026-09-25 20:52 UTC
-modified: 2026-09-26 17:41 UTC
+modified: 2026-09-27 11:14 UTC
 evidence:
   - claim: "A walk holds no expected row count and no mark for which row should be last"
     source: "`event_spine.py` 1254-1291, with the kept values at 100-102 written at 593-595"
@@ -19,29 +19,29 @@ evidence:
 ---
 # What the chain misses
 
-[The marks](the-chain.md) on a row catch a change made to that row alone. Other changes go through them untouched. These are some of them, and most need no mark worked out afresh.
+[The codes](the-chain.md) on a row catch a change made to that row alone. The check does not notice some other changes. These are some of them, and most need no code worked out again.
 
-## Rows that were never marked
+## Rows that never had codes
 
-A row with no mark on it is passed over rather than refused, to allow for rows written before the sealing began. Anything done inside such a run of rows — changing one, or taking one out — is passed over with it, while the marked rows after it stay sound.
+A row with no code is skipped rather than refused, to allow for rows written before the codes were introduced. Anything done inside such a run of rows — changing one, or taking one out — is skipped with it, while the stored rows after it still pass their checks.
 
 ## Rows taken off the end
 
-A walk checks the rows it finds, and counts them only to say how many it saw. Nothing tells it how many there should have been, or which row should have been last.
+The check tests the rows it finds, and counts them only to say how many it saw. Nothing tells it how many there should have been, or which row should have been last.
 
-So a spine cut short verifies. Every surviving row still points properly at the one before it, and the walk reaches the new final row and reports the chain sound.
+So a spine cut short passes the check. Every surviving row still points properly at the one before it, and the check reaches the new final row and reports nothing wrong.
 
-## Every mark cleared
+## Every code removed
 
-The passing-over starts switched on, and only the first marked row turns it off.
+The skipping of rows without codes starts switched on, and only the first row with one turns it off.
 
-A spine whose marks have all been cleared therefore has no first marked row, so the passing-over never turns off and every row is skipped. The walk finishes having checked nothing, and the contents can say anything.
+A spine whose codes have all been cleared therefore has no first row with one, so the skipping never turns off and every row goes untested. The check finishes having tested nothing, and the contents can say anything.
 
 ## Everything rewritten
 
-Someone able to write the marks as well as the rows can alter a row, work out its mark afresh, and redo every row after it. The chain then agrees with itself.
+Someone able to write the codes as well as the rows can alter a row, work out its code again, and redo every row after it. The chain then agrees with itself.
 
-This is the dear one: it needs the whole marked tail redone. The others need no arithmetic at all.
+This is the costly one: every row after the altered one needs its codes worked out again. The others need no arithmetic at all.
 
 ## Related
 

@@ -2,7 +2,7 @@
 row: P2-42
 baseline: 49aa659
 created: 2026-09-26 20:29 UTC
-modified: 2026-09-27 07:08 UTC
+modified: 2026-09-27 09:35 UTC
 evidence:
   - claim: "No rule ties the value to the amount times the price"
     source: "`trade_outcome.py` 111-164, which multiplies nothing"
@@ -21,13 +21,13 @@ evidence:
 
 ## The arithmetic
 
-Nothing multiplies. A fill may be reported with a value and with no average price, and no rule asks whether the value equals the amount times the price.
+Nothing is multiplied out. A fill may be reported with a value and with no average price, and no rule asks whether the value equals the amount times the price.
 
-So the three can each be allowed and together impossible.
+So the amount, the price and the value can each pass on their own while making no sense together.
 
-## Figures without end
+## Numbers with no limit
 
-Only the target amount is required to be a real figure. An average price without end passes, and so does a value without end.
+Only the target amount is required to be an ordinary number rather than infinity. An average price of infinity passes, and so does a value of infinity.
 
 ## The status
 

@@ -2,7 +2,7 @@
 row: P2-17
 baseline: 49aa659
 created: 2026-09-26 08:12 UTC
-modified: 2026-09-26 17:41 UTC
+modified: 2026-09-27 13:46 UTC
 evidence:
   - claim: "Every event is kept with its epoch, time, kind and contents"
     source: "`event_spine.py` 123-131"
@@ -27,29 +27,27 @@ evidence:
 ---
 # The event spine
 
-The **event spine** is where Praxis writes down what happens: one row for each event, carrying the epoch it belongs to, its time, what kind of thing it was, and its contents.
+The **event spine** is where Praxis writes down what happens: one row per event, carrying the numbered period it belongs to, its time, its kind, and its contents.
 
-Rows are kept in the order they were written. That is not always the order things happened — the times are stored but never sorted on or checked, so a fill reconciled from the venue long afterwards goes in at the end, behind events that came after it.
+Rows are kept in the order they were written. That is not always the order things happened. The times are stored but never sorted on, so a fill found by a later check with the venue goes in at the end, behind events that came after it.
 
 ## What is refused
 
-An event of a kind the record does not know is refused outright rather than written down. Nothing unrecognised gets in.
+An event of a kind the spine does not know is refused outright rather than written down.
 
-A [repeated fill](where-duplicates-stop.md) is refused too, and that refusal is ordinary rather than a failure.
+A [repeated fill](where-duplicates-stop.md) is refused too, and that refusal is ordinary.
 
 ## What is written before what
 
-A [fill](what-a-fill-is.md) is written down before it is acted on, and only an accepted one is [passed to the projections](what-a-fill-changes.md).
+A [fill](what-a-fill-is.md) is written down before it is acted on, and only an accepted one is [used to update the running pictures](what-a-fill-changes.md).
 
 Sending an order is written down around the act. The intention to send goes in before the venue is asked. What became of it goes in after: the venue's answer where that could be read, or a note of failure where the failure was one of the kinds looked for.
 
-A reply malformed past those kinds escapes both, and only a line in the log marks it. The intention stands in the record with nothing beside it, which is what leaves [such a send](a-reply-that-cannot-be-read.md) readable afterwards as one attempted and unaccounted for.
+A reply broken in a way none of those kinds covers escapes both, and only a line in the log marks it. The intention stands in the record with nothing beside it, which is what leaves [such a send](a-reply-that-cannot-be-read.md) readable afterwards as a send attempted with no result recorded.
 
 ## One writer at a time
 
-A lock is held from reading the last row through writing, [sealing](the-chain.md) and committing the new one, so writers sharing one spine object cannot fork the chain between them.
-
-The lock belongs to that object. Two spine objects, or two processes, opened on the same file are not held apart by it.
+Only one writer at a time may read the last row, add the next with its [codes](the-chain.md), and save — so two writers sharing one spine cannot both add a row after the same last one. Two separate spines, or two programs on the same file, are not held apart by that lock.
 
 ## Related
 

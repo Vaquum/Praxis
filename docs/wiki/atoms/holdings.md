@@ -2,7 +2,7 @@
 row: P2-16
 baseline: 49aa659
 created: 2026-09-26 05:47 UTC
-modified: 2026-09-26 17:41 UTC
+modified: 2026-09-27 10:57 UTC
 evidence:
   - claim: "Kept per trade and account, not per symbol"
     source: "`trading_state.py` 482, the record built at 489-497"
@@ -21,19 +21,19 @@ evidence:
 ---
 # Holdings
 
-An account's **holdings** from one [trade](what-a-trade-is.md) are a side, an amount, and the average price paid to build it. There is one record per trade and account, so two trades on the same symbol are held apart.
+An account's **holdings** from one [trade](what-a-trade-is.md) are whether it bought or sold, how much is held, and the average price paid to build it. There is one record per trade and account, so two trades in the same pair are kept apart.
 
-A [fill](what-a-fill-is.md) on the same side as the record adds [what that fill delivered](the-commission-and-the-amount.md), and the average price is reckoned afresh over the new total. A fill on the other side takes the same figure away.
+A [fill](what-a-fill-is.md) on the same side as the record adds [what that fill delivered](the-commission-and-the-amount.md), and the average price is worked out again over the new total. A fill on the other side takes the same figure away.
 
 ## When a record goes away
 
-Three things remove one.
+A record is removed in three ways.
 
-A reducing fill that brings the amount to zero drops it. One that would take the amount below zero is written to the log, set to zero, and then dropped by that same test — so overshooting and landing exactly both end with no record.
+A reducing fill that brings the amount to zero drops it. One that would take the amount below zero is written to the log, set to zero, and then dropped by that same test — so going past zero and landing on it both end with no record.
 
-And closing the trade drops it whatever it holds. A trade can be closed with a small amount still standing, too small to sell on its own, and the record goes with the close rather than with a fill.
+And closing the trade drops it whatever it holds. A trade can be closed with a small amount left, too small to sell on its own, and the record goes with the close rather than with a fill.
 
-Only a reducing fill reaches the first two tests, and a record holding nothing still meets them: the next fill on the other side takes it below zero, where it is clamped and dropped like any other.
+Only a reducing fill reaches the first two tests, and a record holding nothing still meets them: the next fill on the other side takes it below zero, where it is set to zero and dropped like any other.
 
 ## Related
 

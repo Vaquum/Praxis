@@ -2,7 +2,7 @@
 row: P1-05
 baseline: 49aa659
 created: 2026-09-20 16:58 UTC
-modified: 2026-09-25 19:00 UTC
+modified: 2026-09-27 11:18 UTC
 evidence:
   - claim: "Every other kind is routed elsewhere before this path"
     source: "`execution_manager.py` 3994-4009, with a defensive refusal for anything that still arrives at 4170-4188, returning instead of reaching the fetch at 4192-4197"
@@ -29,16 +29,16 @@ evidence:
 ---
 # The likely-price check
 
-Before a plain single [order](what-a-trade-is.md) is sent, Praxis tries to compare [what it would likely average](how-the-likely-price-is-worked-out.md) against the middle of the [order book](the-order-book.md), and can refuse the order on the result.
+Before a plain single [order](what-a-trade-is.md) is sent, Praxis tries to compare [the price it would likely average at](how-the-likely-price-is-worked-out.md) against the middle of the [order book](the-order-book.md), and can refuse the order on the result.
 
-Anything asking to be fed out over time, laddered, given a separate display size, or wrapped with protection is queued the same way but carried out along its own path, and never reaches this check. Work fed out or laddered is ended unstarted if its deadline has already passed; a bracket or a hidden-size order is not checked for that.
+Anything asking to be fed out over time, placed at several price levels, shown to the market in a smaller amount, or given protective orders is queued the same way but carried out along its own path, and never reaches this check. Work fed out or laddered is ended unstarted if its deadline has already passed; an opening order with protection, or one part-shown to the market, is not checked for that.
 
 ## The comparison
 
-The figure is how far the average sits above the middle, counted in hundredths of one percent. For a buy it is used as it stands; for a sell it is flipped in sign first, so that either way a worse price gives a bigger number. That is what gets compared against the limit.
+The figure is how far the average sits above the middle, counted in hundredths of one percent. For a buy it is used as it stands; for a sell the sign is reversed first, so that either way a worse price gives a bigger number. That is what gets compared against the limit.
 
 ## What it can do
 
-Every order that gets as far as [sending](how-an-order-is-placed.md) is put through the working-out; one already dropped by [a cancellation](how-a-trade-is-cancelled.md) never is. Asking the venue for the book can itself fail, and then there is no figure to judge.
+Every order that gets as far as [sending](how-an-order-is-placed.md) has that price worked out; one already dropped by [a cancellation](how-a-trade-is-cancelled.md) never is. Asking the venue for the book can itself fail, and then there is no figure to judge.
 
-Only a market order can be stopped by the result, and only where the host has been given a maximum deviation to allow. Such an order is stopped when the figure beats that maximum, and stopped too when there was no figure at all; a figure within the maximum lets it through. Every other order is sent whatever came back.
+Only a market order can be stopped by the result, and only where the host has been given a limit on how far the price may stray. Such an order is stopped when the figure goes past that limit, and stopped too when there was no figure at all; a figure within the maximum lets it through. Every other order is sent whatever came back.

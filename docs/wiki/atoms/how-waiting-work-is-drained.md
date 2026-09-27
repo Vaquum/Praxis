@@ -2,7 +2,7 @@
 row: P1-03
 baseline: 49aa659
 created: 2026-09-20 16:30 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:03 UTC
 evidence:
   - claim: "One worker per account; a second registration is refused"
     source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"
@@ -12,7 +12,7 @@ evidence:
     source: "called at `execution_manager.py` 3907, body at 3734-3737"
   - claim: "After a failure the ordinary queue is emptied and each item refused"
     source: "`execution_manager.py` 3962-3967, body at 6988-6999"
-  - claim: "An item whose refusal cannot be built is dropped unreported"
+  - claim: "A request whose refusal report cannot be built is dropped unreported"
     source: "`execution_manager.py` 7003-7019"
   - claim: "A cancelled worker stops the emptying and leaves the rest queued"
     source: "`execution_manager.py` 7000-7002"
@@ -29,26 +29,26 @@ evidence:
 ---
 # The account worker
 
-Each account has one **worker**, going round the same circuit until it is stopped. Work waits in a queue for it to come round. One turn of that circuit is a **pass**.
+Each account has one **worker**: a background loop going round the same circuit until it is stopped. Work waits in a queue for it to come round. One turn of that circuit is a **pass**.
 
 ## What a pass takes
 
-A pass takes from the queues in this order: news from the venue, then [the priority line](the-priority-line.md), then at most one piece of [submitted work](how-an-order-is-placed.md).
+A pass takes from the queues in this order: updates from the venue, then [the priority line](the-priority-line.md), then at most one piece of [submitted work](how-an-order-is-placed.md).
 
 Between the priority line and that last step it carries on with [work already under way](work-already-under-way.md).
 
 ## The ordinary queue
 
-Submitted work gives up at most one item per pass, and many passes take none.
+At most one submitted request is taken per circuit, and many passes take none.
 
 ## What holds a pass back
 
 While the account is still starting up, the pass does nothing else.
 
-On hold or failed, the pass drains venue news, empties the priority line, retries a due [cancellation](how-a-trade-is-cancelled.md) and, if failed, empties its ordinary queue refusing each item. Then it leaves. The changes put back on the line are left alone.
+Paused or failed, the circuit still takes the waiting venue updates, empties the priority queue, retries a due [cancellation](how-a-trade-is-cancelled.md) and, if failed, empties its ordinary queue refusing each item. The circuit then ends. Changes put back in the queue are left until the next circuit.
 
-An item whose refusal cannot be built is dropped with nothing reported. If the worker is cancelled partway through that emptying, it stops there and whatever is still queued stays queued.
+A request whose refusal report cannot be built is dropped with nothing reported. If the worker is cancelled partway through that emptying, it stops there and whatever is still queued stays queued.
 
 ## What taking one item does
 
-The item is sent on according to how it was meant to be executed. Work meant to be fed out over time, and work meant to be laddered, is ended rather than started if its deadline has already passed.
+The request is then handled according to the way it was to be carried out. Work meant to be fed out over time, and work meant to be laddered, is ended rather than started if its deadline has already passed.

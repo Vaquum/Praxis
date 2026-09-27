@@ -2,7 +2,7 @@
 row: P2-32
 baseline: 49aa659
 created: 2026-09-25 19:41 UTC
-modified: 2026-09-25 19:50 UTC
+modified: 2026-09-27 13:46 UTC
 evidence:
   - claim: "A fill is offered to the record before anything else is told"
     source: "`execution_manager.py` 4328-4330"
@@ -19,19 +19,19 @@ evidence:
 ---
 # Where duplicates stop
 
-A [fill](what-a-fill-is.md) is offered to the record before anything acts on it, and only what the record accepts is passed on.
+A [fill](what-a-fill-is.md) is offered to [the event spine](the-event-spine.md) before anything acts on it, and only what the record accepts is passed on.
 
-That makes the record the one place a repeat is caught, and repeats are ordinary. The same execution reaches Praxis by three routes: the reply to the send that caused it, the venue's live reports, and a later walk through the venue's own list of trades. It must count once however many of them arrive.
+That makes the spine the one place a repeat is caught, and repeats are ordinary. The same trade reaches Praxis by three routes: the reply to the send that caused it, the venue's live reports, and a later check of the venue's own list of trades. It must count once however many of them arrive.
 
 ## What counts as the same
 
-Four things are held together for every execution taken: the epoch, the [account](what-an-account-is.md), the symbol, and the venue's own name for that execution.
+Four things are kept together for every trade taken: the numbered period, the [account](what-an-account-is.md), the trading pair, and the venue's own name for that trade.
 
-The epoch is a number the host is given when it starts, so restarting under the same one keeps every refusal already earned. A fill matching all four is refused. The same venue name under a different account, a different symbol, or a different epoch is taken as new.
+That number is given to the host when it starts, and several starts can share one, so restarting under the same number keeps every refusal already earned. A fill matching all four is refused. The same venue name under a different account, a different pair, or a different numbered period is taken as new.
 
 ## What a refusal leaves
 
-Nothing comes back for a fill refused this way, and the projections are never told about it. [What it would have changed](what-a-fill-changes.md) is left exactly as it was.
+Nothing comes back for a fill refused this way, and the running pictures are never touched about it. [What it would have changed](what-a-fill-changes.md) is left exactly as it was.
 
 The refusal is not a failure. It is the ordinary outcome for a report Praxis has already counted, and the send that carried it goes on.
 

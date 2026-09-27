@@ -2,7 +2,7 @@
 row: P2-12
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 10:57 UTC
 evidence:
   - claim: "Registering a name creates its queues, its state and its ledger together"
     source: "`execution_manager.py` 823-830, with two further queues made alongside at 581-584"
@@ -35,7 +35,7 @@ evidence:
 ---
 # What an account is
 
-An **account** is a name that owns work and everything kept about it. Most of what Praxis holds is per-account: every order, every holding, every queue and the worker that serves them all belong to exactly one account, and the name travels on the work alongside its [trade name](what-a-trade-is.md) from submission onward.
+An **account** is a name that groups requests, orders, holdings and everything else kept about them. Most of what Praxis holds is per-account: every order, every holding, every queue and the worker that serves them all belong to exactly one account, and the name travels on the work alongside its [trade name](what-a-trade-is.md) from submission onward.
 
 ## What registering one creates
 
@@ -43,13 +43,13 @@ Registering a name creates, together: the queue [submitted work](how-an-order-is
 
 It also starts [the one worker](how-waiting-work-is-drained.md) that will serve all of it. Registering a name that already exists creates none of this again: it re-registers at the venue and returns.
 
-An account can be registered parked. Its worker exists but sleeps through every pass, which leaves recovery free to rebuild the picture first — though recovery itself does reach the venue in that window, cancelling strays and, in one narrow case, re-sending a flatten. One the venue still has working is left alone.
+An account can be registered with its worker paused. Its worker exists but sleeps through every pass, which leaves recovery free to rebuild its records first — though recovery itself does reach the venue in that window, cancelling orders left over and, in one narrow case, sending again an order meant to close a position out. One the venue still has working is left alone.
 
 ## What is shared anyway
 
-Not everything is per-account. Some registries span the whole process, which is why a [request name](what-a-trade-is.md) already in use under one account is refused under another.
+Not everything is per-account. Some lists are shared by every account in the running host, which is why a [request name](what-a-trade-is.md) already in use under one account is refused under another.
 
-Holdings are counted under a trade **and** an account together, so the same trade name under two accounts is two separate holdings. On a real exchange, credentials are stored against the account name and used to sign that account's calls; a replaying venue takes them and never looks.
+Holdings are counted under a trade **and** an account together, so the same trade name under two accounts is two separate holdings. On a real exchange, credentials are stored against the account name and used to sign that account's calls; a venue replaying recorded activity accepts them and never uses them.
 
 ## Related
 

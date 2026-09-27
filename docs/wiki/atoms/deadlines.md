@@ -2,7 +2,7 @@
 row: P2-23
 baseline: 49aa659
 created: 2026-09-24 20:16 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:03 UTC
 evidence:
   - claim: "The clock runs from the time supplied on the command, not from the accept written later"
     source: "`execution_manager.py` 2925 reading the time stored at 3476, the accept taking its own clock at 3517"
@@ -16,7 +16,7 @@ evidence:
     source: "either `execution_manager.py` 4395-4396 or 4403-4404"
   - claim: "Every status, a full fill included, is reported by the same call at the end"
     source: "`execution_manager.py` 4446-4448"
-  - claim: "The moment used is taken when the send returned, or when a chased send was adopted"
+  - claim: "The moment used is taken when the send returned, or when asking the venue confirmed it had taken the order"
     source: "stored at either `execution_manager.py` 4281 or 4291, compared at 4414"
   - claim: "A bracket and a hidden-size order are measured against neither clock"
     source: "dispatched by either `execution_manager.py` 4000 or 4002, the one sending at 4521 and the other returning at 5396, neither reading a clock"
@@ -31,17 +31,17 @@ evidence:
 ---
 # Deadlines
 
-A **deadline** is a time by which work is expected to be done: the time supplied on the work, plus the timeout it carries. Praxis measures against it at particular moments, and which moments depends on the kind of work.
+A **deadline** is a time by which work is expected to be done: the time supplied with the work, plus the time it is allowed. Praxis measures against it at particular moments, and which moments depends on the kind of work.
 
 ## Work that never started
 
-Work meant to be [fed out or laddered](work-already-under-way.md) is measured when [the worker](how-waiting-work-is-drained.md) takes it off the queue, and past the time by then is ended there, reported expired with nothing sent.
+Work meant to be [fed out in slices, or placed at several price levels](work-already-under-way.md), is measured when [the worker](how-waiting-work-is-drained.md) takes it off the queue, and past the time by then is ended there, reported expired with nothing sent.
 
-A [bracket](how-an-order-is-placed.md) and a hidden-size order skip this check.
+An [opening order with protection attached](how-an-order-is-placed.md) skips this check, and so does one showing the market only part of its amount.
 
 ## Work that was sent
 
-Only work sent in one go is measured after its send; a linked pair counts. Even then the clock is read only where the status just worked out is pending or partial. Every status is reported by the same call regardless.
+Only work sent in one go is measured after its send; a linked pair counts. Even then the clock is read only where the status just worked out is waiting or part filled. Every status is reported by the same call regardless.
 
 The moment used is taken when the send returned, or when [a chased send](when-a-send-is-unclear.md) was adopted. Past the time by then, the order is marked expired and [a cancel is attempted](the-expiry-cancel.md).
 
@@ -49,7 +49,7 @@ Short of the time at that moment, the order is reported as it stands and never m
 
 ## A second clock
 
-Work being fed out, and a ladder, get a fresh clock when they start, so one that waited a long time to begin does not inherit the wait. Past that clock a [run](work-already-under-way.md) only *begins* winding up: its children are asked to cancel, and it stays on the books until they settle. One already draining, or mid-change, is skipped entirely.
+Work being fed out, and a ladder, get a fresh clock when they start, so one that waited a long time to begin does not inherit the wait. Past that clock a [run](work-already-under-way.md) only *begins* winding up: its children are asked to cancel, and it stays on the books until they settle. Work already waiting for its orders to finish, or being changed, is skipped entirely.
 
 ## Related
 

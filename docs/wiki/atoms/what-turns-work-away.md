@@ -2,7 +2,7 @@
 row: P2-24
 baseline: 49aa659
 created: 2026-09-24 21:11 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:21 UTC
 evidence:
   - claim: "Work is turned away while Praxis is shutting down"
     source: "`praxis/trading.py` 1878-1880"
@@ -22,7 +22,7 @@ evidence:
     source: "`execution_manager.py` 3452-3457"
   - claim: "The command checks itself as it is built, on many grounds"
     source: "`trade_command.py` 79-116, and a mismatched parameter type at 118-124, raised from `execution_manager.py` 3461"
-  - claim: "It is then checked for shape on many more"
+  - claim: "How its parts fit together is checked on many more"
     source: "`execution_manager.py` 3479 into `validate_trade_command.py`, from an order type the mode disallows at 195-200 to bracket prices on the wrong side at 382-394"
   - claim: "The venue's own filters are not applied here, since no filters are passed"
     source: "`validate_trade_command.py` 143-146, never entered from `execution_manager.py` 3479"
@@ -37,21 +37,21 @@ evidence:
 ---
 # What turns work away before it is queued
 
-Work handed to Praxis passes a series of gates before anything is written down. Each raises at the ask, so a caller learns at once.
+Work handed to Praxis passes a series of gates before anything is written down. Each refuses on the spot, so whoever asked learns at once.
 
 ## At the door
 
 Praxis refuses everything while it is shutting down, and before it has been started at all.
 
-Then the [account](what-an-account-is.md) must have finished starting. A name never registered fails this test too, so an unknown account is turned away here rather than deeper in, as is one whose start failed — it never joins the set this checks.
+Then the [account](what-an-account-is.md) must have finished starting. A name never registered fails this test too, so an unknown account is turned away here rather than deeper in, as is one whose start failed — it never joins the list of started accounts.
 
-An account that fails *later* stays in that set, and a second refusal deeper in catches it.
+An account that fails *later* stays in that set, and a later refusal catches it.
 
-## At the command
+## As the request is built
 
 A [request name](what-a-trade-is.md) supplied with the work must not be empty, must be long enough to build an order name from, and must not already be in use anywhere, since that register spans accounts.
 
-The command then checks itself as it is built, on many grounds — among them an amount that is not positive or not finite, a time without a zone, an empty symbol. It is then checked for shape on many more, from an order type its execution mode disallows through to bracket prices on the wrong side. The venue's own filters are not applied here; none are passed in.
+The request then checks itself as it is built, on many grounds — among them an amount that is not positive, a time without a zone, a trading pair left blank. How its parts fit together is checked on many more, from an order type the chosen way of working disallows, to protective prices on the wrong side of the opening one. The venue's own filters are not applied here; none are passed in.
 
 The execution mode must be switched on for this host. By default only the plain single order is.
 
@@ -59,7 +59,7 @@ Last, the [queue](how-waiting-work-is-drained.md) must have room. A full one ref
 
 ## After them
 
-Only then is the accept written. Even then the work may not be queued: if the account has failed by that point, it is ended there with a rejected report instead. Work turned away at a gate leaves no record behind at all.
+Only then is the acceptance written. Even then the work may not be queued: if the account has failed by that point, it is ended there with a rejected report instead. Work turned away at a gate leaves no record behind at all.
 
 ## Related
 

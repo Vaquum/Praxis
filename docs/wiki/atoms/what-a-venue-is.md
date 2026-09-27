@@ -2,7 +2,7 @@
 row: P2-11
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-09-25 18:58 UTC
+modified: 2026-09-27 09:42 UTC
 evidence:
   - claim: "Execution holds one venue and calls it by name throughout"
     source: "stored once at `execution_manager.py` 679"
@@ -67,13 +67,10 @@ Outside execution, two places do ask what it really is: a live stream of executi
 
 One thing that sounds like an ask is not. Snapping an amount onto the venue's grid reads rules already cached, and hands the amount straight back where nothing is.
 
-## What comes back when it refuses
-
-A refusal arrives as a named kind, and the kind decides what happens. On an ordinary send two mean the fate is undecided and are [chased up](when-a-send-is-unclear.md); the rest are recorded failed. A flatten chases every one.
-
-An unfamiliar status is recorded the same way by most senders, though a flatten or a first protective send lets it leave. On a pair the venue calls finished, legs reporting nothing it knows make the whole read as cancelled; called anything else, their statuses go unread. The same failure while chasing is not — it happens inside the handler doing the chasing, so it escapes every arm and [ends with nothing reported](a-reply-that-cannot-be-read.md). What follows depends on who was chasing: from a plain send nothing is reported, under a slice the run ends rejected.
+What comes back when the venue refuses, and how Praxis reads it, is [set out separately](what-a-refusal-says.md).
 
 ## Related
 
+- [What a refusal says](what-a-refusal-says.md)
 - [What an account is](what-an-account-is.md)
 - [Order placement](how-an-order-is-placed.md)

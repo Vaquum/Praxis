@@ -2,7 +2,7 @@
 row: P2-38
 baseline: 49aa659
 created: 2026-09-26 19:03 UTC
-modified: 2026-09-27 07:39 UTC
+modified: 2026-09-27 13:46 UTC
 evidence:
   - claim: "On the ordinary path an ending marks the command finished and drops it from the live and aborted sets"
     source: "`execution_manager.py` 10800-10804"
@@ -31,11 +31,11 @@ An [outcome](what-an-outcome-is.md) is written down before it is handed over, an
 
 ## The ordinary order of things
 
-On the path a live command takes, an ending marks the command finished and drops it from the sets of live and aborted work.
+On the path a live request takes, an ending marks the request finished and takes it off the lists of running and cancelled work.
 
 Where that ending filled something and the position it leaves is closed by it, a close is written to [the record](the-event-spine.md) before anything else. Then the outcome's own row is written and projected. Only after all of that is the caller told.
 
-That order belongs to that path. A scheme ended during a restart writes its row first and marks the command finished afterwards, and writes no close at all.
+That order belongs to that path. Work carried out as several orders, ended during a restart, writes its row first and marks the request finished afterwards, and writes no close at all.
 
 ## Handing it over
 

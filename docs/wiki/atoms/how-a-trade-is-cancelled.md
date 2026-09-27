@@ -2,7 +2,7 @@
 row: P1-04
 baseline: 49aa659
 created: 2026-09-20 16:35 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:20 UTC
 evidence:
   - claim: "An unknown account is refused"
     source: "`execution_manager.py` 2995-2998"
@@ -24,7 +24,7 @@ evidence:
     source: "a zero slice total passed at `execution_manager.py` 6077-6081 into 8411-8423, refused by `trade_outcome.py` 146-148, the error logged and swallowed at `execution_manager.py` 4012-4019"
   - claim: "The next start reports it rejected as an orphan"
     source: "`execution_manager.py` 2254-2259 classing it, 2270-2275 into the rejection built at 2309-2321 and dispatched at 2330, run at boot from `praxis/trading.py` 550-552"
-  - claim: "A request already finished when the worker reaches the ask is left alone"
+  - claim: "A request already finished when the worker reaches the cancellation is left alone"
     source: "`execution_manager.py` 8482-8487"
   - claim: "A ladder past its deadline reports instead, never reaching that start"
     source: "`execution_manager.py` 4004-4005 into the expired report at 4123-4129, rather than the start at 4007"
@@ -49,17 +49,17 @@ evidence:
 ---
 # Cancellation
 
-Cancelling asks Praxis to stop a request already submitted. A refusal, or a request already finished, is settled at the ask. Otherwise it joins the [priority line](how-waiting-work-is-drained.md), and whether it stopped anything is known later.
+Cancelling asks Praxis to stop a request already submitted. A refusal, or work already finished, is answered at once. Otherwise it joins the [priority line](how-waiting-work-is-drained.md), and whether it stopped anything is known later.
 
 ## Asking
 
-The ask is refused if the account or the [request](what-a-trade-is.md) named is unknown, if it belongs elsewhere, or if the account failed to start or its worker has exited.
+The asking is refused if the account or the [request](what-a-trade-is.md) named is unknown, if it belongs to another account, or if the account failed to start or its worker has exited.
 
-Work already finished makes it a no-op. Otherwise it joins the line, which the worker empties on every pass once the account has finished starting up.
+Cancelling finished work changes nothing. Otherwise it joins the line, which the worker empties on every pass once the account has finished starting up.
 
 ## Carrying it out
 
-A request that finished while the ask waited is left alone. Work fed out or laddered, already begun, takes its own path. For the rest, one of two things is true.
+A request that finished while it waited is left alone. Work already begun, in slices or at several price levels, takes its own path. For the rest, one of two things is true.
 
 If [no order](how-an-order-is-placed.md) exists yet, the work still waits its turn. It is marked, and when that comes it is dropped unsent and reported with nothing filled. A ladder cancelled before its first rung is dropped too. Past its deadline it is reported expired on that pass; otherwise its report fails to build, and a rejection reaches the caller only after the next start.
 

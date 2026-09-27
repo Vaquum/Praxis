@@ -2,7 +2,7 @@
 row: P1-06
 baseline: 49aa659
 created: 2026-09-20 17:33 UTC
-modified: 2026-09-25 19:00 UTC
+modified: 2026-09-27 11:08 UTC
 evidence:
   - claim: "The book is fetched before the walk"
     source: "`execution_manager.py` 4192-4205"
@@ -27,13 +27,13 @@ evidence:
 ---
 # Estimating the likely price
 
-Praxis estimates what [an order](what-a-trade-is.md) would average if it went to the venue right now, by walking the [order book](the-order-book.md). The figure it produces feeds [the likely-price check](how-the-likely-price-is-checked.md).
+Praxis estimates what [an order](what-a-trade-is.md) would average if it went to the venue right now, by working down the [order book](the-order-book.md). The figure it produces feeds [the likely-price check](how-the-likely-price-is-checked.md).
 
 ## The walk
 
-One side of the book is walked, the sell offers for a buy and the buy bids for a sell, one price level at a time, taking what is on offer at each until the order is filled. The total value of that, each level's price times the amount taken there, divided by the units traded, gives the average.
+One side of the book is used: the sell offers for a buy, the buy offers for a sell, one price level at a time, taking what is on offer at each until the order is filled. The total value of that, each level's price times the amount taken there, divided by the units traded, gives the average.
 
-An order expressed as a sum of money to spend is walked the same way, spending down until the money runs out.
+An order expressed as a sum of money to spend is walked the same way, taking from each level until the money is used up.
 
 Only one side is ever walked. So long as the venue returns each side in price order, which is taken on trust and never checked, a buy's average lands at or above the middle and a sell's at or below it.
 
@@ -47,4 +47,4 @@ The average minus the middle, divided by the middle, multiplied by ten thousand:
 
 ## When there is none
 
-The book may have nothing on a side, or a top buy price of zero or less, or a top sell price below the top buy price. It may be too thin to fill the whole order. Or asking the venue for it may fail outright. Each of these leaves no figure at all.
+The book may have nothing on a side, or a top buy price of zero or less, or a top sell price below the top buy price. It may not hold enough to fill the whole order. Or asking the venue for it may fail outright. Each of these leaves no figure at all.

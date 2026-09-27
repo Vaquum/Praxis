@@ -2,7 +2,7 @@
 row: P2-31
 baseline: 49aa659
 created: 2026-09-25 19:37 UTC
-modified: 2026-09-25 19:37 UTC
+modified: 2026-09-27 11:11 UTC
 evidence:
   - claim: "The amount filled and the running value grow by what the fill brought"
     source: "`trading_state.py` 430-433"
@@ -19,21 +19,21 @@ evidence:
 ---
 # Fills and the order
 
-A [fill](what-a-fill-is.md) that Praxis can match to an order it is holding adds to that order's totals: the amount filled and the running value both grow by what the fill brought.
+A [fill](what-a-fill-is.md) that Praxis can match to an order it is holding adds to that order's totals: the amount filled and the total value traded both grow by what the fill brought.
 
-A fill naming an order held neither as open nor as closed adds nothing at all, and [the holdings](holdings.md) are still changed by that same fill.
+A fill naming an order Praxis holds neither as open nor as closed adds nothing at all, and [the holdings](holdings.md) are still changed by that same fill.
 
 ## Reaching the end
 
-An order that named an amount to trade is marked filled once the amount reached covers it, and partly filled until then.
+An order that named an amount to trade is marked filled once the amount traded covers it, and partly filled until then.
 
 An order that named a sum of money instead stays partly filled however much arrives. A separate report is what closes that one.
 
 ## A fill after the end
 
-A fill can arrive for an order that has already closed. One way that happens is a leg of a protective pair delivered late, but the only thing tested is whether the order is among the closed ones, so any closed order can take one.
+A fill can arrive for an order that has already closed. One way that happens is a late report for one order of a protective pair, but the only thing tested is whether the order is among the closed ones, so any closed order can take one.
 
-The amount and the value are still added, so totals read later are right. The status it closed at is left alone: it does not go back to partly filled, and it does not close a second time.
+The amount and the value are still added, so totals read later are right. The order keeps the status it closed at: it does not go back to partly filled, and it does not close a second time.
 
 ## Related
 

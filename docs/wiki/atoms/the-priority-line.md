@@ -2,7 +2,7 @@
 row: P1-08
 baseline: 49aa659
 created: 2026-09-23 08:19 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:01 UTC
 evidence:
   - claim: "The line is emptied every pass once the account has started"
     source: "`execution_manager.py` 3910-3911, unless a still-starting account stops at 3903-3905"
@@ -25,13 +25,13 @@ evidence:
 ---
 # The priority line
 
-Cancellations and changes wait together in one line, which [the account worker](how-waiting-work-is-drained.md) empties on every pass, once the account has finished starting up, before it takes any [submitted work](how-an-order-is-placed.md).
+Cancellations and changes wait together in one line, which [the account worker](how-waiting-work-is-drained.md) is emptied on every circuit, once the account has finished starting up, before it takes any [submitted work](how-an-order-is-placed.md).
 
 ## What happens to each
 
 A [cancellation](how-a-trade-is-cancelled.md) is carried out. So is a change, unless the account is on hold or has failed: each change is then put back for a later pass, while cancellations still run.
 
-Being on hold is a flag set from outside. The worker only reads it.
+Pausing an account is set from outside. The worker reads that setting and never changes it.
 
 ## What the ordering means
 

@@ -2,7 +2,7 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 13:47 UTC
 evidence:
   - claim: "The cancellation retry runs before the point a held or failed account leaves"
     source: "`execution_manager.py` 3960, ahead of the leaving point at 3969-3971"
@@ -53,21 +53,21 @@ evidence:
 ---
 # Work already under way
 
-Between emptying [the priority line](the-priority-line.md) and taking a new piece of [submitted work](how-an-order-is-placed.md), [the worker](how-waiting-work-is-drained.md) carries on with what it has already started. Each kind has its own conditions, and a pass may satisfy none of them.
+Between emptying [the priority queue](the-priority-line.md) and taking a new piece of [submitted work](how-an-order-is-placed.md), [the worker](how-waiting-work-is-drained.md) carries on with what it has already started. Each kind has its own conditions, and a pass may satisfy none of them.
 
 ## What it carries on
 
-A [cancellation](how-a-trade-is-cancelled.md) under way is retried, where the work is eligible and either a retry is flagged or its time has come. This runs early, before a held or failed account leaves the pass.
+A [cancellation](how-a-trade-is-cancelled.md) under way is retried, where the work is eligible and either another attempt is due or its time has come. This runs early, before a paused or failed account ends the circuit.
 
-The rest come after that point, so a held or failed account never reaches them.
+The rest come after that point, so a paused or failed account never reaches them.
 
-Every run being fed out is looked at. It may be wound up, when it is not already winding up, no change is in progress, and its deadline has passed; that cancels its live children, and the run stays on the books until they settle. A cancel whose reply has [a status or field Praxis cannot read](a-reply-that-cannot-be-read.md) stops the account instead. It may have its next slice released, when the run is open and that slice is due; a slice that cannot be placed freezes the run, and one that fails outright ends it. Otherwise it is examined for completion.
+Each piece of work carried out as several orders is looked at. It may be wound up, where it is not already winding up, no change is under way, and its deadline has passed; that cancels the orders it has out, and the work stays open until they end. A cancel whose reply has [a status or field Praxis cannot read](a-reply-that-cannot-be-read.md) stops the account instead. It may have its next slice released, when the run is open and that slice is due; a slice that cannot be placed pauses the work, and one that fails outright ends it. Otherwise it is examined for completion.
 
-Protection waiting is placed once the opening order has settled with something filled. Several failures hand it to repair; a reply with a status or field Praxis cannot read is not among them, and stops the account. A settled entry that filled nothing is dropped instead. Where something filled but nothing is held under the trade, the record is put back for a later pass.
+A waiting protective order goes up once its opening order has finished with something filled. Several failures hand it to repair; a reply with a status or field Praxis cannot read is not among them, and stops the account. A settled entry that filled nothing is dropped instead. Where something filled but nothing is held under the trade, the record is put back for a later pass.
 
 ## The sweep
 
-When one has been asked for, a sweep of seven repair jobs runs last. The first repeats the cancellation retry with its timing test dropped, so work the earlier step passed over can still be driven that pass.
+When asked for, the repair pass runs last. Its first job repeats the cancellation retry without the timing test, so a cancellation skipped earlier can still run on the same circuit.
 
 ## Related
 

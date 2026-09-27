@@ -2,7 +2,7 @@
 row: P2-33
 baseline: 49aa659
 created: 2026-09-26 06:31 UTC
-modified: 2026-09-26 17:41 UTC
+modified: 2026-09-27 09:35 UTC
 evidence:
   - claim: "A fill may be made with its fee equal to or above its amount"
     source: "`events.py` 593-595, which only refuses a fee below zero"
@@ -37,15 +37,15 @@ Such a fill delivers nothing. A record already holding something is left exactly
 
 Where nothing is held yet, a record holding nothing is built, and it stands.
 
-That empty record is where it turns. A second such fill on the same side divides a total of nothing by a total of nothing, and the sum fails.
+The trouble comes with the next such fill. A second such fill on the same side works out the average price by dividing zero by zero, and the sum fails.
 
 ## A commission larger than the amount
 
 Such a fill delivers less than nothing, and where nothing is held yet, building the record is refused outright.
 
-Against a record on the same side, three things are done in order, and each can stop the one after it. The remaining total is divided by, so a fill landing it exactly on zero fails there. The average is worked out from that division and set, so an average below zero is refused next. Only then is the amount set, and an amount below zero is refused there.
+Against a record on the same side, three things are done in order, and each can stop the one after it. The average price is worked out by dividing by the amount left, so a fill bringing that to exactly zero fails there. The average is worked out from that division and set, so an average below zero is refused next. Only then is the amount set, and an amount below zero is refused there.
 
-Where none of the three bites, the holding simply shrinks — a buy taking away from what it was meant to add to.
+Where none of the three stops it, the holding simply shrinks — a buy taking away from what it was meant to add to.
 
 Against a record on the other side the subtraction runs the other way, and the holding grows.
 

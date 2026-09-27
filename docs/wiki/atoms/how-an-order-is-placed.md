@@ -2,7 +2,7 @@
 row: P1-02
 baseline: 49aa659
 created: 2026-09-20 16:25 UTC
-modified: 2026-09-25 18:14 UTC
+modified: 2026-09-27 11:17 UTC
 evidence:
   - claim: "Every other kind is routed elsewhere before this path"
     source: "any of the arms at `execution_manager.py` 3994-4007, with a defensive refusal for anything that still arrives at 4170-4188"
@@ -55,13 +55,13 @@ evidence:
 
 Placing an order happens in two stages separated in time: **submitting**, which records the work and returns straight away, and **sending**, which reaches the venue on a later pass of the worker.
 
-This covers a plain single order. Work asking to be fed out over time, laddered, given a separate display size, or wrapped with protection is queued the same way but carried out along its own path.
+This covers a plain single order. Work asking to be fed out over time, placed at several price levels, part-shown to the market, or given protective orders is queued the same way but carried out along its own path.
 
 ## Submitting
 
 Work arrives carrying a [trade name](what-a-trade-is.md), and gets a [request name](what-a-trade-is.md) too: one supplied with it, or one Praxis generates.
 
-Several gates can [turn it away](what-turns-work-away.md) first. Otherwise it writes down the accept. If the account died across that write the work ends there unqueued; otherwise it is queued. Both those paths return the request name, and nothing has reached the venue.
+Several gates can [turn it away](what-turns-work-away.md) first. Otherwise it writes the acceptance down. If the account failed while that was written, the work ends there unqueued; otherwise it is queued. Both those paths return the request name, and nothing has reached the venue.
 
 ## Sending
 
@@ -69,7 +69,7 @@ Several gates can [turn it away](what-turns-work-away.md) first. Otherwise it wr
 
 Otherwise it tries to work out what the order would likely average at the venue. Only a market order can be turned back on that answer, or on the absence of one: see [the likely-price check](how-the-likely-price-is-checked.md).
 
-Only then does it name the order, write the intent down, and call the venue. The writing-down comes first, so a record naming the order exists before the order goes out. An order left pending or partly filled past its [deadline](deadlines.md) has a cancel attempted and is reported expired — unless that cancel's reply [lacks a field or carries an unfamiliar status](a-reply-that-cannot-be-read.md), which ends it with nothing reported.
+Only then does it name the order, write down its intention, and call the venue. The writing-down comes first, so a record naming the order exists before the order goes out. An order left pending or partly filled past its [deadline](deadlines.md) has a cancel attempted and is reported expired — unless that cancel's reply [lacks a field or carries an unfamiliar status](a-reply-that-cannot-be-read.md), which ends it with nothing reported.
 
 Some failures are [chased up with the venue](when-a-send-is-unclear.md) before the send is called failed; others are recorded failed on the spot; and some end with no outcome at all, leaving whatever was already written.
 

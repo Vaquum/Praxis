@@ -2,7 +2,7 @@
 row: P2-18
 baseline: 49aa659
 created: 2026-09-26 20:21 UTC
-modified: 2026-09-27 07:44 UTC
+modified: 2026-09-27 13:46 UTC
 evidence:
   - claim: "An outcome is built with the names, a status, the amount filled and its average, a pair of slice figures, a reason and a time"
     source: "`execution_manager.py` 10784-10798"
@@ -19,7 +19,7 @@ evidence:
 ---
 # Outcomes
 
-An **outcome** is what Praxis reports back about a [command](what-a-trade-is.md): which [account](what-an-account-is.md) and trade it belongs to, where it has got to, how much has filled and at what average, a pair of figures counting slices, why, and when that was true.
+An **outcome** is what Praxis reports back about a [request](what-a-trade-is.md): which [account](what-an-account-is.md) and trade it belongs to, where it has got to, how much has filled and at what average, a pair of figures counting slices, why, and when that was true.
 
 
 The same thing carries progress and completion. Two of its six states are not an ending — waiting, and part done — and four are: filled, cancelled, refused, and expired.
@@ -32,7 +32,7 @@ An outcome is refused as it is made unless its names are real names rather than 
 
 An outcome is written down, then [handed to the caller](how-an-outcome-is-delivered.md) — where a caller was given at all; with none, the handing over is skipped.
 
-Where the handing over does not finish, [the next start goes looking for it](how-an-undelivered-outcome-is-replayed.md). That looking is bounded by the epoch the host was told to run: an outcome from an earlier one falls outside it.
+Where the handing over does not finish, [the next start goes looking for it](how-an-undelivered-outcome-is-replayed.md). That looking covers only the numbered period the host was started in. An outcome from an earlier period falls outside it.
 
 ## Related
 

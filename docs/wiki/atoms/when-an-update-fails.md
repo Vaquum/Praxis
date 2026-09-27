@@ -2,11 +2,11 @@
 row: P2-34
 baseline: 49aa659
 created: 2026-09-26 07:02 UTC
-modified: 2026-09-26 17:41 UTC
+modified: 2026-09-27 13:47 UTC
 evidence:
-  - claim: "The call handing an event to the order-and-holdings projection carries no guard"
+  - claim: "The call handing an event to the order-and-holdings update carries no guard"
     source: "`execution_manager.py` 2081"
-  - claim: "The money projection is guarded where it is called"
+  - claim: "The money update is guarded where it is called"
     source: "`execution_manager.py` 2092-2098"
   - claim: "Events admitted from outside and events off the venue's feed stop the account"
     source: "either `execution_manager.py` 3249-3261 or 3768-3780"
@@ -25,9 +25,9 @@ evidence:
   - claim: "What escapes every guard stops the account"
     source: "`execution_manager.py` 4025-4026"
 ---
-# When a projection fails
+# When an update fails
 
-The call that hands an event to [the order-and-holdings projection](what-a-fill-changes.md) carries no guard, so a failure there travels back out to whatever asked for it. The money projection is guarded where it is called, and a failure in that one goes no further.
+Praxis keeps [two running pictures](what-a-fill-changes.md), and updating them can fail. The call that updates the order-and-holdings one is unguarded, so a failure there travels back out to whatever asked for it. The money one is guarded where it is called, and a failure in that one is caught there.
 
 What becomes of the first kind turns on where it was asked for.
 
@@ -35,19 +35,19 @@ What becomes of the first kind turns on where it was asked for.
 
 An event admitted from outside, and an event arriving on the venue's feed, both stop the [account](what-an-account-is.md).
 
-A stopped account is not an idle one. The commands waiting in its queue are turned away, but an abort handed to it is still carried out, so a position can still be closed; an amend is put back to wait until the account is usable again, which takes a restart.
+A stopped account is not an idle one. The requests waiting in its queue are turned away. But [a cancellation](how-a-trade-is-cancelled.md) handed to it is still carried out, so a position can still be closed, and a change is put back to wait until the account is usable again — which takes a restart.
 
 ## From inside the loop
 
 Most of what the loop does carries a guard, and each ends something different.
 
-A priority instruction that fails ends there. A command taken off the queue that fails ends there. A scheme that fails while being advanced is dropped altogether — Praxis tries to record it as failed on the way, but drops it whether that recording works or not.
+A cancellation or a change that fails ends there. A request taken off the queue that fails ends there. Work carried out as several orders, failing as the next one is sent, is dropped altogether — Praxis tries to record it as failed on the way, but drops it whether that recording works or not.
 
 All three leave the account running.
 
 ## What carries no guard
 
-Putting up protection for a bracket rebuilt after a restart. A failure there, and any other escaping every guard the loop sets, reaches the loop's own and stops the account.
+Putting up protection for an opening order rebuilt after a restart. A failure there, and any other escaping every guard the loop sets, reaches the loop's own and stops the account.
 
 ## Related
 

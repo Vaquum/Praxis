@@ -2,7 +2,7 @@
 row: P2-13
 baseline: 49aa659
 created: 2026-09-25 18:31 UTC
-modified: 2026-09-25 19:07 UTC
+modified: 2026-09-27 13:51 UTC
 evidence:
   - claim: "Two lists of levels, each level a price and an amount"
     source: "`venue_adapter.py` 419-420 for a level, 434-436 for the pair of lists"
@@ -12,7 +12,7 @@ evidence:
     source: "`execution_manager.py` 4194-4197 with the count at 147"
   - claim: "Closing-out pricing asks without naming a count and reads only the top level"
     source: "asked at `execution_manager.py` 6685, read at either 6692 for a buy or 6716 for a sell"
-  - claim: "A poller asks for five levels every couple of seconds"
+  - claim: "A background task asks for five levels every couple of seconds"
     source: "`launcher.py` 638-639 with the count at 198 and the gap at 197"
   - claim: "Refusal, an unparsed reply and a parsed reply missing a list are three separate raises"
     source: "either `binance_adapter.py` 2272-2273, or 2277-2279, or 2294-2296"
@@ -27,21 +27,21 @@ evidence:
 ---
 # The order book
 
-An **order book** is what a [venue](what-a-venue-is.md) publishes about one symbol: two lists of levels, buyers on one side and sellers on the other, each level a price and an amount wanted at that price.
+An **order book** is what a [venue](what-a-venue-is.md) publishes about one trading pair: two lists of levels, buyers on one side and sellers on the other, each level a price and an amount wanted at that price.
 
-Praxis keeps no book of its own making. It asks the venue for one, says how many levels it wants, and builds the two lists from the reply.
+Praxis makes no book of its own. It asks the venue for one, says how many levels it wants, and builds the two lists from the reply.
 
 ## Who asks, and how deep
 
-[Working out the likely price](how-the-likely-price-is-worked-out.md) asks for twenty levels a side, because it walks down them until the size is covered.
+[Working out the likely price](how-the-likely-price-is-worked-out.md) asks for twenty levels a side, because it works down them until the amount is covered.
 
 Pricing an order that closes a position out asks without naming a count and reads only the top level: the best sell price when buying back, the best buy price when selling out.
 
-A poller asks for five levels every couple of seconds and [keeps the reply](the-kept-book.md) where checks can read it without waiting on the venue.
+A background task asks for five levels every couple of seconds and [keeps the reply](the-kept-book.md) where checks can read it without waiting on the venue.
 
-## When the ask fails
+## When the asking fails
 
-A refusal, a reply that cannot be parsed at all, and a parsed reply with a list missing are three separate failures, but each asker catches the broad kind that covers all three, so all three reach it the same way.
+A refusal, a reply that cannot be parsed at all, and a parsed reply with a list missing are three separate failures, but each caller catches the broad kind that covers all three, so all three reach it the same way.
 
 What happens next depends on who asked. Closing-out pricing falls back to the price the position was opened at. The poller writes a line to the log and carries on.
 
