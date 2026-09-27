@@ -44,6 +44,17 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 - [Deadlines](atoms/deadlines.md) — two clocks, and the moments each is read.
 - [The expiry cancel](atoms/the-expiry-cancel.md) — what the venue's answer changes, and when nothing is reported.
 
+## Reporting back
+
+- [Outcomes](atoms/what-an-outcome-is.md) — what Praxis reports about a command, and the figures that must agree.
+- [How an outcome is delivered](atoms/how-an-outcome-is-delivered.md) — written down first, then tried three times.
+- [The figures an outcome reports](atoms/the-figures-an-outcome-reports.md) — what the slice counts and the progress figure are worth, by producer.
+- [The figures an outcome carries](atoms/the-figures-an-outcome-carries.md) — the rules that must hold as an outcome is made.
+- [What an outcome does not check](atoms/what-an-outcome-does-not-check.md) — the arithmetic, the status and the slippage nothing weighs.
+- [How an undelivered outcome is replayed](atoms/how-an-undelivered-outcome-is-replayed.md) — what the next start owes, and how it knows.
+- [Who a restart tells again](atoms/who-a-restart-tells-again.md) — the two callers, and which one gets a second chance.
+- [Outcomes that never come back](atoms/outcomes-that-never-come-back.md) — what settles a replayed piece, and what leaves it owed.
+
 ## Stopping one
 
 - [Cancellation](atoms/how-a-trade-is-cancelled.md) — asking, refusing, and what a confirmed cancellation does and does not prove.
@@ -57,8 +68,8 @@ Read them in order if you are new. Nothing below assumes you already know the vo
 
 An article that outgrows the limit is split rather than lengthened, so the wiki grows sideways.
 
-This wiki is early. Thirty-two articles exist. Almost every file in both projects is untouched. The ledger lists them.
+This wiki is early. Forty articles exist. Almost every file in both projects is untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-26 17:41 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-27 07:39 UTC
