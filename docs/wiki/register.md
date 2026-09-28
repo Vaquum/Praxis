@@ -58,7 +58,7 @@ Seeded, not traced. No article exists for these yet.
 | P2-19 | Runs, and the slices they are fed out in | written | [work-fed-out-over-time.md](atoms/work-fed-out-over-time.md) |
 | P2-20 | Ladders, and their rungs | written | [orders-at-several-prices.md](atoms/orders-at-several-prices.md) |
 | P2-21 | Protection, and the order that carries it | written | [protection.md](atoms/protection.md) |
-| P2-22 | Hidden-size orders, and what the venue shows | seeded | — |
+| P2-22 | Hidden-size orders, and what the venue shows | written | [part-shown-orders.md](atoms/part-shown-orders.md) |
 | P2-23 | Deadlines, and the two clocks they run on | written | [deadlines.md](atoms/deadlines.md) |
 | P2-24 | What turns work away before it is queued | written | [what-turns-work-away.md](atoms/what-turns-work-away.md) |
 | P2-25 | The expiry cancel | written | [the-expiry-cancel.md](atoms/the-expiry-cancel.md) |
@@ -192,4 +192,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 08:32 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 08:54 UTC
