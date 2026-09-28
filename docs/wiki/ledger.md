@@ -43,8 +43,13 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/binsim/feed.py` | partial | P3-06 |
 | `praxis/binsim/ledger.py` | partial | P3-07 |
 | `praxis/binsim/__main__.py` | partial | P3-05 |
-| `praxis/metrics/` — 7 files | uncovered | P3-10 |
-| `praxis/paper/` — 3 files | uncovered | P3-08, P3-09 |
+| `praxis/metrics/metric_conventions.py` | full | P3-10 |
+| `praxis/metrics/ledger_metrics.py` | partial | P3-10 |
+| `praxis/metrics/percentiles.py` | partial | P3-10 |
+| `praxis/metrics/` — the other 4 | uncovered | P3-10 |
+| `praxis/paper/paper_report.py` | partial | P3-08 |
+| `praxis/paper/mark_sampler.py` | partial | P3-09 |
+| `praxis/paper/paper_metrics.py` | uncovered | P3-08 |
 | the other 59 | uncovered | P3-11 to P3-22 partly |
 
 `execution_manager.py` is 10,867 lines. Ten rows touching it makes it `partial` by a wide margin, not nearly covered.
@@ -61,4 +66,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:36 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 18:08 UTC

@@ -56,9 +56,9 @@ Seeded, not traced. No article exists for these yet.
 | P3-05 | Binsim, the standalone simulated venue | written | [binsim.md](atoms/binsim.md) |
 | P3-06 | Binsim's book, and the feed that replaces it | written | [binsims-book.md](atoms/binsims-book.md) |
 | P3-07 | Binsim's per-account balances and fills | written | [binsims-ledger.md](atoms/binsims-ledger.md) |
-| P3-08 | Paper trading, and the report built from the spine | seeded | — |
-| P3-09 | The mark sampler, and the equity series it keeps | seeded | — |
-| P3-10 | What the metrics measure, and the conventions they report in | seeded | — |
+| P3-08 | Paper trading, and the report built from the spine | written | [the-paper-report.md](atoms/the-paper-report.md) |
+| P3-09 | The mark sampler, and the equity series it keeps | written | [the-mark-sampler.md](atoms/the-mark-sampler.md) |
+| P3-10 | What the metrics measure, and the conventions they report in | written | [the-metrics.md](atoms/the-metrics.md) |
 | P3-11 | The double-entry ledger: accounts, journal entries and lots | seeded | — |
 | P3-12 | Per-trade profit and loss | seeded | — |
 | P3-13 | Changing work already submitted | seeded | — |
@@ -215,4 +215,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:36 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 18:08 UTC

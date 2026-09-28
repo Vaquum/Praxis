@@ -76,6 +76,12 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
 - [Binsim's ledger](atoms/binsims-ledger.md) — the balances and fills it keeps, and why only one writer may hold them.
 
+## Judging a run
+
+- [The paper report](atoms/the-paper-report.md) — worked out afterwards from fills and mark samples.
+- [The mark sampler](atoms/the-mark-sampler.md) — what the market was worth between trades, and the gaps it leaves.
+- [The metrics](atoms/the-metrics.md) — the figures a run is summed up by, and the units they come in.
+
 ## How this wiki works
 
 - [Which commits it describes](BASELINE.md) — every article is written against one version of the code, and names it.
@@ -85,8 +91,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Fifty-one articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Fifty-four articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 17:36 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 18:08 UTC
