@@ -12,7 +12,10 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 |---|---|---|
 | `praxis/core/execution_manager.py` | partial | P1-01 to P1-10, P2-11 to P2-25 |
 | `praxis/core/domain/fill.py` | full | P2-15 |
-| `praxis/core/account_ledger.py` | partial | P2-16, P2-29 |
+| `praxis/core/account_ledger.py` | partial | P2-16, P2-29, P3-11, P3-12 |
+| `praxis/core/domain/chart_of_accounts.py` | full | P3-11 |
+| `praxis/core/domain/journal_entry.py` | partial | P3-11 |
+| `praxis/core/domain/trade_pnl.py` | partial | P3-11 |
 | `praxis/core/domain/events.py` | partial | P2-15 |
 | `praxis/core/trading_state.py` | partial | P1-01 |
 | `praxis/core/validate_trade_abort.py` | partial | P1-04 |
@@ -66,4 +69,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 18:08 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 18:33 UTC

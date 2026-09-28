@@ -76,6 +76,11 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
 - [Binsim's ledger](atoms/binsims-ledger.md) — the balances and fills it keeps, and why only one writer may hold them.
 
+## The money side
+
+- [The money ledger](atoms/the-money-ledger.md) — five accounts, entries that must balance, and what it refuses.
+- [Lots, and what a sell costs](atoms/lots-and-what-a-sell-costs.md) — how a buy is remembered, and what happens when a sell is too big.
+
 ## Judging a run
 
 - [The paper report](atoms/the-paper-report.md) — worked out afterwards from fills and mark samples.
@@ -91,8 +96,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Fifty-four articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Fifty-six articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 18:08 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 18:33 UTC
