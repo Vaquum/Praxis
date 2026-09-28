@@ -70,6 +70,12 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The replay clock](atoms/the-replay-clock.md) — the clock moved by hand, one bar at a time.
 - [The replay venue](atoms/the-replay-venue.md) — what stands in for an exchange, and what it still refuses.
 
+## A venue that is not real
+
+- [Binsim](atoms/binsim.md) — a simulated exchange Praxis can be pointed at, and the three questions it does not answer.
+- [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
+- [Binsim's ledger](atoms/binsims-ledger.md) — the balances and fills it keeps, and why only one writer may hold them.
+
 ## How this wiki works
 
 - [Which commits it describes](BASELINE.md) — every article is written against one version of the code, and names it.
@@ -79,8 +85,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Forty-eight articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Fifty-one articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 17:15 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 17:36 UTC

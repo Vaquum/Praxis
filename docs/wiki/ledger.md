@@ -38,7 +38,11 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/replay/replay_clock.py` | full | P3-02 |
 | `praxis/replay/replay_venue_adapter.py` | partial | P3-03 |
 | `praxis/replay/` — the other 7 | uncovered | P3-04 |
-| `praxis/binsim/` — 5 files | uncovered | P3-05 to P3-07 |
+| `praxis/binsim/server.py` | partial | P3-05 |
+| `praxis/binsim/book.py` | partial | P3-06 |
+| `praxis/binsim/feed.py` | partial | P3-06 |
+| `praxis/binsim/ledger.py` | partial | P3-07 |
+| `praxis/binsim/__main__.py` | partial | P3-05 |
 | `praxis/metrics/` — 7 files | uncovered | P3-10 |
 | `praxis/paper/` — 3 files | uncovered | P3-08, P3-09 |
 | the other 59 | uncovered | P3-11 to P3-22 partly |
@@ -57,4 +61,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:15 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:36 UTC

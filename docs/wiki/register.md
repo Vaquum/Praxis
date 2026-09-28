@@ -53,9 +53,9 @@ Seeded, not traced. No article exists for these yet.
 | P3-02 | The simulated clock a replay runs on | written | [the-replay-clock.md](atoms/the-replay-clock.md) |
 | P3-03 | The in-process venue a replay sends to | written | [the-replay-venue.md](atoms/the-replay-venue.md) |
 | P3-04 | What a replay run is given, and what it reports | seeded | — |
-| P3-05 | Binsim, the standalone simulated venue | seeded | — |
-| P3-06 | Binsim's book, and the feed that replaces it | seeded | — |
-| P3-07 | Binsim's per-account balances and fills | seeded | — |
+| P3-05 | Binsim, the standalone simulated venue | written | [binsim.md](atoms/binsim.md) |
+| P3-06 | Binsim's book, and the feed that replaces it | written | [binsims-book.md](atoms/binsims-book.md) |
+| P3-07 | Binsim's per-account balances and fills | written | [binsims-ledger.md](atoms/binsims-ledger.md) |
 | P3-08 | Paper trading, and the report built from the spine | seeded | — |
 | P3-09 | The mark sampler, and the equity series it keeps | seeded | — |
 | P3-10 | What the metrics measure, and the conventions they report in | seeded | — |
@@ -215,4 +215,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:15 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:36 UTC
