@@ -49,6 +49,28 @@ Seeded, not traced. No article exists for these yet.
 | P2-42 | The figures an outcome is never checked against | written | [what-an-outcome-does-not-check.md](atoms/what-an-outcome-does-not-check.md) |
 | P2-43 | What the slice counts and the progress figure are worth, by producer | written | [the-figures-an-outcome-reports.md](atoms/the-figures-an-outcome-reports.md) |
 | P2-45 | What a venue refusal says, and how each kind is read | written | [what-a-refusal-says.md](atoms/what-a-refusal-says.md) |
+| P3-01 | Replay, and driving the live path over recorded bars | written | [replay.md](atoms/replay.md) |
+| P3-02 | The simulated clock a replay runs on | written | [the-replay-clock.md](atoms/the-replay-clock.md) |
+| P3-03 | The in-process venue a replay sends to | written | [the-replay-venue.md](atoms/the-replay-venue.md) |
+| P3-04 | What a replay run is given, and what it reports | seeded | — |
+| P3-05 | Binsim, the standalone simulated venue | seeded | — |
+| P3-06 | Binsim's book, and the feed that replaces it | seeded | — |
+| P3-07 | Binsim's per-account balances and fills | seeded | — |
+| P3-08 | Paper trading, and the report built from the spine | seeded | — |
+| P3-09 | The mark sampler, and the equity series it keeps | seeded | — |
+| P3-10 | What the metrics measure, and the conventions they report in | seeded | — |
+| P3-11 | The double-entry ledger: accounts, journal entries and lots | seeded | — |
+| P3-12 | Per-trade profit and loss | seeded | — |
+| P3-13 | Changing work already submitted | seeded | — |
+| P3-14 | How an order is named | seeded | — |
+| P3-15 | Health, and what a failing venue does to an account | seeded | — |
+| P3-16 | The venue feed, and what arrives on it | seeded | — |
+| P3-17 | Backfilling trades the feed missed | seeded | — |
+| P3-18 | Rate limiting, and the budget a send takes from | seeded | — |
+| P3-19 | Where credentials come from | seeded | — |
+| P3-20 | Alerts, and what raises one | seeded | — |
+| P3-21 | What a send failure is classified as | seeded | — |
+| P3-22 | Modes allowed only against a real venue | seeded | — |
 | P2-44 | Which caller a restart offers an outcome to again, and which it does not | written | [who-a-restart-tells-again.md](atoms/who-a-restart-tells-again.md) |
 | P2-14 | Order types, and what a market order means here | written | [order-types.md](atoms/order-types.md) |
 | P2-15 | What a fill is | written | [what-a-fill-is.md](atoms/what-a-fill-is.md) |
@@ -188,8 +210,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-049 | Clearing the `hash` column on every row makes `verify_chain` treat the whole spine as the legacy prefix and skip it entirely. `in_legacy_prefix` starts true and is only cleared by the first hashed row, so an all-unhashed spine passes every check without one being run, and the contents can be changed freely with no mark recomputed and no row removed. Cheaper than the truncation of H-048, which at least leaves the surviving rows sealed. | `event_spine.py` 1255 into 1261-1269, with 1270 never reached | P2-37 | recorded; P2-37 states it among the escapes |
 | H-050 | Two terminal outcomes for one `command_id` are reachable, refuting the universal uniqueness `TradeOutcome`'s module docstring claims is enforced upstream. A protective pair's cancellation produces `CANCELED` for the bracket's exit command; dispatch then hands the surviving bracket to protection recovery, which on a confirmed naked remainder under `FLATTEN_THEN_HALT` submits a flatten under the same exit command id, derived deterministically from the bracket's own, and re-installs that command after it was dropped as terminal. An immediate terminal fill then reaches `_build_outcome` with no guard, giving `CANCELED` then `FILLED` for one id. | claimed at `trade_outcome.py` 6-7; `CANCELED` at `execution_manager.py` 10662-10741; recovery at 3863-3865 into 4680-4696; the shared id derived at 7608 and the flatten submitted at 7707-7709; re-installed at 7814; unguarded at 7859-7883 against the four guards at 4786, 8482, 8622 and 10663 | P2-18 | confirmed by review as a reachable path, not a missing guard; raised as U-05. Replay is separately affected: its translation drops a row for a command it considers ended (`outcome_translator.py` 156-164), returning nothing, so that row contributes no piece to the plan and no later start finds it owed. This does not establish non-delivery live, where the composed callback still passes the original outcome on after translation returns empty (`launcher.py` 3001-3003) |
 | H-051 | The outcome row and its replay builder lose slice progress, though the spine keeps it elsewhere. `TradeOutcomeProduced` carries no slice counts, so an outcome rebuilt from it substitutes one of one — while `SchemeStateChanged` does persist the cursor and a resumed scheme restores it, so the progress itself survives. No misreport follows the placeholder: every translated piece is built without slice counts, so it goes no further than the rebuilt object. Separately the live count is of slices **sent**, not finished. On the ordinary path the cursor advances once a slice goes out while its order may still be resting, so a slice sent and unfilled still counts. Ladder replacement does not accumulate: it places the new rungs without advancing, then sets cursor and total to the replacement plan's length, so a replacement stopping part way leaves the previous cursor standing. | row built without them at `execution_manager.py` 10817-10829; placeholder at `launcher.py` 1688-1689; pieces built without them at `outcome_translator.py` 265-270, 289-301, 314-325, 331-340 and 354-366; cursor persisted at `execution_manager.py` 6311-6322 and restored at 1970-1979; advanced past a still-active child at 5920-5923 and copied at 6515-6516; ladder replacement resetting both at 9315-9317 past the loop at 9301-9313 | P2-43 | recorded; P2-43 states the reporting limits |
+| H-052 | The replay venue's order book carries a price but no amount on either side, so the likely-price working-out can price nothing against it. A replay run with a maximum deviation configured therefore refuses every **plain single** market order, since the guard rejects one whose estimate is absent. A market slice of work fed out over time submits directly and never reaches that guard, so it trades as normal — confirmed by review, which reproduced a scheduled VWAP fill of 0.5 BTC at 50,000 against the real replay adapter with a maximum of 1. Calling the estimator with a zero-amount book reports depth insufficient and returns nothing. | `replay_venue_adapter.py` 415-417; refused at `execution_manager.py` 4064-4079 reached at 4230, with the estimate attempted at 4194-4197; bypassed at 5979 | P3-03 | recorded; P3-03 states both halves |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | 10070-10071 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 08:54 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:15 UTC

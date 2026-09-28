@@ -64,6 +64,12 @@ Read them in order if you are new. Every term is explained where it first appear
 
 - [Cancellation](atoms/how-a-trade-is-cancelled.md) — asking the venue to stop an order, and what a confirmed stop does and does not mean.
 
+## Replaying instead of trading
+
+- [Replay](atoms/replay.md) — running the ordinary path over bars that already happened.
+- [The replay clock](atoms/the-replay-clock.md) — the clock moved by hand, one bar at a time.
+- [The replay venue](atoms/the-replay-venue.md) — what stands in for an exchange, and what it still refuses.
+
 ## How this wiki works
 
 - [Which commits it describes](BASELINE.md) — every article is written against one version of the code, and names it.
@@ -73,8 +79,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Forty-five articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Forty-eight articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 08:54 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 17:15 UTC

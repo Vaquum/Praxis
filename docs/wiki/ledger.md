@@ -34,9 +34,18 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/infrastructure/book_cache.py` | full | P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | P2-26 |
 | `praxis/core/estimate_slippage.py` | partial | P1-06 |
-| the other 84 | uncovered | — |
+| `praxis/replay/run_replay.py` | partial | P3-01 |
+| `praxis/replay/replay_clock.py` | full | P3-02 |
+| `praxis/replay/replay_venue_adapter.py` | partial | P3-03 |
+| `praxis/replay/` — the other 7 | uncovered | P3-04 |
+| `praxis/binsim/` — 5 files | uncovered | P3-05 to P3-07 |
+| `praxis/metrics/` — 7 files | uncovered | P3-10 |
+| `praxis/paper/` — 3 files | uncovered | P3-08, P3-09 |
+| the other 59 | uncovered | P3-11 to P3-22 partly |
 
 `execution_manager.py` is 10,867 lines. Ten rows touching it makes it `partial` by a wide margin, not nearly covered.
+
+The articles written so far follow one path: work arriving, being checked, becoming orders, those orders filling, and the outcome going back. Four subsystems have no article at all — replaying recorded bars, the standalone simulated venue, paper-trading reports, and the metrics behind them. The `P3` rows in [the register](register.md) exist to close that.
 
 ## Nexus — 81 files
 
@@ -48,4 +57,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 08:54 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-28 17:15 UTC
