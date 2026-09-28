@@ -2,7 +2,7 @@
 row: P2-19
 baseline: 49aa659
 created: 2026-09-27 14:09 UTC
-modified: 2026-09-27 21:33 UTC
+modified: 2026-09-28 07:23 UTC
 evidence:
   - claim: "Three ways of working send an amount out in parts spaced over time"
     source: "`execution_manager.py` 170-172, spaced at 5926-5929"
@@ -15,7 +15,7 @@ evidence:
   - claim: "A curve of weights sizes each part from its own weight"
     source: "either `plan_weighted_slices.py` 59-62 or, where a step is known, 65-76"
   - claim: "Either way the last part takes what is left"
-    source: "`plan_even_slices.py` 70 and `plan_weighted_slices.py` 76"
+    source: "`plan_even_slices.py` 69 and `plan_weighted_slices.py` 76"
   - claim: "Rounding down to a step happens only where the step is known"
     source: "`plan_even_slices.py` 56-58 doing none, the alternative at 60-78 doing it, the step read at `execution_manager.py` 5733-5734"
   - claim: "The first part goes at once, without waiting on a due time"
@@ -25,9 +25,9 @@ evidence:
   - claim: "A later part goes only where nothing is winding the work up and its time has come"
     source: "`execution_manager.py` 5831-5838"
   - claim: "After a part the next time is set from the gap, or cleared where none remain"
-    source: "either `execution_manager.py` 5926-5929 or 5930-5931"
-  - claim: "No order still working means it does not finish yet"
-    source: "`execution_manager.py` 6352-6356"
+    source: "either `execution_manager.py` 5925-5927 or 5928-5929"
+  - claim: "An order still working means it does not finish yet"
+    source: "`execution_manager.py` 6355-6356"
   - claim: "With none working, it finishes once every part has been sent"
     source: "`execution_manager.py` 6372-6376"
   - claim: "A deadline reached first starts the winding up, which waits on the orders out"
@@ -55,7 +55,7 @@ Even then a slice goes only where nothing is winding the work up. Once one is se
 
 ## How it ends
 
-The work finishes once no order it sent is still working and every slice has gone out.
+An order still working keeps the work open. Once none is, it finishes as soon as every slice has gone out.
 
 [A deadline](deadlines.md) reached first starts [winding it up](work-already-under-way.md) instead, and that too waits on the orders already out.
 

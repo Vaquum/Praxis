@@ -37,6 +37,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The likely-price check](atoms/how-the-likely-price-is-checked.md) — refusing an order that would trade too far from the market price.
 - [Estimating the likely price](atoms/how-the-likely-price-is-worked-out.md) — how that price is worked out from the order book.
 - [Work fed out over time](atoms/work-fed-out-over-time.md) — breaking an amount into slices, how they are sized, and when each goes.
+- [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, all sent at once.
 - [The account worker](atoms/how-waiting-work-is-drained.md) — the loop each account runs, and what it picks up on each pass.
 - [The priority line](atoms/the-priority-line.md) — the separate queue for cancelling and changing, and why it is served first.
 - [Work already under way](atoms/work-already-under-way.md) — the work the loop moves along between taking one request and the next.
@@ -70,8 +71,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Forty-two articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Forty-three articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-27 21:33 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-27 21:36 UTC

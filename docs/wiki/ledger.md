@@ -25,6 +25,9 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-24, P2-27, P2-28 |
 | `praxis/core/domain/enums.py` | partial | P2-14, P2-19 |
 | `praxis/core/domain/execution_scheme.py` | full | P2-19 |
+| `praxis/core/domain/ladder_dca_params.py` | full | P2-20 |
+| `praxis/core/plan_even_slices.py` | full | P2-19, P2-20 |
+| `praxis/core/plan_weighted_slices.py` | full | P2-19, P2-20 |
 | `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32 |
 | `praxis/infrastructure/book_cache.py` | full | P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | P2-26 |
@@ -43,4 +46,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 21:33 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-27 21:36 UTC
