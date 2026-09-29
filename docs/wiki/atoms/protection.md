@@ -2,7 +2,7 @@
 row: P2-21
 baseline: 49aa659
 created: 2026-09-28 06:24 UTC
-modified: 2026-09-28 08:31 UTC
+modified: 2026-09-29 08:03 UTC
 evidence:
   - claim: "The opening order is sent as a market order"
     source: "`execution_manager.py` 4521-4523 into `_submit_market_slice`"
@@ -30,14 +30,6 @@ evidence:
     source: "zero returned at `execution_manager.py` 4851-4852, the sending given up at 4887-4904"
   - claim: "The record stays available for a later attempt"
     source: "`execution_manager.py` 4898, which returns before any flag is set"
-  - claim: "A flag is set before the sending"
-    source: "`execution_manager.py` 4906"
-  - claim: "A second attempt turns back on finding it set"
-    source: "`execution_manager.py` 4884-4885"
-  - claim: "Three places place it, and all pass that guard"
-    source: "`execution_manager.py` 4635, 4715 and 4753"
-  - claim: "The record is kept with the pair's name on it, and a later change works from that"
-    source: "named and kept at `execution_manager.py` 5031-5037, read at 9387 and used at 9429 and 9454-9455"
 ---
 # Protection
 
@@ -57,13 +49,10 @@ The protection is sized by what [the holdings](holdings.md) show, never above wh
 
 That matters because on some fills [the commission comes out of what the account receives](the-commission-and-the-amount.md). Sizing from the reported amount would then try to sell coin the account never got.
 
-## Once it is up
-
-A flag is set before the sending, so a second attempt turns back rather than putting up a second pair. Three places put protection up, and all pass that guard.
-
-The record is kept afterwards with the resting pair's name on it, which is what a later change to those prices works from.
+[What happens after it is up](when-protection-is-put-up-again.md) — the guard against a second pair, and what recovery can report twice — is set out separately.
 
 ## Related
 
+- [When protection is put up again](when-protection-is-put-up-again.md)
 - [Order types](order-types.md)
 - [Holdings](holdings.md)

@@ -10,6 +10,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
 - [What an account is](atoms/what-an-account-is.md) — the name that owns work, and what is set up when one is registered.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — three names for work at three sizes, and when to use each.
+- [How an order is named](atoms/how-an-order-is-named.md) — the three parts of a name, and what is refused.
 - [Order types](atoms/order-types.md) — the eight kinds of order Praxis can send, and how each one is built.
 - [The prices an order must name](atoms/the-prices-an-order-must-name.md) — which kinds of order need a price, a trigger, or both.
 - [What a fill is](atoms/what-a-fill-is.md) — a report that some of an order has traded, and what such a report must say.
@@ -39,6 +40,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Work fed out over time](atoms/work-fed-out-over-time.md) — breaking an amount into slices, how they are sized, and when each goes.
 - [Part-shown orders](atoms/part-shown-orders.md) — one resting order the venue displays only part of at a time.
 - [Protection](atoms/protection.md) — the pair of orders put up after an opening order fills, and how much they cover.
+- [When protection is put up again](atoms/when-protection-is-put-up-again.md) — the guard against a second pair, and the two endings recovery can report.
 - [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, all sent at once.
 - [The account worker](atoms/how-waiting-work-is-drained.md) — the loop each account runs, and what it picks up on each pass.
 - [The priority line](atoms/the-priority-line.md) — the separate queue for cancelling and changing, and why it is served first.
@@ -96,8 +98,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Fifty-six articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Fifty-eight articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-28 18:33 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-29 08:47 UTC
