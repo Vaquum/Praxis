@@ -18,6 +18,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/infrastructure/binance_ws.py` | partial | P3-16 |
 | `praxis/infrastructure/mytrades_backfill.py` | full | P3-17 |
 | `praxis/core/health_tracker.py` | full | P3-15 |
+| `praxis/infrastructure/token_bucket.py` | full | P3-18 |
 | `praxis/core/domain/health_snapshot.py` | full | P3-15 |
 | `praxis/core/domain/modify_params.py` | full | P3-13 |
 | `praxis/core/domain/interval_slice_modify.py` | partial | P3-13 |
@@ -78,4 +79,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 16:47 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 17:27 UTC

@@ -8,6 +8,7 @@ Read them in order if you are new. Every term is explained where it first appear
 
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to, real or simulated, and what it is asked to do.
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for what was missed, and where the asking stops short.
+- [Holding back sends](atoms/holding-back-sends.md) — the permits a call must take, and what the exchange says about its own limits.
 - [Health](atoms/health.md) — what Praxis records about the venue answering, and who can halt an account on it.
 - [The venue feed](atoms/the-venue-feed.md) — the open connection the venue speaks over, and what a reconnection cannot recover.
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
@@ -105,8 +106,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Sixty-two articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Sixty-three articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 16:47 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 17:27 UTC
