@@ -65,7 +65,7 @@ Seeded, not traced. No article exists for these yet.
 | P3-14 | How an order is named | written | [how-an-order-is-named.md](atoms/how-an-order-is-named.md) |
 | P3-15 | Health, and what a failing venue does to an account | seeded | — |
 | P3-16 | The venue feed, and what arrives on it | written | [the-venue-feed.md](atoms/the-venue-feed.md) |
-| P3-17 | Backfilling trades the feed missed | seeded | — |
+| P3-17 | Backfilling trades the feed missed | written | [backfilling-missed-trades.md](atoms/backfilling-missed-trades.md) |
 | P3-18 | Rate limiting, and the budget a send takes from | seeded | — |
 | P3-19 | Where credentials come from | seeded | — |
 | P3-20 | Alerts, and what raises one | seeded | — |
@@ -217,4 +217,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 08:51 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 09:03 UTC
