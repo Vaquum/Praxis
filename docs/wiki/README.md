@@ -11,6 +11,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Holding back sends](atoms/holding-back-sends.md) — the permits a call must take, and what the exchange says about its own limits.
 - [Health](atoms/health.md) — what Praxis records about the venue answering, and who can halt an account on it.
 - [The venue feed](atoms/the-venue-feed.md) — the open connection the venue speaks over, and what a reconnection cannot recover.
+- [Who refused a send](atoms/who-refused-a-send.md) — which side a failed send is put down to, and when nothing can be said.
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
 - [What an account is](atoms/what-an-account-is.md) — the name that owns work, and what is set up when one is registered.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — three names for work at three sizes, and when to use each.
@@ -106,8 +107,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Sixty-three articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Sixty-four articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 17:27 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 18:50 UTC
