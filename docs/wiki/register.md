@@ -64,7 +64,7 @@ Seeded, not traced. No article exists for these yet.
 | P3-13 | Changing work already submitted | written | [changing-work-already-sent.md](atoms/changing-work-already-sent.md) |
 | P3-14 | How an order is named | written | [how-an-order-is-named.md](atoms/how-an-order-is-named.md) |
 | P3-15 | Health, and what a failing venue does to an account | seeded | — |
-| P3-16 | The venue feed, and what arrives on it | seeded | — |
+| P3-16 | The venue feed, and what arrives on it | written | [the-venue-feed.md](atoms/the-venue-feed.md) |
 | P3-17 | Backfilling trades the feed missed | seeded | — |
 | P3-18 | Rate limiting, and the budget a send takes from | seeded | — |
 | P3-19 | Where credentials come from | seeded | — |
@@ -217,4 +217,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 08:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 08:51 UTC
