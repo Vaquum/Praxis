@@ -61,7 +61,7 @@ Seeded, not traced. No article exists for these yet.
 | P3-10 | What the metrics measure, and the conventions they report in | written | [the-metrics.md](atoms/the-metrics.md) |
 | P3-11 | The double-entry ledger: accounts and balanced entries | written | [the-money-ledger.md](atoms/the-money-ledger.md) |
 | P3-12 | Lots, the two ways of keeping them, and what a sell costs | written | [lots-and-what-a-sell-costs.md](atoms/lots-and-what-a-sell-costs.md) |
-| P3-13 | Changing work already submitted | seeded | — |
+| P3-13 | Changing work already submitted | written | [changing-work-already-sent.md](atoms/changing-work-already-sent.md) |
 | P3-14 | How an order is named | written | [how-an-order-is-named.md](atoms/how-an-order-is-named.md) |
 | P3-15 | Health, and what a failing venue does to an account | seeded | — |
 | P3-16 | The venue feed, and what arrives on it | seeded | — |
@@ -217,4 +217,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-29 08:47 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 08:30 UTC

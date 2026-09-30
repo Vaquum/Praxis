@@ -46,6 +46,10 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The priority line](atoms/the-priority-line.md) — the separate queue for cancelling and changing, and why it is served first.
 - [Work already under way](atoms/work-already-under-way.md) — the work the loop moves along between taking one request and the next.
 
+## Changing and stopping
+
+- [Changing work already sent](atoms/changing-work-already-sent.md) — what each way of working lets you alter, and what is refused.
+
 ## When time runs out
 
 - [Deadlines](atoms/deadlines.md) — the two time limits an order is measured against, and when each is looked at.
@@ -98,8 +102,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Fifty-eight articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Fifty-nine articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-29 08:47 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 08:30 UTC
