@@ -13,6 +13,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The venue feed](atoms/the-venue-feed.md) — the open connection the venue speaks over, and what a reconnection cannot recover.
 - [Who refused a send](atoms/who-refused-a-send.md) — which side a failed send is put down to, and when nothing can be said.
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
+- [Where credentials come from](atoms/where-credentials-come-from.md) — where the key and secret are kept, and how far the hiding goes.
 - [What an account is](atoms/what-an-account-is.md) — the name that owns work, and what is set up when one is registered.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — three names for work at three sizes, and when to use each.
 - [How an order is named](atoms/how-an-order-is-named.md) — the three parts of a name, and what is refused.
@@ -107,8 +108,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Sixty-four articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+This wiki is early. Sixty-five articles exist, and almost every file in both projects is still untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 18:50 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 19:04 UTC

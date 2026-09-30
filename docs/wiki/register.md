@@ -67,7 +67,7 @@ Seeded, not traced. No article exists for these yet.
 | P3-16 | The venue feed, and what arrives on it | written | [the-venue-feed.md](atoms/the-venue-feed.md) |
 | P3-17 | Backfilling trades the feed missed | written | [backfilling-missed-trades.md](atoms/backfilling-missed-trades.md) |
 | P3-18 | Rate limiting, and the budget a send takes from | written | [holding-back-sends.md](atoms/holding-back-sends.md) |
-| P3-19 | Where credentials come from | seeded | — |
+| P3-19 | Where credentials come from | written | [where-credentials-come-from.md](atoms/where-credentials-come-from.md) |
 | P3-20 | Alerts, and what raises one | seeded | — |
 | P3-21 | What a send failure is classified as | written | [who-refused-a-send.md](atoms/who-refused-a-send.md) |
 | P3-23 | The guard against a second protective pair, and the two endings recovery can report | written | [when-protection-is-put-up-again.md](atoms/when-protection-is-put-up-again.md) |
@@ -218,4 +218,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 18:50 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 19:04 UTC
