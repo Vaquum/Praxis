@@ -13,6 +13,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The venue feed](atoms/the-venue-feed.md) — the open connection the venue speaks over, and what a reconnection cannot recover.
 - [Who refused a send](atoms/who-refused-a-send.md) — which side a failed send is put down to, and when nothing can be said.
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
+- [Alerts](atoms/alerts.md) — how Praxis says something needs a person, and what gets left out when it does.
 - [Where credentials come from](atoms/where-credentials-come-from.md) — where the key and secret are kept, and how far the hiding goes.
 - [What an account is](atoms/what-an-account-is.md) — the name that owns work, and what is set up when one is registered.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — three names for work at three sizes, and when to use each.
@@ -97,6 +98,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 - [The paper report](atoms/the-paper-report.md) — worked out afterwards from fills and mark samples.
 - [The mark sampler](atoms/the-mark-sampler.md) — what the market was worth between trades, and the gaps it leaves.
+- [What a replay is given](atoms/what-a-replay-is-given.md) — the bars, the money and the strategy text a replay run is handed before it starts.
+- [What a replay reports](atoms/what-a-replay-reports.md) — the figures a finished run hands back, and where each one is worked out from.
 - [The metrics](atoms/the-metrics.md) — the figures a run is summed up by, and the units they come in.
 
 ## How this wiki works
@@ -112,4 +115,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-09-30 19:04 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-01 09:06 UTC

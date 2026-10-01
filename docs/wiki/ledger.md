@@ -21,6 +21,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/infrastructure/token_bucket.py` | full | P3-18 |
 | `praxis/core/classify_submit_failure.py` | full | P3-21 |
 | `praxis/infrastructure/secret_store.py` | partial | P3-19 |
+| `praxis/infrastructure/alert_sink.py` | full | P3-20 |
 | `praxis/core/domain/health_snapshot.py` | full | P3-15 |
 | `praxis/core/domain/modify_params.py` | full | P3-13 |
 | `praxis/core/domain/interval_slice_modify.py` | partial | P3-13 |
@@ -49,10 +50,12 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/infrastructure/book_cache.py` | full | P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | P2-26 |
 | `praxis/core/estimate_slippage.py` | partial | P1-06 |
-| `praxis/replay/run_replay.py` | partial | P3-01 |
+| `praxis/replay/run_replay.py` | partial | P3-01, P3-04, P3-24 |
 | `praxis/replay/replay_clock.py` | full | P3-02 |
 | `praxis/replay/replay_venue_adapter.py` | partial | P3-03 |
-| `praxis/replay/` — the other 7 | uncovered | P3-04 |
+| `praxis/replay/replay_scenario.py` | full | P3-04 |
+| `praxis/replay/build_replay_report.py` | partial | P3-10, P3-24 |
+| `praxis/replay/` — the other 5 | uncovered | — |
 | `praxis/binsim/server.py` | partial | P3-05 |
 | `praxis/binsim/book.py` | partial | P3-06 |
 | `praxis/binsim/feed.py` | partial | P3-06 |
@@ -81,4 +84,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-09-30 19:04 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:06 UTC

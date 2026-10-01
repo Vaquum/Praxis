@@ -2,7 +2,7 @@
 row: P3-01
 baseline: 49aa659
 created: 2026-09-28 08:58 UTC
-modified: 2026-09-28 17:09 UTC
+modified: 2026-10-01 09:06 UTC
 evidence:
   - claim: "A replay builds its own clock and venue"
     source: "`run_replay.py` 114-115"
@@ -37,7 +37,7 @@ It is the same path. The checks, the [worker](how-waiting-work-is-drained.md), t
 
 ## One bar at a time
 
-The run walks the scenario's bars in order. For each it lays out the figures the strategy will read, tells the venue what price to fill at, and moves the clock to that bar's close.
+The run walks [the scenario's](what-a-replay-is-given.md) bars in order. For each it lays out the figures the strategy will read, tells the venue what price to fill at, and moves the clock to that bar's close.
 
 Only then is the strategy run, once, for that bar.
 
@@ -51,7 +51,7 @@ Work [fed out in slices](work-fed-out-over-time.md) is the exception. Its first 
 
 ## Reading the result
 
-Outcomes are delivered as the run goes, in the ordinary way. What waits until the end is the summary: the record is read back once the walk is done, and the report is built from it together with the scenario's own figures.
+Outcomes are delivered as the run goes, in the ordinary way. What waits until the end is the summary: the record is read back once the walk is done, and [the report](what-a-replay-reports.md) is built from it together with the scenario's own figures.
 
 ## Related
 
