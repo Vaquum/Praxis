@@ -79,6 +79,10 @@ NEXUS_BASELINE = '953477a'
 BASELINE_RE = re.compile(r'^baseline:\s*(\S+)\s*$', re.MULTILINE)
 CREATED_RE = re.compile(r'^created:\s*(.+?)\s*$', re.MULTILINE)
 SEARCH_PREFIXES = ('praxis/', 'nexus/', 'scripts/', 'tests/')
+LEDGER = WIKI / 'ledger.md'
+LEDGER_PATH_RE = re.compile(r'`((?:praxis|nexus)/[^`]*\.py)`')
+LEDGER_HEADING_RE = re.compile(r'^## (Praxis|Nexus) — (\d+) modules$', re.MULTILINE)
+LEDGER_GROUP_RE = re.compile(r'^\| (?:all|the other) (\d+) \|', re.MULTILINE)
 _MAX_SPAN = 60
 GIT = shutil.which('git')
 
@@ -773,6 +777,79 @@ def _check_page(
     return failures
 
 
+def _modules(root: Path, commit: str, package: str) -> set[str]:
+    '''Return the package's non-init modules in the pinned tree.'''
+
+    return {
+        name
+        for name in _pinned_paths(root, commit)
+        if name.startswith(f'{package}/')
+        and name.endswith('.py')
+        and not name.endswith('__init__.py')
+    }
+
+
+def _ledger_sections(text: str) -> dict[str, str]:
+    '''Return each package heading's body, keyed by the package name.'''
+
+    headings = list(LEDGER_HEADING_RE.finditer(text))
+    sections: dict[str, str] = {}
+
+    for index, heading in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        sections[heading.group(1)] = text[heading.end():end]
+
+    return sections
+
+
+def _ledger_coverage() -> list[str]:
+    '''Return the ledger's disagreements with the pinned trees.'''
+
+    text = LEDGER.read_text(encoding='utf-8')
+    counts = {name: int(count) for name, count in LEDGER_HEADING_RE.findall(text)}
+    sections = _ledger_sections(text)
+    failures: list[str] = []
+
+    for package, root_commit in (
+        ('praxis', _pin(Path('praxis'))),
+        ('nexus', _pin(NEXUS_ROOT / 'nexus')),
+    ):
+
+        if root_commit is None:
+            continue
+
+        root, commit, _ = root_commit
+        modules = _modules(root, commit, package)
+        heading = package.capitalize()
+        body = sections.get(heading, '')
+        named = {
+            name for name in LEDGER_PATH_RE.findall(body)
+            if name.startswith(f'{package}/')
+        }
+
+        for absent in sorted(named - modules):
+            failures.append(
+                f'{LEDGER}: a row names {absent}, which is not in the tree at {commit}',
+            )
+
+        if counts.get(heading) != len(modules):
+            failures.append(
+                f'{LEDGER}: the {heading} heading says {counts.get(heading)} modules, '
+                f'the tree at {commit} has {len(modules)}',
+            )
+
+        remainder = len(modules) - len(named & modules)
+        grouped = sum(int(count) for count in LEDGER_GROUP_RE.findall(body))
+
+        if grouped != remainder:
+            failures.append(
+                f'{LEDGER}: {heading} names {len(named & modules)} of {len(modules)} modules '
+                f'and groups {grouped}, leaving {remainder - grouped} unaccounted for',
+            )
+
+    return failures
+
+
 def main() -> int:
 
     '''Check every wiki page and report structural failures.'''
@@ -781,6 +858,7 @@ def main() -> int:
     ids = _register_ids()
     cache: dict[str, set[int]] = {}
     failures = [f for page in pages for f in _check_page(page, ids, cache)]
+    failures += _ledger_coverage()
 
     for failure in failures:
         _write(f'FAIL {failure}')

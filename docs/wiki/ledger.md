@@ -1,12 +1,12 @@
 # File ledger
 
-Every domain file in Praxis and Nexus, and whether the wiki accounts for it.
+Every module in Praxis and Nexus, and whether the wiki accounts for it. A package’s `__init__.py` files are not modules for this purpose and are not counted.
 
 `uncovered` no path walks it · `partial` some behaviour covered · `covered` local review accounts for its domain behaviour through reviewed rows or recorded exclusions.
 
 A file reaches `covered` only when no unresolved candidate is attached to it. Pending candidates block it.
 
-## Praxis — 95 files
+## Praxis — 88 modules
 
 | File | State | Rows |
 |---|---|---|
@@ -37,8 +37,6 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/infrastructure/binance_adapter.py` | partial | P1-07, P1-10, P2-11, P2-25 |
 | `praxis/trading.py` | partial | P2-11, P2-12 |
 | `praxis/trading_inbound.py` | partial | P2-12 |
-| `praxis/infrastructure/replay_venue_adapter.py` | partial | P2-12 |
-| `praxis/core/trade_command.py` | partial | P2-24 |
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-24, P2-27, P2-28 |
 | `praxis/core/domain/enums.py` | partial | P2-14, P2-19 |
 | `praxis/core/domain/execution_scheme.py` | full | P2-19 |
@@ -53,10 +51,14 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/estimate_slippage.py` | partial | P1-06 |
 | `praxis/replay/run_replay.py` | partial | P3-01, P3-04, P3-24 |
 | `praxis/replay/replay_clock.py` | full | P3-02 |
-| `praxis/replay/replay_venue_adapter.py` | partial | P3-03 |
+| `praxis/replay/replay_venue_adapter.py` | partial | P2-12, P3-03 |
 | `praxis/replay/replay_scenario.py` | full | P3-04 |
 | `praxis/replay/build_replay_report.py` | partial | P3-10, P3-24 |
-| `praxis/replay/` — the other 5 | uncovered | — |
+| `praxis/replay/replay_report.py` | partial | P3-24 |
+| `praxis/replay/load_replay_bars.py` | uncovered | P4-16 |
+| `praxis/replay/materialize_bar_frames.py` | uncovered | P4-16 |
+| `praxis/replay/replay_api.py` | uncovered | P4-17 |
+| `praxis/replay/metrics_serialization.py` | uncovered | P4-17 |
 | `praxis/binsim/server.py` | partial | P3-05 |
 | `praxis/binsim/book.py` | partial | P3-06 |
 | `praxis/binsim/feed.py` | partial | P3-06 |
@@ -65,24 +67,50 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/metrics/metric_conventions.py` | full | P3-10 |
 | `praxis/metrics/ledger_metrics.py` | partial | P3-10 |
 | `praxis/metrics/percentiles.py` | partial | P3-10 |
-| `praxis/metrics/` — the other 4 | uncovered | P3-10 |
+| `praxis/metrics/limen_snapshot.py` | uncovered | P3-10, P4-18 |
+| `praxis/metrics/snapshot_metrics.py` | uncovered | P3-10, P4-18 |
+| `praxis/metrics/metric_step.py` | uncovered | P4-18 |
+| `praxis/metrics/snapshot_result.py` | uncovered | P4-18 |
 | `praxis/paper/paper_report.py` | partial | P3-08 |
 | `praxis/paper/mark_sampler.py` | partial | P3-09 |
-| `praxis/paper/paper_metrics.py` | uncovered | P3-08 |
-| the other 59 | uncovered | P3-11 to P3-22 partly |
+| `praxis/paper/paper_metrics.py` | uncovered | P3-08, P4-19 |
+| `praxis/launcher.py` | partial | P4-01, P4-02, P4-03 |
+| `praxis/trading_config.py` | partial | P4-03 |
+| `praxis/infrastructure/binance_urls.py` | full | P4-03 |
+| `praxis/command_translator.py` | uncovered | P4-04 |
+| `praxis/outcome_translator.py` | uncovered | P4-05 |
+| `praxis/reconciliation_translate.py` | uncovered | P4-06 |
+| `praxis/core/domain/trade_command.py` | partial | P2-24, P4-07 |
+| `praxis/core/domain/_require_str.py` | uncovered | P4-07 |
+| `praxis/core/domain/execution_params.py` | uncovered | P4-08 |
+| `praxis/core/domain/single_shot_params.py` | uncovered | P4-08 |
+| `praxis/core/domain/interval_slice_params.py` | uncovered | P4-08 |
+| `praxis/core/domain/scheduled_vwap_params.py` | uncovered | P4-08 |
+| `praxis/core/domain/trade_modify.py` | uncovered | P3-13, P4-09 |
+| `praxis/core/domain/single_shot_modify.py` | uncovered | P4-09 |
+| `praxis/core/domain/bracket_modify.py` | uncovered | P4-09 |
+| `praxis/core/domain/iceberg_modify.py` | uncovered | P4-09 |
+| `praxis/core/domain/ladder_dca_modify.py` | uncovered | P4-09 |
+| `praxis/core/domain/scheduled_vwap_modify.py` | uncovered | P4-09 |
+| `praxis/core/domain/trade_abort.py` | uncovered | P4-10 |
+| `praxis/core/domain/order.py` | uncovered | P4-11 |
+| `praxis/core/domain/position.py` | uncovered | P4-12 |
+| `praxis/infrastructure/venue_adapter.py` | uncovered | P4-13 |
+| `praxis/infrastructure/observability.py` | uncovered | P4-14 |
+| `praxis/arrow_price_store.py` | uncovered | P4-15 |
 
 `execution_manager.py` is 10,867 lines. Ten rows touching it makes it `partial` by a wide margin, not nearly covered.
 
-The articles written so far follow one path: work arriving, being checked, becoming orders, those orders filling, and the outcome going back. Four subsystems have no article at all — replaying recorded bars, the standalone simulated venue, paper-trading reports, and the metrics behind them. The `P3` rows in [the register](register.md) exist to close that.
+Every Praxis file is now named here. The four subsystems that had no article — replaying recorded bars, the standalone simulated venue, paper-trading reports, and the metrics behind them — each have one, and the `P4` rows in [the register](register.md) carry the files still marked `uncovered`: the host itself, the seams between Nexus and Praxis, the shapes a request is carried in, and the leaves the earlier rows stopped short of.
 
-## Nexus — 81 files
+## Nexus — 70 modules
 
 | File | State | Rows |
 |---|---|---|
-| all 81 | uncovered | — |
+| all 70 | uncovered | — |
 
 Files are listed individually as tracing reaches them. Every untouched file stays listed as `uncovered`. That visibility is the pressure.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:19 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:32 UTC

@@ -129,6 +129,36 @@ Six of the ten articles exist because another outgrew the limit. P1-10 was carve
 | What execution modes are | A survey of five modes is either a list of names or an overflow, and spending a first-package slot on a table of contents delays the subjects the brief names. |
 | How a trade is modified | Follows cancellation, which it is built on. |
 
+## Package 4 — the host, the seams, and the leaves
+
+Thirty-three Praxis files are named nowhere in [the ledger](ledger.md). The largest is `launcher.py`, which every package so far has cited and none has traced. The rest fall into three groups: the seams between Nexus and Praxis, the shapes a request is carried in, and the leaves the replay and metrics rows stopped short of.
+
+Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
+
+Nexus is not in this package. All 70 of its modules are uncovered, and the four Praxis articles that cite it reach only three of them. That is a package of its own, not a tail on this one.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P4-01 | Starting a host: what is read, what is built, and in what order | seeded | — |
+| P4-02 | Stopping a host, and what becomes of work still open | seeded | — |
+| P4-03 | The settings a host is given, and which are refused | seeded | — |
+| P4-04 | How a decision becomes a command | seeded | — |
+| P4-05 | How an outcome crosses back | seeded | — |
+| P4-06 | What a reconciliation says, in each direction | seeded | — |
+| P4-07 | The command a request becomes, and what it must carry | seeded | — |
+| P4-08 | The settings each way of working takes | seeded | — |
+| P4-09 | The change each way of working accepts | seeded | — |
+| P4-10 | Abandoning work outright | seeded | — |
+| P4-11 | The order record Praxis keeps | seeded | — |
+| P4-12 | The position Praxis keeps, and what moves it | seeded | — |
+| P4-13 | What anything called a venue must be able to do | seeded | — |
+| P4-14 | What a host writes about itself | seeded | — |
+| P4-15 | Where the bars a strategy reads are kept | seeded | — |
+| P4-16 | The frames a replay lays out, and where its bars come from | seeded | — |
+| P4-17 | Asking for a replay from outside, and what crosses back | seeded | — |
+| P4-18 | The Limen-parity figures, and the steps they are worked from | seeded | — |
+| P4-19 | What a paper run's own figures add | seeded | — |
+
 ## Considered and rejected
 
 Kept so they are not rediscovered as new.
@@ -224,4 +254,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:14 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:32 UTC
