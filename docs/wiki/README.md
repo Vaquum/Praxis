@@ -85,6 +85,7 @@ Read them in order if you are new. Every term is explained where it first appear
 
 ## A venue that is not real
 
+- [Ways of working a host may drive](atoms/ways-of-working-a-host-may-drive.md) — the list a host is given of what it may do, and the three it cannot do against the simulator.
 - [Binsim](atoms/binsim.md) — a simulated exchange Praxis can be pointed at, and the three questions it does not answer.
 - [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
 - [Binsim's ledger](atoms/binsims-ledger.md) — the balances and fills it keeps, and why only one writer may hold them.
@@ -115,4 +116,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-01 09:06 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-01 09:19 UTC

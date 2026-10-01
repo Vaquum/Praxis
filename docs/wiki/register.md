@@ -72,7 +72,7 @@ Seeded, not traced. No article exists for these yet.
 | P3-21 | What a send failure is classified as | written | [who-refused-a-send.md](atoms/who-refused-a-send.md) |
 | P3-23 | The guard against a second protective pair, and the two endings recovery can report | written | [when-protection-is-put-up-again.md](atoms/when-protection-is-put-up-again.md) |
 | P3-24 | What a replay run reports | written | [what-a-replay-reports.md](atoms/what-a-replay-reports.md) |
-| P3-22 | Modes allowed only against a real venue | seeded | — |
+| P3-22 | Modes allowed only against a real venue | written | [ways-of-working-a-host-may-drive.md](atoms/ways-of-working-a-host-may-drive.md) |
 | P2-44 | Which caller a restart offers an outcome to again, and which it does not | written | [who-a-restart-tells-again.md](atoms/who-a-restart-tells-again.md) |
 | P2-14 | Order types, and what a market order means here | written | [order-types.md](atoms/order-types.md) |
 | P2-15 | What a fill is | written | [what-a-fill-is.md](atoms/what-a-fill-is.md) |
@@ -219,8 +219,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-056 | A replay's starting money is written into the account manifest as `int(capital_pool)`, so a scenario given 1000.75 sizes its orders against 1000 while the report divides its profit by 1000.75. The two figures disagree for any non-integral pool. | truncated at `run_replay.py` 319 and 321-324; read back at Nexus `manifest.py` 421-427 and `sequencer.py` 246; sized on at `launcher.py` 2516-2518; scored against at `build_replay_report.py` 56 and 371 | P3-04 | recorded; P3-04 states it |
 | H-057 | A run's two profit figures account for an entry's cost differently. The replay report charges each round-trip both fees; Nexus's realized PnL works off `position.entry_price`, which carries no fee, and subtracts the exit fee alone. The fee-bearing `avg_cost_basis` is maintained beside it and not used. They also pair differently — FIFO lots against a weighted-average entry price — so the gap is not simply the entry fees. | report at `build_replay_report.py` 269-273; risk figure at Nexus `outcome_processor.py` 523-533, with the unused fee-bearing figure at 483-485 | P3-24 | recorded; P3-24 states it |
 | H-058 | `ReplayScenario.interval_seconds` is documented as being used only as the staleness window for dollar bars. It also annualizes the run's risk-adjusted figure, so changing it changes a reported metric. | docstring at `replay_scenario.py` 53-55 against the use at `build_replay_report.py` 56 into 142, 376 and 427-429 | P3-04 | recorded; stale docstring, body wins |
+| H-059 | The binsim compatibility guard lives in the settings reader, not in the host. `_parse_enabled_modes` is called only from `main()`, so a host built in code — handed its venue adapter and a `TradingConfig` naming BRACKET, ICEBERG or LADDER_DCA — enables those modes against binsim with nothing to stop it. Replay builds a host that way, though it keeps the single-shot default and so does not exercise the gap. | guard at `launcher.py` 871-876 reached only from 4969-4975; direct build at `run_replay.py` 121-144 and `trading.py` 212-231 | P3-22 | recorded; P3-22 states the shape |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | 10070-10071 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:06 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:14 UTC
