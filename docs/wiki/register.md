@@ -120,7 +120,7 @@ A second reviewer read the first four of these until its account ran out of cred
 
 Two foundations and two of the subjects the brief names. Cancellation is written, so modification is unblocked; it waits behind the vocabulary rather than ahead of it, since it is carried out as a cancel followed by a replacement and both ends are terms package 2 defines.
 
-Six of the ten articles exist because another outgrew the limit. P1-10 was carved out when review found that an unreadable venue reply has four different endings depending on where the reading fails, and stating them took the parent past the cap. P1-09 was carved out when review found a whole stage missing from the worker article — a requested sweep of seven repair jobs, the first of which repeats the cancellation retry with its timing test dropped. Stating that accurately took the parent past the cap. P1-07 and P1-08 were carved out when the word count was corrected to include heading text: converting run-in bold paragraphs into headings during the voice rewrite had moved words off the counted side, and fixing that put four articles over. P1-07 was anticipated below as "an unclear answer from the venue"; P1-08 had already been linked by name from another article, which is the sign a term deserves its own page. P1-05 was carved out of P1-02 when the book check grew into a subject of its own. P1-06 was then carved out of P1-05 when a review added the sell-side sign flip and the ways the book can yield nothing, pushing it to 332 words: the check itself stayed in P1-05, the arithmetic moved to P1-06. P3-24 was carved out of P3-04 when review corrected where each reported figure comes from: the counts are read off the record, the summary is built from the record and the scenario together, and the profit is read from neither, pushing the parent to 321 words. Both splits were forced by the word count, which is the mechanism working. Expect the same for a venue refusing an order, and for an unclear answer from the venue.
+Six of the ten articles exist because another outgrew the limit. P1-10 was carved out when review found that an unreadable venue reply has four different endings depending on where the reading fails, and stating them took the parent past the cap. P1-09 was carved out when review found a whole stage missing from the worker article — a requested sweep of seven repair jobs, the first of which repeats the cancellation retry with its timing test dropped. Stating that accurately took the parent past the cap. P1-07 and P1-08 were carved out when the word count was corrected to include heading text: converting run-in bold paragraphs into headings during the voice rewrite had moved words off the counted side, and fixing that put four articles over. P1-07 was anticipated below as "an unclear answer from the venue"; P1-08 had already been linked by name from another article, which is the sign a term deserves its own page. P1-05 was carved out of P1-02 when the book check grew into a subject of its own. P1-06 was then carved out of P1-05 when a review added the sell-side sign flip and the ways the book can yield nothing, pushing it to 332 words: the check itself stayed in P1-05, the arithmetic moved to P1-06. P4-21 was carved out of P4-20 when review separated trading raising while it starts from trading merely taking too long, pushing it to 315 words. What a host says about itself while starting was never a kind of failure, so that is the half that moved. P4-20 was carved out of P4-01 when review found the startup order understated in three places at once — three of the seven calls can return having done nothing, the key-check timeout stops nothing, and one account failing only asks the others down — and stating all three took the parent to 363 words. P3-24 was carved out of P3-04 when review corrected where each reported figure comes from: the counts are read off the record, the summary is built from the record and the scenario together, and the profit is read from neither, pushing the parent to 321 words. Both splits were forced by the word count, which is the mechanism working. Expect the same for a venue refusing an order, and for an unclear answer from the venue.
 
 ### Considered and deferred
 
@@ -139,7 +139,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
-| P4-01 | Starting a host: what is read, what is built, and in what order | seeded | — |
+| P4-01 | Starting a host, and in what order | written | [starting-a-host.md](atoms/starting-a-host.md) |
 | P4-02 | Stopping a host, and what becomes of work still open | seeded | — |
 | P4-03 | The settings a host is given, and which are refused | seeded | — |
 | P4-04 | How a decision becomes a command | seeded | — |
@@ -158,6 +158,8 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-17 | Asking for a replay from outside, and what crosses back | seeded | — |
 | P4-18 | The Limen-parity figures, and the steps they are worked from | seeded | — |
 | P4-19 | What a paper run's own figures add | seeded | — |
+| P4-20 | What a failure at startup does | written | [what-a-failure-at-startup-does.md](atoms/what-a-failure-at-startup-does.md) |
+| P4-21 | What a starting host reports about itself | written | [what-a-starting-host-reports.md](atoms/what-a-starting-host-reports.md) |
 
 ## Considered and rejected
 
@@ -254,4 +256,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:32 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 10:35 UTC

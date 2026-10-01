@@ -15,6 +15,9 @@ Read them in order if you are new. Every term is explained where it first appear
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
 - [Alerts](atoms/alerts.md) — how Praxis says something needs a person, and what gets left out when it does.
 - [Where credentials come from](atoms/where-credentials-come-from.md) — where the key and secret are kept, and how far the hiding goes.
+- [Starting a host](atoms/starting-a-host.md) — the seven calls one process makes to bring Praxis and Nexus up, in the order it makes them.
+- [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
+- [What a starting host reports](atoms/what-a-starting-host-reports.md) — the count in its log and the answer at its endpoint, and what neither of them looks at.
 - [What an account is](atoms/what-an-account-is.md) — the name that owns work, and what is set up when one is registered.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — three names for work at three sizes, and when to use each.
 - [How an order is named](atoms/how-an-order-is-named.md) — the three parts of a name, and what is refused.
@@ -116,4 +119,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-01 09:19 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-01 10:39 UTC

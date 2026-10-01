@@ -35,7 +35,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/validate_trade_abort.py` | partial | P1-04 |
 | `praxis/core/domain/trade_outcome.py` | full | P1-04, P2-18 |
 | `praxis/infrastructure/binance_adapter.py` | partial | P1-07, P1-10, P2-11, P2-25 |
-| `praxis/trading.py` | partial | P2-11, P2-12 |
+| `praxis/trading.py` | partial | P2-11, P2-12, P4-20 |
 | `praxis/trading_inbound.py` | partial | P2-12 |
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-24, P2-27, P2-28 |
 | `praxis/core/domain/enums.py` | partial | P2-14, P2-19 |
@@ -74,7 +74,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/paper/paper_report.py` | partial | P3-08 |
 | `praxis/paper/mark_sampler.py` | partial | P3-09 |
 | `praxis/paper/paper_metrics.py` | uncovered | P3-08, P4-19 |
-| `praxis/launcher.py` | partial | P4-01, P4-02, P4-03 |
+| `praxis/launcher.py` | partial | P3-20, P3-22, P4-01, P4-02, P4-03, P4-20, P4-21 |
 | `praxis/trading_config.py` | partial | P4-03 |
 | `praxis/infrastructure/binance_urls.py` | full | P4-03 |
 | `praxis/command_translator.py` | uncovered | P4-04 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 09:32 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-01 10:39 UTC
