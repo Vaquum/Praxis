@@ -512,6 +512,22 @@ def _last_commit_date(path: Path) -> str | None:
     return result.stdout.strip() or None
 
 
+def _unspaced_headings(body: str) -> list[str]:
+    '''Return headings that run straight on from the line above.'''
+
+    lines = body.splitlines()
+
+    return [
+        f'heading runs on from the line above: "{line.strip()}"'
+        for index, line in enumerate(lines)
+        if index > 0 and line.startswith('#') and lines[index - 1].strip()
+    ] + [
+        f'heading sits mid-line: "{line.strip()}"'
+        for line in lines
+        if re.search(r'\S\s+#{1,6} ', line)
+    ]
+
+
 def _negative_definitions(body: str) -> list[str]:
 
     found: list[str] = []
@@ -733,6 +749,7 @@ def _check_page(
 
     failures.extend(f'{rel}: {note}' for note in _unlinked_terms(page, body))
     failures.extend(f'{rel}: {note}' for note in _negative_definitions(body))
+    failures.extend(f'{rel}: {note}' for note in _unspaced_headings(body))
 
     words = _prose_words(body)
 
