@@ -19,6 +19,9 @@ Read them in order if you are new. Every term is explained where it first appear
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [How a decision becomes a command](atoms/how-a-decision-becomes-a-command.md) — the five fields re-keyed as work crosses from Nexus into Praxis, and why.
 - [The payload a mode's settings arrive in](atoms/the-payload-a-modes-settings-arrive-in.md) — the three shapes a mode's settings can cross in, and the one mode that behaves unlike the rest.
+- [How an outcome crosses back](atoms/how-an-outcome-crosses-back.md) — one report from Praxis can become three for Nexus, or none at all.
+- [The figures carried back on a fill](atoms/the-figures-carried-back-on-a-fill.md) — the differences a fill reports, and the two measures that cover more than the fill they ride on.
+- [What stops an outcome crossing twice](atoms/what-stops-an-outcome-crossing-twice.md) — how a repeat is caught, how long it is remembered, and the repeat that gets through.
 - [The settings a host is given](atoms/the-settings-a-host-is-given.md) — what a host reads from its environment and its manifests before it starts anything.
 - [Which settings are refused](atoms/which-settings-are-refused.md) — the checks a setting must pass, and what a failed one does to the start.
 - [The deployment caps](atoms/the-deployment-caps.md) — the six ceilings on what a host may do, and the one that is checked twice.
@@ -129,4 +132,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-02 09:48 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-02 10:18 UTC

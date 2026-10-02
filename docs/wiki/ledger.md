@@ -78,7 +78,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/trading_config.py` | partial | P4-03, P4-25 |
 | `praxis/infrastructure/binance_urls.py` | full | P4-03 |
 | `praxis/command_translator.py` | partial | P4-04, P4-28 |
-| `praxis/outcome_translator.py` | uncovered | P4-05 |
+| `praxis/outcome_translator.py` | full | P4-05, P4-29, P4-30 |
 | `praxis/reconciliation_translate.py` | uncovered | P4-06 |
 | `praxis/core/domain/trade_command.py` | partial | P2-24, P4-07 |
 | `praxis/core/domain/_require_str.py` | uncovered | P4-07 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-02 09:48 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-02 10:18 UTC
