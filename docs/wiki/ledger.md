@@ -77,13 +77,13 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/launcher.py` | partial | P3-20, P3-22, P4-01, P4-02, P4-03, P4-20, P4-21, P4-25, P4-26, P4-27 |
 | `praxis/trading_config.py` | partial | P4-03, P4-25 |
 | `praxis/infrastructure/binance_urls.py` | full | P4-03 |
-| `praxis/command_translator.py` | uncovered | P4-04 |
+| `praxis/command_translator.py` | partial | P4-04, P4-28 |
 | `praxis/outcome_translator.py` | uncovered | P4-05 |
 | `praxis/reconciliation_translate.py` | uncovered | P4-06 |
 | `praxis/core/domain/trade_command.py` | partial | P2-24, P4-07 |
 | `praxis/core/domain/_require_str.py` | uncovered | P4-07 |
-| `praxis/core/domain/execution_params.py` | uncovered | P4-08 |
-| `praxis/core/domain/single_shot_params.py` | uncovered | P4-08 |
+| `praxis/core/domain/execution_params.py` | uncovered | P4-08, P4-28 |
+| `praxis/core/domain/single_shot_params.py` | uncovered | P4-08, P4-28 |
 | `praxis/core/domain/interval_slice_params.py` | uncovered | P4-08 |
 | `praxis/core/domain/scheduled_vwap_params.py` | uncovered | P4-08 |
 | `praxis/core/domain/trade_modify.py` | uncovered | P3-13, P4-09 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-02 09:19 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-02 09:48 UTC
