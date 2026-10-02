@@ -20,7 +20,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/health_tracker.py` | full | P3-15 |
 | `praxis/infrastructure/token_bucket.py` | full | P3-18 |
 | `praxis/core/classify_submit_failure.py` | full | P3-21 |
-| `praxis/infrastructure/secret_store.py` | partial | P3-19 |
+| `praxis/infrastructure/secret_store.py` | partial | P3-19, P4-03, P4-26 |
 | `praxis/core/live_only_modes.py` | full | P3-22 |
 | `praxis/infrastructure/alert_sink.py` | full | P3-20 |
 | `praxis/core/domain/health_snapshot.py` | full | P3-15 |
@@ -74,8 +74,8 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/paper/paper_report.py` | partial | P3-08 |
 | `praxis/paper/mark_sampler.py` | partial | P3-09 |
 | `praxis/paper/paper_metrics.py` | uncovered | P3-08, P4-19 |
-| `praxis/launcher.py` | partial | P3-20, P3-22, P4-01, P4-02, P4-03, P4-20, P4-21 |
-| `praxis/trading_config.py` | partial | P4-03 |
+| `praxis/launcher.py` | partial | P3-20, P3-22, P4-01, P4-02, P4-03, P4-20, P4-21, P4-25, P4-26, P4-27 |
+| `praxis/trading_config.py` | partial | P4-03, P4-25 |
 | `praxis/infrastructure/binance_urls.py` | full | P4-03 |
 | `praxis/command_translator.py` | uncovered | P4-04 |
 | `praxis/outcome_translator.py` | uncovered | P4-05 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-02 08:51 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-02 09:19 UTC

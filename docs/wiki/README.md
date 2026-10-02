@@ -17,6 +17,10 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Where credentials come from](atoms/where-credentials-come-from.md) — where the key and secret are kept, and how far the hiding goes.
 - [Starting a host](atoms/starting-a-host.md) — the seven calls one process makes to bring Praxis and Nexus up, in the order it makes them.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
+- [The settings a host is given](atoms/the-settings-a-host-is-given.md) — what a host reads from its environment and its manifests before it starts anything.
+- [Which settings are refused](atoms/which-settings-are-refused.md) — the checks a setting must pass, and what a failed one does to the start.
+- [The deployment caps](atoms/the-deployment-caps.md) — the six ceilings on what a host may do, and the one that is checked twice.
+- [Which accounts are refused](atoms/which-accounts-are-refused.md) — the checks each account faces as its manifest is read.
 - [Stopping a host](atoms/stopping-a-host.md) — the six steps a host takes to come down, and the two that carry a failure straight out.
 - [What becomes of work still open](atoms/what-becomes-of-work-still-open.md) — the two passes over commands and orders, and the one order deliberately left standing.
 - [Where an abandonment lands](atoms/where-an-abandonment-lands.md) — what giving up on a command does, by how far that command had got.
@@ -123,4 +127,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-02 08:51 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-02 09:19 UTC
