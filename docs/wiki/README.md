@@ -11,6 +11,8 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for what was missed, and where the asking stops short.
 - [Holding back sends](atoms/holding-back-sends.md) — the permits a call must take, and what the exchange says about its own limits.
 - [Health](atoms/health.md) — what Praxis records about the venue answering, and who can halt an account on it.
+- [Where the bars are kept](atoms/where-the-bars-are-kept.md) — the files a strategy is priced against, and when a bar counts as closed.
+- [When no price comes back](atoms/when-no-price-comes-back.md) — the ten ways reading a bar yields nothing, and the one that is silent.
 - [The venue feed](atoms/the-venue-feed.md) — the open connection the venue speaks over, and what a reconnection cannot recover.
 - [Who refused a send](atoms/who-refused-a-send.md) — which side a failed send is put down to, and when nothing can be said.
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
@@ -147,4 +149,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 20:21 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 20:37 UTC

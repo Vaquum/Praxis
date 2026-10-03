@@ -97,7 +97,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/domain/position.py` | full | P4-12 |
 | `praxis/infrastructure/venue_adapter.py` | partial | P4-13 |
 | `praxis/infrastructure/observability.py` | full | P4-14, P4-37 |
-| `praxis/arrow_price_store.py` | uncovered | P4-15 |
+| `praxis/arrow_price_store.py` | full | P4-15, P4-38 |
 
 `execution_manager.py` is 10,867 lines. Ten rows touching it makes it `partial` by a wide margin, not nearly covered.
 
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 20:21 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 20:37 UTC

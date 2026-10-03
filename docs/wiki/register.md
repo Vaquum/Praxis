@@ -153,7 +153,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-12 | The position Praxis keeps | written | [the-position-praxis-keeps.md](atoms/the-position-praxis-keeps.md) |
 | P4-13 | What a venue must be able to do | written | [what-a-venue-must-be-able-to-do.md](atoms/what-a-venue-must-be-able-to-do.md) |
 | P4-14 | What a host writes about itself | written | [what-a-host-writes-about-itself.md](atoms/what-a-host-writes-about-itself.md) |
-| P4-15 | Where the bars a strategy reads are kept | seeded | — |
+| P4-15 | Where the bars are kept | written | [where-the-bars-are-kept.md](atoms/where-the-bars-are-kept.md) |
 | P4-16 | The frames a replay lays out, and where its bars come from | seeded | — |
 | P4-17 | Asking for a replay from outside, and what crosses back | seeded | — |
 | P4-18 | The Limen-parity figures, and the steps they are worked from | seeded | — |
@@ -175,6 +175,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-35 | What each change insists on | written | [what-each-change-insists-on.md](atoms/what-each-change-insists-on.md) |
 | P4-36 | What changes on an order | written | [what-changes-on-an-order.md](atoms/what-changes-on-an-order.md) |
 | P4-37 | What the logging arrangement misses | written | [what-the-logging-arrangement-misses.md](atoms/what-the-logging-arrangement-misses.md) |
+| P4-38 | When no price comes back | written | [when-no-price-comes-back.md](atoms/when-no-price-comes-back.md) |
 
 ## Considered and rejected
 
@@ -280,4 +281,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 20:21 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 20:37 UTC
