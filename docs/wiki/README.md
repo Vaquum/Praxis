@@ -11,6 +11,8 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for what was missed, and where the asking stops short.
 - [Holding back sends](atoms/holding-back-sends.md) — the permits a call must take, and what the exchange says about its own limits.
 - [Health](atoms/health.md) — what Praxis records about the venue answering, and who can halt an account on it.
+- [Where a replay's bars come from](atoms/where-a-replays-bars-come-from.md) — the two frames a run over real history is built from, and what drops out.
+- [The frames a replay writes](atoms/the-frames-a-replay-writes.md) — what every run lays down for the predicting loop to read, and why its stamp passes.
 - [Where the bars are kept](atoms/where-the-bars-are-kept.md) — the files a strategy is priced against, and when a bar counts as closed.
 - [When no price comes back](atoms/when-no-price-comes-back.md) — the ten ways reading a bar yields nothing, and the one that is silent.
 - [The venue feed](atoms/the-venue-feed.md) — the open connection the venue speaks over, and what a reconnection cannot recover.
@@ -149,4 +151,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 20:37 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 20:47 UTC

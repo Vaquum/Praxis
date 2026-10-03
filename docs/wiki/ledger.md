@@ -55,8 +55,8 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/replay/replay_scenario.py` | full | P3-04 |
 | `praxis/replay/build_replay_report.py` | partial | P3-10, P3-24 |
 | `praxis/replay/replay_report.py` | partial | P3-24 |
-| `praxis/replay/load_replay_bars.py` | uncovered | P4-16 |
-| `praxis/replay/materialize_bar_frames.py` | uncovered | P4-16 |
+| `praxis/replay/load_replay_bars.py` | full | P4-16 |
+| `praxis/replay/materialize_bar_frames.py` | full | P4-39 |
 | `praxis/replay/replay_api.py` | uncovered | P4-17 |
 | `praxis/replay/metrics_serialization.py` | uncovered | P4-17 |
 | `praxis/binsim/server.py` | partial | P3-05 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 20:37 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 20:47 UTC
