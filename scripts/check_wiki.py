@@ -334,6 +334,167 @@ def _row_sources(row: str) -> list[tuple[int, str]]:
     return sorted(hits)
 
 
+def _has_wildcard_import(tree: ast.AST) -> bool:
+    '''Whether the module imports everything from somewhere.
+
+    A star import can rebind any name, so no binding can be trusted.
+    '''
+
+    return any(
+        isinstance(node, ast.ImportFrom)
+        and any(alias.name == '*' for alias in node.names)
+        for node in ast.walk(tree)
+    )
+
+
+def _protocol_names(tree: ast.AST) -> set[str]:
+    '''Return the module-level names bound to `typing.Protocol`.'''
+
+    names: set[str] = set()
+
+    if not isinstance(tree, ast.Module) or _has_wildcard_import(tree):
+        return names
+
+    for node in tree.body:
+
+        if isinstance(node, ast.ImportFrom) and node.module == 'typing' and not node.level:
+            names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == 'Protocol'
+            )
+
+    return names - _rebound_names(tree)
+
+
+def _bound_names(node: ast.AST) -> set[str]:
+    '''Return every name a target expression binds, unpacking included.'''
+
+    if isinstance(node, ast.Name):
+        return {node.id}
+
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return {name for element in node.elts for name in _bound_names(element)}
+
+    if isinstance(node, ast.Starred):
+        return _bound_names(node.value)
+
+    return set()
+
+
+def _rebound_names(tree: ast.AST) -> set[str]:
+    '''Return names given some other value anywhere in the module.'''
+
+    rebound: set[str] = set()
+
+    for node in ast.walk(tree):
+
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            rebound.add(node.name)
+
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            rebound.update(
+                alias.asname or alias.name.split('.')[0]
+                for alias in node.names
+                if not (
+                    isinstance(node, ast.ImportFrom)
+                    and node.module == 'typing'
+                    and not node.level
+                    and alias.name == 'Protocol'
+                )
+            )
+
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                rebound.update(_bound_names(target))
+
+        elif isinstance(
+            node, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor),
+        ):
+            rebound.update(_bound_names(node.target))
+
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+
+                if item.optional_vars is not None:
+                    rebound.update(_bound_names(item.optional_vars))
+
+        elif isinstance(node, ast.ExceptHandler) and node.name is not None:
+            rebound.add(node.name)
+
+        elif isinstance(node, ast.NamedExpr):
+            rebound.update(_bound_names(node.target))
+
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name is not None:
+            rebound.add(node.name)
+
+        elif isinstance(node, ast.MatchMapping) and node.rest is not None:
+            rebound.add(node.rest)
+
+    return rebound
+
+
+def _is_protocol(node: ast.ClassDef, protocol_names: set[str]) -> bool:
+    '''Whether a class lists an imported `typing.Protocol` among its bases.'''
+
+    return any(
+        isinstance(base, ast.Name) and base.id in protocol_names
+        for base in node.bases
+    )
+
+
+def _is_stub(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    '''Whether a method's whole body is a docstring and an ellipsis.'''
+
+    body = list(node.body)
+
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
+
+    return len(body) == 1 and (
+        isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and body[0].value.value is Ellipsis
+    )
+
+
+def _protocol_lines(tree: ast.AST) -> set[int]:
+    '''Return the signature lines of a Protocol's own stub methods.
+
+    A stub's body is `...`, so its signature is the whole of what it
+    states. Citing one cites the declaration. Nothing with a body is
+    exempted, and nothing nested inside the class.
+    '''
+
+    protocol_names = _protocol_names(tree)
+    lines: set[int] = set()
+
+    if not protocol_names or not isinstance(tree, ast.Module):
+        return lines
+
+    for node in tree.body:
+
+        if not (isinstance(node, ast.ClassDef) and _is_protocol(node, protocol_names)):
+            continue
+
+        for member in node.body:
+
+            if not isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+
+            if not _is_stub(member):
+                continue
+
+            lines.update(range(member.lineno, member.body[0].lineno))
+
+    return lines
+
+
 def _signature_lines(path: Path) -> set[int]:
 
     try:
@@ -352,7 +513,7 @@ def _signature_lines(path: Path) -> set[int]:
 
         lines.update(range(node.lineno, node.body[0].lineno))
 
-    return lines
+    return lines - _protocol_lines(tree)
 
 
 def _prose_words(text: str) -> int:

@@ -151,7 +151,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-10 | Abandoning work outright | written | [abandoning-work-outright.md](atoms/abandoning-work-outright.md) |
 | P4-11 | The order record Praxis keeps | written | [the-order-record-praxis-keeps.md](atoms/the-order-record-praxis-keeps.md) |
 | P4-12 | The position Praxis keeps | written | [the-position-praxis-keeps.md](atoms/the-position-praxis-keeps.md) |
-| P4-13 | What anything called a venue must be able to do | seeded | — |
+| P4-13 | What a venue must be able to do | written | [what-a-venue-must-be-able-to-do.md](atoms/what-a-venue-must-be-able-to-do.md) |
 | P4-14 | What a host writes about itself | seeded | — |
 | P4-15 | Where the bars a strategy reads are kept | seeded | — |
 | P4-16 | The frames a replay lays out, and where its bars come from | seeded | — |
@@ -279,4 +279,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 17:52 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 18:37 UTC

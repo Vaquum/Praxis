@@ -6,6 +6,7 @@ Read them in order if you are new. Every term is explained where it first appear
 
 ## The vocabulary
 
+- [What a venue must be able to do](atoms/what-a-venue-must-be-able-to-do.md) — the twenty-one operations named for a venue, and how little naming them guarantees.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to, real or simulated, and what it is asked to do.
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for what was missed, and where the asking stops short.
 - [Holding back sends](atoms/holding-back-sends.md) — the permits a call must take, and what the exchange says about its own limits.
@@ -144,4 +145,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 17:52 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 18:37 UTC
