@@ -17,6 +17,8 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Where credentials come from](atoms/where-credentials-come-from.md) — where the key and secret are kept, and how far the hiding goes.
 - [Starting a host](atoms/starting-a-host.md) — the seven calls one process makes to bring Praxis and Nexus up, in the order it makes them.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
+- [What a command must carry](atoms/what-a-command-must-carry.md) — the fields one instruction to Praxis must have, and what each is held to.
+- [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — three values that pass every check on the way in and break something later.
 - [How a decision becomes a command](atoms/how-a-decision-becomes-a-command.md) — the five fields re-keyed as work crosses from Nexus into Praxis, and why.
 - [The payload a mode's settings arrive in](atoms/the-payload-a-modes-settings-arrive-in.md) — the three shapes a mode's settings can cross in, and the one mode that behaves unlike the rest.
 - [What a reconciliation tells Nexus](atoms/what-a-reconciliation-tells-nexus.md) — the findings that cross when Praxis squares its books, and the one request that comes the other way.
@@ -135,4 +137,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 10:02 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 13:41 UTC

@@ -80,8 +80,8 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/command_translator.py` | partial | P4-04, P4-28 |
 | `praxis/outcome_translator.py` | full | P4-05, P4-29, P4-30 |
 | `praxis/reconciliation_translate.py` | full | P4-06 |
-| `praxis/core/domain/trade_command.py` | partial | P2-24, P4-07 |
-| `praxis/core/domain/_require_str.py` | uncovered | P4-07 |
+| `praxis/core/domain/trade_command.py` | full | P2-24, P4-07, P4-33 |
+| `praxis/core/domain/_require_str.py` | full | P4-07, P4-33 |
 | `praxis/core/domain/execution_params.py` | uncovered | P4-08, P4-28 |
 | `praxis/core/domain/single_shot_params.py` | uncovered | P4-08, P4-28 |
 | `praxis/core/domain/interval_slice_params.py` | uncovered | P4-08 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 10:02 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 13:41 UTC
