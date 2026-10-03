@@ -67,10 +67,10 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/metrics/metric_conventions.py` | full | P3-10 |
 | `praxis/metrics/ledger_metrics.py` | partial | P3-10 |
 | `praxis/metrics/percentiles.py` | partial | P3-10 |
-| `praxis/metrics/limen_snapshot.py` | uncovered | P3-10, P4-18 |
-| `praxis/metrics/snapshot_metrics.py` | uncovered | P3-10, P4-18 |
-| `praxis/metrics/metric_step.py` | uncovered | P4-18 |
-| `praxis/metrics/snapshot_result.py` | uncovered | P4-18 |
+| `praxis/metrics/limen_snapshot.py` | full | P3-10, P4-41 |
+| `praxis/metrics/snapshot_metrics.py` | partial | P3-10, P4-18 |
+| `praxis/metrics/metric_step.py` | full | P4-18 |
+| `praxis/metrics/snapshot_result.py` | full | P4-18 |
 | `praxis/paper/paper_report.py` | partial | P3-08 |
 | `praxis/paper/mark_sampler.py` | partial | P3-09 |
 | `praxis/paper/paper_metrics.py` | uncovered | P3-08, P4-19 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 21:03 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 21:19 UTC

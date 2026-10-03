@@ -138,6 +138,8 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The mark sampler](atoms/the-mark-sampler.md) — what the market was worth between trades, and the gaps it leaves.
 - [What a replay is given](atoms/what-a-replay-is-given.md) — the bars, the money and the strategy text a replay run is handed before it starts.
 - [What a replay reports](atoms/what-a-replay-reports.md) — the figures a finished run hands back, and where each one is worked out from.
+- [The two bases the figures come from](atoms/the-two-bases-the-figures-come-from.md) — the two starting points a run is summed up from, and the one assembler they share.
+- [What the parity figures refuse](atoms/what-the-parity-figures-refuse.md) — what the bar basis turns away, what it quietly leaves out, and the costs it assumes.
 - [The metrics](atoms/the-metrics.md) — the figures a run is summed up by, and the units they come in.
 
 ## How this wiki works
@@ -153,4 +155,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 21:03 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 21:19 UTC
