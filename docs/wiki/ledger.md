@@ -82,10 +82,10 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/reconciliation_translate.py` | full | P4-06 |
 | `praxis/core/domain/trade_command.py` | full | P2-24, P4-07, P4-33 |
 | `praxis/core/domain/_require_str.py` | full | P4-07, P4-33 |
-| `praxis/core/domain/execution_params.py` | uncovered | P4-08, P4-28 |
-| `praxis/core/domain/single_shot_params.py` | uncovered | P4-08, P4-28 |
-| `praxis/core/domain/interval_slice_params.py` | uncovered | P4-08 |
-| `praxis/core/domain/scheduled_vwap_params.py` | uncovered | P4-08 |
+| `praxis/core/domain/execution_params.py` | full | P4-08, P4-28 |
+| `praxis/core/domain/single_shot_params.py` | full | P4-08, P4-28 |
+| `praxis/core/domain/interval_slice_params.py` | full | P4-08 |
+| `praxis/core/domain/scheduled_vwap_params.py` | full | P4-08 |
 | `praxis/core/domain/trade_modify.py` | uncovered | P3-13, P4-09 |
 | `praxis/core/domain/single_shot_modify.py` | uncovered | P4-09 |
 | `praxis/core/domain/bracket_modify.py` | uncovered | P4-09 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 13:41 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 14:22 UTC
