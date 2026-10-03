@@ -36,6 +36,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Which accounts are refused](atoms/which-accounts-are-refused.md) — the checks each account faces as its manifest is read.
 - [Stopping a host](atoms/stopping-a-host.md) — the six steps a host takes to come down, and the two that carry a failure straight out.
 - [What becomes of work still open](atoms/what-becomes-of-work-still-open.md) — the two passes over commands and orders, and the one order deliberately left standing.
+- [Abandoning work outright](atoms/abandoning-work-outright.md) — asking Praxis to give up on one command, and what turns that request away.
 - [Where an abandonment lands](atoms/where-an-abandonment-lands.md) — what giving up on a command does, by how far that command had got.
 - [What stopping leaves undone](atoms/what-stopping-leaves-undone.md) — the three things stopping carries on past, and the one that cuts it short.
 - [What a starting host reports](atoms/what-a-starting-host-reports.md) — the count in its log and the answer at its endpoint, and what neither of them looks at.
@@ -140,4 +141,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 16:56 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 17:06 UTC

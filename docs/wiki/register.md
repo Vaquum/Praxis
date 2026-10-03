@@ -148,7 +148,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-07 | What a command must carry | written | [what-a-command-must-carry.md](atoms/what-a-command-must-carry.md) |
 | P4-08 | The settings each way of working takes | written | [the-settings-each-way-of-working-takes.md](atoms/the-settings-each-way-of-working-takes.md) |
 | P4-09 | The change each way of working accepts | written | [the-change-each-way-of-working-accepts.md](atoms/the-change-each-way-of-working-accepts.md) |
-| P4-10 | Abandoning work outright | seeded | — |
+| P4-10 | Abandoning work outright | written | [abandoning-work-outright.md](atoms/abandoning-work-outright.md) |
 | P4-11 | The order record Praxis keeps | seeded | — |
 | P4-12 | The position Praxis keeps, and what moves it | seeded | — |
 | P4-13 | What anything called a venue must be able to do | seeded | — |
@@ -275,4 +275,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 16:53 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 17:06 UTC
