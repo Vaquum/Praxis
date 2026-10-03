@@ -149,7 +149,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-08 | The settings each way of working takes | written | [the-settings-each-way-of-working-takes.md](atoms/the-settings-each-way-of-working-takes.md) |
 | P4-09 | The change each way of working accepts | written | [the-change-each-way-of-working-accepts.md](atoms/the-change-each-way-of-working-accepts.md) |
 | P4-10 | Abandoning work outright | written | [abandoning-work-outright.md](atoms/abandoning-work-outright.md) |
-| P4-11 | The order record Praxis keeps | seeded | — |
+| P4-11 | The order record Praxis keeps | written | [the-order-record-praxis-keeps.md](atoms/the-order-record-praxis-keeps.md) |
 | P4-12 | The position Praxis keeps, and what moves it | seeded | — |
 | P4-13 | What anything called a venue must be able to do | seeded | — |
 | P4-14 | What a host writes about itself | seeded | — |
@@ -173,6 +173,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-32 | Reports that do not get through | written | [reports-that-do-not-get-through.md](atoms/reports-that-do-not-get-through.md) |
 | P4-33 | What a command's checks let through | written | [what-a-commands-checks-let-through.md](atoms/what-a-commands-checks-let-through.md) |
 | P4-35 | What each change insists on | written | [what-each-change-insists-on.md](atoms/what-each-change-insists-on.md) |
+| P4-36 | What changes on an order | written | [what-changes-on-an-order.md](atoms/what-changes-on-an-order.md) |
 
 ## Considered and rejected
 
@@ -271,8 +272,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-063 | `SingleShotParams` tests each price with `value <= 0` alone, with no type or finiteness test. A positive `Decimal('Infinity')`, a float, a plain int and `True` all survive construction unchanged. Downstream, an infinite `price` reaches the cached tick check and raises `InvalidOperation`; a float price raises `TypeError` there; an int or `True` can pass the filters and be formatted into the request. An OCO `stop_limit_price` is never passed to the adapter's own order validation, so an infinite one reaches the request body as `"Infinity"` and a float as `"1.500000"`. | `single_shot_params.py` 38-42; the chain at `validate_trade_command.py` 310, `events.py` 213, `execution_manager.py` 4260, `binance_adapter.py` 1520, with the unchecked leg formatted at 873 | P4-08 | recorded; P4-08 states the gap, not the chain |
 | H-064 | `ScheduledVwapParams` accepts weights that plan a child of nothing. `(Decimal('1'), Decimal('1e-29'))` sums to one at the default precision and passes; with a total quantity of one and no cached lot step, the planner returns `[1, 0]`, that branch never testing the remainder is positive. The zero child is refused later, where its intent is built. | planned at `plan_weighted_slices.py` 58-62, accepted at `scheduled_vwap_params.py` 50-64, refused at `execution_manager.py` 5960 into `events.py` 197-203 | P4-08 | recorded; candidate for a check on the planning path |
 | H-065 | A Scheduled VWAP amend carrying `volume_weights` is refused twice over. Submission against a command still live raises before enqueueing, so a caller does hear about it; one naming a command already ended takes an earlier road, which logs and returns. The handler carries a second refusal for one arriving by any other road: a log line and a bare `return`, producing no outcome and no callback. That second refusal sits ahead of where the interval is read, so an amend carrying both a new weight curve and a new interval loses the interval as well. | raised at `validate_trade_modify.py` 210-218 from `execution_manager.py` 3060-3065, the earlier road at 171-175 into 3067-3072; the handler's at 10101-10107 ahead of 10109-10113 into 10189-10199, against the queue at 3938-3951 | P4-09 | recorded; P4-09 states both |
+| H-066 | An endless price reaches the venue call and leaves the command with no ending. `SingleShotParams` accepts `Decimal('Infinity')`, admission validates without venue filters, and `_process_command` writes the intent down and makes the order before submitting. The adapter's tick-size comparison then raises `decimal.InvalidOperation`, which the submission handlers do not catch; the account loop logs it and carries on. No outcome is made, so the command has no ending until the next start, where the written intent is picked up as an orphan and rejected. | accepted at `single_shot_params.py` 38-42, written and made at `execution_manager.py` 4264-4265, raised at `binance_adapter.py` 1213, logged at `execution_manager.py` 4012, rejected only at the next start by 2260-2281 | P4-11 | recorded; extends H-063 with the consequence |
+| H-067 | A fill whose commission was charged in a third asset leaves the two projections disagreeing. The ledger refuses such a fee, and the manager swallows that refusal after the trading state has already been changed — so the order's record counts the fill while the ledger does not. | refused at `account_ledger.py` 313 and 336-338, suppressed at `execution_manager.py` 2092-2098, the state already changed at 2081 | P4-11 | recorded |
+| H-068 | Neither the amount filled nor the running money total is tested for being finite, at the record's making or on assignment, so an endless amount can be assigned and leaves what remains at minus endless. A moment assigned after the making is not tested for carrying a zone either, where one given at the making must. Live reachability was not established. | `order.py` 119-125 and 189-195 against 215-218; the moments at 93-97 against 141-197 | P4-36 | recorded; P4-36 states both |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | 10070-10071 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 17:06 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 17:37 UTC

@@ -93,7 +93,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/domain/ladder_dca_modify.py` | full | P4-09, P4-35 |
 | `praxis/core/domain/scheduled_vwap_modify.py` | full | P4-09, P4-35 |
 | `praxis/core/domain/trade_abort.py` | full | P4-10, P4-24 |
-| `praxis/core/domain/order.py` | uncovered | P4-11 |
+| `praxis/core/domain/order.py` | full | P4-11, P4-36 |
 | `praxis/core/domain/position.py` | uncovered | P4-12 |
 | `praxis/infrastructure/venue_adapter.py` | uncovered | P4-13 |
 | `praxis/infrastructure/observability.py` | uncovered | P4-14 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 17:07 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 17:37 UTC

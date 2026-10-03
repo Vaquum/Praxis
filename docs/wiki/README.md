@@ -20,6 +20,8 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The settings each way of working takes](atoms/the-settings-each-way-of-working-takes.md) — six kinds of settings for seven ways of working, and what each kind insists on.
 - [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — what a request to alter work must carry, and the one change refused twice over.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — the fields each kind of change offers, and the rules each holds them to.
+- [The order record Praxis keeps](atoms/the-order-record-praxis-keeps.md) — what Praxis holds about one attempt to place an order at the venue.
+- [What changes on an order](atoms/what-changes-on-an-order.md) — the fields that move as the venue reports, and the rules that stop applying once the record exists.
 - [What a command must carry](atoms/what-a-command-must-carry.md) — the fields one instruction to Praxis must have, and what each is held to.
 - [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — three values that pass every check on the way in and break something later.
 - [How a decision becomes a command](atoms/how-a-decision-becomes-a-command.md) — the five fields re-keyed as work crosses from Nexus into Praxis, and why.
@@ -141,4 +143,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 17:06 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 17:37 UTC
