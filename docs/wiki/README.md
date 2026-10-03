@@ -19,6 +19,9 @@ Read them in order if you are new. Every term is explained where it first appear
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [How a decision becomes a command](atoms/how-a-decision-becomes-a-command.md) — the five fields re-keyed as work crosses from Nexus into Praxis, and why.
 - [The payload a mode's settings arrive in](atoms/the-payload-a-modes-settings-arrive-in.md) — the three shapes a mode's settings can cross in, and the one mode that behaves unlike the rest.
+- [What a reconciliation tells Nexus](atoms/what-a-reconciliation-tells-nexus.md) — the findings that cross when Praxis squares its books, and the one request that comes the other way.
+- [When a balance shortfall is reported](atoms/when-a-balance-shortfall-is-reported.md) — the venue holding less than the books say, and when that is small enough to leave alone.
+- [Reports that do not get through](atoms/reports-that-do-not-get-through.md) — what happens to a shortfall Nexus never took, and the stale one that keeps waiting.
 - [How an outcome crosses back](atoms/how-an-outcome-crosses-back.md) — one report from Praxis can become three for Nexus, or none at all.
 - [The figures carried back on a fill](atoms/the-figures-carried-back-on-a-fill.md) — the differences a fill reports, and the two measures that cover more than the fill they ride on.
 - [What stops an outcome crossing twice](atoms/what-stops-an-outcome-crossing-twice.md) — how a repeat is caught, how long it is remembered, and the repeat that gets through.
@@ -132,4 +135,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-02 10:18 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 10:02 UTC
