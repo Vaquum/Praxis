@@ -14,7 +14,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/domain/fill.py` | full | P2-15 |
 | `praxis/core/account_ledger.py` | partial | P2-16, P2-29, P3-11, P3-12 |
 | `praxis/core/generate_client_order_id.py` | full | P3-14 |
-| `praxis/core/validate_trade_modify.py` | partial | P3-13 |
+| `praxis/core/validate_trade_modify.py` | partial | P3-13, P4-09 |
 | `praxis/infrastructure/binance_ws.py` | partial | P3-16 |
 | `praxis/infrastructure/mytrades_backfill.py` | full | P3-17 |
 | `praxis/core/health_tracker.py` | full | P3-15 |
@@ -24,8 +24,8 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/live_only_modes.py` | full | P3-22 |
 | `praxis/infrastructure/alert_sink.py` | full | P3-20 |
 | `praxis/core/domain/health_snapshot.py` | full | P3-15 |
-| `praxis/core/domain/modify_params.py` | full | P3-13 |
-| `praxis/core/domain/interval_slice_modify.py` | partial | P3-13 |
+| `praxis/core/domain/modify_params.py` | full | P3-13, P4-09 |
+| `praxis/core/domain/interval_slice_modify.py` | full | P3-13, P4-09, P4-35 |
 | `praxis/core/bracket_exit_command_id.py` | full | P3-14, P3-23 |
 | `praxis/core/domain/chart_of_accounts.py` | full | P3-11 |
 | `praxis/core/domain/journal_entry.py` | partial | P3-11 |
@@ -86,12 +86,12 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/core/domain/single_shot_params.py` | full | P4-08, P4-28 |
 | `praxis/core/domain/interval_slice_params.py` | full | P4-08 |
 | `praxis/core/domain/scheduled_vwap_params.py` | full | P4-08 |
-| `praxis/core/domain/trade_modify.py` | uncovered | P3-13, P4-09 |
-| `praxis/core/domain/single_shot_modify.py` | uncovered | P4-09 |
-| `praxis/core/domain/bracket_modify.py` | uncovered | P4-09 |
-| `praxis/core/domain/iceberg_modify.py` | uncovered | P4-09 |
-| `praxis/core/domain/ladder_dca_modify.py` | uncovered | P4-09 |
-| `praxis/core/domain/scheduled_vwap_modify.py` | uncovered | P4-09 |
+| `praxis/core/domain/trade_modify.py` | full | P3-13, P4-09 |
+| `praxis/core/domain/single_shot_modify.py` | full | P4-09, P4-35 |
+| `praxis/core/domain/bracket_modify.py` | full | P4-09, P4-35 |
+| `praxis/core/domain/iceberg_modify.py` | full | P4-09, P4-35 |
+| `praxis/core/domain/ladder_dca_modify.py` | full | P4-09, P4-35 |
+| `praxis/core/domain/scheduled_vwap_modify.py` | full | P4-09, P4-35 |
 | `praxis/core/domain/trade_abort.py` | partial | P4-10, P4-24 |
 | `praxis/core/domain/order.py` | uncovered | P4-11 |
 | `praxis/core/domain/position.py` | uncovered | P4-12 |
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 14:22 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 16:55 UTC

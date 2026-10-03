@@ -18,6 +18,8 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Starting a host](atoms/starting-a-host.md) — the seven calls one process makes to bring Praxis and Nexus up, in the order it makes them.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [The settings each way of working takes](atoms/the-settings-each-way-of-working-takes.md) — six kinds of settings for seven ways of working, and what each kind insists on.
+- [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — what a request to alter work must carry, and the one change refused twice over.
+- [What each change insists on](atoms/what-each-change-insists-on.md) — the fields each kind of change offers, and the rules each holds them to.
 - [What a command must carry](atoms/what-a-command-must-carry.md) — the fields one instruction to Praxis must have, and what each is held to.
 - [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — three values that pass every check on the way in and break something later.
 - [How a decision becomes a command](atoms/how-a-decision-becomes-a-command.md) — the five fields re-keyed as work crosses from Nexus into Praxis, and why.
@@ -138,4 +140,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 14:22 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 16:56 UTC

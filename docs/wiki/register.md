@@ -147,7 +147,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-06 | What a reconciliation tells Nexus | written | [what-a-reconciliation-tells-nexus.md](atoms/what-a-reconciliation-tells-nexus.md) |
 | P4-07 | What a command must carry | written | [what-a-command-must-carry.md](atoms/what-a-command-must-carry.md) |
 | P4-08 | The settings each way of working takes | written | [the-settings-each-way-of-working-takes.md](atoms/the-settings-each-way-of-working-takes.md) |
-| P4-09 | The change each way of working accepts | seeded | — |
+| P4-09 | The change each way of working accepts | written | [the-change-each-way-of-working-accepts.md](atoms/the-change-each-way-of-working-accepts.md) |
 | P4-10 | Abandoning work outright | seeded | — |
 | P4-11 | The order record Praxis keeps | seeded | — |
 | P4-12 | The position Praxis keeps, and what moves it | seeded | — |
@@ -172,6 +172,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-31 | When a balance shortfall is reported | written | [when-a-balance-shortfall-is-reported.md](atoms/when-a-balance-shortfall-is-reported.md) |
 | P4-32 | Reports that do not get through | written | [reports-that-do-not-get-through.md](atoms/reports-that-do-not-get-through.md) |
 | P4-33 | What a command's checks let through | written | [what-a-commands-checks-let-through.md](atoms/what-a-commands-checks-let-through.md) |
+| P4-35 | What each change insists on | written | [what-each-change-insists-on.md](atoms/what-each-change-insists-on.md) |
 
 ## Considered and rejected
 
@@ -269,8 +270,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-062 | `TradeCommand.reference_price` is tested with `<= 0` alone, with no finiteness test, where both sizes are tested for being finite. A positive infinity is accepted either way: `Decimal('Infinity')` reaches the arrival-slippage division, which divides infinity by infinity and raises `decimal.InvalidOperation`, while `float('inf')` raises `TypeError` one step earlier at the subtraction. | `trade_command.py` 110-112 against 90-104, breaking at `execution_manager.py` 4378-4383, or at 4380 for the float | P4-33 | recorded; P4-33 states it |
 | H-063 | `SingleShotParams` tests each price with `value <= 0` alone, with no type or finiteness test. A positive `Decimal('Infinity')`, a float, a plain int and `True` all survive construction unchanged. Downstream, an infinite `price` reaches the cached tick check and raises `InvalidOperation`; a float price raises `TypeError` there; an int or `True` can pass the filters and be formatted into the request. An OCO `stop_limit_price` is never passed to the adapter's own order validation, so an infinite one reaches the request body as `"Infinity"` and a float as `"1.500000"`. | `single_shot_params.py` 38-42; the chain at `validate_trade_command.py` 310, `events.py` 213, `execution_manager.py` 4260, `binance_adapter.py` 1520, with the unchecked leg formatted at 873 | P4-08 | recorded; P4-08 states the gap, not the chain |
 | H-064 | `ScheduledVwapParams` accepts weights that plan a child of nothing. `(Decimal('1'), Decimal('1e-29'))` sums to one at the default precision and passes; with a total quantity of one and no cached lot step, the planner returns `[1, 0]`, that branch never testing the remainder is positive. The zero child is refused later, where its intent is built. | planned at `plan_weighted_slices.py` 58-62, accepted at `scheduled_vwap_params.py` 50-64, refused at `execution_manager.py` 5960 into `events.py` 197-203 | P4-08 | recorded; candidate for a check on the planning path |
+| H-065 | A Scheduled VWAP amend carrying `volume_weights` is refused twice over. Submission against a command still live raises before enqueueing, so a caller does hear about it; one naming a command already ended takes an earlier road, which logs and returns. The handler carries a second refusal for one arriving by any other road: a log line and a bare `return`, producing no outcome and no callback. That second refusal sits ahead of where the interval is read, so an amend carrying both a new weight curve and a new interval loses the interval as well. | raised at `validate_trade_modify.py` 210-218 from `execution_manager.py` 3060-3065, the earlier road at 171-175 into 3067-3072; the handler's at 10101-10107 ahead of 10109-10113 into 10189-10199, against the queue at 3938-3951 | P4-09 | recorded; P4-09 states both |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | 10070-10071 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 14:22 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 16:53 UTC
