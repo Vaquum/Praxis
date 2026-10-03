@@ -155,7 +155,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-14 | What a host writes about itself | written | [what-a-host-writes-about-itself.md](atoms/what-a-host-writes-about-itself.md) |
 | P4-15 | Where the bars are kept | written | [where-the-bars-are-kept.md](atoms/where-the-bars-are-kept.md) |
 | P4-16 | Where a replay's bars come from | written | [where-a-replays-bars-come-from.md](atoms/where-a-replays-bars-come-from.md) |
-| P4-17 | Asking for a replay from outside, and what crosses back | seeded | — |
+| P4-17 | Asking for a replay from outside | written | [asking-for-a-replay-from-outside.md](atoms/asking-for-a-replay-from-outside.md) |
 | P4-18 | The Limen-parity figures, and the steps they are worked from | seeded | — |
 | P4-19 | What a paper run's own figures add | seeded | — |
 | P4-20 | What a failure at startup does | written | [what-a-failure-at-startup-does.md](atoms/what-a-failure-at-startup-does.md) |
@@ -177,6 +177,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-37 | What the logging arrangement misses | written | [what-the-logging-arrangement-misses.md](atoms/what-the-logging-arrangement-misses.md) |
 | P4-38 | When no price comes back | written | [when-no-price-comes-back.md](atoms/when-no-price-comes-back.md) |
 | P4-39 | The frames a replay writes | written | [the-frames-a-replay-writes.md](atoms/the-frames-a-replay-writes.md) |
+| P4-40 | What a replay run reports back | written | [what-a-replay-run-reports-back.md](atoms/what-a-replay-run-reports-back.md) |
 
 ## Considered and rejected
 
@@ -282,4 +283,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 20:47 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 21:03 UTC
