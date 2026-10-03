@@ -16,6 +16,8 @@ Read them in order if you are new. Every term is explained where it first appear
 - [What a refusal says](atoms/what-a-refusal-says.md) — the kinds of refusal a venue sends back, and how Praxis reads each.
 - [Alerts](atoms/alerts.md) — how Praxis says something needs a person, and what gets left out when it does.
 - [Where credentials come from](atoms/where-credentials-come-from.md) — where the key and secret are kept, and how far the hiding goes.
+- [What a host writes about itself](atoms/what-a-host-writes-about-itself.md) — the shape of every line a host writes, and what the level and the context really do.
+- [What the logging arrangement misses](atoms/what-the-logging-arrangement-misses.md) — three things the setting-up does not cover, including a switch that can change nothing.
 - [Starting a host](atoms/starting-a-host.md) — the seven calls one process makes to bring Praxis and Nexus up, in the order it makes them.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [The settings each way of working takes](atoms/the-settings-each-way-of-working-takes.md) — six kinds of settings for seven ways of working, and what each kind insists on.
@@ -145,4 +147,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 18:37 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 20:21 UTC
