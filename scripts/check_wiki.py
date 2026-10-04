@@ -285,15 +285,53 @@ def _alternative_sources(row: str) -> set[str]:
 
     marked: set[str] = set()
 
-    for index, match in enumerate(names):
-        start = names[index - 1].end() if index else 0
-        end = names[index + 1].start() if index + 1 < len(names) else len(source)
+    for word in ALTERNATION_WORDS:
 
-        if _marked(source[start:end]):
-            marked.add(match.group(1))
-            marked.add(Path(match.group(1)).stem)
+        for hit in re.finditer(re.escape(word), source.lower()):
+            owner = _governed_name(hit.end(), source, names)
+
+            if owner is not None:
+                marked.add(owner)
+                marked.add(Path(owner).stem)
 
     return marked
+
+
+def _governed_name(
+    position: int, source: str, names: list[re.Match[str]],
+) -> str | None:
+    """Return the file name a marker at this position governs.
+
+    A marker governs the name that follows it where nothing but words
+    lie between — that is the form `either \u0060a.py\u0060 1 or 2`. Where a line
+    number comes first, the marker is trailing citations already made,
+    and governs the name before it instead.
+
+    Args:
+        position (int): Where the marker ends in the source half.
+        source (str): The source half of the row.
+        names (list[re.Match[str]]): Every file name in it, in order.
+
+    Returns:
+        str | None: The name governed, or None where there are none.
+    """
+
+    if not names:
+        return None
+
+    after = [match for match in names if match.start() >= position]
+    before = [match for match in names if match.end() <= position]
+
+    if after:
+        gap = source[position:after[0].start()]
+
+        if not LINE_REF.search(gap):
+            return after[0].group(1)
+
+    if before:
+        return before[-1].group(1)
+
+    return after[0].group(1) if after else None
 
 
 def _marked(text: str) -> bool:
@@ -1358,6 +1396,10 @@ def _uncited_claims(rows: list[str]) -> list[str]:
 def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
     """Return what a page's timestamps get wrong.
 
+    A stamp may run ahead of the last commit, the page having been edited
+    and not yet committed. One running behind it is stale: the page
+    changed and its stamp did not.
+
     Args:
         page (Path): The page being read.
         text (str): Its whole content.
@@ -1376,10 +1418,10 @@ def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
     failures: list[str] = []
     committed = _last_commit_date(page)
 
-    if committed is not None and not stamp.group(2).startswith(committed):
+    if committed is not None and stamp.group(2)[:len(committed)] < committed:
         failures.append(
-            f'{rel}: last modified {stamp.group(2)} disagrees with '
-            f'last commit {committed}',
+            f'{rel}: last modified {stamp.group(2)} is older than its last '
+            f'commit, {committed}',
         )
 
     made = CREATED_RE.search(meta) if meta else None

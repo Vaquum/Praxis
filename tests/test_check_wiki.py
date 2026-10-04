@@ -82,6 +82,25 @@ class TestAlternationMarkers:
         row = 'a claim | `fill.py` 5, either `order.py` 30 or 40'
         assert 'order.py' in check_wiki._alternative_sources(row)
 
+    def test_a_marker_between_two_names_governs_only_the_later(self) -> None:
+        row = 'a claim | `order.py` 30 and 40, instead `fill.py` 3 and 4'
+        marked = check_wiki._alternative_sources(row)
+        assert 'fill.py' in marked
+        assert 'order.py' not in marked
+
+    def test_a_marker_in_the_claim_does_not_reach_a_multi_file_row(self) -> None:
+        row = 'either this or that | `order.py` 30 and 40, `fill.py` 3 and 4'
+        assert not check_wiki._alternative_sources(row)
+
+    def test_a_marker_trailing_its_own_citations_governs_the_name_before_it(self) -> None:
+        row = (
+            'a claim | `order.py` 56-58 doing none, the alternative at 60-78, '
+            'read at `fill.py` 10 and 20'
+        )
+        marked = check_wiki._alternative_sources(row)
+        assert 'order.py' in marked
+        assert 'fill.py' not in marked
+
     def test_unmarked_row_exempts_nothing(self) -> None:
         assert not check_wiki._alternative_sources('a claim | `order.py` 30 and 40')
 
@@ -269,6 +288,32 @@ class TestLeadParagraph:
 
     def test_the_lead_is_the_paragraph_after_the_title(self) -> None:
         assert check_wiki._lead_paragraph('# Title\n\nAn order is a thing.\n') == 'An order is a thing.'
+
+
+class TestStamps:
+    def test_a_stamp_older_than_the_last_commit_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-10-04')
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-02 09:00 UTC\n'
+        assert check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
+
+    def test_a_stamp_ahead_of_the_last_commit_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-10-04')
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-05 09:00 UTC\n'
+        assert not check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
+
+    def test_a_page_created_after_it_was_modified_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        meta = 'created: 2026-10-06 09:00 UTC\nmodified: 2026-10-05 09:00 UTC\n'
+        assert check_wiki._check_stamps(tmp_path / 'a.md', '', meta)
+
+    def test_a_page_with_no_stamps_is_refused(self, tmp_path: Path) -> None:
+        assert check_wiki._check_stamps(tmp_path / 'a.md', 'no stamps here', '')
 
 
 class TestLedgerCoverage:
