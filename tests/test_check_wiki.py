@@ -187,6 +187,12 @@ class TestImpossibleLines:
         )
         assert notes == ['order.py:0 (no such line)']
 
+    def test_a_line_with_no_file_named_before_it_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | 42|', check_wiki._SourceFacts(),
+        )
+        assert notes == ['42 (cited with no file named before it)']
+
     def test_a_line_past_the_end_is_refused(self) -> None:
         notes = check_wiki._docstring_citations(
             '|a claim | `order.py` 99999|', check_wiki._SourceFacts(),

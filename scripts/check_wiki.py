@@ -75,7 +75,6 @@ SOURCE_FILES = {
         '../Nexus/nexus/core/capital_controller/capital_controller.py',
     ),
 }
-DEFAULT_SOURCE = 'execution_manager'
 PROSE_WORD_CAP = 300
 BASELINE = '49aa659'
 NEXUS_ROOT = Path('../Nexus')
@@ -991,7 +990,12 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
 
     for match in LINE_REF.finditer(row):
         before = [key for pos, key in sources if pos < match.start()]
-        key = before[-1] if before else DEFAULT_SOURCE
+
+        if not before:
+            bad.append(f'{match.group(0)} (cited with no file named before it)')
+            continue
+
+        key = before[-1]
         facts, note = _facts_for(key, cache)
 
         if note is not None:
