@@ -167,6 +167,28 @@ class TestGuardsAndArms:
         source = 'def f(x):\n    if x:\n        return 1\n    else:\n        a = 2\n    return 3\n'
         assert len(self._spans(source, tmp_path, monkeypatch)) > 1
 
+    def test_a_break_reaches_only_to_the_end_of_its_loop(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(xs):\n    for x in xs:\n        if x:\n            mark(x)\n'
+            '            break\n        inside(x)\n    after(xs)\n'
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+        assert spans
+        assert all(7 not in second for _first, second in spans)
+
+    def test_an_act_nested_in_an_inner_branch_still_counts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        if y:\n            reject(x)\n"
+            "            raise ValueError('a')\n        else:\n"
+            "            reject(x)\n            raise KeyError('b')\n    submit(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+        assert any(2 in first and 9 in second for first, second in spans)
+
     def test_a_continue_reaches_only_to_the_end_of_its_loop(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -192,6 +214,12 @@ class TestImpossibleLines:
             '|a claim | 42|', check_wiki._SourceFacts(),
         )
         assert notes == ['42 (cited with no file named before it)']
+
+    def test_a_blank_line_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `order.py` 16|', check_wiki._SourceFacts(),
+        )
+        assert notes == ['order.py:16 (blank line)']
 
     def test_a_line_past_the_end_is_refused(self) -> None:
         notes = check_wiki._docstring_citations(
@@ -220,6 +248,10 @@ class TestUncitedClaims:
         row = 'a claim | `order.py` 30, with nothing further in `fill.py`'
         assert not check_wiki._unlined_sources([row])
 
+    def test_an_absence_claim_still_needs_the_file_to_exist(self) -> None:
+        row = 'a claim | `order.py` 30, with nothing further in `nonesuch.py`'
+        assert check_wiki._unlined_sources([row])
+
     def test_every_named_file_carrying_a_line_passes(self) -> None:
         assert not check_wiki._unlined_sources(['a claim | `order.py` 30, `fill.py` 4'])
 
@@ -241,6 +273,12 @@ class TestAlternationMarkers:
             '`order.py` 30 and 40, then a long stretch of ordinary prose standing '
             'between them and the next, either `fill.py` 3 or 4'
         )
+        assert not check_wiki._marked_between(
+            source, source.index('30'), source.index('40'),
+        )
+
+    def test_a_marker_past_another_citation_does_not_reach(self) -> None:
+        source = '`order.py` 30 and 40; `fill.py` 90 or 92'
         assert not check_wiki._marked_between(
             source, source.index('30'), source.index('40'),
         )

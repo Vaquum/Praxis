@@ -210,6 +210,23 @@ def _source_text(path: Path) -> str:
     return result.stdout
 
 
+def _blank_lines(path: Path) -> set[int]:
+    """Return the lines of a file holding nothing but space.
+
+    Args:
+        path (Path): The file to read, at its pinned commit.
+
+    Returns:
+        set[int]: Those line numbers.
+    """
+
+    return {
+        number
+        for number, line in enumerate(_source_text(path).splitlines(), 1)
+        if not line.strip()
+    }
+
+
 def _docstring_lines(path: Path) -> set[int]:
 
     """Return the lines of a file that sit inside a docstring.
@@ -258,7 +275,7 @@ def _marked_between(source: str, first: int, second: int) -> bool:
     """Whether the row names the citations on either side as alternatives.
 
     The marker must sit between the two citations, or close either side
-    of them — which is where an author writes `either X or Y`, or
+    of them without reaching past another citation — which is where an author writes `either X or Y`, or
     `X, Y otherwise`. A marker further off governs some other pair.
 
     Between two citations of one file, `or` reads as alternation where
@@ -274,7 +291,12 @@ def _marked_between(source: str, first: int, second: int) -> bool:
     """
 
     low, high = sorted((first, second))
-    stretch = source[max(0, low - _MARKER_REACH):high + _MARKER_REACH].lower()
+    others = [m.start() for m in LINE_REF.finditer(source) if m.start() not in (low, high)]
+    behind = max((pos for pos in others if pos < low), default=-1)
+    ahead = min((pos for pos in others if pos > high), default=len(source))
+    start = max(low - _MARKER_REACH, behind + 1)
+    stop = min(high + _MARKER_REACH, ahead)
+    stretch = source[start:stop].lower()
 
     return any(
         re.search(rf'\b{re.escape(word)}\b', stretch) for word in ALTERNATION_WORDS
@@ -378,7 +400,11 @@ def _branch_arms(
     if not _leaves_the_path(node.body):
         return pairs
 
-    scope = loops if isinstance(node.body[-1], ast.Continue) else ends
+    scope = (
+        loops
+        if isinstance(node.body[-1], (ast.Continue, ast.Break))
+        else ends
+    )
     stop = min(
         (end for start, end in scope.items() if start <= node.lineno <= end),
         default=0,
@@ -438,27 +464,59 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
     if not _always_leaves(last):
         return False
 
-    if _acts_while_leaving(last):
-        return True
-
-    return any(not _only_builds_a_message(statement) for statement in body[:-1])
+    return _body_acts(body)
 
 
-def _acts_while_leaving(statement: ast.stmt) -> bool:
-    """Whether the statement that leaves the path also does something.
+def _body_acts(body: list[ast.stmt]) -> bool:
+    """Whether a branch body does anything besides leave the path.
 
-    Raising an exception built from plain values does nothing else.
-    Calling something to build it, or to raise from it, does.
+    Every statement is read, nested ones included, since a branch whose
+    whole body is an inner `if` still acts inside its arms.
 
     Args:
-        statement (ast.stmt): The statement that leaves the path.
+        body (list[ast.stmt]): The statements of the branch.
 
     Returns:
-        bool: True where leaving is not all it does.
+        bool: True where the branch acts before leaving.
     """
 
-    if not isinstance(statement, ast.Raise):
+    return any(_statement_acts(statement) for statement in body)
+
+
+def _statement_acts(statement: ast.stmt) -> bool:
+    """Whether one statement does something beyond leaving or naming.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: True where it acts.
+    """
+
+    if isinstance(statement, (ast.Return, ast.Continue, ast.Break, ast.Pass)):
         return False
+
+    if isinstance(statement, ast.Raise):
+        return any(isinstance(node, ast.Call) for node in _raised_parts(statement))
+
+    if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+        return not _only_builds_a_message(statement)
+
+    if isinstance(statement, ast.If):
+        return _body_acts(statement.body) or _body_acts(statement.orelse)
+
+    return True
+
+
+def _raised_parts(statement: ast.Raise) -> list[ast.AST]:
+    """Return the nodes a raise evaluates beyond naming its exception.
+
+    Args:
+        statement (ast.Raise): The raise to read.
+
+    Returns:
+        list[ast.AST]: Every node inside its arguments and its cause.
+    """
 
     inner: list[ast.expr] = [statement.cause] if statement.cause else []
     raised = statement.exc
@@ -469,9 +527,7 @@ def _acts_while_leaving(statement: ast.stmt) -> bool:
     elif raised is not None:
         inner.append(raised)
 
-    return any(
-        isinstance(node, ast.Call) for part in inner for node in ast.walk(part)
-    )
+    return [node for part in inner for node in ast.walk(part)]
 
 
 def _only_builds_a_message(statement: ast.stmt) -> bool:
@@ -516,8 +572,9 @@ def _exclusive_citations(
     continue is a guard, and citing it beside later code is ordinary.
 
     Args:
-        cited (list[tuple[str, int, int]]): Each citation as its source
-            name, first line and last line.
+        cited (list[tuple[str, int, int, int]]): Each citation as its
+            source name, first line, last line, and where it sits in the
+            source half.
         cache (_SourceFacts): Where the branch spans are read from.
         row (str): The evidence row, read for a marker between a pair.
 
@@ -890,6 +947,7 @@ class _FileFacts:
 
     Args:
         length (int): Number of lines in the file.
+        blanks (set[int]): Lines holding nothing but space.
         docstrings (set[int]): Lines inside a docstring.
         logs (set[int]): Lines opening a logging call.
         signatures (set[int]): Lines of a declaration with a body below it.
@@ -898,6 +956,7 @@ class _FileFacts:
     """
 
     length: int
+    blanks: set[int]
     docstrings: set[int]
     logs: set[int]
     signatures: set[int]
@@ -942,6 +1001,7 @@ class _SourceFacts:
         if key not in self._known:
             self._known[key] = _FileFacts(
                 length=len(_source_text(path).splitlines()),
+                blanks=_blank_lines(path),
                 docstrings=_docstring_lines(path),
                 logs=_log_lines(path),
                 signatures=_signature_lines(path),
@@ -1073,6 +1133,10 @@ def _what_a_citation_lands_on(
     """
 
     span = list(range(start, min(end, start + _MAX_SPAN) + 1))
+
+    if all(n in facts.blanks for n in span):
+        return 'blank line'
+
     inside = [n for n in span if n in facts.docstrings]
 
     if start in facts.docstrings or (inside and len(inside) * 2 > len(span)):
@@ -1474,8 +1538,28 @@ def _unlined_sources(rows: list[str]) -> list[str]:
 
             if not any(word in nearby for word in ABSENCE_WORDS):
                 notes.append(f'names `{match.group(1)}` and cites no line of it')
+                continue
+
+            if _unresolvable(match.group(1)):
+                notes.append(f'names `{match.group(1)}`, which is not in the tree')
 
     return notes
+
+
+def _unresolvable(name: str) -> bool:
+    """Whether a named file is absent from the tree it would be read in.
+
+    Args:
+        name (str): The file name as the row wrote it.
+
+    Returns:
+        bool: True where no pinned tree holds it.
+    """
+
+    try:
+        return _resolve_source(Path(name).stem) is None
+    except BaselineReadError:
+        return False
 
 
 def _uncited_claims(rows: list[str]) -> list[str]:

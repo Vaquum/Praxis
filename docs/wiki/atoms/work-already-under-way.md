@@ -2,7 +2,7 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-04 17:01 UTC
 evidence:
   - claim: "The cancellation retry runs before the point a held or failed account leaves"
     source: "`execution_manager.py` 3960, ahead of the leaving point at 3969-3971"
@@ -35,7 +35,7 @@ evidence:
   - claim: "Protection is placed once the entry has settled with a fill"
     source: "settled at `execution_manager.py` 4741-4743, a fill required at 4748-4749, placed at 4751-4763 unless already done at 4739-4740"
   - claim: "Wrong-side legs, an empty rescue and a venue error hand over to repair"
-    source: "either `execution_manager.py` 4947-4965, 4983-4997 or 5000-5015, handing over at 4958, 4990 and 5008"
+    source: "either `execution_manager.py` 4947-4965, or 4983-4997, or 5000-5015, handing over at 4958, or 4990, or 5008"
   - claim: "A status or field that cannot be read escapes those handlers and stops the account when the waiting call places it"
     source: "raised at `binance_adapter.py` 999-1000 or 969-982, unhandled in `_place_bracket_protection`, reaching `execution_manager.py` 4025-4026 from 4753 called at 3974"
   - claim: "The same failure from a venue event or a settling entry is logged and swallowed instead"
