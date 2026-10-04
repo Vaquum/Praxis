@@ -134,6 +134,7 @@ Read them in order if you are new. Every term is explained where it first appear
 
 ## Judging a run
 
+- [What a paper run's figures add](atoms/what-a-paper-runs-figures-add.md) — the step series a paper run brings, what it insists on, and the gap it works out for itself.
 - [The paper report](atoms/the-paper-report.md) — worked out afterwards from fills and mark samples.
 - [The mark sampler](atoms/the-mark-sampler.md) — what the market was worth between trades, and the gaps it leaves.
 - [What a replay is given](atoms/what-a-replay-is-given.md) — the bars, the money and the strategy text a replay run is handed before it starts.
@@ -155,4 +156,4 @@ This wiki is early. Sixty-five articles exist, and almost every file in both pro
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-03 21:19 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-04 06:29 UTC

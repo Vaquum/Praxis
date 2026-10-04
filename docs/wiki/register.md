@@ -157,7 +157,7 @@ Nexus is not in this package. All 70 of its modules are uncovered, and the four 
 | P4-16 | Where a replay's bars come from | written | [where-a-replays-bars-come-from.md](atoms/where-a-replays-bars-come-from.md) |
 | P4-17 | Asking for a replay from outside | written | [asking-for-a-replay-from-outside.md](atoms/asking-for-a-replay-from-outside.md) |
 | P4-18 | The two bases the figures come from | written | [the-two-bases-the-figures-come-from.md](atoms/the-two-bases-the-figures-come-from.md) |
-| P4-19 | What a paper run's own figures add | seeded | — |
+| P4-19 | What a paper run's figures add | written | [what-a-paper-runs-figures-add.md](atoms/what-a-paper-runs-figures-add.md) |
 | P4-20 | What a failure at startup does | written | [what-a-failure-at-startup-does.md](atoms/what-a-failure-at-startup-does.md) |
 | P4-21 | What a starting host reports about itself | written | [what-a-starting-host-reports.md](atoms/what-a-starting-host-reports.md) |
 | P4-22 | What becomes of work still open when a host stops | written | [what-becomes-of-work-still-open.md](atoms/what-becomes-of-work-still-open.md) |
@@ -284,4 +284,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-03 21:19 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 06:29 UTC
