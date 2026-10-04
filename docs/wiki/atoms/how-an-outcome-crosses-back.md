@@ -2,7 +2,7 @@
 row: P4-05
 baseline: 49aa659
 created: 2026-10-02 09:53 UTC
-modified: 2026-10-02 10:18 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A Praxis outcome carries running totals for the command; a Nexus one carries one event's own figures"
     source: "`outcome_translator.py` 190-192 and 289-301"

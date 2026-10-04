@@ -2,7 +2,7 @@
 row: P4-10
 baseline: 49aa659
 created: 2026-10-03 17:00 UTC
-modified: 2026-10-03 17:06 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "An abandonment names the command, the account and a reason, each of which must be something rather than nothing"
     source: "`trade_abort.py` 40-41 into `_require_str.py` 28-30"
@@ -37,7 +37,7 @@ The name of the command, the account, and a reason. Each must be something rathe
 
 ## What refuses it
 
-An account never registered refuses it. So does one whose start failed: that account's worker skips every pass without draining anything, so an abandonment left on its queue would sit there for good. So does one whose worker has finished, which cannot resume.
+An account never registered refuses it. So does one whose start failed: [that account's worker](how-waiting-work-is-drained.md) skips every pass without draining anything, so an abandonment left on its queue would sit there for good. So does one whose worker has finished, which cannot resume.
 
 A worker poisoned but still running is not refused. It goes on round its loop and goes on taking abandonments.
 
@@ -49,7 +49,7 @@ A command that has already ended. Here the abandonment is not refused: it is not
 
 ## Where it goes
 
-What survives goes onto a queue [the worker](how-waiting-work-is-drained.md) drains before taking new work. [What it then does](where-an-abandonment-lands.md) depends on how far the command had got.
+What survives goes onto a queue the worker drains before taking new work. [What it then does](where-an-abandonment-lands.md) depends on how far the command had got.
 
 ## Related
 

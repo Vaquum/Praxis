@@ -2,7 +2,7 @@
 row: P4-30
 baseline: 49aa659
 created: 2026-10-02 10:10 UTC
-modified: 2026-10-02 10:18 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Once an ending has been made, later outcomes for that command are dropped"
     source: "`outcome_translator.py` 156-164, the name kept at 257"

@@ -2,7 +2,7 @@
 row: P4-25
 baseline: 49aa659
 created: 2026-10-02 08:55 UTC
-modified: 2026-10-02 09:19 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "These are the checks made as the settings are read, before the host is built"
     source: "`launcher.py` 4859-4980 ahead of the build at 4984-4991"

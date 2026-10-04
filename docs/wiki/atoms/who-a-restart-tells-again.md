@@ -2,7 +2,7 @@
 row: P2-44
 baseline: 49aa659
 created: 2026-09-27 07:39 UTC
-modified: 2026-09-27 13:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Where a host supplies its own receiver, Praxis's reports are sent before that receiver is awaited"
     source: "`launcher.py` 3001-3003"

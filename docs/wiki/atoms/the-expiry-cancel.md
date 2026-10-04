@@ -2,7 +2,7 @@
 row: P2-25
 baseline: 49aa659
 created: 2026-09-25 08:00 UTC
-modified: 2026-09-27 13:46 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The order is marked expired before the venue is asked anything"
     source: "`execution_manager.py` 4415-4417"

@@ -2,7 +2,7 @@
 row: P4-24
 baseline: 49aa659
 created: 2026-10-01 18:14 UTC
-modified: 2026-10-02 08:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "An abandonment for a command already ended does nothing"
     source: "`execution_manager.py` 8482-8487"

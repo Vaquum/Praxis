@@ -2,7 +2,7 @@
 row: P2-45
 baseline: 49aa659
 created: 2026-09-27 09:42 UTC
-modified: 2026-09-27 13:52 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Two kinds of refusal leave the outcome undecided on an ordinary send"
     source: "`execution_manager.py` 4282-4291"

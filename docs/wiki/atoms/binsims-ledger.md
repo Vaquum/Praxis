@@ -2,7 +2,7 @@
 row: P3-07
 baseline: 49aa659
 created: 2026-09-28 10:52 UTC
-modified: 2026-09-28 17:34 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "It keeps balances and fills per account"
     source: "`ledger.py` 597 for balances, 613 for fills"

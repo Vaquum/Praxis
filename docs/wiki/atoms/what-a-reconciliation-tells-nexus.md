@@ -2,7 +2,7 @@
 row: P4-06
 baseline: 49aa659
 created: 2026-10-03 09:37 UTC
-modified: 2026-10-03 10:02 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The two periodic detectors send money moved into or out of the account, and a balance that falls short"
     source: "`trading.py` 1162-1168 and 1271-1278, routed at `launcher.py` 3007-3025"

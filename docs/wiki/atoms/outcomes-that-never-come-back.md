@@ -2,7 +2,7 @@
 row: P2-41
 baseline: 49aa659
 created: 2026-09-26 20:28 UTC
-modified: 2026-09-27 09:35 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A report is marked received only where the receiver took it and its changes were saved"
     source: "kept at `launcher.py` 4439-4441, both tested at 4464-4465"

@@ -2,7 +2,7 @@
 row: P2-43
 baseline: 49aa659
 created: 2026-09-27 07:37 UTC
-modified: 2026-09-27 13:58 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "On the ordinary path the figure moves on as each slice is sent"
     source: "`execution_manager.py` 5923, set past the still-active child at 5920-5921"

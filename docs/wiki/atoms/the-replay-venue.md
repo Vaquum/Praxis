@@ -2,7 +2,7 @@
 row: P3-03
 baseline: 49aa659
 created: 2026-09-28 09:02 UTC
-modified: 2026-09-28 17:13 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "It is told a price to fill at, and refuses one that is not a real figure above zero"
     source: "`replay_venue_adapter.py` 107-111"

@@ -2,7 +2,7 @@
 row: P4-31
 baseline: 49aa659
 created: 2026-10-03 09:39 UTC
-modified: 2026-10-03 10:02 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The books' figure for each asset is compared against what the venue holds, free and locked together"
     source: "`trading.py` 1232, 1253 and 1255-1257"

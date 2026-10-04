@@ -2,7 +2,7 @@
 row: P4-22
 baseline: 49aa659
 created: 2026-10-01 17:54 UTC
-modified: 2026-10-02 08:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The reconciliation loop is called off before anything else"
     source: "`trading.py` 657-661"

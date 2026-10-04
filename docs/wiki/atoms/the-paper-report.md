@@ -2,7 +2,7 @@
 row: P3-08
 baseline: 49aa659
 created: 2026-09-28 11:22 UTC
-modified: 2026-09-28 18:01 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "It is built from fills and mark samples, every other kind passed over"
     source: "`paper_report.py` 41 and 42-46"

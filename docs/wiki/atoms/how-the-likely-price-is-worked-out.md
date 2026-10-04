@@ -2,7 +2,7 @@
 row: P1-06
 baseline: 49aa659
 created: 2026-09-20 17:33 UTC
-modified: 2026-09-27 11:08 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The book is fetched before the walk"
     source: "`execution_manager.py` 4192-4205"

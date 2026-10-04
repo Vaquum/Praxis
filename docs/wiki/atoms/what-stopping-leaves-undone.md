@@ -2,7 +2,7 @@
 row: P4-23
 baseline: 49aa659
 created: 2026-10-01 18:04 UTC
-modified: 2026-10-02 08:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A cancel the venue refuses in the second pass is logged as a warning and the next order taken up"
     source: "`trading.py` 735-742"

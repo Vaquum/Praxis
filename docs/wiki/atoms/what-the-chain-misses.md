@@ -2,7 +2,7 @@
 row: P2-37
 baseline: 49aa659
 created: 2026-09-25 20:52 UTC
-modified: 2026-09-27 11:14 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A walk holds no expected row count and no mark for which row should be last"
     source: "`event_spine.py` 1254-1291, with the kept values at 100-102 written at 593-595"

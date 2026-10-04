@@ -2,7 +2,7 @@
 row: P4-32
 baseline: 49aa659
 created: 2026-10-03 09:57 UTC
-modified: 2026-10-03 10:02 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The waiting reports are kept apart from the remembered differences"
     source: "`trading.py` 1290 and 1267, keyed at 1258"

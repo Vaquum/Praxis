@@ -2,7 +2,7 @@
 row: P2-36
 baseline: 49aa659
 created: 2026-09-25 20:44 UTC
-modified: 2026-09-27 13:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The walk reads the marker before any row, and stops there if it is gone"
     source: "`event_spine.py` 1254, refused at 879-884"

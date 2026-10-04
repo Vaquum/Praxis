@@ -152,8 +152,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-This wiki is early. Sixty-five articles exist, and almost every file in both projects is still untouched. The ledger lists them.
+109 articles exist. Every Praxis module is accounted for, 53 of them fully and 35 in part; all 70 Nexus modules are untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-04 06:29 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-04 11:43 UTC

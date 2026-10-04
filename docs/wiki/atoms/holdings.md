@@ -2,7 +2,7 @@
 row: P2-16
 baseline: 49aa659
 created: 2026-09-26 05:47 UTC
-modified: 2026-09-27 10:57 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Kept per trade and account, not per symbol"
     source: "`trading_state.py` 482, the record built at 489-497"

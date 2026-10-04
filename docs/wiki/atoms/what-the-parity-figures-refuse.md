@@ -2,7 +2,7 @@
 row: P4-41
 baseline: 49aa659
 created: 2026-10-03 21:05 UTC
-modified: 2026-10-03 21:19 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A run of no bars is refused"
     source: "`limen_snapshot.py` 102-103"

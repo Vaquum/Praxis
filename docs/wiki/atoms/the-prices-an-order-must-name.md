@@ -2,7 +2,7 @@
 row: P2-28
 baseline: 49aa659
 created: 2026-09-25 19:13 UTC
-modified: 2026-09-27 13:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The rules are applied to a plain single order"
     source: "`validate_trade_command.py` 136-137, other ways of executing going to 139 instead"

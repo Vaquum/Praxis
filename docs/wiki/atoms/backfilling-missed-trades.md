@@ -2,7 +2,7 @@
 row: P3-17
 baseline: 49aa659
 created: 2026-09-30 08:12 UTC
-modified: 2026-09-30 09:02 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A mark of how far a previous asking got is read back per account and pair"
     source: "`praxis/trading.py` 1534, kept by account and pair at `event_spine.py` 1311-1314"

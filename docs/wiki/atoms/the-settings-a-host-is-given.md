@@ -2,7 +2,7 @@
 row: P4-03
 baseline: 49aa659
 created: 2026-10-02 08:53 UTC
-modified: 2026-10-02 09:19 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A host started from its settings reads the environment it was started in, and one manifest for each account"
     source: "`launcher.py` 4858 and 4882-4884"

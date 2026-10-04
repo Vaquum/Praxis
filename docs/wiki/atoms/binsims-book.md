@@ -2,7 +2,7 @@
 row: P3-06
 baseline: 49aa659
 created: 2026-09-28 10:46 UTC
-modified: 2026-09-28 17:34 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The book is replaced whole rather than changed in part"
     source: "`book.py` 115-116"

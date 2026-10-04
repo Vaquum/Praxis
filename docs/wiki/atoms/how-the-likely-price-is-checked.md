@@ -2,7 +2,7 @@
 row: P1-05
 baseline: 49aa659
 created: 2026-09-20 16:58 UTC
-modified: 2026-09-27 11:18 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Every other kind is routed elsewhere before this path"
     source: "`execution_manager.py` 3994-4009, with a defensive refusal for anything that still arrives at 4170-4188, returning instead of reaching the fetch at 4192-4197"

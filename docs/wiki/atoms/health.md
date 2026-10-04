@@ -2,7 +2,7 @@
 row: P3-15
 baseline: 49aa659
 created: 2026-09-30 09:14 UTC
-modified: 2026-09-30 16:45 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "One result is recorded per request, across its retries, with the waiting counted in the time"
     source: "`binance_adapter.py` 578-604"

@@ -2,7 +2,7 @@
 row: P4-07
 baseline: 49aa659
 created: 2026-10-03 13:07 UTC
-modified: 2026-10-03 13:41 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A command is built from what the caller gave, then checked"
     source: "`execution_manager.py` 3461-3477 and 3479"

@@ -2,7 +2,7 @@
 row: P4-02
 baseline: 49aa659
 created: 2026-10-01 17:53 UTC
-modified: 2026-10-02 08:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A host stops when the stop flag is set, which a signal does and an exception escaping an account's thread does"
     source: "`launcher.py` 2844 and 4034-4040, waited on at 2837"

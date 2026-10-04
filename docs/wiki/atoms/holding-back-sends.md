@@ -2,7 +2,7 @@
 row: P3-18
 baseline: 49aa659
 created: 2026-09-30 10:22 UTC
-modified: 2026-09-30 17:25 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A store of permits refills steadily and is capped"
     source: "`token_bucket.py` 76-79"

@@ -2,7 +2,7 @@
 row: P3-04
 baseline: 49aa659
 created: 2026-09-30 19:29 UTC
-modified: 2026-10-01 09:06 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A scenario carries the account, the series, a step length, the symbol and its venue rules, the starting money, the strategy text and the bars"
     source: "`replay_scenario.py` 63-70"

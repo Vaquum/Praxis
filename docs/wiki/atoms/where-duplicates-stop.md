@@ -2,7 +2,7 @@
 row: P2-32
 baseline: 49aa659
 created: 2026-09-25 19:41 UTC
-modified: 2026-09-27 13:46 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A fill is offered to the record before anything else is told"
     source: "`execution_manager.py` 4328-4330"

@@ -2,7 +2,7 @@
 row: P2-14
 baseline: 49aa659
 created: 2026-09-25 18:52 UTC
-modified: 2026-09-27 11:09 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Eight kinds exist"
     source: "`enums.py` 66-73"

@@ -2,7 +2,7 @@
 row: P4-19
 baseline: 49aa659
 created: 2026-10-03 21:21 UTC
-modified: 2026-10-04 06:29 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A paper run's figures come from the same core a replay's do"
     source: "`paper_metrics.py` 80 into `build_replay_report.py` 99-145"

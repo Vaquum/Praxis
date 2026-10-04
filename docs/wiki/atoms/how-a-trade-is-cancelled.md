@@ -2,7 +2,7 @@
 row: P1-04
 baseline: 49aa659
 created: 2026-09-20 16:35 UTC
-modified: 2026-09-27 11:20 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "An unknown account is refused"
     source: "`execution_manager.py` 2995-2998"
@@ -49,7 +49,7 @@ evidence:
 ---
 # Cancellation
 
-Cancelling asks Praxis to stop a request already submitted. A refusal, or work already finished, is answered at once. Otherwise it joins the [priority line](how-waiting-work-is-drained.md), and whether it stopped anything is known later.
+Cancelling asks Praxis to stop a request already submitted. A refusal, or work already finished, is answered at once. Otherwise it joins the [priority line](the-priority-line.md), and whether it stopped anything is known later.
 
 ## Asking
 

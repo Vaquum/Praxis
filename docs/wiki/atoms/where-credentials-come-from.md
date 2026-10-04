@@ -2,7 +2,7 @@
 row: P3-19
 baseline: 49aa659
 created: 2026-09-30 19:01 UTC
-modified: 2026-09-30 19:04 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Credentials must be text and neither part may be empty"
     source: "`secret_store.py` 67-73"

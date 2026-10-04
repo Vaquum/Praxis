@@ -2,7 +2,7 @@
 row: P3-20
 baseline: 49aa659
 created: 2026-09-30 19:11 UTC
-modified: 2026-10-01 09:06 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A level outside the three is replaced with the middle one rather than refused"
     source: "`alert_sink.py` 48-49 with the three at 20"

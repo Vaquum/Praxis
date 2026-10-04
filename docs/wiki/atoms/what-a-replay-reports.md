@@ -2,7 +2,7 @@
 row: P3-24
 baseline: 49aa659
 created: 2026-09-30 19:38 UTC
-modified: 2026-10-01 09:06 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "What comes back is the bar and fill counts, the amounts bought and sold, the fees, the outcome endings, the closed round-trips and the summary figures"
     source: "`run_replay.py` 303-312"

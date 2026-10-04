@@ -2,7 +2,7 @@
 row: P3-23
 baseline: 49aa659
 created: 2026-09-29 07:04 UTC
-modified: 2026-09-29 08:45 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A flag is set before the first sending"
     source: "`execution_manager.py` 4906"

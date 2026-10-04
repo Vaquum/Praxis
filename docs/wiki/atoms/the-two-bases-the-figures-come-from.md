@@ -2,7 +2,7 @@
 row: P4-18
 baseline: 49aa659
 created: 2026-10-03 21:05 UTC
-modified: 2026-10-03 21:19 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Both bases pass their series through the same assembler, which publishes eight names"
     source: "`snapshot_result.py` 27-36 and 82-105, called at `snapshot_metrics.py` 52-61 and `limen_snapshot.py` 173-181"

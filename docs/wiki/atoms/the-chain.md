@@ -2,7 +2,7 @@
 row: P2-35
 baseline: 49aa659
 created: 2026-09-26 08:27 UTC
-modified: 2026-09-27 13:46 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Each row is given the hash of the one before and its own over its own fields"
     source: "`event_spine.py` 1165-1176"

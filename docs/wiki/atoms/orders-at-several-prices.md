@@ -2,7 +2,7 @@
 row: P2-20
 baseline: 49aa659
 created: 2026-09-27 21:39 UTC
-modified: 2026-09-28 07:25 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The prices are named outright, at least two of them"
     source: "`ladder_dca_params.py` 43-45 with the figure at 18, the prices held at 36"

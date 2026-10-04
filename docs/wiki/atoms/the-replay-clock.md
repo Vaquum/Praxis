@@ -2,7 +2,7 @@
 row: P3-02
 baseline: 49aa659
 created: 2026-09-28 09:00 UTC
-modified: 2026-09-28 17:06 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "It holds one instant and hands it back when asked the time"
     source: "`replay_clock.py` 39-40"

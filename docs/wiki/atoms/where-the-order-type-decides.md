@@ -2,7 +2,7 @@
 row: P2-27
 baseline: 49aa659
 created: 2026-09-25 19:01 UTC
-modified: 2026-09-27 11:09 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A market order is the only kind the likely-price check can turn back"
     source: "`execution_manager.py` 4064-4065"

@@ -2,7 +2,7 @@
 row: P4-28
 baseline: 49aa659
 created: 2026-10-02 09:37 UTC
-modified: 2026-10-02 09:48 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A settings object of the right kind is handed straight back"
     source: "`command_translator.py` 330-331, and 261-262 for the plain single order"

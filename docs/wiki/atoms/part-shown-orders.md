@@ -2,7 +2,7 @@
 row: P2-22
 baseline: 49aa659
 created: 2026-09-28 07:18 UTC
-modified: 2026-09-28 08:52 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The settings carry a shown amount and a price to rest at, both above zero"
     source: "`iceberg_params.py` 30-31, required positive at 37-41"

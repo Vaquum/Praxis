@@ -2,7 +2,7 @@
 row: P2-29
 baseline: 49aa659
 created: 2026-09-26 05:58 UTC
-modified: 2026-09-27 10:57 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Two running pictures are updated, one after the other"
     source: "`execution_manager.py` 2081 and 2086-2087"

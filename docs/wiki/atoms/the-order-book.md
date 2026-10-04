@@ -2,7 +2,7 @@
 row: P2-13
 baseline: 49aa659
 created: 2026-09-25 18:31 UTC
-modified: 2026-09-27 13:51 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Two lists of levels, each level a price and an amount"
     source: "`venue_adapter.py` 419-420 for a level, 434-436 for the pair of lists"

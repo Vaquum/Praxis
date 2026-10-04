@@ -2,7 +2,7 @@
 row: P4-13
 baseline: 49aa659
 created: 2026-10-03 17:54 UTC
-modified: 2026-10-03 18:37 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Twenty-one operations are declared for anything called a venue"
     source: "`venue_adapter.py` 741, 756, 769, 782, 850, 896, 922, 948, 974, 1000, 1018, 1036, 1066, 1090, 1106, 1125, 1135, 1150, 1160, 1178 and 1191"

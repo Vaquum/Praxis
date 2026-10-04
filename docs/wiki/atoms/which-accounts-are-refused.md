@@ -2,7 +2,7 @@
 row: P4-26
 baseline: 49aa659
 created: 2026-10-02 09:06 UTC
-modified: 2026-10-02 09:19 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A manifests directory that is not one refuses the start"
     source: "`launcher.py` 4821-4823"

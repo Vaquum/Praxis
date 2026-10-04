@@ -2,7 +2,7 @@
 row: P4-01
 baseline: 49aa659
 created: 2026-10-01 10:12 UTC
-modified: 2026-10-01 10:18 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A host is one process running Praxis and Nexus together"
     source: "`launcher.py` 2847-2853 for the loop thread and 3892-3902 for the account threads"

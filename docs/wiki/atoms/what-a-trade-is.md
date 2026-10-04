@@ -2,7 +2,7 @@
 row: P1-01
 baseline: 49aa659
 created: 2026-09-20 15:52 UTC
-modified: 2026-09-27 10:58 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A request carries a name of its own alongside the trade name"
     source: "a supplied name is refused when empty at `execution_manager.py` 3446-3448, when too short by `generate_client_order_id.py` 105-110 called from `execution_manager.py` 3450, or when already in use at 3452-3457; where none was supplied one is generated instead at 3459; both carried at 3461-3463"

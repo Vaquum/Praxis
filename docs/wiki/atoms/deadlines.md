@@ -2,7 +2,7 @@
 row: P2-23
 baseline: 49aa659
 created: 2026-09-24 20:16 UTC
-modified: 2026-09-27 11:03 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The clock runs from the time supplied on the command, not from the accept written later"
     source: "`execution_manager.py` 2925 reading the time stored at 3476, the accept taking its own clock at 3517"

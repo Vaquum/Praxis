@@ -2,7 +2,7 @@
 row: P4-35
 baseline: 49aa659
 created: 2026-10-03 16:40 UTC
-modified: 2026-10-03 16:53 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A single order's change offers three prices, any of them alone"
     source: "`single_shot_modify.py` 31-33 and 39-43"

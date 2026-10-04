@@ -2,9 +2,9 @@
 
 Every module in Praxis and Nexus, and whether the wiki accounts for it. A package’s `__init__.py` files are not modules for this purpose and are not counted.
 
-`uncovered` no path walks it · `partial` some behaviour covered · `covered` local review accounts for its domain behaviour through reviewed rows or recorded exclusions.
+`uncovered` no path walks it · `partial` some behaviour covered · `full` local review accounts for its domain behaviour through reviewed rows or recorded exclusions.
 
-A file reaches `covered` only when no unresolved candidate is attached to it. Pending candidates block it.
+A module reaches `full` only when no unresolved candidate is attached to it. Pending candidates block it.
 
 ## Praxis — 88 modules
 
@@ -99,7 +99,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 | `praxis/infrastructure/observability.py` | full | P4-14, P4-37 |
 | `praxis/arrow_price_store.py` | full | P4-15, P4-38 |
 
-`execution_manager.py` is 10,867 lines. Ten rows touching it makes it `partial` by a wide margin, not nearly covered.
+`execution_manager.py` is 10,867 lines. Twenty-five rows touching it leaves it `partial` by a wide margin.
 
 Every Praxis module is named here, and none is left `uncovered`: 53 are `full` and 35 `partial`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet — `execution_manager.py`, at 10,867 lines, is `partial` by the widest margin. Closing those is a later package, as is Nexus.
 
@@ -107,10 +107,26 @@ Every Praxis module is named here, and none is left `uncovered`: 53 are `full` a
 
 | File | State | Rows |
 |---|---|---|
-| all 70 | uncovered | — |
+| `nexus/core/domain/order_types.py` | partial | cited, not traced |
+| `nexus/core/health_evaluator.py` | partial | cited, not traced |
+| `nexus/core/health_loop.py` | partial | cited, not traced |
+| `nexus/core/mode_controller.py` | partial | cited, not traced |
+| `nexus/infrastructure/manifest.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/fund_transaction.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/outcome_processor.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/translate.py` | partial | cited, not traced |
+| `nexus/instance_config.py` | partial | cited, not traced |
+| `nexus/startup/sequencer.py` | partial | cited, not traced |
+| `nexus/strategy/loader.py` | partial | cited, not traced |
+| `nexus/strategy/predict_loop.py` | partial | cited, not traced |
+| the other 56 | uncovered | — |
 
-Files are listed individually as tracing reaches them. Every untouched file stays listed as `uncovered`. That visibility is the pressure.
+Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
+
+The fourteen listed above are `partial` by citation rather than by tracing: a Praxis article reaches into them for one fact and cites it, while no row owns the module. No Nexus package has been seeded.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 06:32 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 11:43 UTC

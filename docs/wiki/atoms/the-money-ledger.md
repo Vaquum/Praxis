@@ -2,7 +2,7 @@
 row: P3-11
 baseline: 49aa659
 created: 2026-09-28 12:14 UTC
-modified: 2026-09-28 18:31 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "There are five accounts and no others"
     source: "`chart_of_accounts.py` 20-24"

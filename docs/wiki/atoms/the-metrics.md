@@ -2,7 +2,7 @@
 row: P3-10
 baseline: 49aa659
 created: 2026-09-28 11:30 UTC
-modified: 2026-09-28 18:06 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A replay's figures come from the record and from the scenario's own bars"
     source: "`build_replay_report.py` 53-57 and 77-83"

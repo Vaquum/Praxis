@@ -2,7 +2,7 @@
 row: P2-18
 baseline: 49aa659
 created: 2026-09-26 20:21 UTC
-modified: 2026-09-27 13:46 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "An outcome is built with the names, a status, the amount filled and its average, a pair of slice figures, a reason and a time"
     source: "`execution_manager.py` 10784-10798"

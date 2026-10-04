@@ -2,7 +2,7 @@
 row: P4-09
 baseline: 49aa659
 created: 2026-10-03 16:39 UTC
-modified: 2026-10-03 16:53 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Six kinds of change answer the seven ways of working, the two fixed-pace ways sharing one"
     source: "`modify_params.py` 31-39, the ways listed at `enums.py` 119-125"

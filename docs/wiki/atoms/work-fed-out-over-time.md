@@ -2,7 +2,7 @@
 row: P2-19
 baseline: 49aa659
 created: 2026-09-27 14:09 UTC
-modified: 2026-09-28 07:23 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Three ways of working send an amount out in parts spaced over time"
     source: "`execution_manager.py` 170-172, spaced at 5926-5929"

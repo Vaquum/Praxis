@@ -2,7 +2,7 @@
 row: P2-12
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-09-27 10:57 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Registering a name creates its queues, its state and its ledger together"
     source: "`execution_manager.py` 823-830, with two further queues made alongside at 581-584"

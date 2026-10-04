@@ -2,14 +2,14 @@
 row: P2-15
 baseline: 49aa659
 created: 2026-09-26 05:44 UTC
-modified: 2026-09-27 11:00 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A fill carries venue and Praxis names, symbol, side, amount, price, fee and fee asset, and whether it was posted or taken"
     source: "built with all of them at `execution_manager.py` 4312-4326"
   - claim: "One send can come back reporting several"
     source: "`execution_manager.py` 4311"
   - claim: "A protective replacement found already finished is held instead, and the reply's reports go unmade"
-    source: "`execution_manager.py` 9749-9767, the loop it returns before at 9769"
+    source: "`execution_manager.py` 9749-9767 holding an already-finished replacement and returning, rather than entering the immediate-fill loop at 9769"
   - claim: "A later reconciling can still make them, from the venue's own trade list"
     source: "`execution_manager.py` 8188-8206, called at 7452-7455"
   - claim: "Refused unless the amount and price are above zero and the fee is not below it"

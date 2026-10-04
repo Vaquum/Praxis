@@ -2,7 +2,7 @@
 row: P4-36
 baseline: 49aa659
 created: 2026-10-03 17:11 UTC
-modified: 2026-10-03 17:37 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "An order's fields may be assigned, where a command's may not"
     source: "`order.py` 30 and 141-197 against `trade_command.py` 29"

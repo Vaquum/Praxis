@@ -2,7 +2,7 @@
 row: P2-17
 baseline: 49aa659
 created: 2026-09-26 08:12 UTC
-modified: 2026-09-27 13:46 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Every event is kept with its epoch, time, kind and contents"
     source: "`event_spine.py` 123-131"

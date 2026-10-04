@@ -2,7 +2,7 @@
 row: P4-11
 baseline: 49aa659
 created: 2026-10-03 17:09 UTC
-modified: 2026-10-03 17:37 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The record is made before the venue is called"
     source: "`execution_manager.py` 4264-4265 into `trading_state.py` 309-326, ahead of the placement that follows"

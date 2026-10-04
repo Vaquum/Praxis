@@ -2,7 +2,7 @@
 row: P3-16
 baseline: 49aa659
 created: 2026-09-30 07:02 UTC
-modified: 2026-09-30 08:50 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A connection is opened per account where the venue uses the Binance adapter"
     source: "`praxis/trading.py` 581-589, on the branch at 569"

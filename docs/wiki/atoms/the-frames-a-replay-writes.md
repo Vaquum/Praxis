@@ -2,7 +2,7 @@
 row: P4-39
 baseline: 49aa659
 created: 2026-10-03 20:43 UTC
-modified: 2026-10-03 20:47 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A run writes a price frame and a prediction frame of its own, whatever its bars came from"
     source: "`materialize_bar_frames.py` 80-82 and 86-99, called at `run_replay.py` 237-245"

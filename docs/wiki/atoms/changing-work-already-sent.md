@@ -2,7 +2,7 @@
 row: P3-13
 baseline: 49aa659
 created: 2026-09-30 05:58 UTC
-modified: 2026-09-30 08:28 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Each way of working has one kind of change that fits it"
     source: "`modify_params.py` 31-39, matched at `validate_trade_modify.py` 193-198"

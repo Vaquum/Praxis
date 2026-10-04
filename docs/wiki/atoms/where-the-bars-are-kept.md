@@ -2,7 +2,7 @@
 row: P4-15
 baseline: 49aa659
 created: 2026-10-03 20:23 UTC
-modified: 2026-10-03 20:37 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "The reader opens one file per series, under a shared root"
     source: "`arrow_price_store.py` 92, the name at 28, the root kept at 59"

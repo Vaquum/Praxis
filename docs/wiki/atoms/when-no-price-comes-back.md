@@ -2,7 +2,7 @@
 row: P4-38
 baseline: 49aa659
 created: 2026-10-03 20:33 UTC
-modified: 2026-10-03 20:37 UTC
+modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "A file not there yields nothing"
     source: "`arrow_price_store.py` 93-95"
