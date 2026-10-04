@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P4-14, P4-37 |
 | `praxis/arrow_price_store.py` | full | P4-15, P4-38 |
 
-`execution_manager.py` is 10,867 lines. Twenty-five rows touching it leaves it `partial` by a wide margin.
+`execution_manager.py` is 10,899 lines. Twenty-five rows touching it leaves it `partial` by a wide margin.
 
 Every Praxis module is named here, and none is left `uncovered`: 53 are `full` and 35 `partial`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet — `execution_manager.py`, at 10,867 lines, is `partial` by the widest margin. Closing those is a later package, as is Nexus.
 
@@ -129,4 +129,4 @@ The fourteen listed above are `partial` by citation rather than by tracing: a Pr
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 11:43 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 16:32 UTC

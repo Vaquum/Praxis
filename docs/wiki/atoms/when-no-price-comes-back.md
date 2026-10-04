@@ -2,7 +2,7 @@
 row: P4-38
 baseline: 49aa659
 created: 2026-10-03 20:33 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-04 16:24 UTC
 evidence:
   - claim: "A file not there yields nothing"
     source: "`arrow_price_store.py` 93-95"
@@ -23,7 +23,7 @@ evidence:
   - claim: "So does an endless price, or one that is not a number, and one that will not convert"
     source: "`arrow_price_store.py` 154-162"
   - claim: "Nine of those ten write a warning before giving nothing back, each instead of the others"
-    source: "`arrow_price_store.py` 94, 100, 104, 108-111, 121, 132-139, 151, 155 and 161"
+    source: "`arrow_price_store.py` 94, or 100, or 104, or 108-111, or 121, or 132-139, or 151, or 155, or 161"
   - claim: "The one that does not is the frame with no closed bar"
     source: "`arrow_price_store.py` 124-125"
 ---

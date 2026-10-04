@@ -44,6 +44,32 @@ def _load() -> ModuleType:
 check_wiki = _load()
 
 
+def _baseline_is_reachable() -> bool:
+    '''Whether the commit every citation is resolved against is fetched.
+
+    Returns:
+        bool: True where the pinned Praxis tree can be listed.
+    '''
+
+    try:
+        check_wiki._pinned_paths.cache_clear()
+        root = check_wiki._repo_root()
+
+        if root is None:
+            return False
+
+        return bool(check_wiki._pinned_paths(root, check_wiki.BASELINE))
+    except check_wiki.BaselineReadError:
+        return False
+
+
+_HAS_BASELINE = _baseline_is_reachable()
+_NEEDS_BASELINE = pytest.mark.skipif(
+    not _HAS_BASELINE,
+    reason='the pinned baseline is not in this checkout, so no citation resolves',
+)
+
+
 class TestLineReferences:
     def test_single_digit_line_is_read(self) -> None:
         assert [m.group(0) for m in check_wiki.LINE_REF.finditer('`a.py` 1-9')] == ['1-9']
@@ -101,6 +127,46 @@ class TestGuardsAndArms:
         )
         assert not self._spans(source, tmp_path, monkeypatch)
 
+    def test_a_call_inside_the_raise_is_an_act(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = 'def f(x):\n    if x:\n        raise ValueError(reject(x))\n    submit(x)\n'
+        assert self._spans(source, tmp_path, monkeypatch)
+
+    def test_setting_an_attribute_is_an_act(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        s.failed = True\n"
+            "        raise ValueError('b')\n    submit(x)\n"
+        )
+        assert self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_break_leaves_the_path_too(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(xs):\n    for x in xs:\n        if x:\n            mark(x)\n'
+            '            break\n        inside(x)\n'
+        )
+        assert self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_branch_ending_in_an_if_that_always_leaves_is_an_arm(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(x):\n    if x:\n        reject(x)\n        if y:\n'
+            "            raise ValueError('b')\n        else:\n"
+            "            raise KeyError('c')\n    submit(x)\n"
+        )
+        assert self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_returning_arm_is_also_opposed_to_what_follows_the_if(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = 'def f(x):\n    if x:\n        return 1\n    else:\n        a = 2\n    return 3\n'
+        assert len(self._spans(source, tmp_path, monkeypatch)) > 1
+
     def test_a_continue_reaches_only_to_the_end_of_its_loop(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -113,6 +179,7 @@ class TestGuardsAndArms:
         assert all(7 not in second for _first, second in spans)
 
 
+@_NEEDS_BASELINE
 class TestImpossibleLines:
     def test_line_zero_is_refused(self) -> None:
         notes = check_wiki._docstring_citations(
@@ -140,46 +207,45 @@ class TestUncitedClaims:
     def test_source_whose_only_number_is_negative_is_refused(self) -> None:
         assert check_wiki._uncited_claims(['a claim | `order.py` -1'])
 
+    def test_a_named_file_with_no_line_of_its_own_is_refused(self) -> None:
+        assert check_wiki._unlined_sources(['a claim | `order.py` 30, and `fill.py`'])
+
+    def test_an_absence_claim_may_name_a_file_without_a_line(self) -> None:
+        row = 'a claim | `order.py` 30, with nothing further in `fill.py`'
+        assert not check_wiki._unlined_sources([row])
+
+    def test_every_named_file_carrying_a_line_passes(self) -> None:
+        assert not check_wiki._unlined_sources(['a claim | `order.py` 30, `fill.py` 4'])
+
     def test_cited_claim_passes(self) -> None:
         assert not check_wiki._uncited_claims(['a claim | `order.py` 30-32'])
 
 
 class TestAlternationMarkers:
-    def test_single_file_row_is_exempt_by_a_marker_in_the_claim(self) -> None:
-        row = 'either one or the other | `order.py` 30, 40'
-        assert 'order.py' in check_wiki._alternative_sources(row)
+    def test_a_marker_between_the_pair_exempts_it(self) -> None:
+        source = '`order.py` 30 or 40'
+        assert check_wiki._marked_between(source, source.index('30'), source.index('40'))
 
-    def test_marker_beside_one_file_does_not_exempt_another(self) -> None:
-        row = 'a claim | either `order.py` 30 or 40, and `fill.py` 10, 20'
-        marked = check_wiki._alternative_sources(row)
-        assert 'order.py' in marked
-        assert 'fill.py' not in marked
+    def test_a_marker_before_the_pair_exempts_it(self) -> None:
+        source = 'either `order.py` 30, 40'
+        assert check_wiki._marked_between(source, source.index('30'), source.index('40'))
 
-    def test_marker_preceding_the_name_still_counts(self) -> None:
-        row = 'a claim | `fill.py` 5, either `order.py` 30 or 40'
-        assert 'order.py' in check_wiki._alternative_sources(row)
-
-    def test_a_marker_between_two_names_governs_only_the_later(self) -> None:
-        row = 'a claim | `order.py` 30 and 40, instead `fill.py` 3 and 4'
-        marked = check_wiki._alternative_sources(row)
-        assert 'fill.py' in marked
-        assert 'order.py' not in marked
-
-    def test_a_marker_in_the_claim_does_not_reach_a_multi_file_row(self) -> None:
-        row = 'either this or that | `order.py` 30 and 40, `fill.py` 3 and 4'
-        assert not check_wiki._alternative_sources(row)
-
-    def test_a_marker_trailing_its_own_citations_governs_the_name_before_it(self) -> None:
-        row = (
-            'a claim | `order.py` 56-58 doing none, the alternative at 60-78, '
-            'read at `fill.py` 10 and 20'
+    def test_a_marker_governing_another_pair_does_not_reach(self) -> None:
+        source = (
+            '`order.py` 30 and 40, then a long stretch of ordinary prose standing '
+            'between them and the next, either `fill.py` 3 or 4'
         )
-        marked = check_wiki._alternative_sources(row)
-        assert 'order.py' in marked
-        assert 'fill.py' not in marked
+        assert not check_wiki._marked_between(
+            source, source.index('30'), source.index('40'),
+        )
 
-    def test_unmarked_row_exempts_nothing(self) -> None:
-        assert not check_wiki._alternative_sources('a claim | `order.py` 30 and 40')
+    def test_and_between_the_pair_is_not_a_marker(self) -> None:
+        source = '`order.py` 30 and 40'
+        assert not check_wiki._marked_between(source, source.index('30'), source.index('40'))
+
+    def test_neither_does_not_count_as_either(self) -> None:
+        source = '`order.py` 30, neither of which matters, 40'
+        assert not check_wiki._marked_between(source, source.index('30'), source.index('40'))
 
 
 class TestProtocolExemption:
@@ -404,6 +470,7 @@ class TestStamps:
         assert check_wiki._check_stamps(tmp_path / 'a.md', 'no stamps here', '')
 
 
+@_NEEDS_BASELINE
 class TestLedgerCoverage:
     def test_every_module_is_named_or_grouped(self) -> None:
         assert not [
@@ -419,6 +486,7 @@ class TestLedgerCoverage:
         assert not [note for note in check_wiki._ledger_coverage() if 'heading says' in note]
 
 
+@_NEEDS_BASELINE
 @pytest.mark.skipif(
     not (check_wiki.NEXUS_ROOT / '.git').exists(),
     reason='the gate resolves citations in both repositories, and Nexus is absent',

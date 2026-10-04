@@ -2,7 +2,7 @@
 row: P3-03
 baseline: 49aa659
 created: 2026-09-28 09:02 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-04 16:30 UTC
 evidence:
   - claim: "It is told a price to fill at, and refuses one that is not a real figure above zero"
     source: "`replay_venue_adapter.py` 107-111"
@@ -23,7 +23,7 @@ evidence:
   - claim: "Asked for a book it returns one level a side, at the price it holds, for no amount"
     source: "`replay_venue_adapter.py` 415-417"
   - claim: "No amount means the likely-price working-out can price nothing"
-    source: "`estimate_slippage.py` refusing on depth, reached from `execution_manager.py` 4194-4197"
+    source: "`estimate_slippage.py` 124-133 refusing where the depth runs out, reached from `execution_manager.py` 4194-4197"
   - claim: "A plain single market order is then refused wherever a maximum has been set"
     source: "`execution_manager.py` 4064-4079, reached at 4230"
   - claim: "A market slice of work fed out over time never reaches that guard"

@@ -88,6 +88,8 @@ LEDGER_PATH_RE = re.compile(r'`((?:praxis|nexus)/[^`]*\.py)`')
 LEDGER_HEADING_RE = re.compile(r'^## (Praxis|Nexus) — (\d+) modules$', re.MULTILINE)
 LEDGER_GROUP_RE = re.compile(r'^\| (?:all|the other) (\d+) \|', re.MULTILINE)
 _MAX_SPAN = 60
+_MARKER_REACH = 40
+ABSENCE_WORDS = ('nothing further', 'nowhere', 'absent from', 'no such')
 GIT = shutil.which('git')
 
 
@@ -248,105 +250,36 @@ def _docstring_lines(path: Path) -> set[int]:
 
 
 ALTERNATION_WORDS = (
-    'need not', 'instead', 'rather than', 'either', 'otherwise',
-    'not both', 'alternative', 'unless',
+    'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
+    'against', 'need not', 'not both', 'alternative',
 )
 
 
-def _alternative_sources(row: str) -> set[str]:
-    """Return the source names whose own citations a row marks as alternatives.
+def _marked_between(source: str, first: int, second: int) -> bool:
+    """Whether the row names the citations on either side as alternatives.
 
-    A row citing one file is exempted by a marker anywhere in it, claim
-    included, since there is no other file the marker could be about.
-    A row citing several is exempted only for the file whose own stretch
-    of the source half carries the marker — that stretch running from the
-    end of the previous file's name to the start of the next, since the
-    marker usually sits just before the name it governs. One file's
-    alternation therefore cannot excuse another file's pair.
+    The marker must sit between the two citations, or close either side
+    of them — which is where an author writes `either X or Y`, or
+    `X, Y otherwise`. A marker further off governs some other pair.
 
-    Args:
-        row (str): One evidence row, as `claim | source`.
-
-    Returns:
-        set[str]: The source names exempted from the branch check.
-    """
-
-    if ' | ' not in row:
-        return set()
-
-    source = row.split(' | ', 1)[1]
-    names = list(FILE_REF.finditer(source))
-    cited = {match.group(1) for match in names} | {
-        key for key in SOURCE_FILES if key in source
-    }
-
-    if len(cited) <= 1:
-        return cited | {Path(name).stem for name in cited} if _marked(row) else set()
-
-    marked: set[str] = set()
-
-    for word in ALTERNATION_WORDS:
-
-        for hit in re.finditer(re.escape(word), source.lower()):
-            owner = _governed_name(hit.end(), source, names)
-
-            if owner is not None:
-                marked.add(owner)
-                marked.add(Path(owner).stem)
-
-    return marked
-
-
-def _governed_name(
-    position: int, source: str, names: list[re.Match[str]],
-) -> str | None:
-    """Return the file name a marker at this position governs.
-
-    A marker governs the name that follows it where nothing but words
-    lie between — that is the form `either \u0060a.py\u0060 1 or 2`. Where a line
-    number comes first, the marker is trailing citations already made,
-    and governs the name before it instead.
+    Between two citations of one file, `or` reads as alternation where
+    `and` reads as sequence, so it counts as a marker there.
 
     Args:
-        position (int): Where the marker ends in the source half.
-        source (str): The source half of the row.
-        names (list[re.Match[str]]): Every file name in it, in order.
+        source (str): The source half of the evidence row.
+        first (int): Where the earlier citation starts.
+        second (int): Where the later one starts.
 
     Returns:
-        str | None: The name governed, or None where there are none.
+        bool: True where a marker governs this pair.
     """
 
-    if not names:
-        return None
+    low, high = sorted((first, second))
+    stretch = source[max(0, low - _MARKER_REACH):high + _MARKER_REACH].lower()
 
-    after = [match for match in names if match.start() >= position]
-    before = [match for match in names if match.end() <= position]
-
-    if after:
-        gap = source[position:after[0].start()]
-
-        if not LINE_REF.search(gap):
-            return after[0].group(1)
-
-    if before:
-        return before[-1].group(1)
-
-    return after[0].group(1) if after else None
-
-
-def _marked(text: str) -> bool:
-    """Whether a stretch of a row names its citations as alternatives.
-
-    Args:
-        text (str): The stretch to read.
-
-    Returns:
-        bool: True where it carries one of the alternation words.
-    """
-
-    lowered = text.lower()
-
-    return any(word in lowered for word in ALTERNATION_WORDS)
+    return any(
+        re.search(rf'\b{re.escape(word)}\b', stretch) for word in ALTERNATION_WORDS
+    )
 
 
 def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
@@ -416,7 +349,9 @@ def _branch_arms(
 ) -> list[tuple[set[int], set[int]]]:
     """Return the arms of one `if`, where it has two.
 
-    An `if` with an `else` has two arms outright. One without makes an arm
+    An `if` with an `else` has two arms outright, and where its own body
+    leaves the path it is an alternative to the lines after the whole
+    statement as well. One without an `else` makes an arm
     of the code after it where its body leaves the path having done
     something — a return, or a raise or continue after some act. A body
     that only builds a message and raises is a guard, and the code after
@@ -433,14 +368,16 @@ def _branch_arms(
 
     body = set(range(node.lineno, (node.body[-1].end_lineno or 0) + 1))
 
+    pairs: list[tuple[set[int], set[int]]] = []
+
     if node.orelse:
-        return [(
+        pairs.append((
             body,
             set(range(node.orelse[0].lineno, (node.orelse[-1].end_lineno or 0) + 1)),
-        )]
+        ))
 
     if not _leaves_the_path(node.body):
-        return []
+        return pairs
 
     scope = loops if isinstance(node.body[-1], ast.Continue) else ends
     stop = min(
@@ -449,15 +386,43 @@ def _branch_arms(
     )
     after = set(range((node.end_lineno or node.lineno) + 1, stop + 1))
 
-    return [(body, after)] if after else []
+    if after:
+        pairs.append((body, after))
+
+    return pairs
+
+
+def _always_leaves(statement: ast.stmt) -> bool:
+    """Whether a statement always takes the path out of what follows.
+
+    A return, raise, continue or break does. So does an `if` whose every
+    arm does, since no path through it carries on.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: True where nothing after it runs.
+    """
+
+    if isinstance(statement, (ast.Return, ast.Raise, ast.Continue, ast.Break)):
+        return True
+
+    if not isinstance(statement, ast.If) or not statement.orelse:
+        return False
+
+    return _always_leaves(statement.body[-1]) and _always_leaves(statement.orelse[-1])
 
 
 def _leaves_the_path(body: list[ast.stmt]) -> bool:
     """Whether a branch body makes an alternative of the code after it.
 
-    A return always does. A raise or a continue does only where the body
-    also acts: one that merely builds a message and raises is a guard,
-    and citing it beside later code describes an order of checks.
+    A return always does. Any other way of leaving does so only where the
+    body also acts: one that merely builds a message and raises is a
+    guard, and citing it beside later code describes an order of checks.
+
+    A call that raises inside a helper cannot be told from one that
+    returns, so a branch leaving only that way reads as a guard.
 
     Args:
         body (list[ast.stmt]): The statements of the branch.
@@ -471,17 +436,51 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
     if isinstance(last, ast.Return):
         return True
 
-    if not isinstance(last, (ast.Raise, ast.Continue)):
+    if not _always_leaves(last):
         return False
 
+    if _acts_while_leaving(last):
+        return True
+
     return any(not _only_builds_a_message(statement) for statement in body[:-1])
+
+
+def _acts_while_leaving(statement: ast.stmt) -> bool:
+    """Whether the statement that leaves the path also does something.
+
+    Raising an exception built from plain values does nothing else.
+    Calling something to build it, or to raise from it, does.
+
+    Args:
+        statement (ast.stmt): The statement that leaves the path.
+
+    Returns:
+        bool: True where leaving is not all it does.
+    """
+
+    if not isinstance(statement, ast.Raise):
+        return False
+
+    inner: list[ast.expr] = [statement.cause] if statement.cause else []
+    raised = statement.exc
+
+    if isinstance(raised, ast.Call):
+        inner.extend(raised.args)
+        inner.extend(word.value for word in raised.keywords)
+    elif raised is not None:
+        inner.append(raised)
+
+    return any(
+        isinstance(node, ast.Call) for part in inner for node in ast.walk(part)
+    )
 
 
 def _only_builds_a_message(statement: ast.stmt) -> bool:
     """Whether a statement does nothing but make a value to raise with.
 
-    An assignment qualifies only where nothing in it is called, since a
-    call may act however its result is stored.
+    An assignment qualifies only where it names a plain local and nothing
+    in it is called: a call may act however its result is stored, and an
+    assignment to an attribute or an item changes something outside.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -490,14 +489,21 @@ def _only_builds_a_message(statement: ast.stmt) -> bool:
         bool: True where the statement merely builds a value.
     """
 
-    if not isinstance(statement, (ast.Assign, ast.AnnAssign)):
+    if isinstance(statement, ast.AnnAssign):
+        targets: list[ast.expr] = [statement.target]
+    elif isinstance(statement, ast.Assign):
+        targets = list(statement.targets)
+    else:
+        return False
+
+    if any(not isinstance(target, ast.Name) for target in targets):
         return False
 
     return not any(isinstance(node, ast.Call) for node in ast.walk(statement))
 
 
 def _exclusive_citations(
-    cited: list[tuple[str, int, int]],
+    cited: list[tuple[str, int, int, int]],
     cache: _SourceFacts,
     row: str,
 ) -> str | None:
@@ -514,27 +520,23 @@ def _exclusive_citations(
         cited (list[tuple[str, int, int]]): Each citation as its source
             name, first line and last line.
         cache (_SourceFacts): Where the branch spans are read from.
-        row (str): The evidence row, read for a marker exempting one file.
+        row (str): The evidence row, read for a marker between a pair.
 
     Returns:
         str | None: The clash found, or None where there is none.
     """
 
-    exempt = _alternative_sources(row)
+    source = row.split(' | ', 1)[1] if ' | ' in row else row
 
-    for index, (key, start, end) in enumerate(cited):
-
-        if key in exempt:
-            continue
-
+    for index, (key, start, end, at) in enumerate(cited):
         facts = cache.peek(key)
 
         if facts is None:
             continue
 
-        for other_key, other_start, other_end in cited[index + 1:]:
+        for other_key, other_start, other_end, other_at in cited[index + 1:]:
 
-            if other_key != key or other_key in exempt:
+            if other_key != key or _marked_between(source, at, other_at):
                 continue
 
             if _opposed(_spans(start, end), _spans(other_start, other_end), facts):
@@ -985,7 +987,7 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
 
     row = whole.split(' | ', 1)[1] if ' | ' in whole else whole
     sources = _row_sources(row)
-    cited: list[tuple[str, int, int]] = []
+    cited: list[tuple[str, int, int, int]] = []
 
     for match in LINE_REF.finditer(row):
         before = [key for pos, key in sources if pos < match.start()]
@@ -1011,7 +1013,7 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
 
         start = int(match.group(1))
         end = int(match.group(2) or start)
-        cited.append((key, start, end))
+        cited.append((key, start, end, match.start()))
         note = _what_a_citation_lands_on(start, end, facts, whole)
 
         if note is not None:
@@ -1433,6 +1435,45 @@ def _evidence_rows(meta: str) -> list[str]:
     return rows
 
 
+def _unlined_sources(rows: list[str]) -> list[str]:
+    """Return the files a row names without citing a line of their own.
+
+    Naming a file and citing none of it leans on the name. The exception
+    is a claim about what a file does not hold, which has no line to
+    point at; such a row says so in words beside the name.
+
+    Args:
+        rows (list[str]): The evidence rows of one page.
+
+    Returns:
+        list[str]: One complaint per file named but not cited.
+    """
+
+    notes: list[str] = []
+
+    for row in rows:
+
+        if ' | ' not in row:
+            continue
+
+        source = row.split(' | ', 1)[1]
+        names = list(FILE_REF.finditer(source))
+
+        for index, match in enumerate(names):
+            end = names[index + 1].start() if index + 1 < len(names) else len(source)
+            stretch = source[match.end():end]
+
+            if LINE_REF.search(stretch):
+                continue
+
+            nearby = source[max(0, match.start() - _MARKER_REACH):end].lower()
+
+            if not any(word in nearby for word in ABSENCE_WORDS):
+                notes.append(f'names `{match.group(1)}` and cites no line of it')
+
+    return notes
+
+
 def _uncited_claims(rows: list[str]) -> list[str]:
     """Return the claims carrying no source at all.
 
@@ -1616,6 +1657,7 @@ def _check_page(
         ([] if rows else ['metadata carries no evidence']),
         _check_voice(body),
         _uncited_claims(rows),
+        _unlined_sources(rows),
         _unlinked_terms(page, body),
         _negative_definitions(body),
         _unspaced_headings(body),

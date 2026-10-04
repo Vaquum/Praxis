@@ -2,7 +2,7 @@
 row: P1-02
 baseline: 49aa659
 created: 2026-09-20 16:25 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-04 16:24 UTC
 evidence:
   - claim: "Every other kind is routed elsewhere before this path"
     source: "any of the arms at `execution_manager.py` 3994-4007, with a defensive refusal for anything that still arrives at 4170-4188"
@@ -41,7 +41,7 @@ evidence:
   - claim: "A lookup reply it cannot read reaches neither, leaving only a log"
     source: "raised in `binance_adapter.py` 1027-1039, escaping `execution_manager.py` 5518-5542, logged at 4012-4019"
   - claim: "On a single order, a lookup reply whose status or fields cannot be read reaches neither, and no outcome is recorded"
-    source: "raised in `binance_adapter.py` 1027-1039, or an unrecognised status by way of 1033 into 893-897; the lookup runs inside `execution_manager.py` 4282-4286 so 4296-4299 never sees it, and it escapes either 5524-5532 or 5533-5542, logged at 4012-4019, the intent at 4264 standing alone"
+    source: "raised in `binance_adapter.py` 1027-1039, or an unrecognised status by way of 1033 into 893-897; the lookup runs inside `execution_manager.py` 4282-4286 rather than 4296-4299, and it escapes either 5524-5532 or 5533-5542, logged at 4012-4019, the intent at 4264 standing alone"
   - claim: "A linked pair takes its own lookup, where a venue error on the list is written off"
     source: "`execution_manager.py` 5513-5516, caught at 5595-5604, written off at 4287-4288"
   - claim: "A pair whose list or leg fields cannot be read escapes that too, and no outcome is recorded"
