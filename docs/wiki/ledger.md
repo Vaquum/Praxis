@@ -101,7 +101,7 @@ A file reaches `covered` only when no unresolved candidate is attached to it. Pe
 
 `execution_manager.py` is 10,867 lines. Ten rows touching it makes it `partial` by a wide margin, not nearly covered.
 
-Every Praxis file is now named here. The four subsystems that had no article — replaying recorded bars, the standalone simulated venue, paper-trading reports, and the metrics behind them — each have one, and the `P4` rows in [the register](register.md) carry the files still marked `uncovered`: the host itself, the seams between Nexus and Praxis, the shapes a request is carried in, and the leaves the earlier rows stopped short of.
+Every Praxis module is named here, and none is left `uncovered`: 53 are `full` and 35 `partial`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet — `execution_manager.py`, at 10,867 lines, is `partial` by the widest margin. Closing those is a later package, as is Nexus.
 
 ## Nexus — 70 modules
 
@@ -113,4 +113,4 @@ Files are listed individually as tracing reaches them. Every untouched file stay
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 06:29 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 06:32 UTC
