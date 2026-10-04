@@ -248,6 +248,7 @@ class TestUncitedClaims:
         row = 'a claim | `order.py` 30, with nothing further in `fill.py`'
         assert not check_wiki._unlined_sources([row])
 
+    @_NEEDS_BASELINE
     def test_an_absence_claim_still_needs_the_file_to_exist(self) -> None:
         row = 'a claim | `order.py` 30, with nothing further in `nonesuch.py`'
         assert check_wiki._unlined_sources([row])
