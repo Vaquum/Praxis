@@ -2,7 +2,7 @@
 row: P2-11
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-04 15:46 UTC
 evidence:
   - claim: "Execution holds one venue and calls it by name throughout"
     source: "stored once at `execution_manager.py` 679"
@@ -25,7 +25,7 @@ evidence:
   - claim: "Snapping a quantity to the grid does not ask the venue at all; it reads rules already cached"
     source: "`binance_adapter.py` 1378-1392, returning the original where nothing is cached at 1380-1381"
   - claim: "A refusal arrives as a named kind, and which kind decides whether it is chased or recorded"
-    source: "a client error becoming a rejection at `binance_adapter.py` 1151-1152 only once the named kinds at 1118-1120, 1122-1133, 1135-1137 and 1147-1149 have not claimed it; one code is then wrapped at 1645-1651 and chased at `execution_manager.py` 4282-4286, the rest re-raised at `binance_adapter.py` 1652 and recorded instead at `execution_manager.py` 4292-4295"
+    source: "a client error becoming a rejection at `binance_adapter.py` 1151-1152 rather than one of the named kinds at 1118-1120, 1122-1133, 1135-1137 or 1147-1149; one code is then wrapped at 1645-1651 and chased at `execution_manager.py` 4282-4286, the rest re-raised at `binance_adapter.py` 1652 and recorded instead at `execution_manager.py` 4292-4295"
   - claim: "An unfamiliar status on a plain send is recorded failed like any refused value"
     source: "`binance_adapter.py` 893-897 by way of 950, recorded at `execution_manager.py` 4296-4299, the alternative arm to 4292-4295"
   - claim: "Where a pair the venue calls finished has no leg reporting a status it knows, the whole is taken as cancelled"

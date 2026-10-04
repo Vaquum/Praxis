@@ -56,12 +56,57 @@ class TestLineReferences:
         assert not list(check_wiki.LINE_REF.finditer('v0.100.0'))
 
 
+class TestGuardsAndArms:
+    @staticmethod
+    def _spans(source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list:
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+
+        return check_wiki._exclusive_spans(path)
+
+    def test_a_branch_acting_before_it_raises_is_an_arm(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(x):\n    if x:\n        reject(x)\n        raise ValueError(x)\n'
+            '    submit(x)\n'
+        )
+        assert self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_branch_only_building_a_message_is_a_guard(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        msg = 'bad'\n        raise ValueError(msg)\n"
+            '    submit(x)\n'
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_continue_reaches_only_to_the_end_of_its_loop(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(xs):\n    for x in xs:\n        if x:\n            mark(x)\n'
+            '            continue\n        inside(x)\n    after(xs)\n'
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+        assert spans
+        assert all(7 not in second for _first, second in spans)
+
+
 class TestUncitedClaims:
     def test_claim_with_no_source_is_refused(self) -> None:
         assert check_wiki._uncited_claims(['a claim standing alone'])
 
     def test_claim_whose_source_names_no_line_is_refused(self) -> None:
         assert check_wiki._uncited_claims(['a claim | prose with no citation'])
+
+    def test_source_naming_a_file_but_no_line_is_refused(self) -> None:
+        assert check_wiki._uncited_claims(['a claim | `order.py`'])
+
+    def test_source_whose_only_number_is_negative_is_refused(self) -> None:
+        assert check_wiki._uncited_claims(['a claim | `order.py` -1'])
 
     def test_cited_claim_passes(self) -> None:
         assert not check_wiki._uncited_claims(['a claim | `order.py` 30-32'])
@@ -282,12 +327,23 @@ class TestProseWords:
 
 class TestLeadParagraph:
     def test_a_lead_opening_with_this_is_refused(self) -> None:
-        lead = check_wiki._lead_paragraph('# Title\n\nThis is about orders.\n')
-        assert lead is not None
-        assert lead.startswith('This')
+        assert check_wiki._check_voice('# Title\n\nThis is about orders.\n')
 
-    def test_the_lead_is_the_paragraph_after_the_title(self) -> None:
-        assert check_wiki._lead_paragraph('# Title\n\nAn order is a thing.\n') == 'An order is a thing.'
+    def test_a_lead_in_bold_is_refused(self) -> None:
+        assert check_wiki._check_voice('# Title\n\n**An order** is a thing.\n')
+
+    def test_a_heading_where_the_lead_belongs_is_refused(self) -> None:
+        assert check_wiki._check_voice('# Title\n\n## A heading\n\nText.\n')
+
+    def test_a_prompt_heading_is_refused(self) -> None:
+        assert check_wiki._check_voice('# Title\n\nAn order is a thing.\n\n## What it is\n')
+
+    def test_an_evidence_table_in_the_body_is_refused(self) -> None:
+        body = '# Title\n\nAn order is a thing.\n\n## Evidence\n'
+        assert check_wiki._check_voice(body)
+
+    def test_a_plain_lead_passes(self) -> None:
+        assert not check_wiki._check_voice('# Title\n\nAn order is a thing.\n')
 
 
 class TestStamps:
@@ -331,6 +387,10 @@ class TestLedgerCoverage:
         assert not [note for note in check_wiki._ledger_coverage() if 'heading says' in note]
 
 
+@pytest.mark.skipif(
+    not (check_wiki.NEXUS_ROOT / '.git').exists(),
+    reason='the gate resolves citations in both repositories, and Nexus is absent',
+)
 class TestTheWikiItself:
     def test_the_gate_passes(self) -> None:
         assert check_wiki.main() == 0

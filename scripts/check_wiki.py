@@ -370,6 +370,11 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
         for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
+    loops = {
+        node.lineno: node.end_lineno or node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
+    }
     pairs: list[tuple[set[int], set[int]]] = []
 
     for node in ast.walk(tree):
@@ -378,7 +383,7 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
             pairs.extend(_handler_arms(node))
 
         if isinstance(node, ast.If) and node.body:
-            pairs.extend(_branch_arms(node, ends))
+            pairs.extend(_branch_arms(node, ends, loops))
 
     return pairs
 
@@ -407,17 +412,20 @@ def _handler_arms(node: ast.Try) -> list[tuple[set[int], set[int]]]:
 
 
 def _branch_arms(
-    node: ast.If, ends: dict[int, int],
+    node: ast.If, ends: dict[int, int], loops: dict[int, int],
 ) -> list[tuple[set[int], set[int]]]:
     """Return the arms of one `if`, where it has two.
 
-    An `if` with an `else` has two arms outright. One without, whose body
-    ends in a return, makes an arm of the code after it. One ending in a
-    raise or a continue is a guard rather than an arm.
+    An `if` with an `else` has two arms outright. One without makes an arm
+    of the code after it where its body leaves the path having done
+    something — a return, or a raise or continue after some act. A body
+    that only builds a message and raises is a guard, and the code after
+    it is the ordinary path rather than an alternative.
 
     Args:
         node (ast.If): The `if` statement to read.
-        ends (dict[int, int]): Where each enclosing function ends.
+        ends (dict[int, int]): Where each function ends.
+        loops (dict[int, int]): Where each loop ends.
 
     Returns:
         list[tuple[set[int], set[int]]]: The one pair found, or none.
@@ -431,16 +439,45 @@ def _branch_arms(
             set(range(node.orelse[0].lineno, (node.orelse[-1].end_lineno or 0) + 1)),
         )]
 
-    if not isinstance(node.body[-1], ast.Return):
+    if not _leaves_the_path(node.body):
         return []
 
-    stop = max(
-        (end for start, end in ends.items() if start <= node.lineno <= end),
+    scope = loops if isinstance(node.body[-1], ast.Continue) else ends
+    stop = min(
+        (end for start, end in scope.items() if start <= node.lineno <= end),
         default=0,
     )
     after = set(range((node.end_lineno or node.lineno) + 1, stop + 1))
 
     return [(body, after)] if after else []
+
+
+def _leaves_the_path(body: list[ast.stmt]) -> bool:
+    """Whether a branch body makes an alternative of the code after it.
+
+    A return always does. A raise or a continue does only where the body
+    also acts: one that merely builds a message and raises is a guard,
+    and citing it beside later code describes an order of checks.
+
+    Args:
+        body (list[ast.stmt]): The statements of the branch.
+
+    Returns:
+        bool: True where the branch is an arm rather than a guard.
+    """
+
+    last = body[-1]
+
+    if isinstance(last, ast.Return):
+        return True
+
+    if not isinstance(last, (ast.Raise, ast.Continue)):
+        return False
+
+    return any(
+        not isinstance(statement, (ast.Assign, ast.AnnAssign))
+        for statement in body[:-1]
+    )
 
 
 def _exclusive_citations(
@@ -1383,13 +1420,14 @@ def _uncited_claims(rows: list[str]) -> list[str]:
         rows (list[str]): The evidence rows of one page.
 
     Returns:
-        list[str]: One complaint per claim with nothing behind it.
+        list[str]: One complaint per claim with nothing behind it. A
+            source naming a file but no line counts as nothing.
     """
 
     return [
         f'claim carries no source: "{row[:60]}"'
         for row in rows
-        if ' | ' not in row or not _row_sources(row.split(' | ', 1)[1])
+        if ' | ' not in row or not LINE_REF.search(row.split(' | ', 1)[1])
     ]
 
 
