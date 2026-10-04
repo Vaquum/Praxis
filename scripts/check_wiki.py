@@ -474,10 +474,26 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
     if not isinstance(last, (ast.Raise, ast.Continue)):
         return False
 
-    return any(
-        not isinstance(statement, (ast.Assign, ast.AnnAssign))
-        for statement in body[:-1]
-    )
+    return any(not _only_builds_a_message(statement) for statement in body[:-1])
+
+
+def _only_builds_a_message(statement: ast.stmt) -> bool:
+    """Whether a statement does nothing but make a value to raise with.
+
+    An assignment qualifies only where nothing in it is called, since a
+    call may act however its result is stored.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: True where the statement merely builds a value.
+    """
+
+    if not isinstance(statement, (ast.Assign, ast.AnnAssign)):
+        return False
+
+    return not any(isinstance(node, ast.Call) for node in ast.walk(statement))
 
 
 def _exclusive_citations(
@@ -981,6 +997,10 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
             continue
 
         assert facts is not None
+
+        if int(match.group(1)) < 1:
+            bad.append(f'{key}:{match.group(0)} (no such line)')
+            continue
 
         if int(match.group(2) or match.group(1)) > facts.length:
             bad.append(

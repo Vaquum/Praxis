@@ -83,6 +83,24 @@ class TestGuardsAndArms:
         )
         assert not self._spans(source, tmp_path, monkeypatch)
 
+    def test_an_act_disguised_as_an_assignment_is_still_an_act(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(x):\n    if x:\n        msg = reject(x)\n'
+            '        raise ValueError(msg)\n    submit(x)\n'
+        )
+        assert self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_message_built_from_a_template_is_still_a_guard(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        msg = f'bad {x}'\n"
+            '        raise ValueError(msg)\n    submit(x)\n'
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
     def test_a_continue_reaches_only_to_the_end_of_its_loop(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -93,6 +111,20 @@ class TestGuardsAndArms:
         spans = self._spans(source, tmp_path, monkeypatch)
         assert spans
         assert all(7 not in second for _first, second in spans)
+
+
+class TestImpossibleLines:
+    def test_line_zero_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `order.py` 0|', check_wiki._SourceFacts(),
+        )
+        assert notes == ['order.py:0 (no such line)']
+
+    def test_a_line_past_the_end_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `order.py` 99999|', check_wiki._SourceFacts(),
+        )
+        assert notes and 'past end of file' in notes[0]
 
 
 class TestUncitedClaims:
