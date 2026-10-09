@@ -445,7 +445,7 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
 
     for node in ast.walk(tree):
 
-        if isinstance(node, ast.Try):
+        if isinstance(node, (ast.Try, ast.TryStar)):
             pairs.extend(_handler_arms(node))
 
         if isinstance(node, ast.Match):
@@ -474,24 +474,19 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
         node for node in ast.walk(tree)
         if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
     ]
-    tries = [node for node in ast.walk(tree) if isinstance(node, ast.Try)]
+    tries = [
+        node for node in ast.walk(tree)
+        if isinstance(node, (ast.Try, ast.TryStar))
+    ]
 
     return _Scopes(
-        ends={
-            node.lineno: node.end_lineno or node.lineno
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        },
+        ends=_spans_of(tree, (ast.FunctionDef, ast.AsyncFunctionDef)),
         loops={node.lineno: node.end_lineno or node.lineno for node in loops},
         tries={
             node.lineno: _skipped_by_a_raise(node)
             for node in tries if node.handlers and node.body
         },
-        helds={
-            node.lineno: node.end_lineno or node.lineno
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.With, ast.AsyncWith))
-        },
+        helds=_spans_of(tree, (ast.With, ast.AsyncWith)),
         handlers=_blocks(
             ((node, handler.body) for node in tries for handler in node.handlers),
             lines,
@@ -508,7 +503,7 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
     )
 
 
-def _skipped_by_a_raise(node: ast.Try) -> int:
+def _skipped_by_a_raise(node: ast.Try | ast.TryStar) -> int:
 
     '''Return where what a raise in a `try` body skips ends.
 
@@ -526,6 +521,28 @@ def _skipped_by_a_raise(node: ast.Try) -> int:
     last = node.orelse[-1] if node.orelse else node.body[-1]
 
     return last.end_lineno or node.lineno
+
+
+def _spans_of(
+    tree: ast.AST,
+    kinds: tuple[type[ast.stmt], ...],
+) -> dict[int, int]:
+
+    '''Return where each statement of the given kinds starts and ends.
+
+    Args:
+        tree (ast.AST): The parsed module.
+        kinds (tuple[type[ast.stmt], ...]): The statement types to find.
+
+    Returns:
+        dict[int, int]: First line to last, one entry per statement.
+    '''
+
+    return {
+        node.lineno: node.end_lineno or node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, kinds)
+    }
 
 
 def _blocks(
@@ -568,15 +585,19 @@ def _heading(first: int, lines: list[str]) -> int:
         lines (list[str]): The module's lines.
 
     Returns:
-        int: That line, or the one above where it heads the block alone.
+        int: That line, or the one above where it heads the block alone,
+            an `except` of its own among those headings.
     '''
 
     above = lines[first - 2].strip() if 1 < first <= len(lines) + 1 else ''
+    heads = above in ('finally:', 'else:', 'try:') or (
+        above.startswith(('except ', 'except:', 'except*')) and above.endswith(':')
+    )
 
-    return first - 1 if above in ('finally:', 'else:', 'try:') else first
+    return first - 1 if heads else first
 
 
-def _handler_arms(node: ast.Try) -> list[tuple[set[int], set[int]]]:
+def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]]:
 
     '''Return each pair of arms a `try` statement has.
 
@@ -634,7 +655,7 @@ def _case_arms(node: ast.Match) -> list[tuple[set[int], set[int]]]:
     ]
 
 
-def _else_lines(node: ast.Try) -> set[int]:
+def _else_lines(node: ast.Try | ast.TryStar) -> set[int]:
 
     '''Return the lines of a `try` statement's `else`, where it has one.
 
@@ -827,8 +848,10 @@ def _leaves_this_block(statement: ast.stmt, *, within_loop: bool) -> bool:
 
     A return or a raise leaves whatever holds it, a loop of the block's
     own included. A continue or a break leaves only its own loop, so one
-    written inside a nested loop leaves that. A function, a lambda and a
-    class carry their own ways out and are not looked into.
+    written inside a nested loop leaves that — though one in that loop's
+    `else` carries on the loop outside it, and so leaves the block. A
+    function, a lambda and a class carry their own ways out and are not
+    looked into.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -851,9 +874,14 @@ def _leaves_this_block(statement: ast.stmt, *, within_loop: bool) -> bool:
         return not within_loop
 
     loops = isinstance(statement, (ast.For, ast.AsyncFor, ast.While))
+    after = statement.orelse if isinstance(
+        statement, (ast.For, ast.AsyncFor, ast.While),
+    ) else []
 
     return any(
-        _leaves_this_block(held, within_loop=within_loop or loops)
+        _leaves_this_block(
+            held, within_loop=within_loop or (loops and block is not after),
+        )
         for block in _child_blocks(statement)
         for held in block
     )
@@ -867,8 +895,8 @@ def _child_blocks(statement: ast.stmt) -> list[list[ast.stmt]]:
         statement (ast.stmt): The statement to read.
 
     Returns:
-        list[list[ast.stmt]]: Its body, its `else`, its `finally` and
-            each handler's body, as it has them.
+        list[list[ast.stmt]]: Its body, its `else`, its `finally`, and
+            each handler's or case's body, as it has them.
     '''
 
     blocks = [
@@ -878,6 +906,7 @@ def _child_blocks(statement: ast.stmt) -> list[list[ast.stmt]]:
     blocks += [
         handler.body for handler in getattr(statement, 'handlers', []) or []
     ]
+    blocks += [case.body for case in getattr(statement, 'cases', []) or []]
 
     return [block for block in blocks if isinstance(block, list)]
 
@@ -1063,7 +1092,7 @@ def _how_it_leaves(statement: ast.stmt) -> str:
     if isinstance(statement, ast.If) and statement.orelse:
         return _one_way([statement.body[-1], statement.orelse[-1]])
 
-    if isinstance(statement, ast.Try) and statement.body:
+    if isinstance(statement, (ast.Try, ast.TryStar)) and statement.body:
         return _try_leave(statement)
 
     if isinstance(statement, ast.Match) and _covers_everything(statement):
@@ -1097,7 +1126,7 @@ def _plainly_leaves(statement: ast.stmt) -> str:
     return ''
 
 
-def _try_leave(statement: ast.Try) -> str:
+def _try_leave(statement: ast.Try | ast.TryStar) -> str:
 
     '''Return the way a `try` statement leaves the path.
 
@@ -1202,7 +1231,7 @@ def _always_leaves(statement: ast.stmt) -> bool:
             statement.orelse[-1],
         )
 
-    if isinstance(statement, ast.Try) and statement.body:
+    if isinstance(statement, (ast.Try, ast.TryStar)) and statement.body:
         return _try_always_leaves(statement)
 
     if isinstance(statement, ast.Match) and _covers_everything(statement):
@@ -1216,7 +1245,7 @@ def _always_leaves(statement: ast.stmt) -> bool:
     return False
 
 
-def _try_always_leaves(statement: ast.Try) -> bool:
+def _try_always_leaves(statement: ast.Try | ast.TryStar) -> bool:
 
     '''Whether every path through a `try` statement leaves.
 
@@ -1233,7 +1262,7 @@ def _try_always_leaves(statement: ast.Try) -> bool:
     return all(_always_leaves(path[-1]) for path in _try_paths(statement))
 
 
-def _try_paths(node: ast.Try) -> list[list[ast.stmt]]:
+def _try_paths(node: ast.Try | ast.TryStar) -> list[list[ast.stmt]]:
 
     '''Return each path through a `try` statement that can carry on.
 
@@ -1992,7 +2021,10 @@ def _docstring_citations(text: str, cache: _SourceFacts) -> list[str]:
 
 def _impossible_line(match: re.Match[str], facts: _FileFacts) -> str | None:
 
-    '''Return why a cited line cannot exist in the file, where it cannot.
+    '''Return why a cited range cannot exist in the file, where it cannot.
+
+    A range running backwards covers nothing, so what it lands on
+    cannot be read: it is refused before anything else is asked of it.
 
     Args:
         match (re.Match[str]): The line reference as the row wrote it.
@@ -2002,10 +2034,16 @@ def _impossible_line(match: re.Match[str], facts: _FileFacts) -> str | None:
         str | None: The reason, or None where the line is in range.
     '''
 
-    if int(match.group(1)) < 1:
+    start = int(match.group(1))
+    end = int(match.group(2) or match.group(1))
+
+    if start < 1:
         return 'no such line'
 
-    if int(match.group(2) or match.group(1)) > facts.length:
+    if end < start:
+        return 'a range ending before it starts'
+
+    if end > facts.length:
         return f'past end of file, {facts.length} lines'
 
     return None

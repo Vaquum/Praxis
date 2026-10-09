@@ -248,6 +248,23 @@ class TestImpossibleLines:
         )
         assert notes == ['order.py:16 (no executable line)']
 
+    @_NEEDS_BASELINE
+    def test_a_range_ending_before_it_starts_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `order.py` 125-119|', check_wiki._SourceFacts(),
+        )
+
+        assert notes == ['order.py:125-119 (a range ending before it starts)']
+
+    @_NEEDS_BASELINE
+    def test_a_reversed_range_past_the_file_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|the docstring says it | `order.py` 999999-1|',
+            check_wiki._SourceFacts(),
+        )
+
+        assert notes == ['order.py:999999-1 (a range ending before it starts)']
+
     def test_a_span_of_blank_and_signature_is_refused(self) -> None:
         notes = check_wiki._docstring_citations(
             '|a claim | `order.py` 85-87|', check_wiki._SourceFacts(),
@@ -1402,6 +1419,54 @@ class TestTheFinallyClause:
         )
         assert not self._spans(source, tmp_path, monkeypatch)
 
+    def test_a_continue_in_a_loop_else_leaves_a_finally_around_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs, ys):\n    for x in xs:\n        try:\n            if x:\n"
+            "                mark(x)\n                return 1\n            work()\n"
+            "        finally:\n            for y in ys:\n                pass\n"
+            "            else:\n                continue\n        after()\n    done()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    _CAUGHT_RAISE = (
+        "def f(x):\n    try:\n        if x:\n            mark(x)\n"
+        "            raise E('a')\n        more(x)\n    except E:\n"
+        "        recover()\n    else:\n        fine()\n    after()\n"
+    )
+
+    def test_an_except_header_belongs_to_its_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        spans = self._spans(self._CAUGHT_RAISE, tmp_path, monkeypatch)
+        reached = next(second for first, second in spans if 4 in first)
+
+        assert reached == {6, 9, 10}
+
+    def test_an_except_star_handler_is_read_as_one(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = self._CAUGHT_RAISE.replace('except E:', 'except* E:')
+        spans = self._spans(source, tmp_path, monkeypatch)
+        reached = next(second for first, second in spans if 4 in first)
+
+        assert reached == {6, 9, 10}
+        assert any(8 in first and 10 in second for first, second in spans)
+
+    def test_a_caught_raise_reaches_no_further_than_its_try(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            act(x)\n"
+            "            raise E('a')\n        more(x)\n    except E:\n"
+            "        recover()\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 6 in second for first, second in spans)
+        assert not any(9 in second for _, second in spans)
+
     def test_a_raise_in_the_else_reaches_past_the_try(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1426,6 +1491,20 @@ class TestTheFinallyClause:
 
         assert any(4 in first and 10 in second for first, second in spans)
         assert not any(8 in second for _, second in spans)
+
+    def test_a_match_break_in_a_finally_is_a_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            if x:\n"
+            "                act(x)\n                return 1\n            go(x)\n"
+            "        finally:\n            match x:\n                case _:\n"
+            "                    break\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert spans
+        assert not any(12 in second for _, second in spans)
 
     def test_a_nested_function_in_a_finally_is_no_way_out(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -1938,4 +2017,46 @@ class TestTheGateOverACopiedWiki:
         )
 
         assert 'Protocol' in check_wiki._rebound_names(ast.parse(source))
+
+
+class TestEveryListedShape:
+
+    def test_every_banned_heading_is_refused(self) -> None:
+        headings = ('## What it is', '## Overview', '## Introduction')
+        refused = [
+            heading for heading in headings
+            if check_wiki._check_voice(f'# Title\n\nA thing is a thing.\n\n{heading}\n')
+        ]
+
+        assert refused == list(headings)
+
+    def test_every_apparatus_shape_is_refused(self) -> None:
+        parts = ('## Evidence', '| Claim | Source |')
+        refused = [
+            part for part in parts
+            if check_wiki._check_voice(f'# Title\n\nA thing is a thing.\n\n{part}\n')
+        ]
+
+        assert refused == list(parts)
+
+    def test_every_double_negative_tail_is_refused(self) -> None:
+        tails = ('nothing', 'no one', 'nobody', 'never', 'none')
+        refused = [
+            tail for tail in tails
+            if check_wiki._negative_definitions(f'It does not leave {tail} behind.')
+        ]
+
+        assert refused == list(tails)
+
+    def test_every_counting_word_is_refused(self) -> None:
+        numbers = (
+            'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+            'ten', 'eleven', 'twelve', 'twenty', 'twenty-one', 'thirty',
+        )
+        refused = [
+            number for number in numbers
+            if check_wiki.TEASED_COUNT_RE.search(f'the {number} ceilings')
+        ]
+
+        assert refused == list(numbers)
 

@@ -51,7 +51,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Abandoning work outright](atoms/abandoning-work-outright.md) — asking Praxis to give up on one command rather than alter it, cancelling at the venue where an order is out.
 - [Where an abandonment lands](atoms/where-an-abandonment-lands.md) — what giving up on a command does, by how far that command had got.
 - [What stopping leaves undone](atoms/what-stopping-leaves-undone.md) — stopping carries on past a refused cancel, a drain out of time and a failed close, logging each.
-- [What a starting host reports](atoms/what-a-starting-host-reports.md) — a starting host says two things about itself, a count in its log and an answer at its endpoint, both about threads.
+- [What a starting host reports](atoms/what-a-starting-host-reports.md) — a starting host says two things about itself, a count of threads in its log and an answer at its endpoint that weighs the stop flag and trading first.
 - [What an account is](atoms/what-an-account-is.md) — a name that groups the requests, orders, holdings and queues kept about it.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — a trade, a request and an order: work from outside, one piece of it, and one send to the venue.
 - [How an order is named](atoms/how-an-order-is-named.md) — Praxis works an order's name out rather than drawing it at random, so the same inputs always give the same name.
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 11:31 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 16:07 UTC

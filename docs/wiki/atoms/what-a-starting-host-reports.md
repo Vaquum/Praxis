@@ -2,7 +2,7 @@
 row: P4-21
 baseline: 49aa659
 created: 2026-10-01 10:34 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 16:07 UTC
 evidence:
   - claim: "The log line's count of accounts is a count of threads"
     source: "`launcher.py` 3901, counted at 2835"
@@ -13,7 +13,7 @@ evidence:
 ---
 # What a starting host reports
 
-A [host](starting-a-host.md) says two things about itself while it starts: a count in its log, and an answer at the endpoint a watcher polls. Both are about threads.
+A [host](starting-a-host.md) says two things about itself while it starts: a count in its log, and an answer at the endpoint a watcher polls. The count is of threads; the answer weighs the stop flag and trading before it reaches any thread.
 
 ## The count
 
