@@ -2,7 +2,7 @@
 row: P4-29
 baseline: 49aa659
 created: 2026-10-02 09:55 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 07:31 UTC
 evidence:
   - claim: "The amount and the money are differences against what crossed last time"
     source: "`outcome_translator.py` 191-192, the running marks set at 208-209"

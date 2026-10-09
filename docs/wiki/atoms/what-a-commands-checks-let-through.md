@@ -2,7 +2,7 @@
 row: P4-33
 baseline: 49aa659
 created: 2026-10-03 13:13 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 07:31 UTC
 evidence:
   - claim: "The test on the four names rejects whatever counts as nothing, which takes in an empty string, a missing value, nought and false"
     source: "`_require_str.py` 28-30"

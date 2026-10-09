@@ -2,7 +2,7 @@
 row: P2-42
 baseline: 49aa659
 created: 2026-09-26 20:29 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 07:31 UTC
 evidence:
   - claim: "No rule ties the value to the amount times the price"
     source: "`praxis/core/domain/trade_outcome.py` 111-164, which multiplies nothing"

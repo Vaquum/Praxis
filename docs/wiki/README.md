@@ -152,8 +152,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-109 articles exist. Every Praxis module is named in the ledger: 50 are `full`, 33 `partial` and 5 `uncovered`. Of the 70 in Nexus, 16 are cited in passing and 54 untouched. The ledger lists them.
+109 articles exist. Every Praxis module is named in the ledger: 48 are `full`, 35 `partial` and 5 `uncovered`. Of the 70 in Nexus, 16 are cited in passing and 54 untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-04 17:04 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 07:31 UTC

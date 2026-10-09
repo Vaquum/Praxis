@@ -2,7 +2,7 @@
 row: P2-33
 baseline: 49aa659
 created: 2026-09-26 06:31 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 07:31 UTC
 evidence:
   - claim: "A fill may be made with its fee equal to or above its amount"
     source: "`events.py` 593-595, which only refuses a fee below zero"

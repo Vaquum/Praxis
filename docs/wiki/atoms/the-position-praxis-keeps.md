@@ -2,7 +2,7 @@
 row: P4-12
 baseline: 49aa659
 created: 2026-10-03 17:42 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 07:31 UTC
 evidence:
   - claim: "A position is kept against a trade and an account together"
     source: "`trading_state.py` 482, the record made at 489-497"

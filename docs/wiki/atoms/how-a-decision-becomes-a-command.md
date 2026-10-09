@@ -2,7 +2,7 @@
 row: P4-04
 baseline: 49aa659
 created: 2026-10-02 09:35 UTC
-modified: 2026-10-04 16:30 UTC
+modified: 2026-10-09 07:31 UTC
 evidence:
   - claim: "A new order crossing into Praxis through the launcher has five of its fields re-keyed and its settings converted where needed"
     source: "`launcher.py` 441-451, installed at 453-455 and called from Nexus `praxis_outbound.py` 157-182"

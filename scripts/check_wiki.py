@@ -14,6 +14,7 @@ import subprocess
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 __all__ = ['main']
@@ -108,9 +109,11 @@ FINDING_COUNT_RE = re.compile(r'Record ([\d,]+) findings')
 FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
 ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
 FINDING_CELLS_RE = re.compile(r'^\| ([HU]-\d+) \|([^|]*)\|([^|]*)\|', re.MULTILINE)
+FINDING_ROW_CELLS_RE = re.compile(
+    r'^\| ([HU]-\d+) \|[^|]*\|([^|]*)\|[^|]*\|([^|]*)\|', re.MULTILINE,
+)
 UNNAMED = 'cited with no file named before it'
 LINE_COUNT_RE = re.compile(r'`([a-z_/]+\.py)`[,]? (?:is|at) ([\d,]+) lines')
-_MAX_SPAN = 60
 _MARKER_REACH = 40
 ABSENCE_WORDS = ('nothing further', 'nowhere', 'absent from', 'no such')
 GIT = shutil.which('git')
@@ -388,7 +391,9 @@ class _Scopes:
     Args:
         ends (dict[int, int]): Where each function starts and ends.
         loops (dict[int, int]): Where each loop starts and ends.
-        tries (dict[int, int]): Where each handled block starts and ends.
+        tries (dict[int, int]): Where each handled block starts, and where
+            what a raise in its body skips ends.
+        handlers (tuple[_Block, ...]): Every `except` body.
         regardless (tuple[_Block, ...]): Every `finally` body.
         after_a_loop (tuple[_Block, ...]): Every loop's `else` body.
     '''
@@ -396,6 +401,7 @@ class _Scopes:
     ends: dict[int, int]
     loops: dict[int, int]
     tries: dict[int, int]
+    handlers: tuple[_Block, ...]
     regardless: tuple[_Block, ...]
     after_a_loop: tuple[_Block, ...]
 
@@ -412,11 +418,12 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
     '''
 
     try:
-        tree = ast.parse(_source_text(path))
+        text = _source_text(path)
+        tree = ast.parse(text)
     except (OSError, SyntaxError):
         return []
 
-    scopes = _scopes(tree)
+    scopes = _scopes(tree, text.splitlines())
     pairs: list[tuple[set[int], set[int]]] = []
 
     for node in ast.walk(tree):
@@ -430,17 +437,24 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
     return pairs
 
 
-def _scopes(tree: ast.AST) -> _Scopes:
+def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
 
     '''Return what a branch leaving the path can and cannot skip.
 
     Args:
         tree (ast.AST): The parsed module.
+        lines (list[str]): Its lines, read for the line heading a block.
 
     Returns:
         _Scopes: Where each kind of block ends, and the lines that run
             whatever a branch does.
     '''
+
+    loops = [
+        node for node in ast.walk(tree)
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
+    ]
+    tries = [node for node in ast.walk(tree) if isinstance(node, ast.Try)]
 
     return _Scopes(
         ends={
@@ -448,38 +462,56 @@ def _scopes(tree: ast.AST) -> _Scopes:
             for node in ast.walk(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         },
-        loops={
-            node.lineno: node.end_lineno or node.lineno
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
-        },
+        loops={node.lineno: node.end_lineno or node.lineno for node in loops},
         tries={
-            node.lineno: (node.body[-1].end_lineno or node.lineno)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Try) and node.handlers and node.body
+            node.lineno: _skipped_by_a_raise(node)
+            for node in tries if node.handlers and node.body
         },
-        regardless=_blocks(
-            (node, node.finalbody)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Try)
+        handlers=_blocks(
+            ((node, handler.body) for node in tries for handler in node.handlers),
+            lines,
         ),
-        after_a_loop=_blocks(
-            (node, node.orelse)
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
-        ),
+        regardless=_blocks(((node, node.finalbody) for node in tries), lines),
+        after_a_loop=_blocks(((node, node.orelse) for node in loops), lines),
     )
+
+
+def _skipped_by_a_raise(node: ast.Try) -> int:
+
+    '''Return where what a raise in a `try` body skips ends.
+
+    A raise skips the rest of the body and the `else`, which runs only
+    where the body came through. The handlers run, and are taken out
+    separately.
+
+    Args:
+        node (ast.Try): The statement to read.
+
+    Returns:
+        int: That last line.
+    '''
+
+    last = node.orelse[-1] if node.orelse else node.body[-1]
+
+    return last.end_lineno or node.lineno
 
 
 def _blocks(
     found: Iterable[tuple[ast.stmt, list[ast.stmt]]],
+    lines: list[str],
 ) -> tuple[_Block, ...]:
 
     '''Return each block with the construct that holds it.
 
+    The line heading a block belongs to it, so citing `finally:` is not
+    an alternative to anything. That line counts only where it holds
+    the keyword alone; where the body starts on it, there is no line to
+    take, and taking the one above would take a statement with it.
+
     Args:
         found (Iterable[tuple[ast.stmt, list[ast.stmt]]]): Each construct
             with the block hanging off it.
+        lines (list[str]): The module's lines, read for the heading.
 
     Returns:
         tuple[_Block, ...]: One entry per block that has statements.
@@ -487,12 +519,29 @@ def _blocks(
 
     return tuple(
         _Block(
-            frozenset(range(body[0].lineno - 1, (body[-1].end_lineno or 0) + 1)),
+            frozenset(range(_heading(body[0].lineno, lines), (body[-1].end_lineno or 0) + 1)),
             node.lineno,
             node.end_lineno or node.lineno,
         )
         for node, body in found if body
     )
+
+
+def _heading(first: int, lines: list[str]) -> int:
+
+    '''Return where a block starts, counting the line heading it.
+
+    Args:
+        first (int): The line its first statement starts on.
+        lines (list[str]): The module's lines.
+
+    Returns:
+        int: That line, or the one above where it heads the block alone.
+    '''
+
+    above = lines[first - 2].strip() if 1 < first <= len(lines) + 1 else ''
+
+    return first - 1 if above in ('finally:', 'else:', 'try:') else first
 
 
 def _handler_arms(node: ast.Try) -> list[tuple[set[int], set[int]]]:
@@ -658,9 +707,13 @@ def _after_the_branch(
         (found for scope in tried if (found := _innermost(scope, node.lineno))), 0,
     )
     after = set(range((node.end_lineno or node.lineno) + 1, stop + 1))
-    running = scopes.regardless + (
-        scopes.after_a_loop if kind == 'continue' else ()
-    )
+    running = scopes.regardless
+
+    if kind == 'continue':
+        running += scopes.after_a_loop
+
+    if kind == 'raise':
+        running += scopes.handlers
 
     return after - _still_runs(running, node.lineno)
 
@@ -717,7 +770,9 @@ def _how_it_leaves(statement: ast.stmt) -> str:
         statement (ast.stmt): The statement to read.
 
     An `if` whose arms leave by different ways is read as leaving by
-    none of them, since no one scope holds what it skips.
+    none of them, since no one scope holds what it skips. A `try`
+    leaves by its `finally` where that leaves, the `finally` running
+    after the rest and overriding it.
 
     Returns:
         str: `return`, `raise`, `continue`, `break`, or an empty string.
@@ -737,6 +792,13 @@ def _how_it_leaves(statement: ast.stmt) -> str:
         )
 
     if isinstance(statement, ast.Try) and statement.body:
+
+        if statement.finalbody:
+            settled = _how_it_leaves(statement.finalbody[-1])
+
+            if settled:
+                return settled
+
         return _one_way([path[-1] for path in _try_paths(statement)])
 
     return ''
@@ -764,7 +826,8 @@ def _always_leaves(statement: ast.stmt) -> bool:
 
     A return, raise, continue or break does. So does an `if` whose every
     arm does, and a `try` whose body, handlers and `else` all do, since
-    no path through either carries on.
+    no path through either carries on. A `try` whose `finally` leaves
+    does too, whatever the rest of it does, the `finally` running last.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -782,10 +845,11 @@ def _always_leaves(statement: ast.stmt) -> bool:
         )
 
     if isinstance(statement, ast.Try) and statement.body:
-        return all(
-            _always_leaves(path[-1])
-            for path in _try_paths(statement)
-        )
+
+        if statement.finalbody and _always_leaves(statement.finalbody[-1]):
+            return True
+
+        return all(_always_leaves(path[-1]) for path in _try_paths(statement))
 
     return False
 
@@ -1712,6 +1776,9 @@ def _what_a_citation_lands_on(
 
     '''Return what a citation lands on, where it is not executable code.
 
+    The whole range is read. A citation refused for its first lines and
+    kept for its last would depend on where the reading stopped.
+
     Args:
         start (int): The first line cited.
         end (int): The last line cited.
@@ -1723,7 +1790,7 @@ def _what_a_citation_lands_on(
         str | None: What it landed on, or None where it landed on code.
     '''
 
-    span = list(range(start, min(end, start + _MAX_SPAN) + 1))
+    span = list(range(start, end + 1))
     bare = facts.blanks | facts.comments | facts.docstrings | facts.signatures
     told = _claims_a_docstring(row)
 
@@ -2205,13 +2272,44 @@ def _uncited_claims(rows: list[str]) -> list[str]:
     ]
 
 
+@functools.cache
+def _edited_today() -> dict[Path, str]:
+
+    '''Return each wiki page holding an uncommitted edit, with today's date.
+
+    Returns:
+        dict[Path, str]: The page and the date its stamp must reach.
+    '''
+
+    if GIT is None:
+        return {}
+
+    result = subprocess.run(  # noqa: S603
+        [GIT, 'diff', '--name-only', 'HEAD', '--', str(WIKI)],
+        capture_output=True, text=True, check=False,
+    )
+
+    if result.returncode != 0:
+        return {}
+
+    today = datetime.now(tz=UTC).strftime('%Y-%m-%d')
+
+    return {
+        Path(name): today
+        for name in result.stdout.split()
+        if name.endswith('.md')
+    }
+
+
 def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
 
     '''Return what a page's timestamps get wrong.
 
     A stamp may run ahead of the last commit, the page having been edited
     and not yet committed. One running behind it is stale: the page
-    changed and its stamp did not.
+    changed and its stamp did not. A page carrying an edit that is not
+    yet committed is stale the same way, which is caught before the
+    commit rather than after it.
 
     Args:
         page (Path): The page being read.
@@ -2228,21 +2326,46 @@ def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
     if stamp is None:
         return [f'{rel}: missing or malformed UTC timestamps']
 
-    failures: list[str] = []
-    committed = _last_commit_date(page)
-
-    if committed is not None and stamp.group(2)[:len(committed)] < committed:
-        failures.append(
-            f'{rel}: last modified {stamp.group(2)} is older than its last '
-            f'commit, {committed}',
-        )
-
+    failures = _stale_stamp(rel, page, stamp.group(2))
     made = CREATED_RE.search(meta) if meta else None
 
     if made is not None and made.group(1) > stamp.group(2):
         failures.append(
             f'{rel}: created {made.group(1)} is after last modified '
             f'{stamp.group(2)}',
+        )
+
+    return failures
+
+
+def _stale_stamp(rel: str, page: Path, modified: str) -> list[str]:
+
+    '''Return where a page's own stamp is older than the page.
+
+    Args:
+        rel (str): The page's path, as it is written in a complaint.
+        page (Path): The page being read.
+        modified (str): The stamp it carries.
+
+    Returns:
+        list[str]: One complaint per way the stamp is behind.
+    '''
+
+    failures = []
+    committed = _last_commit_date(page)
+
+    if committed is not None and modified[:len(committed)] < committed:
+        failures.append(
+            f'{rel}: last modified {modified} is older than its last '
+            f'commit, {committed}',
+        )
+
+    today = _edited_today()
+
+    if page in today and modified[:10] < today[page]:
+        failures.append(
+            f'{rel}: last modified {modified} is older than the edit '
+            f'waiting to be committed',
         )
 
     return failures
@@ -2655,6 +2778,36 @@ def _nexus_ledger_rows(
     ]
 
 
+def _open_candidates(cited: dict[str, set[str]]) -> list[str]:
+
+    '''Check that no module carrying an open candidate reads as `full`.
+
+    The ledger reaches `full` only where nothing is left hanging over a
+    module. A finding whose disposition still calls it a candidate is
+    left hanging, so every file that finding cites stays short of `full`.
+
+    Args:
+        cited (dict[str, set[str]]): Which findings cite each file.
+
+    Returns:
+        list[str]: One failure per module `full` with a candidate on it.
+    '''
+
+    text = REGISTER.read_text(encoding='utf-8')
+    open_rows = {
+        row for row, _, disposition in FINDING_ROW_CELLS_RE.findall(text)
+        if 'candidate' in disposition.lower()
+    }
+    body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Praxis', '')
+
+    return [
+        f'{LEDGER}: `{name}` is `full` while {sorted(open_rows & cited.get(name, set()))} '
+        f'name it a candidate'
+        for name, state, _ in LEDGER_ROW_RE.findall(body)
+        if state == 'full' and open_rows & cited.get(name, set())
+    ]
+
+
 def _ledger_rows() -> list[str]:
 
     '''Check each Praxis ledger row against the rows that cite its file.
@@ -2672,7 +2825,8 @@ def _ledger_rows() -> list[str]:
     except BaselineReadError as error:
         return [f'{LEDGER}: {error}']
 
-    failures = _nexus_ledger_rows(cited, _finding_file_citations())
+    found = _finding_file_citations()
+    failures = _nexus_ledger_rows(cited, found) + _open_candidates(found)
     body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Praxis', '')
 
     for name, state, column in LEDGER_ROW_RE.findall(body):
@@ -2888,7 +3042,8 @@ def _index_coverage() -> list[str]:
     '''Check that the register, the index and the articles are one set.
 
     Every register row names an article that exists, every article is
-    listed in the index, and no two rows name the same article.
+    named by one row and listed in the index, no two rows name the same
+    article, and each article's own row is the row that names it.
 
     Returns:
         list[str]: One failure per article unaccounted for.
@@ -2896,6 +3051,7 @@ def _index_coverage() -> list[str]:
 
     written = {f'atoms/{page.name}' for page in (WIKI / 'atoms').glob('*.md')}
     named = REGISTER_ROW_RE.findall(REGISTER.read_text(encoding='utf-8'))
+    per_article = _rows_per_article(named)
     listed = set(ARTICLE_LINK_RE.findall(README.read_text(encoding='utf-8')))
     failures = [
         f'{REGISTER}: row {row} names {article}, which does not exist'
@@ -2903,16 +3059,52 @@ def _index_coverage() -> list[str]:
     ]
     failures += [
         f'{REGISTER}: {article} is named by rows {sorted(rows)}'
-        for article, rows in _rows_per_article(named).items() if len(rows) > 1
+        for article, rows in per_article.items() if len(rows) > 1
+    ]
+    failures += [
+        f'{REGISTER}: names no row for {article}'
+        for article in sorted(written - set(per_article))
     ]
     failures += [
         f'{README}: {article} is not listed' for article in sorted(written - listed)
     ]
-
-    return failures + [
+    failures += [
         f'{README}: lists {article}, which does not exist'
         for article in sorted(listed - written)
     ]
+
+    return failures + _owned_rows(per_article)
+
+
+def _owned_rows(per_article: dict[str, list[str]]) -> list[str]:
+
+    '''Check each article's own row against the row that names it.
+
+    Args:
+        per_article (dict[str, list[str]]): The rows naming each article.
+
+    Returns:
+        list[str]: One failure per article claiming another's row.
+    '''
+
+    failures = []
+
+    for article, rows in per_article.items():
+        page = WIKI / article
+
+        if len(rows) != 1 or not page.exists():
+            continue
+
+        meta, _ = _split_front_matter(page.read_text(encoding='utf-8'))
+        claimed = ROW_ID.search(meta)
+
+        if claimed is not None and claimed.group(0) != rows[0]:
+            failures.append(
+                f'{page}: carries row {claimed.group(0)}, '
+                f'while the register names it for {rows[0]}',
+            )
+
+    return failures
 
 
 def _rows_per_article(named: list[tuple[str, str]]) -> dict[str, list[str]]:
@@ -2940,8 +3132,11 @@ def _finding_citations(cache: _SourceFacts) -> list[str]:
 
     A finding names its file the way an article's evidence does, and
     what it cites is read the same way, a line given with no file
-    before it included. A figure a finding means as a figure is
-    written in words, so that every number left is a line.
+    before it included, a file named with no line of it cited, and a
+    finding naming no file at all — unless it says that what it asks
+    is not established, there being no line to point at for that. A
+    figure a finding means as a figure is written in words, so that
+    every number left is a line.
 
     Args:
         cache (_SourceFacts): Where each cited file is read once and kept.
@@ -2952,10 +3147,21 @@ def _finding_citations(cache: _SourceFacts) -> list[str]:
 
     text = REGISTER.read_text(encoding='utf-8')
 
-    return [
-        f'{REGISTER}: {row} {note}'
+    rows = [
+        (row, f'{claim.strip()} | {source.strip()}')
         for row, claim, source in FINDING_CELLS_RE.findall(text)
-        for note in _row_citations(f'{claim.strip()} | {source.strip()}', cache)
+    ]
+    failures = [
+        f'{REGISTER}: {row} {note}'
+        for row, whole in rows
+        for note in _row_citations(whole, cache) + _unlined_sources([whole])
+    ]
+
+    return failures + [
+        f'{REGISTER}: {row} cites nothing'
+        for row, whole in rows
+        if not _row_sources(whole.split(' | ', 1)[1])
+        and 'not established' not in whole.lower()
     ]
 
 

@@ -792,6 +792,47 @@ class TestTheIndex:
         )
         assert rows['atoms/one.md'] == ['P1-01', 'P1-02']
 
+    def test_an_article_no_row_names_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        (wiki / 'atoms').mkdir(parents=True)
+        (wiki / 'atoms' / 'one.md').write_text('# One', encoding='utf-8')
+        (wiki / 'register.md').write_text('# Register\n', encoding='utf-8')
+        (wiki / 'README.md').write_text(
+            '- [One](atoms/one.md)\n', encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        monkeypatch.setattr(check_wiki, 'REGISTER', wiki / 'register.md')
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+
+        assert check_wiki._index_coverage() == [
+            f'{wiki / "register.md"}: names no row for atoms/one.md',
+        ]
+
+    def test_an_article_claiming_another_row_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        (wiki / 'atoms').mkdir(parents=True)
+        (wiki / 'atoms' / 'one.md').write_text(
+            '---\nrow: P1-02\n---\n# One\n', encoding='utf-8',
+        )
+        (wiki / 'register.md').write_text(
+            '| P1-01 | One | written | [one.md](atoms/one.md) |\n', encoding='utf-8',
+        )
+        (wiki / 'README.md').write_text(
+            '- [One](atoms/one.md)\n', encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        monkeypatch.setattr(check_wiki, 'REGISTER', wiki / 'register.md')
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+
+        assert check_wiki._index_coverage() == [
+            f'{wiki / "atoms" / "one.md"}: carries row P1-02, '
+            'while the register names it for P1-01',
+        ]
+
     def test_an_unlisted_article_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -833,6 +874,12 @@ class TestTheFindings:
     @_NEEDS_BASELINE
     def test_every_finding_citation_holds(self) -> None:
         assert check_wiki._finding_citations(check_wiki._SourceFacts()) == []
+
+    @_NEEDS_BASELINE
+    def test_a_finding_naming_a_file_with_no_line_is_refused(self) -> None:
+        assert check_wiki._unlined_sources(['a finding | `missing.py`']) == [
+            'names `missing.py` and cites no line of it',
+        ]
 
     @_NEEDS_BASELINE
     def test_a_finding_citing_a_line_with_no_file_is_refused(self) -> None:
@@ -967,4 +1014,129 @@ class TestTryStatements:
         spans = self._spans(source, tmp_path, monkeypatch)
 
         assert not any(3 in second or 11 in second for _, second in spans)
+
+
+class TestTheStamps:
+
+    def test_an_uncommitted_edit_needs_todays_stamp(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = Path('docs/wiki/atoms/one.md')
+        monkeypatch.setattr(
+            check_wiki, '_edited_today', lambda: {page: '2026-10-09'},
+        )
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-04 11:43 UTC\n'
+        failures = check_wiki._check_stamps(page, meta, meta)
+
+        assert failures == [
+            f'{page.as_posix()}: last modified 2026-10-04 11:43 UTC is older '
+            'than the edit waiting to be committed',
+        ]
+
+    def test_a_stamp_from_today_passes(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = Path('docs/wiki/atoms/one.md')
+        monkeypatch.setattr(
+            check_wiki, '_edited_today', lambda: {page: '2026-10-09'},
+        )
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 06:56 UTC\n'
+
+        assert check_wiki._check_stamps(page, meta, meta) == []
+
+
+class TestTheFinallyClause:
+
+    @staticmethod
+    def _spans(
+        source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> list[tuple[set[int], set[int]]]:
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+
+        return spans
+
+    def test_a_finally_that_breaks_beats_a_return(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        if x:\n            act(x)\n"
+            "            try:\n                return 1\n            finally:\n"
+            "                break\n        go(x)\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert spans
+        assert not any(10 in second for _, second in spans)
+
+    def test_a_finally_that_returns_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        try:\n            act(x)\n"
+            "        finally:\n            return 1\n    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(7 in second for _, second in spans)
+
+    def test_a_raise_skips_the_trys_else(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            act(x)\n"
+            "            raise E('a')\n        more(x)\n    except E:\n"
+            "        recover()\n    else:\n        done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 10 in second for first, second in spans)
+        assert not any(8 in second for _, second in spans)
+
+    def test_a_same_line_finally_takes_no_line_above_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            act(x)\n"
+            "            return 1\n        go(x)\n    finally: close()\n    return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in second for _, second in spans)
+        assert not any(7 in second for _, second in spans)
+
+    def test_a_same_line_loop_else_takes_no_line_above_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        if x:\n            act(x)\n"
+            "            continue\n        go(x)\n    else: done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in second for _, second in spans)
+        assert not any(7 in second for _, second in spans)
+
+
+class TestOpenCandidates:
+
+    @_NEEDS_BASELINE
+    def test_no_full_module_carries_an_open_candidate(self) -> None:
+        assert check_wiki._open_candidates(
+            check_wiki._finding_file_citations(),
+        ) == []
+
+    @_NEEDS_BASELINE
+    def test_a_full_module_with_a_candidate_is_caught(self) -> None:
+        failures = check_wiki._open_candidates(
+            {'praxis/core/health_tracker.py': {'H-064'}},
+        )
+        assert failures == [
+            "docs/wiki/ledger.md: `praxis/core/health_tracker.py` is `full` "
+            "while ['H-064'] name it a candidate",
+        ]
 

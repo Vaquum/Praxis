@@ -44,7 +44,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/bracket_params.py` | uncovered | — |
 | `praxis/core/domain/iceberg_params.py` | full | P2-22 |
 | `praxis/core/plan_even_slices.py` | full | P2-19 |
-| `praxis/core/plan_weighted_slices.py` | full | P2-19, P4-08 |
+| `praxis/core/plan_weighted_slices.py` | partial | P2-19, P4-08 |
 | `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32, P2-35 to P2-37, P3-17, P4-06, P4-30 |
 | `praxis/infrastructure/book_cache.py` | full | P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | P2-13, P2-26 |
@@ -85,7 +85,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/execution_params.py` | full | P4-08, P4-09, P4-28 |
 | `praxis/core/domain/single_shot_params.py` | full | P4-08, P4-09, P4-28 |
 | `praxis/core/domain/interval_slice_params.py` | full | P2-19, P4-08 |
-| `praxis/core/domain/scheduled_vwap_params.py` | full | P2-19, P4-08, P4-35 |
+| `praxis/core/domain/scheduled_vwap_params.py` | partial | P2-19, P4-08, P4-35 |
 | `praxis/core/domain/trade_modify.py` | full | P4-09 |
 | `praxis/core/domain/single_shot_modify.py` | full | P4-09, P4-35 |
 | `praxis/core/domain/bracket_modify.py` | full | P4-09, P4-35 |
@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P4-14, P4-37 |
 | `praxis/arrow_price_store.py` | full | P3-04, P4-15, P4-38 |
 
-Every Praxis module is named here: 50 are `full`, 33 `partial` and 5 `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The five `uncovered` ones are modules the wiki has written around: a fill's own type, the bracket exit identifier, the scheme and bracket parameter types, and the replay report's own module each have their behaviour traced through a caller instead, so no row cites the file. Closing those is a later package, as is Nexus.
+Every Praxis module is named here: 48 are `full`, 35 `partial` and 5 `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The five `uncovered` ones are modules the wiki has written around: a fill's own type, the bracket exit identifier, the scheme and bracket parameter types, and the replay report's own module each have their behaviour traced through a caller instead, so no row cites the file. Closing those is a later package, as is Nexus.
 
 ## Nexus — 70 modules
 
@@ -129,4 +129,4 @@ The modules listed above are `partial` by citation rather than by tracing: a Pra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 17:04 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-09 07:31 UTC

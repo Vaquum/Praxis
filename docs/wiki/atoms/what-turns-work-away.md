@@ -2,7 +2,7 @@
 row: P2-24
 baseline: 49aa659
 created: 2026-09-24 21:11 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 07:31 UTC
 evidence:
   - claim: "Work is turned away while Praxis is shutting down"
     source: "`praxis/trading.py` 1878-1880"
