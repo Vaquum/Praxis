@@ -2,7 +2,7 @@
 row: P2-27
 baseline: 49aa659
 created: 2026-09-25 19:01 UTC
-modified: 2026-10-09 11:31 UTC
+modified: 2026-10-09 15:03 UTC
 evidence:
   - claim: "A market order is the only kind the likely-price check can turn back"
     source: "`execution_manager.py` 4064-4065"
@@ -23,7 +23,7 @@ evidence:
   - claim: "Only a resting limit order may have its price changed"
     source: "`execution_manager.py` 8680-8683"
   - claim: "A bracket's protective prices are changed by a different route"
-    source: "routed away at `execution_manager.py` 8616-8620, handled at 9428-9449 into 9453-9456"
+    source: "routed away at `execution_manager.py` 8616-8620, handled at 9428-9449 into 9453-9456, the replacement submitted at 9667-9671 or dropped at 9616-9624, or at 9630-9640"
 ---
 # Where the order type decides
 
@@ -41,7 +41,7 @@ A linked pair is asked about and cancelled through calls meant for pairs, where 
 
 ## The resting limit order
 
-A price change is refused for anything but a limit order still resting at the venue. That rule governs one path — a single order being amended. A request to change the protective prices attached to an opening order is sent elsewhere before the rule is reached, and changes them by cancelling the pair and putting up a new one.
+A price change is refused for anything but a limit order still resting at the venue. That rule governs one path — a single order being amended. A request to change the protective prices attached to an opening order is sent elsewhere before the rule is reached, and changes them by cancelling the pair and putting up a new one — unless what is left to protect is too small to trade, when nothing replaces it.
 
 ## Related
 

@@ -619,8 +619,20 @@ class TestProseWords:
 
 
 class TestLeadParagraph:
-    def test_a_lead_opening_with_this_is_refused(self) -> None:
+    def test_a_lead_that_is_about_its_subject_is_refused(self) -> None:
         assert check_wiki._check_voice('# Title\n\nThis is about orders.\n')
+
+    def test_a_lead_opening_with_this_is_refused(self) -> None:
+        notes = check_wiki._check_voice('# Title\n\nThis order is a send.\n')
+
+        assert any('does not open by defining' in note for note in notes)
+
+    def test_a_lead_saying_it_is_about_is_refused(self) -> None:
+        notes = check_wiki._check_voice(
+            '# Title\n\nAn order is about to be sent.\n',
+        )
+
+        assert any('does not open by defining' in note for note in notes)
 
     def test_a_lead_in_bold_is_refused(self) -> None:
         assert check_wiki._check_voice('# Title\n\n**An order** is a thing.\n')
@@ -1359,6 +1371,37 @@ class TestTheFinallyClause:
 
         assert any(7 in second for _, second in spans)
 
+    def test_a_raise_inside_a_with_reaches_nothing_past_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    with suppress(ValueError):\n        if flag:\n"
+            "            mark()\n            raise ValueError()\n\n    after()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_raise_with_no_with_around_it_still_pairs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n"
+            "        raise ValueError()\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 5 in second for first, second in spans)
+
+    def test_a_raise_in_a_nested_loop_leaves_the_block(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        try:\n            if flag:\n"
+            "                mark()\n                return\n        finally:\n"
+            "            for x in [1]:\n                raise ValueError()\n"
+            "    except ValueError:\n        handled()\n    after()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
     def test_a_raise_in_the_else_reaches_past_the_try(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1866,4 +1909,33 @@ class TestTheGateOverACopiedWiki:
             ['The warning says it | `execution_manager.py` 5526'],
             check_wiki._SourceFacts(),
         ) == []
+
+    def test_a_handler_name_rebinds_the_protocol(self) -> None:
+        source = (
+            'from typing import Protocol\n\n'
+            'try:\n    work()\nexcept Exception as Protocol:\n    pass\n\n'
+            'class Venue(Protocol):\n\n'
+            '    def submit(self) -> None:\n        ...\n'
+        )
+        rebound = check_wiki._rebound_names(ast.parse(source))
+
+        assert 'Protocol' in rebound
+
+    def test_a_with_target_rebinds_the_protocol(self) -> None:
+        source = (
+            'from typing import Protocol\n\n'
+            'with open("x") as Protocol:\n    pass\n\n'
+            'class Venue(Protocol):\n\n'
+            '    def submit(self) -> None:\n        ...\n'
+        )
+
+        assert 'Protocol' in check_wiki._rebound_names(ast.parse(source))
+
+    def test_an_async_with_target_rebinds_the_protocol(self) -> None:
+        source = (
+            'from typing import Protocol\n\n'
+            'async def f():\n    async with cm() as Protocol:\n        pass\n'
+        )
+
+        assert 'Protocol' in check_wiki._rebound_names(ast.parse(source))
 

@@ -402,6 +402,7 @@ class _Scopes:
         loops (dict[int, int]): Where each loop starts and ends.
         tries (dict[int, int]): Where each handled block starts, and where
             what a raise in its body skips ends.
+        helds (dict[int, int]): Where each `with` statement starts and ends.
         handlers (tuple[_Block, ...]): Every `except` body.
         settled (tuple[_Block, ...]): Every `try` statement's `else` body.
         overrides (tuple[tuple[_Block, str], ...]): Every `finally` that
@@ -414,6 +415,7 @@ class _Scopes:
     ends: dict[int, int]
     loops: dict[int, int]
     tries: dict[int, int]
+    helds: dict[int, int]
     handlers: tuple[_Block, ...]
     settled: tuple[_Block, ...]
     overrides: tuple[tuple[_Block, str], ...]
@@ -484,6 +486,11 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
         tries={
             node.lineno: _skipped_by_a_raise(node)
             for node in tries if node.handlers and node.body
+        },
+        helds={
+            node.lineno: node.end_lineno or node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.With, ast.AsyncWith))
         },
         handlers=_blocks(
             ((node, handler.body) for node in tries for handler in node.handlers),
@@ -810,47 +817,69 @@ def _can_leave(body: list[ast.stmt]) -> bool:
     '''
 
     return any(
-        isinstance(node, (ast.Return, ast.Raise, ast.Continue, ast.Break))
-        for statement in body
-        for node in _same_scope(statement)
+        _leaves_this_block(statement, within_loop=False) for statement in body
     )
 
 
-def _same_scope(statement: ast.stmt) -> list[ast.AST]:
+def _leaves_this_block(statement: ast.stmt, *, within_loop: bool) -> bool:
 
-    '''Return the nodes of a statement that leave by the same block.
+    '''Whether a statement can take the path out of the block holding it.
 
-    A nested function, a lambda, a class or a loop of its own carries
-    its own ways out, so none of those bodies is walked into.
+    A return or a raise leaves whatever holds it, a loop of the block's
+    own included. A continue or a break leaves only its own loop, so one
+    written inside a nested loop leaves that. A function, a lambda and a
+    class carry their own ways out and are not looked into.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+        within_loop (bool): Whether a loop of the block's own holds it.
+
+    Returns:
+        bool: True where the block can be left here.
+    '''
+
+    if isinstance(
+        statement,
+        (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef),
+    ):
+        return False
+
+    if isinstance(statement, (ast.Return, ast.Raise)):
+        return True
+
+    if isinstance(statement, (ast.Continue, ast.Break)):
+        return not within_loop
+
+    loops = isinstance(statement, (ast.For, ast.AsyncFor, ast.While))
+
+    return any(
+        _leaves_this_block(held, within_loop=within_loop or loops)
+        for block in _child_blocks(statement)
+        for held in block
+    )
+
+
+def _child_blocks(statement: ast.stmt) -> list[list[ast.stmt]]:
+
+    '''Return every statement list a statement holds.
 
     Args:
         statement (ast.stmt): The statement to read.
 
     Returns:
-        list[ast.AST]: The nodes in the statement's own scope.
+        list[list[ast.stmt]]: Its body, its `else`, its `finally` and
+            each handler's body, as it has them.
     '''
 
-    held = (
-        ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef,
-        ast.For, ast.AsyncFor, ast.While,
-    )
-    if isinstance(statement, held):
-        return []
+    blocks = [
+        getattr(statement, name, []) or []
+        for name in ('body', 'orelse', 'finalbody')
+    ]
+    blocks += [
+        handler.body for handler in getattr(statement, 'handlers', []) or []
+    ]
 
-    found: list[ast.AST] = [statement]
-    waiting: list[ast.AST] = [statement]
-
-    while waiting:
-
-        for child in ast.iter_child_nodes(waiting.pop()):
-
-            if isinstance(child, held):
-                continue
-
-            found.append(child)
-            waiting.append(child)
-
-    return found
+    return [block for block in blocks if isinstance(block, list)]
 
 
 def _one_leave(body: list[ast.stmt]) -> str:
@@ -923,7 +952,10 @@ def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
     A `try` outside the function the raise sits in catches the call,
     not the raise, so what runs after that call is no alternative to
     the branch and such a block is left out. So is the `try` whose own
-    handler or `else` the raise sits in, which has had its turn.
+    handler or `else` the raise sits in, which has had its turn. A
+    `with` around the raise bounds it too: its context manager may
+    swallow the raise, so nothing past the `with` can be called an
+    alternative to the branch.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
@@ -941,7 +973,12 @@ def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
         if line in block.lines
     }
 
-    return {
+    held = {
+        start: end for start, end in scopes.helds.items()
+        if start >= floor and start <= line <= end
+    }
+
+    return held | {
         start: end for start, end in scopes.tries.items()
         if start >= floor and start not in had_its_turn
     }
