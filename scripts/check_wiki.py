@@ -40,6 +40,10 @@ DOUBLE_NEGATIVE = re.compile(
     re.IGNORECASE,
 )
 APPARATUS = ('## Evidence', '| Claim | Source |')
+_HOLDERS = (
+    ast.If, ast.Try, ast.TryStar, ast.With, ast.AsyncWith,
+    ast.For, ast.AsyncFor, ast.While,
+)
 OWNED_TERMS = {
     'what-a-trade-is.md': ('trade name', 'request name'),
     'how-waiting-work-is-drained.md': ('account\'s worker',),
@@ -545,6 +549,49 @@ def _spans_of(
     }
 
 
+def _bare_comment(line: str) -> bool:
+
+    '''Whether a line holds nothing but a comment.
+
+    Args:
+        line (str): The line to read.
+
+    Returns:
+        bool: True where it is blank or starts with a `#`.
+    '''
+
+    stripped = line.strip()
+
+    return not stripped or stripped.startswith('#')
+
+
+def _without_a_comment(line: str) -> str:
+
+    '''Return a line's code, the comment on its end taken off.
+
+    A `#` inside a string is left alone, the line being cut only where
+    what precedes the `#` holds no unclosed quote.
+
+    Args:
+        line (str): The line to read.
+
+    Returns:
+        str: What is left, stripped.
+    '''
+
+    found = line.find('#')
+
+    while found != -1:
+        before = line[:found]
+
+        if before.count("'") % 2 == 0 and before.count('"') % 2 == 0:
+            return before.strip()
+
+        found = line.find('#', found + 1)
+
+    return line.strip()
+
+
 def _blocks(
     found: Iterable[tuple[ast.stmt, list[ast.stmt]]],
     lines: list[str],
@@ -585,16 +632,23 @@ def _heading(first: int, lines: list[str]) -> int:
         lines (list[str]): The module's lines.
 
     Returns:
-        int: That line, or the one above where it heads the block alone,
-            an `except` of its own among those headings.
+        int: That line, or the heading line above it where one heads
+            the block, an `except` of its own among those headings.
+            Comments between the two are passed over, and a comment
+            on the heading itself is read past.
     '''
 
-    above = lines[first - 2].strip() if 1 < first <= len(lines) + 1 else ''
+    number = first - 1
+
+    while number > 1 and _bare_comment(lines[number - 1]):
+        number -= 1
+
+    above = _without_a_comment(lines[number - 1]) if number >= 1 else ''
     heads = above in ('finally:', 'else:', 'try:') or (
         above.startswith(('except ', 'except:', 'except*')) and above.endswith(':')
     )
 
-    return first - 1 if heads else first
+    return number if heads else first
 
 
 def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]]:
@@ -603,7 +657,9 @@ def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]
 
     Two handlers cannot both run for one raise, and the `else` runs
     only where none of them did, so each pair of them is a pair of
-    arms.
+    arms. An `except*` is different: one exception group can carry
+    several kinds and run several of those handlers, so only the
+    `else` is an alternative to them.
 
     Args:
         node (ast.Try): The try statement to read.
@@ -618,6 +674,9 @@ def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]
         if h.body
     ]
     settled = _else_lines(node)
+
+    if isinstance(node, ast.TryStar):
+        return [(span, settled) for span in spans] if settled else []
 
     if settled:
         spans.append(settled)
@@ -1331,6 +1390,9 @@ def _statement_acts(statement: ast.stmt) -> bool:
 
     '''Whether one statement does something beyond leaving or naming.
 
+    A statement holding others acts where one of those does, so a
+    guard wrapped in a `try`, an `if` or a loop is still a guard.
+
     Args:
         statement (ast.stmt): The statement to read.
 
@@ -1347,8 +1409,8 @@ def _statement_acts(statement: ast.stmt) -> bool:
     if isinstance(statement, (ast.Assign, ast.AnnAssign)):
         return not _only_builds_a_message(statement)
 
-    if isinstance(statement, ast.If):
-        return _body_acts(statement.body) or _body_acts(statement.orelse)
+    if isinstance(statement, _HOLDERS):
+        return any(_body_acts(block) for block in _child_blocks(statement))
 
     return True
 

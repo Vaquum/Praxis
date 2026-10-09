@@ -102,6 +102,37 @@ class TestGuardsAndArms:
 
         return spans
 
+    def test_a_guard_wrapped_in_a_try_is_still_a_guard(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        try:\n"
+            "            raise Error('only a message')\n        finally:\n"
+            "            pass\n    after()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_guard_wrapped_in_a_with_is_still_a_guard(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        with lock:\n"
+            "            raise Error('only a message')\n    after()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_an_act_wrapped_in_a_try_is_still_an_arm(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        try:\n            act(x)\n"
+            "            raise Error('a')\n        finally:\n            pass\n"
+            "    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 8 in second for first, second in spans)
+
     def test_a_branch_acting_before_it_raises_is_an_arm(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1444,6 +1475,54 @@ class TestTheFinallyClause:
 
         assert reached == {6, 9, 10}
 
+    def test_sibling_except_star_handlers_are_no_arms(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        work()\n    except* ValueError:\n"
+            "        one()\n    except* TypeError:\n        two()\n    else:\n"
+            "        fine()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 7 in second for first, second in spans)
+        assert not any(7 in first and 5 in second for first, second in spans)
+        assert any(5 in first and 9 in second for first, second in spans)
+
+    def test_sibling_except_handlers_are_arms(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        work()\n    except ValueError:\n"
+            "        one()\n    except TypeError:\n        two()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 7 in second for first, second in spans)
+
+    def test_a_header_with_a_comment_belongs_to_its_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = self._CAUGHT_RAISE.replace('except E:', 'except E:  # the only kind')
+        spans = self._spans(source, tmp_path, monkeypatch)
+        reached = next(second for first, second in spans if 4 in first)
+
+        assert reached == {6, 9, 10}
+
+    def test_a_comment_above_a_handler_body_is_passed_over(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            mark(x)\n"
+            "            raise E('a')\n        more(x)\n    except E:\n"
+            "        # why\n        recover()\n    else:\n        fine()\n"
+            "    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+        reached = next(second for first, second in spans if 4 in first)
+
+        assert reached == {6, 10, 11}
+
     def test_an_except_star_handler_is_read_as_one(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1853,18 +1932,16 @@ class TestThePinnedTable:
 class TestThePageChecks:
 
     def test_prose_past_the_cap_is_refused(self) -> None:
-        body = '# One\n\n' + ' '.join(['word'] * (check_wiki.PROSE_WORD_CAP + 1))
+        body = '# One\n\n' + ' '.join(['word'] * 300)
         failures = check_wiki._check_length(body)
 
-        assert failures == [
-            f'{check_wiki.PROSE_WORD_CAP + 2} words of prose exceeds the '
-            f'{check_wiki.PROSE_WORD_CAP} cap; split it',
-        ]
+        assert failures == ['301 words of prose exceeds the 300 cap; split it']
 
     def test_prose_at_the_cap_passes(self) -> None:
-        body = ' '.join(['word'] * check_wiki.PROSE_WORD_CAP)
-
-        assert check_wiki._check_length(body) == []
+        assert check_wiki._check_length(' '.join(['word'] * 300)) == []
+        assert check_wiki._check_length(' '.join(['word'] * 301)) == [
+            '301 words of prose exceeds the 300 cap; split it',
+        ]
 
     def test_another_baseline_in_the_metadata_is_refused(self) -> None:
         meta = (
@@ -1874,6 +1951,24 @@ class TestThePageChecks:
         failures = check_wiki._check_metadata(meta, {'P1-01'})
 
         assert any('0000000' in failure for failure in failures)
+
+    def test_metadata_with_no_row_is_refused(self) -> None:
+        meta = (
+            f'baseline: {check_wiki.BASELINE}\n'
+            'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-01 09:00 UTC\n'
+        )
+        failures = check_wiki._check_metadata(meta, {'P1-01'})
+
+        assert any('row' in failure for failure in failures)
+
+    def test_metadata_with_no_baseline_is_refused(self) -> None:
+        meta = (
+            'row: P1-01\n'
+            'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-01 09:00 UTC\n'
+        )
+        failures = check_wiki._check_metadata(meta, {'P1-01'})
+
+        assert any('baseline' in failure for failure in failures)
 
     def test_an_unknown_row_in_the_metadata_is_refused(self) -> None:
         meta = (
@@ -1953,7 +2048,7 @@ class TestTheGateOverACopiedWiki:
         page = wiki / 'atoms' / 'what-a-fill-is.md'
         page.write_text(
             page.read_text(encoding='utf-8')
-            + '\n' + ' '.join(['word'] * check_wiki.PROSE_WORD_CAP) + '\n',
+            + '\n' + ' '.join(['word'] * 301) + '\n',
             encoding='utf-8',
         )
 
@@ -2059,4 +2154,15 @@ class TestEveryListedShape:
         ]
 
         assert refused == list(numbers)
+
+    def test_a_hash_inside_a_string_is_no_comment(self) -> None:
+        assert check_wiki._without_a_comment("    msg = 'a # b'") == "msg = 'a # b'"
+
+    def test_a_comment_after_a_string_is_cut(self) -> None:
+        assert check_wiki._without_a_comment("    msg = 'a'  # b") == "msg = 'a'"
+
+    def test_a_bare_comment_is_one(self) -> None:
+        assert check_wiki._bare_comment('   # why')
+        assert check_wiki._bare_comment('')
+        assert not check_wiki._bare_comment('    work()')
 
