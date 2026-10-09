@@ -2,7 +2,7 @@
 row: P4-20
 baseline: 49aa659
 created: 2026-10-01 10:18 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 11:31 UTC
 evidence:
   - claim: "A key that can withdraw, or cannot trade spot, raises"
     source: "`launcher.py` 3101-3112"
@@ -16,8 +16,8 @@ evidence:
     source: "`launcher.py` 3303-3305 through 3270-3274, escaping 2831 before 2840"
   - claim: "Trading raising while it starts does the same, having first undone what it part-started"
     source: "`trading.py` 511-528, escaping `launcher.py` 3043 before 2840"
-  - claim: "Trading merely taking too long gives up the wait while the start runs on"
-    source: "`launcher.py` 3042-3043"
+  - claim: "Trading merely taking too long carries the failure out with nothing undone, the wait not even cancelled"
+    source: "`launcher.py` 3043 with nothing catching it, out through 2828 before 2840, ending at 5004-5008, against the wait that is cancelled at 3075-3079"
   - claim: "An account's thread catches everything from building to shutting down, and sets the stop flag"
     source: "`launcher.py` 4034-4040 over the span opened at 3991"
   - claim: "That flag is what every other account is waiting on"
@@ -49,7 +49,7 @@ That flag is what every other account is waiting on, so one failing asks the res
 
 Trading raising while it starts, and a port that cannot be taken, both carry the failure out past the point where the host would shut itself down. Trading undoes what it part-started first; the endpoint undoes nothing, leaving trading running and the loop thread alive as the process unwinds.
 
-Trading merely taking too long is a third case: the thirty-second wait is given up while the start runs on.
+Trading merely taking too long is a third case, and the bleakest: nothing catches the wait running out, so the failure carries out as before, but trading undoes nothing — the wait is not even cancelled, so what it was waiting on can still be taken up as the process unwinds.
 
 ## A sampler or a poller
 

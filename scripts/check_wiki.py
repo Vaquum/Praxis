@@ -799,6 +799,9 @@ def _can_leave(body: list[ast.stmt]) -> bool:
 
     '''Whether any path through a block can take the path out.
 
+    A way out written inside a function or a loop of the block's own
+    leaves that, not the block, and is passed over.
+
     Args:
         body (list[ast.stmt]): The block's statements.
 
@@ -809,8 +812,45 @@ def _can_leave(body: list[ast.stmt]) -> bool:
     return any(
         isinstance(node, (ast.Return, ast.Raise, ast.Continue, ast.Break))
         for statement in body
-        for node in ast.walk(statement)
+        for node in _same_scope(statement)
     )
+
+
+def _same_scope(statement: ast.stmt) -> list[ast.AST]:
+
+    '''Return the nodes of a statement that leave by the same block.
+
+    A nested function, a lambda, a class or a loop of its own carries
+    its own ways out, so none of those bodies is walked into.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        list[ast.AST]: The nodes in the statement's own scope.
+    '''
+
+    held = (
+        ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef,
+        ast.For, ast.AsyncFor, ast.While,
+    )
+    if isinstance(statement, held):
+        return []
+
+    found: list[ast.AST] = [statement]
+    waiting: list[ast.AST] = [statement]
+
+    while waiting:
+
+        for child in ast.iter_child_nodes(waiting.pop()):
+
+            if isinstance(child, held):
+                continue
+
+            found.append(child)
+            waiting.append(child)
+
+    return found
 
 
 def _one_leave(body: list[ast.stmt]) -> str:
@@ -971,10 +1011,42 @@ def _how_it_leaves(statement: ast.stmt) -> str:
     `finally` can leave leaves by that, the `finally` running after the
     rest and overriding it — and by nothing nameable where the
     `finally` leaves on some paths only. A `match` taking every value
-    leaves by the way its cases agree on.
+    leaves by the way its cases agree on, and a `with` by the way its
+    body does, save for a raise its context manager could swallow.
 
     Returns:
         str: `return`, `raise`, `continue`, `break`, or an empty string.
+    '''
+
+    plain = _plainly_leaves(statement)
+
+    if plain:
+        return plain
+
+    if isinstance(statement, ast.If) and statement.orelse:
+        return _one_way([statement.body[-1], statement.orelse[-1]])
+
+    if isinstance(statement, ast.Try) and statement.body:
+        return _try_leave(statement)
+
+    if isinstance(statement, ast.Match) and _covers_everything(statement):
+        return _one_way([case.body[-1] for case in statement.cases if case.body])
+
+    if isinstance(statement, (ast.With, ast.AsyncWith)) and statement.body:
+        return _held_leave(statement.body[-1])
+
+    return ''
+
+
+def _plainly_leaves(statement: ast.stmt) -> str:
+
+    '''Return the way a statement leaves, where it is one itself.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        str: That way, or an empty string for anything else.
     '''
 
     for kind, node_type in (
@@ -985,22 +1057,43 @@ def _how_it_leaves(statement: ast.stmt) -> str:
         if isinstance(statement, node_type):
             return kind
 
-    if isinstance(statement, ast.If) and statement.orelse:
-        return _one_way(
-            [statement.body[-1], statement.orelse[-1]],
-        )
-
-    if isinstance(statement, ast.Try) and statement.body:
-
-        if statement.finalbody and _can_leave(statement.finalbody):
-            return _one_leave(statement.finalbody)
-
-        return _one_way([path[-1] for path in _try_paths(statement)])
-
-    if isinstance(statement, ast.Match) and _covers_everything(statement):
-        return _one_way([case.body[-1] for case in statement.cases if case.body])
-
     return ''
+
+
+def _try_leave(statement: ast.Try) -> str:
+
+    '''Return the way a `try` statement leaves the path.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        str: That way, or an empty string.
+    '''
+
+    if statement.finalbody and _can_leave(statement.finalbody):
+        return _one_leave(statement.finalbody)
+
+    return _one_way([path[-1] for path in _try_paths(statement)])
+
+
+def _held_leave(statement: ast.stmt) -> str:
+
+    '''Return how a `with` body's last statement takes the path out.
+
+    A raise is not counted: a context manager can swallow one, so what
+    follows the `with` may run after all.
+
+    Args:
+        statement (ast.stmt): The last statement of the body.
+
+    Returns:
+        str: That way, or an empty string.
+    '''
+
+    held = _how_it_leaves(statement)
+
+    return held if held in {'return', 'continue', 'break'} else ''
 
 
 def _covers_everything(node: ast.Match) -> bool:
@@ -1053,7 +1146,9 @@ def _always_leaves(statement: ast.stmt) -> bool:
     arm does, and a `try` whose body, handlers and `else` all do, since
     no path through either carries on. A `try` whose `finally` leaves
     does too, whatever the rest of it does, the `finally` running last.
-    So does a `match` that takes every value and leaves on each case.
+    So does a `match` that takes every value and leaves on each case,
+    and a `with` whose body returns, continues or breaks — not one
+    whose body raises, a context manager being able to swallow that.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -1062,7 +1157,7 @@ def _always_leaves(statement: ast.stmt) -> bool:
         bool: True where nothing after it runs.
     '''
 
-    if isinstance(statement, (ast.Return, ast.Raise, ast.Continue, ast.Break)):
+    if _plainly_leaves(statement):
         return True
 
     if isinstance(statement, ast.If) and statement.orelse:
@@ -1071,18 +1166,34 @@ def _always_leaves(statement: ast.stmt) -> bool:
         )
 
     if isinstance(statement, ast.Try) and statement.body:
-
-        if statement.finalbody and _always_leaves(statement.finalbody[-1]):
-            return True
-
-        return all(_always_leaves(path[-1]) for path in _try_paths(statement))
+        return _try_always_leaves(statement)
 
     if isinstance(statement, ast.Match) and _covers_everything(statement):
         return all(
             case.body and _always_leaves(case.body[-1]) for case in statement.cases
         )
 
+    if isinstance(statement, (ast.With, ast.AsyncWith)) and statement.body:
+        return bool(_held_leave(statement.body[-1]))
+
     return False
+
+
+def _try_always_leaves(statement: ast.Try) -> bool:
+
+    '''Whether every path through a `try` statement leaves.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        bool: True where nothing after it runs.
+    '''
+
+    if statement.finalbody and _always_leaves(statement.finalbody[-1]):
+        return True
+
+    return all(_always_leaves(path[-1]) for path in _try_paths(statement))
 
 
 def _try_paths(node: ast.Try) -> list[list[ast.stmt]]:
@@ -1699,7 +1810,10 @@ def _claims_a_docstring(row: str) -> bool:
 
 def _log_lines(path: Path) -> set[int]:
 
-    '''Return the lines of a file that open a logging call.
+    '''Return every line a logging call covers.
+
+    A call spread over several lines is logging on all of them, so the
+    message it is built from cannot be cited as the thing happening.
 
     Args:
         path (Path): The file to read, at its pinned commit.
@@ -1708,18 +1822,37 @@ def _log_lines(path: Path) -> set[int]:
         set[int]: Those line numbers.
     '''
 
+    try:
+        tree = ast.parse(_source_text(path))
+    except (OSError, SyntaxError):
+        return set()
+
     lines: set[int] = set()
 
-    try:
-        source = _source_text(path).splitlines()
-    except OSError:
-        return lines
+    for node in ast.walk(tree):
 
-    for number, line in enumerate(source, 1):
-        if line.strip().startswith('_log.'):
-            lines.add(number)
+        if isinstance(node, ast.Call) and _is_a_log_call(node):
+            lines |= set(range(node.lineno, (node.end_lineno or node.lineno) + 1))
 
     return lines
+
+
+def _is_a_log_call(node: ast.Call) -> bool:
+
+    '''Whether a call is made on the module's logger.
+
+    Args:
+        node (ast.Call): The call to read.
+
+    Returns:
+        bool: True where it calls a method on `_log`.
+    '''
+
+    return (
+        isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == '_log'
+    )
 
 
 @dataclass(frozen=True)

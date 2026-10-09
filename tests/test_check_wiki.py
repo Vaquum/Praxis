@@ -226,6 +226,22 @@ class TestImpossibleLines:
         )
         assert notes == ['42 (cited with no file named before it)']
 
+    def test_each_shape_of_negative_definition_is_refused(self) -> None:
+        shapes = (
+            'A name, not an object.',
+            'A request, not a command.',
+            'The worker, not the queue.',
+            'Asked for, not yet placed.',
+            'Recorded, not by the venue.',
+            'A copy, not its original.',
+            'A pair, not one order.',
+        )
+        caught = [
+            shape for shape in shapes if check_wiki._negative_definitions(shape)
+        ]
+
+        assert caught == list(shapes)
+
     def test_a_blank_line_is_refused(self) -> None:
         notes = check_wiki._docstring_citations(
             '|a claim | `order.py` 16|', check_wiki._SourceFacts(),
@@ -1368,6 +1384,28 @@ class TestTheFinallyClause:
         assert any(4 in first and 10 in second for first, second in spans)
         assert not any(8 in second for _, second in spans)
 
+    def test_a_nested_function_in_a_finally_is_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            return 1\n        work()\n"
+            "    finally:\n        def unused():\n            return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 5 in second for first, second in spans)
+
+    def test_a_loop_in_a_finally_is_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            return 1\n        work()\n"
+            "    finally:\n        for item in [1]:\n            break\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 5 in second for first, second in spans)
+
     def test_a_one_sided_finally_inside_a_branch_reaches_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1534,6 +1572,25 @@ class TestMatchStatements:
         spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
 
         return spans
+
+    def test_a_with_that_returns_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        with lock:\n            return 1\n    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 5 in second for first, second in spans)
+
+    def test_a_with_that_raises_does_not(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        with suppress(E):\n"
+            "            raise E('a')\n    go(x)\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
 
     def test_a_match_that_returns_on_every_case_leaves(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -1793,4 +1850,20 @@ class TestTheGateOverACopiedWiki:
         )
 
         assert check_wiki.main() == 1
+
+    @_NEEDS_BASELINE
+    def test_a_line_inside_a_log_call_is_a_log_line(self) -> None:
+        failures = check_wiki._check_citations(
+            ['An order is recorded as refused | `execution_manager.py` 5526'],
+            check_wiki._SourceFacts(),
+        )
+
+        assert any('log call' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_claim_about_the_message_may_cite_it(self) -> None:
+        assert check_wiki._check_citations(
+            ['The warning says it | `execution_manager.py` 5526'],
+            check_wiki._SourceFacts(),
+        ) == []
 

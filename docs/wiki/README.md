@@ -9,7 +9,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [What a venue must be able to do](atoms/what-a-venue-must-be-able-to-do.md) — the operations a venue must declare, named in one place; naming them makes none of them work.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to: one per host, called by name, so a live exchange and a simulator run the same code.
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for trades Praxis did not hear about, after the feed was away or at a start.
-- [Holding back sends](atoms/holding-back-sends.md) — a store of permits that refills steadily, which every call to the exchange takes one of.
+- [Holding back sends](atoms/holding-back-sends.md) — a store of permits that refills steadily, which most calls to the exchange take one of; asking the time takes none.
 - [Health](atoms/health.md) — what Praxis records about the venue answering, and who can halt an account on it.
 - [Asking for a replay from outside](atoms/asking-for-a-replay-from-outside.md) — the request that starts a run, and everything it is held to before one begins.
 - [What a replay run reports back](atoms/what-a-replay-run-reports-back.md) — a run asked for over HTTP is answered with a name, and what it came to is told when that name is asked after.
@@ -85,9 +85,9 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Part-shown orders](atoms/part-shown-orders.md) — one resting order the venue displays only part of at a time.
 - [Protection](atoms/protection.md) — a pair of orders put up after an opening order, to close the position at either a good price or a bad one.
 - [When protection is put up again](atoms/when-protection-is-put-up-again.md) — protection is put up once, guarded by a flag that turns a second attempt back.
-- [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, all sent at once.
+- [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, an order each, sent one after another in one pass.
 - [The account worker](atoms/how-waiting-work-is-drained.md) — each account has one worker going round the same circuit until it is stopped, taking work off a queue.
-- [The priority line](atoms/the-priority-line.md) — cancellations and changes wait in a line of their own, emptied on every circuit before anything waiting to be placed.
+- [The priority line](atoms/the-priority-line.md) — cancellations and changes wait in a line of their own, emptied on each circuit once the account has started, before anything waiting to be placed.
 - [Work already under way](atoms/work-already-under-way.md) — the work the loop moves along between taking one request and the next.
 
 ## Changing and stopping
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 09:56 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 11:31 UTC

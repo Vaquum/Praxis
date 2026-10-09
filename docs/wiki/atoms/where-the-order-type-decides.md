@@ -2,7 +2,7 @@
 row: P2-27
 baseline: 49aa659
 created: 2026-09-25 19:01 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 11:31 UTC
 evidence:
   - claim: "A market order is the only kind the likely-price check can turn back"
     source: "`execution_manager.py` 4064-4065"
@@ -23,7 +23,7 @@ evidence:
   - claim: "Only a resting limit order may have its price changed"
     source: "`execution_manager.py` 8680-8683"
   - claim: "A bracket's protective prices are changed by a different route"
-    source: "routed away at `execution_manager.py` 8616-8620, handled at 9422-9500"
+    source: "routed away at `execution_manager.py` 8616-8620, handled at 9428-9449 into 9453-9456"
 ---
 # Where the order type decides
 
