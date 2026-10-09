@@ -10,6 +10,12 @@ evidence:
     source: "`launcher.py` 4534-4539, reached from 1814-1816"
   - claim: "Being finished with is judged on those reports' own names"
     source: "`launcher.py` 1735-1736 gathering them, applied at 1773-1776"
+  - claim: "Praxis's own sending and that receiver are called as one, and a failed attempt calls the pair again"
+    source: "the pair at `launcher.py` 3001-3003, set at 3005, called under the attempts at `execution_manager.py` 760-794"
+  - claim: "The confirming record is written where the handing on succeeded and the change was stored, by the worker that takes the queue"
+    source: "`launcher.py` 4464-4465, the queue fed at 2992"
+  - claim: "A startup's replay calls that same handing on, and nothing else"
+    source: "`launcher.py` 4533-4539"
 ---
 # Who a restart tells again
 
@@ -19,13 +25,15 @@ That order decides what a startup can put right.
 
 ## What is sent again
 
-The reports Praxis sends itself are the ones a startup sends again. Each carries a name, those names are what [the records](how-an-undelivered-outcome-is-replayed.md) mark as finished with, and anything unmarked goes back on the list — including a report the receiver did take, where the confirming record never landed.
+The reports Praxis sends itself are the ones a startup sends again. Each carries a name, those names are what [the records](how-an-undelivered-outcome-is-replayed.md) mark as finished with, and anything unmarked goes back on the list — including a report the handing on did take, where the confirming record never landed.
 
 ## What is not
 
-The second receiver is never sent anything twice. A startup hands each report not yet accounted for to Praxis's own sending, and to that alone.
+A startup hands each report not yet accounted for to Praxis's own sending, and to that alone, so nothing a startup sends again reaches the second receiver.
 
-So the two can come apart. Praxis's own reports may be through and marked finished while the second receiver's attempts run out, because its turn comes last. The records then show the outcome produced and its reports received, with the second receiver never having held it.
+Within one run it can be sent the same outcome more than once. Praxis's own sending and that receiver are called as one, and a failed attempt calls the pair again, so a receiver that acts before it fails acts twice.
+
+So the two can come apart. The confirming record is written by the worker that takes Praxis's own queue, where the handing on succeeded and the change was stored; the second receiver is not consulted for it. Its attempts can all run out while the records show the outcome produced and its reports received, with that receiver never having held it.
 
 Nothing puts that right afterwards. A host that supplies its own receiver and needs delivery to it guaranteed has to guarantee that itself.
 

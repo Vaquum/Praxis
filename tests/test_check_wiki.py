@@ -12,7 +12,7 @@ import ast
 import importlib.util
 import sys
 from pathlib import Path
-from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -24,11 +24,12 @@ _STUB = '''    def m(
 '''
 
 
-def _load() -> ModuleType:
+def _load() -> Any:
+
     '''Load the gate as a module, it being a script rather than a package.
 
     Returns:
-        ModuleType: The loaded `check_wiki` module.
+        Any: The loaded `check_wiki` module.
     '''
 
     spec = importlib.util.spec_from_file_location('check_wiki', _SCRIPT)
@@ -45,6 +46,7 @@ check_wiki = _load()
 
 
 def _baseline_is_reachable() -> bool:
+
     '''Whether the commit every citation is resolved against is fetched.
 
     Returns:
@@ -84,12 +86,15 @@ class TestLineReferences:
 
 class TestGuardsAndArms:
     @staticmethod
-    def _spans(source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list:
+    def _spans(
+        source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> list[tuple[set[int], set[int]]]:
         path = tmp_path / 'sample.py'
         path.write_text(source)
         monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
 
-        return check_wiki._exclusive_spans(path)
+        return spans
 
     def test_a_branch_acting_before_it_raises_is_an_arm(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -187,7 +192,7 @@ class TestGuardsAndArms:
             "            reject(x)\n            raise KeyError('b')\n    submit(x)\n"
         )
         spans = self._spans(source, tmp_path, monkeypatch)
-        assert any(2 in first and 9 in second for first, second in spans)
+        assert any(3 in first and 9 in second for first, second in spans)
 
     def test_a_continue_reaches_only_to_the_end_of_its_loop(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -219,7 +224,25 @@ class TestImpossibleLines:
         notes = check_wiki._docstring_citations(
             '|a claim | `order.py` 16|', check_wiki._SourceFacts(),
         )
-        assert notes == ['order.py:16 (blank line)']
+        assert notes == ['order.py:16 (no executable line)']
+
+    def test_a_span_of_blank_and_signature_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `order.py` 85-87|', check_wiki._SourceFacts(),
+        )
+        assert notes == ['order.py:85-87 (no executable line)']
+
+    def test_a_comment_only_line_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `execution_manager.py` 765|', check_wiki._SourceFacts(),
+        )
+        assert notes == ['execution_manager:765 (no executable line)']
+
+    def test_a_name_inside_a_longer_name_is_not_an_alias(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `missing_execution_manager.py` 205|', check_wiki._SourceFacts(),
+        )
+        assert notes == ['missing_execution_manager.py:205 (unresolved source file)']
 
     def test_a_line_past_the_end_is_refused(self) -> None:
         notes = check_wiki._docstring_citations(
@@ -251,6 +274,15 @@ class TestUncitedClaims:
     @_NEEDS_BASELINE
     def test_an_absence_claim_still_needs_the_file_to_exist(self) -> None:
         row = 'a claim | `order.py` 30, with nothing further in `nonesuch.py`'
+        assert check_wiki._unlined_sources([row])
+
+    @_NEEDS_BASELINE
+    def test_a_path_that_is_not_in_the_tree_is_refused(self) -> None:
+        row = 'a claim | `order.py` 18, nothing further in `not/a/real/order.py`'
+        assert check_wiki._unlined_sources([row])
+
+    def test_an_absence_phrase_does_not_reach_a_later_file(self) -> None:
+        row = 'a claim | nothing further in `order.py` 30, `fill.py`'
         assert check_wiki._unlined_sources([row])
 
     def test_every_named_file_carrying_a_line_passes(self) -> None:
@@ -371,12 +403,15 @@ class TestProtocolExemption:
 
 class TestExclusiveBranches:
     @staticmethod
-    def _spans(source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list:
+    def _spans(
+        source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> list[tuple[set[int], set[int]]]:
         path = tmp_path / 'sample.py'
         path.write_text(source)
         monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
 
-        return check_wiki._exclusive_spans(path)
+        return spans
 
     def test_an_if_else_makes_two_arms(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -389,6 +424,99 @@ class TestExclusiveBranches:
     ) -> None:
         source = 'def f(x):\n    if x:\n        return 1\n    a = 2\n    return a\n'
         assert self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_finally_body_is_no_alternative(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            act(x)\n"
+            "            return 1\n        go(x)\n    finally:\n"
+            "        close()\n    return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert spans
+        assert not any(8 in second or 7 in second for _, second in spans)
+
+    def test_a_branch_inside_a_finally_still_pairs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        go()\n    finally:\n        if x:\n"
+            "            act(x)\n            return 1\n        submit()\n    return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in first and 8 in second for first, second in spans)
+
+    def test_an_inner_loops_else_is_skipped_by_an_outer_continue(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs, ys):\n    for x in xs:\n        if x:\n            act(x)\n"
+            "            continue\n        for y in ys:\n            go(y)\n"
+            "        else:\n            done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(9 in second for _, second in spans)
+
+    def test_a_loop_else_survives_a_continue(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        if x:\n            act(x)\n"
+            "            continue\n        go(x)\n    else:\n        done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert spans
+        assert not any(8 in second for _, second in spans)
+
+    def test_a_loop_else_does_not_survive_a_break(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        if x:\n            act(x)\n"
+            "            break\n        go(x)\n    else:\n        done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(8 in second for _, second in spans)
+
+    def test_arms_leaving_different_ways_pair_with_nothing_after(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            if y:\n"
+            "                return 1\n            else:\n"
+            "                raise E('a')\n        go(x)\n    except E:\n"
+            "        recover()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 10 in second for first, second in spans)
+
+    def test_a_raise_outside_any_handler_reaches_the_function(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        g()\n    except KeyError:\n        pass\n"
+            "\n\ndef h(x):\n    if x:\n        reject(x)\n"
+            "        raise ValueError('a')\n    accept(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(10 in first and 12 in second for first, second in spans)
+
+    def test_the_condition_is_in_neither_arm(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = 'def f(x):\n    if x:\n        return 1\n    a = 2\n    return a\n'
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert spans
+        assert not any(2 in first or 2 in second for first, second in spans)
 
     def test_a_guard_that_raises_does_not(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -532,10 +660,311 @@ class TestLedgerCoverage:
 
 
 @_NEEDS_BASELINE
-@pytest.mark.skipif(
-    not (check_wiki.NEXUS_ROOT / '.git').exists(),
-    reason='the gate resolves citations in both repositories, and Nexus is absent',
-)
 class TestTheWikiItself:
     def test_the_gate_passes(self) -> None:
         assert check_wiki.main() == 0
+
+    def test_the_gate_passes_without_the_nexus_checkout(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'NEXUS_ROOT', tmp_path / 'absent')
+
+        assert check_wiki.main() == 0
+
+    def test_a_nexus_citation_is_unchecked_without_that_checkout(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'NEXUS_ROOT', tmp_path / 'absent')
+        notes = check_wiki._docstring_citations(
+            '|a claim | `outcome_processor.py` 999999|', check_wiki._SourceFacts(),
+        )
+
+        assert notes == []
+
+
+class TestTheLedgerRows:
+
+    def test_a_span_expands(self) -> None:
+        assert check_wiki._ledger_listed('P4-01, P4-03 to P4-05') == {
+            'P4-01', 'P4-03', 'P4-04', 'P4-05',
+        }
+
+    def test_a_phrase_names_no_row(self) -> None:
+        assert check_wiki._ledger_listed('cited, not traced') == set()
+
+    def test_a_dash_names_no_row(self) -> None:
+        assert check_wiki._ledger_listed('—') == set()
+
+    @_NEEDS_BASELINE
+    def test_the_ledger_agrees_with_the_articles(self) -> None:
+        assert check_wiki._ledger_rows() == []
+
+
+class TestTheCountedStates:
+
+    @_NEEDS_BASELINE
+    def test_the_counts_written_down_hold(self) -> None:
+        assert check_wiki._counted_states() == []
+
+    def test_a_drifted_article_count_is_caught(self, tmp_path: Path) -> None:
+        page = tmp_path / 'README.md'
+        page.write_text('108 articles are written.', encoding='utf-8')
+        kept = check_wiki.README
+        check_wiki.README = page
+
+        try:
+            failures = check_wiki._counted_states()
+        finally:
+            check_wiki.README = kept
+
+        assert any('108 articles' in f for f in failures)
+
+    def test_a_drifted_nexus_count_is_caught(self, tmp_path: Path) -> None:
+        page = tmp_path / 'README.md'
+        page.write_text('13 are cited in passing.', encoding='utf-8')
+        kept = check_wiki.README
+        check_wiki.README = page
+
+        try:
+            failures = check_wiki._counted_states()
+        finally:
+            check_wiki.README = kept
+
+        assert any('13 are cited in passing' in f for f in failures)
+
+    def test_one_file_under_two_names_is_still_one_file(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `validate_trade_command.py` 137 and '
+            '`praxis/core/validate_trade_command.py` 139|',
+            check_wiki._SourceFacts(),
+        )
+        assert notes == [
+            'validate_trade_command.py:137 and 139 are mutually exclusive branches',
+        ]
+
+
+class TestTheLatestRelease:
+
+    @_NEEDS_BASELINE
+    def test_the_newest_entry_agrees_with_the_wiki(self) -> None:
+        assert check_wiki._latest_release_counts() == []
+
+    def test_a_drifted_claim_count_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        log = tmp_path / 'CHANGELOG.md'
+        log.write_text(
+            '## v1.0.0 on 1st of January, 2026\n\n'
+            '- Add 1 line references across 1 claims\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'CHANGELOG', log)
+        failures = check_wiki._latest_release_counts()
+
+        assert any('1 line references across 1 claims' in f for f in failures)
+
+    def test_an_older_entry_is_left_alone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        references, claims = check_wiki._evidence_totals()
+        log = tmp_path / 'CHANGELOG.md'
+        log.write_text(
+            '## v0.9.0 on 1st of January, 2026\n\n'
+            '- Add 1 line references across 1 claims\n\n'
+            '## v1.0.0 on 2nd of January, 2026\n\n'
+            f'- Add {references:,} line references across {claims:,} claims\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'CHANGELOG', log)
+
+        assert check_wiki._latest_release_counts() == []
+
+
+class TestTheIndex:
+
+    @_NEEDS_BASELINE
+    def test_the_register_the_index_and_the_articles_are_one_set(self) -> None:
+        assert check_wiki._index_coverage() == []
+
+    def test_an_article_named_by_two_rows_is_caught(self) -> None:
+        rows = check_wiki._rows_per_article(
+            [('P1-01', 'atoms/one.md'), ('P1-02', 'atoms/one.md')],
+        )
+        assert rows['atoms/one.md'] == ['P1-01', 'P1-02']
+
+    def test_an_unlisted_article_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        (wiki / 'atoms').mkdir(parents=True)
+        (wiki / 'atoms' / 'one.md').write_text('# One', encoding='utf-8')
+        (wiki / 'register.md').write_text(
+            '| P1-01 | One | written | [one.md](atoms/one.md) |\n', encoding='utf-8',
+        )
+        (wiki / 'README.md').write_text('# Index\n', encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        monkeypatch.setattr(check_wiki, 'REGISTER', wiki / 'register.md')
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+
+        assert check_wiki._index_coverage() == [
+            f'{wiki / "README.md"}: atoms/one.md is not listed',
+        ]
+
+    @_NEEDS_BASELINE
+    def test_a_drifted_line_count_is_caught(self, tmp_path: Path) -> None:
+        page = tmp_path / 'ledger.md'
+        failures = check_wiki._counted_lines(
+            page, '`execution_manager.py`, at 10,900 lines',
+        )
+
+        assert failures == [
+            f'{page}: "`execution_manager.py`, at 10,900 lines" against 10,899',
+        ]
+
+    @_NEEDS_BASELINE
+    def test_a_true_line_count_passes(self, tmp_path: Path) -> None:
+        assert check_wiki._counted_lines(
+            tmp_path / 'ledger.md', '`execution_manager.py`, at 10,899 lines',
+        ) == []
+
+
+class TestTheFindings:
+
+    @_NEEDS_BASELINE
+    def test_every_finding_citation_holds(self) -> None:
+        assert check_wiki._finding_citations(check_wiki._SourceFacts()) == []
+
+    @_NEEDS_BASELINE
+    def test_a_finding_citing_a_line_with_no_file_is_refused(self) -> None:
+        notes = check_wiki._row_citations(
+            'a finding | 6545-6551 in the drain', check_wiki._SourceFacts(),
+        )
+        assert notes == ['6545-6551 (cited with no file named before it)']
+
+    @_NEEDS_BASELINE
+    def test_a_finding_citing_a_docstring_as_one_is_allowed(self) -> None:
+        notes = check_wiki._row_citations(
+            'the docstring claims it | `praxis/core/domain/trade_outcome.py` 6-7',
+            check_wiki._SourceFacts(),
+        )
+        assert notes == []
+
+    @_NEEDS_BASELINE
+    def test_a_finding_citing_a_docstring_as_behaviour_is_refused(self) -> None:
+        notes = check_wiki._row_citations(
+            'the body does it | `praxis/core/domain/trade_outcome.py` 6-7',
+            check_wiki._SourceFacts(),
+        )
+        assert notes == [
+            'praxis/core/domain/trade_outcome.py:6-7 (no executable line)',
+        ]
+
+
+class TestWholeRanges:
+
+    @_NEEDS_BASELINE
+    def test_a_range_containing_another_is_no_pair(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `execution_manager.py` 1668-1751 together with 1743|',
+            check_wiki._SourceFacts(),
+        )
+        assert notes == []
+
+    @_NEEDS_BASELINE
+    def test_one_file_under_two_spellings_is_one_file(self) -> None:
+        assert check_wiki._one_file(
+            'execution_manager', 'praxis/core/execution_manager.py',
+        )
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_nexus_row_naming_an_uncited_file_is_caught(self) -> None:
+        failures = check_wiki._nexus_ledger_rows(
+            {'nexus/strategy/loader.py': {'P2-11'}}, {},
+        )
+
+        assert any('is named in the Nexus rows but nothing cites it' in f
+                   for f in failures)
+        assert not any('nexus/strategy/loader.py is cited but not named' in f
+                       for f in failures)
+
+
+class TestAmbiguousNames:
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='both trees must be present for a name to be held by two',
+    )
+    def test_a_name_both_trees_hold_is_refused(self) -> None:
+        assert check_wiki._resolve_source('enums.py') is None
+
+    @_NEEDS_BASELINE
+    def test_the_same_name_as_a_path_resolves(self) -> None:
+        assert check_wiki._resolve_source('praxis/core/domain/enums.py') is not None
+
+    @_NEEDS_BASELINE
+    def test_a_name_one_tree_holds_resolves(self) -> None:
+        assert check_wiki._resolve_source('fill.py') is not None
+
+
+class TestTryStatements:
+
+    @staticmethod
+    def _spans(
+        source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> list[tuple[set[int], set[int]]]:
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+
+        return spans
+
+    def test_a_handler_and_the_else_are_two_arms(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        act(x)\n    except E:\n        recover()\n"
+            "    else:\n        done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 7 in second for first, second in spans)
+
+    def test_a_try_leaving_on_every_path_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        try:\n            act(x)\n"
+            "            return 1\n        except E:\n            recover()\n"
+            "            return 2\n    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 9 in second for first, second in spans)
+
+    def test_a_try_falling_through_a_handler_does_not(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        try:\n            act(x)\n"
+            "            return 1\n        except E:\n            recover()\n    go(x)\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_raise_in_a_nested_function_keeps_to_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def outer(x):\n    try:\n        made = build(x)\n\n        def inner(y):\n"
+            "            if y:\n                act(y)\n                raise E('a')\n"
+            "            go(y)\n\n        inner(made)\n    except E:\n        recover()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in second or 11 in second for _, second in spans)
+

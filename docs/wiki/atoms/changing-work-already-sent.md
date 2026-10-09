@@ -14,6 +14,10 @@ evidence:
     source: "`interval_slice_modify.py` 31-32"
   - claim: "Weighted work may change only the gap, its weights refused and its count kept"
     source: "refused at `validate_trade_modify.py` 210-218, kept at `execution_manager.py` 10189-10199"
+  - claim: "Work at several prices may change its prices, its weights, or both, and at least one of them"
+    source: "`ladder_dca_modify.py` 36-37, at least one required at 43-45"
+  - claim: "A part-shown order may change its shown amount, its price, or both, and at least one of them"
+    source: "`iceberg_modify.py` 29-30, at least one required at 36-40"
   - claim: "Protection has three prices that can change"
     source: "`execution_manager.py` 9871-9907"
   - claim: "A change naming an unknown request is refused"
@@ -37,7 +41,7 @@ evidence:
 
 A **change** asks Praxis to alter work it has already accepted, rather than cancel it and start again. What may be altered depends entirely on how the work is being carried out, and each way of working has one kind of change that fits it.
 
-A single order may change the price it rests at — and only if it is a limit order still resting; a trigger price cannot be changed at all. Work [fed out in slices](work-fed-out-over-time.md) may change how many parts and the gap between them, except where the parts are weighted, which may change only the gap. Work [at several prices](orders-at-several-prices.md) may change those prices and their weights. A [part-shown order](part-shown-orders.md) may change its shown amount and its price. [Protection](protection.md) has three prices that can change.
+A single order may change the price it rests at — and only if it is a limit order still resting; a trigger price cannot be changed at all. Work [fed out in slices](work-fed-out-over-time.md) may change how many parts and the gap between them, except where the parts are weighted, which may change only the gap. Work [at several prices](orders-at-several-prices.md) may change those prices, their weights, or both. A [part-shown order](part-shown-orders.md) may change its shown amount, its price, or both. Either way a change naming neither is refused. [Protection](protection.md) has three prices that can change.
 
 ## What is refused on the way in
 

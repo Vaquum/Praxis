@@ -17,7 +17,7 @@ evidence:
   - claim: "A part-fill and an ending report what remains as the target less the amount filled"
     source: "`outcome_translator.py` 283-287 and 348-352"
   - claim: "Where no target amount was named, that figure is left absent"
-    source: "`outcome_translator.py` 285-287, reachable where a command is sized in money at `trade_command.py` 86-104 into `execution_manager.py` 10789"
+    source: "`outcome_translator.py` 285-287, reachable where a command is sized in money at `praxis/core/domain/trade_command.py` 86-104 into `execution_manager.py` 10789"
   - claim: "A full fill leaves it absent whatever the target"
     source: "`outcome_translator.py` 314-325"
   - claim: "A part-fill and a full fill pass on whichever of two slippage measures is there"

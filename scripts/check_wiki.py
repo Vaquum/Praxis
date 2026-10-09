@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,8 @@ __all__ = ['main']
 
 WIKI = Path('docs/wiki')
 REGISTER = WIKI / 'register.md'
+README = WIKI / 'README.md'
+UNCHECKED = 'unchecked'
 STAMP = re.compile(
     r'Created (\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC) · '
     r'Last modified (\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC)',
@@ -29,6 +32,7 @@ META_STAMP = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 ROW_ID = re.compile(r'\bP\d+-\d{2}\b')
+ROW_OPENING = re.compile(r'^\|\s*(P\d+-\d{2})\s*\|', re.MULTILINE)
 BANNED_HEADINGS = ('## What it is', '## Overview', '## Introduction')
 NEGATIVE_DEF = re.compile(r',\s+not\s+(?:a|an|the|yet|by|its|one)\b', re.IGNORECASE)
 DOUBLE_NEGATIVE = re.compile(
@@ -86,6 +90,26 @@ LEDGER = WIKI / 'ledger.md'
 LEDGER_PATH_RE = re.compile(r'`((?:praxis|nexus)/[^`]*\.py)`')
 LEDGER_HEADING_RE = re.compile(r'^## (Praxis|Nexus) — (\d+) modules$', re.MULTILINE)
 LEDGER_GROUP_RE = re.compile(r'^\| (?:all|the other) (\d+) \|', re.MULTILINE)
+LEDGER_ROW_RE = re.compile(r'^\| `([^`]+)` \| (\w+) \| ([^|]*) \|$', re.MULTILINE)
+REGISTER_ROW_RE = re.compile(r'^\|\s*(P\d+-\d{2})\s*\|[^|]*\|[^|]*\|[^(]*\((atoms/[^)]+)\)',
+                             re.MULTILINE)
+ROW_SPAN_RE = re.compile(r'^(P\d+)-(\d{2}) to P\d+-(\d{2})$')
+STATE_COUNT_RE = re.compile(
+    r'(\d+) are `full`, (\d+) `partial` and (\d+) `uncovered`',
+)
+ARTICLE_COUNT_RE = re.compile(r'(\d+) articles\b')
+NEXUS_COUNT_RE = re.compile(r'(\d+) are cited in passing')
+NEXUS_TOTAL_RE = re.compile(r'(?:the|its) (\d+) (?:in Nexus|modules)')
+NEXUS_UNTOUCHED_RE = re.compile(r'(\d+) untouched')
+CHANGELOG = Path('CHANGELOG.md')
+RELEASE_RE = re.compile(r'^## v\d+\.\d+\.\d+', re.MULTILINE)
+EVIDENCE_COUNT_RE = re.compile(r'([\d,]+) line references across ([\d,]+) claims')
+FINDING_COUNT_RE = re.compile(r'Record ([\d,]+) findings')
+FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
+ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
+FINDING_CELLS_RE = re.compile(r'^\| ([HU]-\d+) \|([^|]*)\|([^|]*)\|', re.MULTILINE)
+UNNAMED = 'cited with no file named before it'
+LINE_COUNT_RE = re.compile(r'`([a-z_/]+\.py)`[,]? (?:is|at) ([\d,]+) lines')
 _MAX_SPAN = 60
 _MARKER_REACH = 40
 ABSENCE_WORDS = ('nothing further', 'nowhere', 'absent from', 'no such')
@@ -95,11 +119,11 @@ GIT = shutil.which('git')
 @functools.cache
 def _repo_root() -> Path | None:
 
-    """Return the repository root, or None where git cannot say.
+    '''Return the repository root, or None where git cannot say.
 
     Returns:
         Path | None: The root directory, or None.
-    """
+    '''
 
     if GIT is None:
         return None
@@ -116,16 +140,17 @@ def _repo_root() -> Path | None:
 
 
 class BaselineReadError(OSError):
+
     '''A cited file could not be read at the baseline it is pinned to.'''
 
 
 def _pins() -> list[tuple[Path, str]]:
 
-    """Return each pinned repository root with the commit it is pinned to.
+    '''Return each pinned repository root with the commit it is pinned to.
 
     Returns:
         list[tuple[Path, str]]: Root and commit, one per repository.
-    """
+    '''
 
     roots = [(_repo_root(), BASELINE)]
 
@@ -136,6 +161,7 @@ def _pins() -> list[tuple[Path, str]]:
 
 
 def _pin(path: Path) -> tuple[Path, str, Path] | None:
+
     '''Return the deepest pinned repository containing `path`, and its commit.'''
 
     resolved = path.resolve()
@@ -157,7 +183,7 @@ def _pin(path: Path) -> tuple[Path, str, Path] | None:
 @functools.cache
 def _pinned_paths(root: Path, commit: str) -> tuple[str, ...]:
 
-    """Return every path in a repository at one commit.
+    '''Return every path in a repository at one commit.
 
     Args:
         root (Path): The repository root to list.
@@ -165,7 +191,7 @@ def _pinned_paths(root: Path, commit: str) -> tuple[str, ...]:
 
     Returns:
         tuple[str, ...]: The paths in that tree.
-    """
+    '''
 
     if GIT is None:
         msg = 'git is unavailable, so no pinned tree can be listed'
@@ -185,6 +211,7 @@ def _pinned_paths(root: Path, commit: str) -> tuple[str, ...]:
 
 @functools.cache
 def _source_text(path: Path) -> str:
+
     '''Return the file's content at the baseline its repository is pinned to.'''
 
     if GIT is None:
@@ -211,14 +238,15 @@ def _source_text(path: Path) -> str:
 
 
 def _blank_lines(path: Path) -> set[int]:
-    """Return the lines of a file holding nothing but space.
+
+    '''Return the lines of a file holding nothing but space.
 
     Args:
         path (Path): The file to read, at its pinned commit.
 
     Returns:
         set[int]: Those line numbers.
-    """
+    '''
 
     return {
         number
@@ -227,16 +255,34 @@ def _blank_lines(path: Path) -> set[int]:
     }
 
 
-def _docstring_lines(path: Path) -> set[int]:
+def _comment_lines(path: Path) -> set[int]:
 
-    """Return the lines of a file that sit inside a docstring.
+    '''Return the lines of a file holding nothing but a comment.
 
     Args:
         path (Path): The file to read, at its pinned commit.
 
     Returns:
         set[int]: Those line numbers.
-    """
+    '''
+
+    return {
+        number
+        for number, line in enumerate(_source_text(path).splitlines(), 1)
+        if line.strip().startswith('#')
+    }
+
+
+def _docstring_lines(path: Path) -> set[int]:
+
+    '''Return the lines of a file that sit inside a docstring.
+
+    Args:
+        path (Path): The file to read, at its pinned commit.
+
+    Returns:
+        set[int]: Those line numbers.
+    '''
 
     try:
         tree = ast.parse(_source_text(path))
@@ -272,10 +318,13 @@ ALTERNATION_WORDS = (
 
 
 def _marked_between(source: str, first: int, second: int) -> bool:
-    """Whether the row names the citations on either side as alternatives.
 
-    The marker must sit between the two citations, or close either side
-    of them without reaching past another citation — which is where an author writes `either X or Y`, or
+    '''Whether the row names the citations on either side as alternatives.
+
+    The marker must sit between the two citations, or just before the
+    earlier of them without reaching past the citation before that. A
+    marker after the later one counts only where nothing is cited beyond
+    it, since otherwise it belongs to the pair that follows — which is where an author writes `either X or Y`, or
     `X, Y otherwise`. A marker further off governs some other pair.
 
     Between two citations of one file, `or` reads as alternation where
@@ -288,14 +337,13 @@ def _marked_between(source: str, first: int, second: int) -> bool:
 
     Returns:
         bool: True where a marker governs this pair.
-    """
+    '''
 
     low, high = sorted((first, second))
     others = [m.start() for m in LINE_REF.finditer(source) if m.start() not in (low, high)]
     behind = max((pos for pos in others if pos < low), default=-1)
-    ahead = min((pos for pos in others if pos > high), default=len(source))
     start = max(low - _MARKER_REACH, behind + 1)
-    stop = min(high + _MARKER_REACH, ahead)
+    stop = high if any(pos > high for pos in others) else high + _MARKER_REACH
     stretch = source[start:stop].lower()
 
     return any(
@@ -303,32 +351,72 @@ def _marked_between(source: str, first: int, second: int) -> bool:
     )
 
 
+@dataclass(frozen=True)
+class _Block:
+
+    '''A block that runs after a branch, and the construct holding both.
+
+    Args:
+        lines (frozenset[int]): The block's own lines.
+        start (int): Where the construct holding it starts.
+        end (int): Where that construct ends.
+    '''
+
+    lines: frozenset[int]
+    start: int
+    end: int
+
+    def skipped_by(self, line: int) -> bool:
+
+        '''Whether a branch on a line leaves this block unrun.
+
+        Args:
+            line (int): Where the branch sits.
+
+        Returns:
+            bool: True where the block does not run after it.
+        '''
+
+        return line not in range(self.start, self.end + 1) or line in self.lines
+
+
+@dataclass(frozen=True)
+class _Scopes:
+
+    '''What a branch leaving the path skips, and what it cannot skip.
+
+    Args:
+        ends (dict[int, int]): Where each function starts and ends.
+        loops (dict[int, int]): Where each loop starts and ends.
+        tries (dict[int, int]): Where each handled block starts and ends.
+        regardless (tuple[_Block, ...]): Every `finally` body.
+        after_a_loop (tuple[_Block, ...]): Every loop's `else` body.
+    '''
+
+    ends: dict[int, int]
+    loops: dict[int, int]
+    tries: dict[int, int]
+    regardless: tuple[_Block, ...]
+    after_a_loop: tuple[_Block, ...]
+
+
 def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
 
-    """Return pairs of line sets that cannot both run for one input.
+    '''Return pairs of line sets that cannot both run for one input.
 
     Args:
         path (Path): The file to read, at its pinned commit.
 
     Returns:
         list[tuple[set[int], set[int]]]: Each pair of arms.
-    """
+    '''
 
     try:
         tree = ast.parse(_source_text(path))
     except (OSError, SyntaxError):
         return []
 
-    ends = {
-        node.lineno: node.end_lineno or node.lineno
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
-    loops = {
-        node.lineno: node.end_lineno or node.lineno
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
-    }
+    scopes = _scopes(tree)
     pairs: list[tuple[set[int], set[int]]] = []
 
     for node in ast.walk(tree):
@@ -337,26 +425,100 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
             pairs.extend(_handler_arms(node))
 
         if isinstance(node, ast.If) and node.body:
-            pairs.extend(_branch_arms(node, ends, loops))
+            pairs.extend(_branch_arms(node, scopes))
 
     return pairs
 
 
+def _scopes(tree: ast.AST) -> _Scopes:
+
+    '''Return what a branch leaving the path can and cannot skip.
+
+    Args:
+        tree (ast.AST): The parsed module.
+
+    Returns:
+        _Scopes: Where each kind of block ends, and the lines that run
+            whatever a branch does.
+    '''
+
+    return _Scopes(
+        ends={
+            node.lineno: node.end_lineno or node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        },
+        loops={
+            node.lineno: node.end_lineno or node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
+        },
+        tries={
+            node.lineno: (node.body[-1].end_lineno or node.lineno)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Try) and node.handlers and node.body
+        },
+        regardless=_blocks(
+            (node, node.finalbody)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Try)
+        ),
+        after_a_loop=_blocks(
+            (node, node.orelse)
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.For, ast.AsyncFor, ast.While))
+        ),
+    )
+
+
+def _blocks(
+    found: Iterable[tuple[ast.stmt, list[ast.stmt]]],
+) -> tuple[_Block, ...]:
+
+    '''Return each block with the construct that holds it.
+
+    Args:
+        found (Iterable[tuple[ast.stmt, list[ast.stmt]]]): Each construct
+            with the block hanging off it.
+
+    Returns:
+        tuple[_Block, ...]: One entry per block that has statements.
+    '''
+
+    return tuple(
+        _Block(
+            frozenset(range(body[0].lineno - 1, (body[-1].end_lineno or 0) + 1)),
+            node.lineno,
+            node.end_lineno or node.lineno,
+        )
+        for node, body in found if body
+    )
+
+
 def _handler_arms(node: ast.Try) -> list[tuple[set[int], set[int]]]:
-    """Return each pair of sibling except handlers as two arms.
+
+    '''Return each pair of arms a `try` statement has.
+
+    Two handlers cannot both run for one raise, and the `else` runs
+    only where none of them did, so each pair of them is a pair of
+    arms.
 
     Args:
         node (ast.Try): The try statement to read.
 
     Returns:
         list[tuple[set[int], set[int]]]: Each pair of handler spans.
-    """
+    '''
 
     spans = [
         set(range(h.lineno, (h.body[-1].end_lineno or h.lineno) + 1))
         for h in node.handlers
         if h.body
     ]
+    settled = _else_lines(node)
+
+    if settled:
+        spans.append(settled)
 
     return [
         (spans[i], spans[j])
@@ -365,10 +527,43 @@ def _handler_arms(node: ast.Try) -> list[tuple[set[int], set[int]]]:
     ]
 
 
-def _branch_arms(
-    node: ast.If, ends: dict[int, int], loops: dict[int, int],
-) -> list[tuple[set[int], set[int]]]:
-    """Return the arms of one `if`, where it has two.
+def _else_lines(node: ast.Try) -> set[int]:
+
+    '''Return the lines of a `try` statement's `else`, where it has one.
+
+    Args:
+        node (ast.Try): The `try` statement to read.
+
+    Returns:
+        set[int]: Those lines, or none where there is no `else`.
+    '''
+
+    if not node.orelse:
+        return set()
+
+    return set(range(node.orelse[0].lineno, (node.orelse[-1].end_lineno or 0) + 1))
+
+
+def _else_arm(node: ast.If) -> set[int]:
+
+    '''Return the lines of an `if` statement's `else`, where it has one.
+
+    Args:
+        node (ast.If): The `if` statement to read.
+
+    Returns:
+        set[int]: Those lines, or none where there is no `else`.
+    '''
+
+    if not node.orelse:
+        return set()
+
+    return set(range(node.orelse[0].lineno, (node.orelse[-1].end_lineno or 0) + 1))
+
+
+def _branch_arms(node: ast.If, scopes: _Scopes) -> list[tuple[set[int], set[int]]]:
+
+    '''Return the arms of one `if`, where it has two.
 
     An `if` with an `else` has two arms outright, and where its own body
     leaves the path it is an alternative to the lines after the whole
@@ -380,67 +575,241 @@ def _branch_arms(
 
     Args:
         node (ast.If): The `if` statement to read.
-        ends (dict[int, int]): Where each function ends.
-        loops (dict[int, int]): Where each loop ends.
+        scopes (_Scopes): What a branch leaving the path can skip.
 
     Returns:
         list[tuple[set[int], set[int]]]: The one pair found, or none.
-    """
+    '''
 
-    body = set(range(node.lineno, (node.body[-1].end_lineno or 0) + 1))
+    body = set(range(node.body[0].lineno, (node.body[-1].end_lineno or 0) + 1))
 
     pairs: list[tuple[set[int], set[int]]] = []
 
-    if node.orelse:
-        pairs.append((
-            body,
-            set(range(node.orelse[0].lineno, (node.orelse[-1].end_lineno or 0) + 1)),
-        ))
+    other = _else_arm(node)
 
-    if not _leaves_the_path(node.body):
-        return pairs
+    if other:
+        pairs.append((body, other))
 
-    scope = (
-        loops
-        if isinstance(node.body[-1], (ast.Continue, ast.Break))
-        else ends
-    )
-    stop = min(
-        (end for start, end in scope.items() if start <= node.lineno <= end),
-        default=0,
-    )
-    after = set(range((node.end_lineno or node.lineno) + 1, stop + 1))
+    for arm, statements in ((body, node.body), (other, node.orelse)):
 
-    if after:
-        pairs.append((body, after))
+        if not arm or not statements or not _leaves_the_path(statements):
+            continue
+
+        after = _after_the_branch(node, statements, scopes)
+
+        if after:
+            pairs.append((arm, after))
 
     return pairs
 
 
+def _innermost(scope: dict[int, int], line: int) -> int:
+
+    '''Return where the innermost block of a kind holding a line ends.
+
+    Args:
+        scope (dict[int, int]): Where each block of one kind starts and ends.
+        line (int): The line to find a block around.
+
+    Returns:
+        int: That block's last line, or 0 where none holds the line.
+    '''
+
+    return min((end for start, end in scope.items() if start <= line <= end), default=0)
+
+
+def _after_the_branch(
+    node: ast.If,
+    statements: list[ast.stmt],
+    scopes: _Scopes,
+) -> set[int]:
+
+    '''Return the lines an arm that leaves the path is an alternative to.
+
+    How far that reaches depends on how the arm leaves. A continue or a
+    break skips the rest of its loop alone. A raise with a handler above
+    it reaches the end of the guarded block. A return reaches the end of
+    the function. A `finally` runs whatever happens, and a loop's `else`
+    runs after a continue, so neither is an alternative to anything.
+
+    Args:
+        node (ast.If): The `if` the arm belongs to.
+        statements (list[ast.stmt]): The arm's statements.
+        scopes (_Scopes): What a branch leaving the path can skip.
+
+    Returns:
+        set[int]: Those lines, or none where there are none.
+    '''
+
+    kind = _how_it_leaves(statements[-1])
+
+    tried: tuple[dict[int, int], ...]
+
+    if kind in {'continue', 'break'}:
+        tried = (scopes.loops,)
+    elif kind == 'raise':
+        tried = (_handled_here(scopes, node.lineno), scopes.ends)
+    elif kind == 'return':
+        tried = (scopes.ends,)
+    else:
+        return set()
+
+    stop = next(
+        (found for scope in tried if (found := _innermost(scope, node.lineno))), 0,
+    )
+    after = set(range((node.end_lineno or node.lineno) + 1, stop + 1))
+    running = scopes.regardless + (
+        scopes.after_a_loop if kind == 'continue' else ()
+    )
+
+    return after - _still_runs(running, node.lineno)
+
+
+def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
+
+    '''Return the handled blocks that catch a raise on one line.
+
+    A `try` outside the function the raise sits in catches the call,
+    not the raise, so what runs after that call is no alternative to
+    the branch and such a block is left out.
+
+    Args:
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): Where the branch sits.
+
+    Returns:
+        dict[int, int]: Where each usable block starts and ends.
+    '''
+
+    opens = [start for start, end in scopes.ends.items() if start <= line <= end]
+    floor = max(opens, default=0)
+
+    return {start: end for start, end in scopes.tries.items() if start >= floor}
+
+
+def _still_runs(blocks: tuple[_Block, ...], line: int) -> set[int]:
+
+    '''Return the lines that run whatever a branch on one line does.
+
+    Args:
+        blocks (tuple[_Block, ...]): The blocks to weigh.
+        line (int): Where the branch sits.
+
+    Returns:
+        set[int]: The lines of every block the branch does not skip.
+    '''
+
+    kept: set[int] = set()
+
+    for block in blocks:
+
+        if not block.skipped_by(line):
+            kept |= block.lines
+
+    return kept
+
+
+def _how_it_leaves(statement: ast.stmt) -> str:
+
+    '''Return the way a statement leaves the path.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    An `if` whose arms leave by different ways is read as leaving by
+    none of them, since no one scope holds what it skips.
+
+    Returns:
+        str: `return`, `raise`, `continue`, `break`, or an empty string.
+    '''
+
+    for kind, node_type in (
+        ('return', ast.Return), ('raise', ast.Raise),
+        ('continue', ast.Continue), ('break', ast.Break),
+    ):
+
+        if isinstance(statement, node_type):
+            return kind
+
+    if isinstance(statement, ast.If) and statement.orelse:
+        return _one_way(
+            [statement.body[-1], statement.orelse[-1]],
+        )
+
+    if isinstance(statement, ast.Try) and statement.body:
+        return _one_way([path[-1] for path in _try_paths(statement)])
+
+    return ''
+
+
+def _one_way(statements: list[ast.stmt]) -> str:
+
+    '''Return the way several paths leave, where they all leave the same.
+
+    Args:
+        statements (list[ast.stmt]): The last statement of each path.
+
+    Returns:
+        str: That way, or an empty string where they differ.
+    '''
+
+    ways = {_how_it_leaves(statement) for statement in statements}
+
+    return ways.pop() if len(ways) == 1 else ''
+
+
 def _always_leaves(statement: ast.stmt) -> bool:
-    """Whether a statement always takes the path out of what follows.
+
+    '''Whether a statement always takes the path out of what follows.
 
     A return, raise, continue or break does. So does an `if` whose every
-    arm does, since no path through it carries on.
+    arm does, and a `try` whose body, handlers and `else` all do, since
+    no path through either carries on.
 
     Args:
         statement (ast.stmt): The statement to read.
 
     Returns:
         bool: True where nothing after it runs.
-    """
+    '''
 
     if isinstance(statement, (ast.Return, ast.Raise, ast.Continue, ast.Break)):
         return True
 
-    if not isinstance(statement, ast.If) or not statement.orelse:
-        return False
+    if isinstance(statement, ast.If) and statement.orelse:
+        return _always_leaves(statement.body[-1]) and _always_leaves(
+            statement.orelse[-1],
+        )
 
-    return _always_leaves(statement.body[-1]) and _always_leaves(statement.orelse[-1])
+    if isinstance(statement, ast.Try) and statement.body:
+        return all(
+            _always_leaves(path[-1])
+            for path in _try_paths(statement)
+        )
+
+    return False
+
+
+def _try_paths(node: ast.Try) -> list[list[ast.stmt]]:
+
+    '''Return each path through a `try` statement that can carry on.
+
+    Args:
+        node (ast.Try): The statement to read.
+
+    Returns:
+        list[list[ast.stmt]]: The body or its `else`, and each handler.
+    '''
+
+    paths = [node.orelse or node.body]
+    paths += [handler.body for handler in node.handlers if handler.body]
+
+    return paths
 
 
 def _leaves_the_path(body: list[ast.stmt]) -> bool:
-    """Whether a branch body makes an alternative of the code after it.
+
+    '''Whether a branch body makes an alternative of the code after it.
 
     A return always does. Any other way of leaving does so only where the
     body also acts: one that merely builds a message and raises is a
@@ -454,7 +823,7 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
 
     Returns:
         bool: True where the branch is an arm rather than a guard.
-    """
+    '''
 
     last = body[-1]
 
@@ -468,7 +837,8 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
 
 
 def _body_acts(body: list[ast.stmt]) -> bool:
-    """Whether a branch body does anything besides leave the path.
+
+    '''Whether a branch body does anything besides leave the path.
 
     Every statement is read, nested ones included, since a branch whose
     whole body is an inner `if` still acts inside its arms.
@@ -478,20 +848,21 @@ def _body_acts(body: list[ast.stmt]) -> bool:
 
     Returns:
         bool: True where the branch acts before leaving.
-    """
+    '''
 
     return any(_statement_acts(statement) for statement in body)
 
 
 def _statement_acts(statement: ast.stmt) -> bool:
-    """Whether one statement does something beyond leaving or naming.
+
+    '''Whether one statement does something beyond leaving or naming.
 
     Args:
         statement (ast.stmt): The statement to read.
 
     Returns:
         bool: True where it acts.
-    """
+    '''
 
     if isinstance(statement, (ast.Return, ast.Continue, ast.Break, ast.Pass)):
         return False
@@ -509,14 +880,15 @@ def _statement_acts(statement: ast.stmt) -> bool:
 
 
 def _raised_parts(statement: ast.Raise) -> list[ast.AST]:
-    """Return the nodes a raise evaluates beyond naming its exception.
+
+    '''Return the nodes a raise evaluates beyond naming its exception.
 
     Args:
         statement (ast.Raise): The raise to read.
 
     Returns:
         list[ast.AST]: Every node inside its arguments and its cause.
-    """
+    '''
 
     inner: list[ast.expr] = [statement.cause] if statement.cause else []
     raised = statement.exc
@@ -531,7 +903,8 @@ def _raised_parts(statement: ast.Raise) -> list[ast.AST]:
 
 
 def _only_builds_a_message(statement: ast.stmt) -> bool:
-    """Whether a statement does nothing but make a value to raise with.
+
+    '''Whether a statement does nothing but make a value to raise with.
 
     An assignment qualifies only where it names a plain local and nothing
     in it is called: a call may act however its result is stored, and an
@@ -542,7 +915,7 @@ def _only_builds_a_message(statement: ast.stmt) -> bool:
 
     Returns:
         bool: True where the statement merely builds a value.
-    """
+    '''
 
     if isinstance(statement, ast.AnnAssign):
         targets: list[ast.expr] = [statement.target]
@@ -557,19 +930,68 @@ def _only_builds_a_message(statement: ast.stmt) -> bool:
     return not any(isinstance(node, ast.Call) for node in ast.walk(statement))
 
 
+def _identity(name: str) -> str | None:
+
+    '''Return one name for a cited file, whatever spelling reached it.
+
+    A nickname resolves to a path written relative to its repository,
+    a bare name to one under a pinned root. Both are cut back to the
+    path inside the repository, so the two spellings meet.
+
+    Args:
+        name (str): The name a citation used.
+
+    Returns:
+        str | None: That path, or None where the name resolves to none.
+    '''
+
+    path = _resolve_source(name)
+
+    if path is None:
+        return None
+
+    inside = _tree_relative(path)
+
+    return inside[len('../Nexus/'):] if inside.startswith('../Nexus/') else inside
+
+
+def _one_file(name: str, other: str) -> bool:
+
+    '''Whether two citation names reach the same file in a pinned tree.
+
+    Args:
+        name (str): One name, as a row wrote it.
+        other (str): The other name.
+
+    Returns:
+        bool: True where both resolve to one path.
+    '''
+
+    if name == other:
+        return True
+
+    try:
+        here, there = _identity(name), _identity(other)
+    except BaselineReadError:
+        return False
+
+    return here is not None and here == there
+
+
 def _exclusive_citations(
     cited: list[tuple[str, int, int, int]],
     cache: _SourceFacts,
     row: str,
 ) -> str | None:
-    """Report two citations landing on both sides of a branch.
+
+    '''Report two citations landing on both sides of a branch.
 
     Each citation's whole range is compared, and must sit wholly inside
     one arm — a range reaching past its arm is a citation of the wider
     construct, not of that arm. A range containing the other is passed
-    over for the same reason. Only an `if` whose body ends in a return
-    makes an alternative of the code after it; one ending in a raise or a
-    continue is a guard, and citing it beside later code is ordinary.
+    over for the same reason. A branch that only builds a message and
+    raises is a guard, and citing it beside later code describes an
+    order of checks; one that acts before leaving is an arm.
 
     Args:
         cited (list[tuple[str, int, int, int]]): Each citation as its
@@ -580,7 +1002,7 @@ def _exclusive_citations(
 
     Returns:
         str | None: The clash found, or None where there is none.
-    """
+    '''
 
     source = row.split(' | ', 1)[1] if ' | ' in row else row
 
@@ -592,7 +1014,7 @@ def _exclusive_citations(
 
         for other_key, other_start, other_end, other_at in cited[index + 1:]:
 
-            if other_key != key or _marked_between(source, at, other_at):
+            if not _one_file(key, other_key) or _marked_between(source, at, other_at):
                 continue
 
             if _opposed(_spans(start, end), _spans(other_start, other_end), facts):
@@ -602,7 +1024,8 @@ def _exclusive_citations(
 
 
 def _opposed(here: set[int], there: set[int], facts: _FileFacts) -> bool:
-    """Whether two cited ranges sit wholly in opposite arms of one branch.
+
+    '''Whether two cited ranges sit wholly in opposite arms of one branch.
 
     Args:
         here (set[int]): The lines one citation covers.
@@ -611,7 +1034,7 @@ def _opposed(here: set[int], there: set[int], facts: _FileFacts) -> bool:
 
     Returns:
         bool: True where each sits wholly inside a different arm.
-    """
+    '''
 
     if here <= there or there <= here:
         return False
@@ -623,52 +1046,79 @@ def _opposed(here: set[int], there: set[int], facts: _FileFacts) -> bool:
 
 
 def _spans(start: int, end: int) -> set[int]:
-    """Return the lines a citation covers, bounded against a runaway range."""
 
-    return set(range(start, min(end, start + _MAX_SPAN) + 1))
+    '''Return every line a citation covers.
+
+    The whole range is kept. A range cut short would stop containing
+    what it contains, and a citation of a wider construct would read
+    as a citation of one arm of it.
+
+    Args:
+        start (int): The first line cited.
+        end (int): The last line cited.
+
+    Returns:
+        set[int]: Those lines.
+    '''
+
+    return set(range(start, max(start, end) + 1))
 
 
 def _resolve_source(name: str) -> Path | None:
-    '''Resolve a cited basename against the pinned trees, not the working one.'''
+
+    '''Resolve a cited name against the pinned trees, not the working one.
+
+    A name carrying a directory is looked for at that exact path. A bare
+    name is looked for across every pinned tree at once and refused
+    where more than one file answers to it, whether in one tree or in
+    two, so a name both repositories hold has to be written as a path.
+    '''
 
     if name in SOURCE_FILES:
         return SOURCE_FILES[name]
 
+    if '/' in name:
+
+        for root, commit in _pins():
+
+            if name in _pinned_paths(root, commit):
+                return root / name
+
+        return None
+
     stem = name[:-3] if name.endswith('.py') else name
     wanted = f'{stem}.py'
 
-    for prefix in SEARCH_PREFIXES:
+    found = [
+        (root, entry)
+        for root, commit in _pins()
+        for entry in _pinned_paths(root, commit)
+        if entry.startswith(SEARCH_PREFIXES) and entry.rsplit('/', 1)[-1] == wanted
+    ]
 
-        for root, commit in _pins():
-            found = sorted(
-                entry for entry in _pinned_paths(root, commit)
-                if entry.startswith(prefix) and entry.rsplit('/', 1)[-1] == wanted
-            )
+    if len(found) != 1:
+        return None
 
-            if len(found) == 1:
-                return root / found[0]
+    root, entry = found[0]
 
-            if found:
-                return None
-
-    return None
+    return root / entry
 
 
 def _row_sources(row: str) -> list[tuple[int, str]]:
 
-    """Return where each source name appears in a row, in order.
+    '''Return where each source name appears in a row, in order.
 
     Args:
         row (str): One evidence row, as `claim | source`.
 
     Returns:
         list[tuple[int, str]]: Position and name, earliest first.
-    """
+    '''
 
     hits = [
         (m.start(), key)
         for key in SOURCE_FILES
-        for m in re.finditer(re.escape(key), row)
+        for m in re.finditer(rf'(?<![\w/]){re.escape(key)}(?![\w])', row)
     ]
     hits += [(m.start(), m.group(1)) for m in FILE_REF.finditer(row)]
 
@@ -676,6 +1126,7 @@ def _row_sources(row: str) -> list[tuple[int, str]]:
 
 
 def _has_wildcard_import(tree: ast.AST) -> bool:
+
     '''Whether the module imports everything from somewhere.
 
     A star import can rebind any name, so no binding can be trusted.
@@ -689,6 +1140,7 @@ def _has_wildcard_import(tree: ast.AST) -> bool:
 
 
 def _protocol_names(tree: ast.AST) -> set[str]:
+
     '''Return the module-level names bound to `typing.Protocol`.'''
 
     names: set[str] = set()
@@ -709,6 +1161,7 @@ def _protocol_names(tree: ast.AST) -> set[str]:
 
 
 def _bound_names(node: ast.AST) -> set[str]:
+
     '''Return every name a target expression binds, unpacking included.'''
 
     if isinstance(node, ast.Name):
@@ -723,7 +1176,30 @@ def _bound_names(node: ast.AST) -> set[str]:
     return set()
 
 
+def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
+
+    '''Return the names one import binds, bar `Protocol` from `typing`.
+
+    Args:
+        node (ast.Import | ast.ImportFrom): The import to read.
+
+    Returns:
+        set[str]: The names it binds.
+    '''
+
+    withheld = (
+        isinstance(node, ast.ImportFrom) and node.module == 'typing' and not node.level
+    )
+
+    return {
+        alias.asname or alias.name.split('.')[0]
+        for alias in node.names
+        if not (withheld and alias.name == 'Protocol')
+    }
+
+
 def _rebound_names(tree: ast.AST) -> set[str]:
+
     '''Return names given some other value anywhere in the module.'''
 
     rebound: set[str] = set()
@@ -734,16 +1210,7 @@ def _rebound_names(tree: ast.AST) -> set[str]:
             rebound.add(node.name)
 
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            rebound.update(
-                alias.asname or alias.name.split('.')[0]
-                for alias in node.names
-                if not (
-                    isinstance(node, ast.ImportFrom)
-                    and node.module == 'typing'
-                    and not node.level
-                    and alias.name == 'Protocol'
-                )
-            )
+            rebound.update(_imported_names(node))
 
         elif isinstance(node, ast.Assign):
             for target in node.targets:
@@ -776,6 +1243,7 @@ def _rebound_names(tree: ast.AST) -> set[str]:
 
 
 def _is_protocol(node: ast.ClassDef, protocol_names: set[str]) -> bool:
+
     '''Whether a class lists an imported `typing.Protocol` among its bases.'''
 
     return any(
@@ -785,6 +1253,7 @@ def _is_protocol(node: ast.ClassDef, protocol_names: set[str]) -> bool:
 
 
 def _is_stub(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+
     '''Whether a method's whole body is a docstring and an ellipsis.'''
 
     body = list(node.body)
@@ -805,6 +1274,7 @@ def _is_stub(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _protocol_lines(tree: ast.AST) -> set[int]:
+
     '''Return the signature lines of a Protocol's own stub methods.
 
     A stub's body is `...`, so its signature is the whole of what it
@@ -838,14 +1308,14 @@ def _protocol_lines(tree: ast.AST) -> set[int]:
 
 def _signature_lines(path: Path) -> set[int]:
 
-    """Return the lines of a declaration that has a body below it.
+    '''Return the lines of a declaration that has a body below it.
 
     Args:
         path (Path): The file to read, at its pinned commit.
 
     Returns:
         set[int]: Those line numbers, Protocol stubs excepted.
-    """
+    '''
 
     try:
         tree = ast.parse(_source_text(path))
@@ -868,14 +1338,14 @@ def _signature_lines(path: Path) -> set[int]:
 
 def _prose_words(text: str) -> int:
 
-    """Return the words a page spends on prose and headings.
+    '''Return the words a page spends on prose and headings.
 
     Args:
         text (str): The rows to scan, one per line.
 
     Returns:
         int: The count, navigation links and tables excluded.
-    """
+    '''
 
     words = 0
 
@@ -902,30 +1372,44 @@ def _prose_words(text: str) -> int:
 
 def _claims_a_message(row: str) -> bool:
 
-    """Whether a row claims something about a logged message.
+    '''Whether a row claims something about a logged message.
 
     Args:
         row (str): One evidence row, as `claim | source`.
 
     Returns:
         bool: True where it names a log line, a warning or a message.
-    """
+    '''
 
     lowered = row.lower()
 
     return any(word in lowered for word in ('log line', 'warning', 'logged', 'message'))
 
 
+def _claims_a_docstring(row: str) -> bool:
+
+    '''Whether a row claims something about a docstring itself.
+
+    Args:
+        row (str): One evidence row, as `claim | source`.
+
+    Returns:
+        bool: True where it says the subject is a docstring.
+    '''
+
+    return 'docstring' in row.lower()
+
+
 def _log_lines(path: Path) -> set[int]:
 
-    """Return the lines of a file that open a logging call.
+    '''Return the lines of a file that open a logging call.
 
     Args:
         path (Path): The file to read, at its pinned commit.
 
     Returns:
         set[int]: Those line numbers.
-    """
+    '''
 
     lines: set[int] = set()
 
@@ -943,20 +1427,23 @@ def _log_lines(path: Path) -> set[int]:
 
 @dataclass(frozen=True)
 class _FileFacts:
-    """Hold what one cited file states, read once at its pinned commit.
+
+    '''Hold what one cited file states, read once at its pinned commit.
 
     Args:
         length (int): Number of lines in the file.
         blanks (set[int]): Lines holding nothing but space.
+        comments (set[int]): Lines holding nothing but a comment.
         docstrings (set[int]): Lines inside a docstring.
         logs (set[int]): Lines opening a logging call.
         signatures (set[int]): Lines of a declaration with a body below it.
         exclusive (list[tuple[set[int], set[int]]]): Pairs of line sets that
             cannot both run for one input.
-    """
+    '''
 
     length: int
     blanks: set[int]
+    comments: set[int]
     docstrings: set[int]
     logs: set[int]
     signatures: set[int]
@@ -964,15 +1451,18 @@ class _FileFacts:
 
 
 class _SourceFacts:
-    """Read each cited file once and answer from memory thereafter."""
+
+    '''Read each cited file once and answer from memory thereafter.'''
 
     def __init__(self) -> None:
-        """Start with nothing read."""
+
+        '''Start with nothing read.'''
 
         self._known: dict[str, _FileFacts] = {}
 
     def peek(self, key: str) -> _FileFacts | None:
-        """Return what is already known of a file, without reading it.
+
+        '''Return what is already known of a file, without reading it.
 
         Args:
             key (str): The name the citation used.
@@ -980,12 +1470,13 @@ class _SourceFacts:
         Returns:
             _FileFacts | None: What that file states, or None where it has
                 not been read.
-        """
+        '''
 
         return self._known.get(key)
 
     def of(self, key: str, path: Path) -> _FileFacts:
-        """Return what a cited file states, reading it on first ask.
+
+        '''Return what a cited file states, reading it on first ask.
 
         Args:
             key (str): The name the citation used.
@@ -996,12 +1487,13 @@ class _SourceFacts:
 
         Raises:
             BaselineReadError: The file cannot be read at its pinned commit.
-        """
+        '''
 
         if key not in self._known:
             self._known[key] = _FileFacts(
                 length=len(_source_text(path).splitlines()),
                 blanks=_blank_lines(path),
+                comments=_comment_lines(path),
                 docstrings=_docstring_lines(path),
                 logs=_log_lines(path),
                 signatures=_signature_lines(path),
@@ -1013,7 +1505,7 @@ class _SourceFacts:
 
 def _docstring_citations(text: str, cache: _SourceFacts) -> list[str]:
 
-    """Return the citations that land on prose rather than on code.
+    '''Return the citations that land on prose rather than on code.
 
     Args:
         text (str): The rows to scan, one per line.
@@ -1021,7 +1513,7 @@ def _docstring_citations(text: str, cache: _SourceFacts) -> list[str]:
 
     Returns:
         list[str]: One complaint per bad citation.
-    """
+    '''
 
     return [
         note
@@ -1031,8 +1523,77 @@ def _docstring_citations(text: str, cache: _SourceFacts) -> list[str]:
     ]
 
 
+def _impossible_line(match: re.Match[str], facts: _FileFacts) -> str | None:
+
+    '''Return why a cited line cannot exist in the file, where it cannot.
+
+    Args:
+        match (re.Match[str]): The line reference as the row wrote it.
+        facts (_FileFacts): What was read of the cited file.
+
+    Returns:
+        str | None: The reason, or None where the line is in range.
+    '''
+
+    if int(match.group(1)) < 1:
+        return 'no such line'
+
+    if int(match.group(2) or match.group(1)) > facts.length:
+        return f'past end of file, {facts.length} lines'
+
+    return None
+
+
+def _citation_facts(
+    match: re.Match[str],
+    sources: list[tuple[int, str]],
+    cache: _SourceFacts,
+) -> tuple[str | None, _FileFacts | None, str | None]:
+
+    '''Return the file a citation belongs to and what was read of it.
+
+    Args:
+        match (re.Match[str]): The line reference as the row wrote it.
+        sources (list[tuple[int, str]]): Where each file is named in the row.
+        cache (_SourceFacts): Where each cited file is read once and kept.
+
+    Returns:
+        tuple[str | None, _FileFacts | None, str | None]: The file name,
+            what was read of it, and why neither could be had.
+    '''
+
+    before = [key for pos, key in sources if pos < match.start()]
+
+    if not before:
+        return None, None, UNNAMED
+
+    facts, note = _facts_for(before[-1], cache)
+
+    return before[-1], facts, note
+
+
+def _citation_note(key: str | None, match: re.Match[str], note: str) -> str:
+
+    '''Return one complaint, named for the file where one is known.
+
+    Args:
+        key (str | None): The file name the citation used, where it had one.
+        match (re.Match[str]): The line reference as the row wrote it.
+        note (str): What is wrong with it.
+
+    Returns:
+        str: The complaint.
+    '''
+
+    if key is None:
+        return f'{match.group(0)} ({note})'
+
+    return f'{key}:{match.group(0)} ({note})'
+
+
 def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
-    """Return what one evidence row's citations land on, where not on code.
+
+    '''Return what one evidence row's citations land on, where not on code.
 
     Args:
         whole (str): The row, as `claim | source`.
@@ -1040,7 +1601,7 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
 
     Returns:
         list[str]: One complaint per bad citation, and any branch clash.
-    """
+    '''
 
     bad: list[str] = []
 
@@ -1049,39 +1610,25 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
     cited: list[tuple[str, int, int, int]] = []
 
     for match in LINE_REF.finditer(row):
-        before = [key for pos, key in sources if pos < match.start()]
+        key, facts, note = _citation_facts(match, sources, cache)
 
-        if not before:
-            bad.append(f'{match.group(0)} (cited with no file named before it)')
+        if note is UNCHECKED:
             continue
 
-        key = before[-1]
-        facts, note = _facts_for(key, cache)
+        if facts is None:
+            bad.append(_citation_note(key, match, note or 'unread'))
+            continue
+
+        assert key is not None
+        note = _impossible_line(match, facts)
+        start, end = int(match.group(1)), int(match.group(2) or match.group(1))
+
+        if note is None:
+            cited.append((key, start, end, match.start()))
+            note = _what_a_citation_lands_on(start, end, facts, whole)
 
         if note is not None:
-            bad.append(f'{key}:{match.group(0)} ({note})')
-            continue
-
-        assert facts is not None
-
-        if int(match.group(1)) < 1:
-            bad.append(f'{key}:{match.group(0)} (no such line)')
-            continue
-
-        if int(match.group(2) or match.group(1)) > facts.length:
-            bad.append(
-                f'{key}:{match.group(0)} (past end of file, '
-                f'{facts.length} lines)',
-            )
-            continue
-
-        start = int(match.group(1))
-        end = int(match.group(2) or start)
-        cited.append((key, start, end, match.start()))
-        note = _what_a_citation_lands_on(start, end, facts, whole)
-
-        if note is not None:
-            bad.append(f'{key}:{match.group(0)} ({note})')
+            bad.append(_citation_note(key, match, note))
 
     clash = _exclusive_citations(cited, cache, whole)
 
@@ -1091,8 +1638,47 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
     return bad
 
 
+def _nexus_names() -> set[str]:
+
+    '''Return the file names the ledger attributes to Nexus.
+
+    These are read from the ledger rather than the tree, so a citation
+    into Nexus is known for one even where that tree is not checked out.
+
+    Returns:
+        set[str]: Those names, each as a bare file name.
+    '''
+
+    body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Nexus', '')
+
+    return {Path(named).name for named in LEDGER_PATH_RE.findall(body)}
+
+
+def _reaches_absent_nexus(key: str) -> bool:
+
+    '''Whether a citation names a Nexus file with no Nexus to read.
+
+    Args:
+        key (str): The name the citation used.
+
+    Returns:
+        bool: True where the name is Nexus's and that tree is absent.
+    '''
+
+    if NEXUS_ROOT.is_dir():
+        return False
+
+    named = SOURCE_FILES.get(key)
+
+    if named is not None:
+        return str(named).startswith('../Nexus/')
+
+    return key.startswith('nexus/') or Path(key).name in _nexus_names()
+
+
 def _facts_for(key: str, cache: _SourceFacts) -> tuple[_FileFacts | None, str | None]:
-    """Return what a cited file states, or why it cannot be read.
+
+    '''Return what a cited file states, or why it cannot be read.
 
     Args:
         key (str): The name the citation used.
@@ -1101,7 +1687,10 @@ def _facts_for(key: str, cache: _SourceFacts) -> tuple[_FileFacts | None, str | 
     Returns:
         tuple[_FileFacts | None, str | None]: What the file states, or the
             reason it could not be read.
-    """
+    '''
+
+    if _reaches_absent_nexus(key):
+        return None, UNCHECKED
 
     try:
         path = _resolve_source(key)
@@ -1120,27 +1709,34 @@ def _facts_for(key: str, cache: _SourceFacts) -> tuple[_FileFacts | None, str | 
 def _what_a_citation_lands_on(
     start: int, end: int, facts: _FileFacts, row: str,
 ) -> str | None:
-    """Return what a citation lands on, where it is not executable code.
+
+    '''Return what a citation lands on, where it is not executable code.
 
     Args:
         start (int): The first line cited.
         end (int): The last line cited.
         facts (_FileFacts): What the cited file states.
-        row (str): The whole evidence row, read for a message claim.
+        row (str): The whole evidence row, read for a claim about a
+            logged message or about a docstring.
 
     Returns:
         str | None: What it landed on, or None where it landed on code.
-    """
+    '''
 
     span = list(range(start, min(end, start + _MAX_SPAN) + 1))
+    bare = facts.blanks | facts.comments | facts.docstrings | facts.signatures
+    told = _claims_a_docstring(row)
 
-    if all(n in facts.blanks for n in span):
-        return 'blank line'
+    if all(n in facts.docstrings for n in span) and told:
+        return None
+
+    if all(n in bare for n in span):
+        return 'no executable line'
 
     inside = [n for n in span if n in facts.docstrings]
 
     if start in facts.docstrings or (inside and len(inside) * 2 > len(span)):
-        return 'docstring'
+        return None if told else 'docstring'
 
     if start in facts.logs and not _claims_a_message(row):
         return 'log call'
@@ -1153,39 +1749,42 @@ def _what_a_citation_lands_on(
 
 def _write(line: str) -> None:
 
-    """Write one line of output.
+    '''Write one line of output.
 
     Args:
         line (str): The line to write.
-    """
+    '''
 
     sys.stdout.write(f'{line}\n')
 
 
 def _register_ids() -> set[str]:
 
-    """Return every row identifier the register carries.
+    '''Return every row identifier the register carries.
+
+    Only an identifier opening a table row counts; one written in the
+    register's prose is a reference to a row, not a row.
 
     Returns:
         set[str]: The identifiers.
-    """
+    '''
 
     if not REGISTER.exists():
         return set()
 
-    return set(ROW_ID.findall(REGISTER.read_text()))
+    return set(ROW_OPENING.findall(REGISTER.read_text()))
 
 
 def _last_commit_date(path: Path) -> str | None:
 
-    """Return the UTC date a path was last committed on.
+    '''Return the UTC date a path was last committed on.
 
     Args:
         path (Path): The file to read, at its pinned commit.
 
     Returns:
         str | None: The date, or None where git cannot say.
-    """
+    '''
 
     if GIT is None:
         return None
@@ -1210,6 +1809,7 @@ def _last_commit_date(path: Path) -> str | None:
 
 
 def _unspaced_headings(body: str) -> list[str]:
+
     '''Return headings that run straight on from the line above.'''
 
     lines = body.splitlines()
@@ -1227,14 +1827,14 @@ def _unspaced_headings(body: str) -> list[str]:
 
 def _negative_definitions(body: str) -> list[str]:
 
-    """Return the sentences defining something by what it is not.
+    '''Return the sentences defining something by what it is not.
 
     Args:
         body (str): The page's prose, its metadata removed.
 
     Returns:
         list[str]: One complaint per sentence.
-    """
+    '''
 
     found: list[str] = []
 
@@ -1260,14 +1860,14 @@ def _negative_definitions(body: str) -> list[str]:
 
 def _lead_paragraph(body: str) -> str | None:
 
-    """Return the paragraph following the title.
+    '''Return the paragraph following the title.
 
     Args:
         body (str): The page's prose, its metadata removed.
 
     Returns:
         str | None: That paragraph, or None where there is none.
-    """
+    '''
 
     lines = body.splitlines()
 
@@ -1288,7 +1888,8 @@ def _lead_paragraph(body: str) -> str | None:
 
 
 def _unlinked_terms(page: Path, body: str) -> list[str]:
-    """Return the terms another article owns that are first met unlinked.
+
+    '''Return the terms another article owns that are first met unlinked.
 
     A reader meets a term once and needs the link there, so the first
     mention in the prose must carry it. Later mentions are free. A link
@@ -1302,7 +1903,7 @@ def _unlinked_terms(page: Path, body: str) -> list[str]:
 
     Returns:
         list[str]: One complaint per term first met without its link.
-    """
+    '''
 
     prose = body.split('## Related', 1)[0]
     missing: list[str] = []
@@ -1322,7 +1923,8 @@ def _unlinked_terms(page: Path, body: str) -> list[str]:
 
 
 def _within_link(body: str, position: int, owner: str) -> bool:
-    """Whether a mention sits inside the text of a link to its owner.
+
+    '''Whether a mention sits inside the text of a link to its owner.
 
     Args:
         body (str): The page's prose.
@@ -1331,7 +1933,7 @@ def _within_link(body: str, position: int, owner: str) -> bool:
 
     Returns:
         bool: True where the mention is the linked text itself.
-    """
+    '''
 
     for match in re.finditer(r'\[([^\]]*)\]\(' + re.escape(owner) + r'[^)]*\)', body):
 
@@ -1343,28 +1945,28 @@ def _within_link(body: str, position: int, owner: str) -> bool:
 
 def _label(name: str) -> str:
 
-    """Return a link label reduced to its comparable form.
+    '''Return a link label reduced to its comparable form.
 
     Args:
         name (str): The link target or label to reduce.
 
     Returns:
         str: The label, case-folded and its spacing normalised.
-    """
+    '''
 
     return ' '.join(name.split()).casefold()
 
 
 def _anchors(text: str) -> set[str]:
 
-    """Return the anchors a page offers, one per heading.
+    '''Return the anchors a page offers, one per heading.
 
     Args:
         text (str): The rows to scan, one per line.
 
     Returns:
         set[str]: Those anchors.
-    """
+    '''
 
     slugs = set()
 
@@ -1376,7 +1978,8 @@ def _anchors(text: str) -> set[str]:
 
 
 def _link_targets(body: str) -> tuple[list[str], list[str]]:
-    """Return every link target a page names, and the references that miss.
+
+    '''Return every link target a page names, and the references that miss.
 
     Args:
         body (str): The page's prose, its metadata removed.
@@ -1384,7 +1987,7 @@ def _link_targets(body: str) -> tuple[list[str], list[str]]:
     Returns:
         tuple[list[str], list[str]]: The targets, and one complaint per
             reference whose definition is absent.
-    """
+    '''
 
     broken: list[str] = []
     definitions: dict[str, str] = {}
@@ -1419,7 +2022,7 @@ def _link_targets(body: str) -> tuple[list[str], list[str]]:
 
 def _broken_links(page: Path, body: str) -> list[str]:
 
-    """Return the links pointing at a page or anchor that is absent.
+    '''Return the links pointing at a page or anchor that is absent.
 
     Args:
         page (Path): The page being read.
@@ -1427,7 +2030,7 @@ def _broken_links(page: Path, body: str) -> list[str]:
 
     Returns:
         list[str]: One complaint per broken link.
-    """
+    '''
 
     targets, broken = _link_targets(body)
 
@@ -1456,14 +2059,14 @@ def _broken_links(page: Path, body: str) -> list[str]:
 
 def _split_front_matter(text: str) -> tuple[str, str]:
 
-    """Split a page into its metadata block and its body.
+    '''Split a page into its metadata block and its body.
 
     Args:
-        text (str): The rows to scan, one per line.
+        text (str): The whole page.
 
     Returns:
         tuple[str, str]: The metadata and the body.
-    """
+    '''
 
     if not text.startswith('---\n'):
         return '', text
@@ -1477,7 +2080,8 @@ def _split_front_matter(text: str) -> tuple[str, str]:
 
 
 def _evidence_rows(meta: str) -> list[str]:
-    """Return each evidence row as its claim and source joined.
+
+    '''Return each evidence row as its claim and source joined.
 
     A claim given no source comes back alone, so the caller can refuse it.
 
@@ -1487,7 +2091,7 @@ def _evidence_rows(meta: str) -> list[str]:
     Returns:
         list[str]: One entry per claim, as `claim | source` where a source
             was given and as the claim alone where none was.
-    """
+    '''
 
     rows: list[str] = []
 
@@ -1504,7 +2108,8 @@ def _evidence_rows(meta: str) -> list[str]:
 
 
 def _unlined_sources(rows: list[str]) -> list[str]:
-    """Return the files a row names without citing a line of their own.
+
+    '''Return the files a row names without citing a line of their own.
 
     Naming a file and citing none of it leans on the name. The exception
     is a claim about what a file does not hold, which has no line to
@@ -1515,7 +2120,7 @@ def _unlined_sources(rows: list[str]) -> list[str]:
 
     Returns:
         list[str]: One complaint per file named but not cited.
-    """
+    '''
 
     notes: list[str] = []
 
@@ -1534,7 +2139,10 @@ def _unlined_sources(rows: list[str]) -> list[str]:
             if LINE_REF.search(stretch):
                 continue
 
-            nearby = source[max(0, match.start() - _MARKER_REACH):end].lower()
+            behind = names[index - 1].end() if index else 0
+            nearby = source[
+                max(match.start() - _MARKER_REACH, behind):match.end()
+            ].lower()
 
             if not any(word in nearby for word in ABSENCE_WORDS):
                 notes.append(f'names `{match.group(1)}` and cites no line of it')
@@ -1547,14 +2155,30 @@ def _unlined_sources(rows: list[str]) -> list[str]:
 
 
 def _unresolvable(name: str) -> bool:
-    """Whether a named file is absent from the tree it would be read in.
+
+    '''Whether a named file is absent from the tree it would be read in.
+
+    A name carrying a directory must exist at that exact path; a bare
+    name is looked for by itself in each pinned tree.
 
     Args:
         name (str): The file name as the row wrote it.
 
     Returns:
         bool: True where no pinned tree holds it.
-    """
+    '''
+
+    if _reaches_absent_nexus(name):
+        return False
+
+    if '/' in name:
+
+        try:
+            return not any(
+                name in _pinned_paths(root, commit) for root, commit in _pins()
+            )
+        except BaselineReadError:
+            return False
 
     try:
         return _resolve_source(Path(name).stem) is None
@@ -1563,7 +2187,8 @@ def _unresolvable(name: str) -> bool:
 
 
 def _uncited_claims(rows: list[str]) -> list[str]:
-    """Return the claims carrying no source at all.
+
+    '''Return the claims carrying no source at all.
 
     Args:
         rows (list[str]): The evidence rows of one page.
@@ -1571,7 +2196,7 @@ def _uncited_claims(rows: list[str]) -> list[str]:
     Returns:
         list[str]: One complaint per claim with nothing behind it. A
             source naming a file but no line counts as nothing.
-    """
+    '''
 
     return [
         f'claim carries no source: "{row[:60]}"'
@@ -1581,7 +2206,8 @@ def _uncited_claims(rows: list[str]) -> list[str]:
 
 
 def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
-    """Return what a page's timestamps get wrong.
+
+    '''Return what a page's timestamps get wrong.
 
     A stamp may run ahead of the last commit, the page having been edited
     and not yet committed. One running behind it is stale: the page
@@ -1594,7 +2220,7 @@ def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
 
     Returns:
         list[str]: One complaint per failure, each naming the page.
-    """
+    '''
 
     rel = page.as_posix()
     stamp = META_STAMP.search(meta) if meta else STAMP.search(text)
@@ -1623,14 +2249,15 @@ def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
 
 
 def _check_voice(body: str) -> list[str]:
-    """Return what a page's prose gets wrong in how it is written.
+
+    '''Return what a page's prose gets wrong in how it is written.
 
     Args:
         body (str): The page's prose, its metadata removed.
 
     Returns:
         list[str]: One complaint per failure.
-    """
+    '''
 
     notes: list[str] = []
     lead = _lead_paragraph(body)
@@ -1659,7 +2286,8 @@ def _check_voice(body: str) -> list[str]:
 
 
 def _check_metadata(meta: str, ids: set[str]) -> list[str]:
-    """Return what a page's metadata gets wrong about its pin and its row.
+
+    '''Return what a page's metadata gets wrong about its pin and its row.
 
     Args:
         meta (str): The page's metadata block.
@@ -1667,7 +2295,7 @@ def _check_metadata(meta: str, ids: set[str]) -> list[str]:
 
     Returns:
         list[str]: One complaint per failure.
-    """
+    '''
 
     notes: list[str] = []
     baseline = BASELINE_RE.search(meta)
@@ -1693,14 +2321,15 @@ def _check_metadata(meta: str, ids: set[str]) -> list[str]:
 
 
 def _check_length(body: str) -> list[str]:
-    """Return a complaint where a page's prose outgrows the word cap.
+
+    '''Return a complaint where a page's prose outgrows the word cap.
 
     Args:
         body (str): The page's prose, its metadata removed.
 
     Returns:
         list[str]: The one complaint, or none.
-    """
+    '''
 
     words = _prose_words(body)
 
@@ -1716,7 +2345,7 @@ def _check_page(
     cache: _SourceFacts,
 ) -> list[str]:
 
-    """Return everything one page gets wrong.
+    '''Return everything one page gets wrong.
 
     Args:
         page (Path): The page being read.
@@ -1725,7 +2354,7 @@ def _check_page(
 
     Returns:
         list[str]: One complaint per failure, each naming the page.
-    """
+    '''
 
     text = page.read_text()
     rel = page.as_posix()
@@ -1759,7 +2388,8 @@ def _check_page(
 
 
 def _check_citations(rows: list[str], cache: _SourceFacts) -> list[str]:
-    """Return what a page's citations land on, where not on code.
+
+    '''Return what a page's citations land on, where not on code.
 
     Args:
         rows (list[str]): The page's evidence rows.
@@ -1767,7 +2397,7 @@ def _check_citations(rows: list[str], cache: _SourceFacts) -> list[str]:
 
     Returns:
         list[str]: One complaint per bad citation.
-    """
+    '''
 
     return [
         f'evidence cites prose, not code, at {ref}'
@@ -1778,6 +2408,7 @@ def _check_citations(rows: list[str], cache: _SourceFacts) -> list[str]:
 
 
 def _modules(root: Path, commit: str, package: str) -> set[str]:
+
     '''Return the package's non-init modules in the pinned tree.'''
 
     return {
@@ -1790,6 +2421,7 @@ def _modules(root: Path, commit: str, package: str) -> set[str]:
 
 
 def _ledger_sections(text: str) -> dict[str, str]:
+
     '''Return each package heading's body, keyed by the package name.'''
 
     headings = list(LEDGER_HEADING_RE.finditer(text))
@@ -1802,8 +2434,63 @@ def _ledger_sections(text: str) -> dict[str, str]:
     return sections
 
 
+def _ledger_package(
+    package: str,
+    modules: set[str],
+    commit: str,
+    body: str,
+    counted: int | None,
+) -> list[str]:
+
+    '''Return one package's disagreements with its pinned tree.
+
+    Args:
+        package (str): The package name, as written in a path.
+        modules (set[str]): Its modules in the pinned tree.
+        commit (str): The commit the tree is pinned to.
+        body (str): The ledger section for the package.
+        counted (int | None): The count its heading claims.
+
+    Returns:
+        list[str]: One failure per disagreement.
+    '''
+
+    named = {
+        name for name in LEDGER_PATH_RE.findall(body) if name.startswith(f'{package}/')
+    }
+    failures = [
+        f'{LEDGER}: a row names {absent}, which is not in the tree at {commit}'
+        for absent in sorted(named - modules)
+    ]
+
+    if counted != len(modules):
+        failures.append(
+            f'{LEDGER}: the {package} heading says {counted} modules, '
+            f'the tree at {commit} has {len(modules)}',
+        )
+
+    remainder = len(modules) - len(named & modules)
+    grouped = sum(int(count) for count in LEDGER_GROUP_RE.findall(body))
+
+    if grouped != remainder:
+        failures.append(
+            f'{LEDGER}: {package} names {len(named & modules)} of {len(modules)} modules '
+            f'and groups {grouped}, leaving {remainder - grouped} unaccounted for',
+        )
+
+    return failures
+
+
 def _ledger_coverage() -> list[str]:
-    '''Return the ledger's disagreements with the pinned trees.'''
+
+    '''Return the ledger's disagreements with the pinned trees.
+
+    A package whose tree is not checked out is passed over, so the gate
+    checks everything the checkout it has can account for.
+
+    Returns:
+        list[str]: One failure per disagreement.
+    '''
 
     text = LEDGER.read_text(encoding='utf-8')
     counts = {name: int(count) for name, count in LEDGER_HEADING_RE.findall(text)}
@@ -1816,42 +2503,460 @@ def _ledger_coverage() -> list[str]:
     ):
 
         if root_commit is None:
-            failures.append(
-                f'{LEDGER}: the {package} tree is not checked out, '
-                'so its half of the ledger cannot be checked',
-            )
             continue
 
         root, commit, _ = root_commit
-        modules = _modules(root, commit, package)
         heading = package.capitalize()
-        body = sections.get(heading, '')
-        named = {
-            name for name in LEDGER_PATH_RE.findall(body)
-            if name.startswith(f'{package}/')
-        }
+        failures += _ledger_package(
+            package, _modules(root, commit, package), commit,
+            sections.get(heading, ''), counts.get(heading),
+        )
 
-        for absent in sorted(named - modules):
+    return failures
+
+
+def _tree_relative(path: Path) -> str:
+
+    '''Return a resolved source path as it is written in the ledger.
+
+    Args:
+        path (Path): A path under one of the pinned roots.
+
+    Returns:
+        str: The path relative to its root, or the path as given.
+    '''
+
+    for root, _ in _pins():
+
+        if str(path).startswith(str(root)):
+            return str(path.relative_to(root))
+
+    return str(path)
+
+
+def _row_file_citations() -> dict[str, set[str]]:
+
+    '''Return which register rows cite each file, by ledger path.
+
+    Returns:
+        dict[str, set[str]]: Path to the rows citing it.
+    '''
+
+    cited: dict[str, set[str]] = {}
+
+    text = REGISTER.read_text(encoding='utf-8')
+    sources = [
+        (row, _split_front_matter((WIKI / article).read_text(encoding='utf-8'))[0])
+        for row, article in REGISTER_ROW_RE.findall(text)
+    ]
+
+    for row, meta in sources:
+
+        for whole in _evidence_rows(meta):
+            _note_cited(cited, row, whole.split(' | ', 1)[1] if ' | ' in whole else '')
+
+    return cited
+
+
+def _finding_file_citations() -> dict[str, set[str]]:
+
+    '''Return which findings cite each file, by ledger path.
+
+    Returns:
+        dict[str, set[str]]: Path to the findings citing it.
+    '''
+
+    cited: dict[str, set[str]] = {}
+
+    for row, _, source in FINDING_CELLS_RE.findall(
+        REGISTER.read_text(encoding='utf-8'),
+    ):
+        _note_cited(cited, row, source)
+
+    return cited
+
+
+def _note_cited(cited: dict[str, set[str]], row: str, source: str) -> None:
+
+    '''Record which file each name in one source half reaches.
+
+    Args:
+        cited (dict[str, set[str]]): What has been recorded so far.
+        row (str): The row or finding the source belongs to.
+        source (str): The source half, as the row wrote it.
+    '''
+
+    for _, name in _row_sources(source):
+        path = _resolve_source(name)
+
+        if path is not None:
+            cited.setdefault(_identity(name) or _tree_relative(path), set()).add(row)
+
+
+def _ledger_listed(column: str) -> set[str]:
+
+    '''Return the row identifiers a ledger cell names, spans expanded.
+
+    Args:
+        column (str): The cell's text, as `P4-01, P4-03 to P4-05`.
+
+    Returns:
+        set[str]: The identifiers.
+    '''
+
+    listed: set[str] = set()
+
+    for part in (piece.strip() for piece in column.split(',')):
+        span = ROW_SPAN_RE.match(part)
+
+        if span is not None:
+            package, first, last = span.groups()
+            listed |= {f'{package}-{n:02d}' for n in range(int(first), int(last) + 1)}
+
+        elif ROW_ID.fullmatch(part):
+            listed.add(part)
+
+    return listed
+
+
+def _nexus_ledger_rows(
+    cited: dict[str, set[str]],
+    found: dict[str, set[str]],
+) -> list[str]:
+
+    '''Check the ledger's Nexus rows against the files the wiki cites.
+
+    The rows there carry no identifiers, so membership is what is
+    checked: a file a row or a finding cites is named, and a file named
+    there is cited. Without that tree nothing resolves into it, so the
+    check is passed over.
+
+    Args:
+        cited (dict[str, set[str]]): Which rows cite each file.
+        found (dict[str, set[str]]): Which findings cite each file.
+
+    Returns:
+        list[str]: One failure per file on one side only.
+    '''
+
+    if not NEXUS_ROOT.is_dir():
+        return []
+
+    body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Nexus', '')
+    named = {name for name, _, _ in LEDGER_ROW_RE.findall(body)}
+    reached = {name for name in (cited | found) if name.startswith('nexus/')}
+
+    return [
+        f'{LEDGER}: {name} is cited but not named in the Nexus rows'
+        for name in sorted(reached - named)
+    ] + [
+        f'{LEDGER}: {name} is named in the Nexus rows but nothing cites it'
+        for name in sorted(named - reached)
+    ]
+
+
+def _ledger_rows() -> list[str]:
+
+    '''Check each Praxis ledger row against the rows that cite its file.
+
+    A cell may name only rows whose article cites the file, and must
+    name every one of them. A file no row cites is `uncovered`, and a
+    file some row cites is not.
+
+    Returns:
+        list[str]: One failure per row that disagrees with the articles.
+    '''
+
+    try:
+        cited = _row_file_citations()
+    except BaselineReadError as error:
+        return [f'{LEDGER}: {error}']
+
+    failures = _nexus_ledger_rows(cited, _finding_file_citations())
+    body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Praxis', '')
+
+    for name, state, column in LEDGER_ROW_RE.findall(body):
+        rows, listed = cited.get(name, set()), _ledger_listed(column)
+
+        if rows != listed:
             failures.append(
-                f'{LEDGER}: a row names {absent}, which is not in the tree at {commit}',
+                f'{LEDGER}: `{name}` names {sorted(listed) or "no row"}; '
+                f'the rows citing it are {sorted(rows) or "none"}',
             )
 
-        if counts.get(heading) != len(modules):
-            failures.append(
-                f'{LEDGER}: the {heading} heading says {counts.get(heading)} modules, '
-                f'the tree at {commit} has {len(modules)}',
-            )
+        elif not rows and state != 'uncovered':
+            failures.append(f'{LEDGER}: `{name}` is `{state}` with no row citing it')
 
-        remainder = len(modules) - len(named & modules)
-        grouped = sum(int(count) for count in LEDGER_GROUP_RE.findall(body))
-
-        if grouped != remainder:
+        elif rows and state == 'uncovered':
             failures.append(
-                f'{LEDGER}: {heading} names {len(named & modules)} of {len(modules)} modules '
-                f'and groups {grouped}, leaving {remainder - grouped} unaccounted for',
+                f'{LEDGER}: `{name}` is `uncovered` while {sorted(rows)} cite it',
             )
 
     return failures
+
+
+def _nexus_counts() -> tuple[int, int]:
+
+    '''Return how many Nexus modules the ledger names and how many it holds.
+
+    Returns:
+        tuple[int, int]: The rows naming a module, and every module.
+    '''
+
+    body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Nexus', '')
+    named = len(LEDGER_ROW_RE.findall(body))
+    grouped = sum(int(count) for count in LEDGER_GROUP_RE.findall(body))
+
+    return named, named + grouped
+
+
+def _counted_lines(page: Path, text: str) -> list[str]:
+
+    '''Check each claim about a file's length against the pinned file.
+
+    Args:
+        page (Path): The page the claims are written on.
+        text (str): Its text.
+
+    Returns:
+        list[str]: One failure per length that disagrees.
+    '''
+
+    failures = []
+
+    for written in LINE_COUNT_RE.finditer(text):
+        name, said = written.group(1), int(written.group(2).replace(',', ''))
+
+        if _reaches_absent_nexus(name):
+            continue
+
+        path = _resolve_source(name)
+
+        if path is None:
+            failures.append(f'{page}: "{written.group(0)}" names no file in the tree')
+            continue
+
+        length = len(_source_text(path).splitlines())
+
+        if said != length:
+            failures.append(f'{page}: "{written.group(0)}" against {length:,}')
+
+    return failures
+
+
+def _counted_states() -> list[str]:
+
+    '''Check every count written about the ledger against the ledger.
+
+    The states are counted in the Praxis table, and the article count
+    against the articles themselves, wherever either is written down.
+    The changelog is left out: its entries describe the release they
+    were written for, not the wiki as it stands.
+
+    Returns:
+        list[str]: One failure per count that disagrees.
+    '''
+
+    body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Praxis', '')
+    states = [state for _, state, _ in LEDGER_ROW_RE.findall(body)]
+    counted = (states.count('full'), states.count('partial'), states.count('uncovered'))
+    articles = len(list((WIKI / 'atoms').glob('*.md')))
+    nexus_named, nexus_total = _nexus_counts()
+    failures = []
+
+    for page in (README, LEDGER, REGISTER):
+        text = page.read_text(encoding='utf-8')
+        failures += _counted_lines(page, text)
+
+        for written in STATE_COUNT_RE.finditer(text):
+
+            if tuple(int(n) for n in written.groups()) != counted:
+                failures.append(
+                    f'{page}: "{written.group(0)}" against {counted[0]} full, '
+                    f'{counted[1]} partial and {counted[2]} uncovered in the ledger',
+                )
+
+        for pattern, truth, what in (
+            (ARTICLE_COUNT_RE, articles, 'articles in the wiki'),
+            (NEXUS_COUNT_RE, nexus_named, 'Nexus rows in the ledger'),
+            (NEXUS_TOTAL_RE, nexus_total, 'Nexus modules in the ledger'),
+            (
+                NEXUS_UNTOUCHED_RE, nexus_total - nexus_named,
+                'Nexus modules the ledger names no row for',
+            ),
+        ):
+
+            for written in pattern.finditer(text):
+
+                if int(written.group(1)) != truth:
+                    failures.append(
+                        f'{page}: "{written.group(0)}" against {truth} {what}',
+                    )
+
+    return failures
+
+
+def _unchecked_trees() -> list[str]:
+
+    '''Return a note for each pinned tree that is not checked out.
+
+    Returns:
+        list[str]: One note per absent tree.
+    '''
+
+    if NEXUS_ROOT.is_dir():
+        return []
+
+    return [
+        f'the Nexus tree is not checked out at {NEXUS_ROOT}, '
+        'so citations into it are not read',
+    ]
+
+
+def _evidence_totals() -> tuple[int, int]:
+
+    '''Count the claims every article makes and the lines they cite.
+
+    Returns:
+        tuple[int, int]: The line references, and the claims carrying them.
+    '''
+
+    claims = references = 0
+
+    for page in sorted((WIKI / 'atoms').glob('*.md')):
+        meta, _ = _split_front_matter(page.read_text(encoding='utf-8'))
+
+        for whole in _evidence_rows(meta):
+            claims += 1
+            source = whole.split(' | ', 1)[1] if ' | ' in whole else ''
+            named = _row_sources(source)
+            references += sum(
+                1 for match in LINE_REF.finditer(source)
+                if any(pos < match.start() for pos, _ in named)
+            )
+
+    return references, claims
+
+
+def _latest_release_counts() -> list[str]:
+
+    '''Check the newest changelog entry's counts against the wiki.
+
+    Only the newest entry is read. An entry already released describes
+    the wiki as it stood then, and is left alone.
+
+    Returns:
+        list[str]: One failure per count that disagrees.
+    '''
+
+    headings = list(RELEASE_RE.finditer(CHANGELOG.read_text(encoding='utf-8')))
+
+    if not headings:
+        return []
+
+    entry = CHANGELOG.read_text(encoding='utf-8')[headings[-1].start():]
+    references, claims = _evidence_totals()
+    findings = len(FINDING_ROW_RE.findall(REGISTER.read_text(encoding='utf-8')))
+    failures = []
+
+    for written in EVIDENCE_COUNT_RE.finditer(entry):
+        said = tuple(int(number.replace(',', '')) for number in written.groups())
+
+        if said != (references, claims):
+            failures.append(
+                f'{CHANGELOG}: "{written.group(0)}" against {references:,} '
+                f'references across {claims:,} claims',
+            )
+
+    for pattern, truth, what in (
+        (ARTICLE_COUNT_RE, len(list((WIKI / 'atoms').glob('*.md'))), 'articles'),
+        (FINDING_COUNT_RE, findings, 'findings in the register'),
+    ):
+
+        for written in pattern.finditer(entry):
+
+            if int(written.group(1).replace(',', '')) != truth:
+                failures.append(
+                    f'{CHANGELOG}: "{written.group(0)}" against {truth} {what}',
+                )
+
+    return failures
+
+
+def _index_coverage() -> list[str]:
+
+    '''Check that the register, the index and the articles are one set.
+
+    Every register row names an article that exists, every article is
+    listed in the index, and no two rows name the same article.
+
+    Returns:
+        list[str]: One failure per article unaccounted for.
+    '''
+
+    written = {f'atoms/{page.name}' for page in (WIKI / 'atoms').glob('*.md')}
+    named = REGISTER_ROW_RE.findall(REGISTER.read_text(encoding='utf-8'))
+    listed = set(ARTICLE_LINK_RE.findall(README.read_text(encoding='utf-8')))
+    failures = [
+        f'{REGISTER}: row {row} names {article}, which does not exist'
+        for row, article in named if article not in written
+    ]
+    failures += [
+        f'{REGISTER}: {article} is named by rows {sorted(rows)}'
+        for article, rows in _rows_per_article(named).items() if len(rows) > 1
+    ]
+    failures += [
+        f'{README}: {article} is not listed' for article in sorted(written - listed)
+    ]
+
+    return failures + [
+        f'{README}: lists {article}, which does not exist'
+        for article in sorted(listed - written)
+    ]
+
+
+def _rows_per_article(named: list[tuple[str, str]]) -> dict[str, list[str]]:
+
+    '''Return which register rows name each article.
+
+    Args:
+        named (list[tuple[str, str]]): Each row with the article it names.
+
+    Returns:
+        dict[str, list[str]]: The rows naming each article.
+    '''
+
+    rows: dict[str, list[str]] = {}
+
+    for row, article in named:
+        rows.setdefault(article, []).append(row)
+
+    return rows
+
+
+def _finding_citations(cache: _SourceFacts) -> list[str]:
+
+    '''Check the citations the register's own findings carry.
+
+    A finding names its file the way an article's evidence does, and
+    what it cites is read the same way, a line given with no file
+    before it included. A figure a finding means as a figure is
+    written in words, so that every number left is a line.
+
+    Args:
+        cache (_SourceFacts): Where each cited file is read once and kept.
+
+    Returns:
+        list[str]: One failure per citation that does not hold.
+    '''
+
+    text = REGISTER.read_text(encoding='utf-8')
+
+    return [
+        f'{REGISTER}: {row} {note}'
+        for row, claim, source in FINDING_CELLS_RE.findall(text)
+        for note in _row_citations(f'{claim.strip()} | {source.strip()}', cache)
+    ]
 
 
 def main() -> int:
@@ -1863,6 +2968,14 @@ def main() -> int:
     cache = _SourceFacts()
     failures = [f for page in pages for f in _check_page(page, ids, cache)]
     failures += _ledger_coverage()
+    failures += _ledger_rows()
+    failures += _counted_states()
+    failures += _latest_release_counts()
+    failures += _index_coverage()
+    failures += _finding_citations(cache)
+
+    for note in _unchecked_trees():
+        _write(f'note: {note}')
 
     for failure in failures:
         _write(f'FAIL {failure}')

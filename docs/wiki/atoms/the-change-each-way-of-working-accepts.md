@@ -5,7 +5,7 @@ created: 2026-10-03 16:39 UTC
 modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Six kinds of change answer the seven ways of working, the two fixed-pace ways sharing one"
-    source: "`modify_params.py` 31-39, the ways listed at `enums.py` 119-125"
+    source: "`modify_params.py` 31-39, the ways listed at `praxis/core/domain/enums.py` 119-125"
   - claim: "That mirrors how the settings are registered"
     source: "`execution_params.py` 30-38"
   - claim: "A change carries the command's name, the account and a reason, each of which must be something rather than nothing"

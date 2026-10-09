@@ -5,13 +5,13 @@ created: 2026-10-03 20:11 UTC
 modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Whatever was attached to the root of Python's logging is detached, and one handler put in its place"
-    source: "`observability.py` 80-82"
+    source: "`praxis/infrastructure/observability.py` 80-82"
   - claim: "Detaching them does not close them"
-    source: "`observability.py` 81"
+    source: "`praxis/infrastructure/observability.py` 81"
   - claim: "That touches the root alone, so a handler attached anywhere below it stays where it is"
-    source: "`observability.py` 80-82"
+    source: "`praxis/infrastructure/observability.py` 80-82"
   - claim: "The arrangement's own route does not pass through the root at all"
-    source: "`observability.py` 62 against 80-82"
+    source: "`praxis/infrastructure/observability.py` 62 against 80-82"
   - claim: "Asking for plain text calls Python's own setting-up"
     source: "`launcher.py` 4853-4856"
   - claim: "Nothing forces that call through, so where a handler is already attached to the root it does nothing"
@@ -19,7 +19,7 @@ evidence:
   - claim: "Where it does run, the level is checked there and an unknown one raises"
     source: "`launcher.py` 4854"
   - claim: "A logger is kept on the thing it was fetched through, so fetching the same name again builds another"
-    source: "`observability.py` 63 against 125"
+    source: "`praxis/infrastructure/observability.py` 63 against 125"
 ---
 # What the logging arrangement misses
 

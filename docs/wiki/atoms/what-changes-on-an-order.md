@@ -5,7 +5,7 @@ created: 2026-10-03 17:11 UTC
 modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "An order's fields may be assigned, where a command's may not"
-    source: "`order.py` 30 and 141-197 against `trade_command.py` 29"
+    source: "`order.py` 30 and 141-197 against `praxis/core/domain/trade_command.py` 29"
   - claim: "Assigning a size checks it is a finite decimal above nought"
     source: "`order.py` 157-165 and 173-181"
   - claim: "Assigning an amount of coin while an amount of money holds a value is refused"

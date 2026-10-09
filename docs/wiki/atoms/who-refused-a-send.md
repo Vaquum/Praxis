@@ -5,7 +5,7 @@ created: 2026-09-30 18:44 UTC
 modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Three answers are possible: the venue, Praxis, or unknown"
-    source: "`enums.py` 28-30"
+    source: "`praxis/core/domain/enums.py` 28-30"
   - claim: "A refusal marked as never having reached the venue is put down to Praxis"
     source: "`classify_submit_failure.py` 60-61"
   - claim: "A refusal the venue sent is put down to the venue, with its code kept"

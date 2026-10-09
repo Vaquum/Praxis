@@ -7,15 +7,15 @@ evidence:
   - claim: "An outcome is built with the names, a status, the amount filled and its average, a pair of slice figures, a reason and a time"
     source: "`execution_manager.py` 10784-10798"
   - claim: "Two statuses are not an ending and four are"
-    source: "`enums.py` 171-176, the four gathered at `trade_outcome.py` 23-28 and tested at 171"
+    source: "`praxis/core/domain/enums.py` 171-176, the four gathered at `praxis/core/domain/trade_outcome.py` 23-28 and tested at 171"
   - claim: "Its names must be real names and its time must carry a zone"
-    source: "`trade_outcome.py` 111-116"
+    source: "`praxis/core/domain/trade_outcome.py` 111-116"
   - claim: "It is handed to a caller where one was given"
     source: "`execution_manager.py` 757-758, dispatched at 10834"
   - claim: "A restart looks only within the epoch it was told to run"
     source: "`launcher.py` 4521-4526"
   - claim: "How far along it is cannot be given where no target was"
-    source: "`trade_outcome.py` 182-185"
+    source: "`praxis/core/domain/trade_outcome.py` 182-185"
 ---
 # Outcomes
 

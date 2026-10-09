@@ -2,7 +2,7 @@
 row: P2-17
 baseline: 49aa659
 created: 2026-09-26 08:12 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-05 14:38 UTC
 evidence:
   - claim: "Every event is kept with its epoch, time, kind and contents"
     source: "`event_spine.py` 123-131"
@@ -10,6 +10,8 @@ evidence:
     source: "`event_spine.py` 1165-1172, the order coming from the key at 124"
   - claim: "A kind the record does not know is refused rather than kept"
     source: "`event_spine.py` 1158-1161"
+  - claim: "A fill already written for the same epoch, account, pair and venue name is refused, and nothing is written for it"
+    source: "`event_spine.py` 1022-1023"
   - claim: "A fill is offered here before it is projected"
     source: "`execution_manager.py` 4328-4330"
   - claim: "A send writes down the intention before the venue is asked"
@@ -19,9 +21,9 @@ evidence:
   - claim: "A failure of a kind looked for is written down instead"
     source: "reached at `execution_manager.py` 4296-4299, delegated at 5420-5422, built and appended at 5457-5465"
   - claim: "A reply malformed past what is looked for escapes both and leaves only a line in the log"
-    source: "raised at `binance_adapter.py` 940, caught by none of the alternatives at `execution_manager.py` 4282, 4292 or 4296, logged at 4012-4019"
-  - claim: "One lock serves the writers sharing one spine object"
-    source: "`event_spine.py` 456, taken at 947-948"
+    source: "raised at `binance_adapter.py` 940, caught by none of the alternatives — either `execution_manager.py` 4282, or 4292, or 4296 — and logged at 4012-4019"
+  - claim: "One lock serves the writers sharing one spine object, and belongs to that object alone"
+    source: "`event_spine.py` 456 making it on the object, taken at 947-948"
   - claim: "It is held through the writing, the sealing and the commit"
     source: "`event_spine.py` 1125-1126 inside the lock taken at 947-948, the sealing at 1165-1176"
 ---

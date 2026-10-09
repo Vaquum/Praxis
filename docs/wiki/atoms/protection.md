@@ -17,7 +17,7 @@ evidence:
   - claim: "It is a linked pair, one to take a profit and one to stop a loss"
     source: "`execution_manager.py` 4968-4977"
   - claim: "The first of the two to fill cancels the other"
-    source: "`enums.py` 73 for the kind, sent as one at `binance_adapter.py` 1522-1536"
+    source: "`praxis/core/domain/enums.py` 73 for the kind, sent as one at `binance_adapter.py` 1522-1536"
   - claim: "The profit price is given outright or worked out as a distance"
     source: "either `execution_manager.py` 5208-5209 or 5210-5217"
   - claim: "The stop price likewise"

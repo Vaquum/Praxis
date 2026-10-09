@@ -7,7 +7,7 @@ evidence:
   - claim: "A command is built from what the caller gave, then checked"
     source: "`execution_manager.py` 3461-3477 and 3479"
   - claim: "Assigning to a field of a built command is refused"
-    source: "`trade_command.py` 29"
+    source: "`praxis/core/domain/trade_command.py` 29"
   - claim: "A change to a ladder puts a rebuilt command in the old one's place, under the same name"
     source: "`execution_manager.py` 9345-9347"
   - claim: "A change to work fed out in slices alters its schedule instead, leaving the command where it is"
@@ -21,17 +21,17 @@ evidence:
   - claim: "A caller supplying none has one made for it"
     source: "`execution_manager.py` 3458-3459"
   - claim: "Four names on the command must each be something rather than nothing"
-    source: "`trade_command.py` 83-84 into `_require_str.py` 28-30"
+    source: "`praxis/core/domain/trade_command.py` 83-84 into `_require_str.py` 28-30"
   - claim: "Exactly one of the two sizes must be given"
-    source: "`trade_command.py` 86-88"
+    source: "`praxis/core/domain/trade_command.py` 86-88"
   - claim: "Whichever is given must be a finite decimal above nought"
-    source: "`trade_command.py` 90-104"
+    source: "`praxis/core/domain/trade_command.py` 90-104"
   - claim: "The moment of making must carry a zone and an offset"
-    source: "`trade_command.py` 114-116"
+    source: "`praxis/core/domain/trade_command.py` 114-116"
   - claim: "Where the way of working registers a settings kind, the settings must be of it"
-    source: "`trade_command.py` 118-124"
+    source: "`praxis/core/domain/trade_command.py` 118-124"
   - claim: "That refusal comes while the command is being built, before the wider check is reached"
-    source: "`trade_command.py` 118-124 reached from `execution_manager.py` 3461-3477, ahead of 3479"
+    source: "`praxis/core/domain/trade_command.py` 118-124 reached from `execution_manager.py` 3461-3477, ahead of 3479"
 ---
 # What a command must carry
 
@@ -49,7 +49,7 @@ A caller supplying none has one made for it instead.
 
 ## What must be there
 
-Four names must each be something rather than nothing: the command's own, the request it belongs to, the account, and the trading pair.
+Four names must each be something rather than nothing: the command's own, the trade it belongs to, the account, and the trading pair.
 
 Exactly one of the two sizes must be given — an amount of the coin, or an amount of money to spend. Giving both is refused, and so is giving neither. Whichever is given must be a finite decimal above nought.
 

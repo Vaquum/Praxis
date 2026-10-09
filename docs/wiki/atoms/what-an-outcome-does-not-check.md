@@ -5,15 +5,15 @@ created: 2026-09-26 20:29 UTC
 modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "No rule ties the value to the amount times the price"
-    source: "`trade_outcome.py` 111-164, which multiplies nothing"
+    source: "`praxis/core/domain/trade_outcome.py` 111-164, which multiplies nothing"
   - claim: "Only the target amount is required to be a finite figure"
-    source: "`trade_outcome.py` 111-164, which tests for one at 120 and nowhere else"
+    source: "`praxis/core/domain/trade_outcome.py` 111-164, which tests for one at 120 and nowhere else"
   - claim: "The status is read nowhere among the rules"
-    source: "`trade_outcome.py` 111-164, which names it nowhere"
+    source: "`praxis/core/domain/trade_outcome.py` 111-164, which names it nowhere"
   - claim: "The slice counts are compared but never required to be whole"
-    source: "`trade_outcome.py` 142-152"
+    source: "`praxis/core/domain/trade_outcome.py` 142-152"
   - claim: "The two slippage figures are not examined"
-    source: "`trade_outcome.py` 111-164, which names neither"
+    source: "`praxis/core/domain/trade_outcome.py` 111-164, which names neither"
 ---
 # What an outcome does not check
 

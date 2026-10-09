@@ -2,14 +2,14 @@
 row: P1-01
 baseline: 49aa659
 created: 2026-09-20 15:52 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-05 14:38 UTC
 evidence:
   - claim: "A request carries a name of its own alongside the trade name"
     source: "a supplied name is refused when empty at `execution_manager.py` 3446-3448, when too short by `generate_client_order_id.py` 105-110 called from `execution_manager.py` 3450, or when already in use at 3452-3457; where none was supplied one is generated instead at 3459; both carried at 3461-3463"
   - claim: "Holdings are keyed by trade name and account"
     source: "`trading_state.py` 482-491"
   - claim: "Protection is placed only once the opening order is finished, something filled, and something is still held"
-    source: "finished at `execution_manager.py` 4672-4673; nothing filled ends it at 4704-4712, otherwise placement is called at 4714-4725; nothing held leaves it unplaced and the bracket registered for later at 4887-4904, counted at 4848-4852"
+    source: "finished at `execution_manager.py` 4672-4673, or else nothing filled ending it at 4704-4712, or otherwise placement called at 4714-4725; nothing held leaves it unplaced and the bracket registered for later at 4887-4904, counted at 4848-4852"
   - claim: "Protection is a request Praxis builds itself, not one submitted to it"
     source: "built at `execution_manager.py` 5159-5161, installed only on success 5017-5018; a submitted request is built instead at 3459-3463"
   - claim: "A result is built per request and carries both names"
@@ -43,7 +43,7 @@ One piece of work, tracked under a name of its own and carrying the trade name t
 
 ## Order
 
-One send to the venue. Praxis names and records it before making the call, and some recorded orders are abandoned before that call, so a record can stand where no send followed. The venue's own name arrives later.
+One send to the venue. Praxis names and records it before making the call, and some recorded orders are abandoned before that call, so a record can stand that no send of it matched. The venue's own name arrives later.
 
 ## How they fan out
 

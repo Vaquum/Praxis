@@ -21,7 +21,7 @@ evidence:
   - claim: "One already in use anywhere is refused after that"
     source: "`execution_manager.py` 3452-3457"
   - claim: "The command checks itself as it is built, on many grounds"
-    source: "`trade_command.py` 79-116, and a mismatched parameter type at 118-124, raised from `execution_manager.py` 3461"
+    source: "`praxis/core/domain/trade_command.py` 79-116, and a mismatched parameter type at 118-124, raised from `execution_manager.py` 3461"
   - claim: "How its parts fit together is checked on many more"
     source: "`execution_manager.py` 3479 into `validate_trade_command.py`, from an order type the mode disallows at 195-200 to bracket prices on the wrong side at 382-394"
   - claim: "The venue's own filters are not applied here, since no filters are passed"

@@ -5,7 +5,7 @@ created: 2026-09-25 18:52 UTC
 modified: 2026-10-04 11:43 UTC
 evidence:
   - claim: "Eight kinds exist"
-    source: "`enums.py` 66-73"
+    source: "`praxis/core/domain/enums.py` 66-73"
   - claim: "A market order names no price and no trigger"
     source: "`binance_adapter.py` 234-236"
   - claim: "The immediate limit order is a limit order the venue is told not to leave resting"

@@ -9,7 +9,7 @@ evidence:
   - claim: "Feeding work out at a fixed pace and buying at a fixed pace take the same kind, and no other pair does"
     source: "`execution_params.py` 30-38"
   - claim: "A command must carry the kind its way of working registers"
-    source: "`trade_command.py` 118-124"
+    source: "`praxis/core/domain/trade_command.py` 118-124"
   - claim: "The plain single order takes up to three prices, each of which may be left unset"
     source: "`single_shot_params.py` 30-32"
   - claim: "Which are needed turns on the kind of order"

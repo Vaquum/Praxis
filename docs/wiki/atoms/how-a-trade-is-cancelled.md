@@ -21,7 +21,7 @@ evidence:
   - claim: "Those paths report nothing filled"
     source: "`execution_manager.py` 4161-4168, 4490-4497, 5283-5290, 5720-5726"
   - claim: "A marked ladder reaching its start builds no report then"
-    source: "a zero slice total passed at `execution_manager.py` 6077-6081 into 8411-8423, refused by `trade_outcome.py` 146-148, the error logged and swallowed at `execution_manager.py` 4012-4019"
+    source: "a zero slice total passed at `execution_manager.py` 6077-6081 into 8411-8423, refused by `praxis/core/domain/trade_outcome.py` 146-148, the error logged and swallowed at `execution_manager.py` 4012-4019"
   - claim: "The next start reports it rejected as an orphan"
     source: "`execution_manager.py` 2254-2259 classing it, 2270-2275 into the rejection built at 2309-2321 and dispatched at 2330, run at boot from `praxis/trading.py` 550-552"
   - claim: "A request already finished when the worker reaches the cancellation is left alone"
