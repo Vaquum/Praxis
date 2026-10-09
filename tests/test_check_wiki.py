@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,11 @@ class TestLineReferences:
     def test_negative_number_is_not_a_line(self) -> None:
         found = [m.group(0) for m in check_wiki.LINE_REF.finditer('code -1 at 1143-1145')]
         assert found == ['1143-1145']
+
+    def test_a_six_digit_line_is_read(self) -> None:
+        found = [m.group(0) for m in check_wiki.LINE_REF.finditer('`order.py` 100000')]
+
+        assert found == ['100000']
 
     def test_version_is_not_a_line(self) -> None:
         assert not list(check_wiki.LINE_REF.finditer('v0.100.0'))
@@ -1337,6 +1343,18 @@ class TestTheFinallyClause:
 
         assert any(7 in second for _, second in spans)
 
+    def test_a_raise_in_the_else_reaches_past_the_try(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        start(x)\n    except E:\n        recover()\n"
+            "    else:\n        if x:\n            mark(x)\n            raise F('a')\n"
+            "        more(x)\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(8 in first and 11 in second for first, second in spans)
+
     def test_a_raise_skips_the_trys_else(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1349,6 +1367,53 @@ class TestTheFinallyClause:
 
         assert any(4 in first and 10 in second for first, second in spans)
         assert not any(8 in second for _, second in spans)
+
+    def test_a_one_sided_finally_inside_a_branch_reaches_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        if x:\n            try:\n"
+            "                act(x)\n                return 1\n            finally:\n"
+            "                if flag:\n                    break\n        go(x)\n"
+            "    done()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_nested_return_under_an_outer_finally_keeps_to_its_function(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            def inner(y):\n"
+            "                if y:\n                    act(y)\n                    return 1\n"
+            "                return go(y)\n\n            inner(x)\n        finally:\n"
+            "            break\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in first and 8 in second for first, second in spans)
+        assert not any(13 in second or 10 in second for _, second in spans)
+
+    def test_a_conditional_finally_reaches_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            if x:\n"
+            "                record(x)\n                return 1\n            go(x)\n"
+            "        finally:\n            if x:\n                break\n    after()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_continue_in_a_loop_else_carries_on_the_outer_loop(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs, ys):\n    for x in xs:\n        for y in ys:\n            pass\n"
+            "        else:\n            if x:\n                record(x)\n"
+            "                continue\n        after(x)\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(7 in first and 9 in second for first, second in spans)
 
     def test_a_finally_breaking_an_outer_loop_reaches_past_the_inner_one(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -1436,6 +1501,17 @@ class TestOpenCandidates:
         ) == []
 
     @_NEEDS_BASELINE
+    def test_a_full_module_under_an_unanswered_question_is_caught(self) -> None:
+        failures = check_wiki._open_candidates(
+            {'praxis/core/health_tracker.py': {'H-050'}},
+        )
+
+        assert failures == [
+            "docs/wiki/ledger.md: `praxis/core/health_tracker.py` is `full` "
+            "while ['H-050'] leave a question on it",
+        ]
+
+    @_NEEDS_BASELINE
     def test_a_full_module_with_a_candidate_is_caught(self) -> None:
         failures = check_wiki._open_candidates(
             {'praxis/core/health_tracker.py': {'H-064'}},
@@ -1471,6 +1547,30 @@ class TestMatchStatements:
 
         assert any(3 in first and 8 in second for first, second in spans)
 
+    def test_a_guarded_catch_all_is_no_catch_all(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        match x:\n            case 1:\n"
+            "                return 1\n            case _ if flag:\n"
+            "                return 2\n    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(8 in second for _, second in spans)
+
+    def test_a_narrowing_last_case_is_no_catch_all(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        match x:\n            case 1:\n"
+            "                return 1\n            case int() as n:\n"
+            "                return n\n    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(8 in second for _, second in spans)
+
     def test_a_match_with_no_catch_all_does_not(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1502,6 +1602,21 @@ class TestTheIndexVocabulary:
     @_NEEDS_BASELINE
     def test_no_entry_leans_on_an_owned_term(self) -> None:
         assert check_wiki._index_vocabulary() == []
+
+    def test_an_entry_teasing_a_count_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = tmp_path / 'README.md'
+        page.write_text(
+            '- [One](atoms/one.md) — the six ceilings on what a host may do.\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'README', page)
+
+        assert check_wiki._index_vocabulary() == [
+            f'{page}: the entry for one.md counts rather than describes, '
+            'at "the six"',
+        ]
 
     def test_an_entry_using_an_owned_term_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -1554,3 +1669,128 @@ class TestThePinnedTable:
             f'{wiki / "BASELINE.md"}: names Praxis at 0000000, '
             f'while citations are read at {check_wiki.BASELINE}',
         ]
+
+
+class TestThePageChecks:
+
+    def test_prose_past_the_cap_is_refused(self) -> None:
+        body = '# One\n\n' + ' '.join(['word'] * (check_wiki.PROSE_WORD_CAP + 1))
+        failures = check_wiki._check_length(body)
+
+        assert failures == [
+            f'{check_wiki.PROSE_WORD_CAP + 2} words of prose exceeds the '
+            f'{check_wiki.PROSE_WORD_CAP} cap; split it',
+        ]
+
+    def test_prose_at_the_cap_passes(self) -> None:
+        body = ' '.join(['word'] * check_wiki.PROSE_WORD_CAP)
+
+        assert check_wiki._check_length(body) == []
+
+    def test_another_baseline_in_the_metadata_is_refused(self) -> None:
+        meta = (
+            'row: P1-01\nbaseline: 0000000\n'
+            'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-01 09:00 UTC\n'
+        )
+        failures = check_wiki._check_metadata(meta, {'P1-01'})
+
+        assert any('0000000' in failure for failure in failures)
+
+    def test_an_unknown_row_in_the_metadata_is_refused(self) -> None:
+        meta = (
+            f'row: P9-99\nbaseline: {check_wiki.BASELINE}\n'
+            'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-01 09:00 UTC\n'
+        )
+        failures = check_wiki._check_metadata(meta, {'P1-01'})
+
+        assert any('P9-99' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_citation_past_a_file_is_refused_by_the_page_check(self) -> None:
+        failures = check_wiki._check_citations(
+            ['a claim | `order.py` 99999'], check_wiki._SourceFacts(),
+        )
+
+        assert any('past end of file' in failure for failure in failures)
+
+    def test_a_link_to_a_missing_page_is_refused(self, tmp_path: Path) -> None:
+        page = tmp_path / 'one.md'
+        page.write_text('# One\n', encoding='utf-8')
+        failures = check_wiki._broken_links(page, 'see [two](two.md)')
+
+        assert any('two.md' in failure for failure in failures)
+
+    def test_a_link_to_a_missing_anchor_is_refused(self, tmp_path: Path) -> None:
+        page = tmp_path / 'one.md'
+        page.write_text('# One\n\n## Here\n', encoding='utf-8')
+        failures = check_wiki._broken_links(page, 'see [there](one.md#there)')
+
+        assert any('there' in failure for failure in failures)
+
+
+@_NEEDS_BASELINE
+class TestTheGateOverACopiedWiki:
+
+    @staticmethod
+    def _copied(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        wiki = tmp_path / 'docs' / 'wiki'
+        wiki.parent.mkdir()
+        shutil.copytree(check_wiki.WIKI, wiki)
+        (tmp_path / 'scripts').mkdir()
+        (tmp_path / 'scripts' / 'check_wiki.py').touch()
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        monkeypatch.setattr(check_wiki, 'REGISTER', wiki / 'register.md')
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+        monkeypatch.setattr(check_wiki, 'LEDGER', wiki / 'ledger.md')
+        check_wiki._uncommitted_pages.cache_clear()
+
+        return wiki
+
+    def test_a_faithful_copy_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self._copied(tmp_path, monkeypatch)
+
+        assert check_wiki.main() == 0
+
+    def test_an_article_citing_past_a_file_fails_the_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = self._copied(tmp_path, monkeypatch)
+        page = wiki / 'atoms' / 'what-a-fill-is.md'
+        page.write_text(
+            page.read_text(encoding='utf-8').replace(
+                '`events.py` 585-595', '`events.py` 99999',
+            ),
+            encoding='utf-8',
+        )
+
+        assert check_wiki.main() == 1
+
+    def test_an_article_over_the_cap_fails_the_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = self._copied(tmp_path, monkeypatch)
+        page = wiki / 'atoms' / 'what-a-fill-is.md'
+        page.write_text(
+            page.read_text(encoding='utf-8')
+            + '\n' + ' '.join(['word'] * check_wiki.PROSE_WORD_CAP) + '\n',
+            encoding='utf-8',
+        )
+
+        assert check_wiki.main() == 1
+
+    def test_an_article_naming_another_baseline_fails_the_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = self._copied(tmp_path, monkeypatch)
+        page = wiki / 'atoms' / 'what-a-fill-is.md'
+        page.write_text(
+            page.read_text(encoding='utf-8').replace(
+                f'baseline: {check_wiki.BASELINE}', 'baseline: 0000000',
+            ),
+            encoding='utf-8',
+        )
+
+        assert check_wiki.main() == 1
+

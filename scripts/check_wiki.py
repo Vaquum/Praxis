@@ -49,7 +49,7 @@ OWNED_TERMS = {
     'how-the-likely-price-is-checked.md': ('likely-price check',),
     'the-order-book.md': ('order book',),
 }
-LINE_REF = re.compile(r'(?<![-\w.])(\d{1,5})(?:-(\d{1,5}))?\b')
+LINE_REF = re.compile(r'(?<![-\w.])(\d{1,7})(?:-(\d{1,7}))?\b')
 FILE_REF = re.compile(r'`([A-Za-z_][A-Za-z0-9_/]*\.py)`')
 LINK_ONLY = re.compile(r'-\s*\[[^]]+\]\([^)]+\.md\)')
 _TITLE = (
@@ -110,6 +110,10 @@ ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
 UNASSIGNED_RE = re.compile(r'^\|([^|]*\([^|]*\))?[^|]*\|[^|]*\| unassigned \|$', re.MULTILINE)
 UNRESOLVED_RE = re.compile(r'\bU-\d+\b')
 PINNED_ROW_RE = re.compile(r'^\| (Praxis|Nexus) \| `([0-9a-f]{7,40})` \|', re.MULTILINE)
+TEASED_COUNT_RE = re.compile(
+    r'\bthe (two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|'
+    r'twenty|twenty-one|thirty) [a-z]',
+)
 INDEX_ENTRY_RE = re.compile(
     r'^- \[[^]]*\]\(atoms/([a-z0-9-]+\.md)\) — (.*)$', re.MULTILINE,
 )
@@ -488,9 +492,9 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
         settled=_blocks(((node, node.orelse) for node in tries), lines),
         regardless=_blocks(((node, node.finalbody) for node in tries), lines),
         overrides=tuple(
-            (block, _how_it_leaves(node.finalbody[-1]))
+            (block, _one_leave(node.finalbody))
             for node in tries
-            if node.finalbody and _always_leaves(node.finalbody[-1])
+            if node.finalbody and _can_leave(node.finalbody)
             for block in _blocks([(node, node.finalbody)], lines)
         ),
         after_a_loop=_blocks(((node, node.orelse) for node in loops), lines),
@@ -743,19 +747,9 @@ def _after_the_branch(
     override = _overridden(scopes, node.lineno)
     kind = override[0] if override is not None else _how_it_leaves(statements[-1])
     measured = override[1] if override is not None else node.lineno
+    tried = _reach_of(kind, scopes, measured)
 
-    if override is not None and not kind:
-        return set()
-
-    tried: tuple[dict[int, int], ...]
-
-    if kind in {'continue', 'break'}:
-        tried = (scopes.loops,)
-    elif kind == 'raise':
-        tried = (_handled_here(scopes, measured), scopes.ends)
-    elif kind == 'return':
-        tried = (scopes.ends,)
-    else:
+    if not tried:
         return set()
 
     stop = next(
@@ -799,6 +793,69 @@ def _overridden(scopes: _Scopes, line: int) -> tuple[str, int] | None:
             return kind, block.start
 
     return None
+
+
+def _can_leave(body: list[ast.stmt]) -> bool:
+
+    '''Whether any path through a block can take the path out.
+
+    Args:
+        body (list[ast.stmt]): The block's statements.
+
+    Returns:
+        bool: True where a return, raise, continue or break is reachable.
+    '''
+
+    return any(
+        isinstance(node, (ast.Return, ast.Raise, ast.Continue, ast.Break))
+        for statement in body
+        for node in ast.walk(statement)
+    )
+
+
+def _one_leave(body: list[ast.stmt]) -> str:
+
+    '''Return the single way a block leaves, where it always leaves by one.
+
+    A block that leaves on some paths and not others, or by more than
+    one way, names none: what follows the branch it takes out cannot be
+    told from what does not.
+
+    Args:
+        body (list[ast.stmt]): The block's statements.
+
+    Returns:
+        str: That way, or an empty string.
+    '''
+
+    if not _always_leaves(body[-1]):
+        return ''
+
+    return _how_it_leaves(body[-1])
+
+
+def _loops_around(scopes: _Scopes, line: int) -> dict[int, int]:
+
+    '''Return the loops a continue or break on one line belongs to.
+
+    A loop's `else` runs after that loop has finished, so a continue
+    written there carries on the loop outside it.
+
+    Args:
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): Where the branch sits.
+
+    Returns:
+        dict[int, int]: Where each usable loop starts and ends.
+    '''
+
+    finished = {
+        block.start for block in scopes.after_a_loop if line in block.lines
+    }
+
+    return {
+        start: end for start, end in scopes.loops.items() if start not in finished
+    }
 
 
 def _function_floor(scopes: _Scopes, line: int) -> int:
@@ -850,6 +907,36 @@ def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
     }
 
 
+def _reach_of(
+    kind: str,
+    scopes: _Scopes,
+    line: int,
+) -> tuple[dict[int, int], ...]:
+
+    '''Return the blocks a branch leaving one way can reach the end of.
+
+    Args:
+        kind (str): The way it leaves.
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): Where that way out is measured from.
+
+    Returns:
+        tuple[dict[int, int], ...]: Where to look, nearest kind first,
+            or nothing where the way out names no block.
+    '''
+
+    if kind in {'continue', 'break'}:
+        return (_loops_around(scopes, line),)
+
+    if kind == 'raise':
+        return (_handled_here(scopes, line), scopes.ends)
+
+    if kind == 'return':
+        return (scopes.ends,)
+
+    return ()
+
+
 def _still_runs(blocks: tuple[_Block, ...], line: int) -> set[int]:
 
     '''Return the lines that run whatever a branch on one line does.
@@ -880,9 +967,10 @@ def _how_it_leaves(statement: ast.stmt) -> str:
         statement (ast.stmt): The statement to read.
 
     An `if` whose arms leave by different ways is read as leaving by
-    none of them, since no one scope holds what it skips. A `try`
-    leaves by its `finally` where that leaves, the `finally` running
-    after the rest and overriding it. A `match` taking every value
+    none of them, since no one scope holds what it skips. A `try` whose
+    `finally` can leave leaves by that, the `finally` running after the
+    rest and overriding it — and by nothing nameable where the
+    `finally` leaves on some paths only. A `match` taking every value
     leaves by the way its cases agree on.
 
     Returns:
@@ -904,11 +992,8 @@ def _how_it_leaves(statement: ast.stmt) -> str:
 
     if isinstance(statement, ast.Try) and statement.body:
 
-        if statement.finalbody:
-            settled = _how_it_leaves(statement.finalbody[-1])
-
-            if settled:
-                return settled
+        if statement.finalbody and _can_leave(statement.finalbody):
+            return _one_leave(statement.finalbody)
 
         return _one_way([path[-1] for path in _try_paths(statement)])
 
@@ -3389,21 +3474,28 @@ def _index_vocabulary() -> list[str]:
 
     An entry is read before the article defining its words, so a term
     another article owns is opaque there however clear it is in place.
+    A count stands in the same way where it is teased rather than
+    spent: `the six ceilings` names none of them.
 
     Returns:
         list[str]: One failure per entry using such a term.
     '''
 
     owned = {term for terms in OWNED_TERMS.values() for term in terms}
-
-    return [
+    entries = INDEX_ENTRY_RE.findall(README.read_text(encoding='utf-8'))
+    failures = [
         f'{README}: the entry for {article} leans on "{term}", '
         'which another article owns'
-        for article, description in INDEX_ENTRY_RE.findall(
-            README.read_text(encoding='utf-8'),
-        )
+        for article, description in entries
         for term in sorted(owned)
         if re.search(rf'\b{re.escape(term)}\b', description.lower())
+    ]
+
+    return failures + [
+        f'{README}: the entry for {article} counts rather than describes, '
+        f'at "the {teased.group(1)}"'
+        for article, description in entries
+        if (teased := TEASED_COUNT_RE.search(description)) is not None
     ]
 
 
