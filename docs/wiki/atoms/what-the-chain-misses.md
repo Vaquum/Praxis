@@ -2,7 +2,7 @@
 row: P2-37
 baseline: 49aa659
 created: 2026-09-25 20:52 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 17:24 UTC
 evidence:
   - claim: "A walk holds no expected row count and no mark for which row should be last"
     source: "`event_spine.py` 1254-1291, with the kept values at 100-102 written at 593-595"
@@ -23,7 +23,7 @@ evidence:
 
 ## Rows that never had codes
 
-A row with no code is skipped rather than refused, to allow for rows written before the codes were introduced. Anything done inside such a run of rows — changing one, or taking one out — is skipped with it, while the stored rows after it still pass their checks.
+A row with no code is skipped rather than refused. Anything done inside such a run of rows — changing one, or taking one out — is skipped with it, while the stored rows after it still pass their checks.
 
 ## Rows taken off the end
 

@@ -102,6 +102,37 @@ class TestGuardsAndArms:
 
         return spans
 
+    def test_an_acting_context_manager_makes_an_arm(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        with reject(x):\n            pass\n"
+            "        raise ValueError()\n    submit(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 6 in second for first, second in spans)
+
+    def test_a_call_in_a_nested_condition_makes_an_arm(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        if reject(x):\n            pass\n"
+            "        raise ValueError()\n    submit(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 6 in second for first, second in spans)
+
+    def test_a_match_holding_only_a_guard_is_a_guard(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        match x:\n            case _:\n"
+            "                raise ValueError('a')\n    submit(x)\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
     def test_a_guard_wrapped_in_a_try_is_still_a_guard(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2165,4 +2196,76 @@ class TestEveryListedShape:
         assert check_wiki._bare_comment('   # why')
         assert check_wiki._bare_comment('')
         assert not check_wiki._bare_comment('    work()')
+
+
+class TestRationale:
+
+    def test_every_rationale_marker_is_refused(self) -> None:
+        markers = (
+            'to allow for', 'in order to', 'for the sake of', 'by design',
+            'deliberately so', 'the reason being', 'precisely so',
+            'the point being', 'the idea being',
+        )
+        refused = [
+            marker for marker in markers
+            if any(
+                'reason the code does not state' in note
+                for note in check_wiki._check_voice(
+                    f'# T\n\nA thing is a thing.\n\nIt is skipped {marker} something.\n',
+                )
+            )
+        ]
+
+        assert refused == list(markers)
+
+    def test_a_consequence_of_a_cited_fact_passes(self) -> None:
+        notes = check_wiki._check_voice(
+            '# T\n\nA thing is a thing.\n\n'
+            'Some lists are shared, which is why a name in use is refused.\n',
+        )
+
+        assert not [note for note in notes if 'reason' in note]
+
+    @_NEEDS_BASELINE
+    def test_a_range_of_nothing_but_logging_is_a_log_call(self) -> None:
+        failures = check_wiki._check_citations(
+            ['The order is saved | `execution_manager.py` 5543-5552'],
+            check_wiki._SourceFacts(),
+        )
+
+        assert any('log call' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_claim_about_that_message_may_cite_the_range(self) -> None:
+        assert check_wiki._check_citations(
+            ['The warning says it | `execution_manager.py` 5543-5552'],
+            check_wiki._SourceFacts(),
+        ) == []
+
+    def test_an_apostrophe_inside_double_quotes_closes_nothing(self) -> None:
+        assert check_wiki._without_a_comment(
+            'except errors["can\'t"]:  # handled',
+        ) == 'except errors["can\'t"]:'
+
+    def test_an_escaped_quote_keeps_the_string_open(self) -> None:
+        assert check_wiki._without_a_comment(
+            'except Error("a\\"#"):  # note',
+        ) == 'except Error("a\\"#"):'
+
+    def test_a_header_with_an_apostrophe_is_still_a_header(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            mark(x)\n"
+            "            raise E('a')\n        more(x)\n"
+            '    except Error("it\'s"):  # the only kind\n'
+            "        recover()\n    else:\n        fine()\n    after()\n"
+        )
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans = check_wiki._exclusive_spans(path)
+        reached = next(second for first, second in spans if 4 in first)
+
+        assert reached == {6, 9, 10}
 

@@ -2,10 +2,12 @@
 row: P2-25
 baseline: 49aa659
 created: 2026-09-25 08:00 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 17:24 UTC
 evidence:
-  - claim: "The order is marked expired before the venue is asked anything"
+  - claim: "The report is settled as expired before the venue is asked anything, and a mark set with it"
     source: "`execution_manager.py` 4415-4417"
+  - claim: "The expiry is written against the order only where that mark still stands"
+    source: "`execution_manager.py` 4436-4444"
   - claim: "A linked pair is cancelled by its own call, any other order by the single-order one"
     source: "either `execution_manager.py` 4419-4424 or 4426-4430"
   - claim: "A venue with no such order leaves the mark standing, so the expiry is recorded"
@@ -27,13 +29,13 @@ evidence:
 ---
 # The expiry cancel
 
-When an order is found past its [deadline](deadlines.md), Praxis marks it expired, asks the [venue](what-a-venue-is.md) to cancel it, and reports. The order is marked expired first, so what the venue says next only decides what else is written down.
+When an order is found past its [deadline](deadlines.md), Praxis settles on reporting it expired, asks the [venue](what-a-venue-is.md) to cancel it, and reports. That report is settled first, so what the venue says next decides only what is written against the order.
 
 ## What the venue's answer changes
 
-A venue that reports no such order leaves the mark standing, and the expiry is recorded against the order itself.
+A venue that reports no such order leaves the mark standing, and the expiry is then written against the order itself.
 
-Any other venue failure clears the mark instead. Nothing is added to the order itself, and the failure is carried in the report's reason.
+Any other venue failure clears the mark instead. Nothing is written against the order, which stays as it was, and the failure is carried in the report's reason.
 
 Either way the request is reported expired. So being told a request expired does not say whether the order at the venue was actually stopped.
 

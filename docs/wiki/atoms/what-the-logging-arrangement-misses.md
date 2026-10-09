@@ -2,7 +2,7 @@
 row: P4-37
 baseline: 49aa659
 created: 2026-10-03 20:11 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-09 17:24 UTC
 evidence:
   - claim: "Whatever was attached to the root of Python's logging is detached, and one handler put in its place"
     source: "`praxis/infrastructure/observability.py` 80-82"
@@ -16,8 +16,10 @@ evidence:
     source: "`launcher.py` 4853-4856"
   - claim: "Nothing forces that call through, so where a handler is already attached to the root it does nothing"
     source: "`launcher.py` 4853-4856, passing no force"
-  - claim: "Where it does run, the level is checked there and an unknown one raises"
-    source: "`launcher.py` 4854"
+  - claim: "The level is handed to Python's own setting-up as it stands, nothing in Praxis reading it first"
+    source: "`launcher.py` 4854 within the call at 4853-4856"
+  - claim: "The other route reads the level itself and falls back where it does not know it"
+    source: "`praxis/infrastructure/observability.py` 45"
   - claim: "A logger is kept on the thing it was fetched through, so fetching the same name again builds another"
     source: "`praxis/infrastructure/observability.py` 63 against 125"
 ---
@@ -29,15 +31,15 @@ evidence:
 
 Whatever was attached to the root of Python's logging is detached, and one handler put in its place. Detaching them does not close them.
 
-The root is all that is touched. A handler attached to some logger below it stays where it is. A logger set to keep its lines to itself bypasses the root handler entirely.
+The root is all that is touched. A handler attached to some logger below it stays where it is.
 
 The arrangement's own route is the other way about: it writes to standard output directly, without passing through the root. So clearing the root neither captures that route nor stops it.
 
 ## Plain text may change nothing
 
-Asking for plain text calls Python's own setting-up, and nothing forces that call through. Where a handler is already attached to the root, it does nothing at all — which includes not checking the level it was given. A handler attached further down does not hold it back.
+Asking for plain text calls Python's own setting-up, and nothing forces that call through. Where a handler is already attached to the root, it does nothing at all — which includes nothing being done with the level it was given.
 
-Where it does run, that level is checked there, and an unknown one raises rather than falling back.
+Either way the level goes over as it stands; nothing in Praxis reads it first. The other route does read it, and falls back to its own default where the name means nothing to it.
 
 ## A logger is kept, but not by name
 

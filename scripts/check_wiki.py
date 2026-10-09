@@ -40,9 +40,14 @@ DOUBLE_NEGATIVE = re.compile(
     re.IGNORECASE,
 )
 APPARATUS = ('## Evidence', '| Claim | Source |')
+RATIONALE = re.compile(
+    r'\b(to allow for|in order to|for the sake of|by design|deliberately so|'
+    r'the reason being|precisely so|the point being|the idea being)\b',
+    re.IGNORECASE,
+)
 _HOLDERS = (
     ast.If, ast.Try, ast.TryStar, ast.With, ast.AsyncWith,
-    ast.For, ast.AsyncFor, ast.While,
+    ast.For, ast.AsyncFor, ast.While, ast.Match,
 )
 OWNED_TERMS = {
     'what-a-trade-is.md': ('trade name', 'request name'),
@@ -569,8 +574,10 @@ def _without_a_comment(line: str) -> str:
 
     '''Return a line's code, the comment on its end taken off.
 
-    A `#` inside a string is left alone, the line being cut only where
-    what precedes the `#` holds no unclosed quote.
+    A `#` inside a string is left alone: the line is read letter by
+    letter, and a quote is closed only by the same quote that opened
+    it, so an apostrophe inside double quotes closes nothing. A
+    backslash takes the letter after it with no meaning of its own.
 
     Args:
         line (str): The line to read.
@@ -579,15 +586,21 @@ def _without_a_comment(line: str) -> str:
         str: What is left, stripped.
     '''
 
-    found = line.find('#')
+    opened = ''
+    escaped = False
 
-    while found != -1:
-        before = line[:found]
+    for position, letter in enumerate(line):
 
-        if before.count("'") % 2 == 0 and before.count('"') % 2 == 0:
-            return before.strip()
-
-        found = line.find('#', found + 1)
+        if escaped:
+            escaped = False
+        elif letter == '\\':
+            escaped = True
+        elif opened:
+            opened = '' if letter == opened else opened
+        elif letter in '\'"':
+            opened = letter
+        elif letter == '#':
+            return line[:position].strip()
 
     return line.strip()
 
@@ -1390,8 +1403,10 @@ def _statement_acts(statement: ast.stmt) -> bool:
 
     '''Whether one statement does something beyond leaving or naming.
 
-    A statement holding others acts where one of those does, so a
-    guard wrapped in a `try`, an `if` or a loop is still a guard.
+    A statement holding others acts where one of those does, or where
+    what it is given to work on acts: a guard wrapped in a `try`, an
+    `if` or a loop is still a guard, while `with reject(x):` acts
+    before anything in its body.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -1410,9 +1425,42 @@ def _statement_acts(statement: ast.stmt) -> bool:
         return not _only_builds_a_message(statement)
 
     if isinstance(statement, _HOLDERS):
-        return any(_body_acts(block) for block in _child_blocks(statement))
+        return _header_acts(statement) or any(
+            _body_acts(block) for block in _child_blocks(statement)
+        )
 
     return True
+
+
+def _header_acts(statement: ast.stmt) -> bool:
+
+    '''Whether what a statement is given to work on acts.
+
+    A context manager, a condition, a subject or a thing iterated over
+    is worked out before the body runs, so a call there is an act.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: True where one of those holds a call.
+    '''
+
+    given: list[ast.AST] = []
+
+    for name in ('test', 'subject', 'iter'):
+        found = getattr(statement, name, None)
+
+        if found is not None:
+            given.append(found)
+
+    given += [
+        item.context_expr for item in getattr(statement, 'items', []) or []
+    ]
+
+    return any(
+        isinstance(node, ast.Call) for held in given for node in ast.walk(held)
+    )
 
 
 def _raised_parts(statement: ast.Raise) -> list[ast.AST]:
@@ -2280,7 +2328,9 @@ def _what_a_citation_lands_on(
     '''Return what a citation lands on, where it is not executable code.
 
     The whole range is read. A citation refused for its first lines and
-    kept for its last would depend on where the reading stopped.
+    kept for its last would depend on where the reading stopped. A
+    range holding nothing but logging, blank lines and comments is
+    logging, whichever of them it opens on.
 
     Args:
         start (int): The first line cited.
@@ -2308,13 +2358,36 @@ def _what_a_citation_lands_on(
     if start in facts.docstrings or (inside and len(inside) * 2 > len(span)):
         return None if told else 'docstring'
 
-    if start in facts.logs and not _claims_a_message(row):
+    if _only_logs(span, facts) and not _claims_a_message(row):
         return 'log call'
 
-    if all(n in facts.signatures for n in span):
-        return 'signature only'
-
     return None
+
+
+def _only_logs(span: list[int], facts: _FileFacts) -> bool:
+
+    '''Whether a cited range says nothing but a logged message.
+
+    A range opening inside a logging call is logging, and so is one
+    holding nothing but logging, blank lines and comments.
+
+    Args:
+        span (list[int]): The lines the citation covers.
+        facts (_FileFacts): What was read of the cited file.
+
+    Returns:
+        bool: True where the range is logging.
+    '''
+
+    if not span:
+        return False
+
+    quiet = facts.logs | facts.blanks | facts.comments
+
+    return span[0] in facts.logs or (
+        any(line in facts.logs for line in span)
+        and all(line in quiet for line in span)
+    )
 
 
 def _write(line: str) -> None:
@@ -2912,6 +2985,11 @@ def _check_voice(body: str) -> list[str]:
 
     '''Return what a page's prose gets wrong in how it is written.
 
+    A reason why the code does the thing is a claim about intent, which
+    a body never states; it comes from a docstring or from the writer.
+    A consequence drawn from a cited fact is not that, and is left
+    alone.
+
     Args:
         body (str): The page's prose, its metadata removed.
 
@@ -2941,6 +3019,12 @@ def _check_voice(body: str) -> list[str]:
         for part in APPARATUS
         if part in body
     )
+    told = RATIONALE.search(body)
+
+    if told is not None:
+        notes.append(
+            f'gives a reason the code does not state, at "{told.group(0)}"',
+        )
 
     return notes
 
