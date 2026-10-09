@@ -80,7 +80,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [When a send's outcome is unknown](atoms/when-a-send-is-unclear.md) — a send that neither succeeds nor fails, and how Praxis finds out which.
 - [A reply that cannot be read](atoms/a-reply-that-cannot-be-read.md) — what happens when the venue answers in a shape Praxis cannot understand.
 - [The likely-price check](atoms/how-the-likely-price-is-checked.md) — refusing an order that would trade too far from the market price.
-- [Estimating the likely price](atoms/how-the-likely-price-is-worked-out.md) — how that price is worked out from the order book.
+- [Estimating the likely price](atoms/how-the-likely-price-is-worked-out.md) — how that price is worked out from the offers standing at the venue.
 - [Work fed out over time](atoms/work-fed-out-over-time.md) — breaking an amount into slices, how they are sized, and when each goes.
 - [Part-shown orders](atoms/part-shown-orders.md) — one resting order the venue displays only part of at a time.
 - [Protection](atoms/protection.md) — the pair of orders put up after an opening order fills, and how much they cover.
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 07:31 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 07:59 UTC

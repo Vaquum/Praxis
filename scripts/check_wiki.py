@@ -14,7 +14,6 @@ import subprocess
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 __all__ = ['main']
@@ -108,6 +107,10 @@ EVIDENCE_COUNT_RE = re.compile(r'([\d,]+) line references across ([\d,]+) claims
 FINDING_COUNT_RE = re.compile(r'Record ([\d,]+) findings')
 FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
 ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
+PINNED_ROW_RE = re.compile(r'^\| (Praxis|Nexus) \| `([0-9a-f]{7,40})` \|', re.MULTILINE)
+INDEX_ENTRY_RE = re.compile(
+    r'^- \[[^]]*\]\(atoms/([a-z0-9-]+\.md)\) — (.*)$', re.MULTILINE,
+)
 FINDING_CELLS_RE = re.compile(r'^\| ([HU]-\d+) \|([^|]*)\|([^|]*)\|', re.MULTILINE)
 FINDING_ROW_CELLS_RE = re.compile(
     r'^\| ([HU]-\d+) \|[^|]*\|([^|]*)\|[^|]*\|([^|]*)\|', re.MULTILINE,
@@ -394,6 +397,8 @@ class _Scopes:
         tries (dict[int, int]): Where each handled block starts, and where
             what a raise in its body skips ends.
         handlers (tuple[_Block, ...]): Every `except` body.
+        overrides (tuple[tuple[_Block, str], ...]): Every `finally` that
+            leaves, with the way it leaves.
         regardless (tuple[_Block, ...]): Every `finally` body.
         after_a_loop (tuple[_Block, ...]): Every loop's `else` body.
     '''
@@ -402,6 +407,7 @@ class _Scopes:
     loops: dict[int, int]
     tries: dict[int, int]
     handlers: tuple[_Block, ...]
+    overrides: tuple[tuple[_Block, str], ...]
     regardless: tuple[_Block, ...]
     after_a_loop: tuple[_Block, ...]
 
@@ -430,6 +436,9 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
 
         if isinstance(node, ast.Try):
             pairs.extend(_handler_arms(node))
+
+        if isinstance(node, ast.Match):
+            pairs.extend(_case_arms(node))
 
         if isinstance(node, ast.If) and node.body:
             pairs.extend(_branch_arms(node, scopes))
@@ -472,6 +481,12 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
             lines,
         ),
         regardless=_blocks(((node, node.finalbody) for node in tries), lines),
+        overrides=tuple(
+            (block, _how_it_leaves(node.finalbody[-1]))
+            for node in tries
+            if node.finalbody and _how_it_leaves(node.finalbody[-1])
+            for block in _blocks([(node, node.finalbody)], lines)
+        ),
         after_a_loop=_blocks(((node, node.orelse) for node in loops), lines),
     )
 
@@ -568,6 +583,32 @@ def _handler_arms(node: ast.Try) -> list[tuple[set[int], set[int]]]:
 
     if settled:
         spans.append(settled)
+
+    return [
+        (spans[i], spans[j])
+        for i in range(len(spans))
+        for j in range(i + 1, len(spans))
+    ]
+
+
+def _case_arms(node: ast.Match) -> list[tuple[set[int], set[int]]]:
+
+    '''Return each pair of cases a `match` statement has.
+
+    One value takes one case, so no two of them run for one input.
+
+    Args:
+        node (ast.Match): The statement to read.
+
+    Returns:
+        list[tuple[set[int], set[int]]]: Each pair of case spans.
+    '''
+
+    spans = [
+        set(range(case.pattern.lineno, (case.body[-1].end_lineno or 0) + 1))
+        for case in node.cases
+        if case.body
+    ]
 
     return [
         (spans[i], spans[j])
@@ -690,7 +731,7 @@ def _after_the_branch(
         set[int]: Those lines, or none where there are none.
     '''
 
-    kind = _how_it_leaves(statements[-1])
+    kind = _overridden(scopes, node.lineno) or _how_it_leaves(statements[-1])
 
     tried: tuple[dict[int, int], ...]
 
@@ -718,13 +759,37 @@ def _after_the_branch(
     return after - _still_runs(running, node.lineno)
 
 
+def _overridden(scopes: _Scopes, line: int) -> str:
+
+    '''Return the way a `finally` around a branch takes it out instead.
+
+    A `finally` runs after whatever the branch did and can leave by its
+    own way, so a return under a `finally` that breaks is a break.
+
+    Args:
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): Where the branch sits.
+
+    Returns:
+        str: That way, or an empty string where none applies.
+    '''
+
+    for block, kind in scopes.overrides:
+
+        if not block.skipped_by(line):
+            return kind
+
+    return ''
+
+
 def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
 
     '''Return the handled blocks that catch a raise on one line.
 
     A `try` outside the function the raise sits in catches the call,
     not the raise, so what runs after that call is no alternative to
-    the branch and such a block is left out.
+    the branch and such a block is left out. So is the `try` whose own
+    handler the raise sits in, which has had its turn.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
@@ -736,8 +801,14 @@ def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
 
     opens = [start for start, end in scopes.ends.items() if start <= line <= end]
     floor = max(opens, default=0)
+    caught = {
+        block.start for block in scopes.handlers if line in block.lines
+    }
 
-    return {start: end for start, end in scopes.tries.items() if start >= floor}
+    return {
+        start: end for start, end in scopes.tries.items()
+        if start >= floor and start not in caught
+    }
 
 
 def _still_runs(blocks: tuple[_Block, ...], line: int) -> set[int]:
@@ -2273,16 +2344,20 @@ def _uncited_claims(rows: list[str]) -> list[str]:
 
 
 @functools.cache
-def _edited_today() -> dict[Path, str]:
+def _uncommitted_pages() -> frozenset[Path]:
 
-    '''Return each wiki page holding an uncommitted edit, with today's date.
+    '''Return each wiki page holding an edit that is not yet committed.
+
+    A page git does not track yet has no committed self to compare, so
+    it is not here; its stamp comes under the committed-date rule from
+    its first commit onward.
 
     Returns:
-        dict[Path, str]: The page and the date its stamp must reach.
+        frozenset[Path]: Those pages.
     '''
 
     if GIT is None:
-        return {}
+        return frozenset()
 
     result = subprocess.run(  # noqa: S603
         [GIT, 'diff', '--name-only', 'HEAD', '--', str(WIKI)],
@@ -2290,15 +2365,43 @@ def _edited_today() -> dict[Path, str]:
     )
 
     if result.returncode != 0:
-        return {}
+        return frozenset()
 
-    today = datetime.now(tz=UTC).strftime('%Y-%m-%d')
+    return frozenset(
+        Path(name) for name in result.stdout.split() if name.endswith('.md')
+    )
 
-    return {
-        Path(name): today
-        for name in result.stdout.split()
-        if name.endswith('.md')
-    }
+
+def _edited_since(page: Path) -> str | None:
+
+    '''Return the stamp a page carried when it was last committed.
+
+    A page differing from its committed self has been edited, and its
+    stamp has to differ too. The committed stamp is what that is
+    measured against: a file's own date would count a copy as an edit.
+
+    Args:
+        page (Path): The page being read.
+
+    Returns:
+        str | None: That stamp, or None where nothing is uncommitted.
+    '''
+
+    if page not in _uncommitted_pages() or GIT is None:
+        return None
+
+    result = subprocess.run(  # noqa: S603
+        [GIT, 'show', f'HEAD:{page.as_posix()}'],
+        capture_output=True, text=True, check=False,
+    )
+
+    if result.returncode != 0:
+        return None
+
+    meta, text = _split_front_matter(result.stdout)
+    stamp = META_STAMP.search(meta) if meta else STAMP.search(text)
+
+    return stamp.group(2) if stamp is not None else None
 
 
 def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
@@ -2308,8 +2411,10 @@ def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
     A stamp may run ahead of the last commit, the page having been edited
     and not yet committed. One running behind it is stale: the page
     changed and its stamp did not. A page carrying an edit that is not
-    yet committed is stale the same way, which is caught before the
-    commit rather than after it.
+    yet committed must carry a stamp later than the one it was committed
+    with, so a stamp left unbumped fails before the commit rather than
+    after it. A stamp bumped and then edited past again is beyond what
+    comparing the two can see.
 
     Args:
         page (Path): The page being read.
@@ -2360,12 +2465,12 @@ def _stale_stamp(rel: str, page: Path, modified: str) -> list[str]:
             f'commit, {committed}',
         )
 
-    today = _edited_today()
+    committed_stamp = _edited_since(page)
 
-    if page in today and modified[:10] < today[page]:
+    if committed_stamp is not None and modified <= committed_stamp:
         failures.append(
-            f'{rel}: last modified {modified} is older than the edit '
-            f'waiting to be committed',
+            f'{rel}: holds an edit that is not yet committed while its last '
+            f'modified still reads {modified}, as it did when committed',
         )
 
     return failures
@@ -3165,6 +3270,57 @@ def _finding_citations(cache: _SourceFacts) -> list[str]:
     ]
 
 
+def _index_vocabulary() -> list[str]:
+
+    '''Check that no index entry leans on a term the wiki owns.
+
+    An entry is read before the article defining its words, so a term
+    another article owns is opaque there however clear it is in place.
+
+    Returns:
+        list[str]: One failure per entry using such a term.
+    '''
+
+    owned = {term for terms in OWNED_TERMS.values() for term in terms}
+
+    return [
+        f'{README}: the entry for {article} leans on "{term}", '
+        'which another article owns'
+        for article, description in INDEX_ENTRY_RE.findall(
+            README.read_text(encoding='utf-8'),
+        )
+        for term in sorted(owned)
+        if re.search(rf'\b{re.escape(term)}\b', description.lower())
+    ]
+
+
+def _pinned_table() -> list[str]:
+
+    '''Check the commits the baseline page names against the ones used.
+
+    The page tells a reader which source supports the wiki. A commit
+    written there and not read is a false account of it.
+
+    Returns:
+        list[str]: One failure per commit that disagrees.
+    '''
+
+    page = WIKI / 'BASELINE.md'
+
+    if not page.exists():
+        return [f'{page}: the baseline page is missing']
+
+    written = dict(PINNED_ROW_RE.findall(page.read_text(encoding='utf-8')))
+    used = {'Praxis': BASELINE, 'Nexus': NEXUS_BASELINE}
+
+    return [
+        f'{page}: names {name} at {written.get(name) or "no commit"}, '
+        f'while citations are read at {commit}'
+        for name, commit in used.items()
+        if written.get(name) != commit
+    ]
+
+
 def main() -> int:
 
     '''Check every wiki page and report structural failures.'''
@@ -3178,6 +3334,8 @@ def main() -> int:
     failures += _counted_states()
     failures += _latest_release_counts()
     failures += _index_coverage()
+    failures += _index_vocabulary()
+    failures += _pinned_table()
     failures += _finding_citations(cache)
 
     for note in _unchecked_trees():

@@ -699,6 +699,58 @@ class TestTheLedgerRows:
     def test_the_ledger_agrees_with_the_articles(self) -> None:
         assert check_wiki._ledger_rows() == []
 
+    @_NEEDS_BASELINE
+    def test_a_cell_naming_a_row_that_does_not_cite_it_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch,
+            '| `praxis/core/domain/fill.py` | uncovered | — |',
+            '| `praxis/core/domain/fill.py` | full | P2-15 |',
+        )
+
+        assert any('fill.py` names' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_cell_omitting_a_row_that_cites_it_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch,
+            '| `praxis/core/domain/position.py` | full | P2-33, P4-12 |',
+            '| `praxis/core/domain/position.py` | full | P4-12 |',
+        )
+
+        assert any('position.py` names' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_cited_file_marked_uncovered_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch,
+            '| `praxis/core/health_tracker.py` | full | P3-15 |',
+            '| `praxis/core/health_tracker.py` | uncovered | P3-15 |',
+        )
+
+        assert any('is `uncovered` while' in f for f in failures)
+
+    @staticmethod
+    def _doctored(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        before: str,
+        after: str,
+    ) -> list[str]:
+        text = check_wiki.LEDGER.read_text(encoding='utf-8')
+        assert before in text
+        ledger = tmp_path / 'ledger.md'
+        ledger.write_text(text.replace(before, after), encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'LEDGER', ledger)
+        failures: list[str] = check_wiki._ledger_rows()
+
+        return failures
+
 
 class TestTheCountedStates:
 
@@ -1018,31 +1070,32 @@ class TestTryStatements:
 
 class TestTheStamps:
 
-    def test_an_uncommitted_edit_needs_todays_stamp(
+    def test_an_unbumped_stamp_on_an_edit_is_caught(
         self, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         page = Path('docs/wiki/atoms/one.md')
         monkeypatch.setattr(
-            check_wiki, '_edited_today', lambda: {page: '2026-10-09'},
+            check_wiki, '_edited_since', lambda _p: '2026-10-09 07:31 UTC',
         )
         monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
-        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-04 11:43 UTC\n'
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 07:31 UTC\n'
         failures = check_wiki._check_stamps(page, meta, meta)
 
         assert failures == [
-            f'{page.as_posix()}: last modified 2026-10-04 11:43 UTC is older '
-            'than the edit waiting to be committed',
+            f'{page.as_posix()}: holds an edit that is not yet committed while '
+            'its last modified still reads 2026-10-09 07:31 UTC, as it did '
+            'when committed',
         ]
 
-    def test_a_stamp_from_today_passes(
+    def test_a_bumped_stamp_on_an_edit_passes(
         self, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         page = Path('docs/wiki/atoms/one.md')
         monkeypatch.setattr(
-            check_wiki, '_edited_today', lambda: {page: '2026-10-09'},
+            check_wiki, '_edited_since', lambda _p: '2026-10-09 07:31 UTC',
         )
         monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
-        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 06:56 UTC\n'
+        meta = 'created: 2026-10-01 09:00 UTC\nmodified: 2026-10-09 07:41 UTC\n'
 
         assert check_wiki._check_stamps(page, meta, meta) == []
 
@@ -1097,6 +1150,31 @@ class TestTheFinallyClause:
         assert any(4 in first and 10 in second for first, second in spans)
         assert not any(8 in second for _, second in spans)
 
+    def test_a_finally_that_breaks_overrides_an_inner_return(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            if x:\n"
+            "                act(x)\n                return 1\n            go(x)\n"
+            "        finally:\n            break\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert spans
+        assert not any(10 in second for _, second in spans)
+
+    def test_a_raise_in_a_handler_passes_its_own_try(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        start(x)\n    except E:\n        if x:\n"
+            "            act(x)\n            raise F('a')\n        inner(x)\n"
+            "    else:\n        fine()\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in first and 11 in second for first, second in spans)
+
     def test_a_same_line_finally_takes_no_line_above_it(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1140,3 +1218,72 @@ class TestOpenCandidates:
             "while ['H-064'] name it a candidate",
         ]
 
+
+class TestMatchStatements:
+
+    @staticmethod
+    def _spans(
+        source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> list[tuple[set[int], set[int]]]:
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+
+        return spans
+
+    def test_two_cases_are_two_arms(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    match x:\n        case 1:\n            one()\n"
+            "        case 2:\n            two()\n        case _:\n            rest()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 6 in second for first, second in spans)
+        assert any(4 in first and 8 in second for first, second in spans)
+        assert any(6 in first and 8 in second for first, second in spans)
+
+
+class TestTheIndexVocabulary:
+
+    @_NEEDS_BASELINE
+    def test_no_entry_leans_on_an_owned_term(self) -> None:
+        assert check_wiki._index_vocabulary() == []
+
+    def test_an_entry_using_an_owned_term_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = tmp_path / 'README.md'
+        page.write_text(
+            '- [One](atoms/one.md) — read from the order book.\n', encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'README', page)
+
+        assert check_wiki._index_vocabulary() == [
+            f'{page}: the entry for one.md leans on "order book", '
+            'which another article owns',
+        ]
+
+
+class TestThePinnedTable:
+
+    def test_the_table_names_the_commits_that_are_read(self) -> None:
+        assert check_wiki._pinned_table() == []
+
+    def test_a_table_naming_another_commit_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        wiki.mkdir()
+        (wiki / 'BASELINE.md').write_text(
+            '| Praxis | `0000000` |\n| Nexus | `953477a` |\n', encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        failures = check_wiki._pinned_table()
+
+        assert failures == [
+            f'{wiki / "BASELINE.md"}: names Praxis at 0000000, '
+            f'while citations are read at {check_wiki.BASELINE}',
+        ]
