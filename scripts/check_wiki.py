@@ -107,11 +107,13 @@ EVIDENCE_COUNT_RE = re.compile(r'([\d,]+) line references across ([\d,]+) claims
 FINDING_COUNT_RE = re.compile(r'Record ([\d,]+) findings')
 FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
 ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
+UNASSIGNED_RE = re.compile(r'^\|([^|]*\([^|]*\))?[^|]*\|[^|]*\| unassigned \|$', re.MULTILINE)
+UNRESOLVED_RE = re.compile(r'\bU-\d+\b')
 PINNED_ROW_RE = re.compile(r'^\| (Praxis|Nexus) \| `([0-9a-f]{7,40})` \|', re.MULTILINE)
 INDEX_ENTRY_RE = re.compile(
     r'^- \[[^]]*\]\(atoms/([a-z0-9-]+\.md)\) — (.*)$', re.MULTILINE,
 )
-FINDING_CELLS_RE = re.compile(r'^\| ([HU]-\d+) \|([^|]*)\|([^|]*)\|', re.MULTILINE)
+FINDING_CELLS_RE = re.compile(r'^\| ([HU]-\d+) \|([^|]*)\|(.*)\|$', re.MULTILINE)
 FINDING_ROW_CELLS_RE = re.compile(
     r'^\| ([HU]-\d+) \|[^|]*\|([^|]*)\|[^|]*\|([^|]*)\|', re.MULTILINE,
 )
@@ -397,8 +399,10 @@ class _Scopes:
         tries (dict[int, int]): Where each handled block starts, and where
             what a raise in its body skips ends.
         handlers (tuple[_Block, ...]): Every `except` body.
+        settled (tuple[_Block, ...]): Every `try` statement's `else` body.
         overrides (tuple[tuple[_Block, str], ...]): Every `finally` that
-            leaves, with the way it leaves.
+            leaves, with the way it leaves, empty where it leaves by
+            more than one way.
         regardless (tuple[_Block, ...]): Every `finally` body.
         after_a_loop (tuple[_Block, ...]): Every loop's `else` body.
     '''
@@ -407,6 +411,7 @@ class _Scopes:
     loops: dict[int, int]
     tries: dict[int, int]
     handlers: tuple[_Block, ...]
+    settled: tuple[_Block, ...]
     overrides: tuple[tuple[_Block, str], ...]
     regardless: tuple[_Block, ...]
     after_a_loop: tuple[_Block, ...]
@@ -480,11 +485,12 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
             ((node, handler.body) for node in tries for handler in node.handlers),
             lines,
         ),
+        settled=_blocks(((node, node.orelse) for node in tries), lines),
         regardless=_blocks(((node, node.finalbody) for node in tries), lines),
         overrides=tuple(
             (block, _how_it_leaves(node.finalbody[-1]))
             for node in tries
-            if node.finalbody and _how_it_leaves(node.finalbody[-1])
+            if node.finalbody and _always_leaves(node.finalbody[-1])
             for block in _blocks([(node, node.finalbody)], lines)
         ),
         after_a_loop=_blocks(((node, node.orelse) for node in loops), lines),
@@ -721,6 +727,9 @@ def _after_the_branch(
     it reaches the end of the guarded block. A return reaches the end of
     the function. A `finally` runs whatever happens, and a loop's `else`
     runs after a continue, so neither is an alternative to anything.
+    Where a `finally` is what takes the branch out, how far that reaches
+    is measured from the `finally` rather than from the branch, and a
+    `finally` leaving by more than one way reaches nothing.
 
     Args:
         node (ast.If): The `if` the arm belongs to.
@@ -731,21 +740,26 @@ def _after_the_branch(
         set[int]: Those lines, or none where there are none.
     '''
 
-    kind = _overridden(scopes, node.lineno) or _how_it_leaves(statements[-1])
+    override = _overridden(scopes, node.lineno)
+    kind = override[0] if override is not None else _how_it_leaves(statements[-1])
+    measured = override[1] if override is not None else node.lineno
+
+    if override is not None and not kind:
+        return set()
 
     tried: tuple[dict[int, int], ...]
 
     if kind in {'continue', 'break'}:
         tried = (scopes.loops,)
     elif kind == 'raise':
-        tried = (_handled_here(scopes, node.lineno), scopes.ends)
+        tried = (_handled_here(scopes, measured), scopes.ends)
     elif kind == 'return':
         tried = (scopes.ends,)
     else:
         return set()
 
     stop = next(
-        (found for scope in tried if (found := _innermost(scope, node.lineno))), 0,
+        (found for scope in tried if (found := _innermost(scope, measured))), 0,
     )
     after = set(range((node.end_lineno or node.lineno) + 1, stop + 1))
     running = scopes.regardless
@@ -759,27 +773,50 @@ def _after_the_branch(
     return after - _still_runs(running, node.lineno)
 
 
-def _overridden(scopes: _Scopes, line: int) -> str:
+def _overridden(scopes: _Scopes, line: int) -> tuple[str, int] | None:
 
     '''Return the way a `finally` around a branch takes it out instead.
 
     A `finally` runs after whatever the branch did and can leave by its
-    own way, so a return under a `finally` that breaks is a break.
+    own way, so a return under a `finally` that breaks is a break. One
+    outside the function the branch sits in takes out the call, not the
+    branch, and is passed over.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
         line (int): Where the branch sits.
 
     Returns:
-        str: That way, or an empty string where none applies.
+        tuple[str, int] | None: The way it leaves and where its `try`
+            starts, or None where no `finally` around the branch leaves.
     '''
+
+    floor = _function_floor(scopes, line)
 
     for block, kind in scopes.overrides:
 
-        if not block.skipped_by(line):
-            return kind
+        if block.start >= floor and not block.skipped_by(line):
+            return kind, block.start
 
-    return ''
+    return None
+
+
+def _function_floor(scopes: _Scopes, line: int) -> int:
+
+    '''Return where the innermost function holding a line starts.
+
+    Args:
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): The line to find a function around.
+
+    Returns:
+        int: That function's first line, or 0 where none holds it.
+    '''
+
+    return max(
+        (start for start, end in scopes.ends.items() if start <= line <= end),
+        default=0,
+    )
 
 
 def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
@@ -789,7 +826,7 @@ def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
     A `try` outside the function the raise sits in catches the call,
     not the raise, so what runs after that call is no alternative to
     the branch and such a block is left out. So is the `try` whose own
-    handler the raise sits in, which has had its turn.
+    handler or `else` the raise sits in, which has had its turn.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
@@ -799,15 +836,17 @@ def _handled_here(scopes: _Scopes, line: int) -> dict[int, int]:
         dict[int, int]: Where each usable block starts and ends.
     '''
 
-    opens = [start for start, end in scopes.ends.items() if start <= line <= end]
-    floor = max(opens, default=0)
-    caught = {
-        block.start for block in scopes.handlers if line in block.lines
+    floor = _function_floor(scopes, line)
+    had_its_turn = {
+        block.start
+        for blocks in (scopes.handlers, scopes.settled)
+        for block in blocks
+        if line in block.lines
     }
 
     return {
         start: end for start, end in scopes.tries.items()
-        if start >= floor and start not in caught
+        if start >= floor and start not in had_its_turn
     }
 
 
@@ -843,7 +882,8 @@ def _how_it_leaves(statement: ast.stmt) -> str:
     An `if` whose arms leave by different ways is read as leaving by
     none of them, since no one scope holds what it skips. A `try`
     leaves by its `finally` where that leaves, the `finally` running
-    after the rest and overriding it.
+    after the rest and overriding it. A `match` taking every value
+    leaves by the way its cases agree on.
 
     Returns:
         str: `return`, `raise`, `continue`, `break`, or an empty string.
@@ -872,7 +912,36 @@ def _how_it_leaves(statement: ast.stmt) -> str:
 
         return _one_way([path[-1] for path in _try_paths(statement)])
 
+    if isinstance(statement, ast.Match) and _covers_everything(statement):
+        return _one_way([case.body[-1] for case in statement.cases if case.body])
+
     return ''
+
+
+def _covers_everything(node: ast.Match) -> bool:
+
+    '''Whether a `match` statement has a case for every value.
+
+    A `match` with no catch-all can fall past all of its cases, so what
+    follows it runs and it leaves by nothing.
+
+    Args:
+        node (ast.Match): The statement to read.
+
+    Returns:
+        bool: True where its last case takes anything.
+    '''
+
+    if not node.cases:
+        return False
+
+    last = node.cases[-1]
+
+    return (
+        isinstance(last.pattern, ast.MatchAs)
+        and last.pattern.pattern is None
+        and last.guard is None
+    )
 
 
 def _one_way(statements: list[ast.stmt]) -> str:
@@ -899,6 +968,7 @@ def _always_leaves(statement: ast.stmt) -> bool:
     arm does, and a `try` whose body, handlers and `else` all do, since
     no path through either carries on. A `try` whose `finally` leaves
     does too, whatever the rest of it does, the `finally` running last.
+    So does a `match` that takes every value and leaves on each case.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -921,6 +991,11 @@ def _always_leaves(statement: ast.stmt) -> bool:
             return True
 
         return all(_always_leaves(path[-1]) for path in _try_paths(statement))
+
+    if isinstance(statement, ast.Match) and _covers_everything(statement):
+        return all(
+            case.body and _always_leaves(case.body[-1]) for case in statement.cases
+        )
 
     return False
 
@@ -946,9 +1021,11 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
 
     '''Whether a branch body makes an alternative of the code after it.
 
-    A return always does. Any other way of leaving does so only where the
-    body also acts: one that merely builds a message and raises is a
-    guard, and citing it beside later code describes an order of checks.
+    Leaving by return always does, whether the return is written there
+    or reached through an `if`, a `try` or a `match` that returns on
+    every path. Any other way of leaving does so only where the body
+    also acts: one that merely builds a message and raises is a guard,
+    and citing it beside later code describes an order of checks.
 
     A call that raises inside a helper cannot be told from one that
     returns, so a branch leaving only that way reads as a guard.
@@ -962,7 +1039,7 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
 
     last = body[-1]
 
-    if isinstance(last, ast.Return):
+    if _how_it_leaves(last) == 'return':
         return True
 
     if not _always_leaves(last):
@@ -2883,13 +2960,38 @@ def _nexus_ledger_rows(
     ]
 
 
+def _unresolved_questions(text: str) -> set[str]:
+
+    '''Return the questions the register carries with nobody to answer them.
+
+    Args:
+        text (str): The register.
+
+    Returns:
+        set[str]: The identifiers those questions name.
+    '''
+
+    return {
+        found
+        for row in UNASSIGNED_RE.findall(text)
+        for found in UNRESOLVED_RE.findall(row)
+    } | {
+        found
+        for row in text.splitlines()
+        if row.endswith('| unassigned |')
+        for found in UNRESOLVED_RE.findall(row)
+    }
+
+
 def _open_candidates(cited: dict[str, set[str]]) -> list[str]:
 
     '''Check that no module carrying an open candidate reads as `full`.
 
     The ledger reaches `full` only where nothing is left hanging over a
-    module. A finding whose disposition still calls it a candidate is
-    left hanging, so every file that finding cites stays short of `full`.
+    module. A finding is left hanging where its disposition calls it a
+    candidate, or where it names a question still carried with nobody
+    to answer it, so every file such a finding cites stays short of
+    `full`.
 
     Args:
         cited (dict[str, set[str]]): Which findings cite each file.
@@ -2899,15 +3001,17 @@ def _open_candidates(cited: dict[str, set[str]]) -> list[str]:
     '''
 
     text = REGISTER.read_text(encoding='utf-8')
+    hanging = _unresolved_questions(text)
     open_rows = {
         row for row, _, disposition in FINDING_ROW_CELLS_RE.findall(text)
         if 'candidate' in disposition.lower()
+        or hanging & set(UNRESOLVED_RE.findall(disposition))
     }
     body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Praxis', '')
 
     return [
-        f'{LEDGER}: `{name}` is `full` while {sorted(open_rows & cited.get(name, set()))} '
-        f'name it a candidate'
+        f'{LEDGER}: `{name}` is `full` while '
+        f'{sorted(open_rows & cited.get(name, set()))} leave a question on it'
         for name, state, _ in LEDGER_ROW_RE.findall(body)
         if state == 'full' and open_rows & cited.get(name, set())
     ]
@@ -2919,7 +3023,9 @@ def _ledger_rows() -> list[str]:
 
     A cell may name only rows whose article cites the file, and must
     name every one of them. A file no row cites is `uncovered`, and a
-    file some row cites is not.
+    file some row cites is not. A cited file must have a row of its
+    own: counted among the grouped remainder, its state would go
+    unstated.
 
     Returns:
         list[str]: One failure per row that disagrees with the articles.
@@ -2933,6 +3039,12 @@ def _ledger_rows() -> list[str]:
     found = _finding_file_citations()
     failures = _nexus_ledger_rows(cited, found) + _open_candidates(found)
     body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Praxis', '')
+    named = {name for name, _, _ in LEDGER_ROW_RE.findall(body)}
+    failures += [
+        f'{LEDGER}: nothing names `{name}`, which {sorted(cited[name] | found.get(name, set()))} cite'
+        for name in sorted(cited)
+        if name.startswith('praxis/') and name not in named
+    ]
 
     for name, state, column in LEDGER_ROW_RE.findall(body):
         rows, listed = cited.get(name, set()), _ledger_listed(column)
@@ -3236,7 +3348,8 @@ def _finding_citations(cache: _SourceFacts) -> list[str]:
     '''Check the citations the register's own findings carry.
 
     A finding names its file the way an article's evidence does, and
-    what it cites is read the same way, a line given with no file
+    every cell after its claim is read the same way, a disposition
+    carrying evidence of its own included, a line given with no file
     before it included, a file named with no line of it cited, and a
     finding naming no file at all — unless it says that what it asks
     is not established, there being no line to point at for that. A

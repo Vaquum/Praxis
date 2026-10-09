@@ -658,6 +658,55 @@ class TestLedgerCoverage:
     def test_each_heading_count_matches_its_tree(self) -> None:
         assert not [note for note in check_wiki._ledger_coverage() if 'heading says' in note]
 
+    @_NEEDS_BASELINE
+    def test_a_row_naming_a_module_outside_the_tree_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch,
+            '| `praxis/core/health_tracker.py` | full | P3-15 |',
+            '| `praxis/core/nonesuch.py` | full | P3-15 |',
+        )
+
+        assert any('which is not in the tree' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_heading_count_that_disagrees_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch, '## Praxis — 88 modules', '## Praxis — 87 modules',
+        )
+
+        assert any('heading says 87 modules' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_module_neither_named_nor_grouped_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch,
+            '| `praxis/core/health_tracker.py` | full | P3-15 |\n', '',
+        )
+
+        assert any('unaccounted for' in f for f in failures)
+
+    @staticmethod
+    def _doctored(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        before: str,
+        after: str,
+    ) -> list[str]:
+        text = check_wiki.LEDGER.read_text(encoding='utf-8')
+        assert before in text
+        ledger = tmp_path / 'ledger.md'
+        ledger.write_text(text.replace(before, after), encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'LEDGER', ledger)
+        failures: list[str] = check_wiki._ledger_coverage()
+
+        return failures
+
 
 @_NEEDS_BASELINE
 class TestTheWikiItself:
@@ -724,6 +773,29 @@ class TestTheLedgerRows:
         assert any('position.py` names' in f for f in failures)
 
     @_NEEDS_BASELINE
+    def test_an_uncited_file_not_marked_uncovered_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch,
+            '| `praxis/core/domain/fill.py` | uncovered | — |',
+            '| `praxis/core/domain/fill.py` | full | — |',
+        )
+
+        assert any('is `full` with no row citing it' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_cited_module_with_no_row_of_its_own_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch,
+            '| `praxis/core/health_tracker.py` | full | P3-15 |\n', '',
+        )
+
+        assert any('nothing names `praxis/core/health_tracker.py`' in f for f in failures)
+
+    @_NEEDS_BASELINE
     def test_a_cited_file_marked_uncovered_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -771,6 +843,34 @@ class TestTheCountedStates:
 
         assert any('108 articles' in f for f in failures)
 
+    def test_a_drifted_state_count_is_caught(self, tmp_path: Path) -> None:
+        assert self._written(
+            tmp_path, '1 are `full`, 2 `partial` and 3 `uncovered`.',
+            '1 are `full`, 2 `partial` and 3 `uncovered`',
+        )
+
+    def test_a_drifted_nexus_total_is_caught(self, tmp_path: Path) -> None:
+        assert self._written(
+            tmp_path, 'Of the 71 in Nexus, nothing else.', 'the 71 in Nexus',
+        )
+
+    def test_a_drifted_untouched_count_is_caught(self, tmp_path: Path) -> None:
+        assert self._written(tmp_path, 'and 53 untouched.', '53 untouched')
+
+    @staticmethod
+    def _written(tmp_path: Path, text: str, wanted: str) -> bool:
+        page = tmp_path / 'README.md'
+        page.write_text(text, encoding='utf-8')
+        kept = check_wiki.README
+        check_wiki.README = page
+
+        try:
+            failures = check_wiki._counted_states()
+        finally:
+            check_wiki.README = kept
+
+        return any(wanted in failure for failure in failures)
+
     def test_a_drifted_nexus_count_is_caught(self, tmp_path: Path) -> None:
         page = tmp_path / 'README.md'
         page.write_text('13 are cited in passing.', encoding='utf-8')
@@ -815,6 +915,34 @@ class TestTheLatestRelease:
 
         assert any('1 line references across 1 claims' in f for f in failures)
 
+    def test_a_drifted_claim_half_alone_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        references, claims = check_wiki._evidence_totals()
+        log = tmp_path / 'CHANGELOG.md'
+        log.write_text(
+            '## v1.0.0 on 1st of January, 2026\n\n'
+            f'- Add {references:,} line references across {claims + 1:,} claims\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'CHANGELOG', log)
+        failures = check_wiki._latest_release_counts()
+
+        assert any(f'across {claims + 1:,} claims' in f for f in failures)
+
+    def test_a_drifted_findings_count_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        log = tmp_path / 'CHANGELOG.md'
+        log.write_text(
+            '## v1.0.0 on 1st of January, 2026\n\n- Record 1 findings\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'CHANGELOG', log)
+        failures = check_wiki._latest_release_counts()
+
+        assert any('Record 1 findings' in f for f in failures)
+
     def test_an_older_entry_is_left_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -838,11 +966,30 @@ class TestTheIndex:
     def test_the_register_the_index_and_the_articles_are_one_set(self) -> None:
         assert check_wiki._index_coverage() == []
 
-    def test_an_article_named_by_two_rows_is_caught(self) -> None:
-        rows = check_wiki._rows_per_article(
-            [('P1-01', 'atoms/one.md'), ('P1-02', 'atoms/one.md')],
+    def test_an_article_named_by_two_rows_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        (wiki / 'atoms').mkdir(parents=True)
+        (wiki / 'atoms' / 'one.md').write_text(
+            '---\nrow: P1-01\n---\n# One\n', encoding='utf-8',
         )
-        assert rows['atoms/one.md'] == ['P1-01', 'P1-02']
+        (wiki / 'register.md').write_text(
+            '| P1-01 | One | written | [one.md](atoms/one.md) |\n'
+            '| P1-02 | One again | written | [one.md](atoms/one.md) |\n',
+            encoding='utf-8',
+        )
+        (wiki / 'README.md').write_text(
+            '- [One](atoms/one.md)\n', encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        monkeypatch.setattr(check_wiki, 'REGISTER', wiki / 'register.md')
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+
+        assert check_wiki._index_coverage() == [
+            f'{wiki / "register.md"}: atoms/one.md is named by rows '
+            "['P1-01', 'P1-02']",
+        ]
 
     def test_an_article_no_row_names_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -928,6 +1075,44 @@ class TestTheFindings:
         assert check_wiki._finding_citations(check_wiki._SourceFacts()) == []
 
     @_NEEDS_BASELINE
+    def test_a_finding_citing_past_a_file_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch, '`_wait_for_work` 3885-3888',
+            '`_wait_for_work` 99999',
+        )
+
+        assert any('past end of file' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_finding_naming_a_file_the_tree_lacks_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        failures = self._doctored(
+            tmp_path, monkeypatch, '`_wait_for_work` 3885-3888',
+            '`nonesuch.py` 12',
+        )
+
+        assert any('unresolved source file' in f for f in failures)
+
+    @staticmethod
+    def _doctored(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        before: str,
+        after: str,
+    ) -> list[str]:
+        text = check_wiki.REGISTER.read_text(encoding='utf-8')
+        assert before in text
+        register = tmp_path / 'register.md'
+        register.write_text(text.replace(before, after), encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
+        failures: list[str] = check_wiki._finding_citations(check_wiki._SourceFacts())
+
+        return failures
+
+    @_NEEDS_BASELINE
     def test_a_finding_naming_a_file_with_no_line_is_refused(self) -> None:
         assert check_wiki._unlined_sources(['a finding | `missing.py`']) == [
             'names `missing.py` and cites no line of it',
@@ -973,6 +1158,21 @@ class TestWholeRanges:
     def test_one_file_under_two_spellings_is_one_file(self) -> None:
         assert check_wiki._one_file(
             'execution_manager', 'praxis/core/execution_manager.py',
+        )
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_cited_nexus_file_no_row_names_is_caught(self) -> None:
+        failures = check_wiki._nexus_ledger_rows(
+            {'nexus/core/domain/capital_state.py': {'P2-11'}}, {},
+        )
+
+        assert any(
+            'nexus/core/domain/capital_state.py is cited but not named' in f
+            for f in failures
         )
 
     @_NEEDS_BASELINE
@@ -1150,6 +1350,33 @@ class TestTheFinallyClause:
         assert any(4 in first and 10 in second for first, second in spans)
         assert not any(8 in second for _, second in spans)
 
+    def test_a_finally_breaking_an_outer_loop_reaches_past_the_inner_one(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs, ys):\n    for x in xs:\n        try:\n"
+            "            for y in ys:\n                if y:\n                    act(y)\n"
+            "                    return 1\n            between()\n        finally:\n"
+            "            break\n        after()\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in first and 8 in second and 11 in second
+                   for first, second in spans)
+
+    def test_a_finally_leaving_two_ways_reaches_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            if x:\n"
+            "                act(x)\n                return 1\n            go(x)\n"
+            "        finally:\n            if x:\n                break\n"
+            "            else:\n                return 2\n    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first for first, _ in spans)
+
     def test_a_finally_that_breaks_overrides_an_inner_return(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1215,7 +1442,7 @@ class TestOpenCandidates:
         )
         assert failures == [
             "docs/wiki/ledger.md: `praxis/core/health_tracker.py` is `full` "
-            "while ['H-064'] name it a candidate",
+            "while ['H-064'] leave a question on it",
         ]
 
 
@@ -1231,6 +1458,30 @@ class TestMatchStatements:
         spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
 
         return spans
+
+    def test_a_match_that_returns_on_every_case_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        match x:\n            case 1:\n"
+            "                return 1\n            case _:\n                return 2\n"
+            "    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 8 in second for first, second in spans)
+
+    def test_a_match_with_no_catch_all_does_not(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        match x:\n            case 1:\n"
+            "                return 1\n            case 2:\n                return 2\n"
+            "    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(8 in second for _, second in spans)
 
     def test_two_cases_are_two_arms(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -1271,6 +1522,22 @@ class TestThePinnedTable:
 
     def test_the_table_names_the_commits_that_are_read(self) -> None:
         assert check_wiki._pinned_table() == []
+
+    def test_a_table_naming_another_nexus_commit_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        wiki.mkdir()
+        (wiki / 'BASELINE.md').write_text(
+            f'| Praxis | `{check_wiki.BASELINE}` |\n| Nexus | `0000000` |\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+
+        assert check_wiki._pinned_table() == [
+            f'{wiki / "BASELINE.md"}: names Nexus at 0000000, '
+            f'while citations are read at {check_wiki.NEXUS_BASELINE}',
+        ]
 
     def test_a_table_naming_another_commit_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

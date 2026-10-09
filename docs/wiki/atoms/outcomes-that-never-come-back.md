@@ -2,10 +2,10 @@
 row: P2-41
 baseline: 49aa659
 created: 2026-09-26 20:28 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 08:46 UTC
 evidence:
-  - claim: "A report is marked received only where the receiver took it and its changes were saved"
-    source: "kept at `launcher.py` 4439-4441, both tested at 4464-4465"
+  - claim: "A report is marked received where the receiver took it and no save of its changes failed"
+    source: "set at `launcher.py` 4403 and cleared only at 4439-4441, both tested at 4464-4465"
   - claim: "Either kind of closing record keeps a report off the next list"
     source: "`launcher.py` 1735-1736 gathering both, applied at 1773-1776"
   - claim: "A report the receiver rejects has a stopped-trying record written instead"
@@ -25,7 +25,7 @@ A [resent report](how-an-undelivered-outcome-is-replayed.md) stops being sent ag
 
 ## The two records that close it
 
-A report is marked received where the receiver took it and the changes it made were saved. Both are needed: a receiver that took a report while its changes went unsaved leaves that report waiting, and it is sent again.
+A report is marked received where the receiver took it and no save of its changes failed. A save that fails leaves that report waiting, and it is sent again. A report whose handling changed nothing has nothing to save, and is marked received on the taking alone.
 
 A report the receiver rejects has a record written saying Praxis stopped trying. That closes it as surely as being received does, and for the same reason — a later startup reads both as finished with.
 
