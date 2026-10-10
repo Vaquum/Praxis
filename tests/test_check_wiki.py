@@ -1890,6 +1890,83 @@ class TestTheFinallyClause:
 
         assert not any(3 in first and 10 in second for first, second in spans)
 
+    def test_a_turn_handed_to_more_than_a_name_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            for first, second in [1]:\n                pass\n"
+            "            return 1\n        except TypeError:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 10 in second for first, second in spans)
+
+    def test_what_an_and_stands_as_is_what_is_gone_over(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'an and standing as a number': '            for part in 1 and 2:\n',
+            'an or standing as a number': '            for part in [] or 1:\n',
+            'a comparison gone over': '            for part in (1 < 2):\n',
+        }
+        unpaired = [
+            label for label, loop in shapes.items()
+            if not any(
+                3 in first and 10 in second
+                for first, second in self._spans(
+                    "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+                    + loop + "                pass\n            return 1\n"
+                    "        except TypeError:\n            pass\n    later()\n",
+                    tmp_path,
+                    monkeypatch,
+                )
+            )
+        ]
+
+        assert unpaired == list(shapes)
+
+    def test_a_part_an_and_never_reaches_could_raise_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            if True or work():\n                pass\n            return 1\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
+    def test_nothing_after_a_case_that_always_matches_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            match 1:\n                case _ if True:\n"
+            "                    return 1\n                case 2:\n"
+            "                    work()\n        except Exception:\n"
+            "            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 12 in second for first, second in spans)
+
+    def test_a_case_a_guard_holds_back_raises_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            match 1:\n                case _ if False:\n"
+            "                    work()\n                case _:\n"
+            "                    return 1\n        except Exception:\n"
+            "            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 12 in second for first, second in spans)
+
     def test_a_comparison_that_refuses_answers_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -3231,6 +3308,19 @@ class TestWhatAlwaysLeaves:
                 '        case _:\n            return 1\n'
             ),
             'a comparison written out': 'def f(x):\n    if 1 < 2:\n        return 1\n',
+            'a comparison in a chain': (
+                'def f(x):\n    if 1 < 2 < 3:\n        return 1\n'
+            ),
+            'a thing among others': 'def f(x):\n    if 1 in (1,):\n        return 1\n',
+            'a thing outside others': (
+                'def f(x):\n    if 1 not in (2,):\n        return 1\n'
+            ),
+            'one thing being another': (
+                'def f(x):\n    if None is None:\n        return 1\n'
+            ),
+            'one thing not being another': (
+                'def f(x):\n    if None is not True:\n        return 1\n'
+            ),
             'a set written out': 'def f(x):\n    for part in {1}:\n        return 1\n',
             'both parts of an and gone over': (
                 'def f(x):\n    for part in [1] and [2]:\n        return 1\n'
@@ -3281,6 +3371,9 @@ class TestWhatAlwaysLeaves:
             'loop may be empty': 'def f(xs):\n    for x in xs:\n        return 1\n',
             'loop that never runs': 'def f(x):\n    while False:\n        return 1\n',
             'loop over nothing': 'def f(x):\n    for part in []:\n        return 1\n',
+            'a chain whose last pair fails': (
+                'def f(x):\n    while 1 < 2 < 0:\n        return 1\n'
+            ),
             'a list unpacked into one': (
                 'def f(xs):\n    while [*xs]:\n        return 1\n'
             ),
