@@ -1775,6 +1775,48 @@ class TestTheFinallyClause:
 
         assert not any(5 in first and 11 in second for first, second in spans)
 
+    def test_every_kind_outside_exception_is_no_catch(self) -> None:
+        kinds = (
+            'BaseException',
+            'BaseExceptionGroup',
+            'KeyboardInterrupt',
+            'SystemExit',
+            'GeneratorExit',
+        )
+        covered = [
+            kind for kind in kinds
+            if check_wiki._under_exception(f'raise:{kind}')
+        ]
+
+        assert covered == []
+
+    def test_a_kind_inside_exception_is_covered(self) -> None:
+        assert check_wiki._under_exception('raise:ValueError')
+
+    def test_dead_code_after_a_plain_return_raises_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            return 1\n            work()\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 9 in second for first, second in spans)
+
+    def test_a_body_that_never_runs_raises_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            while False:\n                work()\n            return 1\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
     def test_a_raise_naming_nothing_plain_is_no_catch_for_exception(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1824,6 +1866,30 @@ class TestTheFinallyClause:
         spans = self._spans(source, tmp_path, monkeypatch)
 
         assert not any(3 in first and 8 in second for first, second in spans)
+
+    def test_every_loop_written_to_run_nothing_holds_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a condition that never holds': '        while not True:\n',
+            'nothing to go over': '        for part in ():\n',
+            'an empty list to go over': '        for part in []:\n',
+            'an empty mapping as a condition': '        while {}:\n',
+        }
+        paired = [
+            label for label, loop in shapes.items()
+            if any(
+                3 in first and 7 in second
+                for first, second in self._spans(
+                    "def f(flag):\n    if flag:\n        mark()\n" + loop
+                    + "            raise ValueError()\n        return 1\n    later()\n",
+                    tmp_path,
+                    monkeypatch,
+                )
+            )
+        ]
+
+        assert paired == list(shapes)
 
     def test_a_loop_that_never_runs_holds_no_way_out(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -2938,6 +3004,13 @@ class TestWhatAlwaysLeaves:
             'class body carries on': 'def f(x):\n    class A:\n        field = 1\n',
             'loop may be empty': 'def f(xs):\n    for x in xs:\n        return 1\n',
             'loop that never runs': 'def f(x):\n    while False:\n        return 1\n',
+            'loop over nothing': 'def f(x):\n    for part in []:\n        return 1\n',
+            'condition that never holds': (
+                'def f(x):\n    while not True:\n        return 1\n'
+            ),
+            'loop over nothing written out': (
+                "def f(x):\n    for part in ():\n        return 1\n"
+            ),
             'break carries on past a loop': (
                 'def f(xs):\n    while True:\n        if xs:\n            break\n'
                 '        return 1\n'
@@ -3068,6 +3141,7 @@ class TestCatchAllPatterns:
             'wildcard': 'match x:\n    case _:\n        pass\n',
             'bound capture': 'match x:\n    case value as bound:\n        pass\n',
             'bound wildcard in an or': 'match x:\n    case 1 | _ as name:\n        pass\n',
+            'every value named': 'match x:\n    case object():\n        pass\n',
         }
         read = {
             label: check_wiki._covers_everything(self._match(source))
@@ -3080,6 +3154,7 @@ class TestCatchAllPatterns:
         shapes = {
             'bound kind': 'match x:\n    case int() as n:\n        pass\n',
             'values in an or': 'match x:\n    case 1 | 2:\n        pass\n',
+            'a kind named': 'match x:\n    case object(real=1):\n        pass\n',
         }
         read = {
             label: check_wiki._covers_everything(self._match(source))

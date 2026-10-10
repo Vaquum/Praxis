@@ -2,7 +2,7 @@
 row: P4-33
 baseline: 49aa659
 created: 2026-10-03 13:13 UTC
-modified: 2026-10-10 15:48 UTC
+modified: 2026-10-10 16:25 UTC
 evidence:
   - claim: "The test on the four names rejects whatever counts as nothing, which takes in an empty string, a missing value, nought and false"
     source: "`_require_str.py` 28-30"
@@ -16,7 +16,7 @@ evidence:
     source: "`trading_state.py` 392-396"
   - claim: "A command's own name of the wrong kind is caught earlier, by the taking out of hyphens"
     source: "`generate_client_order_id.py` 105-110"
-  - claim: "The deadline is tested by comparison alone, so a floating-point not-a-number passes, and so does a floating-point endless value"
+  - claim: "The deadline is tested by comparison with nought alone, so a floating-point not-a-number passes, and so does one endless above nought"
     source: "`praxis/core/domain/trade_command.py` 106-108"
   - claim: "Both break later, where the deadline is turned into a moment"
     source: "`execution_manager.py` 2925"
@@ -28,7 +28,7 @@ evidence:
     source: "`execution_manager.py` 4004 reaching 2925"
   - claim: "A plain single order reaches it only where it is left waiting or part-filled, so one filled at once never meets it"
     source: "`execution_manager.py` 4411-4414 reaching 2925"
-  - claim: "A reference price is tested by comparison alone, so an endless one passes"
+  - claim: "A reference price is tested by comparison with nought alone, so one endless above nought passes"
     source: "`praxis/core/domain/trade_command.py` 110-112"
   - claim: "An endless size is refused, being tested for finiteness as well"
     source: "`praxis/core/domain/trade_command.py` 90-104"
@@ -36,12 +36,12 @@ evidence:
     source: "`execution_manager.py` 4378-4383"
   - claim: "That measurement is reached after the order has gone, and a break there is logged with every other unhandled one"
     source: "`execution_manager.py` 4012-4015"
-  - claim: "A floating-point endless price refuses one step earlier, at the subtraction"
+  - claim: "A floating-point endless price breaks one step earlier, at the subtraction"
     source: "`execution_manager.py` 4380"
 ---
 # What a command's checks let through
 
-[A command's checks](what-a-command-must-carry.md) each rest on one ground — emptiness, or a sign. A value wrong on any other ground gets past.
+The checks on a command's [four names, its deadline and its reference price](what-a-command-must-carry.md) each rest on one ground — emptiness, or a sign. A value wrong on another ground gets past them.
 
 ## The four names
 
@@ -53,17 +53,17 @@ A command's own name is caught earlier, where its hyphens are taken out.
 
 ## The deadline
 
-The deadline is tested by comparison with nought alone. A floating-point not-a-number compares as neither above nor below, so it passes, as does an endless one. A string, a list, nothing at all, or a decimal not-a-number refuses there.
+The deadline is tested by comparison with nought alone. A floating-point not-a-number compares as neither above nor below, so it passes, as does one endless above nought. A string, a list, nothing at all, or a decimal not-a-number refuses there.
 
 A decimal above nought gets past it too, the check being about sign alone.
 
-What passes breaks where the deadline becomes a moment. Work fed out in slices, and a ladder, reach that step before sending anything. A plain single order reaches it only where it is left waiting or part-filled — one filled at once never meets it.
+What passes breaks where the deadline becomes a moment. Slices and a ladder reach that step before sending anything. A plain single order reaches it only where it is left waiting or part-filled — one filled at once never meets it.
 
 ## The reference price
 
-The reference price is tested the same way, so an endless one passes where an endless size would not, sizes being tested for finiteness too.
+The reference price is tested the same way, so one endless above nought passes where an endless size would not, sizes being tested for finiteness too.
 
-A decimal endless price reaching the measurement of slippage divides an endless figure by itself, which breaks. A floating-point one breaks a step earlier, at the subtraction. Both come after the order has gone, so neither turns it away.
+A decimal endless price reaching the measurement of slippage divides an endless figure by itself, which breaks. A floating-point one breaks a step earlier, at the subtraction. Both come after the order has gone.
 
 ## Related
 

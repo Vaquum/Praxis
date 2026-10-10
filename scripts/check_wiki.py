@@ -44,7 +44,10 @@ HEADING_NEGATION = re.compile(r',\s+not\b', re.IGNORECASE)
 _CARRIES_ON = 'carries on'
 _ENDLESS = 'endless'
 _RAISE = 'raise'
-_BEYOND_EXCEPTION = ('KeyboardInterrupt', 'SystemExit', 'GeneratorExit')
+_BEYOND_EXCEPTION = (
+    'BaseException', 'BaseExceptionGroup', 'KeyboardInterrupt', 'SystemExit',
+    'GeneratorExit',
+)
 APPARATUS = ('## Evidence', '| Claim | Source |')
 CODE_LABEL = re.compile(r'`([^`]+)`')
 RATIONALE = re.compile(
@@ -1124,7 +1127,7 @@ def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
 
     A handler naming no kind catches anything, as does one naming
     `BaseException`. One naming `Exception` catches every named kind
-    but the three that stand outside it. One naming some other kind
+    but those standing outside it. One naming some other kind
     catches a raise of that kind by name alone: a raise of a kind under
     it, or of a kind named through something else, is left as a way
     out, and so is a raise naming nothing.
@@ -1197,7 +1200,7 @@ def _under_exception(way: str) -> bool:
 
     '''Whether a raise way names a kind `Exception` covers.
 
-    A raise naming nothing could be any kind, the three outside
+    A raise naming nothing could be any kind, those outside
     `Exception` among them, so it is not covered.
 
     Args:
@@ -1284,8 +1287,9 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     and run its `else`, a `for` over something empty included. An
     endless `while` is finished by a break alone, so without one it
     reaches neither its `else` nor anything after it, and ends by
-    nothing at all. A `while` on a condition that never holds runs
-    none of its body, so only its `else` is read.
+    nothing at all. A loop written so that its body never runs — a
+    condition that never holds, or nothing to go over — is read for
+    its `else` alone.
 
     Args:
         statement (ast.For): The loop to read.
@@ -1294,7 +1298,7 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
         set[str]: Those ways.
     '''
 
-    if isinstance(statement, ast.While) and _never_runs(statement.test):
+    if _runs_nothing(statement):
         return _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
 
     inside = _block_ways(statement.body)
@@ -1539,7 +1543,8 @@ def _takes_anything(pattern: ast.pattern) -> bool:
 
     '''Whether a pattern matches every value.
 
-    A bare capture does, and so does an alternative holding one.
+    A bare capture does, and so does an alternative holding one, and
+    so does the class pattern naming what everything is.
 
     Args:
         pattern (ast.pattern): The pattern to read.
@@ -1554,7 +1559,30 @@ def _takes_anything(pattern: ast.pattern) -> bool:
     if isinstance(pattern, ast.MatchOr):
         return any(_takes_anything(held) for held in pattern.patterns)
 
-    return False
+    return _names_every_value(pattern)
+
+
+def _names_every_value(pattern: ast.pattern) -> bool:
+
+    '''Whether a class pattern matches every value.
+
+    `object()` does, nothing standing outside it, and only where it
+    asks nothing of what it matches.
+
+    Args:
+        pattern (ast.pattern): The pattern to read.
+
+    Returns:
+        bool: True where it is that pattern.
+    '''
+
+    return (
+        isinstance(pattern, ast.MatchClass)
+        and isinstance(pattern.cls, ast.Name)
+        and pattern.cls.id == 'object'
+        and not pattern.patterns
+        and not pattern.kwd_patterns
+    )
 
 
 def _always_leaves(statement: ast.stmt) -> bool:
@@ -1571,18 +1599,65 @@ def _always_leaves(statement: ast.stmt) -> bool:
     return _CARRIES_ON not in _statement_ways(statement)
 
 
-def _never_runs(test: ast.expr) -> bool:
+def _runs_nothing(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
 
-    '''Whether a loop's condition is written as one that never holds.
+    '''Whether a loop is written so that its body never runs.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        bool: True where its condition never holds, or where what it
+            goes over is written out with nothing in it.
+    '''
+
+    if isinstance(statement, ast.While):
+        return _never_holds(statement.test)
+
+    return _iterates_nothing(statement.iter)
+
+
+def _never_holds(test: ast.expr) -> bool:
+
+    '''Whether a `while` condition is written as one that never holds.
 
     Args:
         test (ast.expr): The condition.
 
     Returns:
-        bool: True where it is a constant that does not hold.
+        bool: True for a constant that does not hold, for a list,
+            tuple or mapping written out empty, and for `not` of a
+            constant that does hold.
     '''
 
-    return isinstance(test, ast.Constant) and not bool(test.value)
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        return isinstance(test.operand, ast.Constant) and bool(test.operand.value)
+
+    if isinstance(test, ast.Constant):
+        return not bool(test.value)
+
+    return _iterates_nothing(test)
+
+
+def _iterates_nothing(gone_over: ast.expr) -> bool:
+
+    '''Whether what a loop goes over is written out with nothing in it.
+
+    Args:
+        gone_over (ast.expr): The expression the loop goes over.
+
+    Returns:
+        bool: True for an empty list, tuple, set or mapping, and for
+            an empty string of letters or bytes.
+    '''
+
+    if isinstance(gone_over, (ast.List, ast.Tuple, ast.Set)):
+        return not gone_over.elts
+
+    if isinstance(gone_over, ast.Dict):
+        return not gone_over.keys
+
+    return isinstance(gone_over, ast.Constant) and gone_over.value in ('', b'')
 
 
 def _may_raise(body: list[ast.stmt]) -> bool:
@@ -1590,9 +1665,11 @@ def _may_raise(body: list[ast.stmt]) -> bool:
     '''Whether anything in a block could raise.
 
     Only the plainest statements are read as unable to: a pass, a
-    break, a continue, and a return of a constant or of nothing. A call
-    of any kind, a name looked up, a subscript or a sum could raise, so
-    everything else is read as able to.
+    break, a continue, a return of a constant or of nothing, and a
+    loop whose body never runs. A call of any kind, a name looked up,
+    a subscript or a sum could raise, so everything else is read as
+    able to. Nothing past a statement that always leaves is read, that
+    being unreachable.
 
     Args:
         body (list[ast.stmt]): The block's statements.
@@ -1603,17 +1680,40 @@ def _may_raise(body: list[ast.stmt]) -> bool:
 
     for statement in body:
 
-        if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
-            continue
+        if _could_raise(statement):
+            return True
 
-        if isinstance(statement, ast.Return) and (
-            statement.value is None or isinstance(statement.value, ast.Constant)
-        ):
-            continue
-
-        return True
+        if _CARRIES_ON not in _statement_ways(statement):
+            return False
 
     return False
+
+
+def _could_raise(statement: ast.stmt) -> bool:
+
+    '''Whether one statement could raise where it stands.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: False for a pass, a break, a continue, a return of a
+            constant or of nothing, and a loop whose body never runs;
+            True for everything else.
+    '''
+
+    if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
+        return False
+
+    if isinstance(statement, ast.Return):
+        return not (
+            statement.value is None or isinstance(statement.value, ast.Constant)
+        )
+
+    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+        return not _runs_nothing(statement)
+
+    return True
 
 
 def _endless(test: ast.expr) -> bool:
