@@ -1460,8 +1460,10 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
 
     '''Return the ways a loop can end.
 
-    A break lands on the line after the loop, so the loop carries on; a
-    continue goes round again and ends nothing. A break need not be
+    A loop written to go over what no turn can be taken from ends by
+    the raise that takes, nothing in it running. A break lands on the
+    line after the loop, so the loop carries on; a continue goes round
+    again and ends nothing. A break need not be
     taken, though, so any loop but an endless `while` can also finish
     and run its `else`, a `for` over something empty included. An
     endless `while` is finished by a break alone, so without one it
@@ -1477,6 +1479,9 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     Returns:
         set[str]: Those ways.
     '''
+
+    if _raises_before_a_turn(statement):
+        return {_RAISE}
 
     if _runs_nothing(statement):
         return _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
@@ -1763,6 +1768,33 @@ def _always_leaves(statement: ast.stmt) -> bool:
     return _CARRIES_ON not in _statement_ways(statement)
 
 
+def _raises_before_a_turn(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
+
+    '''Whether a loop raises before it takes a turn at all.
+
+    Going over what is written out as something no turn can be taken
+    from raises there, and so does asking for each turn to be awaited
+    where what is gone over is written out, nothing written out being
+    something to await.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        bool: True where nothing in it runs.
+    '''
+
+    if isinstance(statement, ast.While):
+        return False
+
+    if _goes_over_nothing(statement.iter):
+        return True
+
+    return isinstance(statement, ast.AsyncFor) and _written_as(
+        statement.iter,
+    ) is not None
+
+
 def _runs_once(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
 
     '''Whether a loop is written so that its body runs at least once.
@@ -1985,9 +2017,12 @@ def _written_comparison(test: ast.Compare) -> bool | None:
 
     '''Whether a comparison of constants answers for itself.
 
-    Each side against the next, with signs the two can be weighed by.
-    A comparison of two things that cannot be weighed against each
-    other raises where it stands, and answers nothing here.
+    Each side against the next, with signs the two can be weighed by,
+    and each side written out as a value of its own. A chain stops at
+    the first pair that fails, as Python does, so a side after that is
+    never read, never written out, and could not raise. A comparison
+    of two things that cannot be weighed against each other raises
+    where it stands, and answers nothing here.
 
     Args:
         test (ast.Compare): The comparison.
@@ -1996,46 +2031,82 @@ def _written_comparison(test: ast.Compare) -> bool | None:
         bool | None: Its answer, or None where it is not known.
     '''
 
-    parts = [_written_as(part) for part in [test.left, *test.comparators]]
+    held = _written_as(test.left)
 
-    if any(part is None for part in parts):
+    if held is None:
         return None
 
-    return _weighed_in_turn(test.ops, [part[0] for part in parts if part])
+    standing = held[0]
 
+    for sign, beside in zip(test.ops, test.comparators, strict=True):
+        written = _written_as(beside)
 
-def _weighed_in_turn(signs: list[ast.cmpop], held: list[Any]) -> bool | None:
-
-    '''Weigh each part of a comparison against the one after it.
-
-    A comparison written in a chain holds where every pair in it does,
-    and stops at the first pair that fails, as Python does.
-
-    Args:
-        signs (list[ast.cmpop]): The signs between the parts.
-        held (list[Any]): What each part is written as.
-
-    Returns:
-        bool | None: Its answer, or None where a sign cannot be read or
-            a pair cannot be weighed.
-    '''
-
-    for sign, left, right in zip(signs, held, held[1:], strict=False):
-        weigh = _COMPARISONS.get(type(sign))
-
-        if weigh is None:
+        if written is None:
             return None
 
-        try:
-            answer = bool(weigh(left, right))
+        answer = _weighed_pair(sign, standing, written[0])
 
-        except TypeError:
+        if answer is None:
             return None
 
         if not answer:
             return False
 
+        standing = written[0]
+
     return True
+
+
+def _weighed_pair(sign: ast.cmpop, left: Any, right: Any) -> bool | None:
+
+    '''Weigh one side of a comparison against the next.
+
+    Whether one thing is another is weighed only where both are
+    written out as what stands alone — nothing at all, or either
+    answer — since two written the same way may be one thing or two,
+    and which they are is settled where the file is compiled.
+
+    Args:
+        sign (ast.cmpop): The sign between them.
+        left (Any): What the near side is written as.
+        right (Any): What the far side is written as.
+
+    Returns:
+        bool | None: Its answer, or None where it cannot be weighed.
+    '''
+
+    weigh = _COMPARISONS.get(type(sign))
+
+    if weigh is None:
+        return None
+
+    if isinstance(sign, (ast.Is, ast.IsNot)) and not (
+        _stands_alone(left) and _stands_alone(right)
+    ):
+        return None
+
+    try:
+        return bool(weigh(left, right))
+
+    except TypeError:
+        return None
+
+
+def _stands_alone(value: Any) -> bool:
+
+    '''Whether a value written out is one of a kind.
+
+    Nothing at all and either answer are each one object, so two
+    written the same way are the same thing.
+
+    Args:
+        value (Any): The value written out.
+
+    Returns:
+        bool: True where it is one of those.
+    '''
+
+    return value is None or isinstance(value, bool)
 
 
 def _written_truth_of_both(test: ast.BoolOp) -> bool | None:
@@ -2175,9 +2246,9 @@ def _match_could_raise(statement: ast.Match) -> bool:
 
     Working out the subject could, and so could a pattern asking
     anything of it, a guard that is not written out, and the body of a
-    case that runs. A case whose guard never holds is passed over, and
-    nothing after a case that takes every value with a guard that
-    holds is read.
+    case that runs. A pattern is weighed before its guard is read, so
+    a guard that never holds keeps back the body alone. Nothing after
+    a case that takes every value with a guard that holds is read.
 
     Args:
         statement (ast.Match): The statement to read.
@@ -2190,6 +2261,10 @@ def _match_could_raise(statement: ast.Match) -> bool:
         return True
 
     for case in statement.cases:
+
+        if not _takes_anything(case.pattern):
+            return True
+
         answer = True if case.guard is None else _written_truth(case.guard)
 
         if case.guard is not None and not _quiet_expression(case.guard):
@@ -2198,7 +2273,7 @@ def _match_could_raise(statement: ast.Match) -> bool:
         if answer is False:
             continue
 
-        if not _takes_anything(case.pattern) or _may_raise(case.body):
+        if _may_raise(case.body):
             return True
 
         if answer is True:
@@ -2217,7 +2292,8 @@ def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
     the body runs at all, and so does going over what is written out
     as something no turn can be taken from. Handing each turn to
     anything but a plain name could raise as well, what comes out
-    having to come apart to fit.
+    having to come apart to fit — though a loop that takes no turn
+    hands nothing over, and reads for its `else` alone.
 
     Args:
         statement (ast.For): The loop to read.
@@ -2233,13 +2309,13 @@ def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
     if not _quiet_expression(gone_over) or isinstance(statement, ast.AsyncFor):
         return True
 
+    if _runs_nothing(statement):
+        return _may_raise(statement.orelse)
+
     if not isinstance(statement, ast.While) and (
         _goes_over_nothing(gone_over) or not isinstance(statement.target, ast.Name)
     ):
         return True
-
-    if _runs_nothing(statement):
-        return _may_raise(statement.orelse)
 
     return _may_raise(statement.body) or _may_raise(statement.orelse)
 

@@ -1939,6 +1939,58 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 10 in second for first, second in spans)
 
+    def test_a_pattern_is_read_before_its_guard_holds_it_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            match 1:\n                case Missing() if False:\n"
+            "                    pass\n                case _:\n"
+            "                    return 1\n        except NameError:\n"
+            "            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 12 in second for first, second in spans)
+
+    def test_a_loop_taking_no_turn_hands_nothing_over(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            for first, second in []:\n                pass\n"
+            "            return 1\n        except ValueError:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
+    def test_a_loop_raising_before_a_turn_runs_nothing_in_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'nothing to take a turn from': '        for part in 1:\n',
+            'an answer to take a turn from': '        for part in (1 < 2):\n',
+            'a turn awaited from what is written out': (
+                '        async for part in (1,):\n'
+            ),
+        }
+        paired = [
+            label for label, loop in shapes.items()
+            if any(
+                3 in first and 6 in second
+                for first, second in self._spans(
+                    "async def f(flag):\n    if flag:\n        mark()\n" + loop
+                    + "            return 1\n    later()\n",
+                    tmp_path,
+                    monkeypatch,
+                )
+            )
+        ]
+
+        assert paired == list(shapes)
+
     def test_nothing_after_a_case_that_always_matches_could_raise(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -3318,6 +3370,10 @@ class TestWhatAlwaysLeaves:
             'one thing being another': (
                 'def f(x):\n    if None is None:\n        return 1\n'
             ),
+            'a chain failing before an unwritten side': (
+                'def f(x, name):\n    if 1 < 0 < name:\n        return 1\n'
+                '    return 2\n'
+            ),
             'one thing not being another': (
                 'def f(x):\n    if None is not True:\n        return 1\n'
             ),
@@ -3371,6 +3427,12 @@ class TestWhatAlwaysLeaves:
             'loop may be empty': 'def f(xs):\n    for x in xs:\n        return 1\n',
             'loop that never runs': 'def f(x):\n    while False:\n        return 1\n',
             'loop over nothing': 'def f(x):\n    for part in []:\n        return 1\n',
+            'two written the same way': (
+                'def f(x):\n    if 257 is 257:\n        return 1\n'
+            ),
+            'two written the same way apart': (
+                'def f(x):\n    if (1,) is not (1,):\n        return 1\n'
+            ),
             'a chain whose last pair fails': (
                 'def f(x):\n    while 1 < 2 < 0:\n        return 1\n'
             ),
