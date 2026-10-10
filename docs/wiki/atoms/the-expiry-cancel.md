@@ -2,7 +2,7 @@
 row: P2-25
 baseline: 49aa659
 created: 2026-09-25 08:00 UTC
-modified: 2026-10-09 17:24 UTC
+modified: 2026-10-10 07:39 UTC
 evidence:
   - claim: "The report is settled as expired before the venue is asked anything, and a mark set with it"
     source: "`execution_manager.py` 4415-4417"
@@ -29,7 +29,7 @@ evidence:
 ---
 # The expiry cancel
 
-When an order is found past its [deadline](deadlines.md), Praxis settles on reporting it expired, asks the [venue](what-a-venue-is.md) to cancel it, and reports. That report is settled first, so what the venue says next decides only what is written against the order.
+When an order is found past its [deadline](deadlines.md), Praxis settles on reporting it expired, asks the [venue](what-a-venue-is.md) to cancel it, and reports. That report is settled first, so what the venue says next decides what is written against the order, and the reason the report carries.
 
 ## What the venue's answer changes
 
@@ -49,7 +49,7 @@ A body that will not parse at all is different again — that counts as a venue 
 
 ## The same reply on other cancels
 
-The orders of work carried out as several orders are cancelled elsewhere, and there the same unreadable body is caught and skipped, leaving the run waiting on children. A failure reading a *field* there stops the account, but only where the winding-up asked for it; a [cancellation from outside](how-a-trade-is-cancelled.md), or the repair pass, logs it and carries on.
+The orders of work carried out as several orders are cancelled elsewhere, and there the same unreadable body is caught and skipped, leaving the run waiting on children. A failure reading a *field* there stops the account, but only where the drain or a winding-up asked for it; a [cancellation from outside](how-a-trade-is-cancelled.md), or the repair pass, logs it and carries on.
 
 ## Related
 

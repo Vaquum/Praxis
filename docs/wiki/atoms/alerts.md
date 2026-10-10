@@ -2,14 +2,16 @@
 row: P3-20
 baseline: 49aa659
 created: 2026-09-30 19:11 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-10 07:39 UTC
 evidence:
   - claim: "A level outside the three is replaced with the middle one rather than refused"
     source: "`alert_sink.py` 48-49 with the three at 20"
   - claim: "Every alert is logged as a warning, whatever level it carries"
     source: "`alert_sink.py` 51"
-  - claim: "What is logged is subject to the level the host was started with"
-    source: "`launcher.py` 4847-4855"
+  - claim: "The level the host was started with is put on the root of the logging where the lines are JSON"
+    source: "`praxis/infrastructure/observability.py` 83, reached from `launcher.py` 4850-4851"
+  - claim: "Asking instead for plain lines hands that level to Python's own setting-up, which is passed no force"
+    source: "`launcher.py` 4853-4856"
   - claim: "With no web address given, nothing is sent"
     source: "`alert_sink.py` 60-61"
   - claim: "With one, the same thing is sent there"
@@ -39,7 +41,7 @@ An **alert** is how Praxis says something needs a person. Each one writes a log 
 
 Three levels exist. A level outside them is quietly replaced with the middle one rather than refused.
 
-The level travels in the line's contents, but every alert is **logged at the middle level regardless** — so an alert marked highest is written no more loudly than any other, and a host started at a stricter logging level shows none of them while still sending.
+The level travels in the line's contents, but every alert is **logged at the middle level regardless** — so an alert marked highest is written no more loudly than any other. Where the lines are JSON the host's level is put on the root of the logging, so a host started above the middle shows none of them while still sending.
 
 ## What is guarded
 

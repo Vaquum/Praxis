@@ -97,7 +97,7 @@ Read them in order if you are new. Every term is explained where it first appear
 ## When time runs out
 
 - [Deadlines](atoms/deadlines.md) — the time by which work is expected to be done, and the moments Praxis measures against it.
-- [The expiry cancel](atoms/the-expiry-cancel.md) — an order found past its deadline is reported expired whatever the venue says, though the expiry is written against the order only where the cancel came back.
+- [The expiry cancel](atoms/the-expiry-cancel.md) — an order found past its deadline is settled as expired before the venue is asked, and the expiry is written against the order only where the cancel came back.
 
 ## Reporting back
 
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-09 17:24 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-10 07:39 UTC

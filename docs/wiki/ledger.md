@@ -96,7 +96,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/order.py` | full | P4-11, P4-36 |
 | `praxis/core/domain/position.py` | full | P2-33, P4-12 |
 | `praxis/infrastructure/venue_adapter.py` | partial | P2-13, P4-13 |
-| `praxis/infrastructure/observability.py` | full | P4-14, P4-37 |
+| `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37 |
 | `praxis/arrow_price_store.py` | full | P3-04, P4-15, P4-38 |
 
 Every Praxis module is named here: 46 are `full`, 37 `partial` and 5 `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The five `uncovered` ones are modules the wiki has written around: a fill's own type, the bracket exit identifier, the scheme and bracket parameter types, and the replay report's own module each have their behaviour traced through a caller instead, so no row cites the file. Closing those is a later package, as is Nexus.
@@ -129,4 +129,4 @@ The modules listed above are `partial` by citation rather than by tracing: a Pra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-09 09:56 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-10 07:39 UTC
