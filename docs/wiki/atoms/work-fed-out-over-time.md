@@ -2,7 +2,7 @@
 row: P2-19
 baseline: 49aa659
 created: 2026-09-27 14:09 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-10 12:57 UTC
 evidence:
   - claim: "Three ways of working send an amount out in parts spaced over time"
     source: "`execution_manager.py` 170-172, spaced at 5926-5929"
@@ -21,7 +21,7 @@ evidence:
   - claim: "The first part goes at once, without waiting on a due time"
     source: "`execution_manager.py` 5800"
   - claim: "Later parts are looked at only on circuits that reach that work"
-    source: "`execution_manager.py` 3969-3973, skipped while starting, paused or failed at 3902-3905"
+    source: "`execution_manager.py` 3969-3973, skipped either while starting at 3902-3905 or while paused or failed at 3969-3971"
   - claim: "A later part goes only where nothing is winding the work up and its time has come"
     source: "`execution_manager.py` 5831-5838"
   - claim: "After a part the next time is set from the gap, or cleared where none remain"

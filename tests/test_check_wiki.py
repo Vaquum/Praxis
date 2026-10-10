@@ -1181,6 +1181,19 @@ class TestTheLatestRelease:
 
         assert any('Record 1 findings' in f for f in failures)
 
+    def test_a_drifted_article_count_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        log = tmp_path / 'CHANGELOG.md'
+        log.write_text(
+            '## v1.0.0 on 1st of January, 2026\n\n- Add 1 articles\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'CHANGELOG', log)
+        failures = check_wiki._latest_release_counts()
+
+        assert any('1 articles' in f for f in failures)
+
     def test_an_older_entry_is_left_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1656,6 +1669,32 @@ class TestTheFinallyClause:
 
         assert any(5 in first and 7 in second for first, second in spans)
         assert not any(4 in first or 4 in second for first, second in spans)
+
+    def test_a_loop_whose_break_a_finally_overrides_still_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        mark()\n        while True:\n"
+            "            try:\n                go()\n                break\n"
+            "            finally:\n                return 1\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
+    def test_an_earlier_exit_in_a_finally_names_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, stop):\n    for x in [1]:\n        try:\n"
+            "            if flag:\n                mark()\n                return\n"
+            "        finally:\n            if stop:\n                break\n"
+            "            return\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 11 in second for first, second in spans)
+        assert not any(5 in second and 11 in first for first, second in spans)
 
     def test_a_body_leaving_on_some_paths_names_no_way_out(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -2859,6 +2898,22 @@ class TestWhatABreakLeaves:
 
     def test_a_break_in_a_branch_leaves_the_loop(self) -> None:
         source = 'def f(xs, flag):\n    for x in xs:\n        if flag:\n            break\n'
+
+        assert check_wiki._breaks_out(self._body(source))
+
+    def test_a_break_a_finally_overrides_reaches_nothing(self) -> None:
+        source = (
+            'def f(x):\n    while True:\n        try:\n            mark()\n'
+            '            break\n        finally:\n            return 1\n'
+        )
+
+        assert not check_wiki._breaks_out(self._body(source))
+
+    def test_a_break_under_a_finally_that_breaks_still_reaches(self) -> None:
+        source = (
+            'def f(x):\n    while True:\n        try:\n            mark()\n'
+            '            break\n        finally:\n            break\n'
+        )
 
         assert check_wiki._breaks_out(self._body(source))
 

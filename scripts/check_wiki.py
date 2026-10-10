@@ -1034,7 +1034,9 @@ def _one_leave(body: list[ast.stmt]) -> str:
 
     A block that leaves on some paths and not others, or by more than
     one way, names none: what follows the branch it takes out cannot be
-    told from what does not.
+    told from what does not. Every statement that can leave is read,
+    not the last alone, since an earlier one taking a different way out
+    is what runs on the paths reaching it.
 
     Args:
         body (list[ast.stmt]): The block's statements.
@@ -1046,7 +1048,12 @@ def _one_leave(body: list[ast.stmt]) -> str:
     if not _always_leaves(body[-1]):
         return ''
 
-    return _how_it_leaves(body[-1])
+    ways = {
+        _how_it_leaves(statement) for statement in body
+        if _leaves_this_block(statement, within_loop=False)
+    }
+
+    return ways.pop() if len(ways) == 1 else ''
 
 
 def _loops_around(scopes: _Scopes, line: int) -> dict[int, int]:
@@ -1519,7 +1526,9 @@ def _breaks_out(body: list[ast.stmt]) -> bool:
 
     A break inside a nested loop leaves that loop rather than this one,
     though one in that loop's `else` runs with the nested loop finished
-    and so leaves this one. A function and a class carry their own.
+    and so leaves this one. A function and a class carry their own. A
+    break under a `finally` that leaves some other way is overridden by
+    it and reaches nothing.
 
     Args:
         body (list[ast.stmt]): The loop body's statements.
@@ -1537,6 +1546,12 @@ def _breaks_out(body: list[ast.stmt]) -> bool:
 
         if isinstance(statement, ast.Break):
             return True
+
+        if isinstance(statement, (ast.Try, ast.TryStar)) and statement.finalbody:
+            overridden = _one_leave(statement.finalbody)
+
+            if overridden and overridden != 'break':
+                continue
 
         blocks = (
             [statement.orelse]
