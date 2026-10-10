@@ -40,6 +40,7 @@ DOUBLE_NEGATIVE = re.compile(
     re.IGNORECASE,
 )
 APPARATUS = ('## Evidence', '| Claim | Source |')
+CODE_LABEL = re.compile(r'`([^`]+)`')
 RATIONALE = re.compile(
     r'\b(to allow for|in order to|for the sake of|by design|deliberately so|'
     r'the reason being|precisely so|the point being|the idea being)\b',
@@ -2995,7 +2996,9 @@ def _check_voice(body: str) -> list[str]:
     A reason why the code does the thing is a claim about intent, which
     a body never states; it comes from a docstring or from the writer.
     A consequence drawn from a cited fact is not that, and is left
-    alone.
+    alone. An implementation name is not prose either: the reader of an
+    article has the code withheld from them on purpose, so a name they
+    cannot resolve belongs in the metadata with the lines it cites.
 
     Args:
         body (str): The page's prose, its metadata removed.
@@ -3031,6 +3034,14 @@ def _check_voice(body: str) -> list[str]:
     if told is not None:
         notes.append(
             f'gives a reason the code does not state, at "{told.group(0)}"',
+        )
+
+    labelled = CODE_LABEL.search(body)
+
+    if labelled is not None:
+        notes.append(
+            f'names the code in its prose, at "{labelled.group(1)}"; '
+            'an implementation name belongs in the metadata',
         )
 
     return notes

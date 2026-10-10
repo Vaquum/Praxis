@@ -2325,3 +2325,23 @@ class TestRationale:
 
         assert reached == {6, 9, 10}
 
+
+class TestCodeLabels:
+
+    def test_an_implementation_name_in_prose_is_refused(self) -> None:
+        notes = check_wiki._check_voice(
+            '# T\n\nA fill is a report.\n\nThe `Fill` type checks it.\n',
+        )
+
+        assert notes == [
+            'names the code in its prose, at "Fill"; '
+            'an implementation name belongs in the metadata',
+        ]
+
+    def test_prose_without_one_passes(self) -> None:
+        notes = check_wiki._check_voice(
+            '# T\n\nA fill is a report.\n\nThe record checks it.\n',
+        )
+
+        assert notes == []
+
