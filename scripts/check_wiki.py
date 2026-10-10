@@ -669,9 +669,10 @@ def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]
 
     '''Return each pair of arms a `try` statement has.
 
-    Two handlers cannot both run for one raise, and the `else` runs
-    only where none of them did, so each pair of them is a pair of
-    arms. An `except*` is different: one exception group can carry
+    Two handler bodies cannot both run for one raise, and the `else`
+    runs only where none of them did, so each pair of them is a pair
+    of arms. The kind a handler catches is worked out while the later
+    handlers are still candidates, so that line is left out. An `except*` is different: one exception group can carry
     several kinds and run several of those handlers, so only the
     `else` is an alternative to them.
 
@@ -683,7 +684,7 @@ def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]
     '''
 
     spans = [
-        set(range(h.lineno, (h.body[-1].end_lineno or h.lineno) + 1))
+        set(range(h.body[0].lineno, (h.body[-1].end_lineno or h.lineno) + 1))
         for h in node.handlers
         if h.body
     ]
@@ -947,6 +948,14 @@ def _leaves_this_block(statement: ast.stmt, *, within_loop: bool) -> bool:
 
     if isinstance(statement, (ast.Continue, ast.Break)):
         return not within_loop
+
+    if isinstance(statement, (ast.Try, ast.TryStar)) and statement.handlers:
+        return any(
+            _leaves_this_block(held, within_loop=within_loop)
+            for block in _child_blocks(statement)
+            if block is not statement.body
+            for held in block
+        )
 
     loops = isinstance(statement, (ast.For, ast.AsyncFor, ast.While))
     after = statement.orelse if isinstance(

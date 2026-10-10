@@ -1588,6 +1588,31 @@ class TestTheFinallyClause:
         assert not any(7 in first and 5 in second for first, second in spans)
         assert any(5 in first and 9 in second for first, second in spans)
 
+    def test_a_handler_type_is_no_arm_against_a_later_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        work()\n    except probe():\n"
+            "        one()\n    except ValueError:\n        recover()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 7 in second for first, second in spans)
+        assert not any(4 in first or 4 in second for first, second in spans)
+
+    def test_a_raise_caught_inside_a_finally_is_no_override(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            return 1\n"
+            "        return 2\n    finally:\n        try:\n"
+            "            raise ValueError()\n        except ValueError:\n"
+            "            pass\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 5 in second for first, second in spans)
+
     def test_sibling_except_handlers_are_arms(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1878,6 +1903,17 @@ class TestMatchStatements:
     ) -> None:
         source = (
             "def f(x):\n    if x:\n        with lock:\n            return 1\n    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 5 in second for first, second in spans)
+
+    def test_an_async_with_that_returns_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "async def f(x):\n    if x:\n        async with lock:\n"
+            "            return 1\n    go(x)\n"
         )
         spans = self._spans(source, tmp_path, monkeypatch)
 
@@ -2390,4 +2426,42 @@ class TestCodeLabels:
         )
 
         assert any('docstring' in note for note in notes)
+
+    @_NEEDS_BASELINE
+    def test_a_range_mostly_docstring_is_a_docstring(self) -> None:
+        notes = check_wiki._check_citations(
+            ['a claim | `order.py` 30-37'], check_wiki._SourceFacts(),
+        )
+
+        assert any('docstring' in note for note in notes)
+
+
+class TestEveryAlternationMarker:
+
+    @_NEEDS_BASELINE
+    def test_every_marker_excuses_a_pair(self) -> None:
+        markers = (
+            'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
+            'against', 'need not', 'not both', 'alternative',
+        )
+        cache = check_wiki._SourceFacts()
+        unexcused = [
+            marker for marker in markers
+            if check_wiki._docstring_citations(
+                f'|a claim | `validate_trade_command.py` 137 {marker} 139|', cache,
+            )
+        ]
+
+        assert unexcused == []
+
+    @_NEEDS_BASELINE
+    def test_a_pair_with_no_marker_is_refused(self) -> None:
+        notes = check_wiki._docstring_citations(
+            '|a claim | `validate_trade_command.py` 137 and 139|',
+            check_wiki._SourceFacts(),
+        )
+
+        assert notes == [
+            'validate_trade_command.py:137 and 139 are mutually exclusive branches',
+        ]
 

@@ -2,7 +2,7 @@
 row: P4-37
 baseline: 49aa659
 created: 2026-10-03 20:11 UTC
-modified: 2026-10-10 09:36 UTC
+modified: 2026-10-10 09:51 UTC
 evidence:
   - claim: "Whatever was attached to the root of Python's logging is detached, and one handler put in its place"
     source: "`praxis/infrastructure/observability.py` 80-82"
@@ -14,13 +14,13 @@ evidence:
     source: "`praxis/infrastructure/observability.py` 62 against 80-82"
   - claim: "Asking for plain text calls Python's own setting-up"
     source: "`launcher.py` 4853-4856"
-  - claim: "Nothing forces that call through, so where a handler is already attached to the root it does nothing"
+  - claim: "That call is made with nothing forcing it through"
     source: "`launcher.py` 4853-4856, passing no force"
   - claim: "The level is handed to Python's own setting-up as it stands, nothing in Praxis reading it first"
     source: "`launcher.py` 4854 within the call at 4853-4856"
   - claim: "The other route reads the level itself and falls back where it does not know it"
     source: "`praxis/infrastructure/observability.py` 45"
-  - claim: "A logger is kept on the thing it was fetched through, so fetching the same name again builds another"
+  - claim: "Keeping a logger once fetched is asked for, and a logger is fetched by name"
     source: "`praxis/infrastructure/observability.py` 63 against 125"
 ---
 # What the logging arrangement misses
@@ -37,13 +37,13 @@ The arrangement's own route is the other way about: it writes to standard output
 
 ## Plain text may change nothing
 
-Asking for plain text calls Python's own setting-up, and nothing forces that call through. Python's own rule then applies: where a handler is already attached to the root, that call does nothing at all, the level it was given included.
+Asking for plain text calls Python's own setting-up, and nothing forces that call through. What that call then does where a handler is already attached to the root is Python's own affair; nothing in Praxis reads the level first.
 
 Either way the level goes over as it stands; nothing in Praxis reads it first. The other route does read it, and falls back to its own default where the name means nothing to it.
 
-## A logger is kept, but not by name
+## A logger is kept once fetched
 
-A logger is kept on the thing it was fetched through, so reusing that same thing reuses the logger. Fetching the same name a second time builds another.
+Keeping a logger once it has been fetched is asked for when the arrangement is set up, and a logger is fetched by name. What that keeping is keyed on is the library's own affair, not something these lines settle.
 
 ## Related
 
