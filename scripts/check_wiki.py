@@ -7,6 +7,7 @@ whether the register missed a behaviour, stay with the reviewer.
 from __future__ import annotations
 
 import ast
+import builtins
 import functools
 import operator
 import re
@@ -89,9 +90,9 @@ _CARRIES_ON = 'carries on'
 _GONE_OVER = (str, bytes, list, tuple, set, frozenset, dict)
 _ENDLESS = 'endless'
 _RAISE = 'raise'
-_BEYOND_EXCEPTION = (
-    'BaseException', 'BaseExceptionGroup', 'KeyboardInterrupt', 'SystemExit',
-    'GeneratorExit',
+_UNDER_EXCEPTION = frozenset(
+    name for name, held in vars(builtins).items()
+    if isinstance(held, type) and issubclass(held, Exception)
 )
 APPARATUS = ('## Evidence', '| Claim | Source |')
 CODE_LABEL = re.compile(r'`([^`]+)`')
@@ -1211,8 +1212,10 @@ def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
     '''Return the raises a `try`'s own handlers certainly catch.
 
     A handler naming no kind catches anything, as does one naming
-    `BaseException`. One naming `Exception` catches every named kind
-    but those standing outside it. One naming some other kind
+    `BaseException`. One naming `Exception` catches the kinds the
+    language carries under it, and a kind named nowhere there is left
+    uncaught, standing where it stands being the project's own
+    affair. One naming some other kind
     catches a raise of that kind by name alone: a raise of a kind under
     it, or of a kind named through something else, is left as a way
     out, and so is a raise naming nothing.
@@ -1285,8 +1288,10 @@ def _under_exception(way: str) -> bool:
 
     '''Whether a raise way names a kind `Exception` covers.
 
-    A raise naming nothing could be any kind, those outside
-    `Exception` among them, so it is not covered.
+    The kinds it covers are the errors the language itself carries
+    under it. A kind named nowhere there may stand under `Exception`
+    or outside it — a project writes its own either way — and a raise
+    naming nothing at all could be any kind, so neither is covered.
 
     Args:
         way (str): The way, as `raise` with the kind it names.
@@ -1295,9 +1300,7 @@ def _under_exception(way: str) -> bool:
         bool: True where that kind stands under `Exception`.
     '''
 
-    kind = way.partition(':')[2]
-
-    return bool(kind) and kind not in _BEYOND_EXCEPTION
+    return way.partition(':')[2] in _UNDER_EXCEPTION
 
 
 def _handler_kinds(node: ast.Try | ast.TryStar) -> set[str]:
@@ -1413,7 +1416,7 @@ def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
         return False
 
     return all(
-        kind in seen or ('Exception' in seen and kind not in _BEYOND_EXCEPTION)
+        kind in seen or ('Exception' in seen and kind in _UNDER_EXCEPTION)
         for kind in kinds
     )
 
@@ -1492,10 +1495,10 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     if 'break' in inside:
         ways |= {_CARRIES_ON}
 
-    if isinstance(statement, ast.While) and _endless(statement.test):
-        return ways or {_ENDLESS}
+    if not _reaches_its_else(statement):
+        if isinstance(statement, ast.While) and _endless(statement.test):
+            return ways or {_ENDLESS}
 
-    if _runs_once(statement) and not {_CARRIES_ON, 'continue'} & inside:
         return ways
 
     return ways | (
@@ -1795,6 +1798,30 @@ def _raises_before_a_turn(statement: ast.For | ast.AsyncFor | ast.While) -> bool
     ) is not None
 
 
+def _reaches_its_else(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
+
+    '''Whether a loop can reach the `else` written after it.
+
+    The `else` runs where the loop is finished rather than broken out
+    of. An endless `while` is never finished, and a loop written to
+    take a turn whose body always leaves on it never gets to a second,
+    so neither reaches its `else`.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        bool: True where the `else` can run.
+    '''
+
+    if isinstance(statement, ast.While) and _endless(statement.test):
+        return False
+
+    inside = _block_ways(statement.body)
+
+    return not (_runs_once(statement) and not {_CARRIES_ON, 'continue'} & inside)
+
+
 def _runs_once(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
 
     '''Whether a loop is written so that its body runs at least once.
@@ -1958,9 +1985,11 @@ def _written_as(held: ast.expr) -> tuple[Any] | None:
     '''Return what an expression is written out as, in a tuple of one.
 
     A value written out in full — a constant, or a list, tuple, set or
-    mapping of such — is that value. Anything read at the time, and
+    mapping of such — is that value. Anything read at the time is
+    written out as nothing: a name may be bound to anything, and a
+    call is a call even where it is spelled as something empty. So is
     anything that would raise in the writing, such as a set holding
-    what cannot be hashed, is written out as nothing.
+    what cannot be hashed.
 
     Args:
         held (ast.expr): The expression to read.
@@ -1969,6 +1998,9 @@ def _written_as(held: ast.expr) -> tuple[Any] | None:
         tuple[Any] | None: That value alone in a tuple, so that a
             value which is itself nothing can be told from none.
     '''
+
+    if any(isinstance(part, (ast.Call, ast.Name, ast.Attribute)) for part in ast.walk(held)):
+        return None
 
     try:
         return (ast.literal_eval(held),)
@@ -2287,7 +2319,7 @@ def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
     '''Whether a loop could raise where it stands.
 
     Working out what it goes over could raise, and so could its body
-    where that runs, and its `else`. Going over something with `async
+    where that runs, and its `else` where the loop reaches it. Going over something with `async
     for` asks the thing itself for each turn, which could raise before
     the body runs at all, and so does going over what is written out
     as something no turn can be taken from. Handing each turn to
@@ -2316,6 +2348,9 @@ def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
         _goes_over_nothing(gone_over) or not isinstance(statement.target, ast.Name)
     ):
         return True
+
+    if not _reaches_its_else(statement):
+        return _may_raise(statement.body)
 
     return _may_raise(statement.body) or _may_raise(statement.orelse)
 

@@ -1939,6 +1939,55 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 10 in second for first, second in spans)
 
+    def test_a_call_spelled_as_something_empty_is_written_out_as_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        if not set():\n"
+            "            return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 6 in second for first, second in spans)
+
+    def test_a_kind_the_language_does_not_carry_is_no_catch_for_exception(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            raise Stop()\n        except Exception:\n            return 1\n"
+            "        except Stop:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 10 in second for first, second in spans)
+
+    def test_an_else_a_loop_never_reaches_raises_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            for part in (1,):\n                return 1\n            else:\n"
+            "                work()\n        except Exception:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 11 in second for first, second in spans)
+
+    def test_an_else_a_loop_reaches_could_still_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            for part in (1,):\n                pass\n            else:\n"
+            "                return work()\n        except Exception:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 11 in second for first, second in spans)
+
     def test_a_pattern_is_read_before_its_guard_holds_it_back(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1972,6 +2021,7 @@ class TestTheFinallyClause:
         shapes = {
             'nothing to take a turn from': '        for part in 1:\n',
             'an answer to take a turn from': '        for part in (1 < 2):\n',
+            'the other answer to take a turn from': '        for part in (not 1):\n',
             'a turn awaited from what is written out': (
                 '        async for part in (1,):\n'
             ),
