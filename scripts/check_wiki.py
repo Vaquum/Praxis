@@ -1246,8 +1246,11 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
 
     A raise in the body is read as a way out unless a handler of its
     own certainly catches it, the handlers' ways standing beside it
-    wherever the body could raise at all. The `else` runs where the
-    body reaches its end. A `finally` runs last, so
+    wherever the body could raise at all. Handlers are read in the
+    order they are written, and one naming every error is the last that
+    can run, so nothing after it is read — a handler naming no kind at
+    all can only be written last anyway. The `else` runs where
+    the body reaches its end. A `finally` runs last, so
     where it always leaves it is the only way the statement ends, and
     where it leaves on some paths those ways are added to the rest.
 
@@ -1268,6 +1271,9 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
 
         for handler in statement.handlers:
             ways |= _block_ways(handler.body)
+
+            if handler.type is not None and _names_every_error(handler.type):
+                break
 
     if not statement.finalbody:
         return ways
@@ -1543,8 +1549,9 @@ def _takes_anything(pattern: ast.pattern) -> bool:
 
     '''Whether a pattern matches every value.
 
-    A bare capture does, and so does an alternative holding one, and
-    so does the class pattern naming what everything is.
+    A bare capture does, and so does an alternative holding one. A
+    pattern naming a kind does not, whatever that kind is: the name
+    could be bound to anything by the time the `match` runs.
 
     Args:
         pattern (ast.pattern): The pattern to read.
@@ -1559,30 +1566,7 @@ def _takes_anything(pattern: ast.pattern) -> bool:
     if isinstance(pattern, ast.MatchOr):
         return any(_takes_anything(held) for held in pattern.patterns)
 
-    return _names_every_value(pattern)
-
-
-def _names_every_value(pattern: ast.pattern) -> bool:
-
-    '''Whether a class pattern matches every value.
-
-    `object()` does, nothing standing outside it, and only where it
-    asks nothing of what it matches.
-
-    Args:
-        pattern (ast.pattern): The pattern to read.
-
-    Returns:
-        bool: True where it is that pattern.
-    '''
-
-    return (
-        isinstance(pattern, ast.MatchClass)
-        and isinstance(pattern.cls, ast.Name)
-        and pattern.cls.id == 'object'
-        and not pattern.patterns
-        and not pattern.kwd_patterns
-    )
+    return False
 
 
 def _always_leaves(statement: ast.stmt) -> bool:
@@ -1625,18 +1609,44 @@ def _never_holds(test: ast.expr) -> bool:
         test (ast.expr): The condition.
 
     Returns:
-        bool: True for a constant that does not hold, for a list,
-            tuple or mapping written out empty, and for `not` of a
-            constant that does hold.
+        bool: True where it is written out and does not hold.
+    '''
+
+    return _written_truth(test) is False
+
+
+def _written_truth(test: ast.expr) -> bool | None:
+
+    '''Whether a condition is written so that its answer is known.
+
+    A constant answers for itself, as does a list, tuple, set or
+    mapping written out, by whether anything is in it. A `not` turns
+    the answer of what it holds around. Anything else is read at the
+    time and is not known here.
+
+    Args:
+        test (ast.expr): The condition.
+
+    Returns:
+        bool | None: True where it always holds, False where it never
+            holds, None where it is not written out.
     '''
 
     if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
-        return isinstance(test.operand, ast.Constant) and bool(test.operand.value)
+        held = _written_truth(test.operand)
+
+        return None if held is None else not held
 
     if isinstance(test, ast.Constant):
-        return not bool(test.value)
+        return bool(test.value)
 
-    return _iterates_nothing(test)
+    if isinstance(test, (ast.List, ast.Tuple, ast.Set)):
+        return bool(test.elts)
+
+    if isinstance(test, ast.Dict):
+        return bool(test.keys)
+
+    return None
 
 
 def _iterates_nothing(gone_over: ast.expr) -> bool:
@@ -1698,8 +1708,9 @@ def _could_raise(statement: ast.stmt) -> bool:
 
     Returns:
         bool: False for a pass, a break, a continue, a return of a
-            constant or of nothing, and a loop whose body never runs;
-            True for everything else.
+            constant or of nothing, and a loop whose body never runs
+            and whose `else` could not raise either; True for
+            everything else.
     '''
 
     if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
@@ -1711,7 +1722,7 @@ def _could_raise(statement: ast.stmt) -> bool:
         )
 
     if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-        return not _runs_nothing(statement)
+        return not _runs_nothing(statement) or _may_raise(statement.orelse)
 
     return True
 
@@ -1724,10 +1735,10 @@ def _endless(test: ast.expr) -> bool:
         test (ast.expr): The condition.
 
     Returns:
-        bool: True where it is a constant that holds.
+        bool: True where it is written out and holds.
     '''
 
-    return isinstance(test, ast.Constant) and bool(test.value)
+    return _written_truth(test) is True
 
 
 def _breaks_out(body: list[ast.stmt]) -> bool:

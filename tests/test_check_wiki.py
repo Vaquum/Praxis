@@ -1805,6 +1805,44 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 9 in second for first, second in spans)
 
+    def test_a_skipped_loops_else_can_still_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            while False:\n                pass\n            else:\n"
+            "                return work()\n        except ValueError:\n"
+            "            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 11 in second for first, second in spans)
+
+    def test_a_loop_that_runs_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, xs):\n    if flag:\n        mark()\n        try:\n"
+            "            for part in xs:\n                work()\n            return 1\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 10 in second for first, second in spans)
+
+    def test_nothing_after_a_handler_catching_everything_is_read(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            raise ValueError()\n        except BaseException:\n"
+            "            return 1\n        except ValueError:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
     def test_a_body_that_never_runs_raises_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1872,6 +1910,9 @@ class TestTheFinallyClause:
     ) -> None:
         shapes = {
             'a condition that never holds': '        while not True:\n',
+            'a full list said not to hold': '        while not [1]:\n',
+            'an empty string to go over': "        for part in '':\n",
+            'empty bytes to go over': "        for part in b'':\n",
             'nothing to go over': '        for part in ():\n',
             'an empty list to go over': '        for part in []:\n',
             'an empty mapping as a condition': '        while {}:\n',
@@ -2966,6 +3007,8 @@ class TestWhatAlwaysLeaves:
                 'def f(x):\n    class A:\n        raise ValueError()\n'
             ),
             'endless loop leaves': 'def f(x):\n    while True:\n        return 1\n',
+            'endless by not': 'def f(x):\n    while not False:\n        return 1\n',
+            'endless by a full list': 'def f(x):\n    while [1]:\n        return 1\n',
             'loop else leaves': (
                 'def f(xs):\n    for x in xs:\n        pass\n    else:\n        return 1\n'
             ),
@@ -3141,7 +3184,6 @@ class TestCatchAllPatterns:
             'wildcard': 'match x:\n    case _:\n        pass\n',
             'bound capture': 'match x:\n    case value as bound:\n        pass\n',
             'bound wildcard in an or': 'match x:\n    case 1 | _ as name:\n        pass\n',
-            'every value named': 'match x:\n    case object():\n        pass\n',
         }
         read = {
             label: check_wiki._covers_everything(self._match(source))
@@ -3155,6 +3197,10 @@ class TestCatchAllPatterns:
             'bound kind': 'match x:\n    case int() as n:\n        pass\n',
             'values in an or': 'match x:\n    case 1 | 2:\n        pass\n',
             'a kind named': 'match x:\n    case object(real=1):\n        pass\n',
+            'a kind asked for': 'match x:\n    case object():\n        pass\n',
+            'a kind with a sub-pattern': (
+                'match x:\n    case object(1):\n        pass\n'
+            ),
         }
         read = {
             label: check_wiki._covers_everything(self._match(source))
