@@ -1682,6 +1682,19 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 10 in second for first, second in spans)
 
+    def test_an_arm_raising_then_returning_reaches_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(cond, other):\n    try:\n        if cond:\n"
+            "            if other:\n                raise E()\n            return 1\n"
+            "        tail()\n    except E:\n        handle()\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 9 in second for first, second in spans)
+        assert not any(5 in second and 9 in first for first, second in spans)
+
     def test_an_arm_leaving_by_two_ways_reaches_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2921,6 +2934,23 @@ class TestWhatABreakLeaves:
         )
 
         assert not check_wiki._breaks_out(self._body(source))
+
+    def test_a_break_a_finally_leaving_two_ways_overrides_reaches_nothing(self) -> None:
+        source = (
+            'def f(cond):\n    while True:\n        try:\n            break\n'
+            '        finally:\n            if cond:\n                return 1\n'
+            '            else:\n                raise E()\n'
+        )
+
+        assert not check_wiki._breaks_out(self._body(source))
+
+    def test_a_break_under_a_finally_that_carries_on_still_reaches(self) -> None:
+        source = (
+            'def f(x):\n    while True:\n        try:\n            break\n'
+            '        finally:\n            shut()\n'
+        )
+
+        assert check_wiki._breaks_out(self._body(source))
 
     def test_a_break_under_a_finally_that_breaks_still_reaches(self) -> None:
         source = (

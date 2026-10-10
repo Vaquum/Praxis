@@ -33,7 +33,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The order record Praxis keeps](atoms/the-order-record-praxis-keeps.md) — what Praxis holds about one attempt to place an order at the venue.
 - [What changes on an order](atoms/what-changes-on-an-order.md) — the fields that move as the venue reports, and the rules that stop applying once the record exists.
 - [What a command must carry](atoms/what-a-command-must-carry.md) — one instruction to Praxis, built from what a caller gave and checked as it is built.
-- [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — a command's checks are comparisons, so a value wrong on some other ground passes and breaks later.
+- [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — each check rests on one ground, a test for emptiness or a comparison with nought, so a value wrong on another ground passes and breaks later.
 - [How a decision becomes a command](atoms/how-a-decision-becomes-a-command.md) — work crossing from Nexus into Praxis is re-keyed field by field, and its settings converted.
 - [The payload a mode's settings arrive in](atoms/the-payload-a-modes-settings-arrive-in.md) — a decision carries a mode's settings as a payload, turned into the settings object that mode wants.
 - [What a reconciliation tells Nexus](atoms/what-a-reconciliation-tells-nexus.md) — the findings that cross when Praxis squares its books, and the one request that comes the other way.
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-10 11:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-10 13:27 UTC

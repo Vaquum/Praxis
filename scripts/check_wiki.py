@@ -1529,8 +1529,9 @@ def _breaks_out(body: list[ast.stmt]) -> bool:
     A break inside a nested loop leaves that loop rather than this one,
     though one in that loop's `else` runs with the nested loop finished
     and so leaves this one. A function and a class carry their own. A
-    break under a `finally` that leaves some other way is overridden by
-    it and reaches nothing.
+    break under a `finally` that always leaves without breaking itself
+    is overridden by it and reaches nothing, whichever ways that
+    `finally` leaves by.
 
     Args:
         body (list[ast.stmt]): The loop body's statements.
@@ -1549,11 +1550,13 @@ def _breaks_out(body: list[ast.stmt]) -> bool:
         if isinstance(statement, ast.Break):
             return True
 
-        if isinstance(statement, (ast.Try, ast.TryStar)) and statement.finalbody:
-            overridden = _one_leave(statement.finalbody)
-
-            if overridden and overridden != 'break':
-                continue
+        if (
+            isinstance(statement, (ast.Try, ast.TryStar))
+            and statement.finalbody
+            and _always_leaves(statement.finalbody[-1])
+            and not _breaks_out(statement.finalbody)
+        ):
+            continue
 
         blocks = (
             [statement.orelse]

@@ -2,7 +2,7 @@
 row: P4-33
 baseline: 49aa659
 created: 2026-10-03 13:13 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-10 13:27 UTC
 evidence:
   - claim: "The test on the four names rejects whatever counts as nothing, which takes in an empty string, a missing value, nought and false"
     source: "`_require_str.py` 28-30"
@@ -39,7 +39,7 @@ evidence:
 ---
 # What a command's checks let through
 
-[A command's checks](what-a-command-must-carry.md) are comparisons. Each rejects on one ground, and a value wrong on some other ground gets past.
+[A command's checks](what-a-command-must-carry.md) each rest on one ground — emptiness, or a sign. A value wrong on any other ground gets past.
 
 ## The four names
 
