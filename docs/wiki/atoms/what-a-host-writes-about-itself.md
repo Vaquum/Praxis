@@ -2,9 +2,9 @@
 row: P4-14
 baseline: 49aa659
 created: 2026-10-03 20:04 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-10 11:30 UTC
 evidence:
-  - claim: "Lines written through the arrangement itself go to standard output as JSON"
+  - claim: "A line written through the arrangement itself is rendered as JSON and handed to a writer the library makes"
     source: "`praxis/infrastructure/observability.py` 59 and 62"
   - claim: "Lines written through Python's own logging are rendered as JSON too, onto standard output"
     source: "`praxis/infrastructure/observability.py` 66-75 and 77-78"
@@ -16,20 +16,20 @@ evidence:
     source: "`praxis/infrastructure/observability.py` 45 reaching 61"
   - claim: "Context is bound once the settings have been read, the manifests loaded and the credentials fetched"
     source: "`launcher.py` 4982 into `praxis/infrastructure/observability.py` 98, the epoch read at `launcher.py` 4867"
-  - claim: "Bound context fills in fields a line left out, and loses to any the line names itself"
+  - claim: "Merging the bound context into a line is asked for among the steps a line goes through"
     source: "`praxis/infrastructure/observability.py` 48"
   - claim: "Each of the host's own threads is started without the context being carried to it"
     source: "`launcher.py` 2848-2853 and 3895-3902"
-  - claim: "Work handed to the loop from a thread carries the context of whoever handed it over"
+  - claim: "Work is handed from a thread to the loop by asking the loop to run it"
     source: "`launcher.py` 3042 and 3702"
   - claim: "A setting can turn JSON off, leaving plain text"
     source: "`launcher.py` 4850-4856"
 ---
 # What a host writes about itself
 
-A [host](starting-a-host.md) writes JSON to standard output, one piece per line. Each line carries its level and the moment it was written in UTC.
+A [host](starting-a-host.md) writes JSON, one piece per line, each carrying its level and the moment it was written in UTC.
 
-Two routes reach that output. Lines written through the arrangement go straight there. Lines written through Python's own logging — by libraries knowing nothing of the arrangement — are [put through the same shape](what-the-logging-arrangement-misses.md) on the way.
+Two routes reach the output. A line written through the arrangement is handed to a writer the library makes. Lines written through Python's own logging — by libraries knowing nothing of the arrangement — are [put through the same shape](what-the-logging-arrangement-misses.md) and handed to a stream on standard output.
 
 ## The level
 
@@ -39,11 +39,9 @@ A name it does not carry falls back to the one called INFO. A name it does carry
 
 ## The context
 
-Context is bound once: after the settings have been read, the manifests loaded and the credentials fetched. Every line written afterwards is filled in from it.
+Context is bound once: after the settings have been read, the manifests loaded and the credentials fetched. Merging it into each line is asked for among the steps a line goes through; which value stands where a line names that field itself is the library's rule.
 
-Filled in, rather than stamped. A field the line names itself is kept, and the bound value for that field is dropped.
-
-The binding belongs to the task that made it. Each of the host's own threads is started without it being carried across, so a line written directly on one of those threads carries none of it. Work those threads hand to the loop is different: it carries the context of whoever handed it over.
+The binding belongs to the task that made it. Each of the host's own threads is started without it carried across, so a line written directly on one of those threads carries none of it. Work handed from a thread to the loop is handed over by asking the loop to run it, and what context it then sees is the library's affair.
 
 ## Plain text instead
 

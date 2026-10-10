@@ -2,7 +2,7 @@
 row: P3-20
 baseline: 49aa659
 created: 2026-09-30 19:11 UTC
-modified: 2026-10-10 07:39 UTC
+modified: 2026-10-10 11:30 UTC
 evidence:
   - claim: "A level outside the three is replaced with the middle one rather than refused"
     source: "`alert_sink.py` 48-49 with the three at 20"
@@ -41,7 +41,7 @@ An **alert** is how Praxis says something needs a person. Each one writes a log 
 
 Three levels exist. A level outside them is quietly replaced with the middle one rather than refused.
 
-The level travels in the line's contents, but every alert is **logged at the middle level regardless** — so an alert marked highest is written no more loudly than any other. Where the lines are JSON the host's level is put on the root of the logging, so a host started above the middle shows none of them while still sending.
+The level travels in the line's contents, but every alert is **logged at the middle level regardless** — so an alert marked highest is written no more loudly than any other. Where the lines are JSON the host's level is put on the root of the logging, and what Python shows at a level above the middle is its own rule. The sending is not touched by it.
 
 ## What is guarded
 

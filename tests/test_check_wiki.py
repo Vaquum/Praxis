@@ -1646,6 +1646,19 @@ class TestTheFinallyClause:
         assert any(5 in first and 7 in second for first, second in spans)
         assert not any(4 in first or 4 in second for first, second in spans)
 
+    def test_a_body_that_leaves_skips_its_else(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            mark()\n"
+            "            break\n        except ValueError:\n            return 1\n"
+            "        else:\n            return 2\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 10 in second for first, second in spans)
+        assert not any(4 in second and 10 in first for first, second in spans)
+
     def test_a_break_in_a_caught_try_still_overrides(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2577,6 +2590,14 @@ class TestWhatAlwaysLeaves:
                 '        case _:\n            return 2\n'
             ),
             'held return': 'def f(x):\n    with lock():\n        return 1\n',
+            'else leaves': (
+                'def f(x):\n    try:\n        one()\n'
+                '    except ValueError:\n        return 2\n    else:\n        return 3\n'
+            ),
+            'else skipped': (
+                'def f(x):\n    try:\n        return 1\n'
+                '    except ValueError:\n        return 2\n    else:\n        one()\n'
+            ),
         }
         read = {
             label: check_wiki._always_leaves(self._last(source))
@@ -2594,8 +2615,8 @@ class TestWhatAlwaysLeaves:
                 '    except ValueError:\n        one()\n'
             ),
             'else carries on': (
-                'def f(x):\n    try:\n        return 1\n'
-                '    except ValueError:\n        return 2\n    else:\n        one()\n'
+                'def f(x):\n    try:\n        one()\n'
+                '    except ValueError:\n        return 2\n    else:\n        two()\n'
             ),
             'uncovered match': (
                 'def f(x):\n    match x:\n        case 1:\n            return 1\n'
@@ -2628,3 +2649,83 @@ class TestWhatCountsAsAProtocol:
     def test_a_plain_class_beside_a_protocol_import_is_no_protocol(self) -> None:
         source = 'from typing import Protocol\nclass A:\n' + _STUB
         assert not check_wiki._protocol_lines(ast.parse(source))
+
+
+class TestReferenceLinks:
+    def test_an_undefined_full_reference_is_refused(self) -> None:
+        _targets, broken = check_wiki._link_targets('see [details][missing] for more\n')
+
+        assert broken == ['refers to [missing], which is never defined']
+
+    def test_an_undefined_collapsed_reference_is_refused(self) -> None:
+        _targets, broken = check_wiki._link_targets('see [details][] for more\n')
+
+        assert broken == ['refers to [details], which is never defined']
+
+    def test_a_defined_full_reference_is_a_target(self) -> None:
+        targets, broken = check_wiki._link_targets(
+            'see [details][here]\n\n[here]: a-page.md\n',
+        )
+
+        assert broken == [] and 'a-page.md' in targets
+
+    def test_a_web_address_is_no_broken_link(self, tmp_path: Path) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the venue](https://example.com/docs)\n')
+
+        assert check_wiki._broken_links(page, page.read_text()) == []
+
+    def test_a_missing_page_is_a_broken_link(self, tmp_path: Path) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the other](b.md)\n')
+
+        assert check_wiki._broken_links(page, page.read_text()) == [
+            'links to b.md, which does not exist',
+        ]
+
+    def test_a_defined_shortcut_reference_is_a_target(self) -> None:
+        targets, broken = check_wiki._link_targets('see [here]\n\n[here]: a-page.md\n')
+
+        assert broken == [] and targets.count('a-page.md') == 1
+
+
+class TestBlockHeadings:
+    def test_every_heading_is_counted_with_its_block(self) -> None:
+        lines = [
+            'try:',
+            '    one()',
+            'except ValueError:',
+            '    two()',
+            'else:',
+            '    three()',
+            'finally:',
+            '    four()',
+        ]
+        read = {
+            'except': check_wiki._heading(4, lines),
+            'else': check_wiki._heading(6, lines),
+            'finally': check_wiki._heading(8, lines),
+        }
+
+        assert read == {'except': 3, 'else': 5, 'finally': 7}
+
+    def test_a_statement_above_a_block_is_no_heading(self) -> None:
+        lines = ['if x:', '    one()', '    two()']
+
+        assert check_wiki._heading(3, lines) == 3
+
+
+class TestWhatAClassBodyLeaves:
+    def test_a_raise_in_a_class_body_leaves_the_block(self) -> None:
+        source = 'def f(x):\n    class A:\n        raise ValueError()\n'
+        held = ast.parse(source).body[0]
+        assert isinstance(held, ast.FunctionDef)
+
+        assert check_wiki._can_leave(held.body)
+
+    def test_a_raise_in_a_defined_function_leaves_nothing(self) -> None:
+        source = 'def f(x):\n    def inner():\n        raise ValueError()\n'
+        held = ast.parse(source).body[0]
+        assert isinstance(held, ast.FunctionDef)
+
+        assert not check_wiki._can_leave(held.body)

@@ -682,7 +682,7 @@ def _heading(first: int, lines: list[str]) -> int:
         number -= 1
 
     above = _without_a_comment(lines[number - 1]) if number >= 1 else ''
-    heads = above in ('finally:', 'else:', 'try:') or (
+    heads = above in ('finally:', 'else:') or (
         above.startswith(('except ', 'except:', 'except*')) and above.endswith(':')
     )
 
@@ -952,8 +952,10 @@ def _leaves_this_block(
     own included. A continue or a break leaves only its own loop, so one
     written inside a nested loop leaves that — though one in that loop's
     `else` carries on the loop outside it, and so leaves the block. A
-    function, a lambda and a class carry their own ways out and are not
-    looked into. A raise in the body of a try that has a handler may be
+    function carries its own ways out and is not looked into, since
+    they wait on a call; a class body runs where it stands, and a raise
+    written there is the only way one can leave, so it is read as any
+    other. A raise in the body of a try that has a handler may be
     caught there, so it is taken not to leave; a return, a continue or a
     break in that same body leaves as it would anywhere.
 
@@ -967,10 +969,7 @@ def _leaves_this_block(
         bool: True where the block can be left here.
     '''
 
-    if isinstance(
-        statement,
-        (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef),
-    ):
+    if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return False
 
     if isinstance(statement, ast.Return):
@@ -1401,6 +1400,9 @@ def _try_paths(node: ast.Try | ast.TryStar) -> list[list[ast.stmt]]:
 
     '''Return each path through a `try` statement that can carry on.
 
+    The `else` runs where the body reaches its end, so a body that
+    always leaves skips it and is the path itself.
+
     Args:
         node (ast.Try): The statement to read.
 
@@ -1408,7 +1410,8 @@ def _try_paths(node: ast.Try | ast.TryStar) -> list[list[ast.stmt]]:
         list[list[ast.stmt]]: The body or its `else`, and each handler.
     '''
 
-    paths = [node.orelse or node.body]
+    reaches_else = bool(node.orelse) and not _always_leaves(node.body[-1])
+    paths = [node.orelse] if reaches_else else [node.body]
     paths += [handler.body for handler in node.handlers if handler.body]
 
     return paths

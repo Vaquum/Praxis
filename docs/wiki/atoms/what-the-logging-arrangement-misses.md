@@ -2,7 +2,7 @@
 row: P4-37
 baseline: 49aa659
 created: 2026-10-03 20:11 UTC
-modified: 2026-10-10 10:02 UTC
+modified: 2026-10-10 11:30 UTC
 evidence:
   - claim: "Whatever was attached to the root of Python's logging is detached, and one handler put in its place"
     source: "`praxis/infrastructure/observability.py` 80-82"
@@ -10,7 +10,7 @@ evidence:
     source: "`praxis/infrastructure/observability.py` 81"
   - claim: "That touches the root alone, so a handler attached anywhere below it stays where it is"
     source: "`praxis/infrastructure/observability.py` 80-82"
-  - claim: "The arrangement's own route does not pass through the root at all"
+  - claim: "The arrangement's own route is given a writer of its own rather than the root's handler"
     source: "`praxis/infrastructure/observability.py` 62 against 80-82"
   - claim: "Asking for plain text calls Python's own setting-up"
     source: "`launcher.py` 4853-4856"
@@ -33,7 +33,7 @@ Whatever was attached to the root of Python's logging is detached, and one handl
 
 The root is all that is touched. A handler attached to some logger below it stays where it is.
 
-The arrangement's own route is the other way about: it writes to standard output directly, without passing through the root. So clearing the root neither captures that route nor stops it.
+The arrangement's own route is the other way about: it is given a writer of its own rather than the root's handler. So clearing the root neither captures that route nor stops it.
 
 ## Plain text may change nothing
 
