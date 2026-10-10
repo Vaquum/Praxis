@@ -42,6 +42,8 @@ DOUBLE_NEGATIVE = re.compile(
 )
 HEADING_NEGATION = re.compile(r',\s+not\b', re.IGNORECASE)
 _CARRIES_ON = 'carries on'
+_ENDLESS = 'endless'
+_RAISE = 'raise'
 APPARATUS = ('## Evidence', '| Claim | Source |')
 CODE_LABEL = re.compile(r'`([^`]+)`')
 RATIONALE = re.compile(
@@ -985,6 +987,9 @@ def _statement_ways(statement: ast.stmt) -> set[str]:
         set[str]: Those ways.
     '''
 
+    if isinstance(statement, ast.Raise):
+        return {_raise_way(statement)}
+
     plain = _plainly_leaves(statement)
 
     if plain:
@@ -1051,7 +1056,8 @@ def _held_ways(ways: set[str]) -> set[str]:
     '''Return the ways a `with` ends, given the ways its body can.
 
     A context manager can swallow a raise, so what follows the `with`
-    may run after all.
+    may run after all — and may not, so the raise stands as a way out
+    beside carrying on.
 
     Args:
         ways (set[str]): The ways its body can end.
@@ -1060,19 +1066,155 @@ def _held_ways(ways: set[str]) -> set[str]:
         set[str]: Those ways, a raise read as carrying on.
     '''
 
-    if 'raise' not in ways:
+    if not any(way.startswith(_RAISE) for way in ways):
         return ways
 
-    return (ways - {'raise'}) | {_CARRIES_ON}
+    return ways | {_CARRIES_ON}
+
+
+def _plain_ways(ways: set[str]) -> set[str]:
+
+    '''Return the ways with every raise read as a raise alone.
+
+    A raise is held with the kind it names, so that a handler can be
+    asked whether it catches that one. Where the ways are weighed
+    against each other the kind is set aside: two raises of different
+    kinds leave by the same way.
+
+    Args:
+        ways (set[str]): The ways a block or statement can end.
+
+    Returns:
+        set[str]: Those ways, each raise named plainly.
+    '''
+
+    return {_RAISE if way.startswith(_RAISE) else way for way in ways}
+
+
+def _raise_way(statement: ast.Raise) -> str:
+
+    '''Return the way a raise leaves, with the kind it names.
+
+    A raise naming nothing carries whatever is already being handled,
+    and a raise naming something other than a plain name says nothing
+    a handler can be matched against; both are left unnamed.
+
+    Args:
+        statement (ast.Raise): The statement to read.
+
+    Returns:
+        str: `raise`, with the kind after it where one is named.
+    '''
+
+    named = statement.exc
+
+    if isinstance(named, ast.Call):
+        named = named.func
+
+    if isinstance(named, ast.Name):
+        return f'{_RAISE}:{named.id}'
+
+    return _RAISE
+
+
+def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
+
+    '''Return the raises a `try`'s own handlers certainly catch.
+
+    A handler naming no kind catches anything, as does one naming
+    `Exception` or `BaseException`. One naming some other kind catches
+    a raise of that kind by name alone: a raise of a kind under it, or
+    of a kind named through something else, is left as a way out.
+
+    Args:
+        node (ast.Try): The statement to read.
+        ways (set[str]): The ways its body can end.
+
+    Returns:
+        set[str]: The ways of that set those handlers catch.
+    '''
+
+    if not node.handlers:
+        return set()
+
+    raises = {way for way in ways if way.startswith(_RAISE)}
+
+    if _catches_anything(node):
+        return raises
+
+    named = _handler_kinds(node)
+
+    return {way for way in raises if way.partition(':')[2] in named}
+
+
+def _catches_anything(node: ast.Try | ast.TryStar) -> bool:
+
+    '''Whether a handler of a `try` catches every raise.
+
+    Args:
+        node (ast.Try): The statement to read.
+
+    Returns:
+        bool: True where one handler names no kind, or names every
+            error there is.
+    '''
+
+    return any(
+        handler.type is None or _names_any_error(handler.type)
+        for handler in node.handlers
+    )
+
+
+def _names_any_error(named: ast.expr) -> bool:
+
+    '''Whether what a handler names covers every error.
+
+    Args:
+        named (ast.expr): The kind the handler names.
+
+    Returns:
+        bool: True for `Exception`, `BaseException`, or a tuple holding
+            one of them.
+    '''
+
+    if isinstance(named, ast.Tuple):
+        return any(_names_any_error(held) for held in named.elts)
+
+    return isinstance(named, ast.Name) and named.id in {'Exception', 'BaseException'}
+
+
+def _handler_kinds(node: ast.Try | ast.TryStar) -> set[str]:
+
+    '''Return the kinds a `try`'s handlers name.
+
+    Args:
+        node (ast.Try): The statement to read.
+
+    Returns:
+        set[str]: Each plain name they name, a tuple read through.
+    '''
+
+    kinds: set[str] = set()
+
+    for handler in node.handlers:
+        named = handler.type
+
+        if named is None:
+            continue
+
+        held = named.elts if isinstance(named, ast.Tuple) else [named]
+        kinds |= {part.id for part in held if isinstance(part, ast.Name)}
+
+    return kinds
 
 
 def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
 
     '''Return the ways a `try` statement can end.
 
-    A raise in the body may be caught by a handler of its own, so it is
-    read as the handlers' ways rather than as a way out. The `else`
-    runs where the body reaches its end. A `finally` runs last, so
+    A raise in the body is read as a way out unless a handler of its
+    own certainly catches it, the handlers' ways standing beside it
+    either way. The `else` runs where the body reaches its end. A `finally` runs last, so
     where it always leaves it is the only way the statement ends, and
     where it leaves on some paths those ways are added to the rest.
 
@@ -1084,8 +1226,7 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
     '''
 
     held = _block_ways(statement.body)
-    caught = {_CARRIES_ON, 'raise'} if statement.handlers else {_CARRIES_ON}
-    ways = held - caught
+    ways = held - {_CARRIES_ON} - _caught_by(statement, held)
 
     if _CARRIES_ON in held:
         ways |= _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
@@ -1106,10 +1247,12 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     '''Return the ways a loop can end.
 
     A break lands on the line after the loop, so the loop carries on; a
-    continue goes round again and ends nothing. An endless `while` is
-    finished by a break alone, so without one it reaches neither its
-    `else` nor anything after it. Any other loop can finish and run its
-    `else`, a `for` over something empty included.
+    continue goes round again and ends nothing. A break need not be
+    taken, though, so any loop but an endless `while` can also finish
+    and run its `else`, a `for` over something empty included. An
+    endless `while` is finished by a break alone, so without one it
+    reaches neither its `else` nor anything after it, and ends by
+    nothing at all.
 
     Args:
         statement (ast.For): The loop to read.
@@ -1122,10 +1265,10 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     ways = inside - {_CARRIES_ON, 'break', 'continue'}
 
     if 'break' in inside:
-        return ways | {_CARRIES_ON}
+        ways |= {_CARRIES_ON}
 
     if isinstance(statement, ast.While) and _endless(statement.test):
-        return ways
+        return ways or {_ENDLESS}
 
     return ways | (
         _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
@@ -1171,7 +1314,7 @@ def _one_leave(body: list[ast.stmt]) -> str:
         str: That way, or an empty string.
     '''
 
-    ways = _block_ways(body)
+    ways = _plain_ways(_block_ways(body))
 
     if _CARRIES_ON in ways or len(ways) != 1:
         return ''
@@ -1284,7 +1427,7 @@ def _reach_of(
     if kind == 'raise':
         return (_handled_here(scopes, line), scopes.ends)
 
-    if kind == 'return':
+    if kind in {'return', _ENDLESS}:
         return (scopes.ends,)
 
     return ()
@@ -1310,29 +1453,6 @@ def _still_runs(blocks: tuple[_Block, ...], line: int) -> set[int]:
             kept |= block.lines
 
     return kept
-
-
-def _how_it_leaves(statement: ast.stmt) -> str:
-
-    '''Return the way a statement leaves the path.
-
-    A statement that can carry on, or that leaves by more than one way,
-    leaves by none that can be named: where the ways differ, no one
-    scope holds what the statement skips.
-
-    Args:
-        statement (ast.stmt): The statement to read.
-
-    Returns:
-        str: `return`, `raise`, `continue`, `break`, or an empty string.
-    '''
-
-    ways = _statement_ways(statement)
-
-    if _CARRIES_ON in ways or len(ways) != 1:
-        return ''
-
-    return ways.pop()
 
 
 def _plainly_leaves(statement: ast.stmt) -> str:
@@ -1463,7 +1583,7 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
         bool: True where the branch is an arm rather than a guard.
     '''
 
-    ways = _block_ways(body)
+    ways = _plain_ways(_block_ways(body))
 
     if _CARRIES_ON in ways:
         return False

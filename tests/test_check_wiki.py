@@ -1682,6 +1682,108 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 10 in second for first, second in spans)
 
+    def test_a_break_that_may_not_be_taken_keeps_the_loops_else(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs, flag, hit):\n    for outer in xs:\n        if flag:\n"
+            "            for inner in xs:\n                if hit:\n"
+            "                    break\n            else:\n                mark()\n"
+            "                continue\n            return\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(8 in first and 11 in second for first, second in spans)
+        assert not any(8 in second and 11 in first for first, second in spans)
+
+    def test_a_raise_no_handler_names_still_carries_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise ValueError()\n"
+            "            except TypeError:\n                return 1\n"
+            "        later()\n    except ValueError:\n        handle()\n"
+            "    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 11 in second for first, second in spans)
+        assert not any(5 in first and 12 in second for first, second in spans)
+
+    def test_a_handler_naming_every_error_catches_the_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise TypeError()\n"
+            "            except Exception:\n                return 1\n"
+            "        later()\n    except TypeError:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 9 in second for first, second in spans)
+
+    def test_a_raise_inside_a_with_may_still_carry_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            mark()\n"
+            "            with held():\n                raise ValueError()\n"
+            "        later()\n    except ValueError:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 9 in second for first, second in spans)
+
+    def test_a_handler_naming_no_kind_catches_the_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise TypeError()\n"
+            "            except:\n                return 1\n"
+            "        later()\n    except TypeError:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 9 in second for first, second in spans)
+
+    def test_a_raise_a_with_may_swallow_names_no_single_way(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        with held():\n"
+            "            raise errors.Failed()\n        return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 7 in second for first, second in spans)
+
+    def test_an_endless_loop_that_never_leaves_reaches_the_rest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(ready):\n    if ready:\n        do()\n        while True:\n"
+            "            work()\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 6 in second for first, second in spans)
+
+    def test_a_loop_else_that_returns_leaves_the_endless_loop(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(ready, ys, cond):\n    if ready:\n        do()\n"
+            "        while True:\n            for y in ys:\n"
+            "                if cond:\n                    break\n"
+            "            else:\n                return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
     def test_an_arm_raising_then_returning_reaches_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2735,6 +2837,7 @@ class TestWhatAlwaysLeaves:
             'held raise': 'def f(x):\n    with lock():\n        raise ValueError()\n',
             'class body carries on': 'def f(x):\n    class A:\n        field = 1\n',
             'loop may be empty': 'def f(xs):\n    for x in xs:\n        return 1\n',
+            'loop that never runs': 'def f(x):\n    while False:\n        return 1\n',
             'break carries on past a loop': (
                 'def f(xs):\n    while True:\n        if xs:\n            break\n'
                 '        return 1\n'
@@ -2966,6 +3069,15 @@ class TestWhatABreakLeaves:
         )
 
         assert not check_wiki._breaks_out(self._body(source))
+
+    def test_a_break_in_a_nested_loops_else_reaches_past_its_body(self) -> None:
+        source = (
+            'def f(xs, ys, flag):\n    for x in xs:\n        for y in ys:\n'
+            '            if flag:\n                break\n        else:\n'
+            '            break\n'
+        )
+
+        assert check_wiki._breaks_out(self._body(source))
 
     def test_a_break_in_a_nested_loops_else_leaves_the_loop_outside(self) -> None:
         source = (
