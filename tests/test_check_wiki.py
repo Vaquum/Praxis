@@ -1818,6 +1818,90 @@ class TestTheFinallyClause:
 
         assert not any(3 in first and 11 in second for first, second in spans)
 
+    def test_a_branch_that_never_holds_holds_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        if False:\n"
+            "            raise ValueError()\n        return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 7 in second for first, second in spans)
+
+    def test_a_loop_a_continue_carries_round_can_still_finish(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, cond):\n    if flag:\n        mark()\n"
+            "        for part in (1,):\n            if cond:\n"
+            "                continue\n            return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 8 in second for first, second in spans)
+
+    def test_a_body_gone_over_a_turn_at_a_time_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            for part in (1,):\n                work()\n            return 1\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 10 in second for first, second in spans)
+
+    def test_an_endless_loop_doing_nothing_reaches_no_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            while True:\n                pass\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 9 in second for first, second in spans)
+
+    def test_a_condition_that_could_raise_reaches_its_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            while not [work()]:\n                pass\n            return 1\n"
+            "        except ValueError:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 10 in second for first, second in spans)
+
+    def test_going_over_something_a_turn_at_a_time_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "async def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            async for part in []:\n                pass\n            return 1\n"
+            "        except TypeError:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 10 in second for first, second in spans)
+
+    def test_a_handler_an_earlier_one_covers_is_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            raise ValueError()\n        except Exception:\n"
+            "            return 1\n        except TypeError:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
     def test_a_loop_that_runs_could_raise(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1910,6 +1994,8 @@ class TestTheFinallyClause:
     ) -> None:
         shapes = {
             'a condition that never holds': '        while not True:\n',
+            'both parts failing': '        while False or False:\n',
+            'one part failing an and': '        while True and False:\n',
             'a full list said not to hold': '        while not [1]:\n',
             'an empty string to go over': "        for part in '':\n",
             'empty bytes to go over': "        for part in b'':\n",
@@ -3009,6 +3095,19 @@ class TestWhatAlwaysLeaves:
             'endless loop leaves': 'def f(x):\n    while True:\n        return 1\n',
             'endless by not': 'def f(x):\n    while not False:\n        return 1\n',
             'endless by a full list': 'def f(x):\n    while [1]:\n        return 1\n',
+            'endless by either part': (
+                'def f(x):\n    while False or True:\n        return 1\n'
+            ),
+            'endless by both parts': (
+                'def f(x):\n    while True and True:\n        return 1\n'
+            ),
+            'a turn over something written out': (
+                'def f(x):\n    for part in (1,):\n        return 1\n'
+            ),
+            'a condition written out': 'def f(x):\n    if [1]:\n        return 1\n',
+            'a guard written out': (
+                'def f(x):\n    match x:\n        case _ if True:\n            return 1\n'
+            ),
             'loop else leaves': (
                 'def f(xs):\n    for x in xs:\n        pass\n    else:\n        return 1\n'
             ),
@@ -3048,6 +3147,16 @@ class TestWhatAlwaysLeaves:
             'loop may be empty': 'def f(xs):\n    for x in xs:\n        return 1\n',
             'loop that never runs': 'def f(x):\n    while False:\n        return 1\n',
             'loop over nothing': 'def f(x):\n    for part in []:\n        return 1\n',
+            'a list unpacked into one': (
+                'def f(xs):\n    while [*xs]:\n        return 1\n'
+            ),
+            'a mapping unpacked into one': (
+                'def f(xs):\n    while {**xs}:\n        return 1\n'
+            ),
+            'a guard not written out': (
+                'def f(x, cond):\n    match x:\n        case _ if cond:\n'
+                '            return 1\n'
+            ),
             'condition that never holds': (
                 'def f(x):\n    while not True:\n        return 1\n'
             ),

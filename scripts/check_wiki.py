@@ -1003,11 +1003,38 @@ def _statement_ways(statement: ast.stmt) -> set[str]:
         return _block_ways(statement.body)
 
     if isinstance(statement, ast.If):
-        return _block_ways(statement.body) | (
-            _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
-        )
+        return _branch_ways(statement)
 
     return _holder_ways(statement)
+
+
+def _branch_ways(statement: ast.If) -> set[str]:
+
+    '''Return the ways an `if` statement can end.
+
+    A condition written out so that its answer is known leaves only
+    one arm to read; otherwise either arm can run, and an `if` with no
+    `else` can carry on.
+
+    Args:
+        statement (ast.If): The statement to read.
+
+    Returns:
+        set[str]: Those ways.
+    '''
+
+    answer = _written_truth(statement.test)
+    otherwise = (
+        _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
+    )
+
+    if answer is True:
+        return _block_ways(statement.body)
+
+    if answer is False:
+        return otherwise
+
+    return _block_ways(statement.body) | otherwise
 
 
 def _holder_ways(statement: ast.stmt) -> set[str]:
@@ -1229,13 +1256,7 @@ def _handler_kinds(node: ast.Try | ast.TryStar) -> set[str]:
     kinds: set[str] = set()
 
     for handler in node.handlers:
-        named = handler.type
-
-        if named is None:
-            continue
-
-        held = named.elts if isinstance(named, ast.Tuple) else [named]
-        kinds |= {part.id for part in held if isinstance(part, ast.Name)}
+        kinds |= _named_kinds(handler.type)
 
     return kinds
 
@@ -1268,12 +1289,7 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
         ways |= _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
 
     if _may_raise(statement.body):
-
-        for handler in statement.handlers:
-            ways |= _block_ways(handler.body)
-
-            if handler.type is not None and _names_every_error(handler.type):
-                break
+        ways |= _handler_ways(statement)
 
     if not statement.finalbody:
         return ways
@@ -1281,6 +1297,83 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
     done = _block_ways(statement.finalbody)
 
     return ways | (done - {_CARRIES_ON}) if _CARRIES_ON in done else done
+
+
+def _handler_ways(statement: ast.Try | ast.TryStar) -> set[str]:
+
+    '''Return the ways the handlers of a `try` can end.
+
+    Handlers are read in the order they are written. One whose every
+    kind an earlier handler already catches cannot run, and nothing
+    after one naming every error can run either.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        set[str]: Those ways.
+    '''
+
+    ways: set[str] = set()
+    seen: set[str] = set()
+
+    for handler in statement.handlers:
+
+        if _covered_already(handler, seen):
+            continue
+
+        ways |= _block_ways(handler.body)
+        seen |= _named_kinds(handler.type)
+
+        if handler.type is not None and _names_every_error(handler.type):
+            break
+
+    return ways
+
+
+def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
+
+    '''Whether earlier handlers already catch everything one names.
+
+    A handler naming nothing catches anything, and can only be written
+    last, so nothing it would shadow is read after it either way.
+
+    Args:
+        handler (ast.ExceptHandler): The handler to read.
+        seen (set[str]): The kinds the handlers before it name.
+
+    Returns:
+        bool: True where it cannot run.
+    '''
+
+    kinds = _named_kinds(handler.type)
+
+    if not kinds:
+        return False
+
+    return all(
+        kind in seen or ('Exception' in seen and kind not in _BEYOND_EXCEPTION)
+        for kind in kinds
+    )
+
+
+def _named_kinds(named: ast.expr | None) -> set[str]:
+
+    '''Return the plain names an `except` kind holds.
+
+    Args:
+        named (ast.expr | None): What the handler names, or nothing.
+
+    Returns:
+        set[str]: Each plain name in it, a tuple read through.
+    '''
+
+    if named is None:
+        return set()
+
+    held = named.elts if isinstance(named, ast.Tuple) else [named]
+
+    return {part.id for part in held if isinstance(part, ast.Name)}
 
 
 def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
@@ -1295,7 +1388,8 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     reaches neither its `else` nor anything after it, and ends by
     nothing at all. A loop written so that its body never runs — a
     condition that never holds, or nothing to go over — is read for
-    its `else` alone.
+    its `else` alone, and one written so that its body runs at least
+    once never finishes where that body always leaves.
 
     Args:
         statement (ast.For): The loop to read.
@@ -1315,6 +1409,9 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
 
     if isinstance(statement, ast.While) and _endless(statement.test):
         return ways or {_ENDLESS}
+
+    if _runs_once(statement) and not {_CARRIES_ON, 'continue'} & inside:
+        return ways
 
     return ways | (
         _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
@@ -1528,7 +1625,8 @@ def _covers_everything(node: ast.Match) -> bool:
     '''Whether a `match` statement has a case for every value.
 
     A `match` with no catch-all can fall past all of its cases, so what
-    follows it runs and it leaves by nothing.
+    follows it runs and it leaves by nothing. A guard on that case
+    holds it back, unless the guard is written out as one that holds.
 
     Args:
         node (ast.Match): The statement to read.
@@ -1542,7 +1640,9 @@ def _covers_everything(node: ast.Match) -> bool:
 
     last = node.cases[-1]
 
-    return last.guard is None and _takes_anything(last.pattern)
+    held = last.guard is None or _written_truth(last.guard) is True
+
+    return held and _takes_anything(last.pattern)
 
 
 def _takes_anything(pattern: ast.pattern) -> bool:
@@ -1583,6 +1683,24 @@ def _always_leaves(statement: ast.stmt) -> bool:
     return _CARRIES_ON not in _statement_ways(statement)
 
 
+def _runs_once(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
+
+    '''Whether a loop is written so that its body runs at least once.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        bool: True for an endless `while`, and for a `for` over
+            something written out with anything in it.
+    '''
+
+    if isinstance(statement, ast.While):
+        return _endless(statement.test)
+
+    return isinstance(statement, ast.For) and _written_truth(statement.iter) is True
+
+
 def _runs_nothing(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
 
     '''Whether a loop is written so that its body never runs.
@@ -1620,9 +1738,11 @@ def _written_truth(test: ast.expr) -> bool | None:
     '''Whether a condition is written so that its answer is known.
 
     A constant answers for itself, as does a list, tuple, set or
-    mapping written out, by whether anything is in it. A `not` turns
-    the answer of what it holds around. Anything else is read at the
-    time and is not known here.
+    mapping written out, by whether anything is in it — unless
+    something is unpacked into it, which could be anything. A `not`
+    turns the answer of what it holds around, and an `and` or an `or`
+    is weighed part by part. Anything else is read at the time and is
+    not known here.
 
     Args:
         test (ast.expr): The condition.
@@ -1640,13 +1760,69 @@ def _written_truth(test: ast.expr) -> bool | None:
     if isinstance(test, ast.Constant):
         return bool(test.value)
 
+    if isinstance(test, ast.BoolOp):
+        return _written_truth_of_both(test)
+
+    return _written_truth_of_parts(test)
+
+
+def _written_truth_of_parts(test: ast.expr) -> bool | None:
+
+    '''Whether a container written out answers for itself.
+
+    Something unpacked into one could be anything, so the answer is
+    not known then.
+
+    Args:
+        test (ast.expr): The condition.
+
+    Returns:
+        bool | None: Whether anything is in it, or None.
+    '''
+
     if isinstance(test, (ast.List, ast.Tuple, ast.Set)):
+        if any(isinstance(part, ast.Starred) for part in test.elts):
+            return None
+
         return bool(test.elts)
 
     if isinstance(test, ast.Dict):
+        if any(key is None for key in test.keys):
+            return None
+
         return bool(test.keys)
 
     return None
+
+
+def _written_truth_of_both(test: ast.BoolOp) -> bool | None:
+
+    '''Whether an `and` or an `or` of written-out answers is known.
+
+    An `and` holds where every part does and fails where any part
+    fails; an `or` the other way about. A part that is not written out
+    leaves the rest to decide, or leaves the answer unknown.
+
+    Args:
+        test (ast.BoolOp): The condition.
+
+    Returns:
+        bool | None: True, False, or None where it is not known.
+    '''
+
+    answers = [_written_truth(part) for part in test.values]
+
+    if isinstance(test.op, ast.And):
+
+        if any(answer is False for answer in answers):
+            return False
+
+        return True if all(answer is True for answer in answers) else None
+
+    if any(answer is True for answer in answers):
+        return True
+
+    return False if all(answer is False for answer in answers) else None
 
 
 def _iterates_nothing(gone_over: ast.expr) -> bool:
@@ -1708,9 +1884,8 @@ def _could_raise(statement: ast.stmt) -> bool:
 
     Returns:
         bool: False for a pass, a break, a continue, a return of a
-            constant or of nothing, and a loop whose body never runs
-            and whose `else` could not raise either; True for
-            everything else.
+            constant or of nothing, and a loop nothing in which could
+            raise; True for everything else.
     '''
 
     if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
@@ -1722,9 +1897,75 @@ def _could_raise(statement: ast.stmt) -> bool:
         )
 
     if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-        return not _runs_nothing(statement) or _may_raise(statement.orelse)
+        return _loop_could_raise(statement)
 
     return True
+
+
+def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
+
+    '''Whether a loop could raise where it stands.
+
+    Working out what it goes over could raise, and so could its body
+    where that runs, and its `else`. Going over something with `async
+    for` asks the thing itself for each turn, which could raise before
+    the body runs at all.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        bool: True where it could raise.
+    '''
+
+    gone_over = (
+        statement.test if isinstance(statement, ast.While) else statement.iter
+    )
+
+    if not _quiet_expression(gone_over) or isinstance(statement, ast.AsyncFor):
+        return True
+
+    if _runs_nothing(statement):
+        return _may_raise(statement.orelse)
+
+    return _may_raise(statement.body) or _may_raise(statement.orelse)
+
+
+def _quiet_expression(held: ast.expr) -> bool:
+
+    '''Whether working out an expression could not raise.
+
+    A constant could not, nor a list, tuple, set or mapping written
+    out of such, nor `not` or `and` or `or` over them. Everything else
+    is read as able to: a name may be unbound, a call may raise, and a
+    sum may refuse what it is given.
+
+    Args:
+        held (ast.expr): The expression to read.
+
+    Returns:
+        bool: True where it could not raise.
+    '''
+
+    if isinstance(held, ast.Constant):
+        return True
+
+    if isinstance(held, ast.UnaryOp) and isinstance(held.op, ast.Not):
+        return _quiet_expression(held.operand)
+
+    if isinstance(held, ast.BoolOp):
+        return all(_quiet_expression(part) for part in held.values)
+
+    if isinstance(held, (ast.List, ast.Tuple, ast.Set)):
+        return all(_quiet_expression(part) for part in held.elts)
+
+    if isinstance(held, ast.Dict):
+        return all(
+            key is not None and _quiet_expression(key) and _quiet_expression(value)
+            for key, value in zip(held.keys, held.values, strict=True)
+        )
+
+    return False
 
 
 def _endless(test: ast.expr) -> bool:
