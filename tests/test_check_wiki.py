@@ -2974,3 +2974,94 @@ class TestWhatABreakLeaves:
         )
 
         assert check_wiki._breaks_out(self._body(source))
+
+
+class TestTheGateWiring:
+    CHECKS = (
+        '_ledger_coverage',
+        '_ledger_rows',
+        '_counted_states',
+        '_latest_release_counts',
+        '_index_coverage',
+        '_index_vocabulary',
+        '_pinned_table',
+        '_finding_citations',
+    )
+
+    def _stub(
+        self, wiki: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        monkeypatch.setattr(check_wiki, '_register_ids', lambda: set())
+
+        for named in self.CHECKS:
+            monkeypatch.setattr(check_wiki, named, lambda *_a: [])
+
+    @pytest.mark.parametrize('named', CHECKS)
+    def test_every_check_the_gate_runs_reaches_its_report(
+        self,
+        named: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        wiki.mkdir()
+        self._stub(wiki, monkeypatch)
+        monkeypatch.setattr(check_wiki, named, lambda *_a: [f'{named} said so'])
+
+        assert check_wiki.main() == 1
+        assert f'FAIL {named} said so' in capsys.readouterr().out
+
+    def test_a_page_failure_reaches_the_report(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        wiki.mkdir()
+        (wiki / 'one.md').write_text('# One\n', encoding='utf-8')
+        self._stub(wiki, monkeypatch)
+        monkeypatch.setattr(check_wiki, '_check_page', lambda *_a: ['a page said so'])
+
+        assert check_wiki.main() == 1
+        assert 'FAIL a page said so' in capsys.readouterr().out
+
+    def test_a_clean_run_reports_what_it_read(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        wiki.mkdir()
+        self._stub(wiki, monkeypatch)
+
+        assert check_wiki.main() == 0
+        assert 'ok: 0 page(s), 0 register row(s)' in capsys.readouterr().out
+
+
+class TestWhatReachesAnAbsentNexus:
+    def test_a_bare_nexus_name_reaches_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'NEXUS_ROOT', tmp_path / 'absent')
+
+        assert check_wiki._reaches_absent_nexus('outcome_processor.py')
+
+    def test_a_nexus_path_reaches_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'NEXUS_ROOT', tmp_path / 'absent')
+
+        assert check_wiki._reaches_absent_nexus('nexus/core/outcome_processor.py')
+
+    def test_a_praxis_path_ending_in_a_nexus_name_is_read_as_praxis(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'NEXUS_ROOT', tmp_path / 'absent')
+
+        assert not check_wiki._reaches_absent_nexus(
+            'praxis/not_real/outcome_processor.py',
+        )

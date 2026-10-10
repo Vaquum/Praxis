@@ -41,6 +41,7 @@ DOUBLE_NEGATIVE = re.compile(
     re.IGNORECASE,
 )
 HEADING_NEGATION = re.compile(r',\s+not\b', re.IGNORECASE)
+_CARRIES_ON = 'carries on'
 APPARATUS = ('## Evidence', '| Claim | Source |')
 CODE_LABEL = re.compile(r'`([^`]+)`')
 RATIONALE = re.compile(
@@ -930,79 +931,204 @@ def _can_leave(body: list[ast.stmt]) -> bool:
 
     '''Whether any path through a block can take the path out.
 
-    A way out written inside a function or a loop of the block's own
-    leaves that, not the block, and is passed over.
+    Args:
+        body (list[ast.stmt]): The block's statements.
+
+    Returns:
+        bool: True where the block ends by some way out.
+    '''
+
+    return bool(_block_ways(body) - {_CARRIES_ON})
+
+
+def _block_ways(body: list[ast.stmt]) -> set[str]:
+
+    '''Return the ways a block can end, by name.
+
+    A block ends by each way a statement of it takes out, and by
+    carrying on where every statement of it can. Nothing past the first
+    statement that always leaves is read, nothing there running.
 
     Args:
         body (list[ast.stmt]): The block's statements.
 
     Returns:
-        bool: True where a return, raise, continue or break is reachable.
+        set[str]: `return`, `raise`, `continue`, `break` and
+            `carries on`, as the block has them.
     '''
 
-    return any(
-        _leaves_this_block(statement, within_loop=False) for statement in body
-    )
+    ways: set[str] = set()
+
+    for statement in body:
+        found = _statement_ways(statement)
+        ways |= found - {_CARRIES_ON}
+
+        if _CARRIES_ON not in found:
+            return ways
+
+    return ways | {_CARRIES_ON}
 
 
-def _leaves_this_block(
-    statement: ast.stmt, *, within_loop: bool, raising_leaves: bool = True,
-) -> bool:
+def _statement_ways(statement: ast.stmt) -> set[str]:
 
-    '''Whether a statement can take the path out of the block holding it.
+    '''Return the ways one statement can end, by name.
 
-    A return or a raise leaves whatever holds it, a loop of the block's
-    own included. A continue or a break leaves only its own loop, so one
-    written inside a nested loop leaves that — though one in that loop's
-    `else` carries on the loop outside it, and so leaves the block. A
-    function carries its own ways out and is not looked into, since
-    they wait on a call; a class body runs where it stands, and a raise
-    written there is the only way one can leave, so it is read as any
-    other. A raise in the body of a try that has a handler may be
-    caught there, so it is taken not to leave; a return, a continue or a
-    break in that same body leaves as it would anywhere.
+    Nothing is read inside a function, a way out written there waiting
+    on a call, nor inside anything else that holds no block of its own.
+    A class body runs where it stands, so the class ends the way that
+    body does. An `if` with no `else` can carry on.
 
     Args:
         statement (ast.stmt): The statement to read.
-        within_loop (bool): Whether a loop of the block's own holds it.
-        raising_leaves (bool): Whether a raise here leaves the block,
-            which the body of a try with a handler is read without.
 
     Returns:
-        bool: True where the block can be left here.
+        set[str]: Those ways.
     '''
 
-    if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        return False
+    plain = _plainly_leaves(statement)
 
-    if isinstance(statement, ast.Return):
-        return True
+    if plain:
+        return {plain}
 
-    if isinstance(statement, ast.Raise):
-        return raising_leaves
+    if isinstance(statement, ast.ClassDef):
+        return _block_ways(statement.body)
 
-    if isinstance(statement, (ast.Continue, ast.Break)):
-        return not within_loop
+    if isinstance(statement, ast.If):
+        return _block_ways(statement.body) | (
+            _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
+        )
 
-    caught: list[ast.stmt] = []
-    after: list[ast.stmt] = []
+    return _holder_ways(statement)
 
-    if isinstance(statement, (ast.Try, ast.TryStar)) and statement.handlers:
-        caught = statement.body
+
+def _holder_ways(statement: ast.stmt) -> set[str]:
+
+    '''Return the ways a `match`, a `with`, a `try` or a loop can end.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        set[str]: Those ways, or carrying on for anything else.
+    '''
+
+    if isinstance(statement, ast.Match):
+        return _match_ways(statement)
+
+    if isinstance(statement, (ast.With, ast.AsyncWith)):
+        return _held_ways(_block_ways(statement.body))
+
+    if isinstance(statement, (ast.Try, ast.TryStar)):
+        return _try_ways(statement)
 
     if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-        after = statement.orelse
+        return _loop_ways(statement)
 
-    loops = isinstance(statement, (ast.For, ast.AsyncFor, ast.While))
+    return {_CARRIES_ON}
 
-    return any(
-        _leaves_this_block(
-            held,
-            within_loop=within_loop or (loops and block is not after),
-            raising_leaves=raising_leaves and block is not caught,
-        )
-        for block in _child_blocks(statement)
-        for held in block
+
+def _match_ways(statement: ast.Match) -> set[str]:
+
+    '''Return the ways a `match` statement can end.
+
+    One that does not take every value falls past all of its cases, and
+    so carries on.
+
+    Args:
+        statement (ast.Match): The statement to read.
+
+    Returns:
+        set[str]: Those ways.
+    '''
+
+    ways = {way for case in statement.cases for way in _block_ways(case.body)}
+
+    return ways if _covers_everything(statement) else ways | {_CARRIES_ON}
+
+
+def _held_ways(ways: set[str]) -> set[str]:
+
+    '''Return the ways a `with` ends, given the ways its body can.
+
+    A context manager can swallow a raise, so what follows the `with`
+    may run after all.
+
+    Args:
+        ways (set[str]): The ways its body can end.
+
+    Returns:
+        set[str]: Those ways, a raise read as carrying on.
+    '''
+
+    if 'raise' not in ways:
+        return ways
+
+    return (ways - {'raise'}) | {_CARRIES_ON}
+
+
+def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
+
+    '''Return the ways a `try` statement can end.
+
+    A raise in the body may be caught by a handler of its own, so it is
+    read as the handlers' ways rather than as a way out. The `else`
+    runs where the body reaches its end. A `finally` runs last, so
+    where it always leaves it is the only way the statement ends, and
+    where it leaves on some paths those ways are added to the rest.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        set[str]: Those ways.
+    '''
+
+    held = _block_ways(statement.body)
+    caught = {_CARRIES_ON, 'raise'} if statement.handlers else {_CARRIES_ON}
+    ways = held - caught
+
+    if _CARRIES_ON in held:
+        ways |= _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
+
+    for handler in statement.handlers:
+        ways |= _block_ways(handler.body)
+
+    if not statement.finalbody:
+        return ways
+
+    done = _block_ways(statement.finalbody)
+
+    return ways | (done - {_CARRIES_ON}) if _CARRIES_ON in done else done
+
+
+def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
+
+    '''Return the ways a loop can end.
+
+    A break lands on the line after the loop, so the loop carries on; a
+    continue goes round again and ends nothing. An endless `while` is
+    finished by a break alone, so without one it reaches neither its
+    `else` nor anything after it. Any other loop can finish and run its
+    `else`, a `for` over something empty included.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        set[str]: Those ways.
+    '''
+
+    inside = _block_ways(statement.body)
+    ways = inside - {_CARRIES_ON, 'break', 'continue'}
+
+    if 'break' in inside:
+        return ways | {_CARRIES_ON}
+
+    if isinstance(statement, ast.While) and _endless(statement.test):
+        return ways
+
+    return ways | (
+        _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
     )
 
 
@@ -1032,13 +1158,11 @@ def _child_blocks(statement: ast.stmt) -> list[list[ast.stmt]]:
 
 def _one_leave(body: list[ast.stmt]) -> str:
 
-    '''Return the single way a block leaves, where it always leaves by one.
+    '''Return the single way a block leaves, where it leaves by one.
 
     A block that leaves on some paths and not others, or by more than
     one way, names none: what follows the branch it takes out cannot be
-    told from what does not. Every statement that can leave is read,
-    not the last alone, since an earlier one taking a different way out
-    is what runs on the paths reaching it.
+    told from what does not.
 
     Args:
         body (list[ast.stmt]): The block's statements.
@@ -1047,15 +1171,12 @@ def _one_leave(body: list[ast.stmt]) -> str:
         str: That way, or an empty string.
     '''
 
-    if not _always_leaves(body[-1]):
+    ways = _block_ways(body)
+
+    if _CARRIES_ON in ways or len(ways) != 1:
         return ''
 
-    ways = {
-        _how_it_leaves(statement) for statement in body
-        if _leaves_this_block(statement, within_loop=False)
-    }
-
-    return ways.pop() if len(ways) == 1 else ''
+    return ways.pop()
 
 
 def _loops_around(scopes: _Scopes, line: int) -> dict[int, int]:
@@ -1195,62 +1316,23 @@ def _how_it_leaves(statement: ast.stmt) -> str:
 
     '''Return the way a statement leaves the path.
 
+    A statement that can carry on, or that leaves by more than one way,
+    leaves by none that can be named: where the ways differ, no one
+    scope holds what the statement skips.
+
     Args:
         statement (ast.stmt): The statement to read.
-
-    An `if` whose arms leave by different ways is read as leaving by
-    none of them, since no one scope holds what it skips. A `try` whose
-    `finally` can leave leaves by that, the `finally` running after the
-    rest and overriding it — and by nothing nameable where the
-    `finally` leaves on some paths only. A `match` taking every value
-    leaves by the way its cases agree on, and a `with` by the way its
-    body does, save for a raise its context manager could swallow.
 
     Returns:
         str: `return`, `raise`, `continue`, `break`, or an empty string.
     '''
 
-    plain = _plainly_leaves(statement)
+    ways = _statement_ways(statement)
 
-    if plain:
-        return plain
+    if _CARRIES_ON in ways or len(ways) != 1:
+        return ''
 
-    if isinstance(statement, ast.If) and statement.orelse:
-        return _one_way([statement.body[-1], statement.orelse[-1]])
-
-    if isinstance(statement, (ast.Try, ast.TryStar)) and statement.body:
-        return _try_leave(statement)
-
-    if isinstance(statement, ast.Match) and _covers_everything(statement):
-        return _one_way([case.body[-1] for case in statement.cases if case.body])
-
-    return _held_way_out(statement)
-
-
-def _held_way_out(statement: ast.stmt) -> str:
-
-    '''Return the way a statement holding one block of its own leaves.
-
-    Args:
-        statement (ast.stmt): The statement to read.
-
-    Returns:
-        str: The way its body leaves, a raise a `with` could swallow
-            aside, the way its class body leaves, or the way its loop
-            and that loop's `else` agree on; an empty string for
-            anything else.
-    '''
-
-    if isinstance(statement, (ast.With, ast.AsyncWith)) and statement.body:
-        return _held_leave(statement.body[-1])
-
-    if isinstance(statement, ast.ClassDef) and statement.body:
-        return _how_it_leaves(statement.body[-1])
-
-    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-        return _loop_leave(statement)
-
-    return ''
+    return ways.pop()
 
 
 def _plainly_leaves(statement: ast.stmt) -> str:
@@ -1273,49 +1355,6 @@ def _plainly_leaves(statement: ast.stmt) -> str:
             return kind
 
     return ''
-
-
-def _try_leave(statement: ast.Try | ast.TryStar) -> str:
-
-    '''Return the way a `try` statement leaves the path.
-
-    A body leaving on some paths only takes its own way out on those
-    and the `else` on the rest, and the two need not agree, so no one
-    way is named.
-
-    Args:
-        statement (ast.Try): The statement to read.
-
-    Returns:
-        str: That way, or an empty string.
-    '''
-
-    if statement.finalbody and _can_leave(statement.finalbody):
-        return _one_leave(statement.finalbody)
-
-    if _can_leave(statement.body) and not _always_leaves(statement.body[-1]):
-        return ''
-
-    return _one_way([path[-1] for path in _try_paths(statement)])
-
-
-def _held_leave(statement: ast.stmt) -> str:
-
-    '''Return how a `with` body's last statement takes the path out.
-
-    A raise is not counted: a context manager can swallow one, so what
-    follows the `with` may run after all.
-
-    Args:
-        statement (ast.stmt): The last statement of the body.
-
-    Returns:
-        str: That way, or an empty string.
-    '''
-
-    held = _how_it_leaves(statement)
-
-    return held if held in {'return', 'continue', 'break'} else ''
 
 
 def _covers_everything(node: ast.Match) -> bool:
@@ -1362,34 +1401,10 @@ def _takes_anything(pattern: ast.pattern) -> bool:
     return False
 
 
-def _one_way(statements: list[ast.stmt]) -> str:
-
-    '''Return the way several paths leave, where they all leave the same.
-
-    Args:
-        statements (list[ast.stmt]): The last statement of each path.
-
-    Returns:
-        str: That way, or an empty string where they differ.
-    '''
-
-    ways = {_how_it_leaves(statement) for statement in statements}
-
-    return ways.pop() if len(ways) == 1 else ''
-
-
 def _always_leaves(statement: ast.stmt) -> bool:
 
     '''Whether a statement always takes the path out of what follows.
 
-    A return, raise, continue or break does. So does an `if` whose every
-    arm does, and a `try` whose body, handlers and `else` all do, since
-    no path through either carries on. A `try` whose `finally` leaves
-    does too, whatever the rest of it does, the `finally` running last.
-    So does a `match` that takes every value and leaves on each case,
-    and a `with` whose body returns, continues or breaks — not one
-    whose body raises, a context manager being able to swallow that.
-
     Args:
         statement (ast.stmt): The statement to read.
 
@@ -1397,115 +1412,7 @@ def _always_leaves(statement: ast.stmt) -> bool:
         bool: True where nothing after it runs.
     '''
 
-    if _plainly_leaves(statement):
-        return True
-
-    if isinstance(statement, ast.If) and statement.orelse:
-        return _always_leaves(statement.body[-1]) and _always_leaves(
-            statement.orelse[-1],
-        )
-
-    if isinstance(statement, (ast.Try, ast.TryStar)) and statement.body:
-        return _try_always_leaves(statement)
-
-    if isinstance(statement, ast.Match) and _covers_everything(statement):
-        return all(
-            case.body and _always_leaves(case.body[-1]) for case in statement.cases
-        )
-
-    return _held_always_leaves(statement)
-
-
-def _held_always_leaves(statement: ast.stmt) -> bool:
-
-    '''Whether a statement holding one block of its own always leaves.
-
-    A `with` leaves where its body returns, continues or breaks, not
-    where it raises, a context manager being able to swallow that. A
-    class body runs where it stands, so the class leaves where that
-    body does. A loop is read for the break that would carry on past
-    it, and for its `else`.
-
-    Args:
-        statement (ast.stmt): The statement to read.
-
-    Returns:
-        bool: True where nothing after it runs.
-    '''
-
-    if isinstance(statement, (ast.With, ast.AsyncWith)) and statement.body:
-        return bool(_held_leave(statement.body[-1]))
-
-    if isinstance(statement, ast.ClassDef) and statement.body:
-        return _always_leaves(statement.body[-1])
-
-    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-        return _loop_always_leaves(statement)
-
-    return False
-
-
-def _loop_always_leaves(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
-
-    '''Whether every path through a loop leaves what follows it.
-
-    A loop a break reaches carries on after it. Otherwise its `else`
-    runs once the loop is done, so the loop leaves where that does; and
-    an endless `while` whose body leaves never reaches anything after
-    it either. A `for` over something that may be empty, and a `while`
-    on a condition that may be false, both reach what follows.
-
-    Args:
-        statement (ast.For): The loop to read.
-
-    Returns:
-        bool: True where nothing after it runs.
-    '''
-
-    if _breaks_out(statement.body):
-        return False
-
-    if statement.orelse:
-        return _always_leaves(statement.orelse[-1])
-
-    return (
-        isinstance(statement, ast.While)
-        and _endless(statement.test)
-        and _always_leaves(statement.body[-1])
-    )
-
-
-def _loop_leave(statement: ast.For | ast.AsyncFor | ast.While) -> str:
-
-    '''Return the way a loop leaves the path.
-
-    The ways its body can leave by are gathered with the way its `else`
-    leaves, and the loop leaves by the one they agree on. A loop a
-    break reaches leaves by nothing, and so does one that can be left
-    without an `else` to finish on, save for an endless `while`.
-
-    Args:
-        statement (ast.For): The loop to read.
-
-    Returns:
-        str: That way, or an empty string.
-    '''
-
-    if _breaks_out(statement.body):
-        return ''
-
-    ways = {
-        _how_it_leaves(held) for held in statement.body
-        if _leaves_this_block(held, within_loop=True)
-    }
-
-    if statement.orelse:
-        ways.add(_how_it_leaves(statement.orelse[-1]))
-
-    elif not (isinstance(statement, ast.While) and _endless(statement.test)):
-        return ''
-
-    return ways.pop() if len(ways) == 1 else ''
+    return _CARRIES_ON not in _statement_ways(statement)
 
 
 def _endless(test: ast.expr) -> bool:
@@ -1526,13 +1433,6 @@ def _breaks_out(body: list[ast.stmt]) -> bool:
 
     '''Whether a break written in a block leaves the loop holding it.
 
-    A break inside a nested loop leaves that loop rather than this one,
-    though one in that loop's `else` runs with the nested loop finished
-    and so leaves this one. A function and a class carry their own. A
-    break under a `finally` that always leaves without breaking itself
-    is overridden by it and reaches nothing, whichever ways that
-    `finally` leaves by.
-
     Args:
         body (list[ast.stmt]): The loop body's statements.
 
@@ -1540,72 +1440,7 @@ def _breaks_out(body: list[ast.stmt]) -> bool:
         bool: True where a break reaches the loop.
     '''
 
-    for statement in body:
-
-        if isinstance(
-            statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
-        ):
-            continue
-
-        if isinstance(statement, ast.Break):
-            return True
-
-        if (
-            isinstance(statement, (ast.Try, ast.TryStar))
-            and statement.finalbody
-            and _always_leaves(statement.finalbody[-1])
-            and not _breaks_out(statement.finalbody)
-        ):
-            continue
-
-        blocks = (
-            [statement.orelse]
-            if isinstance(statement, (ast.For, ast.AsyncFor, ast.While))
-            else _child_blocks(statement)
-        )
-
-        if any(_breaks_out(block) for block in blocks):
-            return True
-
-    return False
-
-
-def _try_always_leaves(statement: ast.Try | ast.TryStar) -> bool:
-
-    '''Whether every path through a `try` statement leaves.
-
-    Args:
-        statement (ast.Try): The statement to read.
-
-    Returns:
-        bool: True where nothing after it runs.
-    '''
-
-    if statement.finalbody and _always_leaves(statement.finalbody[-1]):
-        return True
-
-    return all(_always_leaves(path[-1]) for path in _try_paths(statement))
-
-
-def _try_paths(node: ast.Try | ast.TryStar) -> list[list[ast.stmt]]:
-
-    '''Return each path through a `try` statement that can carry on.
-
-    The `else` runs where the body reaches its end, so a body that
-    always leaves skips it and is the path itself.
-
-    Args:
-        node (ast.Try): The statement to read.
-
-    Returns:
-        list[list[ast.stmt]]: The body or its `else`, and each handler.
-    '''
-
-    reaches_else = bool(node.orelse) and not _always_leaves(node.body[-1])
-    paths = [node.orelse] if reaches_else else [node.body]
-    paths += [handler.body for handler in node.handlers if handler.body]
-
-    return paths
+    return 'break' in _block_ways(body)
 
 
 def _leaves_the_path(body: list[ast.stmt]) -> bool:
@@ -1628,13 +1463,13 @@ def _leaves_the_path(body: list[ast.stmt]) -> bool:
         bool: True where the branch is an arm rather than a guard.
     '''
 
-    last = body[-1]
+    ways = _block_ways(body)
 
-    if _how_it_leaves(last) == 'return':
-        return True
-
-    if not _always_leaves(last):
+    if _CARRIES_ON in ways:
         return False
+
+    if ways == {'return'}:
+        return True
 
     return _body_acts(body)
 
@@ -2536,6 +2371,11 @@ def _reaches_absent_nexus(key: str) -> bool:
 
     '''Whether a citation names a Nexus file with no Nexus to read.
 
+    A name carrying a directory is read as written, so only a name
+    under `nexus/` is Nexus's; a bare file name is looked for among the
+    names the ledger gives Nexus. A Praxis path whose last part happens
+    to be one of those is a Praxis path, and is read as one.
+
     Args:
         key (str): The name the citation used.
 
@@ -2551,7 +2391,10 @@ def _reaches_absent_nexus(key: str) -> bool:
     if named is not None:
         return str(named).startswith('../Nexus/')
 
-    return key.startswith('nexus/') or Path(key).name in _nexus_names()
+    if '/' in key:
+        return key.startswith('nexus/')
+
+    return key in _nexus_names()
 
 
 def _facts_for(key: str, cache: _SourceFacts) -> tuple[_FileFacts | None, str | None]:
