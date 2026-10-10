@@ -2,7 +2,7 @@
 row: P4-08
 baseline: 49aa659
 created: 2026-10-03 14:12 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-10 18:33 UTC
 evidence:
   - claim: "Seven ways of working share six kinds of settings between them"
     source: "`execution_params.py` 30-38"
@@ -47,7 +47,7 @@ Every [way of working](ways-of-working-a-host-may-drive.md) carries its own sett
 
 Up to three prices, each of which may be left unset: the price to rest at, the price that triggers, and the price a triggered leg rests at. [Which are needed](the-prices-an-order-must-name.md) turns on the kind of order.
 
-A price that is set must be above nought. That is a comparison alone, so an endless price passes, and so does one that is not a decimal at all.
+A price that is set must be above nought. That is a comparison alone, so an endless price passes, as does a whole number or a floating-point one; a not-a-number, and anything a decimal cannot be weighed against, break on the comparison itself.
 
 ## A fixed pace
 

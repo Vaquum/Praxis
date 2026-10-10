@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import ast
 import functools
+import operator
 import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 __all__ = ['main']
 
@@ -41,6 +43,14 @@ DOUBLE_NEGATIVE = re.compile(
     re.IGNORECASE,
 )
 HEADING_NEGATION = re.compile(r',\s+not\b', re.IGNORECASE)
+_COMPARISONS: dict[type[ast.cmpop], Callable[[Any, Any], Any]] = {
+    ast.Lt: operator.lt,
+    ast.LtE: operator.le,
+    ast.Gt: operator.gt,
+    ast.GtE: operator.ge,
+    ast.Eq: operator.eq,
+    ast.NotEq: operator.ne,
+}
 _CARRIES_ON = 'carries on'
 _ENDLESS = 'endless'
 _RAISE = 'raise'
@@ -1068,7 +1078,9 @@ def _match_ways(statement: ast.Match) -> set[str]:
     '''Return the ways a `match` statement can end.
 
     One that does not take every value falls past all of its cases, and
-    so carries on.
+    so carries on. A case whose guard is written out as one that never
+    holds cannot run, and nothing after a case that takes every value
+    with a guard that always holds can run either.
 
     Args:
         statement (ast.Match): The statement to read.
@@ -1077,7 +1089,18 @@ def _match_ways(statement: ast.Match) -> set[str]:
         set[str]: Those ways.
     '''
 
-    ways = {way for case in statement.cases for way in _block_ways(case.body)}
+    ways: set[str] = set()
+
+    for case in statement.cases:
+        answer = True if case.guard is None else _written_truth(case.guard)
+
+        if answer is False:
+            continue
+
+        ways |= _block_ways(case.body)
+
+        if answer is True and _takes_anything(case.pattern):
+            return ways
 
     return ways if _covers_everything(statement) else ways | {_CARRIES_ON}
 
@@ -1336,7 +1359,10 @@ def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
     '''Whether earlier handlers already catch everything one names.
 
     A handler naming nothing catches anything, and can only be written
-    last, so nothing it would shadow is read after it either way.
+    last, so nothing it would shadow is read after it either way. One
+    naming a kind through something else — an attribute, a call — says
+    nothing that can be weighed against what came before, so it is
+    read as able to run.
 
     Args:
         handler (ast.ExceptHandler): The handler to read.
@@ -1348,13 +1374,32 @@ def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
 
     kinds = _named_kinds(handler.type)
 
-    if not kinds:
+    if not kinds or not _every_part_named(handler.type):
         return False
 
     return all(
         kind in seen or ('Exception' in seen and kind not in _BEYOND_EXCEPTION)
         for kind in kinds
     )
+
+
+def _every_part_named(named: ast.expr | None) -> bool:
+
+    '''Whether every kind an `except` names is a plain name.
+
+    Args:
+        named (ast.expr | None): What the handler names, or nothing.
+
+    Returns:
+        bool: True where each part can be weighed by name.
+    '''
+
+    if named is None:
+        return False
+
+    held = named.elts if isinstance(named, ast.Tuple) else [named]
+
+    return all(isinstance(part, ast.Name) for part in held)
 
 
 def _named_kinds(named: ast.expr | None) -> set[str]:
@@ -1692,13 +1737,15 @@ def _runs_once(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
 
     Returns:
         bool: True for an endless `while`, and for a `for` over
-            something written out with anything in it.
+            something written out that gives a turn.
     '''
 
     if isinstance(statement, ast.While):
         return _endless(statement.test)
 
-    return isinstance(statement, ast.For) and _written_truth(statement.iter) is True
+    turns = _written_turns(statement.iter) if isinstance(statement, ast.For) else None
+
+    return turns is not None and turns > 0
 
 
 def _runs_nothing(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
@@ -1717,6 +1764,114 @@ def _runs_nothing(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
         return _never_holds(statement.test)
 
     return _iterates_nothing(statement.iter)
+
+
+def _written_turns(gone_over: ast.expr) -> int | None:
+
+    '''Return how many turns what a loop goes over gives, as written.
+
+    A list, tuple, set or mapping written out gives one turn per thing
+    in it, and a string of letters or bytes one per letter. An `and`
+    or an `or` of such is weighed down to the part that stands. Where
+    something is unpacked in, or the thing is not written out, or what
+    is written is nothing to go over at all, no number is given.
+
+    Args:
+        gone_over (ast.expr): The expression the loop goes over.
+
+    Returns:
+        int | None: That number, or None where it is not known.
+    '''
+
+    if isinstance(gone_over, ast.BoolOp):
+        return _written_turns_of_both(gone_over)
+
+    if isinstance(gone_over, ast.Constant) and isinstance(gone_over.value, (str, bytes)):
+        return len(gone_over.value)
+
+    return _written_turns_of_parts(gone_over)
+
+
+def _written_turns_of_parts(gone_over: ast.expr) -> int | None:
+
+    '''Return the turns a container written out gives.
+
+    Something unpacked in could be anything, so no number is given
+    then.
+
+    Args:
+        gone_over (ast.expr): The expression the loop goes over.
+
+    Returns:
+        int | None: That number, or None where it is not known.
+    '''
+
+    if isinstance(gone_over, (ast.List, ast.Tuple, ast.Set)):
+        if any(isinstance(part, ast.Starred) for part in gone_over.elts):
+            return None
+
+        return len(gone_over.elts)
+
+    if isinstance(gone_over, ast.Dict):
+        if any(key is None for key in gone_over.keys):
+            return None
+
+        return len(gone_over.keys)
+
+    return None
+
+
+def _written_turns_of_both(gone_over: ast.BoolOp) -> int | None:
+
+    '''Return the turns an `and` or an `or` of written-out parts gives.
+
+    An `and` stands as its last part where every part before it holds,
+    and as the first that fails; an `or` the other way about.
+
+    Args:
+        gone_over (ast.BoolOp): The expression the loop goes over.
+
+    Returns:
+        int | None: That number, or None where it is not known.
+    '''
+
+    wanted = isinstance(gone_over.op, ast.Or)
+
+    for part in gone_over.values[:-1]:
+        answer = _written_truth(part)
+
+        if answer is None:
+            return None
+
+        if answer is wanted:
+            return _written_turns(part)
+
+    return _written_turns(gone_over.values[-1])
+
+
+def _goes_over_nothing(gone_over: ast.expr) -> bool:
+
+    '''Whether what is written out is nothing a loop can go over.
+
+    A number, a boolean and nothing at all are not: going over one
+    raises before any turn is taken.
+
+    Args:
+        gone_over (ast.expr): The expression the loop goes over.
+
+    Returns:
+        bool: True where it is written out and cannot be gone over.
+    '''
+
+    if isinstance(gone_over, ast.UnaryOp) and isinstance(gone_over.op, ast.Not):
+        return True
+
+    if isinstance(gone_over, ast.Compare):
+        return _written_comparison(gone_over) is not None
+
+    return isinstance(gone_over, ast.Constant) and not isinstance(
+        gone_over.value, (str, bytes),
+    )
 
 
 def _never_holds(test: ast.expr) -> bool:
@@ -1740,8 +1895,9 @@ def _written_truth(test: ast.expr) -> bool | None:
     A constant answers for itself, as does a list, tuple, set or
     mapping written out, by whether anything is in it — unless
     something is unpacked into it, which could be anything. A `not`
-    turns the answer of what it holds around, and an `and` or an `or`
-    is weighed part by part. Anything else is read at the time and is
+    turns the answer of what it holds around, an `and` or an `or` is
+    weighed part by part, and a comparison of constants is weighed as
+    written. Anything else is read at the time and is
     not known here.
 
     Args:
@@ -1762,6 +1918,9 @@ def _written_truth(test: ast.expr) -> bool | None:
 
     if isinstance(test, ast.BoolOp):
         return _written_truth_of_both(test)
+
+    if isinstance(test, ast.Compare):
+        return _written_comparison(test)
 
     return _written_truth_of_parts(test)
 
@@ -1793,6 +1952,37 @@ def _written_truth_of_parts(test: ast.expr) -> bool | None:
         return bool(test.keys)
 
     return None
+
+
+def _written_comparison(test: ast.Compare) -> bool | None:
+
+    '''Whether a comparison of constants answers for itself.
+
+    One side against the other, with a sign the two can be weighed by.
+    A comparison of two things that cannot be weighed against each
+    other raises where it stands, and answers nothing here.
+
+    Args:
+        test (ast.Compare): The comparison.
+
+    Returns:
+        bool | None: Its answer, or None where it is not known.
+    '''
+
+    against = test.comparators[0] if len(test.comparators) == 1 else None
+    weigh = _COMPARISONS.get(type(test.ops[0])) if len(test.ops) == 1 else None
+
+    if weigh is None or not isinstance(test.left, ast.Constant):
+        return None
+
+    if not isinstance(against, ast.Constant):
+        return None
+
+    try:
+        return bool(weigh(test.left.value, against.value))
+
+    except TypeError:
+        return None
 
 
 def _written_truth_of_both(test: ast.BoolOp) -> bool | None:
@@ -1833,17 +2023,10 @@ def _iterates_nothing(gone_over: ast.expr) -> bool:
         gone_over (ast.expr): The expression the loop goes over.
 
     Returns:
-        bool: True for an empty list, tuple, set or mapping, and for
-            an empty string of letters or bytes.
+        bool: True where what is written out gives no turns at all.
     '''
 
-    if isinstance(gone_over, (ast.List, ast.Tuple, ast.Set)):
-        return not gone_over.elts
-
-    if isinstance(gone_over, ast.Dict):
-        return not gone_over.keys
-
-    return isinstance(gone_over, ast.Constant) and gone_over.value in ('', b'')
+    return _written_turns(gone_over) == 0
 
 
 def _may_raise(body: list[ast.stmt]) -> bool:
@@ -1884,8 +2067,8 @@ def _could_raise(statement: ast.stmt) -> bool:
 
     Returns:
         bool: False for a pass, a break, a continue, a return of a
-            constant or of nothing, and a loop nothing in which could
-            raise; True for everything else.
+            constant or of nothing, and a loop, an `if` or a `match`
+            nothing in which could raise; True for everything else.
     '''
 
     if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
@@ -1899,7 +2082,65 @@ def _could_raise(statement: ast.stmt) -> bool:
     if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
         return _loop_could_raise(statement)
 
+    if isinstance(statement, ast.If):
+        return _branch_could_raise(statement)
+
+    if isinstance(statement, ast.Match):
+        return _match_could_raise(statement)
+
     return True
+
+
+def _branch_could_raise(statement: ast.If) -> bool:
+
+    '''Whether an `if` statement could raise where it stands.
+
+    Working out the condition could, and so could the arm that runs.
+    Where the condition is not written out, either arm could.
+
+    Args:
+        statement (ast.If): The statement to read.
+
+    Returns:
+        bool: True where it could raise.
+    '''
+
+    if not _quiet_expression(statement.test):
+        return True
+
+    answer = _written_truth(statement.test)
+
+    if answer is None:
+        return _may_raise(statement.body) or _may_raise(statement.orelse)
+
+    return _may_raise(statement.body if answer else statement.orelse)
+
+
+def _match_could_raise(statement: ast.Match) -> bool:
+
+    '''Whether a `match` statement could raise where it stands.
+
+    Working out the subject could, and so could a pattern asking
+    anything of it, a guard, and the body of a case that runs. Only a
+    `match` whose every case takes any value, guarded by nothing, is
+    read for its bodies alone.
+
+    Args:
+        statement (ast.Match): The statement to read.
+
+    Returns:
+        bool: True where it could raise.
+    '''
+
+    if not _quiet_expression(statement.subject):
+        return True
+
+    return any(
+        case.guard is not None
+        or not _takes_anything(case.pattern)
+        or _may_raise(case.body)
+        for case in statement.cases
+    )
 
 
 def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
@@ -1909,7 +2150,8 @@ def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
     Working out what it goes over could raise, and so could its body
     where that runs, and its `else`. Going over something with `async
     for` asks the thing itself for each turn, which could raise before
-    the body runs at all.
+    the body runs at all, and so does going over what is written out
+    as something no turn can be taken from.
 
     Args:
         statement (ast.For): The loop to read.
@@ -1925,6 +2167,9 @@ def _loop_could_raise(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
     if not _quiet_expression(gone_over) or isinstance(statement, ast.AsyncFor):
         return True
 
+    if not isinstance(statement, ast.While) and _goes_over_nothing(gone_over):
+        return True
+
     if _runs_nothing(statement):
         return _may_raise(statement.orelse)
 
@@ -1935,10 +2180,11 @@ def _quiet_expression(held: ast.expr) -> bool:
 
     '''Whether working out an expression could not raise.
 
-    A constant could not, nor a list, tuple, set or mapping written
-    out of such, nor `not` or `and` or `or` over them. Everything else
-    is read as able to: a name may be unbound, a call may raise, and a
-    sum may refuse what it is given.
+    A constant could not, nor a list or tuple written out of such, nor
+    `not` or `and` or `or` over them, nor a comparison of constants
+    that answers. A set and a mapping ask what they hold to be
+    hashable. Everything else is read as able to: a name may be
+    unbound, a call may raise, and a sum may refuse what it is given.
 
     Args:
         held (ast.expr): The expression to read.
@@ -1956,16 +2202,60 @@ def _quiet_expression(held: ast.expr) -> bool:
     if isinstance(held, ast.BoolOp):
         return all(_quiet_expression(part) for part in held.values)
 
-    if isinstance(held, (ast.List, ast.Tuple, ast.Set)):
+    if isinstance(held, ast.Compare):
+        return _written_comparison(held) is not None
+
+    return _quiet_container(held)
+
+
+def _quiet_container(held: ast.expr) -> bool:
+
+    '''Whether putting together a container written out could not raise.
+
+    A list and a tuple ask nothing of what they hold. A set and a
+    mapping ask it to be hashable.
+
+    Args:
+        held (ast.expr): The expression to read.
+
+    Returns:
+        bool: True where it is such a container and could not raise.
+    '''
+
+    if isinstance(held, (ast.List, ast.Tuple)):
         return all(_quiet_expression(part) for part in held.elts)
+
+    if isinstance(held, ast.Set):
+        return all(_can_be_held_by(part) for part in held.elts)
 
     if isinstance(held, ast.Dict):
         return all(
-            key is not None and _quiet_expression(key) and _quiet_expression(value)
+            key is not None and _can_be_held_by(key) and _quiet_expression(value)
             for key, value in zip(held.keys, held.values, strict=True)
         )
 
     return False
+
+
+def _can_be_held_by(part: ast.expr) -> bool:
+
+    '''Whether something written out can be a set's member or a key.
+
+    A set and a mapping ask what they hold to be hashable, and raise
+    where it is not, so only a constant and a tuple of such are read
+    as quiet there.
+
+    Args:
+        part (ast.expr): The member or key written out.
+
+    Returns:
+        bool: True where putting it there could not raise.
+    '''
+
+    if isinstance(part, ast.Tuple):
+        return all(_can_be_held_by(held) for held in part.elts)
+
+    return isinstance(part, ast.Constant)
 
 
 def _endless(test: ast.expr) -> bool:

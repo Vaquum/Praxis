@@ -1818,6 +1818,126 @@ class TestTheFinallyClause:
 
         assert not any(3 in first and 11 in second for first, second in spans)
 
+    def test_a_case_a_guard_holds_back_is_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, x):\n    if flag:\n        mark()\n        match x:\n"
+            "            case _ if False:\n                pass\n"
+            "            case _:\n                return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 9 in second for first, second in spans)
+
+    def test_a_handler_naming_a_kind_through_something_else_still_runs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            work()\n            return 1\n        except ValueError:\n"
+            "            return 2\n        except (ValueError, builtins.TypeError):\n"
+            "            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 11 in second for first, second in spans)
+
+    def test_a_tuple_a_set_holds_could_not_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            for part in {(): 1, (1,): 2}:\n                return 1\n"
+            "        except TypeError:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 9 in second for first, second in spans)
+
+    def test_what_a_set_or_a_mapping_cannot_hold_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a set holding a list': '            for part in {[]}:\n',
+            'a mapping keyed on a list': '            for part in {[]: 1}:\n',
+        }
+        unpaired = [
+            label for label, loop in shapes.items()
+            if not any(
+                3 in first and 10 in second
+                for first, second in self._spans(
+                    "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+                    + loop + "                pass\n            return 1\n"
+                    "        except TypeError:\n            pass\n    later()\n",
+                    tmp_path,
+                    monkeypatch,
+                )
+            )
+        ]
+
+        assert unpaired == list(shapes)
+
+    def test_going_over_what_gives_no_turn_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            for part in 1:\n                pass\n            return 1\n"
+            "        except TypeError:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 10 in second for first, second in spans)
+
+    def test_a_comparison_that_refuses_answers_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        if 1 < 'a':\n"
+            "            raise ValueError()\n        return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 7 in second for first, second in spans)
+
+    def test_a_pattern_asking_something_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            match 1:\n                case Held():\n                    pass\n"
+            "            return 1\n        except Exception:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 11 in second for first, second in spans)
+
+    def test_a_branch_written_out_raises_only_where_its_arm_does(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            if False:\n                work()\n            return 1\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
+    def test_a_match_asking_nothing_raises_only_where_a_body_does(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            match 1:\n                case other:\n                    return 1\n"
+            "        except Exception:\n            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
     def test_a_branch_that_never_holds_holds_no_way_out(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1997,6 +2117,7 @@ class TestTheFinallyClause:
             'both parts failing': '        while False or False:\n',
             'one part failing an and': '        while True and False:\n',
             'a full list said not to hold': '        while not [1]:\n',
+            'an empty mapping to go over': '        for part in {}:\n',
             'an empty string to go over': "        for part in '':\n",
             'empty bytes to go over': "        for part in b'':\n",
             'nothing to go over': '        for part in ():\n',
@@ -3105,8 +3226,21 @@ class TestWhatAlwaysLeaves:
                 'def f(x):\n    for part in (1,):\n        return 1\n'
             ),
             'a condition written out': 'def f(x):\n    if [1]:\n        return 1\n',
+            'a guard that never holds': (
+                'def f(x):\n    match x:\n        case _ if False:\n            pass\n'
+                '        case _:\n            return 1\n'
+            ),
+            'a comparison written out': 'def f(x):\n    if 1 < 2:\n        return 1\n',
+            'a set written out': 'def f(x):\n    for part in {1}:\n        return 1\n',
+            'both parts of an and gone over': (
+                'def f(x):\n    for part in [1] and [2]:\n        return 1\n'
+            ),
+            'the part of an or that holds': (
+                'def f(x):\n    for part in [1] or []:\n        return 1\n'
+            ),
             'a guard written out': (
                 'def f(x):\n    match x:\n        case _ if True:\n            return 1\n'
+                '        case 1:\n            pass\n'
             ),
             'loop else leaves': (
                 'def f(xs):\n    for x in xs:\n        pass\n    else:\n        return 1\n'
@@ -3152,6 +3286,12 @@ class TestWhatAlwaysLeaves:
             ),
             'a mapping unpacked into one': (
                 'def f(xs):\n    while {**xs}:\n        return 1\n'
+            ),
+            'nothing left of an and to go over': (
+                'def f(x):\n    for part in [1] and ():\n        return 1\n'
+            ),
+            'the part of an and that fails': (
+                'def f(x):\n    for part in () and [1]:\n        return 1\n'
             ),
             'a guard not written out': (
                 'def f(x, cond):\n    match x:\n        case _ if cond:\n'
