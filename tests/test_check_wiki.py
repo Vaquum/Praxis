@@ -102,6 +102,46 @@ class TestGuardsAndArms:
 
         return spans
 
+    def test_every_header_a_statement_is_given_is_read(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'condition': "        if reject(x):\n            pass\n",
+            'context manager': "        with reject(x):\n            pass\n",
+            'iterated': "        for item in reject(x):\n            pass\n",
+            'match subject': (
+                "        match reject(x):\n            case _:\n                pass\n"
+            ),
+            'case guard': (
+                "        match x:\n            case _ if reject(x):\n"
+                "                pass\n"
+            ),
+        }
+        missed = []
+
+        for name, held in shapes.items():
+            source = (
+                f"def f(x):\n    if x:\n{held}        raise ValueError()\n    submit(x)\n"
+            )
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(3 in first for first, _ in spans):
+                missed.append(name)
+
+        assert missed == []
+
+    def test_a_case_guard_is_no_alternative_to_a_later_case(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    match x:\n        case _ if reject(x):\n            one()\n"
+            "        case _:\n            submit(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 6 in second for first, second in spans)
+        assert not any(3 in first or 3 in second for first, second in spans)
+
     def test_an_acting_context_manager_makes_an_arm(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2234,6 +2274,22 @@ class TestRationale:
         )
 
         assert any('log call' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_range_opening_on_a_comment_is_still_a_log_call(self) -> None:
+        failures = check_wiki._check_citations(
+            ['a claim | `execution_manager.py` 2482-2487'],
+            check_wiki._SourceFacts(),
+        )
+
+        assert any('log call' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_range_running_from_a_log_into_code_is_code(self) -> None:
+        assert check_wiki._check_citations(
+            ['a claim | `execution_manager.py` 5544-5553'],
+            check_wiki._SourceFacts(),
+        ) == []
 
     @_NEEDS_BASELINE
     def test_a_claim_about_that_message_may_cite_the_range(self) -> None:

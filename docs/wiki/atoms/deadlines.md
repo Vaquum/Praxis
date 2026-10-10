@@ -2,7 +2,7 @@
 row: P2-23
 baseline: 49aa659
 created: 2026-09-24 20:16 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-09 17:59 UTC
 evidence:
   - claim: "The clock runs from the time supplied on the command, not from the accept written later"
     source: "`execution_manager.py` 2925 reading the time stored at 3476, the accept taking its own clock at 3517"
@@ -43,7 +43,7 @@ An [opening order with protection attached](how-an-order-is-placed.md) skips thi
 
 Only work sent in one go is measured after its send; a linked pair counts. Even then the clock is read only where the status just worked out is waiting or part filled. Every status is reported by the same call regardless.
 
-The moment used is taken when the send returned, or when [a chased send](when-a-send-is-unclear.md) was adopted. Past the time by then, the order is marked expired and [a cancel is attempted](the-expiry-cancel.md).
+The moment used is taken when the send returned, or when [a chased send](when-a-send-is-unclear.md) was adopted. Past the time by then, the request is settled as expired and [a cancel is attempted](the-expiry-cancel.md).
 
 Short of the time at that moment, the order is reported as it stands and never measured again — a resting order whose deadline arrives an hour later is untouched.
 

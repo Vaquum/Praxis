@@ -705,7 +705,9 @@ def _case_arms(node: ast.Match) -> list[tuple[set[int], set[int]]]:
 
     '''Return each pair of cases a `match` statement has.
 
-    One value takes one case, so no two of them run for one input.
+    One value takes one case, so no two of their bodies run for one
+    input. A pattern and a guard are tried until one matches, so those
+    lines run on the paths of later cases too and are left out.
 
     Args:
         node (ast.Match): The statement to read.
@@ -715,7 +717,7 @@ def _case_arms(node: ast.Match) -> list[tuple[set[int], set[int]]]:
     '''
 
     spans = [
-        set(range(case.pattern.lineno, (case.body[-1].end_lineno or 0) + 1))
+        set(range(case.body[0].lineno, (case.body[-1].end_lineno or 0) + 1))
         for case in node.cases
         if case.body
     ]
@@ -1436,8 +1438,9 @@ def _header_acts(statement: ast.stmt) -> bool:
 
     '''Whether what a statement is given to work on acts.
 
-    A context manager, a condition, a subject or a thing iterated over
-    is worked out before the body runs, so a call there is an act.
+    A context manager, a condition, a subject, a thing iterated over
+    or a case's guard is worked out before the body runs, so a call
+    there is an act.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -1456,6 +1459,10 @@ def _header_acts(statement: ast.stmt) -> bool:
 
     given += [
         item.context_expr for item in getattr(statement, 'items', []) or []
+    ]
+    given += [
+        case.guard for case in getattr(statement, 'cases', []) or []
+        if case.guard is not None
     ]
 
     return any(
@@ -2368,8 +2375,9 @@ def _only_logs(span: list[int], facts: _FileFacts) -> bool:
 
     '''Whether a cited range says nothing but a logged message.
 
-    A range opening inside a logging call is logging, and so is one
-    holding nothing but logging, blank lines and comments.
+    A range is logging where it holds a logging call and nothing else
+    but blank lines and comments. One that opens on a logging call and
+    runs on into code is citing the code.
 
     Args:
         span (list[int]): The lines the citation covers.
@@ -2384,9 +2392,8 @@ def _only_logs(span: list[int], facts: _FileFacts) -> bool:
 
     quiet = facts.logs | facts.blanks | facts.comments
 
-    return span[0] in facts.logs or (
-        any(line in facts.logs for line in span)
-        and all(line in quiet for line in span)
+    return any(line in facts.logs for line in span) and all(
+        line in quiet for line in span
     )
 
 
