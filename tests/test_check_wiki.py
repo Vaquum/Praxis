@@ -603,6 +603,11 @@ class TestProtocolExemption:
                 id='annotated-reassignment',
             ),
             pytest.param(
+                'from typing import Protocol\nProtocol += replacement\n'
+                'class A(Protocol):\n' + _STUB,
+                id='augmented-reassignment',
+            ),
+            pytest.param(
                 'from typing import Protocol\nmatch held:\n'
                 '    case {"a": 1, **Protocol}:\n        pass\n'
                 'class A(Protocol):\n' + _STUB,
@@ -2076,6 +2081,47 @@ class TestTheFinallyClause:
         spans = self._spans(source, tmp_path, monkeypatch)
 
         assert not any(3 in first and 11 in second for first, second in spans)
+
+    def test_every_alternative_of_a_pattern_is_read(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a kind beside a wildcard': (
+                '                case Missing() | _ if False:\n'
+            ),
+            'a kind bound by a name': (
+                '                case (Missing() | _) as held if False:\n'
+            ),
+            'a value named through something': (
+                '                case math.tau | _ if False:\n'
+            ),
+            'a mapping keyed through something': (
+                '                case {math.tau: _} | _ if False:\n'
+            ),
+            'a kind inside a sequence': (
+                '                case [Missing()] | _ if False:\n'
+            ),
+            'a kind inside a mapping': (
+                '                case {1: Missing()} | _ if False:\n'
+            ),
+        }
+        unpaired = []
+
+        for label, case in shapes.items():
+            source = (
+                "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+                "            match 1:\n" + case
+                + "                    pass\n                case _:\n"
+                "                    return 1\n        except NameError:\n"
+                "            pass\n    later()\n"
+            )
+            last = source.splitlines().index('    later()') + 1
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(3 in first and last in second for first, second in spans):
+                unpaired.append(label)
+
+        assert unpaired == list(shapes)
 
     def test_a_pattern_is_read_before_its_guard_holds_it_back(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

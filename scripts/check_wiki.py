@@ -2311,13 +2311,69 @@ def _branch_could_raise(statement: ast.If) -> bool:
     return _may_raise(statement.body if answer else statement.orelse)
 
 
+def _pattern_could_raise(pattern: ast.pattern) -> bool:
+
+    '''Whether weighing a pattern against a value could raise.
+
+    A pattern naming a kind looks that name up, and one written as a
+    value through something else — an attribute, say — looks that up
+    too; either could raise before anything is matched. The
+    alternatives of an `|` are tried from the left, so each is read,
+    however wide the one after it; so is what a name is bound to, and
+    so is every part of a sequence or a mapping written out.
+
+    Args:
+        pattern (ast.pattern): The pattern to read.
+
+    Returns:
+        bool: True where weighing it could raise.
+    '''
+
+    if isinstance(pattern, ast.MatchClass):
+        return True
+
+    if isinstance(pattern, ast.MatchValue):
+        return not _quiet_expression(pattern.value)
+
+    if isinstance(pattern, ast.MatchMapping) and any(
+        not _quiet_expression(key) for key in pattern.keys
+    ):
+        return True
+
+    return any(_pattern_could_raise(held) for held in _held_patterns(pattern))
+
+
+def _held_patterns(pattern: ast.pattern) -> list[ast.pattern]:
+
+    '''Return the patterns a pattern holds.
+
+    Args:
+        pattern (ast.pattern): The pattern to read.
+
+    Returns:
+        list[ast.pattern]: Its alternatives, its parts, or what it
+            binds; nothing for a pattern holding none.
+    '''
+
+    if isinstance(pattern, ast.MatchAs):
+        return [pattern.pattern] if pattern.pattern is not None else []
+
+    if isinstance(pattern, ast.MatchOr):
+        return list(pattern.patterns)
+
+    if isinstance(pattern, (ast.MatchSequence, ast.MatchMapping)):
+        return list(pattern.patterns)
+
+    return []
+
+
 def _match_could_raise(statement: ast.Match) -> bool:
 
     '''Whether a `match` statement could raise where it stands.
 
-    Working out the subject could, and so could a pattern asking
-    anything of it, a guard that is not written out, and the body of a
-    case that runs. A pattern is weighed before its guard is read, so
+    Working out the subject could, and so could a pattern looking a
+    name up, a guard that is not written out, and the body of a case
+    that runs. A pattern is weighed before its guard is read, so
     a guard that never holds keeps back the body alone. Nothing after
     a case that takes every value with a guard that holds is read.
 
@@ -2333,7 +2389,7 @@ def _match_could_raise(statement: ast.Match) -> bool:
 
     for case in statement.cases:
 
-        if not _takes_anything(case.pattern):
+        if _pattern_could_raise(case.pattern):
             return True
 
         answer = True if case.guard is None else _written_truth(case.guard)
