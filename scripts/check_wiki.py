@@ -347,8 +347,13 @@ def _marked_between(source: str, first: int, second: int) -> bool:
     The marker must sit between the two citations, or just before the
     earlier of them without reaching past the citation before that. A
     marker after the later one counts only where nothing is cited beyond
-    it, since otherwise it belongs to the pair that follows — which is where an author writes `either X or Y`, or
-    `X, Y otherwise`. A marker further off governs some other pair.
+    it, since otherwise it belongs to the pair that follows — which is
+    where an author writes `either X or Y`, or `X, Y otherwise`. A
+    marker further off governs some other pair, so the stretch after the
+    later citation is read only where no other citation lies there. A
+    marker anywhere between the pair governs it, which is how a run of
+    alternatives marks each pair it holds, and one standing before the
+    row's first citation declares the whole row's list alternative.
 
     Between two citations of one file, `or` reads as alternation where
     `and` reads as sequence, so it counts as a marker there.
@@ -363,14 +368,32 @@ def _marked_between(source: str, first: int, second: int) -> bool:
     '''
 
     low, high = sorted((first, second))
-    others = [m.start() for m in LINE_REF.finditer(source) if m.start() not in (low, high)]
-    behind = max((pos for pos in others if pos < low), default=-1)
-    start = max(low - _MARKER_REACH, behind + 1)
-    stop = high if any(pos > high for pos in others) else high + _MARKER_REACH
-    stretch = source[start:stop].lower()
+    refs = list(LINE_REF.finditer(source))
+    within = [match for match in refs if low <= match.start() <= high]
+    inner = source[within[0].end():high]
+    lead = source[max(refs[0].start() - _MARKER_REACH, 0):refs[0].start()]
+    trail = '' if any(match.start() > high for match in refs) else source[
+        within[-1].end():within[-1].end() + _MARKER_REACH
+    ]
+
+    return _marks(inner) or _marks(lead) or _marks(trail)
+
+
+def _marks(stretch: str) -> bool:
+
+    '''Whether a stretch of a source half holds an alternation marker.
+
+    Args:
+        stretch (str): The stretch to read.
+
+    Returns:
+        bool: True where a marker word stands in it.
+    '''
+
+    lowered = stretch.lower()
 
     return any(
-        re.search(rf'\b{re.escape(word)}\b', stretch) for word in ALTERNATION_WORDS
+        re.search(rf'\b{re.escape(word)}\b', lowered) for word in ALTERNATION_WORDS
     )
 
 

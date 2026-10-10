@@ -456,6 +456,30 @@ class TestUncitedClaims:
         row = 'a claim | nothing further in `order.py` 30, `fill.py`'
         assert check_wiki._unlined_sources([row])
 
+    def test_every_absence_phrase_excuses_an_uncited_file(self) -> None:
+        phrases = ('nothing further', 'nowhere', 'absent from', 'no such')
+        excused = [
+            phrase for phrase in phrases
+            if not check_wiki._unlined_sources([f'a claim | {phrase} `order.py`'])
+        ]
+
+        assert excused == list(phrases)
+
+    def test_a_plain_phrase_excuses_nothing(self) -> None:
+        assert check_wiki._unlined_sources(['a claim | plainly `order.py`'])
+
+    def test_every_message_word_is_read_as_one(self) -> None:
+        words = ('log line', 'warning', 'logged', 'message')
+        claimed = [
+            word for word in words
+            if check_wiki._claims_a_message(f'the {word} it writes | `order.py` 30')
+        ]
+
+        assert claimed == list(words)
+
+    def test_a_row_naming_no_message_claims_none(self) -> None:
+        assert not check_wiki._claims_a_message('the order it sends | `order.py` 30')
+
     def test_every_named_file_carrying_a_line_passes(self) -> None:
         assert not check_wiki._unlined_sources(['a claim | `order.py` 30, `fill.py` 4'])
 
@@ -486,6 +510,28 @@ class TestAlternationMarkers:
         assert not check_wiki._marked_between(
             source, source.index('30'), source.index('40'),
         )
+
+    def test_a_marker_in_the_gap_before_the_pair_does_not_reach(self) -> None:
+        source = '`order.py` 30 or 40 and 50'
+        assert not check_wiki._marked_between(
+            source, source.index('40'), source.index('50'),
+        )
+
+    def test_a_run_of_alternatives_marks_each_pair_it_holds(self) -> None:
+        source = '`order.py` 94, or 100, or 104'
+        assert check_wiki._marked_between(
+            source, source.index('94'), source.index('104'),
+        )
+
+    def test_a_marker_opening_the_row_governs_its_run(self) -> None:
+        source = 'either `order.py` 30, 40, 50'
+        assert check_wiki._marked_between(
+            source, source.index('40'), source.index('50'),
+        )
+
+    def test_a_marker_after_the_pair_exempts_it(self) -> None:
+        source = '`order.py` 30, 40 otherwise'
+        assert check_wiki._marked_between(source, source.index('30'), source.index('40'))
 
     def test_and_between_the_pair_is_not_a_marker(self) -> None:
         source = '`order.py` 30 and 40'
@@ -2505,3 +2551,80 @@ class TestEveryAlternationMarker:
             'validate_trade_command.py:137 and 139 are mutually exclusive branches',
         ]
 
+
+
+class TestWhatAlwaysLeaves:
+    @staticmethod
+    def _last(source: str) -> ast.stmt:
+        held = ast.parse(source).body[0]
+        assert isinstance(held, ast.FunctionDef)
+
+        return held.body[-1]
+
+    def test_every_shape_that_leaves_on_every_path_is_read_as_one(self) -> None:
+        shapes = {
+            'return': 'def f(x):\n    return 1\n',
+            'raise': 'def f(x):\n    raise ValueError()\n',
+            'both arms': (
+                'def f(x):\n    if x:\n        return 1\n'
+                '    else:\n        raise ValueError()\n'
+            ),
+            'finally leaves': (
+                'def f(x):\n    try:\n        one()\n    finally:\n        return 1\n'
+            ),
+            'every case': (
+                'def f(x):\n    match x:\n        case 1:\n            return 1\n'
+                '        case _:\n            return 2\n'
+            ),
+            'held return': 'def f(x):\n    with lock():\n        return 1\n',
+        }
+        read = {
+            label: check_wiki._always_leaves(self._last(source))
+            for label, source in shapes.items()
+        }
+
+        assert read == dict.fromkeys(shapes, True)
+
+    def test_every_shape_that_may_carry_on_is_read_as_one(self) -> None:
+        shapes = {
+            'call': 'def f(x):\n    one()\n',
+            'one arm': 'def f(x):\n    if x:\n        return 1\n',
+            'handler carries on': (
+                'def f(x):\n    try:\n        raise ValueError()\n'
+                '    except ValueError:\n        one()\n'
+            ),
+            'else carries on': (
+                'def f(x):\n    try:\n        return 1\n'
+                '    except ValueError:\n        return 2\n    else:\n        one()\n'
+            ),
+            'uncovered match': (
+                'def f(x):\n    match x:\n        case 1:\n            return 1\n'
+            ),
+            'held raise': 'def f(x):\n    with lock():\n        raise ValueError()\n',
+        }
+        read = {
+            label: check_wiki._always_leaves(self._last(source))
+            for label, source in shapes.items()
+        }
+
+        assert read == dict.fromkeys(shapes, False)
+
+
+class TestOneFile:
+    @_NEEDS_BASELINE
+    def test_two_spellings_of_one_file_are_one(self) -> None:
+        assert check_wiki._one_file('launcher.py', 'praxis/launcher.py')
+
+    @_NEEDS_BASELINE
+    def test_two_files_are_not_one(self) -> None:
+        assert not check_wiki._one_file('praxis/trading.py', 'praxis/launcher.py')
+
+    @_NEEDS_BASELINE
+    def test_a_name_outside_the_tree_is_no_file(self) -> None:
+        assert not check_wiki._one_file('nowhere.py', 'praxis/launcher.py')
+
+
+class TestWhatCountsAsAProtocol:
+    def test_a_plain_class_beside_a_protocol_import_is_no_protocol(self) -> None:
+        source = 'from typing import Protocol\nclass A:\n' + _STUB
+        assert not check_wiki._protocol_lines(ast.parse(source))
