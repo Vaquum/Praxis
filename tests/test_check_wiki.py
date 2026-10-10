@@ -1682,6 +1682,19 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 10 in second for first, second in spans)
 
+    def test_an_arm_leaving_by_two_ways_reaches_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, stop):\n    for item in [1]:\n        if flag:\n"
+            "            mark()\n            if stop:\n                break\n"
+            "            return\n        inside()\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 9 in second for first, second in spans)
+        assert not any(4 in second and 9 in first for first, second in spans)
+
     def test_an_earlier_exit_in_a_finally_names_no_way_out(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

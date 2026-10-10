@@ -229,7 +229,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-016 | A price change is not an edit. The resting order is cancelled, the venue is asked what it really filled, and a fresh order is placed for what is left. | `execution_manager.py` `_process_modify` 8716, 8746 into 8779-8782, 8786-8794 and 8797-8799 | P3-13 | folds into P3-13 |
 | H-017 | The replacement is placed only after the original is confirmed gone and any fill that raced the cancel has been accounted for. Both orders live at once is not reachable by this route. | `execution_manager.py` `_drive_single_amend` 8776-8800 | P3-13 | folds into P3-13 |
 | H-018 | If the racing fill cannot be accounted for, the change is parked and the original is deliberately left unfinished, so the missed fill stays recoverable instead of being stranded. | `execution_manager.py` 8783-8784 with 8747-8748 | P3-13 | folds into P3-13 |
-| H-019 | The size of the replacement is worked out from what the venue says was filled, not from the local picture, so a racing fill cannot cause over-ordering. | `execution_manager.py` 8797-8799 | P3-13 | folds into P3-13 |
+| H-019 | The replacement is sized from the command's whole quantity less everything recorded filled across that command's orders, open and closed, the record having first been brought up to the venue's figure for the cancelled order, so a fill the cancel raced is counted rather than ordered a second time. | `execution_manager.py` 8798-8799 summing 2674-2683, brought up to the venue's figure first at 8779-8782 | P3-13 | folds into P3-13 |
 | H-020 | A record is written before the cancel, so a restart in the middle rebuilds the sequence rather than reusing an order name. | `execution_manager.py` 8695-8697 into 8700-8713, ahead of the cancel at 8716 | P3-13 | folds into P3-13 |
 | H-021 | A change aimed at an order that already finished is dropped. A sliced order and a bracket each go to their own change path. | `execution_manager.py` 8615-8624 | P3-13 | folds into P3-13 |
 | H-022 | Two different waits can time out and they are not the same event: the decision side waiting on the execution side, and the execution side waiting on the venue. The reader's evidence and the system's response differ for each. | Nexus `action_submit.py` 337-368; Praxis `execution_manager.py` `_rescue_by_client_order_id` 5513-5542 | timeout (carried) | folds into timeout (carried) |
@@ -283,4 +283,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-10 11:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-10 13:18 UTC

@@ -862,7 +862,9 @@ def _after_the_branch(
     runs after a continue, so neither is an alternative to anything.
     Where a `finally` is what takes the branch out, how far that reaches
     is measured from the `finally` rather than from the branch, and a
-    `finally` leaving by more than one way reaches nothing.
+    `finally` leaving by more than one way reaches nothing. So does an
+    arm leaving by more than one way, every statement of it that can
+    leave being read rather than the last alone.
 
     Args:
         node (ast.If): The `if` the arm belongs to.
@@ -874,7 +876,7 @@ def _after_the_branch(
     '''
 
     override = _overridden(scopes, node.lineno)
-    kind = override[0] if override is not None else _how_it_leaves(statements[-1])
+    kind = override[0] if override is not None else _one_leave(statements)
     measured = override[1] if override is not None else node.lineno
     tried = _reach_of(kind, scopes, measured)
 
