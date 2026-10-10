@@ -40,6 +40,7 @@ DOUBLE_NEGATIVE = re.compile(
     r'[^.;:]{0,40}\b(?:nothing|no one|nobody|never|none)\b',
     re.IGNORECASE,
 )
+HEADING_NEGATION = re.compile(r',\s+not\b', re.IGNORECASE)
 APPARATUS = ('## Evidence', '| Claim | Source |')
 CODE_LABEL = re.compile(r'`([^`]+)`')
 RATIONALE = re.compile(
@@ -1214,8 +1215,31 @@ def _how_it_leaves(statement: ast.stmt) -> str:
     if isinstance(statement, ast.Match) and _covers_everything(statement):
         return _one_way([case.body[-1] for case in statement.cases if case.body])
 
+    return _held_way_out(statement)
+
+
+def _held_way_out(statement: ast.stmt) -> str:
+
+    '''Return the way a statement holding one block of its own leaves.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        str: The way its body leaves, a raise a `with` could swallow
+            aside, the way its class body leaves, or the way its loop
+            and that loop's `else` agree on; an empty string for
+            anything else.
+    '''
+
     if isinstance(statement, (ast.With, ast.AsyncWith)) and statement.body:
         return _held_leave(statement.body[-1])
+
+    if isinstance(statement, ast.ClassDef) and statement.body:
+        return _how_it_leaves(statement.body[-1])
+
+    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+        return _loop_leave(statement)
 
     return ''
 
@@ -1246,6 +1270,10 @@ def _try_leave(statement: ast.Try | ast.TryStar) -> str:
 
     '''Return the way a `try` statement leaves the path.
 
+    A body leaving on some paths only takes its own way out on those
+    and the `else` on the rest, and the two need not agree, so no one
+    way is named.
+
     Args:
         statement (ast.Try): The statement to read.
 
@@ -1255,6 +1283,9 @@ def _try_leave(statement: ast.Try | ast.TryStar) -> str:
 
     if statement.finalbody and _can_leave(statement.finalbody):
         return _one_leave(statement.finalbody)
+
+    if _can_leave(statement.body) and not _always_leaves(statement.body[-1]):
+        return ''
 
     return _one_way([path[-1] for path in _try_paths(statement)])
 
@@ -1373,8 +1404,148 @@ def _always_leaves(statement: ast.stmt) -> bool:
             case.body and _always_leaves(case.body[-1]) for case in statement.cases
         )
 
+    return _held_always_leaves(statement)
+
+
+def _held_always_leaves(statement: ast.stmt) -> bool:
+
+    '''Whether a statement holding one block of its own always leaves.
+
+    A `with` leaves where its body returns, continues or breaks, not
+    where it raises, a context manager being able to swallow that. A
+    class body runs where it stands, so the class leaves where that
+    body does. A loop is read for the break that would carry on past
+    it, and for its `else`.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: True where nothing after it runs.
+    '''
+
     if isinstance(statement, (ast.With, ast.AsyncWith)) and statement.body:
         return bool(_held_leave(statement.body[-1]))
+
+    if isinstance(statement, ast.ClassDef) and statement.body:
+        return _always_leaves(statement.body[-1])
+
+    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+        return _loop_always_leaves(statement)
+
+    return False
+
+
+def _loop_always_leaves(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
+
+    '''Whether every path through a loop leaves what follows it.
+
+    A loop a break reaches carries on after it. Otherwise its `else`
+    runs once the loop is done, so the loop leaves where that does; and
+    an endless `while` whose body leaves never reaches anything after
+    it either. A `for` over something that may be empty, and a `while`
+    on a condition that may be false, both reach what follows.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        bool: True where nothing after it runs.
+    '''
+
+    if _breaks_out(statement.body):
+        return False
+
+    if statement.orelse:
+        return _always_leaves(statement.orelse[-1])
+
+    return (
+        isinstance(statement, ast.While)
+        and _endless(statement.test)
+        and _always_leaves(statement.body[-1])
+    )
+
+
+def _loop_leave(statement: ast.For | ast.AsyncFor | ast.While) -> str:
+
+    '''Return the way a loop leaves the path.
+
+    The ways its body can leave by are gathered with the way its `else`
+    leaves, and the loop leaves by the one they agree on. A loop a
+    break reaches leaves by nothing, and so does one that can be left
+    without an `else` to finish on, save for an endless `while`.
+
+    Args:
+        statement (ast.For): The loop to read.
+
+    Returns:
+        str: That way, or an empty string.
+    '''
+
+    if _breaks_out(statement.body):
+        return ''
+
+    ways = {
+        _how_it_leaves(held) for held in statement.body
+        if _leaves_this_block(held, within_loop=True)
+    }
+
+    if statement.orelse:
+        ways.add(_how_it_leaves(statement.orelse[-1]))
+
+    elif not (isinstance(statement, ast.While) and _endless(statement.test)):
+        return ''
+
+    return ways.pop() if len(ways) == 1 else ''
+
+
+def _endless(test: ast.expr) -> bool:
+
+    '''Whether a loop's condition is written as one that always holds.
+
+    Args:
+        test (ast.expr): The condition.
+
+    Returns:
+        bool: True where it is a constant that holds.
+    '''
+
+    return isinstance(test, ast.Constant) and bool(test.value)
+
+
+def _breaks_out(body: list[ast.stmt]) -> bool:
+
+    '''Whether a break written in a block leaves the loop holding it.
+
+    A break inside a nested loop leaves that loop rather than this one,
+    though one in that loop's `else` runs with the nested loop finished
+    and so leaves this one. A function and a class carry their own.
+
+    Args:
+        body (list[ast.stmt]): The loop body's statements.
+
+    Returns:
+        bool: True where a break reaches the loop.
+    '''
+
+    for statement in body:
+
+        if isinstance(
+            statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+        ):
+            continue
+
+        if isinstance(statement, ast.Break):
+            return True
+
+        blocks = (
+            [statement.orelse]
+            if isinstance(statement, (ast.For, ast.AsyncFor, ast.While))
+            else _child_blocks(statement)
+        )
+
+        if any(_breaks_out(block) for block in blocks):
+            return True
 
     return False
 
@@ -3081,6 +3252,8 @@ def _check_voice(body: str) -> list[str]:
 
     A reason why the code does the thing is a claim about intent, which
     a body never states; it comes from a docstring or from the writer.
+    A heading naming what its section is not is refused outright, a
+    heading being a name rather than a sentence that can contrast.
     A consequence drawn from a cited fact is not that, and is left
     alone. An implementation name is not prose either: the reader of an
     article has the code withheld from them on purpose, so a name they
@@ -3122,6 +3295,11 @@ def _check_voice(body: str) -> list[str]:
             f'gives a reason the code does not state, at "{told.group(0)}"',
         )
 
+    notes.extend(
+        f'defines a section by negation: "{heading}"'
+        for heading in re.findall(r'^#+ .*', body, re.MULTILINE)
+        if HEADING_NEGATION.search(heading)
+    )
     labelled = CODE_LABEL.search(body)
 
     if labelled is not None:

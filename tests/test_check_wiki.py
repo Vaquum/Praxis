@@ -276,6 +276,15 @@ class TestGuardsAndArms:
         source = 'def f(x):\n    if x:\n        raise ValueError(reject(x))\n    submit(x)\n'
         assert self._spans(source, tmp_path, monkeypatch)
 
+    def test_a_call_in_the_raises_cause_is_an_act(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        raise ValueError('b') from reject(x)\n"
+            '    submit(x)\n'
+        )
+        assert self._spans(source, tmp_path, monkeypatch)
+
     def test_setting_an_attribute_is_an_act(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1604,7 +1613,9 @@ class TestTheFinallyClause:
             "        finally:\n            for y in ys:\n                pass\n"
             "            else:\n                continue\n        after()\n    done()\n"
         )
-        assert not self._spans(source, tmp_path, monkeypatch)
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 7 in second for first, second in spans)
 
     _CAUGHT_RAISE = (
         "def f(x):\n    try:\n        if x:\n            mark(x)\n"
@@ -1645,6 +1656,20 @@ class TestTheFinallyClause:
 
         assert any(5 in first and 7 in second for first, second in spans)
         assert not any(4 in first or 4 in second for first, second in spans)
+
+    def test_a_body_leaving_on_some_paths_names_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, leave):\n    for item in [1]:\n        if flag:\n"
+            "            try:\n                if leave:\n                    break\n"
+            "            except ValueError:\n                return\n"
+            "            else:\n                return\n        other()\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(6 in first and 11 in second for first, second in spans)
+        assert not any(6 in first and 12 in second for first, second in spans)
 
     def test_a_body_that_leaves_skips_its_else(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -2363,6 +2388,20 @@ class TestEveryListedShape:
 
         assert refused == list(tails)
 
+    def test_a_heading_defining_by_negation_is_refused(self) -> None:
+        headings = ('## One table, not two', '## A spread, not an average')
+        refused = [
+            heading for heading in headings
+            if check_wiki._check_voice(f'# Title\n\nA thing is a thing.\n\n{heading}\n')
+        ]
+
+        assert refused == list(headings)
+
+    def test_a_heading_naming_its_subject_passes(self) -> None:
+        assert not check_wiki._check_voice(
+            '# Title\n\nA thing is a thing.\n\n## Where the keys come from\n',
+        )
+
     def test_every_double_negative_opening_is_refused(self) -> None:
         openings = ('does not leave', 'never leaves', "doesn't leave")
         refused = [
@@ -2590,6 +2629,13 @@ class TestWhatAlwaysLeaves:
                 '        case _:\n            return 2\n'
             ),
             'held return': 'def f(x):\n    with lock():\n        return 1\n',
+            'class body raises': (
+                'def f(x):\n    class A:\n        raise ValueError()\n'
+            ),
+            'endless loop leaves': 'def f(x):\n    while True:\n        return 1\n',
+            'loop else leaves': (
+                'def f(xs):\n    for x in xs:\n        pass\n    else:\n        return 1\n'
+            ),
             'else leaves': (
                 'def f(x):\n    try:\n        one()\n'
                 '    except ValueError:\n        return 2\n    else:\n        return 3\n'
@@ -2622,6 +2668,15 @@ class TestWhatAlwaysLeaves:
                 'def f(x):\n    match x:\n        case 1:\n            return 1\n'
             ),
             'held raise': 'def f(x):\n    with lock():\n        raise ValueError()\n',
+            'class body carries on': 'def f(x):\n    class A:\n        field = 1\n',
+            'loop may be empty': 'def f(xs):\n    for x in xs:\n        return 1\n',
+            'break carries on past a loop': (
+                'def f(xs):\n    while True:\n        if xs:\n            break\n'
+                '        return 1\n'
+            ),
+            'loop else carries on': (
+                'def f(xs):\n    for x in xs:\n        return 1\n    else:\n        one()\n'
+            ),
         }
         read = {
             label: check_wiki._always_leaves(self._last(source))
@@ -2729,3 +2784,95 @@ class TestWhatAClassBodyLeaves:
         assert isinstance(held, ast.FunctionDef)
 
         assert not check_wiki._can_leave(held.body)
+
+
+class TestCatchAllPatterns:
+    @staticmethod
+    def _match(source: str) -> ast.Match:
+        held = ast.parse(source).body[0]
+        assert isinstance(held, ast.Match)
+
+        return held
+
+    def test_every_catch_all_pattern_takes_every_value(self) -> None:
+        shapes = {
+            'bare capture': 'match x:\n    case other:\n        pass\n',
+            'wildcard': 'match x:\n    case _:\n        pass\n',
+            'bound capture': 'match x:\n    case value as bound:\n        pass\n',
+            'bound wildcard in an or': 'match x:\n    case 1 | _ as name:\n        pass\n',
+        }
+        read = {
+            label: check_wiki._covers_everything(self._match(source))
+            for label, source in shapes.items()
+        }
+
+        assert read == dict.fromkeys(shapes, True)
+
+    def test_a_narrowing_pattern_takes_only_its_own(self) -> None:
+        shapes = {
+            'bound kind': 'match x:\n    case int() as n:\n        pass\n',
+            'values in an or': 'match x:\n    case 1 | 2:\n        pass\n',
+        }
+        read = {
+            label: check_wiki._covers_everything(self._match(source))
+            for label, source in shapes.items()
+        }
+
+        assert read == dict.fromkeys(shapes, False)
+
+
+class TestWhatAClassBodyOverrides:
+    def test_a_class_body_raise_in_a_finally_takes_the_branch_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            if x:\n"
+            "                act(x)\n                return 1\n            go(x)\n"
+            "        finally:\n            class A:\n                raise ValueError()\n"
+            "    done()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 7 in second for first, second in spans)
+
+    @staticmethod
+    def _spans(
+        source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> list[tuple[set[int], set[int]]]:
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+
+        return spans
+
+
+class TestWhatABreakLeaves:
+    @staticmethod
+    def _body(source: str) -> list[ast.stmt]:
+        held = ast.parse(source).body[0]
+        assert isinstance(held, ast.FunctionDef)
+        loop = held.body[0]
+        assert isinstance(loop, (ast.For, ast.While))
+
+        return loop.body
+
+    def test_a_break_in_a_branch_leaves_the_loop(self) -> None:
+        source = 'def f(xs, flag):\n    for x in xs:\n        if flag:\n            break\n'
+
+        assert check_wiki._breaks_out(self._body(source))
+
+    def test_a_break_in_a_nested_loop_leaves_that_loop(self) -> None:
+        source = (
+            'def f(xs, ys):\n    for x in xs:\n        for y in ys:\n            break\n'
+        )
+
+        assert not check_wiki._breaks_out(self._body(source))
+
+    def test_a_break_in_a_nested_loops_else_leaves_the_loop_outside(self) -> None:
+        source = (
+            'def f(xs, ys):\n    for x in xs:\n        for y in ys:\n            pass\n'
+            '        else:\n            break\n'
+        )
+
+        assert check_wiki._breaks_out(self._body(source))

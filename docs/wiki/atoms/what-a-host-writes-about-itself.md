@@ -2,7 +2,7 @@
 row: P4-14
 baseline: 49aa659
 created: 2026-10-03 20:04 UTC
-modified: 2026-10-10 11:30 UTC
+modified: 2026-10-10 12:13 UTC
 evidence:
   - claim: "A line written through the arrangement itself is rendered as JSON and handed to a writer the library makes"
     source: "`praxis/infrastructure/observability.py` 59 and 62"
@@ -12,7 +12,7 @@ evidence:
     source: "`praxis/infrastructure/observability.py` 49-50"
   - claim: "A name absent from the logging module falls back to the level called INFO"
     source: "`praxis/infrastructure/observability.py` 45"
-  - claim: "A name present there is taken whatever it means, so one naming no level at all is taken and fails later"
+  - claim: "A name the module carries is taken whatever it stands for, and handed to the library as it is"
     source: "`praxis/infrastructure/observability.py` 45 reaching 61"
   - claim: "Context is bound once the settings have been read, the manifests loaded and the credentials fetched"
     source: "`launcher.py` 4982 into `praxis/infrastructure/observability.py` 98, the epoch read at `launcher.py` 4867"
@@ -35,7 +35,7 @@ Two routes reach the output. A line written through the arrangement is handed to
 
 A level is named in the settings, uppercased, and looked for among the names the logging module carries.
 
-A name it does not carry falls back to the one called INFO. A name it does carry is taken for whatever it means — so a shorthand resolves to the level it is short for, and a name that stands for something other than a level is taken all the same, and fails later when the arrangement tries to use it.
+A name it does not carry falls back to the one called INFO. A name it does carry is taken for whatever it stands for and handed to the library as it is, nothing in between asking whether a level is what came back.
 
 ## The context
 

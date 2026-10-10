@@ -2,7 +2,7 @@
 row: P3-10
 baseline: 49aa659
 created: 2026-09-28 11:30 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-10 12:13 UTC
 evidence:
   - claim: "A replay's figures come from the record and from the scenario's own bars"
     source: "`build_replay_report.py` 53-57 and 77-83"
@@ -43,7 +43,7 @@ Four figures over closed trades are rounded to a fixed step, and those same four
 
 Elsewhere an undefined figure is kept but left empty. A win rate with no trades behind it is still named in the report, holding nothing rather than nought.
 
-## Three points, not one
+## A spread in three points
 
 Most distribution figures come back as three points — a low, a middle and a high — so the spread is visible rather than averaged away. One is an exception and comes back as a single number.
 

@@ -2,7 +2,7 @@
 row: P4-28
 baseline: 49aa659
 created: 2026-10-02 09:37 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-10 12:13 UTC
 evidence:
   - claim: "A settings object of the right kind is handed straight back"
     source: "`command_translator.py` 330-331, and 261-262 for the plain single order"
@@ -41,7 +41,7 @@ A key outside the kind's own fields refuses it too, rather than being quietly dr
 
 A field that wants a tuple takes a list and is given a tuple.
 
-## One table, not two
+## Where the keys come from
 
 The keys a mode allows are read off its settings kind's own fields, once, as the module is loaded. Registering a kind for a mode is all this translation needs — there is no second list of keys here to drift from the fields it would mirror.
 
