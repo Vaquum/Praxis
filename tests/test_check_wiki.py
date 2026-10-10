@@ -1736,6 +1736,106 @@ class TestTheFinallyClause:
 
         assert not any(4 in first and 9 in second for first, second in spans)
 
+    def test_a_handler_naming_a_tuple_catches_a_kind_in_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise ValueError()\n"
+            "            except (ValueError, TypeError):\n                return 1\n"
+            "        later()\n    except ValueError:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 9 in second for first, second in spans)
+
+    def test_a_tuple_naming_every_error_catches_anything(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise errors.Failed()\n"
+            "            except (BaseException,):\n                return 1\n"
+            "        later()\n    except Exception:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 9 in second for first, second in spans)
+
+    def test_a_kind_outside_exception_is_no_catch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise KeyboardInterrupt()\n"
+            "            except Exception:\n                return 1\n"
+            "        later()\n    except BaseException:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 11 in second for first, second in spans)
+
+    def test_a_raise_naming_nothing_plain_is_no_catch_for_exception(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise errors.Failed()\n"
+            "            except Exception:\n                return 1\n"
+            "        later()\n    except BaseException:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 11 in second for first, second in spans)
+
+    def test_a_kind_under_exception_is_caught_by_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                mark()\n                raise ValueError()\n"
+            "            except Exception:\n                return 1\n"
+            "        later()\n    except ValueError:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 9 in second for first, second in spans)
+
+    def test_a_body_that_cannot_raise_reaches_no_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            return 1\n        except ValueError:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 8 in second for first, second in spans)
+
+    def test_a_body_that_could_raise_reaches_its_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            return work()\n        except ValueError:\n            pass\n"
+            "    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 8 in second for first, second in spans)
+
+    def test_a_loop_that_never_runs_holds_no_way_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        while False:\n"
+            "            raise ValueError()\n        return\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 7 in second for first, second in spans)
+
     def test_a_handler_naming_no_kind_catches_the_raise(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

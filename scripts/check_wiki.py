@@ -44,6 +44,7 @@ HEADING_NEGATION = re.compile(r',\s+not\b', re.IGNORECASE)
 _CARRIES_ON = 'carries on'
 _ENDLESS = 'endless'
 _RAISE = 'raise'
+_BEYOND_EXCEPTION = ('KeyboardInterrupt', 'SystemExit', 'GeneratorExit')
 APPARATUS = ('## Evidence', '| Claim | Source |')
 CODE_LABEL = re.compile(r'`([^`]+)`')
 RATIONALE = re.compile(
@@ -1122,9 +1123,11 @@ def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
     '''Return the raises a `try`'s own handlers certainly catch.
 
     A handler naming no kind catches anything, as does one naming
-    `Exception` or `BaseException`. One naming some other kind catches
-    a raise of that kind by name alone: a raise of a kind under it, or
-    of a kind named through something else, is left as a way out.
+    `BaseException`. One naming `Exception` catches every named kind
+    but the three that stand outside it. One naming some other kind
+    catches a raise of that kind by name alone: a raise of a kind under
+    it, or of a kind named through something else, is left as a way
+    out, and so is a raise naming nothing.
 
     Args:
         node (ast.Try): The statement to read.
@@ -1143,8 +1146,12 @@ def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
         return raises
 
     named = _handler_kinds(node)
+    caught = {way for way in raises if way.partition(':')[2] in named}
 
-    return {way for way in raises if way.partition(':')[2] in named}
+    if 'Exception' in named:
+        caught |= {way for way in raises if _under_exception(way)}
+
+    return caught
 
 
 def _catches_anything(node: ast.Try | ast.TryStar) -> bool:
@@ -1160,27 +1167,49 @@ def _catches_anything(node: ast.Try | ast.TryStar) -> bool:
     '''
 
     return any(
-        handler.type is None or _names_any_error(handler.type)
+        handler.type is None or _names_every_error(handler.type)
         for handler in node.handlers
     )
 
 
-def _names_any_error(named: ast.expr) -> bool:
+def _names_every_error(named: ast.expr) -> bool:
 
     '''Whether what a handler names covers every error.
+
+    `Exception` does not: three kinds stand outside it, so a handler
+    naming it is read for the kinds it does cover rather than as a
+    catch-all.
 
     Args:
         named (ast.expr): The kind the handler names.
 
     Returns:
-        bool: True for `Exception`, `BaseException`, or a tuple holding
-            one of them.
+        bool: True for `BaseException`, or a tuple holding it.
     '''
 
     if isinstance(named, ast.Tuple):
-        return any(_names_any_error(held) for held in named.elts)
+        return any(_names_every_error(held) for held in named.elts)
 
-    return isinstance(named, ast.Name) and named.id in {'Exception', 'BaseException'}
+    return isinstance(named, ast.Name) and named.id == 'BaseException'
+
+
+def _under_exception(way: str) -> bool:
+
+    '''Whether a raise way names a kind `Exception` covers.
+
+    A raise naming nothing could be any kind, the three outside
+    `Exception` among them, so it is not covered.
+
+    Args:
+        way (str): The way, as `raise` with the kind it names.
+
+    Returns:
+        bool: True where that kind stands under `Exception`.
+    '''
+
+    kind = way.partition(':')[2]
+
+    return bool(kind) and kind not in _BEYOND_EXCEPTION
 
 
 def _handler_kinds(node: ast.Try | ast.TryStar) -> set[str]:
@@ -1214,7 +1243,8 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
 
     A raise in the body is read as a way out unless a handler of its
     own certainly catches it, the handlers' ways standing beside it
-    either way. The `else` runs where the body reaches its end. A `finally` runs last, so
+    wherever the body could raise at all. The `else` runs where the
+    body reaches its end. A `finally` runs last, so
     where it always leaves it is the only way the statement ends, and
     where it leaves on some paths those ways are added to the rest.
 
@@ -1231,8 +1261,10 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
     if _CARRIES_ON in held:
         ways |= _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
 
-    for handler in statement.handlers:
-        ways |= _block_ways(handler.body)
+    if _may_raise(statement.body):
+
+        for handler in statement.handlers:
+            ways |= _block_ways(handler.body)
 
     if not statement.finalbody:
         return ways
@@ -1252,7 +1284,8 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     and run its `else`, a `for` over something empty included. An
     endless `while` is finished by a break alone, so without one it
     reaches neither its `else` nor anything after it, and ends by
-    nothing at all.
+    nothing at all. A `while` on a condition that never holds runs
+    none of its body, so only its `else` is read.
 
     Args:
         statement (ast.For): The loop to read.
@@ -1260,6 +1293,9 @@ def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
     Returns:
         set[str]: Those ways.
     '''
+
+    if isinstance(statement, ast.While) and _never_runs(statement.test):
+        return _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
 
     inside = _block_ways(statement.body)
     ways = inside - {_CARRIES_ON, 'break', 'continue'}
@@ -1533,6 +1569,51 @@ def _always_leaves(statement: ast.stmt) -> bool:
     '''
 
     return _CARRIES_ON not in _statement_ways(statement)
+
+
+def _never_runs(test: ast.expr) -> bool:
+
+    '''Whether a loop's condition is written as one that never holds.
+
+    Args:
+        test (ast.expr): The condition.
+
+    Returns:
+        bool: True where it is a constant that does not hold.
+    '''
+
+    return isinstance(test, ast.Constant) and not bool(test.value)
+
+
+def _may_raise(body: list[ast.stmt]) -> bool:
+
+    '''Whether anything in a block could raise.
+
+    Only the plainest statements are read as unable to: a pass, a
+    break, a continue, and a return of a constant or of nothing. A call
+    of any kind, a name looked up, a subscript or a sum could raise, so
+    everything else is read as able to.
+
+    Args:
+        body (list[ast.stmt]): The block's statements.
+
+    Returns:
+        bool: True where a handler of the block could run.
+    '''
+
+    for statement in body:
+
+        if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
+            continue
+
+        if isinstance(statement, ast.Return) and (
+            statement.value is None or isinstance(statement.value, ast.Constant)
+        ):
+            continue
+
+        return True
+
+    return False
 
 
 def _endless(test: ast.expr) -> bool:
