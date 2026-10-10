@@ -917,7 +917,10 @@ def _after_the_branch(
     is measured from the `finally` rather than from the branch, and a
     `finally` leaving by more than one way reaches nothing. So does an
     arm leaving by more than one way, every statement of it that can
-    leave being read rather than the last alone.
+    leave being read rather than the last alone. An arm that could
+    raise where it stands reaches no further than such a raise would,
+    since a handler or a context manager between the arm and the end
+    carries that run on past it.
 
     Args:
         node (ast.If): The `if` the arm belongs to.
@@ -931,15 +934,17 @@ def _after_the_branch(
     override = _overridden(scopes, node.lineno)
     kind = override[0] if override is not None else _one_leave(statements)
     measured = override[1] if override is not None else node.lineno
-    tried = _reach_of(kind, scopes, measured)
+    reach = _as_far_as(kind, scopes, measured)
 
-    if not tried:
+    if not reach:
         return set()
 
-    stop = next(
-        (found for scope in tried if (found := _innermost(scope, measured))), 0,
-    )
-    after = set(range((node.end_lineno or node.lineno) + 1, stop + 1))
+    if _may_raise(statements):
+        reach &= _as_far_as('raise', scopes, measured)
+
+    after = {
+        line for line in reach if line > (node.end_lineno or node.lineno)
+    }
     running = scopes.regardless
 
     if kind == 'continue':
@@ -949,6 +954,32 @@ def _after_the_branch(
         running += scopes.handlers
 
     return after - _still_runs(running, node.lineno)
+
+
+def _as_far_as(kind: str, scopes: _Scopes, line: int) -> set[int]:
+
+    '''Return every line up to where a branch leaving one way reaches.
+
+    Args:
+        kind (str): The way it leaves.
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): Where that way out is measured from.
+
+    Returns:
+        set[int]: Those lines, or none where the way out names no
+            block to reach the end of.
+    '''
+
+    tried = _reach_of(kind, scopes, line)
+
+    if not tried:
+        return set()
+
+    stop = next(
+        (found for scope in tried if (found := _innermost(scope, line))), 0,
+    )
+
+    return set(range(stop + 1))
 
 
 def _overridden(scopes: _Scopes, line: int) -> tuple[str, int] | None:
@@ -2153,9 +2184,10 @@ def _written_truth_of_both(test: ast.BoolOp) -> bool | None:
 
     '''Whether an `and` or an `or` of written-out answers is known.
 
-    An `and` holds where every part does and fails where any part
-    fails; an `or` the other way about. A part that is not written out
-    leaves the rest to decide, or leaves the answer unknown.
+    The parts are read in order, as Python reads them. An `and` fails
+    at the first part that fails and an `or` holds at the first that
+    holds, so the last part answers for the rest; a part that is not
+    written out leaves the answer unknown, whatever stands after it.
 
     Args:
         test (ast.BoolOp): The condition.
@@ -2164,19 +2196,18 @@ def _written_truth_of_both(test: ast.BoolOp) -> bool | None:
         bool | None: True, False, or None where it is not known.
     '''
 
-    answers = [_written_truth(part) for part in test.values]
+    wanted = isinstance(test.op, ast.Or)
 
-    if isinstance(test.op, ast.And):
+    for part in test.values[:-1]:
+        answer = _written_truth(part)
 
-        if any(answer is False for answer in answers):
-            return False
+        if answer is None:
+            return None
 
-        return True if all(answer is True for answer in answers) else None
+        if answer is wanted:
+            return wanted
 
-    if any(answer is True for answer in answers):
-        return True
-
-    return False if all(answer is False for answer in answers) else None
+    return _written_truth(test.values[-1])
 
 
 def _iterates_nothing(gone_over: ast.expr) -> bool:

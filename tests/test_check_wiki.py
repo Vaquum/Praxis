@@ -598,6 +598,17 @@ class TestProtocolExemption:
                 id='unpacking',
             ),
             pytest.param(
+                'from typing import Protocol\nProtocol: type = object\n'
+                'class A(Protocol):\n' + _STUB,
+                id='annotated-reassignment',
+            ),
+            pytest.param(
+                'from typing import Protocol\nmatch held:\n'
+                '    case {"a": 1, **Protocol}:\n        pass\n'
+                'class A(Protocol):\n' + _STUB,
+                id='mapping-rest',
+            ),
+            pytest.param(
                 'from typing import Protocol\nfor Protocol in [object]:\n    pass\n'
                 'class A(Protocol):\n' + _STUB,
                 id='loop-target',
@@ -1973,6 +1984,17 @@ class TestTheFinallyClause:
 
         assert unpaired == list(shapes)
 
+    def test_an_and_settles_only_where_what_runs_first_is_written_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        if work() and False:\n"
+            "            pass\n        else:\n            return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 7 in second for first, second in spans)
+
     def test_what_a_match_is_given_and_asks_could_raise(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2529,13 +2551,36 @@ class TestTheFinallyClause:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         source = (
+            "def f(x):\n    try:\n        if x:\n            return 1\n"
+            "        two()\n    except ValueError:\n        pass\n"
+            "    three()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 8 in second for first, second in spans)
+
+    def test_an_arm_that_could_raise_reaches_no_further_than_the_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
             "def f(x):\n    try:\n        if x:\n            one()\n"
             "            return 1\n    except ValueError:\n        pass\n"
             "    two()\n"
         )
         spans = self._spans(source, tmp_path, monkeypatch)
 
-        assert any(4 in first and 8 in second for first, second in spans)
+        assert not any(4 in first and 8 in second for first, second in spans)
+
+    def test_a_with_around_a_branch_bounds_what_it_reaches(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    with held():\n        if flag:\n            mark()\n"
+            "            return work()\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 6 in second for first, second in spans)
 
     def test_a_raise_caught_inside_a_finally_is_no_override(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
