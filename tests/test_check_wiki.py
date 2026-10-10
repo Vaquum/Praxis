@@ -1939,6 +1939,73 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 10 in second for first, second in spans)
 
+    def test_a_raise_a_with_is_not_told_of_may_still_be_swallowed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        with held():\n            mark()\n"
+            "            return work()\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 6 in second for first, second in spans)
+
+    def test_a_part_before_one_that_settles_it_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'an or settled after a call': '            if work() or True:\n',
+            'an and settled after a call': '            if work() and False:\n',
+        }
+        unpaired = [
+            label for label, branch in shapes.items()
+            if not any(
+                3 in first and 9 in second
+                for first, second in self._spans(
+                    "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+                    + branch + "                return 1\n"
+                    "        except Exception:\n            pass\n    later()\n",
+                    tmp_path,
+                    monkeypatch,
+                )
+            )
+        ]
+
+        assert unpaired == list(shapes)
+
+    def test_what_a_match_is_given_and_asks_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a subject worked out': (
+                "            match work():\n                case _:\n"
+                "                    return 1\n"
+            ),
+            'a guard worked out': (
+                "            match 1:\n                case _ if work() or True:\n"
+                "                    return 1\n"
+            ),
+            'a body that acts': (
+                "            match 1:\n                case _:\n"
+                "                    work()\n            return 1\n"
+            ),
+        }
+        unpaired = []
+
+        for label, held in shapes.items():
+            source = (
+                "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+                + held + "        except Exception:\n            pass\n"
+                "    later()\n"
+            )
+            last = source.splitlines().index('    later()') + 1
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(3 in first and last in second for first, second in spans):
+                unpaired.append(label)
+
+        assert unpaired == list(shapes)
+
     def test_a_call_spelled_as_something_empty_is_written_out_as_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

@@ -1098,7 +1098,10 @@ def _holder_ways(statement: ast.stmt) -> set[str]:
         return _match_ways(statement)
 
     if isinstance(statement, (ast.With, ast.AsyncWith)):
-        return _held_ways(_block_ways(statement.body))
+        return _held_ways(
+            _block_ways(statement.body),
+            could_raise=_may_raise(statement.body),
+        )
 
     if isinstance(statement, (ast.Try, ast.TryStar)):
         return _try_ways(statement)
@@ -1141,22 +1144,27 @@ def _match_ways(statement: ast.Match) -> set[str]:
     return ways if _covers_everything(statement) else ways | {_CARRIES_ON}
 
 
-def _held_ways(ways: set[str]) -> set[str]:
+def _held_ways(ways: set[str], *, could_raise: bool) -> set[str]:
 
     '''Return the ways a `with` ends, given the ways its body can.
 
     A context manager can swallow a raise, so what follows the `with`
     may run after all — and may not, so the raise stands as a way out
-    beside carrying on.
+    beside carrying on. A raise the body could take without saying so,
+    out of a call or a name or a sum, is swallowed the same way, and
+    carrying on stands beside the body's own ways for it.
 
     Args:
         ways (set[str]): The ways its body can end.
+        could_raise (bool): Whether anything the body runs could raise
+            without that being one of those ways.
 
     Returns:
-        set[str]: Those ways, a raise read as carrying on.
+        set[str]: Those ways, with carrying on where a raise could be
+            swallowed.
     '''
 
-    if not any(way.startswith(_RAISE) for way in ways):
+    if not could_raise and not any(way.startswith(_RAISE) for way in ways):
         return ways
 
     return ways | {_CARRIES_ON}
