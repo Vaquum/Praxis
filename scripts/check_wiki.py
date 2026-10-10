@@ -36,7 +36,8 @@ ROW_OPENING = re.compile(r'^\|\s*(P\d+-\d{2})\s*\|', re.MULTILINE)
 BANNED_HEADINGS = ('## What it is', '## Overview', '## Introduction')
 NEGATIVE_DEF = re.compile(r',\s+not\s+(?:a|an|the|yet|by|its|one)\b', re.IGNORECASE)
 DOUBLE_NEGATIVE = re.compile(
-    r'\b(?:not|never|n\'t)\b[^.;:]{0,40}\b(?:nothing|no one|nobody|never|none)\b',
+    r'(?:\bnot\b|\bnever\b|n[\'\u2019]t\b)'
+    r'[^.;:]{0,40}\b(?:nothing|no one|nobody|never|none)\b',
     re.IGNORECASE,
 )
 APPARATUS = ('## Evidence', '| Claim | Source |')
@@ -918,7 +919,9 @@ def _can_leave(body: list[ast.stmt]) -> bool:
     )
 
 
-def _leaves_this_block(statement: ast.stmt, *, within_loop: bool) -> bool:
+def _leaves_this_block(
+    statement: ast.stmt, *, within_loop: bool, raising_leaves: bool = True,
+) -> bool:
 
     '''Whether a statement can take the path out of the block holding it.
 
@@ -927,11 +930,15 @@ def _leaves_this_block(statement: ast.stmt, *, within_loop: bool) -> bool:
     written inside a nested loop leaves that — though one in that loop's
     `else` carries on the loop outside it, and so leaves the block. A
     function, a lambda and a class carry their own ways out and are not
-    looked into.
+    looked into. A raise in the body of a try that has a handler may be
+    caught there, so it is taken not to leave; a return, a continue or a
+    break in that same body leaves as it would anywhere.
 
     Args:
         statement (ast.stmt): The statement to read.
         within_loop (bool): Whether a loop of the block's own holds it.
+        raising_leaves (bool): Whether a raise here leaves the block,
+            which the body of a try with a handler is read without.
 
     Returns:
         bool: True where the block can be left here.
@@ -943,28 +950,31 @@ def _leaves_this_block(statement: ast.stmt, *, within_loop: bool) -> bool:
     ):
         return False
 
-    if isinstance(statement, (ast.Return, ast.Raise)):
+    if isinstance(statement, ast.Return):
         return True
+
+    if isinstance(statement, ast.Raise):
+        return raising_leaves
 
     if isinstance(statement, (ast.Continue, ast.Break)):
         return not within_loop
 
+    caught: list[ast.stmt] = []
+    after: list[ast.stmt] = []
+
     if isinstance(statement, (ast.Try, ast.TryStar)) and statement.handlers:
-        return any(
-            _leaves_this_block(held, within_loop=within_loop)
-            for block in _child_blocks(statement)
-            if block is not statement.body
-            for held in block
-        )
+        caught = statement.body
+
+    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+        after = statement.orelse
 
     loops = isinstance(statement, (ast.For, ast.AsyncFor, ast.While))
-    after = statement.orelse if isinstance(
-        statement, (ast.For, ast.AsyncFor, ast.While),
-    ) else []
 
     return any(
         _leaves_this_block(
-            held, within_loop=within_loop or (loops and block is not after),
+            held,
+            within_loop=within_loop or (loops and block is not after),
+            raising_leaves=raising_leaves and block is not caught,
         )
         for block in _child_blocks(statement)
         for held in block

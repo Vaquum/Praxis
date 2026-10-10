@@ -1600,6 +1600,32 @@ class TestTheFinallyClause:
         assert any(5 in first and 7 in second for first, second in spans)
         assert not any(4 in first or 4 in second for first, second in spans)
 
+    def test_a_break_in_a_caught_try_still_overrides(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(xs):\n    for x in xs:\n        try:\n            if x:\n"
+            "                mark()\n                return 1\n        finally:\n"
+            "            try:\n                break\n"
+            "            except ValueError:\n                pass\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 12 in second for first, second in spans)
+        assert not any(5 in second and 12 in first for first, second in spans)
+
+    def test_a_return_in_a_caught_try_still_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            one()\n"
+            "            return 1\n    except ValueError:\n        pass\n"
+            "    two()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 8 in second for first, second in spans)
+
     def test_a_raise_caught_inside_a_finally_is_no_override(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2277,6 +2303,20 @@ class TestEveryListedShape:
         ]
 
         assert refused == list(tails)
+
+    def test_every_double_negative_opening_is_refused(self) -> None:
+        openings = ('does not leave', 'never leaves', "doesn't leave")
+        refused = [
+            opening for opening in openings
+            if check_wiki._negative_definitions(f'It {opening} nothing behind.')
+        ]
+
+        assert refused == list(openings)
+
+    def test_a_curly_apostrophe_opening_is_refused(self) -> None:
+        assert check_wiki._negative_definitions(
+            'It doesn\u2019t leave nothing behind.',
+        )
 
     def test_every_counting_word_is_refused(self) -> None:
         numbers = (

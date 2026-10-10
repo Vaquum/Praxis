@@ -23,7 +23,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Alerts](atoms/alerts.md) — how Praxis says something needs a person: a marked log line, and a web call where one is configured.
 - [Where credentials come from](atoms/where-credentials-come-from.md) — the key and secret for an account, fetched once at startup and handed on to be kept.
 - [What a host writes about itself](atoms/what-a-host-writes-about-itself.md) — a host writes JSON to standard output, one piece per line, each carrying its level and the moment in UTC.
-- [What the logging arrangement misses](atoms/what-the-logging-arrangement-misses.md) — the arrangement a host sets up is narrower than it looks: it touches the root alone, and asking for plain text does nothing where a handler is already attached there.
+- [What the logging arrangement misses](atoms/what-the-logging-arrangement-misses.md) — the arrangement a host sets up is narrower than it looks: it touches the root alone, and asking for plain text hands the work to Python with nothing forcing it through.
 - [Starting a host](atoms/starting-a-host.md) — what one process does to bring Praxis and Nexus up, in the order it does it.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [The settings each way of working takes](atoms/the-settings-each-way-of-working-takes.md) — each way of working carries settings of the kind it registers, and each kind has demands of its own.
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-10 09:36 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-10 10:02 UTC
