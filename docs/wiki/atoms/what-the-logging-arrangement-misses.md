@@ -2,7 +2,7 @@
 row: P4-37
 baseline: 49aa659
 created: 2026-10-03 20:11 UTC
-modified: 2026-10-09 17:24 UTC
+modified: 2026-10-10 09:36 UTC
 evidence:
   - claim: "Whatever was attached to the root of Python's logging is detached, and one handler put in its place"
     source: "`praxis/infrastructure/observability.py` 80-82"
@@ -37,7 +37,7 @@ The arrangement's own route is the other way about: it writes to standard output
 
 ## Plain text may change nothing
 
-Asking for plain text calls Python's own setting-up, and nothing forces that call through. Where a handler is already attached to the root, it does nothing at all — which includes nothing being done with the level it was given.
+Asking for plain text calls Python's own setting-up, and nothing forces that call through. Python's own rule then applies: where a handler is already attached to the root, that call does nothing at all, the level it was given included.
 
 Either way the level goes over as it stands; nothing in Praxis reads it first. The other route does read it, and falls back to its own default where the name means nothing to it.
 

@@ -2,7 +2,7 @@
 row: P2-25
 baseline: 49aa659
 created: 2026-09-25 08:00 UTC
-modified: 2026-10-10 07:39 UTC
+modified: 2026-10-10 09:36 UTC
 evidence:
   - claim: "The report is settled as expired before the venue is asked anything, and a mark set with it"
     source: "`execution_manager.py` 4415-4417"
@@ -24,8 +24,10 @@ evidence:
     source: "wrapped at `binance_adapter.py` 660-662, or raised at 1143-1152, caught at `execution_manager.py` 4433-4435"
   - claim: "On a run's child cancel the same body is caught and skipped, leaving the run awaiting its children"
     source: "`execution_manager.py` 6461-6468, the run held open at 6355-6356"
-  - claim: "A field failure there stops the account only where the drain or a wind-up asked"
+  - claim: "A field failure there stops the account where the worker's drain or a wind-up asked"
     source: "reaching `execution_manager.py` 4025-4026 from either 3960 or 8382, logged instead at either 3944-3951 or 7303-7308"
+  - claim: "Asked for instead while an account is being given up on, the same failure carries out of the start"
+    source: "`execution_manager.py` 3657, reached from `praxis/trading.py` 623 and out through 525-528"
 ---
 # The expiry cancel
 
@@ -49,7 +51,7 @@ A body that will not parse at all is different again — that counts as a venue 
 
 ## The same reply on other cancels
 
-The orders of work carried out as several orders are cancelled elsewhere, and there the same unreadable body is caught and skipped, leaving the run waiting on children. A failure reading a *field* there stops the account, but only where the drain or a winding-up asked for it; a [cancellation from outside](how-a-trade-is-cancelled.md), or the repair pass, logs it and carries on.
+The orders of work carried out as several orders are cancelled elsewhere, and there the same unreadable body is caught and skipped, leaving the run waiting on children. A failure reading a *field* there stops the account where the worker's drain or a winding-up asked for it. Asked for as an account is given up on, it carries out of the start. A [cancellation from outside](how-a-trade-is-cancelled.md), or the repair pass, logs it and carries on.
 
 ## Related
 
