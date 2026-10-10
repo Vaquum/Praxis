@@ -1256,11 +1256,29 @@ def _covers_everything(node: ast.Match) -> bool:
 
     last = node.cases[-1]
 
-    return (
-        isinstance(last.pattern, ast.MatchAs)
-        and last.pattern.pattern is None
-        and last.guard is None
-    )
+    return last.guard is None and _takes_anything(last.pattern)
+
+
+def _takes_anything(pattern: ast.pattern) -> bool:
+
+    '''Whether a pattern matches every value.
+
+    A bare capture does, and so does an alternative holding one.
+
+    Args:
+        pattern (ast.pattern): The pattern to read.
+
+    Returns:
+        bool: True where nothing falls past it.
+    '''
+
+    if isinstance(pattern, ast.MatchAs):
+        return pattern.pattern is None or _takes_anything(pattern.pattern)
+
+    if isinstance(pattern, ast.MatchOr):
+        return any(_takes_anything(held) for held in pattern.patterns)
+
+    return False
 
 
 def _one_way(statements: list[ast.stmt]) -> str:
@@ -1441,7 +1459,8 @@ def _header_acts(statement: ast.stmt) -> bool:
 
     A context manager, a condition, a subject, a thing iterated over
     or a case's guard is worked out before the body runs, so a call
-    there is an act.
+    there is an act. A pattern is not among them: it tests a value
+    and holds no call of its own.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -2353,10 +2372,9 @@ def _what_a_citation_lands_on(
 
     span = list(range(start, end + 1))
     bare = facts.blanks | facts.comments | facts.docstrings | facts.signatures
-    told = _claims_a_docstring(row)
 
-    if all(n in facts.docstrings for n in span) and told:
-        return None
+    if _only_says(span, facts):
+        return None if _claims_a_docstring(row) else 'docstring'
 
     if all(n in bare for n in span):
         return 'no executable line'
@@ -2364,12 +2382,35 @@ def _what_a_citation_lands_on(
     inside = [n for n in span if n in facts.docstrings]
 
     if start in facts.docstrings or (inside and len(inside) * 2 > len(span)):
-        return None if told else 'docstring'
+        return 'docstring'
 
     if _only_logs(span, facts) and not _claims_a_message(row):
         return 'log call'
 
     return None
+
+
+def _only_says(span: list[int], facts: _FileFacts) -> bool:
+
+    '''Whether a cited range is docstring and nothing else that runs.
+
+    A range holding a docstring and nothing but blank lines and
+    comments besides is the docstring. One running on into code is
+    citing the code, whatever the row says it is quoting.
+
+    Args:
+        span (list[int]): The lines the citation covers.
+        facts (_FileFacts): What was read of the cited file.
+
+    Returns:
+        bool: True where the range is docstring alone.
+    '''
+
+    quiet = facts.docstrings | facts.blanks | facts.comments
+
+    return any(line in facts.docstrings for line in span) and all(
+        line in quiet for line in span
+    )
 
 
 def _only_logs(span: list[int], facts: _FileFacts) -> bool:

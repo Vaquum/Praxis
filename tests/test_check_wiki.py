@@ -130,6 +130,36 @@ class TestGuardsAndArms:
 
         assert missed == []
 
+    def test_an_or_pattern_holding_a_wildcard_takes_everything(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        match x:\n            case 1 | _:\n"
+            "                return 1\n    go(x)\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 6 in second for first, second in spans)
+
+    def test_an_or_pattern_without_one_does_not(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    if x:\n        match x:\n            case 1 | 2:\n"
+            "                return 1\n    go(x)\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_raise_inside_an_async_with_reaches_nothing_past_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "async def f(flag):\n    async with suppress(ValueError):\n"
+            "        if flag:\n            mark()\n            raise ValueError()\n\n"
+            "    after()\n"
+        )
+        assert not self._spans(source, tmp_path, monkeypatch)
+
     def test_a_case_guard_is_no_alternative_to_a_later_case(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1292,9 +1322,7 @@ class TestTheFindings:
             'the body does it | `praxis/core/domain/trade_outcome.py` 6-7',
             check_wiki._SourceFacts(),
         )
-        assert notes == [
-            'praxis/core/domain/trade_outcome.py:6-7 (no executable line)',
-        ]
+        assert notes == ['praxis/core/domain/trade_outcome.py:6-7 (docstring)']
 
 
 class TestWholeRanges:
@@ -2344,4 +2372,22 @@ class TestCodeLabels:
         )
 
         assert notes == []
+
+    @_NEEDS_BASELINE
+    def test_a_docstring_range_running_into_code_is_code(self) -> None:
+        notes = check_wiki._check_citations(
+            ['the docstring says so | `praxis/core/domain/trade_outcome.py` 1-30'],
+            check_wiki._SourceFacts(),
+        )
+
+        assert any('docstring' in note for note in notes)
+
+    @_NEEDS_BASELINE
+    def test_a_range_opening_in_a_docstring_is_a_docstring(self) -> None:
+        notes = check_wiki._check_citations(
+            ['the body does it | `praxis/core/domain/trade_outcome.py` 1-12'],
+            check_wiki._SourceFacts(),
+        )
+
+        assert any('docstring' in note for note in notes)
 
