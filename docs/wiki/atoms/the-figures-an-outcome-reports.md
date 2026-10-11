@@ -2,7 +2,7 @@
 row: P2-43
 baseline: 49aa659
 created: 2026-09-27 07:37 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:17 UTC
 evidence:
   - claim: "On the ordinary path the figure moves on as each slice is sent"
     source: "`execution_manager.py` 5923, set past the still-active child at 5920-5921"
@@ -22,7 +22,7 @@ evidence:
     source: "`execution_manager.py` 6311-6322, restored at 1970-1979"
   - claim: "How far along it is cannot be given where no target was"
     source: "`praxis/core/domain/trade_outcome.py` 182-185"
-  - claim: "The plain builder takes the target from the command's amount"
+  - claim: "The plain builder takes the target from the command's amount of coin, leaving it absent for one sized in money"
     source: "`execution_manager.py` 10789, the amount being one or the other by `praxis/core/domain/trade_command.py` 86-88"
   - claim: "An orphan found at a restart is given a standing target of one and nothing filled"
     source: "`execution_manager.py` 2309-2317 with the figure at 177"

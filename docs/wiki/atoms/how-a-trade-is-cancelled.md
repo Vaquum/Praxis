@@ -2,7 +2,7 @@
 row: P1-04
 baseline: 49aa659
 created: 2026-09-20 16:35 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:17 UTC
 evidence:
   - claim: "An unknown account is refused"
     source: "`execution_manager.py` 2995-2998"
@@ -44,8 +44,8 @@ evidence:
     source: "`binance_adapter.py` 1734-1736"
   - claim: "A body that will not parse is a venue error instead, so a reason is written and the report still built"
     source: "a success body wrapped at `binance_adapter.py` 660-680, or an error body raised at 1143-1152, caught at `execution_manager.py` 8534-8536, built at 8568-8570"
-  - claim: "The reported fill total is the one already recorded for the work"
-    source: "`execution_manager.py` 8549-8551, read at 2588-2591"
+  - claim: "The reported fill total is the one already recorded for the work, or nothing where none was recorded"
+    source: "`execution_manager.py` 8549-8551, read at 2588-2591, nothing reported instead past 2593"
 ---
 # Cancellation
 

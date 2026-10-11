@@ -2,7 +2,7 @@
 row: P3-01
 baseline: 49aa659
 created: 2026-09-28 08:58 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:17 UTC
 evidence:
   - claim: "A replay builds its own clock and venue"
     source: "`run_replay.py` 114-115"
@@ -14,7 +14,7 @@ evidence:
     source: "`run_replay.py` 231-241"
   - claim: "It tells the venue the price to fill at, then moves the clock to the bar's close"
     source: "`run_replay.py` 246-247"
-  - claim: "The strategy is then run once for that bar"
+  - claim: "Each binding's strategy is then run once for that bar"
     source: "`run_replay.py` 249-250"
   - claim: "The queued work is waited on, under a real time limit"
     source: "`run_replay.py` 264-266, waiting on the queue at `execution_manager.py` 3600-3604"
@@ -39,7 +39,7 @@ It is the same path. The checks, the [worker](how-waiting-work-is-drained.md), t
 
 The run walks [the scenario's](what-a-replay-is-given.md) bars in order. For each it lays out the figures the strategy will read, tells the venue what price to fill at, and moves the clock to that bar's close.
 
-Only then is the strategy run, once, for that bar.
+Only then is each binding's strategy run, once, for that bar.
 
 ## Settling before moving on
 

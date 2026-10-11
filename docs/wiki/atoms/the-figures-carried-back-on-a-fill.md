@@ -2,7 +2,7 @@
 row: P4-29
 baseline: 49aa659
 created: 2026-10-02 09:55 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:17 UTC
 evidence:
   - claim: "The amount and the money are differences against what crossed last time"
     source: "`outcome_translator.py` 191-192, the running marks set at 208-209"
@@ -14,7 +14,7 @@ evidence:
     source: "`outcome_translator.py` 282 and 312"
   - claim: "The rate must be a finite decimal, and at least nought"
     source: "`outcome_translator.py` 118-124"
-  - claim: "A part-fill and an ending report what remains as the target less the amount filled"
+  - claim: "A part-fill and an ending report what remains as the target less the amount filled, or nothing where no target was given"
     source: "`outcome_translator.py` 283-287 and 348-352"
   - claim: "Where no target amount was named, that figure is left absent"
     source: "`outcome_translator.py` 285-287, reachable where a command is sized in money at `praxis/core/domain/trade_command.py` 86-104 into `execution_manager.py` 10789"

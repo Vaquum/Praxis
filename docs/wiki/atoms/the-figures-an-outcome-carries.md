@@ -2,13 +2,13 @@
 row: P2-40
 baseline: 49aa659
 created: 2026-09-26 20:21 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:17 UTC
 evidence:
   - claim: "A target amount given must be a finite figure above zero"
     source: "`praxis/core/domain/trade_outcome.py` 118-124"
   - claim: "The amount filled cannot be below zero"
     source: "`praxis/core/domain/trade_outcome.py` 126-128"
-  - claim: "It cannot be above the target"
+  - claim: "It cannot be above the target, where a target was given"
     source: "`praxis/core/domain/trade_outcome.py` 130-132"
   - claim: "An average price, where one is given, must be above zero"
     source: "`praxis/core/domain/trade_outcome.py` 134-136"
