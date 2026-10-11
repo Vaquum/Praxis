@@ -2,7 +2,7 @@
 row: P2-26
 baseline: 49aa659
 created: 2026-09-25 19:08 UTC
-modified: 2026-10-11 20:29 UTC
+modified: 2026-10-11 20:32 UTC
 evidence:
   - claim: "A copy of the latest book per symbol, held in memory with its arrival time"
     source: "`book_cache.py` 38 for the store, 44-45 for the write, 29-31 for what a copy holds"
@@ -35,7 +35,7 @@ One background task is meant to run for each trading pair the paper accounts nam
 
 Two readers use the copy, and neither talks to the venue.
 
-One serves the checks a request passes before it is accepted. It always builds the gap between the best buy and sell prices, and hands back both moments — its own and the copy's — which the [decision side](what-a-reconciliation-tells-nexus.md) subtracts for an age. It builds a third figure — how far the middle of that gap sits from the price the request expected — only when a strategy price came with the request and is above zero.
+One serves the checks a request passes before it is accepted. It always builds the gap between the best buy and sell prices, and hands back both moments — its own and the copy's — which the [decision side](what-a-reconciliation-tells-nexus.md) subtracts. It builds a third figure — how far the middle of that gap sits from the price the request expected — only when a strategy price came with the request and is above zero.
 
 The other reads the middle of the gap alone, to turn an amount of money into an amount of coin.
 

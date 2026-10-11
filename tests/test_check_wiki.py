@@ -1135,7 +1135,7 @@ class TestTheCountedStates:
         )
 
     def test_a_drifted_untouched_count_is_caught(self, tmp_path: Path) -> None:
-        assert self._written(tmp_path, 'and 53 untouched.', '53 untouched')
+        assert self._written(tmp_path, 'and 52 untouched.', '52 untouched')
 
     @staticmethod
     def _written(tmp_path: Path, text: str, wanted: str) -> bool:
