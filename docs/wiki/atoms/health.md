@@ -2,10 +2,10 @@
 row: P3-15
 baseline: 49aa659
 created: 2026-09-30 09:14 UTC
-modified: 2026-10-11 19:11 UTC
+modified: 2026-10-11 20:06 UTC
 evidence:
   - claim: "One result is recorded per request that goes through the retrying path, across its retries, with the waiting counted in the time"
-    source: "`binance_adapter.py` 578-604"
+    source: "`binance_adapter.py` 578-604 for one that answers, or for one that does not either 607, or 633, or 655, or 658, or 673"
   - claim: "Recording is skipped for a missing order against the simulator"
     source: "`binance_adapter.py` 632-634"
   - claim: "An order the venue rejects is recorded as the venue having answered"
@@ -13,7 +13,7 @@ evidence:
   - claim: "Asking the time records no result"
     source: "`binance_adapter.py` 2353-2372"
   - claim: "A fixed number of the most recent are kept, the oldest falling out"
-    source: "`health_tracker.py` 75-76 with the count at 21"
+    source: "`health_tracker.py` 75-76 into the bounded stores made at 44-45, with the count at 21"
   - claim: "A window size that is not a whole number above zero is refused"
     source: "`health_tracker.py` 39-42"
   - claim: "A success resets the run of failures; a failure lengthens it"

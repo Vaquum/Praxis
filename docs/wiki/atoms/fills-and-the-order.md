@@ -2,11 +2,11 @@
 row: P2-31
 baseline: 49aa659
 created: 2026-09-25 19:37 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:06 UTC
 evidence:
   - claim: "The amount filled and the running value grow by what the fill brought"
     source: "`trading_state.py` 430-433"
-  - claim: "A fill naming an order held neither way adds nothing"
+  - claim: "A fill naming an order held neither way adds nothing to any order, the holdings still changing"
     source: "`trading_state.py` 426-428, holdings following at 403"
   - claim: "An order that named an amount is filled once that amount is reached"
     source: "`trading_state.py` 437-440"

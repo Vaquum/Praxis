@@ -2,7 +2,7 @@
 row: P3-18
 baseline: 49aa659
 created: 2026-09-30 10:22 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:06 UTC
 evidence:
   - claim: "A store of permits refills steadily and is capped"
     source: "`token_bucket.py` 76-79"
@@ -10,7 +10,7 @@ evidence:
     source: "`token_bucket.py` 83"
   - claim: "The wait is worked out once, counting what others already took"
     source: "`token_bucket.py` 82, slept at 87"
-  - claim: "A call given up on hands its permit back"
+  - claim: "A call cancelled while it waits hands its permit back"
     source: "`token_bucket.py` 88-95"
   - claim: "The waiting happens after the store is released"
     source: "`token_bucket.py` 85-87, past the holding at 74"
@@ -18,7 +18,7 @@ evidence:
     source: "`binance_adapter.py` 588, 2173 and 2263"
   - claim: "Asking the exchange the time takes none, and reads no allowance"
     source: "`binance_adapter.py` 2353-2364"
-  - claim: "The allowance used is read from the answers that carry it"
+  - claim: "The allowance used is read from the answers that carry it, where the figure reads as a whole number of nought or more"
     source: "`binance_adapter.py` 2425 into 2428-2433"
   - claim: "A limit of six thousand stands until the venue says otherwise"
     source: "`binance_adapter.py` 303 with the figure at 98"
@@ -41,7 +41,7 @@ This sits in front of the exchange's own limits rather than instead of them. Pra
 
 The wait is worked out once and not looked at again. It counts the permits others have already taken, so a second caller arriving at an empty store waits longer than the first, rather than both waiting the same.
 
-A call given up on before it goes hands its permit back — though a caller already sleeping on a wait that counted it keeps on sleeping.
+A call cancelled while it waits hands its permit back — though another caller already sleeping on a wait that counted that permit keeps on sleeping, the wait having been worked out once.
 
 ## Waiting without blocking
 
