@@ -2,7 +2,7 @@
 row: P4-25
 baseline: 49aa659
 created: 2026-10-02 08:55 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:43 UTC
 evidence:
   - claim: "These are the checks made as the settings are read, before the host is built"
     source: "`launcher.py` 4859-4980 ahead of the build at 4984-4991"
@@ -32,7 +32,7 @@ evidence:
     source: "`trading_config.py` 131-133"
   - claim: "An execution mode named that is not a known one refuses the start"
     source: "`launcher.py` 861-869, called at 4969-4975, with the simulator case at 871-876"
-  - claim: "A port for the endpoint that will not parse as a whole number refuses it"
+  - claim: "A port given for the endpoint that will not parse as a whole number refuses it, an empty one falling back to the default instead"
     source: "`launcher.py` 4979-4980"
 ---
 # Which settings are refused

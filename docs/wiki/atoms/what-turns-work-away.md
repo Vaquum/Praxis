@@ -2,7 +2,7 @@
 row: P2-24
 baseline: 49aa659
 created: 2026-09-24 21:11 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 19:43 UTC
 evidence:
   - claim: "Work is turned away while Praxis is shutting down"
     source: "`praxis/trading.py` 1878-1880"
@@ -11,7 +11,7 @@ evidence:
   - claim: "It is turned away for an account that has not finished starting, which an unknown name also fails"
     source: "`praxis/trading.py` 836-838, the only entry to that set being 606-608"
   - claim: "An account that failed its start never joins that set"
-    source: "`praxis/trading.py` 623 setting the flag at `execution_manager.py` 3643"
+    source: "`praxis/trading.py` 623 setting the flag at `execution_manager.py` 3643, the only entry to that set being `praxis/trading.py` 606-608"
   - claim: "An account poisoned later stays in the set, so the manager's own refusal is what catches it"
     source: "poisoned at `execution_manager.py` 4026, refused at 3434-3436"
   - claim: "A supplied request name that is empty is refused"

@@ -2,7 +2,7 @@
 row: P4-15
 baseline: 49aa659
 created: 2026-10-03 20:23 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:43 UTC
 evidence:
   - claim: "The reader opens one file per series, under a shared root"
     source: "`arrow_price_store.py` 92, the name at 28, the root kept at 59"
@@ -14,7 +14,7 @@ evidence:
     source: "`arrow_price_store.py` 114-116 and 119"
   - claim: "With it, where its stamp alone is at or before now"
     source: "`arrow_price_store.py` 114-116 and 119"
-  - claim: "The reader keeps no frame and no price, so each call opens the file again"
+  - claim: "The reader keeps no frame and no price, so each call opens the file again where it is there to open"
     source: "`arrow_price_store.py` 59-61 against 92-144"
 ---
 # Where the bars are kept

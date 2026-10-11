@@ -2,7 +2,7 @@
 row: P2-34
 baseline: 49aa659
 created: 2026-09-26 07:02 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:43 UTC
 evidence:
   - claim: "The call handing an event to the order-and-holdings update carries no guard"
     source: "`execution_manager.py` 2081"
@@ -22,7 +22,7 @@ evidence:
     source: "`execution_manager.py` 5874-5884, called at 5838"
   - claim: "Putting up protection for a bracket rebuilt after a restart has no guard of its own"
     source: "`execution_manager.py` 4738-4761, called at 3974"
-  - claim: "What escapes every guard stops the account"
+  - claim: "An ordinary failure escaping every guard stops the account"
     source: "`execution_manager.py` 4025-4026"
 ---
 # When an update fails
