@@ -12,6 +12,7 @@ import ast
 import importlib.util
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -4507,6 +4508,51 @@ class TestReferenceLinks:
             'links to shape.png#here, which is not written in text',
         ]
 
+    def test_a_name_no_filesystem_takes_is_a_broken_link(self, tmp_path: Path) -> None:
+        page = tmp_path / 'a.md'
+        held = 'b' * 300 + '.md'
+        page.write_text(f'see [the other]({held})\n')
+
+        assert check_wiki._broken_links(page, page.read_text()) == [
+            f'links to {held}, which does not exist',
+        ]
+
+    def test_a_name_holding_nothing_is_a_broken_link(self, tmp_path: Path) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the other](b\x00c.md)\n')
+
+        assert check_wiki._broken_links(page, page.read_text()) == [
+            'links to b\x00c.md, which does not exist',
+        ]
+
+    def test_a_name_whose_links_lead_back_is_a_broken_link(
+        self, tmp_path: Path,
+    ) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the other](b.md)\n')
+        (tmp_path / 'b.md').symlink_to(tmp_path / 'c.md')
+        (tmp_path / 'c.md').symlink_to(tmp_path / 'b.md')
+
+        assert check_wiki._broken_links(page, page.read_text()) == [
+            'links to b.md, which does not exist',
+        ]
+
+    def test_an_anchor_in_a_page_that_cannot_be_opened_is_refused(
+        self, tmp_path: Path,
+    ) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the other](b.md#here)\n')
+        held = tmp_path / 'b.md'
+        held.write_text('# B\n')
+        held.chmod(0o000)
+
+        try:
+            assert check_wiki._broken_links(page, page.read_text()) == [
+                'links to b.md#here, which is not written in text',
+            ]
+        finally:
+            held.chmod(0o644)
+
     def test_an_anchor_in_a_folder_is_a_missing_heading(self, tmp_path: Path) -> None:
         page = tmp_path / 'a.md'
         page.write_text('see [the folder](atoms#here)\n')
@@ -4792,6 +4838,48 @@ class TestWhatReachesAnAbsentNexus:
         assert not check_wiki._reaches_absent_nexus(
             'praxis/not_real/outcome_processor.py',
         )
+
+
+class TestWhatADeepNestCosts:
+    @staticmethod
+    def _nested(level: int, indent: int) -> str:
+        pad = ' ' * indent
+
+        if level == 0:
+            return f'{pad}pass\n'
+
+        return (
+            f'{pad}try:\n'
+            + TestWhatADeepNestCosts._nested(level - 1, indent + 4)
+            + f'{pad}except Exception:\n{pad}    pass\n'
+        )
+
+    def test_a_nest_of_tries_is_read_once_over(self, tmp_path: Path) -> None:
+        sample = tmp_path / 'sample.py'
+        sample.write_text(
+            'def f(flag):\n    if flag:\n'
+            + self._nested(22, 8)
+            + '        return 1\n    after()\n',
+        )
+        script = (
+            'import importlib.util\n'
+            'import sys\n'
+            'from pathlib import Path\n'
+            f'spec = importlib.util.spec_from_file_location("gate", {str(_SCRIPT)!r})\n'
+            'gate = importlib.util.module_from_spec(spec)\n'
+            'sys.modules["gate"] = gate\n'
+            'spec.loader.exec_module(gate)\n'
+            f'held = Path({str(sample)!r})\n'
+            'gate._source_text = lambda _p: held.read_text()\n'
+            'print(len(gate._exclusive_spans(held)))\n'
+        )
+        held = subprocess.run(  # noqa: S603
+            [sys.executable, '-c', script],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+
+        assert held.returncode == 0
+        assert held.stdout.strip() == '1'
 
 
 class TestLinkLabels:

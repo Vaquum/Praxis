@@ -1237,6 +1237,10 @@ def _can_leave(body: list[ast.stmt]) -> bool:
     return bool(_block_ways(body) - {_CARRIES_ON})
 
 
+_WAYS_READ: dict[int, tuple[ast.stmt, set[str]]] = {}
+_RAISE_READ: dict[int, tuple[ast.stmt, bool]] = {}
+
+
 def _block_ways(body: list[ast.stmt]) -> set[str]:
 
     '''Return the ways a block can end, by name.
@@ -1268,6 +1272,31 @@ def _block_ways(body: list[ast.stmt]) -> set[str]:
 def _statement_ways(statement: ast.stmt) -> set[str]:
 
     '''Return the ways one statement can end, by name.
+
+    The answer is read once per statement and kept. A `try` is asked
+    about several times over — for its own ways, for the handlers that
+    run, and for whether it could raise — so a nest of them would
+    otherwise be read again at every level.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        set[str]: Those ways.
+    '''
+
+    held = _WAYS_READ.get(id(statement))
+
+    if held is None:
+        held = statement, _ways_read(statement)
+        _WAYS_READ[id(statement)] = held
+
+    return held[1]
+
+
+def _ways_read(statement: ast.stmt) -> set[str]:
+
+    '''Return the ways one statement can end, read afresh.
 
     Nothing is read inside a function, a way out written there waiting
     on a call, nor inside anything else that holds no block of its own.
@@ -2600,6 +2629,29 @@ def _may_raise(body: list[ast.stmt]) -> bool:
 def _could_raise(statement: ast.stmt) -> bool:
 
     '''Whether one statement could raise where it stands.
+
+    The answer is read once per statement and kept, for the reason
+    `_statement_ways` keeps its own.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: Whether that statement could raise.
+    '''
+
+    held = _RAISE_READ.get(id(statement))
+
+    if held is None:
+        held = statement, _raise_read(statement)
+        _RAISE_READ[id(statement)] = held
+
+    return held[1]
+
+
+def _raise_read(statement: ast.stmt) -> bool:
+
+    '''Whether one statement could raise where it stands, read afresh.
 
     Args:
         statement (ast.stmt): The statement to read.
@@ -4684,6 +4736,45 @@ def _link_targets(body: str) -> tuple[list[str], list[str]]:
     return targets, broken
 
 
+def _resolved(target: Path) -> Path | None:
+
+    '''Return a link target as a whole path, where one can be worked out.
+
+    Args:
+        target (Path): The path a link names, read from the page.
+
+    Returns:
+        Path | None: The whole path, and None where the name holds a
+            character no path can, and where the links along it lead
+            back to where they started.
+    '''
+
+    try:
+        return target.resolve()
+
+    except (ValueError, RuntimeError):
+        return None
+
+
+def _found(target: Path) -> bool:
+
+    '''Whether a link target is there to be read.
+
+    Args:
+        target (Path): The path a link names.
+
+    Returns:
+        bool: True where it exists, False where it does not and where
+            the name is one no filesystem will take.
+    '''
+
+    try:
+        return target.exists()
+
+    except OSError:
+        return False
+
+
 def _rows_of(target: Path) -> str | None:
 
     '''Return a link target's rows, where they can be read as text.
@@ -4727,9 +4818,9 @@ def _broken_links(page: Path, body: str) -> list[str]:
         path, _, anchor = target.partition('#')
 
         if path:
-            resolved = (page.parent / path).resolve()
+            resolved = _resolved(page.parent / path)
 
-            if not resolved.exists():
+            if resolved is None or not _found(resolved):
                 broken.append(f'links to {path}, which does not exist')
                 continue
 
