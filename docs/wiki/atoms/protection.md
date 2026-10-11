@@ -2,10 +2,10 @@
 row: P2-21
 baseline: 49aa659
 created: 2026-09-28 06:24 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:13 UTC
 evidence:
   - claim: "The opening order is sent as a market order"
-    source: "`execution_manager.py` 4521-4523 into `_submit_market_slice`"
+    source: "`execution_manager.py` 4521-4523 into 5968, where that kind is named"
   - claim: "Protection follows only once the opening order has finished"
     source: "`execution_manager.py` 4672-4673"
   - claim: "An opening order that filled nothing gets none"
@@ -16,7 +16,7 @@ evidence:
     source: "`execution_manager.py` 4909-4911"
   - claim: "It is a linked pair, one to take a profit and one to stop a loss"
     source: "`execution_manager.py` 4968-4977"
-  - claim: "The first of the two to fill cancels the other"
+  - claim: "The two are handed to the venue as one linked pair, for it to cancel the second when the first fills"
     source: "`praxis/core/domain/enums.py` 73 for the kind, sent as one at `binance_adapter.py` 1522-1536"
   - claim: "The profit price is given outright or worked out as a distance"
     source: "either `execution_manager.py` 5208-5209 or 5210-5217"

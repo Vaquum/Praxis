@@ -2,7 +2,7 @@
 row: P3-14
 baseline: 49aa659
 created: 2026-09-29 06:12 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:13 UTC
 evidence:
   - claim: "A name is built from a two-letter mark, part of the request's name, and a number"
     source: "`generate_client_order_id.py` 154"
@@ -11,7 +11,7 @@ evidence:
   - claim: "A way of working with no letters set is refused"
     source: "`generate_client_order_id.py` 135-137"
   - claim: "The part taken is the request's name with hyphens dropped, cut to sixteen"
-    source: "`generate_client_order_id.py` 57, used at 150"
+    source: "`generate_client_order_id.py` 57 with the length at 34, used at 150"
   - claim: "The number must sit between nothing and 999"
     source: "`generate_client_order_id.py` 139-141 with the limit at 22"
   - claim: "The number behind the extra mark must be nothing or more"

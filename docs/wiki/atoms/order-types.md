@@ -2,12 +2,12 @@
 row: P2-14
 baseline: 49aa659
 created: 2026-09-25 18:52 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:13 UTC
 evidence:
   - claim: "Eight kinds exist"
     source: "`praxis/core/domain/enums.py` 66-73"
   - claim: "A market order names no price and no trigger"
-    source: "`binance_adapter.py` 234-236"
+    source: "`binance_adapter.py` 234-236, either refused at 792-794 or 796-798"
   - claim: "The immediate limit order is a limit order the venue is told not to leave resting"
     source: "`binance_adapter.py` 240-242, with the instruction set at 817-818"
   - claim: "Four kinds rest on a trigger, two of them turning into limit orders"
@@ -25,7 +25,7 @@ evidence:
 
 An **order type** says what kind of order goes to the [venue](what-a-venue-is.md). Praxis has eight.
 
-A market order names neither a price to trade at nor a price to wait for. A limit order names the price it will trade at and waits there. An immediate limit order is a limit order the venue is told not to leave waiting. Four kinds wait until a named price is reached, and then become market orders or limit orders. And a linked pair holds two of those orders together, so that the first to fill cancels the other.
+A market order names neither a price to trade at nor a price to wait for. A limit order names the price it will trade at and waits there. An immediate limit order is a limit order the venue is told not to leave waiting. Four kinds wait until a named price is reached, and then become market orders or limit orders. And a linked pair hands the venue two of those orders together, for the venue to hold so that the first to fill cancels the other.
 
 Each kind must also name [certain prices and not others](the-prices-an-order-must-name.md), and which kinds are allowed at all depends on how the work is to be executed.
 

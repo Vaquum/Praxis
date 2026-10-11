@@ -2,7 +2,7 @@
 row: P2-38
 baseline: 49aa659
 created: 2026-09-26 19:03 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:13 UTC
 evidence:
   - claim: "On the ordinary path an ending marks the command finished and drops it from the live and aborted sets"
     source: "`execution_manager.py` 10800-10804"
@@ -20,7 +20,7 @@ evidence:
     source: "`execution_manager.py` 760 with the count at 148"
   - claim: "A wait follows each failure but the last"
     source: "`execution_manager.py` 783 into the wait at 794, the base at 149"
-  - claim: "The host being shut down is passed on rather than retried"
+  - claim: "Being called off is passed on rather than retried"
     source: "`execution_manager.py` 763-770"
   - claim: "When the tries run out it is logged and no further attempt is made"
     source: "`execution_manager.py` 771-782"
@@ -41,7 +41,7 @@ That order belongs to that path. Work carried out as several orders, ended durin
 
 A caller that takes the outcome is not asked twice. One that fails is tried again, up to three tries in all, with a wait after each failure but the last — half a second, then one.
 
-The host being shut down is not treated as a failed try. It is passed straight on, so stopping does not look like a caller that will not answer.
+Being called off — what stopping the host does to the work in hand — is not treated as a failed try. It is passed straight on, so stopping does not look like a caller that will not answer.
 
 ## When the tries run out
 
