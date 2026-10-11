@@ -2176,6 +2176,31 @@ class TestTheFinallyClause:
 
         assert paired == list(shapes)
 
+    def test_a_case_taking_less_than_every_value_reads_what_follows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a narrow case, guarded': '                case 0 if True:\n',
+            'a narrow case': '                case 0:\n',
+        }
+        unpaired = []
+
+        for label, case in shapes.items():
+            source = (
+                "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+                "            match 1:\n" + case
+                + "                    return 1\n                case _:\n"
+                "                    return work()\n        except Exception:\n"
+                "            pass\n    later()\n"
+            )
+            last = source.splitlines().index('    later()') + 1
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(3 in first and last in second for first, second in spans):
+                unpaired.append(label)
+
+        assert unpaired == list(shapes)
+
     def test_nothing_after_a_case_that_always_matches_could_raise(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

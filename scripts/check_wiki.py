@@ -2374,8 +2374,12 @@ def _match_could_raise(statement: ast.Match) -> bool:
     Working out the subject could, and so could a pattern looking a
     name up, a guard that is not written out, and the body of a case
     that runs. A pattern is weighed before its guard is read, so
-    a guard that never holds keeps back the body alone. Nothing after
-    a case that takes every value with a guard that holds is read.
+    a guard that never holds keeps back the body alone. By the time a
+    case that takes every value is reached its guard has held, a guard
+    that failed having been passed over and one not written out having
+    answered the question already, so nothing after such a case is
+    read; a case taking less than every value leaves what stands after
+    it to be read, the value reaching those cases.
 
     Args:
         statement (ast.Match): The statement to read.
@@ -2403,7 +2407,7 @@ def _match_could_raise(statement: ast.Match) -> bool:
         if _may_raise(case.body):
             return True
 
-        if answer is True:
+        if _takes_anything(case.pattern):
             return False
 
     return False
