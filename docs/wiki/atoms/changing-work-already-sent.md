@@ -2,7 +2,7 @@
 row: P3-13
 baseline: 49aa659
 created: 2026-09-30 05:58 UTC
-modified: 2026-10-11 19:38 UTC
+modified: 2026-10-11 20:10 UTC
 evidence:
   - claim: "Each way of working has one kind of change that fits it"
     source: "`modify_params.py` 31-39, matched at `validate_trade_modify.py` 193-198"
@@ -34,7 +34,7 @@ evidence:
     source: "`validate_trade_modify.py` 171-175, routed ahead of the finished test at `execution_manager.py` 8616-8620"
   - claim: "A change parked awaiting fills is not replaced by a second"
     source: "`execution_manager.py` 8631-8636"
-  - claim: "Changes are processed one at a time"
+  - claim: "Changes are processed one at a time by the account's own worker"
     source: "`execution_manager.py` 3910-3939, queued without a check at 3060-3074"
 ---
 # Changing work already sent

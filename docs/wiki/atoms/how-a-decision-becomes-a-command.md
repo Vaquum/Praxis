@@ -2,7 +2,7 @@
 row: P4-04
 baseline: 49aa659
 created: 2026-10-02 09:35 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:10 UTC
 evidence:
   - claim: "A new order crossing into Praxis through the launcher has five of its fields re-keyed and its settings converted where needed"
     source: "`launcher.py` 441-451, installed at 453-455 and called from Nexus `praxis_outbound.py` 157-182"
@@ -10,7 +10,7 @@ evidence:
     source: "`validate_trade_command.py` 189-200, against the two copies at `praxis/core/domain/enums.py` 66-68 and 118-119 and Nexus `order_types.py` 15-37"
   - claim: "A field already of the Praxis kind is handed straight back"
     source: "`command_translator.py` 158-159"
-  - claim: "Otherwise the string it carries is read, and the Praxis kind built from that string"
+  - claim: "Otherwise the string it carries is read, and the Praxis kind built from that string, or from the stand-in a map gives for it"
     source: "`command_translator.py` 160, 167 and 169"
   - claim: "Something carrying no string refuses the command"
     source: "`command_translator.py` 161-166"

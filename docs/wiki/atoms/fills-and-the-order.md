@@ -2,7 +2,7 @@
 row: P2-31
 baseline: 49aa659
 created: 2026-09-25 19:37 UTC
-modified: 2026-10-11 20:06 UTC
+modified: 2026-10-11 20:10 UTC
 evidence:
   - claim: "The amount filled and the running value grow by what the fill brought"
     source: "`trading_state.py` 430-433"
@@ -12,7 +12,7 @@ evidence:
     source: "`trading_state.py` 437-440"
   - claim: "An order that named no amount stays partly filled here"
     source: "`trading_state.py` 434-436"
-  - claim: "A separate report closes that one"
+  - claim: "A separate report closes that one, where the venue calls the order filled and something was filled"
     source: "`execution_manager.py` 4343-4354"
   - claim: "A fill for an order already closed is booked, and the status is left alone"
     source: "`trading_state.py` 417-424"
@@ -27,7 +27,7 @@ A fill naming an order Praxis holds neither as open nor as closed adds nothing a
 
 An order that named an amount to trade is marked filled once the amount traded covers it, and partly filled until then.
 
-An order that named a sum of money instead stays partly filled however much arrives. A separate report is what closes that one.
+An order that named a sum of money instead stays partly filled however much arrives. A separate report is what closes that one, written where the venue calls the order filled and something was filled.
 
 ## A fill after the end
 

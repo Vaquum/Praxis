@@ -2,7 +2,7 @@
 row: P3-07
 baseline: 49aa659
 created: 2026-09-28 10:52 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:10 UTC
 evidence:
   - claim: "It keeps balances and fills per account"
     source: "`ledger.py` 597 for balances, 613 for fills"
@@ -19,7 +19,7 @@ evidence:
   - claim: "Binsim charges its fee in the asset the side receives"
     source: "`ledger.py` 138, taken off at 706-709"
   - claim: "Its one pair charges a buy's fee in BTC, which the Praxis-side test looks for"
-    source: "`server.py` 98 with `ledger.py` 138, against `trading_state.py` 84-85"
+    source: "`server.py` 98 with `ledger.py` 138 and the asset named at 118, against `trading_state.py` 84-85"
   - claim: "One holder at a time may write the state"
     source: "`ledger.py` 76, refused at 77-84"
   - claim: "Registering against a directory a service holds is refused"
