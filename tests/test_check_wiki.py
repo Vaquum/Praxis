@@ -2176,6 +2176,46 @@ class TestTheFinallyClause:
 
         assert paired == list(shapes)
 
+    def test_a_finally_that_could_raise_bounds_the_branch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        try:\n            if x:\n"
+            "                return 1\n            pass\n        finally:\n"
+            "            return risky()\n    except ValueError:\n        pass\n"
+            "    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 11 in second for first, second in spans)
+
+    def test_a_return_of_nothing_could_not_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'nothing at all': '            return\n',
+            'a tuple written out': '            return (1, 2)\n',
+            'an answer written out': '            return not True\n',
+            'a comparison written out': '            return 1 < 2\n',
+            'a value written out on its own': (
+                '            (1, 2)\n            return 1\n'
+            ),
+        }
+        paired = []
+
+        for label, leaving in shapes.items():
+            source = (
+                "def f(x):\n    try:\n        if x:\n" + leaving
+                + "    except ValueError:\n        pass\n    two()\n"
+            )
+            last = source.splitlines().index('    two()') + 1
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if any(4 in first and last in second for first, second in spans):
+                paired.append(label)
+
+        assert paired == list(shapes)
+
     def test_a_case_taking_less_than_every_value_reads_what_follows(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

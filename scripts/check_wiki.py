@@ -498,6 +498,8 @@ class _Scopes:
             more than one way.
         regardless (tuple[_Block, ...]): Every `finally` body.
         after_a_loop (tuple[_Block, ...]): Every loop's `else` body.
+        cleaned (dict[int, int]): Where each `try` starts and ends whose
+            `finally` could raise as it runs.
     '''
 
     ends: dict[int, int]
@@ -509,6 +511,7 @@ class _Scopes:
     overrides: tuple[tuple[_Block, str], ...]
     regardless: tuple[_Block, ...]
     after_a_loop: tuple[_Block, ...]
+    cleaned: dict[int, int]
 
 
 def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
@@ -588,6 +591,11 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
             for block in _blocks([(node, node.finalbody)], lines)
         ),
         after_a_loop=_blocks(((node, node.orelse) for node in loops), lines),
+        cleaned={
+            node.lineno: node.end_lineno or node.lineno
+            for node in tries
+            if node.finalbody and _may_raise(node.finalbody)
+        },
     )
 
 
@@ -920,7 +928,8 @@ def _after_the_branch(
     leave being read rather than the last alone. An arm that could
     raise where it stands reaches no further than such a raise would,
     since a handler or a context manager between the arm and the end
-    carries that run on past it.
+    carries that run on past it. A `finally` that could raise as it
+    runs does the same, running as it does on the way out.
 
     Args:
         node (ast.If): The `if` the arm belongs to.
@@ -939,7 +948,7 @@ def _after_the_branch(
     if not reach:
         return set()
 
-    if _may_raise(statements):
+    if _may_raise(statements) or _cleaned_up(scopes, node.lineno):
         reach &= _as_far_as('raise', scopes, measured)
 
     after = {
@@ -954,6 +963,23 @@ def _after_the_branch(
         running += scopes.handlers
 
     return after - _still_runs(running, node.lineno)
+
+
+def _cleaned_up(scopes: _Scopes, line: int) -> bool:
+
+    '''Whether a `finally` that could raise runs when a branch leaves.
+
+    Args:
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): Where the branch sits.
+
+    Returns:
+        bool: True where such a `finally` stands around it.
+    '''
+
+    return any(
+        start <= line <= end for start, end in scopes.cleaned.items()
+    )
 
 
 def _as_far_as(kind: str, scopes: _Scopes, line: int) -> set[int]:
@@ -2229,8 +2255,8 @@ def _may_raise(body: list[ast.stmt]) -> bool:
     '''Whether anything in a block could raise.
 
     Only the plainest statements are read as unable to: a pass, a
-    break, a continue, a return of a constant or of nothing, and a
-    loop whose body never runs. A call of any kind, a name looked up,
+    break, a continue, a return or a statement of nothing but a value
+    written out, and a loop whose body never runs. A call of any kind, a name looked up,
     a subscript or a sum could raise, so everything else is read as
     able to. Nothing past a statement that always leaves is read, that
     being unreachable.
@@ -2261,18 +2287,35 @@ def _could_raise(statement: ast.stmt) -> bool:
         statement (ast.stmt): The statement to read.
 
     Returns:
-        bool: False for a pass, a break, a continue, a return of a
-            constant or of nothing, and a loop, an `if` or a `match`
-            nothing in which could raise; True for everything else.
+        bool: False for a pass, a break, a continue, a return or a
+            statement of nothing but a value written out, and a loop,
+            an `if` or a `match` nothing in which could raise; True for
+            everything else.
     '''
 
     if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
         return False
 
     if isinstance(statement, ast.Return):
-        return not (
-            statement.value is None or isinstance(statement.value, ast.Constant)
-        )
+        return statement.value is not None and not _quiet_expression(statement.value)
+
+    if isinstance(statement, ast.Expr):
+        return not _quiet_expression(statement.value)
+
+    return _holder_could_raise(statement)
+
+
+def _holder_could_raise(statement: ast.stmt) -> bool:
+
+    '''Whether a statement holding a block of its own could raise.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: Whether a loop, an `if` or a `match` could raise where it
+            stands; True for anything else.
+    '''
 
     if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
         return _loop_could_raise(statement)
