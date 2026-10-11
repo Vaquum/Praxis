@@ -2,7 +2,7 @@
 row: P4-28
 baseline: 49aa659
 created: 2026-10-02 09:37 UTC
-modified: 2026-10-10 12:13 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "A settings object of the right kind is handed straight back"
     source: "`command_translator.py` 330-331, and 261-262 for the plain single order"
@@ -17,7 +17,7 @@ evidence:
   - claim: "A field that wants a tuple takes a list and is given a tuple"
     source: "`command_translator.py` 350, the fields found at 125-129"
   - claim: "Every mode has a settings kind registered, two of them sharing one"
-    source: "`execution_params.py` 30-38"
+    source: "`execution_params.py` 30-38 against the seven modes at `praxis/core/domain/enums.py` 119-125"
   - claim: "The plain single order is the only kind that takes an omitted payload"
     source: "`command_translator.py` 264-265 against 333-338"
   - claim: "Omitting it leaves all three prices unset"

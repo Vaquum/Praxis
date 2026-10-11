@@ -2,7 +2,7 @@
 row: P2-13
 baseline: 49aa659
 created: 2026-09-25 18:31 UTC
-modified: 2026-10-11 18:54 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "Two lists of levels, each level a price and an amount"
     source: "`venue_adapter.py` 419-420 for a level, 434-436 for the pair of lists"
@@ -13,7 +13,7 @@ evidence:
   - claim: "Closing-out pricing asks without naming a count and reads only the top level"
     source: "asked at `execution_manager.py` 6685, read at either 6692 for a buy or 6716 for a sell"
   - claim: "A background task asks for five levels every couple of seconds"
-    source: "`launcher.py` 638-639 with the count at 198 and the gap at 197"
+    source: "`launcher.py` 638-639 with the count at 198 and the gap at 197, gone round by `book_poller.py` 81-89"
   - claim: "Refusal, an unparsed reply and a parsed reply missing a list are three separate raises"
     source: "either `binance_adapter.py` 2272-2274, or 2277-2279, or 2295-2297"
   - claim: "Each asker catches the broad kind, which covers all three"

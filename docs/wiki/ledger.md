@@ -38,7 +38,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/trading.py` | partial | P1-01, P1-04, P2-11, P2-12, P2-24, P2-25, P2-27, P2-32, P3-16, P3-17, P3-22, P4-06, P4-10, P4-20, P4-22, P4-23, P4-31, P4-32 |
 | `praxis/trading_inbound.py` | partial | P2-12, P3-19 |
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-22, P2-24, P2-27, P2-28, P4-04, P4-08, P4-33 |
-| `praxis/core/domain/enums.py` | partial | P2-14, P2-18, P2-21, P3-21, P4-04, P4-09 |
+| `praxis/core/domain/enums.py` | partial | P2-14, P2-18, P2-21, P3-21, P4-04, P4-09, P4-28 |
 | `praxis/core/domain/execution_scheme.py` | uncovered | — |
 | `praxis/core/domain/ladder_dca_params.py` | full | P2-20 |
 | `praxis/core/domain/bracket_params.py` | uncovered | — |
@@ -129,4 +129,4 @@ The modules listed above are `partial` by citation rather than by tracing: a Pra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-10 09:36 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-11 19:29 UTC

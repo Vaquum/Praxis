@@ -2,14 +2,14 @@
 row: P2-35
 baseline: 49aa659
 created: 2026-09-26 08:27 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "Each row is given the hash of the one before and its own over its own fields"
     source: "`event_spine.py` 1165-1176"
   - claim: "The first hashed row anchors to a marker the record keeps"
     source: "`event_spine.py` 1195-1198, read at 876"
   - claim: "A record that has lost the marker is refused rather than anchored on a guess"
-    source: "`event_spine.py` 879-884"
+    source: "`event_spine.py` 878-883"
   - claim: "Rows written before the sealing began carry no hash and are passed over"
     source: "`event_spine.py` 1262-1269"
   - claim: "A tip carrying no hash anchors the next row to the marker too"

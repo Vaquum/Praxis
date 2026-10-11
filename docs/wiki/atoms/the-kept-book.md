@@ -2,14 +2,14 @@
 row: P2-26
 baseline: 49aa659
 created: 2026-09-25 19:08 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "A copy of the latest book per symbol, held in memory with its arrival time"
     source: "`book_cache.py` 38 for the store, 44-45 for the write, 29-31 for what a copy holds"
   - claim: "One poller per symbol being traded, started when the host starts"
     source: "`launcher.py` 3819-3831"
   - claim: "Each poll overwrites the copy for that symbol"
-    source: "`book_poller.py` 76-77"
+    source: "`book_poller.py` 76-77 into `book_cache.py` 44-45"
   - claim: "One reader builds the gap and the age"
     source: "`book_cache.py` 124-125 and 134-139"
   - claim: "It builds the drift only when a strategy price was supplied and is above zero"

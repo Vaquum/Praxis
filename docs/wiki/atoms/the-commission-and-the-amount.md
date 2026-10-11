@@ -2,12 +2,12 @@
 row: P2-30
 baseline: 49aa659
 created: 2026-09-26 06:05 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "A buy whose fee asset is BTC delivers the amount less the commission"
     source: "`trading_state.py` 84-85 with the string at 66, subtracted at 459 and used at 483"
   - claim: "Every other fill delivers its full amount"
-    source: "`trading_state.py` 87"
+    source: "`trading_state.py` 84-87"
   - claim: "The side and the fee asset are tested, never the symbol"
     source: "`trading_state.py` 84"
   - claim: "The money ledger books one symbol only"
@@ -15,7 +15,7 @@ evidence:
   - claim: "It splits the same way for its lots"
     source: "either `account_ledger.py` 298-302 or 308-312"
   - claim: "Only its BTC branch refuses a commission that is not smaller than the amount"
-    source: "`account_ledger.py` 305-307, the alternative branch at 298-302 carrying no such test"
+    source: "`account_ledger.py` 303-306, the alternative branch at 298-302 carrying no such test"
   - claim: "The order's own filled total stays gross"
     source: "`trading_state.py` 430, which adds the fill's own amount"
 ---

@@ -2,7 +2,7 @@
 row: P1-08
 baseline: 49aa659
 created: 2026-09-23 08:19 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "The line is emptied every pass once the account has started"
     source: "`execution_manager.py` 3910-3911, unless a still-starting account stops at 3903-3905"
@@ -12,8 +12,8 @@ evidence:
     source: "`execution_manager.py` 3938-3939"
   - claim: "A held or failed account puts each change back instead"
     source: "`execution_manager.py` 3913-3920, returned at 3953-3954"
-  - claim: "Holding is a flag an outside caller sets, not one the worker raises"
-    source: "set at `execution_manager.py` 3286"
+  - claim: "Holding is a flag set through a call of its own"
+    source: "`execution_manager.py` 3281-3286"
   - claim: "The worker reads it when deciding whether to defer a change"
     source: "`execution_manager.py` 3914"
   - claim: "It reads it again before taking new work"

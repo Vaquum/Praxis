@@ -2,7 +2,7 @@
 row: P4-01
 baseline: 49aa659
 created: 2026-10-01 10:12 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
   - claim: "A host is one process running Praxis and Nexus together"
     source: "`launcher.py` 2847-2853 for the loop thread and 3892-3902 for the account threads"
@@ -18,7 +18,7 @@ evidence:
     source: "`launcher.py` 3799-3800 against the build at 4984-4991"
   - claim: "The record's file is made if missing and the record opened on it, unless one was handed in"
     source: "`launcher.py` 3127-3130, reached from 2950-2955"
-  - claim: "One queue is made for each account, and the routes back are set"
+  - claim: "One queue is made for each host run and kept under its account, and the routes back are set"
     source: "`launcher.py` 2966-2968 and 2994-3040"
   - claim: "The caller waits thirty seconds for trading to start"
     source: "`launcher.py` 3042-3043"
@@ -37,7 +37,7 @@ The key check returns at once unless it is turned on. The endpoint returns unles
 
 ## What trading does
 
-It makes [the record's](the-event-spine.md) file if the file is missing and opens the record on it, unless a record was handed in. It makes one queue for each account and sets the routes back along which an outcome will travel. Then it starts, and the caller waits thirty seconds for that.
+It makes [the record's](the-event-spine.md) file if the file is missing and opens the record on it, unless a record was handed in. It makes one queue for each host run, kept under that run's account, and sets the routes back along which an outcome will travel. Then it starts, and the caller waits thirty seconds for that.
 
 ## Related
 

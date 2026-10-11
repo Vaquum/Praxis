@@ -2,9 +2,9 @@
 row: P2-17
 baseline: 49aa659
 created: 2026-09-26 08:12 UTC
-modified: 2026-10-11 18:54 UTC
+modified: 2026-10-11 19:29 UTC
 evidence:
-  - claim: "Every event is kept with its epoch, time, kind and contents"
+  - claim: "Each event kept carries its epoch, time, kind and contents"
     source: "`event_spine.py` 123-131"
   - claim: "Rows go in as they are written, with no sorting or checking of the times"
     source: "`event_spine.py` 1165-1172, the order coming from the key at 124"
