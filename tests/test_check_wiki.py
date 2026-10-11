@@ -2176,6 +2176,70 @@ class TestTheFinallyClause:
 
         assert paired == list(shapes)
 
+    def test_an_ending_that_could_raise_bounds_the_branch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a context manager ending': (
+                "        with held():\n            if flag:\n                return 1\n"
+            ),
+            'a context manager awaited': (
+                "        async with held():\n            if flag:\n"
+                "                return 1\n"
+            ),
+        }
+        unpaired = []
+
+        for label, inner in shapes.items():
+            source = (
+                "async def f(flag):\n    try:\n" + inner
+                + "    except ValueError:\n        pass\n    after()\n"
+            )
+            last = source.splitlines().index('    after()') + 1
+            held = source.splitlines().index('                return 1') + 1
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(held in first and last in second for first, second in spans):
+                unpaired.append(label)
+
+        assert unpaired == list(shapes)
+
+    def test_the_nearest_ending_is_the_one_a_raise_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        with held():\n            if flag:\n"
+            "                return 1\n    finally:\n        risky()\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 8 in second for first, second in spans)
+
+    def test_a_finally_on_the_same_try_is_caught_nowhere_in_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            return 1\n"
+            "        inside()\n    except ValueError:\n        handled()\n"
+            "    finally:\n        risky()\n    after()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 10 in second for first, second in spans)
+
+    def test_an_ending_outside_the_function_bounds_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def outer(x):\n    try:\n        def inner(y):\n            try:\n"
+            "                if y:\n                    return 1\n"
+            "            except ValueError:\n                pass\n"
+            "            later()\n        inner(x)\n    finally:\n        risky()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in first and 9 in second for first, second in spans)
+
     def test_a_finally_that_could_raise_bounds_the_branch(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -3123,6 +3187,17 @@ class TestThePinnedTable:
 
     def test_the_table_names_the_commits_that_are_read(self) -> None:
         assert check_wiki._pinned_table() == []
+
+    def test_a_missing_table_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        wiki.mkdir()
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+
+        assert check_wiki._pinned_table() == [
+            f'{wiki / "BASELINE.md"}: the baseline page is missing',
+        ]
 
     def test_a_table_naming_another_nexus_commit_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

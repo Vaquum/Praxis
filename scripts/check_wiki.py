@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Iterable
+import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -929,7 +930,9 @@ def _after_the_branch(
     raise where it stands reaches no further than such a raise would,
     since a handler or a context manager between the arm and the end
     carries that run on past it. A `finally` that could raise as it
-    runs does the same, running as it does on the way out.
+    runs bounds it the same way, and so does a `with` whose own ending
+    could: both run on the way out, and such a raise leaves the
+    construct it came from rather than being caught by it.
 
     Args:
         node (ast.If): The `if` the arm belongs to.
@@ -948,8 +951,13 @@ def _after_the_branch(
     if not reach:
         return set()
 
-    if _may_raise(statements) or _cleaned_up(scopes, node.lineno):
+    if _may_raise(statements):
         reach &= _as_far_as('raise', scopes, measured)
+
+    cleanup = _cleaned_up(scopes, node.lineno)
+
+    if cleanup is not None:
+        reach &= _as_far_as('raise', _without(scopes, cleanup), measured)
 
     after = {
         line for line in reach if line > (node.end_lineno or node.lineno)
@@ -965,20 +973,61 @@ def _after_the_branch(
     return after - _still_runs(running, node.lineno)
 
 
-def _cleaned_up(scopes: _Scopes, line: int) -> bool:
+def _cleaned_up(scopes: _Scopes, line: int) -> int | None:
 
-    '''Whether a `finally` that could raise runs when a branch leaves.
+    '''Return where the nearest ending that could raise starts.
+
+    A `finally` that could raise as it runs is one, and so is a `with`,
+    whose own ending could raise whatever its body did. Both run on
+    the way out of the construct that holds them, and only within the
+    function the branch sits in: one further out runs after the call
+    rather than inside it.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
         line (int): Where the branch sits.
 
     Returns:
-        bool: True where such a `finally` stands around it.
+        int | None: Where the nearest such construct starts, or None
+            where none stands around the line.
     '''
 
-    return any(
-        start <= line <= end for start, end in scopes.cleaned.items()
+    floor = _function_floor(scopes, line)
+
+    return max(
+        (
+            start
+            for spans in (scopes.cleaned, scopes.helds)
+            for start, end in spans.items()
+            if start <= line <= end and start >= floor
+        ),
+        default=None,
+    )
+
+
+def _without(scopes: _Scopes, start: int) -> _Scopes:
+
+    '''Return the scopes with the construct starting on one line left out.
+
+    A raise an ending takes leaves the construct whose ending it is, so
+    that construct cannot be what catches or bounds it.
+
+    Args:
+        scopes (_Scopes): What a branch leaving the path can skip.
+        start (int): Where that construct starts.
+
+    Returns:
+        _Scopes: The same, with that construct dropped.
+    '''
+
+    return dataclasses.replace(
+        scopes,
+        tries={
+            held: end for held, end in scopes.tries.items() if held != start
+        },
+        helds={
+            held: end for held, end in scopes.helds.items() if held != start
+        },
     )
 
 
