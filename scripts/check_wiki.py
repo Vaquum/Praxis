@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import builtins
 import functools
+import itertools
 import operator
 import re
 import shutil
@@ -182,6 +183,9 @@ EVIDENCE_COUNT_RE = re.compile(r'(\d[\d,]*) line references across (\d[\d,]*) cl
 FINDING_COUNT_RE = re.compile(r'Record (\d[\d,]*) findings')
 FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
 ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
+REFUSAL_RE = re.compile(
+    r'\b(refus\w+|rejec\w+|turned away|forbidd\w+)\b', re.IGNORECASE,
+)
 UNASSIGNED_RE = re.compile(r'^\|([^|]*\([^|]*\))?[^|]*\|[^|]*\| unassigned \|$', re.MULTILINE)
 UNRESOLVED_RE = re.compile(r'\bU-\d+\b')
 PINNED_ROW_RE = re.compile(r'^\| (Praxis|Nexus) \| `([0-9a-f]{7,40})` \|', re.MULTILINE)
@@ -4091,6 +4095,9 @@ class _FileFacts:
         signatures (set[int]): Lines of a declaration with a body below it.
         exclusive (list[tuple[set[int], set[int]]]): Pairs of line sets that
             cannot both run for one input.
+        before_a_raise (dict[int, frozenset[int]]): Where a statement ends
+            with a raise standing next after it in the same block, that
+            ending line against the raise's own lines.
     '''
 
     length: int
@@ -4100,6 +4107,7 @@ class _FileFacts:
     logs: set[int]
     signatures: set[int]
     exclusive: list[tuple[set[int], set[int]]]
+    before_a_raise: dict[int, frozenset[int]]
 
 
 class _SourceFacts:
@@ -4150,9 +4158,107 @@ class _SourceFacts:
                 logs=_log_lines(path),
                 signatures=_signature_lines(path),
                 exclusive=_exclusive_spans(path),
+                before_a_raise=_before_a_raise(path),
             )
 
         return self._known[key]
+
+
+def _before_a_raise(path: Path) -> dict[int, frozenset[int]]:
+
+    '''Return where a statement stands immediately before a raise.
+
+    A claim of a refusal cites the guard that refuses. Where the range
+    stops on the line before the raise, it cites the condition and the
+    message the raise is given and leaves out the refusal itself, so the
+    lines cited do not show it. A range ending on a raise of its own is
+    not short of one: the raise standing next after it is a second way
+    out rather than the one cited.
+
+    Args:
+        path (Path): The file to read, at its pinned commit.
+
+    Returns:
+        dict[int, frozenset[int]]: The ending line of each statement a
+            raise stands next after, against that raise's lines.
+    '''
+
+    found: dict[int, frozenset[int]] = {}
+
+    try:
+        tree = ast.parse(_source_text(path))
+    except SyntaxError:
+        return found
+
+    raising = {
+        line
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Raise)
+        for line in range(node.lineno, (node.end_lineno or node.lineno) + 1)
+    }
+
+    for node in ast.walk(tree):
+
+        if not isinstance(node, ast.stmt):
+            continue
+
+        for body in _child_blocks(node):
+
+            for before, statement in itertools.pairwise(body):
+
+                if not isinstance(statement, ast.Raise):
+                    continue
+
+                ending = before.end_lineno or before.lineno
+
+                if ending in raising:
+                    continue
+
+                found[ending] = frozenset(
+                    range(statement.lineno, (statement.end_lineno or statement.lineno) + 1),
+                )
+
+    return found
+
+
+def _cut_short_of_a_raise(
+    claim: str, cited: list[tuple[str, int, int, int]], cache: _SourceFacts,
+) -> str | None:
+
+    '''Return a complaint where a refusal claim stops short of its raise.
+
+    Args:
+        claim (str): The claim as the row wrote it.
+        cited (list[tuple[str, int, int, int]]): Each citation as file,
+            first line, last line and where it was written.
+        cache (_SourceFacts): Where each cited file is read once and kept.
+
+    Returns:
+        str | None: The complaint, or None where nothing is cut short.
+    '''
+
+    if not REFUSAL_RE.search(claim):
+        return None
+
+    taken = {
+        (key, line) for key, start, end, _ in cited for line in range(start, end + 1)
+    }
+
+    for key, _, end, _ in cited:
+        facts, note = _facts_for(key, cache)
+
+        if facts is None or note is not None:
+            continue
+
+        raised = facts.before_a_raise.get(end)
+
+        if raised is not None and not any((key, line) in taken for line in raised):
+            return (
+                f'cites `{key}` up to {end}, stopping on the line before the '
+                f'raise at {min(raised)} that does the refusing'
+            )
+
+    return None
 
 
 def _docstring_citations(text: str, cache: _SourceFacts) -> list[str]:
@@ -4296,6 +4402,11 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
 
     if clash is not None:
         bad.append(clash)
+
+    cut = _cut_short_of_a_raise(whole.split(' | ', 1)[0], cited, cache)
+
+    if cut is not None:
+        bad.append(cut)
 
     return bad
 
@@ -5305,7 +5416,7 @@ def _check_citations(rows: list[str], cache: _SourceFacts) -> list[str]:
     '''
 
     return [
-        f'evidence cites prose, not code, at {ref}'
+        f'evidence {ref}'
         for ref in _docstring_citations(
             '\n'.join(f'|{row}|' for row in rows if ' | ' in row), cache,
         )

@@ -2,7 +2,7 @@
 row: P2-22
 baseline: 49aa659
 created: 2026-09-28 07:18 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 18:54 UTC
 evidence:
   - claim: "The settings carry a shown amount and a price to rest at, both above zero"
     source: "`iceberg_params.py` 30-31, required positive at 37-41"
@@ -19,7 +19,7 @@ evidence:
   - claim: "Naming one also sets how long the order rests"
     source: "`binance_adapter.py` 826"
   - claim: "The builder that carries it refuses it on anything but a limit order"
-    source: "`binance_adapter.py` 771-772"
+    source: "`binance_adapter.py` 771-773"
   - claim: "Two kinds of send reach the venue without passing that builder"
     source: "either `binance_adapter.py` 1505-1512 or 1522-1536, against the ordinary path at 1542-1548"
   - claim: "That builder refuses again where the shown amount is not below the whole"

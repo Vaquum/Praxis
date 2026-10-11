@@ -2,7 +2,7 @@
 row: P2-13
 baseline: 49aa659
 created: 2026-09-25 18:31 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 18:54 UTC
 evidence:
   - claim: "Two lists of levels, each level a price and an amount"
     source: "`venue_adapter.py` 419-420 for a level, 434-436 for the pair of lists"
@@ -15,7 +15,7 @@ evidence:
   - claim: "A background task asks for five levels every couple of seconds"
     source: "`launcher.py` 638-639 with the count at 198 and the gap at 197"
   - claim: "Refusal, an unparsed reply and a parsed reply missing a list are three separate raises"
-    source: "either `binance_adapter.py` 2272-2273, or 2277-2279, or 2294-2296"
+    source: "either `binance_adapter.py` 2272-2274, or 2277-2279, or 2295-2297"
   - claim: "Each asker catches the broad kind, which covers all three"
     source: "caught at `execution_manager.py` 4222 and 6686, the narrower kind being covered by that catch per `test_venue_adapter.py` 261"
   - claim: "Closing-out pricing falls back to the opening price"

@@ -2,7 +2,7 @@
 row: P3-15
 baseline: 49aa659
 created: 2026-09-30 09:14 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 18:54 UTC
 evidence:
   - claim: "One result is recorded per request, across its retries, with the waiting counted in the time"
     source: "`binance_adapter.py` 578-604"
@@ -10,7 +10,7 @@ evidence:
     source: "`binance_adapter.py` 632-634"
   - claim: "An order the venue rejects is recorded as the venue having answered"
     source: "`binance_adapter.py` 635-656"
-  - claim: "Asking the time is not recorded at all"
+  - claim: "Asking the time records no result"
     source: "`binance_adapter.py` 2353-2372"
   - claim: "A fixed number of the most recent are kept, the oldest falling out"
     source: "`health_tracker.py` 75-76 with the count at 21"
@@ -24,8 +24,8 @@ evidence:
     source: "`binance_adapter.py` 2330, supplied at 2394-2403 and passed through at `health_tracker.py` 114"
   - claim: "A replay's venue returns a report with every figure at zero"
     source: "`replay_venue_adapter.py` 427 with the defaults at `health_snapshot.py` 33-37"
-  - claim: "The decision side reads an all-zero report as an account in good health"
-    source: "Nexus `health_evaluator.py` 165-184"
+  - claim: "The decision side reads an all-zero report as an account in good health, every threshold standing above zero as supplied"
+    source: "Nexus `health_evaluator.py` 165-184, the thresholds at 81-93"
   - claim: "The report is handed to the decision side, which can restrict or halt an account on it"
     source: "`launcher.py` 513-528 into Nexus `health_loop.py` 157-177 and `health_evaluator.py` 165-184"
 ---
@@ -39,7 +39,7 @@ It is kept per [account](what-an-account-is.md), since accounts are answered sep
 
 One result is recorded per request rather than per attempt, so a call that retried counts once — with the waiting included in how long it took.
 
-Not everything is recorded. Asking the venue the time is not, and a missing order against [the simulated venue](binsim.md) is skipped. An order the venue **rejects** is recorded as a success, because the venue answered: this measures whether the venue replied, leaving what the order did to be judged elsewhere.
+Not everything is recorded. Asking the venue the time records no result, and a missing order against [the simulated venue](binsim.md) is skipped. An order the venue **rejects** is recorded as a success, because the venue answered: this measures whether the venue replied, leaving what the order did to be judged elsewhere.
 
 [A replay's venue](the-replay-venue.md) measures none of this. It hands back a report with every figure at zero — which the decision side reads as an account in good health, rather than as an account it knows nothing about.
 

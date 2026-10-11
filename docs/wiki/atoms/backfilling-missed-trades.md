@@ -2,7 +2,7 @@
 row: P3-17
 baseline: 49aa659
 created: 2026-09-30 08:12 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 18:54 UTC
 evidence:
   - claim: "A mark of how far a previous asking got is read back per account and pair"
     source: "`praxis/trading.py` 1534, kept by account and pair at `event_spine.py` 1311-1314"
@@ -12,7 +12,7 @@ evidence:
     source: "`praxis/trading.py` 1538-1544 into `mytrades_backfill.py` 84-86"
   - claim: "That first asking includes the trade the mark points at"
     source: "`binance_adapter.py` 1905-1906, sent as given"
-  - claim: "A repeat is refused only where the epoch, account, pair and venue name all match"
+  - claim: "A repeat is refused only where the epoch, account, pair and the venue's own name for the trade all match"
     source: "`event_spine.py` 1018-1023"
   - claim: "An empty answer ends the asking as complete"
     source: "`mytrades_backfill.py` 92-93"
@@ -39,7 +39,7 @@ The venue answers a page at a time, so the asking repeats: each answer says wher
 
 A mark of how far a previous asking got is kept per account and pair, and read back to start from. With no mark, the asking starts a day back instead.
 
-The mark is passed in unchanged, and the venue's answer **includes** the trade it points at. So the first page repeats one trade on purpose. [The record](where-duplicates-stop.md) refuses that repeat where the epoch, account, pair and venue name all match what it already holds.
+The mark is passed in unchanged, and the venue's answer **includes** the trade it points at. So the first page repeats one trade on purpose. [The record](where-duplicates-stop.md) refuses that repeat where the epoch, account, pair and the venue's own name for the trade all match what it already holds.
 
 ## Where it stops
 

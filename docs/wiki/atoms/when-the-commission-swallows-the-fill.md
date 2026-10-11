@@ -2,7 +2,7 @@
 row: P2-33
 baseline: 49aa659
 created: 2026-09-26 06:31 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 18:54 UTC
 evidence:
   - claim: "A fill may be made with its fee equal to or above its amount"
     source: "`events.py` 593-595, which only refuses a fee below zero"
@@ -15,7 +15,7 @@ evidence:
   - claim: "With nothing held, delivering nothing builds a record of nothing that stands"
     source: "`trading_state.py` 487-497, zero allowed by `praxis/core/domain/position.py` 52-53"
   - claim: "With nothing held, delivering less than nothing is refused as the record is built"
-    source: "`praxis/core/domain/position.py` 52-53, reached at `trading_state.py` 489-497"
+    source: "`praxis/core/domain/position.py` 52-54, reached at `trading_state.py` 489-497"
   - claim: "Against a record on the same side the average is worked out and set before the amount"
     source: "`trading_state.py` 502-504 ahead of 505"
   - claim: "A total of zero is divided by"

@@ -2,7 +2,7 @@
 row: P3-12
 baseline: 49aa659
 created: 2026-09-28 18:26 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 18:54 UTC
 evidence:
   - claim: "Lots are kept per trade, not pooled across the account"
     source: "`account_ledger.py` 322, sold from at 360"
@@ -13,7 +13,7 @@ evidence:
   - claim: "Which way is used is set when the account is registered"
     source: "`account_ledger.py` 239"
   - claim: "Registering a second time is refused"
-    source: "`account_ledger.py` 236-237"
+    source: "`account_ledger.py` 235-237"
   - claim: "A sell takes from the lots in turn"
     source: "`account_ledger.py` 364-373"
   - claim: "A sell larger than the lots is refused after they have been taken"

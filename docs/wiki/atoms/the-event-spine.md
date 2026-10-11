@@ -2,7 +2,7 @@
 row: P2-17
 baseline: 49aa659
 created: 2026-09-26 08:12 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 18:54 UTC
 evidence:
   - claim: "Every event is kept with its epoch, time, kind and contents"
     source: "`event_spine.py` 123-131"
@@ -10,7 +10,7 @@ evidence:
     source: "`event_spine.py` 1165-1172, the order coming from the key at 124"
   - claim: "A kind the record does not know is refused rather than kept"
     source: "`event_spine.py` 1158-1161"
-  - claim: "A fill already written for the same epoch, account, pair and venue name is refused, and nothing is written for it"
+  - claim: "A fill already written for the same epoch, account, pair and venue's own name for the trade is refused, and nothing is written for it"
     source: "`event_spine.py` 1022-1023"
   - claim: "A fill is offered here before it is projected"
     source: "`execution_manager.py` 4328-4330"

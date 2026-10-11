@@ -4987,6 +4987,79 @@ class TestWhatADeepNestCosts:
         assert held.stdout.strip() == '1'
 
 
+class TestWhatARefusalMustCite:
+    @staticmethod
+    def _held(source: str, row: str, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        monkeypatch.setattr(
+            check_wiki, '_resolve_source', lambda _k: Path('order.py'),
+        )
+
+        held: list[str] = check_wiki._row_citations(row, check_wiki._SourceFacts())
+
+        return held
+
+    def test_a_refusal_stopping_before_its_raise_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(qty):\n\n    if qty < 0:\n        msg = "no"\n'
+            '        raise ValueError(msg)\n'
+        )
+        held = self._held(source, 'An amount below nought is refused | `order.py` 3-4', monkeypatch)
+
+        assert any('stopping on the line before the raise at 5' in note for note in held)
+
+    def test_a_refusal_citing_its_raise_stands(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(qty):\n\n    if qty < 0:\n        msg = "no"\n'
+            '        raise ValueError(msg)\n'
+        )
+        held = self._held(source, 'An amount below nought is refused | `order.py` 3-5', monkeypatch)
+
+        assert held == []
+
+    def test_a_claim_of_no_refusal_stands(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(qty):\n\n    if qty < 0:\n        msg = "no"\n'
+            '        raise ValueError(msg)\n'
+        )
+        held = self._held(source, 'The message names the amount | `order.py` 3-4', monkeypatch)
+
+        assert held == []
+
+    def test_a_range_ending_on_a_raise_stands(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(qty):\n\n    try:\n        work()\n    except KeyError:\n'
+            '        if qty < 0:\n            raise ValueError from None\n'
+            '        raise\n'
+        )
+        held = self._held(source, 'An amount below nought is refused | `order.py` 6-7', monkeypatch)
+
+        assert held == []
+
+    def test_a_raise_cited_elsewhere_in_the_row_stands(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(qty):\n\n    if qty < 0:\n        msg = "no"\n'
+            '        raise ValueError(msg)\n'
+        )
+        held = self._held(
+            source,
+            'An amount below nought is refused | `order.py` 3-4, raised at 5',
+            monkeypatch,
+        )
+
+        assert held == []
+
+
 class TestLinkLabels:
     def test_a_label_reads_past_case_and_spacing(self) -> None:
         assert check_wiki._label('  Some   Ref ') == 'some ref'
