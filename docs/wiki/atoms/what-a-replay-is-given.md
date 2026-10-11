@@ -2,7 +2,7 @@
 row: P3-04
 baseline: 49aa659
 created: 2026-09-30 19:29 UTC
-modified: 2026-10-11 19:33 UTC
+modified: 2026-10-11 20:42 UTC
 evidence:
   - claim: "A scenario carries the account, the series, a step length, the symbol and its venue rules, the starting money, the strategy text and the bars"
     source: "`replay_scenario.py` 63-70"
@@ -20,7 +20,7 @@ evidence:
     source: "`run_replay.py` 246 into `replay_venue_adapter.py` 111 and 240-258"
   - claim: "The strategy text is written into the working directory"
     source: "`run_replay.py` 110"
-  - claim: "That directory is put on the import path, and taken off when the run ends"
+  - claim: "That directory is put on the import path, and every copy of it taken off when the run ends, one that was there already included"
     source: "`launcher.py` 4071 into 2450-2451, undone from `run_replay.py` 177 at 189-192"
   - claim: "The account's settings are written out from the scenario"
     source: "`run_replay.py` 112 and 321-332"

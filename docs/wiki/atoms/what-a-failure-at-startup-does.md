@@ -2,7 +2,7 @@
 row: P4-20
 baseline: 49aa659
 created: 2026-10-01 10:18 UTC
-modified: 2026-10-09 11:31 UTC
+modified: 2026-10-11 20:42 UTC
 evidence:
   - claim: "A key that can withdraw, or cannot trade spot, raises"
     source: "`launcher.py` 3101-3112"
@@ -26,7 +26,7 @@ evidence:
     source: "`launcher.py` 3992-3995 ahead of 3999"
   - claim: "A failure in a sampler or a poller is logged and trading carries on"
     source: "`launcher.py` 3704-3710 and 3804-3808"
-  - claim: "A sampler build that fails stops the samplers it had already started"
+  - claim: "A sampler build that fails stops the samplers it had already started, until one of those stops fails in its turn"
     source: "`launcher.py` 3747-3751"
 ---
 # What a failure at startup does
