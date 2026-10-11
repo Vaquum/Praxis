@@ -4987,6 +4987,49 @@ class TestWhatADeepNestCosts:
         assert held.stdout.strip() == '1'
 
 
+class TestWhatAnAbsentTreeIsSaid:
+    def test_an_absent_tree_is_noted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'NEXUS_ROOT', tmp_path / 'nowhere')
+
+        assert check_wiki._unchecked_trees() == [
+            f'the Nexus tree is not checked out at {tmp_path / "nowhere"}, '
+            'so citations into it are not read',
+        ]
+
+    def test_a_tree_that_is_there_is_not_noted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, 'NEXUS_ROOT', tmp_path)
+
+        assert check_wiki._unchecked_trees() == []
+
+
+class TestWhatARunWithoutNexusSays:
+    @_NEEDS_BASELINE
+    def test_the_gate_writes_the_note(self, tmp_path: Path) -> None:
+        script = (
+            'import importlib.util\n'
+            'import sys\n'
+            'from pathlib import Path\n'
+            f'spec = importlib.util.spec_from_file_location("gate", {str(_SCRIPT)!r})\n'
+            'gate = importlib.util.module_from_spec(spec)\n'
+            'sys.modules["gate"] = gate\n'
+            'spec.loader.exec_module(gate)\n'
+            f'gate.NEXUS_ROOT = Path({str(tmp_path / "nowhere")!r})\n'
+            'sys.exit(gate.main())\n'
+        )
+        held = subprocess.run(  # noqa: S603
+            [sys.executable, '-c', script],
+            capture_output=True, text=True, timeout=600, check=False,
+            cwd=_SCRIPT.parent.parent,
+        )
+
+        assert held.returncode == 0
+        assert 'note: the Nexus tree is not checked out' in held.stdout
+
+
 class TestWhatAnUncommittedEditNeeds:
     @staticmethod
     def _committed(
