@@ -499,6 +499,8 @@ class _Scopes:
             more than one way.
         regardless (tuple[_Block, ...]): Every `finally` body.
         after_a_loop (tuple[_Block, ...]): Every loop's `else` body.
+        alone (frozenset[int]): Where each `with` starts that holds one
+            manager, whose ending nothing of its own could swallow.
         cleaned (dict[int, int]): Where each `try` starts and ends whose
             `finally` could raise as it runs.
     '''
@@ -512,6 +514,7 @@ class _Scopes:
     overrides: tuple[tuple[_Block, str], ...]
     regardless: tuple[_Block, ...]
     after_a_loop: tuple[_Block, ...]
+    alone: frozenset[int]
     cleaned: dict[int, int]
 
 
@@ -592,6 +595,10 @@ def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
             for block in _blocks([(node, node.finalbody)], lines)
         ),
         after_a_loop=_blocks(((node, node.orelse) for node in loops), lines),
+        alone=frozenset(
+            node.lineno for node in ast.walk(tree)
+            if isinstance(node, (ast.With, ast.AsyncWith)) and len(node.items) == 1
+        ),
         cleaned={
             node.lineno: node.end_lineno or node.lineno
             for node in tries
@@ -1010,7 +1017,12 @@ def _without(scopes: _Scopes, start: int) -> _Scopes:
     '''Return the scopes with the construct starting on one line left out.
 
     A raise an ending takes leaves the construct whose ending it is, so
-    that construct cannot be what catches or bounds it.
+    that construct cannot be what catches or bounds it — nor can
+    anything inside it, every handler and every ending in there having
+    had its turn before that ending ran. A `with` holding more than
+    one manager keeps its place: an ending of one could be swallowed by
+    another in the same statement, and what follows the `with` run
+    after all.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
@@ -1020,13 +1032,30 @@ def _without(scopes: _Scopes, start: int) -> _Scopes:
         _Scopes: The same, with that construct dropped.
     '''
 
+    if start not in scopes.cleaned and start not in scopes.alone:
+        return scopes
+
+    end = max(
+        (
+            held_end
+            for spans in (scopes.cleaned, scopes.helds)
+            for held, held_end in spans.items()
+            if held == start
+        ),
+        default=start,
+    )
+
     return dataclasses.replace(
         scopes,
         tries={
-            held: end for held, end in scopes.tries.items() if held != start
+            held: held_end
+            for held, held_end in scopes.tries.items()
+            if not start <= held <= end
         },
         helds={
-            held: end for held, end in scopes.helds.items() if held != start
+            held: held_end
+            for held, held_end in scopes.helds.items()
+            if not start <= held <= end
         },
     )
 
@@ -1206,7 +1235,7 @@ def _holder_ways(statement: ast.stmt) -> set[str]:
     if isinstance(statement, (ast.With, ast.AsyncWith)):
         return _held_ways(
             _block_ways(statement.body),
-            could_raise=_may_raise(statement.body),
+            could_raise=_may_raise(statement.body) or len(statement.items) > 1,
         )
 
     if isinstance(statement, (ast.Try, ast.TryStar)):
@@ -1258,12 +1287,16 @@ def _held_ways(ways: set[str], *, could_raise: bool) -> set[str]:
     may run after all — and may not, so the raise stands as a way out
     beside carrying on. A raise the body could take without saying so,
     out of a call or a name or a sum, is swallowed the same way, and
-    carrying on stands beside the body's own ways for it.
+    carrying on stands beside the body's own ways for it. A `with`
+    holding more than one manager can swallow the ending of another in
+    the same statement, so carrying on stands there whatever its body
+    does.
 
     Args:
         ways (set[str]): The ways its body can end.
         could_raise (bool): Whether anything the body runs could raise
-            without that being one of those ways.
+            without that being one of those ways, or the statement
+            holds a manager that could swallow another's ending.
 
     Returns:
         set[str]: Those ways, with carrying on where a raise could be

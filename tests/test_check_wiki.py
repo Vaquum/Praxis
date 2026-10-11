@@ -2204,6 +2204,53 @@ class TestTheFinallyClause:
 
         assert unpaired == list(shapes)
 
+    def test_one_manager_may_swallow_the_ending_of_another(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    with held(), also():\n        if flag:\n"
+            "            return 1\n    return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 5 in second for first, second in spans)
+
+    def test_a_with_of_many_managers_inside_a_branch_may_carry_on(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        with held(), also():\n"
+            "            return 1\n    return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 5 in second for first, second in spans)
+
+    def test_a_with_of_one_manager_inside_a_branch_still_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        with held():\n"
+            "            return 1\n    return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 5 in second for first, second in spans)
+
+    def test_a_handler_inside_the_ending_had_its_turn(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    with held():\n        try:\n            if flag:\n"
+            "                return 1\n            inside()\n"
+            "        except Exception:\n            handled()\n"
+            "        after_handler()\n    after_with()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 9 in second for first, second in spans)
+        assert any(5 in first and 10 in second for first, second in spans)
+
     def test_the_nearest_ending_is_the_one_a_raise_leaves(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
