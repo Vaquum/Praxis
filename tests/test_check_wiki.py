@@ -19,7 +19,16 @@ from typing import Any
 
 import pytest
 
+from tests.support.reachable_pairs import (
+    reachable_pairs,
+    settled_shapes,
+    written_shapes,
+)
+
 _SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'check_wiki.py'
+_SHAPES = 2000
+_PAIRS = 1000
+_SETTLED_PAIRS = 500
 _STUB = '''    def m(
         self,
     ) -> int:
@@ -1889,6 +1898,34 @@ class TestTheFinallyClause:
                 unpaired.append(label)
 
         assert unpaired == list(shapes)
+
+    def test_a_raise_reaches_its_handler_under_a_finally_that_returns(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, step):\n    try:\n        if flag:\n"
+            "            raise ValueError()\n            step()\n"
+            "    except Exception:\n        pass\n    finally:\n"
+            "        return 1\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 7 in second for first, second in spans)
+
+    def test_a_raise_reaches_a_handlers_own_line_under_such_a_finally(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, other, step):\n    try:\n        try:\n"
+            "            if flag:\n                raise ValueError()\n"
+            "                step()\n        except TypeError:\n"
+            "            held = 1\n        finally:\n            if other:\n"
+            "                step()\n            if True:\n"
+            "                return 1\n    finally:\n        pass\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 7 in second for first, second in spans)
 
     def test_an_unread_kind_past_the_last_said_raise_cannot_run(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -4838,6 +4875,22 @@ class TestWhatReachesAnAbsentNexus:
         assert not check_wiki._reaches_absent_nexus(
             'praxis/not_real/outcome_processor.py',
         )
+
+
+class TestWhatOnePassCanReach:
+    def test_no_settled_shape_offers_a_pair_one_pass_reaches(self) -> None:
+        weighed, found = reachable_pairs(check_wiki, settled_shapes())
+
+        assert found == []
+        assert weighed >= _SETTLED_PAIRS
+
+    def test_no_written_shape_offers_a_pair_one_pass_reaches(self) -> None:
+        weighed, found = reachable_pairs(
+            check_wiki, written_shapes(seed=0, runs=_SHAPES),
+        )
+
+        assert found == []
+        assert weighed >= _PAIRS
 
 
 class TestWhatADeepNestCosts:

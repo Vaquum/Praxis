@@ -1037,7 +1037,7 @@ def _after_the_branch(
     if kind == 'continue':
         running += scopes.after_a_loop
 
-    if kind == 'raise' or raising:
+    if own == _RAISE or raising:
         running += scopes.handlers
 
     return after - _still_runs(running, node.lineno)
