@@ -2323,6 +2323,62 @@ class TestTheFinallyClause:
 
         assert unpaired == list(shapes)
 
+    def test_a_heading_written_over_several_lines_shares_its_last(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(check, hit):\n    if (\n            check()): hit('arm')\n"
+            "    else:\n        hit('else')\n"
+        )
+
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_kind_written_over_several_lines_shares_its_last(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(seen):\n    try:\n        raise ValueError()\n    except (\n"
+            "            ValueError,\n            KeyError): seen('a')\n"
+            "    except TypeError:\n        seen('b')\n"
+        )
+
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_guard_written_over_several_lines_shares_its_last(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(seen, x):\n    match x:\n        case 1 if (\n"
+            "                seen('g')): pass\n        case _:\n            seen('b')\n"
+        )
+
+        assert not self._spans(source, tmp_path, monkeypatch)
+
+    def test_a_finally_that_never_ends_is_what_runs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            return 1\n"
+            "    finally:\n        while True:\n            seen()\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 8 in second for first, second in spans)
+        assert not any(4 in first and 7 in second for first, second in spans)
+
+    def test_a_loop_written_later_holds_no_branch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, items):\n    for x in items:\n        try:\n"
+            "            if flag:\n                mark()\n                break\n"
+            "        finally:\n            return 1\n        after_try()\n"
+            "    later()\n\ndef other(ys):\n    for y in ys:\n        pass\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(5 in first and 10 in second for first, second in spans)
+
     def test_a_finally_an_endless_arm_never_reaches_is_an_alternative(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -4585,3 +4641,28 @@ class TestWhatARaiseWorksOut:
         ]
 
         assert noisy == list(shapes)
+
+
+class TestWhatACitationMayName:
+    def test_a_reference_of_any_length_is_read(self) -> None:
+        held = [
+            match.group(0)
+            for match in check_wiki.LINE_REF.finditer('`events.py` 585-595, 10000000')
+        ]
+
+        assert held == ['585-595', '10000000']
+
+    def test_a_count_with_no_number_is_no_count(self) -> None:
+        assert not check_wiki.EVIDENCE_COUNT_RE.search(
+            ', line references across , claims',
+        )
+        assert not check_wiki.FINDING_COUNT_RE.search('Record , findings')
+        assert not check_wiki.LINE_COUNT_RE.search('`order.py` is , lines')
+
+    def test_a_count_with_a_number_is_one(self) -> None:
+        held = check_wiki.EVIDENCE_COUNT_RE.search(
+            '2,204 line references across 1,203 claims',
+        )
+
+        assert held is not None
+        assert held.groups() == ('2,204', '1,203')

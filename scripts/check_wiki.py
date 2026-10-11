@@ -121,7 +121,7 @@ OWNED_TERMS = {
     'how-the-likely-price-is-checked.md': ('likely-price check',),
     'the-order-book.md': ('order book',),
 }
-LINE_REF = re.compile(r'(?<![-\w.])(\d{1,7})(?:-(\d{1,7}))?\b')
+LINE_REF = re.compile(r'(?<![-\w.])(\d+)(?:-(\d+))?\b')
 FILE_REF = re.compile(r'`([A-Za-z_][A-Za-z0-9_/]*\.py)`')
 LINK_ONLY = re.compile(r'-\s*\[[^]]+\]\([^)]+\.md\)')
 _TITLE = (
@@ -175,8 +175,8 @@ NEXUS_TOTAL_RE = re.compile(r'(?:the|its) (\d+) (?:in Nexus|modules)')
 NEXUS_UNTOUCHED_RE = re.compile(r'(\d+) untouched')
 CHANGELOG = Path('CHANGELOG.md')
 RELEASE_RE = re.compile(r'^## v\d+\.\d+\.\d+', re.MULTILINE)
-EVIDENCE_COUNT_RE = re.compile(r'([\d,]+) line references across ([\d,]+) claims')
-FINDING_COUNT_RE = re.compile(r'Record ([\d,]+) findings')
+EVIDENCE_COUNT_RE = re.compile(r'(\d[\d,]*) line references across (\d[\d,]*) claims')
+FINDING_COUNT_RE = re.compile(r'Record (\d[\d,]*) findings')
 FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
 ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
 UNASSIGNED_RE = re.compile(r'^\|([^|]*\([^|]*\))?[^|]*\|[^|]*\| unassigned \|$', re.MULTILINE)
@@ -194,7 +194,7 @@ FINDING_ROW_CELLS_RE = re.compile(
     r'^\| ([HU]-\d+) \|[^|]*\|([^|]*)\|[^|]*\|([^|]*)\|', re.MULTILINE,
 )
 UNNAMED = 'cited with no file named before it'
-LINE_COUNT_RE = re.compile(r'`([a-z_/]+\.py)`[,]? (?:is|at) ([\d,]+) lines')
+LINE_COUNT_RE = re.compile(r'`([a-z_/]+\.py)`[,]? (?:is|at) (\d[\d,]*) lines')
 _MARKER_REACH = 40
 ABSENCE_WORDS = ('nothing further', 'nowhere', 'absent from', 'no such')
 GIT = shutil.which('git')
@@ -787,7 +787,9 @@ def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]
     '''
 
     spans = [
-        _own_lines(h.body, h.lineno) for h in node.handlers if h.body
+        _own_lines(h.body, _asked_of(h.type, h.lineno))
+        for h in node.handlers
+        if h.body
     ]
     settled = _else_lines(node)
 
@@ -820,7 +822,7 @@ def _case_arms(node: ast.Match) -> list[tuple[set[int], set[int]]]:
     '''
 
     spans = [
-        _own_lines(case.body, case.pattern.lineno)
+        _own_lines(case.body, _asked_of(case.guard, _asked_of(case.pattern, 0)))
         for case in node.cases
         if case.body
     ]
@@ -849,18 +851,38 @@ def _else_lines(node: ast.Try | ast.TryStar) -> set[int]:
     return set(range(node.orelse[0].lineno, (node.orelse[-1].end_lineno or 0) + 1))
 
 
+def _asked_of(held: ast.expr | ast.pattern | None, default: int) -> int:
+
+    '''Return the last line what a heading asks for reaches.
+
+    Args:
+        held (ast.expr | ast.pattern | None): What the heading asks
+            for, or nothing where it asks for nothing.
+        default (int): The line to answer with where it asks nothing.
+
+    Returns:
+        int: That line.
+    '''
+
+    if held is None:
+        return default
+
+    return held.end_lineno or held.lineno
+
+
 def _own_lines(body: list[ast.stmt], header: int) -> set[int]:
 
     '''Return the lines a block holds to itself.
 
-    A block whose first statement begins on the line heading it shares
-    that line with what the heading works out — a condition, a kind, a
-    pattern — and that runs whether the block does or not, so the line
-    is no part of the alternative.
+    A block whose first statement begins on a line the heading runs to
+    shares that line with what the heading works out — a condition, a
+    kind, a pattern — and that runs whether the block does or not, so
+    the line is no part of the alternative. A heading written over
+    several lines is read to the last of them.
 
     Args:
         body (list[ast.stmt]): The block's statements.
-        header (int): The line the heading sits on.
+        header (int): The last line the heading reaches.
 
     Returns:
         set[int]: Those lines, the shared one left out.
@@ -869,7 +891,7 @@ def _own_lines(body: list[ast.stmt], header: int) -> set[int]:
     first = body[0].lineno
     held = set(range(first, (body[-1].end_lineno or first) + 1))
 
-    return held - {header} if first == header else held
+    return held - {first} if first == header else held
 
 
 def _else_arm(node: ast.If) -> set[int]:
@@ -909,7 +931,7 @@ def _branch_arms(node: ast.If, scopes: _Scopes) -> list[tuple[set[int], set[int]
         list[tuple[set[int], set[int]]]: The one pair found, or none.
     '''
 
-    body = _own_lines(node.body, node.lineno)
+    body = _own_lines(node.body, node.test.end_lineno or node.lineno)
 
     pairs: list[tuple[set[int], set[int]]] = []
 
@@ -959,8 +981,9 @@ def _after_the_branch(
     it reaches the end of the guarded block. A return reaches the end of
     the function. A `finally` runs whatever happens, and a loop's `else`
     runs after a continue, so neither is an alternative to anything —
-    unless the arm never ends at all, an endless loop being where even
-    a `finally` does not run.
+    unless the arm itself never ends at all, an endless loop being
+    where even a `finally` does not run — a `finally` that never ends
+    is running, and is no alternative to what entered it.
     Where a `finally` is what takes the branch out, how far that reaches
     is measured from the `finally` rather than from the branch, and a
     `finally` leaving by more than one way reaches nothing. So does an
@@ -1006,7 +1029,7 @@ def _after_the_branch(
     after = {
         line for line in reach if line > (node.end_lineno or node.lineno)
     }
-    running = () if kind == _ENDLESS else scopes.regardless
+    running = () if own == _ENDLESS else scopes.regardless
 
     if kind == 'continue':
         running += scopes.after_a_loop
@@ -1192,7 +1215,8 @@ def _leaves_the_try(own: str, scopes: _Scopes, line: int, start: int) -> bool:
         return False
 
     return not any(
-        start < held for held in _loops_around(scopes, line)
+        start < held <= line <= end
+        for held, end in _loops_around(scopes, line).items()
     )
 
 
