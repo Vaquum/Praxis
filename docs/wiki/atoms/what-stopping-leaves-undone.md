@@ -2,7 +2,7 @@
 row: P4-23
 baseline: 49aa659
 created: 2026-10-01 18:04 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:38 UTC
 evidence:
   - claim: "A cancel the venue refuses in the second pass is logged as a warning and the next order taken up"
     source: "`trading.py` 735-742"
@@ -10,7 +10,7 @@ evidence:
     source: "`trading.py` 744-762"
   - claim: "Running out of that time is logged as a warning and the stopping goes on"
     source: "`trading.py` 763-764"
-  - claim: "Each feed is closed, and a failure closing one is logged and the next taken up"
+  - claim: "Each feed is closed, and an ordinary failure closing one is logged and the next taken up"
     source: "`trading.py` 766-773"
   - claim: "The venue is closed, and a failure closing it is logged and passed over"
     source: "`trading.py` 775-780"

@@ -2,7 +2,7 @@
 row: P2-12
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:38 UTC
 evidence:
   - claim: "Registering a name creates its queues, its state and its ledger together"
     source: "`execution_manager.py` 823-830, with two further queues made alongside at 581-584"
@@ -13,7 +13,7 @@ evidence:
   - claim: "Registering a known name again re-registers it at the venue and returns, creating none of the account's own state again"
     source: "`trading_inbound.py` 128-130, the manager never entered, though a replaying venue does reset its balance book at `replay_venue_adapter.py` 116"
   - claim: "The refusal that raises is reserved for a direct call on the manager"
-    source: "`execution_manager.py` 816-818"
+    source: "`execution_manager.py` 816-818, the way in returning before it at `trading_inbound.py` 128-130"
   - claim: "An account can be registered parked, its worker sleeping each pass"
     source: "`execution_manager.py` 831, read by the worker at 3903-3905, cleared at 3672"
   - claim: "Recovery acts on the venue while it is parked, cancelling a stray by one call or the other"
@@ -22,8 +22,8 @@ evidence:
     source: "`praxis/trading.py` 600 into the policy test at `execution_manager.py` 7912-7916, reaching 8255 only where every later check falls through, and the send itself at 7707 only past the further checks inside it"
   - claim: "A flatten the venue still has working is left in place, not re-sent"
     source: "`execution_manager.py` 7984-7994"
-  - claim: "The repair sweep re-sends by its own route, never through that one"
-    source: "`execution_manager.py` 7118-7122, reaching 7139 unless that test returns instead"
+  - claim: "The repair sweep reaches the same send by a call of its own, only where the policy calls for it and no such order stands already"
+    source: "`execution_manager.py` 7118-7122 and 7136-7137, reaching the route at 7139 unless either test returns instead"
   - claim: "Holdings are keyed by trade and account together"
     source: "`trading_state.py` 482-491"
   - claim: "On the exchange adapter, credentials are stored against the name and used to sign its calls"

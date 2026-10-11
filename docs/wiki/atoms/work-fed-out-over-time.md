@@ -2,7 +2,7 @@
 row: P2-19
 baseline: 49aa659
 created: 2026-09-27 14:09 UTC
-modified: 2026-10-10 12:57 UTC
+modified: 2026-10-11 19:38 UTC
 evidence:
   - claim: "Three ways of working send an amount out in parts spaced over time"
     source: "`execution_manager.py` 170-172, spaced at 5926-5929"
@@ -12,7 +12,7 @@ evidence:
     source: "built at `trading_state.py` 251-259, kept up to date at 275-280"
   - claim: "Dividing evenly makes every part but the last the same size"
     source: "either `plan_even_slices.py` 56-58 or, where a step is known, 60-78"
-  - claim: "A curve of weights sizes each part from its own weight"
+  - claim: "A curve of weights sizes every part but the last from its own weight, the last taking what is left"
     source: "either `plan_weighted_slices.py` 59-62 or, where a step is known, 65-76"
   - claim: "Either way the last part takes what is left"
     source: "`plan_even_slices.py` 69 and `plan_weighted_slices.py` 76"
@@ -43,7 +43,7 @@ Praxis keeps one record for it all: the total, how many slices, which comes next
 
 ## How the slices are sized
 
-Dividing evenly makes every slice but the last the same size. A curve of weights instead sizes each slice from its own weight, so early ones can be larger than late ones.
+Dividing evenly makes every slice but the last the same size. A curve of weights sizes those same slices from their own weights, so early ones can be larger than late ones.
 
 Either way the last slice takes what is left, so ten split three ways can be three, three and four. Each is rounded down to the step the venue trades in, but only where Praxis knows that step.
 
