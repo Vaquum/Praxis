@@ -958,8 +958,9 @@ def _after_the_branch(
         set[int]: Those lines, or none where there are none.
     '''
 
-    override = _overridden(scopes, node.lineno)
-    kind = override[0] if override is not None else _one_leave(statements)
+    own = _one_leave(statements)
+    override = _overridden(scopes, node.lineno, own)
+    kind = override[0] if override is not None else own
     measured = override[1] if override is not None else node.lineno
     reach = _as_far_as(kind, scopes, measured)
 
@@ -1096,18 +1097,22 @@ def _as_far_as(kind: str, scopes: _Scopes, line: int) -> set[int]:
     return set(range(stop + 1))
 
 
-def _overridden(scopes: _Scopes, line: int) -> tuple[str, int] | None:
+def _overridden(scopes: _Scopes, line: int, own: str) -> tuple[str, int] | None:
 
     '''Return the way a `finally` around a branch takes it out instead.
 
     A `finally` runs after whatever the branch did and can leave by its
     own way, so a return under a `finally` that breaks is a break. One
     outside the function the branch sits in takes out the call, not the
-    branch, and is passed over.
+    branch, and is passed over. So is one the branch never reaches: a
+    break or a continue bound for a loop inside the `try` stays in
+    there, and the `finally` has not run when what follows the loop
+    does.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
         line (int): Where the branch sits.
+        own (str): The way the branch leaves by itself.
 
     Returns:
         tuple[str, int] | None: The way it leaves and where its `try`
@@ -1118,10 +1123,43 @@ def _overridden(scopes: _Scopes, line: int) -> tuple[str, int] | None:
 
     for block, kind in scopes.overrides:
 
-        if block.start >= floor and not block.skipped_by(line):
+        if block.start < floor or block.skipped_by(line):
+            continue
+
+        if _leaves_the_try(own, scopes, line, block.start):
             return kind, block.start
 
     return None
+
+
+def _leaves_the_try(own: str, scopes: _Scopes, line: int, start: int) -> bool:
+
+    '''Whether a branch's own way out crosses a `try` to reach its end.
+
+    A return or a raise leaves whatever holds it, so it crosses. A
+    break or a continue reaches the loop around it, and crosses only
+    where that loop is outside the `try`. A branch leaving by nothing
+    nameable crosses nothing.
+
+    Args:
+        own (str): The way the branch leaves by itself.
+        scopes (_Scopes): What a branch leaving the path can skip.
+        line (int): Where the branch sits.
+        start (int): Where the `try` holding the `finally` starts.
+
+    Returns:
+        bool: True where the `finally` runs on that way out.
+    '''
+
+    if own in {'return', 'raise'}:
+        return True
+
+    if own not in {'break', 'continue'}:
+        return False
+
+    return not any(
+        start < held <= line <= end for held, end in scopes.loops.items()
+    )
 
 
 def _can_leave(body: list[ast.stmt]) -> bool:
@@ -2370,7 +2408,10 @@ def _weighed_pair(sign: ast.cmpop, left: Any, right: Any) -> bool | None:
     Whether one thing is another is weighed only where both are
     written out as what stands alone — nothing at all, or either
     answer — since two written the same way may be one thing or two,
-    and which they are is settled where the file is compiled.
+    and which they are is settled where the file is compiled. A pair
+    the sign refuses answers nothing: looking for a number outside a
+    byte among bytes is refused as surely as weighing a number against
+    a word.
 
     Args:
         sign (ast.cmpop): The sign between them.
@@ -2394,7 +2435,7 @@ def _weighed_pair(sign: ast.cmpop, left: Any, right: Any) -> bool | None:
     try:
         return bool(weigh(left, right))
 
-    except TypeError:
+    except (TypeError, ValueError, OverflowError):
         return None
 
 

@@ -2300,6 +2300,52 @@ class TestTheFinallyClause:
 
         assert any(6 in first and 9 in second for first, second in spans)
 
+    def test_a_finally_a_loop_exit_never_reaches_overrides_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a break bound for a loop inside': '                break\n',
+            'a continue bound for one': '                continue\n',
+        }
+        unpaired = []
+
+        for label, leaving in shapes.items():
+            source = (
+                "def f(flag):\n    try:\n        for x in [1]:\n"
+                "            if flag:\n                mark()\n" + leaving
+                + "            other()\n        after_loop()\n    finally:\n"
+                "        return\n"
+            )
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(5 in first and 8 in second for first, second in spans):
+                unpaired.append(label)
+
+        assert unpaired == list(shapes)
+
+    def test_a_finally_overrides_no_arm_that_names_no_way(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag, stop):\n    try:\n        if flag:\n            mark()\n"
+            "            if stop:\n                raise ValueError()\n"
+            "            return 1\n        other()\n    finally:\n        return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 8 in second for first, second in spans)
+
+    def test_a_pair_the_sign_refuses_answers_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        if -1 in b'ab':\n"
+            "            return 1\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 6 in second for first, second in spans)
+
     def test_a_finally_that_could_raise_bounds_the_branch(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
