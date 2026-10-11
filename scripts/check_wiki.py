@@ -936,7 +936,9 @@ def _after_the_branch(
     leave being read rather than the last alone. An arm that could
     raise where it stands reaches no further than such a raise would,
     since a handler or a context manager between the arm and the end
-    carries that run on past it. A `finally` that could raise as it
+    carries that run on past it — and the handlers it could reach run
+    on that raise, so they are no alternative to it either, however
+    the arm leaves on its other paths. A `finally` that could raise as it
     runs bounds it the same way, and so does a `with` whose own ending
     could: both run on the way out, and such a raise leaves the
     construct it came from rather than being caught by it.
@@ -958,7 +960,9 @@ def _after_the_branch(
     if not reach:
         return set()
 
-    if _may_raise(statements):
+    raising = _may_raise(statements)
+
+    if raising:
         reach &= _as_far_as('raise', scopes, measured)
 
     cleanup = _cleaned_up(scopes, node.lineno)
@@ -974,7 +978,7 @@ def _after_the_branch(
     if kind == 'continue':
         running += scopes.after_a_loop
 
-    if kind == 'raise':
+    if kind == 'raise' or raising:
         running += scopes.handlers
 
     return after - _still_runs(running, node.lineno)
@@ -2338,7 +2342,8 @@ def _may_raise(body: list[ast.stmt]) -> bool:
 
     Only the plainest statements are read as unable to: a pass, a
     break, a continue, a return or a statement of nothing but a value
-    written out, and a loop whose body never runs. A call of any kind, a name looked up,
+    written out, such a value given to plain names, a loop whose body
+    never runs, and a `try` nothing in which could raise. A call of any kind, a name looked up,
     a subscript or a sum could raise, so everything else is read as
     able to. Nothing past a statement that always leaves is read, that
     being unreachable.
@@ -2370,8 +2375,9 @@ def _could_raise(statement: ast.stmt) -> bool:
 
     Returns:
         bool: False for a pass, a break, a continue, a return or a
-            statement of nothing but a value written out, and a loop,
-            an `if` or a `match` nothing in which could raise; True for
+            statement of nothing but a value written out, a value
+            written out given to plain names, and a loop, an `if`, a
+            `match` or a `try` nothing in which could raise; True for
             everything else.
     '''
 
@@ -2384,7 +2390,107 @@ def _could_raise(statement: ast.stmt) -> bool:
     if isinstance(statement, ast.Expr):
         return not _quiet_expression(statement.value)
 
+    if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+        return _given_could_raise(statement)
+
+    if isinstance(statement, (ast.Try, ast.TryStar)):
+        return _tried_could_raise(statement)
+
     return _holder_could_raise(statement)
+
+
+def _given_could_raise(statement: ast.Assign | ast.AnnAssign) -> bool:
+
+    '''Whether giving a value a name could raise where it stands.
+
+    Working out the value could, and so could handing it to anything
+    but a plain name: an attribute or a subscript asks the thing it
+    sits on, and several names at once ask the value to come apart.
+
+    Args:
+        statement (ast.Assign): The statement to read.
+
+    Returns:
+        bool: True where it could raise.
+    '''
+
+    given: list[ast.expr] = []
+
+    if isinstance(statement, ast.AnnAssign):
+        if not _quiet_expression(statement.annotation):
+            return True
+
+        given = [statement.target]
+
+    else:
+        given = list(statement.targets)
+
+    if statement.value is None:
+        return False
+
+    if not _quiet_expression(statement.value):
+        return True
+
+    return any(not _takes_the_value(name, statement.value) for name in given)
+
+
+def _takes_the_value(name: ast.expr, value: ast.expr) -> bool:
+
+    '''Whether what a value is given to can take it without raising.
+
+    A plain name takes anything. Names written out together take a
+    value written out with one thing for each of them; anything else
+    asks the value or the thing it sits on something, and could raise.
+
+    Args:
+        name (ast.expr): What the value is given to.
+        value (ast.expr): The value being given.
+
+    Returns:
+        bool: True where handing it over could not raise.
+    '''
+
+    if isinstance(name, ast.Name):
+        return True
+
+    if not isinstance(name, (ast.Tuple, ast.List)):
+        return False
+
+    held = _written_as(value)
+
+    return (
+        held is not None
+        and isinstance(held[0], (list, tuple))
+        and len(held[0]) == len(name.elts)
+        and all(isinstance(part, ast.Name) for part in name.elts)
+    )
+
+
+def _tried_could_raise(statement: ast.Try | ast.TryStar) -> bool:
+
+    '''Whether a `try` statement could raise where it stands.
+
+    A body nothing in which could raise reaches no handler, so only
+    its `else` and its `finally` are left to ask. Otherwise a raise
+    the handlers do not certainly catch could carry out, and a handler
+    that can run could raise of its own.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        bool: True where it could raise.
+    '''
+
+    if _may_raise(statement.finalbody) or _may_raise(statement.orelse):
+        return True
+
+    if not _may_raise(statement.body):
+        return False
+
+    return not _catches_anything(statement) or any(
+        _may_raise(handler.body) for handler in statement.handlers
+    )
 
 
 def _holder_could_raise(statement: ast.stmt) -> bool:

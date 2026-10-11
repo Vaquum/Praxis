@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -2781,6 +2782,86 @@ class TestTheFinallyClause:
 
         assert any(4 in first and 8 in second for first, second in spans)
 
+    def test_a_value_written_out_given_a_name_could_not_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'one name': '            held = 1\n',
+            'two names at once': '            held = kept = 1\n',
+            'names written out together': '            held, kept = 1, 2\n',
+            'a name with a kind written out': '            held: 1 = 2\n',
+            'a try nothing in which could raise': (
+                '            try:\n                return 1\n'
+                '            finally:\n                pass\n'
+            ),
+            'a handler no quiet body reaches': (
+                '            try:\n                return 1\n'
+                '            except ValueError:\n                return work()\n'
+            ),
+        }
+        paired = []
+
+        for label, held in shapes.items():
+            source = (
+                "def f(x):\n    try:\n        if x:\n" + held
+                + "            return 2\n    except ValueError:\n        pass\n"
+                "    two()\n"
+            )
+            last = source.splitlines().index('    two()') + 1
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if any(4 in first and last in second for first, second in spans):
+                paired.append(label)
+
+        assert paired == list(shapes)
+
+    def test_a_value_coming_apart_could_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'too few things to go round': '            held, kept = (1,)\n',
+            'a name on something else': '            held.part = 1\n',
+            'a value not written out': '            held = work()\n',
+            'a kind named by a name': '            held: int = 2\n',
+            'an ending that acts': (
+                '            try:\n                pass\n'
+                '            finally:\n                work()\n'
+            ),
+            'an else that acts': (
+                '            try:\n                pass\n'
+                '            except ValueError:\n                pass\n'
+                '            else:\n                work()\n'
+            ),
+        }
+        unpaired = []
+
+        for label, held in shapes.items():
+            source = (
+                "def f(x):\n    try:\n        if x:\n" + held
+                + "            return 2\n    except ValueError:\n        pass\n"
+                "    two()\n"
+            )
+            last = source.splitlines().index('    two()') + 1
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(4 in first and last in second for first, second in spans):
+                unpaired.append(label)
+
+        assert unpaired == list(shapes)
+
+    def test_a_handler_an_arm_could_raise_into_is_no_alternative(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            mark()\n"
+            "            return\n        other()\n    except ValueError:\n"
+            "        recover()\n    else:\n        fine()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 8 in second for first, second in spans)
+        assert any(4 in first and 6 in second for first, second in spans)
+
     def test_an_arm_that_could_raise_reaches_no_further_than_the_raise(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -4197,3 +4278,26 @@ class TestWhatReachesAnAbsentNexus:
         assert not check_wiki._reaches_absent_nexus(
             'praxis/not_real/outcome_processor.py',
         )
+
+
+class TestLinkLabels:
+    def test_a_label_reads_past_case_and_spacing(self) -> None:
+        assert check_wiki._label('  Some   Ref ') == 'some ref'
+
+    def test_two_labels_are_not_one(self) -> None:
+        assert check_wiki._label('here') != check_wiki._label('there')
+
+
+class TestWhenAPageWasCommitted:
+    @_NEEDS_BASELINE
+    def test_a_committed_file_has_a_date(self) -> None:
+        held = check_wiki._last_commit_date(check_wiki.CHANGELOG)
+
+        assert held is not None
+        assert re.fullmatch(r'\d{4}-\d{2}-\d{2}', held)
+
+    def test_a_file_outside_the_tree_has_none(self, tmp_path: Path) -> None:
+        held = tmp_path / 'nowhere.md'
+        held.write_text('# Nowhere\n', encoding='utf-8')
+
+        assert check_wiki._last_commit_date(held) is None
