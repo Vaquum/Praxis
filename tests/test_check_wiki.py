@@ -1848,6 +1848,32 @@ class TestTheFinallyClause:
 
         assert any(3 in first and 9 in second for first, second in spans)
 
+    def test_a_kind_named_through_something_else_may_catch_a_said_raise(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a kind on something': '        except errors.ValueError:\n',
+            'a kind looked up': "        except errors['ValueError']:\n",
+            'a kind called for': "        except errors.get('ValueError'):\n",
+            'a kind chosen between': (
+                '        except (ValueError if flag else TypeError):\n'
+            ),
+        }
+        unpaired = []
+
+        for label, handler in shapes.items():
+            source = (
+                "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+                "            raise ValueError()\n" + handler
+                + "            pass\n    later()\n"
+            )
+            spans = self._spans(source, tmp_path, monkeypatch)
+
+            if not any(3 in first and 8 in second for first, second in spans):
+                unpaired.append(label)
+
+        assert unpaired == list(shapes)
+
     def test_a_handler_naming_a_kind_through_something_else_still_runs(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
