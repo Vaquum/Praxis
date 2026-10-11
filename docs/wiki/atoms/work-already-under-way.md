@@ -2,7 +2,7 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-10-11 21:12 UTC
+modified: 2026-10-11 21:15 UTC
 evidence:
   - claim: "The cancellation retry runs before the point a held or failed account leaves"
     source: "`execution_manager.py` 3960, ahead of the leaving point at 3969-3971"
@@ -44,7 +44,7 @@ evidence:
     source: "`binance_adapter.py` 660-662 wrapped at 1637-1643, looked up at `execution_manager.py` 4979-4982, then either handed to repair at 4983-4997 or adopted at 4999"
   - claim: "A settled entry that filled nothing is dropped from the list"
     source: "`execution_manager.py` 4746-4749"
-  - claim: "With nothing held the record is put back and tried again"
+  - claim: "With nothing held the record is put back and left for a later caller"
     source: "`execution_manager.py` 4887-4904, returning rather than reaching the flag set at 4906"
   - claim: "The sweep runs seven repair jobs in order"
     source: "`execution_manager.py` 7290-7301, reached from 3976-3978"
