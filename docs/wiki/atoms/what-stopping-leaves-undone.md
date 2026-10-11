@@ -2,7 +2,7 @@
 row: P4-23
 baseline: 49aa659
 created: 2026-10-01 18:04 UTC
-modified: 2026-10-11 20:49 UTC
+modified: 2026-10-11 22:51 UTC
 evidence:
   - claim: "A cancel the venue refuses in the second pass is logged as a warning and the next order taken up"
     source: "`trading.py` 735-742"
@@ -31,7 +31,7 @@ A cancel the venue refuses in the second pass is logged as a warning, and the ne
 
 Trading then waits for the open orders and the commands in flight to clear, up to a time it is configured with. Running out of that time is logged as a warning and the stopping goes on regardless, so orders can still be resting when the host finishes.
 
-Each feed is closed next, then the venue. A failure in either is logged and the one after is taken up.
+Each feed is closed next, then the venue. An ordinary failure in either is logged and the one after is taken up.
 
 ## The one that is not
 

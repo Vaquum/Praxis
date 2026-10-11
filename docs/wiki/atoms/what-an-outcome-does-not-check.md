@@ -2,7 +2,7 @@
 row: P2-42
 baseline: 49aa659
 created: 2026-09-26 20:29 UTC
-modified: 2026-10-11 19:33 UTC
+modified: 2026-10-11 22:51 UTC
 evidence:
   - claim: "No rule ties the value to the amount times the price"
     source: "`praxis/core/domain/trade_outcome.py` 111-164, which multiplies nothing"
@@ -27,7 +27,7 @@ So the amount, the price and the value can each pass on their own while making n
 
 ## Numbers with no limit
 
-Only the target amount is required to be an ordinary number rather than infinity. An average price of infinity passes, and so does a value of infinity.
+Only the target amount is required to be an ordinary number rather than infinity, and only where one is given at all. An average price of infinity passes, and so does a value of infinity.
 
 ## The status
 

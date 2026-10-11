@@ -2,7 +2,7 @@
 row: P2-34
 baseline: 49aa659
 created: 2026-09-26 07:02 UTC
-modified: 2026-10-11 19:43 UTC
+modified: 2026-10-11 22:51 UTC
 evidence:
   - claim: "The call handing an event to the order-and-holdings update carries no guard"
     source: "`execution_manager.py` 2081"
@@ -47,7 +47,7 @@ All three leave the account running.
 
 ## What carries no guard
 
-Putting up protection for an opening order rebuilt after a restart. A failure there, and any other escaping every guard the loop sets, reaches the loop's own and stops the account.
+Putting up protection for an opening order rebuilt after a restart. A failure there, and any other ordinary one escaping every guard the loop sets, reaches the loop's own and stops the account.
 
 ## Related
 

@@ -2,7 +2,7 @@
 row: P4-25
 baseline: 49aa659
 created: 2026-10-02 08:55 UTC
-modified: 2026-10-11 19:43 UTC
+modified: 2026-10-11 22:51 UTC
 evidence:
   - claim: "These are the checks made as the settings are read, before the host is built"
     source: "`launcher.py` 4859-4980 ahead of the build at 4984-4991"
@@ -55,7 +55,7 @@ The address is held to http or https, and to naming a host. One malformed enough
 
 ## The numbers
 
-The epoch must parse as a whole number and then be positive. The port for the endpoint must parse as a whole number.
+The epoch must parse as a whole number and then be positive. The port for the endpoint, where one is given, must parse as a whole number; an empty one falls back to the default.
 
 The shutdown limit must parse as a number and sit above nought. That last test is a comparison, so a limit of infinity passes it, and so does one that is not a number at all.
 

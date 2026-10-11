@@ -2,7 +2,7 @@
 row: P3-11
 baseline: 49aa659
 created: 2026-09-28 12:14 UTC
-modified: 2026-10-11 20:35 UTC
+modified: 2026-10-11 22:51 UTC
 evidence:
   - claim: "There are five accounts and no others"
     source: "`chart_of_accounts.py` 20-24"
@@ -51,7 +51,7 @@ How a buy is remembered, and how a sell is costed against it, is set out in [lot
 
 ## What a trade made
 
-What a sell brought in, less what its lots cost, is the profit before fees. The fee is never folded into that: it gets lines of its own.
+What a sell brought in, less what its lots cost, is the profit before fees. The fee is never folded into that: it gets lines of its own, where there is one above nothing to post.
 
 Both are gathered per trade as the run goes, and the fee is taken off only when the figure is asked for — so what is kept along the way is before fees, and what is reported is after.
 
