@@ -2323,6 +2323,32 @@ class TestTheFinallyClause:
 
         assert unpaired == list(shapes)
 
+    def test_a_line_a_heading_shares_is_no_alternative(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        shapes = {
+            'a condition on the line': (
+                "def f(seen):\n    if seen.append('c'): pass\n"
+                "    else: seen.append('b')\n"
+            ),
+            'a kind on the line': (
+                "def f(seen):\n    try:\n        raise ValueError()\n"
+                "    except named(): pass\n"
+                "    except ValueError: seen.append('b')\n"
+            ),
+            'a guard on the line': (
+                "def f(seen, x):\n    match x:\n"
+                "        case 1 if seen.append('g'): pass\n"
+                "        case _: seen.append('b')\n"
+            ),
+        }
+        unpaired = [
+            label for label, source in shapes.items()
+            if not self._spans(source, tmp_path, monkeypatch)
+        ]
+
+        assert unpaired == list(shapes)
+
     def test_the_nearest_finally_is_what_the_branch_is_on(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

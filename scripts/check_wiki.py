@@ -528,6 +528,9 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
 
     '''Return pairs of line sets that cannot both run for one input.
 
+    An arm with no line of its own — its whole body written on the line
+    heading it — is an alternative to nothing, and is left out.
+
     Args:
         path (Path): The file to read, at its pinned commit.
 
@@ -555,7 +558,7 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
         if isinstance(node, ast.If) and node.body:
             pairs.extend(_branch_arms(node, scopes))
 
-    return pairs
+    return [(first, second) for first, second in pairs if first and second]
 
 
 def _scopes(tree: ast.AST, lines: list[str]) -> _Scopes:
@@ -784,9 +787,7 @@ def _handler_arms(node: ast.Try | ast.TryStar) -> list[tuple[set[int], set[int]]
     '''
 
     spans = [
-        set(range(h.body[0].lineno, (h.body[-1].end_lineno or h.lineno) + 1))
-        for h in node.handlers
-        if h.body
+        _own_lines(h.body, h.lineno) for h in node.handlers if h.body
     ]
     settled = _else_lines(node)
 
@@ -819,7 +820,7 @@ def _case_arms(node: ast.Match) -> list[tuple[set[int], set[int]]]:
     '''
 
     spans = [
-        set(range(case.body[0].lineno, (case.body[-1].end_lineno or 0) + 1))
+        _own_lines(case.body, case.pattern.lineno)
         for case in node.cases
         if case.body
     ]
@@ -846,6 +847,29 @@ def _else_lines(node: ast.Try | ast.TryStar) -> set[int]:
         return set()
 
     return set(range(node.orelse[0].lineno, (node.orelse[-1].end_lineno or 0) + 1))
+
+
+def _own_lines(body: list[ast.stmt], header: int) -> set[int]:
+
+    '''Return the lines a block holds to itself.
+
+    A block whose first statement begins on the line heading it shares
+    that line with what the heading works out — a condition, a kind, a
+    pattern — and that runs whether the block does or not, so the line
+    is no part of the alternative.
+
+    Args:
+        body (list[ast.stmt]): The block's statements.
+        header (int): The line the heading sits on.
+
+    Returns:
+        set[int]: Those lines, the shared one left out.
+    '''
+
+    first = body[0].lineno
+    held = set(range(first, (body[-1].end_lineno or first) + 1))
+
+    return held - {header} if first == header else held
 
 
 def _else_arm(node: ast.If) -> set[int]:
@@ -885,7 +909,7 @@ def _branch_arms(node: ast.If, scopes: _Scopes) -> list[tuple[set[int], set[int]
         list[tuple[set[int], set[int]]]: The one pair found, or none.
     '''
 
-    body = set(range(node.body[0].lineno, (node.body[-1].end_lineno or 0) + 1))
+    body = _own_lines(node.body, node.lineno)
 
     pairs: list[tuple[set[int], set[int]]] = []
 
