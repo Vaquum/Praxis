@@ -88,6 +88,7 @@ _COMPARISONS: dict[type[ast.cmpop], Callable[[Any, Any], Any]] = {
     ast.NotIn: _held_apart,
 }
 _BUILT_WITH = 3
+_GROUPED_ERRORS = ('ExceptionGroup', 'BaseExceptionGroup')
 _CARRIES_ON = 'carries on'
 _GONE_OVER = (str, bytes, list, tuple, set, frozenset, dict)
 _ENDLESS = 'endless'
@@ -2804,7 +2805,12 @@ def _tried_could_raise(statement: ast.Try | ast.TryStar) -> bool:
     held = _block_ways(statement.body)
     unsaid = _may_raise(statement.body)
 
-    if any(_kind_could_raise(handler) for handler in _handlers_tried(statement)):
+    grouped = isinstance(statement, ast.TryStar)
+
+    if any(
+        _kind_could_raise(handler, grouped=grouped)
+        for handler in _handlers_tried(statement)
+    ):
         return True
 
     if any(_may_raise(handler.body) for handler in _handlers_that_run(statement)):
@@ -2838,22 +2844,49 @@ def _names_known_errors(named: ast.expr) -> bool:
     )
 
 
-def _kind_could_raise(handler: ast.ExceptHandler) -> bool:
+def _kind_could_raise(handler: ast.ExceptHandler, *, grouped: bool) -> bool:
 
     '''Whether working out the kind a handler names could raise.
 
     The kind is worked out as a raise arrives, whether or not the
     handler then runs, and raises nothing of its own only where every
-    kind named is an error the language itself carries.
+    kind named is an error the language itself carries. A handler of a
+    `try` that takes errors in groups cannot name a group itself, and
+    is refused where it does.
 
     Args:
         handler (ast.ExceptHandler): The handler to read.
+        grouped (bool): Whether its `try` takes errors in groups.
 
     Returns:
         bool: True where working its kind out could raise.
     '''
 
-    return handler.type is not None and not _names_known_errors(handler.type)
+    if handler.type is None:
+        return False
+
+    if grouped and _names_a_group(handler.type):
+        return True
+
+    return not _names_known_errors(handler.type)
+
+
+def _names_a_group(named: ast.expr) -> bool:
+
+    '''Whether what a handler names is a group of errors.
+
+    Args:
+        named (ast.expr): The kinds named, one or several.
+
+    Returns:
+        bool: True where one of them is such a group.
+    '''
+
+    held = named.elts if isinstance(named, ast.Tuple) else [named]
+
+    return any(
+        isinstance(part, ast.Name) and part.id in _GROUPED_ERRORS for part in held
+    )
 
 
 def _holder_could_raise(statement: ast.stmt) -> bool:

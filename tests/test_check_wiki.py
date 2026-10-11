@@ -1646,6 +1646,7 @@ class TestTheFinallyClause:
         spans = self._spans(source, tmp_path, monkeypatch)
 
         assert any(5 in first and 7 in second for first, second in spans)
+        assert not any(5 in first and 14 in second for first, second in spans)
 
     _CAUGHT_RAISE = (
         "def f(x):\n    try:\n        if x:\n            mark(x)\n"
@@ -2899,6 +2900,11 @@ class TestTheFinallyClause:
             'a name on something else': '            held.part = 1\n',
             'a starred name on something else': '            *held.part, = [1]\n',
             'too few things for the names left': '            held, *kept, last = (1,)\n',
+            'a group named by a handler taking groups': (
+                '            try:\n                raise ValueError()\n'
+                '            except* ExceptionGroup:\n                pass\n'
+                '            except* ValueError:\n                pass\n'
+            ),
             'a kind worked out by a handler that never runs': (
                 '            try:\n                raise ValueError()\n'
                 '            except (1 / 0):\n                pass\n'
@@ -4437,6 +4443,7 @@ class TestWhatARaiseWorksOut:
             'nothing at all taken': 'raise None\n',
             'an error asking for an exact number': 'raise UnicodeDecodeError()\n',
             'a group of errors': 'raise ExceptionGroup\n',
+            'an error asking a shape of its values': "raise SyntaxError('bad', 1)\n",
             'one called with a word named and a value written out': (
                 'raise ValueError(bad=1)\n'
             ),

@@ -2,7 +2,7 @@
 row: P4-09
 baseline: 49aa659
 created: 2026-10-03 16:39 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 07:15 UTC
 evidence:
   - claim: "Six kinds of change answer the seven ways of working, the two fixed-pace ways sharing one"
     source: "`modify_params.py` 31-39, the ways listed at `praxis/core/domain/enums.py` 119-125"
@@ -28,7 +28,7 @@ evidence:
     source: "`single_shot_params.py` 38-42 against `single_shot_modify.py` 45-51"
   - claim: "A weighted change naming weights is refused as it is submitted, by a raise the caller sees"
     source: "`validate_trade_modify.py` 210-218, called at `execution_manager.py` 3060-3065"
-  - claim: "A change naming a command already ended takes an earlier road, which logs and returns rather than raising"
+  - claim: "A change naming a command already ended, with no bracket of its own left, takes an earlier road, which logs and returns rather than raising"
     source: "`validate_trade_modify.py` 171-175 into `execution_manager.py` 3067-3072"
   - claim: "Where one reaches the handler anyway, it is turned away before any gap on it is reached"
     source: "`execution_manager.py` 10101-10107"
@@ -55,7 +55,7 @@ A single order is the one place a change is stricter than the settings it replac
 
 ## A weighted change naming weights
 
-It is refused as it is submitted, by a raise the caller sees, so the weights are never applied — unless the command it names has already ended, which is caught earlier and merely logged.
+It is refused as it is submitted, by a raise the caller sees, so the weights are never applied — unless the command it names has already ended with no bracket of its own left, which is caught earlier and merely logged.
 
 Should one reach the handler by another road, it is turned away there before any gap on it is reached — a change asking for both loses the gap along with the weights, and that turning-away makes no outcome and calls nobody back.
 
