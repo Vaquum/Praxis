@@ -2323,6 +2323,18 @@ class TestTheFinallyClause:
 
         assert unpaired == list(shapes)
 
+    def test_a_finally_an_endless_arm_never_reaches_is_an_alternative(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            mark()\n"
+            "            while True:\n                pass\n    finally:\n"
+            "        cleanup()\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 8 in second for first, second in spans)
+
     def test_a_line_a_heading_shares_is_no_alternative(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

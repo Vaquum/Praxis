@@ -958,7 +958,9 @@ def _after_the_branch(
     break skips the rest of its loop alone. A raise with a handler above
     it reaches the end of the guarded block. A return reaches the end of
     the function. A `finally` runs whatever happens, and a loop's `else`
-    runs after a continue, so neither is an alternative to anything.
+    runs after a continue, so neither is an alternative to anything —
+    unless the arm never ends at all, an endless loop being where even
+    a `finally` does not run.
     Where a `finally` is what takes the branch out, how far that reaches
     is measured from the `finally` rather than from the branch, and a
     `finally` leaving by more than one way reaches nothing. So does an
@@ -1004,7 +1006,7 @@ def _after_the_branch(
     after = {
         line for line in reach if line > (node.end_lineno or node.lineno)
     }
-    running = scopes.regardless
+    running = () if kind == _ENDLESS else scopes.regardless
 
     if kind == 'continue':
         running += scopes.after_a_loop

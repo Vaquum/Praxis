@@ -2,7 +2,7 @@
 row: P4-08
 baseline: 49aa659
 created: 2026-10-03 14:12 UTC
-modified: 2026-10-10 18:33 UTC
+modified: 2026-10-11 11:46 UTC
 evidence:
   - claim: "Seven ways of working share six kinds of settings between them"
     source: "`execution_params.py` 30-38"
@@ -22,10 +22,8 @@ evidence:
     source: "`interval_slice_params.py` 37-43, the least set at 16"
   - claim: "The gap must be above nought"
     source: "`interval_slice_params.py` 45-51"
-  - claim: "Both exclude true and false, which Python would otherwise count as one and nought"
+  - claim: "Both refuse true and false outright, before either bound is weighed"
     source: "`interval_slice_params.py` 38 and 46"
-  - claim: "Of the four, only a gap of true would otherwise pass, the rest failing their bounds"
-    source: "`interval_slice_params.py` 40 and 48"
   - claim: "The weighted kind takes a gap in seconds, tested the same way, and a tuple of weights"
     source: "`scheduled_vwap_params.py` 35-36 and 42-48"
   - claim: "There must be at least two weights, arriving as a tuple"
@@ -53,7 +51,7 @@ A price that is set must be above nought. That is a comparison alone, so an endl
 
 Two whole numbers, used as a count of parts and a gap in seconds. The count must be at least two; the gap must be above nought.
 
-Both exclude true and false, which Python would otherwise count as one and nought. Of the four cases that guards away, only a gap of true would otherwise have passed — a count of either, and a gap of false, fail their bounds regardless.
+Both refuse true and false outright, before either bound is weighed; what Python would otherwise make of them is Python's own affair.
 
 ## A weighted pace
 
