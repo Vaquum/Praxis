@@ -2,7 +2,7 @@
 row: P4-36
 baseline: 49aa659
 created: 2026-10-03 17:11 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 20:55 UTC
 evidence:
   - claim: "An order's fields may be assigned, where a command's may not"
     source: "`order.py` 30 and 141-197 against `praxis/core/domain/trade_command.py` 29"
@@ -15,7 +15,7 @@ evidence:
   - claim: "The refusal turns on the value being something, so assigning nothing passes it"
     source: "`order.py` 166"
   - claim: "The test of the value does the same"
-    source: "`order.py` 158"
+    source: "`order.py` 158-162"
   - claim: "So both can be empty at once, a state refused at the order's making"
     source: "`order.py` 99-101 against the assignments at 157-187"
   - claim: "Nothing requires the second half of such a swap, so the empty state need not be passing"

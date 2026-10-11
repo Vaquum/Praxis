@@ -2,7 +2,7 @@
 row: P4-35
 baseline: 49aa659
 created: 2026-10-03 16:40 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:55 UTC
 evidence:
   - claim: "A single order's change offers three prices, any of them alone"
     source: "`single_shot_modify.py` 31-33 and 39-43"
@@ -15,7 +15,7 @@ evidence:
   - claim: "An offset is read in hundredths of a percent"
     source: "`execution_manager.py` 9872-9889, the divisor at 146"
   - claim: "A fixed-pace change offers a count of parts and a gap, the count at least two and the gap above nought"
-    source: "`interval_slice_modify.py` 42-56"
+    source: "`interval_slice_modify.py` 42-56, the least count at 16"
   - claim: "The gap is read as seconds"
     source: "`execution_manager.py` 10154"
   - claim: "The count excludes true and false"
@@ -27,7 +27,7 @@ evidence:
   - claim: "A ladder's change offers price levels and weights"
     source: "`ladder_dca_modify.py` 36-37 and 43-45"
   - claim: "Its levels must be a tuple of at least two finite decimals above nought"
-    source: "`ladder_dca_modify.py` 48-55"
+    source: "`ladder_dca_modify.py` 48-55, the least number at 18"
   - claim: "They must run one way throughout, every step rising or every step falling"
     source: "`ladder_dca_modify.py` 57-62"
   - claim: "Its weights must be at least two, each a finite decimal above nought, adding to one"
