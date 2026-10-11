@@ -2,7 +2,7 @@
 row: P2-32
 baseline: 49aa659
 created: 2026-09-25 19:41 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 21:09 UTC
 evidence:
   - claim: "A fill is offered to the record before anything else is told"
     source: "`execution_manager.py` 4328-4330"
@@ -10,7 +10,7 @@ evidence:
     source: "`execution_manager.py` 4312, `praxis/trading.py` 1787 and 1045-1052"
   - claim: "The record holds the epoch, the account, the symbol and the venue's name for the execution together"
     source: "`event_spine.py` 147-152, written at 1019-1020"
-  - claim: "The epoch is given to the host from outside and survives a restart"
+  - claim: "The epoch is given to the host from outside, so a restart under the same number carries the same epoch"
     source: "`launcher.py` 4867, carried at 4962-4963"
   - claim: "A fill matching all four is refused there"
     source: "`event_spine.py` 1021-1022"

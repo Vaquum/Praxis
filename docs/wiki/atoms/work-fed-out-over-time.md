@@ -2,7 +2,7 @@
 row: P2-19
 baseline: 49aa659
 created: 2026-09-27 14:09 UTC
-modified: 2026-10-11 19:38 UTC
+modified: 2026-10-11 21:09 UTC
 evidence:
   - claim: "Three ways of working send an amount out in parts spaced over time"
     source: "`execution_manager.py` 170-172, spaced at 5926-5929"
@@ -14,7 +14,7 @@ evidence:
     source: "either `plan_even_slices.py` 56-58 or, where a step is known, 60-78"
   - claim: "A curve of weights sizes every part but the last from its own weight, the last taking what is left"
     source: "either `plan_weighted_slices.py` 59-62 or, where a step is known, 65-76"
-  - claim: "Either way the last part takes what is left"
+  - claim: "Either way the last part takes what is left, rounded down to the step where one is known"
     source: "`plan_even_slices.py` 69 and `plan_weighted_slices.py` 76"
   - claim: "Rounding down to a step happens only where the step is known"
     source: "`plan_even_slices.py` 56-58 doing none, the alternative at 60-78 doing it, the step read at `execution_manager.py` 5733-5734"

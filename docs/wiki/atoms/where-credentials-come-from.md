@@ -2,7 +2,7 @@
 row: P3-19
 baseline: 49aa659
 created: 2026-09-30 19:01 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 21:09 UTC
 evidence:
   - claim: "Credentials must be text and neither part may be empty"
     source: "`secret_store.py` 67-73"
@@ -22,8 +22,8 @@ evidence:
     source: "`secret_store.py` 229 and 247, chosen at `launcher.py` 4952"
   - claim: "The system store separates nothing recorded from a store that would not answer"
     source: "either `secret_store.py` 211 or 205-207"
-  - claim: "A file it cannot open, or cannot read as it expects, is the store failing"
-    source: "either `secret_store.py` 295 or 299-301"
+  - claim: "A file it cannot open, or whose text is not the JSON it expects, is the store failing, while one whose characters will not decode escapes as it is"
+    source: "either `secret_store.py` 293-295 or 299-301, read at 292 past both"
   - claim: "A file whose characters will not decode is neither, and escapes as it is"
     source: "`secret_store.py` 291-301, which catches neither case"
 ---
