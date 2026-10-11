@@ -4987,6 +4987,88 @@ class TestWhatADeepNestCosts:
         assert held.stdout.strip() == '1'
 
 
+class TestWhatAnUncommittedEditNeeds:
+    @staticmethod
+    def _committed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stamp: str,
+    ) -> Path:
+        atoms = tmp_path / 'docs' / 'wiki' / 'atoms'
+        atoms.mkdir(parents=True)
+        page = atoms / 'one.md'
+        page.write_text(
+            '---\ncreated: 2099-01-01 00:00 UTC\n'
+            f'modified: {stamp}\n---\n# One\n\nAs committed.\n',
+            encoding='utf-8',
+        )
+
+        for held in (
+            ['init', '-q'],
+            ['add', 'docs'],
+            [
+                '-c', 'user.email=one@example.com', '-c', 'user.name=One',
+                'commit', '-qm', 'one',
+            ],
+        ):
+            subprocess.run(  # noqa: S603
+                [check_wiki.GIT, *held], cwd=tmp_path, check=True,
+                capture_output=True,
+            )
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(check_wiki, 'WIKI', Path('docs/wiki'))
+        check_wiki._uncommitted_pages.cache_clear()
+
+        return page
+
+    @staticmethod
+    def _complaints(page: Path) -> list[str]:
+        rel = Path('docs/wiki/atoms/one.md')
+        text = page.read_text(encoding='utf-8')
+        meta, _ = check_wiki._split_front_matter(text)
+        held: list[str] = check_wiki._check_stamps(rel, text, meta)
+
+        return held
+
+    @_NEEDS_BASELINE
+    def test_an_edit_left_unstamped_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = self._committed(tmp_path, monkeypatch, '2099-01-01 00:00 UTC')
+        page.write_text(
+            '---\ncreated: 2099-01-01 00:00 UTC\n'
+            'modified: 2099-01-01 00:00 UTC\n---\n# One\n\nEdited.\n',
+            encoding='utf-8',
+        )
+        check_wiki._uncommitted_pages.cache_clear()
+
+        assert any(
+            'holds an edit that is not yet committed' in note
+            for note in self._complaints(page)
+        )
+
+    @_NEEDS_BASELINE
+    def test_an_edit_stamped_later_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = self._committed(tmp_path, monkeypatch, '2099-01-01 00:00 UTC')
+        page.write_text(
+            '---\ncreated: 2099-01-01 00:00 UTC\n'
+            'modified: 2099-01-02 00:00 UTC\n---\n# One\n\nEdited.\n',
+            encoding='utf-8',
+        )
+        check_wiki._uncommitted_pages.cache_clear()
+
+        assert self._complaints(page) == []
+
+    @_NEEDS_BASELINE
+    def test_a_page_as_committed_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = self._committed(tmp_path, monkeypatch, '2099-01-01 00:00 UTC')
+
+        assert self._complaints(page) == []
+
+
 class TestWhatAnUnassignedRowCosts:
     def test_a_row_of_brackets_is_answered_at_once(self) -> None:
         text = '| ' + '()' * 20000 + ' | why | unassigned |\n'
