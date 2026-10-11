@@ -2,7 +2,7 @@
 row: P1-09
 baseline: 49aa659
 created: 2026-09-23 18:56 UTC
-modified: 2026-10-11 21:15 UTC
+modified: 2026-10-11 21:17 UTC
 evidence:
   - claim: "The cancellation retry runs before the point a held or failed account leaves"
     source: "`execution_manager.py` 3960, ahead of the leaving point at 3969-3971"
@@ -28,8 +28,8 @@ evidence:
     source: "wrapped at `binance_adapter.py` 660-662, caught instead at `execution_manager.py` 6461-6468"
   - claim: "Advancing needs the run open and the slice due"
     source: "`execution_manager.py` 5831-5835"
-  - claim: "A slice that cannot be placed freezes the run and reports a partial instead"
-    source: "`execution_manager.py` 5910-5916, the freeze set at 8294-8296"
+  - claim: "A slice that cannot be placed freezes a run that was open and reports a partial instead"
+    source: "`execution_manager.py` 5910-5916, the freeze set at 8294-8296 and the partial reported at 8298"
   - claim: "A slice that fails outright ends the run and drops it"
     source: "`execution_manager.py` 5866-5883"
   - claim: "Protection is placed once the entry has settled with a fill"
