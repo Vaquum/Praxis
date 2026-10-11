@@ -28,7 +28,7 @@ from tests.support.reachable_pairs import (
 _SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'check_wiki.py'
 _SHAPES = 2000
 _PAIRS = 1000
-_SETTLED_PAIRS = 500
+_SETTLED_PAIRS = 4000
 _STUB = '''    def m(
         self,
     ) -> int:

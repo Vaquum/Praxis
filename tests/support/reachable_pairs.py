@@ -59,6 +59,27 @@ WRAPPERS = (
     ('with kept():', '...'),
     ('with swallowed():', '...'),
 )
+PLACES = (
+    ('try:', '    step()', 'except ValueError:', '...'),
+    ('try:', '    risky()', 'except ValueError:', '...'),
+    ('try:', '    risky()', 'except ValueError:', '...', 'finally:', '    return 9'),
+    ('try:', '    step()', 'except ValueError:', '    held = 2', 'else:', '...'),
+    ('try:', '    step()', 'except ValueError:', '    held = 2', 'finally:', '...'),
+    ('try:', '    risky()', 'except ValueError:', '    held = 2', 'finally:', '...'),
+    ('for item in items:', '    step()', 'else:', '...'),
+    ('while a:', '    break', 'else:', '...'),
+    ('try:', '    step()', 'except ValueError:', '    held = 2', 'except TypeError:', '...'),
+    ('try:', '...', 'except* ValueError:', '    held = 2'),
+    ('try:', '    risky()', 'except* ValueError:', '...'),
+)
+BODIES = ('step()', 'risky()', 'raise ValueError()', 'raise TypeError()', 'pass')
+SIBLING_KINDS = ('ValueError', 'TypeError', 'Exception', 'errors.ValueError')
+DONE = ('held = 1', 'return 1')
+ENDS = ('', 'finally:\n        return 9\n')
+SUBJECTS = ('a', '1', "'x'", '[1, 2]', 'ValueError()')
+PATTERNS = ('True', '1', '_', '_ if b', 'str()')
+_HEAD = 'def f(a, b, c, items, step, risky, kept, swallowed):\n    held = 0\n'
+_TAIL = '    after = 1\n    return after\n'
 _ARMS = tuple(
     (first,) for first in STATEMENTS
 ) + tuple(
@@ -541,10 +562,25 @@ def settled_shapes() -> list[str]:
 
     '''Return every small shape of the kind the findings have come from.
 
-    An arm of one or two statements sits inside an `if`, which sits inside
-    a construct that takes the way the arm leaves or takes it over, with a
-    statement after it for the arm to be paired against. Writing shapes at
-    random reaches such a shape only by chance; these are all of them.
+    Writing shapes at random reaches such a shape only by chance; these
+    are all of them, in three families: an arm inside a construct that
+    takes the way it leaves or takes it over, two handlers of one `try`,
+    and two cases of one `match`.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    return _arm_shapes() + _handler_shapes() + _case_shapes()
+
+
+def _arm_shapes() -> list[str]:
+
+    '''Return an arm of one or two statements in every place it can sit.
+
+    The arm sits inside an `if`, which sits in the body, a handler, an
+    `else` or a `finally` of each construct, with a statement after it
+    for the arm to be paired against.
 
     Returns:
         list[str]: One source per shape.
@@ -554,7 +590,48 @@ def settled_shapes() -> list[str]:
         _wrapped(wrapper, arm, otherwise)
         for arm in _ARMS
         for otherwise in OTHERWISE
-        for wrapper in WRAPPERS
+        for wrapper in (*WRAPPERS, *PLACES)
+    ]
+
+
+def _handler_shapes() -> list[str]:
+
+    '''Return two handlers of one `try`, over every pair of kinds.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    return [
+        f'{_HEAD}    try:\n        {body}\n'
+        f'    except {first}:\n        {one}\n'
+        f'    except {second}:\n        {two}\n    {end}{_TAIL}'
+        for body in BODIES
+        for first in SIBLING_KINDS
+        for second in SIBLING_KINDS
+        for one in DONE
+        for two in DONE
+        for end in ENDS
+    ]
+
+
+def _case_shapes() -> list[str]:
+
+    '''Return two cases of one `match`, over every pair of patterns.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    return [
+        f'{_HEAD}    match {subject}:\n'
+        f'        case {first}:\n            {one}\n'
+        f'        case {second}:\n            {two}\n{_TAIL}'
+        for subject in SUBJECTS
+        for first in PATTERNS
+        for second in PATTERNS
+        for one in DONE
+        for two in DONE
     ]
 
 
