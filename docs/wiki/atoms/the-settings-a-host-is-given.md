@@ -2,7 +2,7 @@
 row: P4-03
 baseline: 49aa659
 created: 2026-10-02 08:53 UTC
-modified: 2026-10-11 19:29 UTC
+modified: 2026-10-11 20:39 UTC
 evidence:
   - claim: "A host started from its settings reads the environment it was started in, and one manifest for each path it is given, each naming its account"
     source: "`launcher.py` 4858 and 4882-4884"
@@ -10,11 +10,11 @@ evidence:
     source: "`launcher.py` 174-180, tested at 4683-4686"
   - claim: "Many more are read where they are there, among them a separate base for strategy state and an address for a simulated venue"
     source: "`launcher.py` 4869-4870, 4715, 761-766 and 4968-4980"
-  - claim: "The trade mode picks which set of three venue addresses is returned"
+  - claim: "The trade mode, and any simulated-venue address beside it, pick which set of three venue addresses is returned"
     source: "`launcher.py` 4714-4750"
-  - claim: "Paper returns the test addresses"
+  - claim: "Paper returns the test addresses, where no simulated-venue address was given"
     source: "`launcher.py` 4721 into `binance_urls.py` 15-17"
-  - claim: "Live returns the real ones"
+  - claim: "Live returns the real ones, past the refusals it must clear first"
     source: "`launcher.py` 4745 into `binance_urls.py` 12-14"
   - claim: "An address for the simulated venue, given in paper mode, replaces all three"
     source: "`launcher.py` 4717-4719 into 4778-4783"
@@ -43,7 +43,7 @@ Many more are read where they are given. Among them a separate base for strategy
 
 ## The venue's addresses
 
-The trade mode picks which set of three addresses for [the venue](what-a-venue-is.md) is returned: paper gets the test set, live the real one, and both are written in the code rather than given as settings.
+The trade mode picks which set of three addresses for [the venue](what-a-venue-is.md) is returned: paper the test set, unless a simulated-venue address was given; live the real one, past [its refusals](which-settings-are-refused.md). All are written in the code rather than given as settings.
 
 An address for the simulated venue, given in paper mode, replaces all three. Everything standing for the host is carried over — the port and any user part included — and anything after it dropped. Its scheme is kept only for the first address: the two socket addresses take a socket scheme of their own, and the second a fixed path.
 
