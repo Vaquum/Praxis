@@ -2790,6 +2790,22 @@ class TestTheFinallyClause:
             'two names at once': '            held = kept = 1\n',
             'names written out together': '            held, kept = 1, 2\n',
             'a name with a kind written out': '            held: 1 = 2\n',
+            'a value spelled out in letters': '            held, kept = "ab"\n',
+            'a value held in a set': '            held, kept = {1, 2}\n',
+            'a value keyed by name': (
+                "            held, kept = {'a': 1, 'b': 2}\n"
+            ),
+            'a value an and stands as': '            held, kept = True and (1, 2)\n',
+            'a name taking what is left': '            held, *kept = (1, 2, 3)\n',
+            'an else the body never reaches': (
+                '            try:\n                return 1\n'
+                '            except ValueError:\n                pass\n'
+                '            else:\n                work()\n'
+            ),
+            'a raise its handler catches': (
+                '            try:\n                raise ValueError("no")\n'
+                '            except ValueError:\n                pass\n'
+            ),
             'a try nothing in which could raise': (
                 '            try:\n                return 1\n'
                 '            finally:\n                pass\n'
@@ -2826,6 +2842,23 @@ class TestTheFinallyClause:
             'an ending that acts': (
                 '            try:\n                pass\n'
                 '            finally:\n                work()\n'
+            ),
+            'a name beyond a name given nothing': '            held.part: 1\n',
+            'a kind named by a handler': (
+                '            try:\n                raise ValueError()\n'
+                '            except (BaseException, named()):\n                pass\n'
+            ),
+            'a raise no handler catches': (
+                '            try:\n                raise ValueError("no")\n'
+                '            except TypeError:\n                pass\n'
+            ),
+            'a body that could raise unsaid': (
+                '            try:\n                work()\n'
+                '            except ValueError:\n                pass\n'
+            ),
+            'a handler body that acts': (
+                '            try:\n                raise ValueError()\n'
+                '            except BaseException:\n                work()\n'
             ),
             'an else that acts': (
                 '            try:\n                pass\n'
@@ -4301,3 +4334,40 @@ class TestWhenAPageWasCommitted:
         held.write_text('# Nowhere\n', encoding='utf-8')
 
         assert check_wiki._last_commit_date(held) is None
+
+
+class TestWhatARaiseWorksOut:
+    @staticmethod
+    def _raised(source: str) -> ast.Raise:
+        held = ast.parse(source).body[0]
+        assert isinstance(held, ast.Raise)
+
+        return held
+
+    def test_every_raise_that_works_nothing_out_is_read_as_one(self) -> None:
+        shapes = {
+            'nothing at all': 'raise\n',
+            'an error the language carries': 'raise ValueError\n',
+            'one called with nothing': 'raise ValueError()\n',
+            'one called with a value written out': "raise ValueError('no')\n",
+        }
+        quiet = [
+            label for label, source in shapes.items()
+            if check_wiki._raised_quietly(self._raised(source))
+        ]
+
+        assert quiet == list(shapes)
+
+    def test_every_raise_that_works_something_out_is_read_as_one(self) -> None:
+        shapes = {
+            'an error the project names': 'raise Failure()\n',
+            'one named through something else': 'raise errors.Failure()\n',
+            'one called with a name': 'raise ValueError(text)\n',
+            'one called with a word named': 'raise ValueError(part=text)\n',
+        }
+        noisy = [
+            label for label, source in shapes.items()
+            if not check_wiki._raised_quietly(self._raised(source))
+        ]
+
+        assert noisy == list(shapes)

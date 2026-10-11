@@ -91,6 +91,10 @@ _CARRIES_ON = 'carries on'
 _GONE_OVER = (str, bytes, list, tuple, set, frozenset, dict)
 _ENDLESS = 'endless'
 _RAISE = 'raise'
+_KNOWN_ERRORS = frozenset(
+    name for name, held in vars(builtins).items()
+    if isinstance(held, type) and issubclass(held, BaseException)
+)
 _UNDER_EXCEPTION = frozenset(
     name for name, held in vars(builtins).items()
     if isinstance(held, type) and issubclass(held, Exception)
@@ -1479,7 +1483,7 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
 
     A raise in the body is read as a way out unless a handler of its
     own certainly catches it, the handlers' ways standing beside it
-    wherever the body could raise at all. Handlers are read in the
+    wherever the body raises at all, said or unsaid. Handlers are read in the
     order they are written, and one naming every error is the last that
     can run, so nothing after it is read — a handler naming no kind at
     all can only be written last anyway. The `else` runs where
@@ -1500,7 +1504,9 @@ def _try_ways(statement: ast.Try | ast.TryStar) -> set[str]:
     if _CARRIES_ON in held:
         ways |= _block_ways(statement.orelse) if statement.orelse else {_CARRIES_ON}
 
-    if _may_raise(statement.body):
+    if _may_raise(statement.body) or any(
+        way.startswith(_RAISE) for way in held
+    ):
         ways |= _handler_ways(statement)
 
     if not statement.finalbody:
@@ -2376,9 +2382,10 @@ def _could_raise(statement: ast.stmt) -> bool:
     Returns:
         bool: False for a pass, a break, a continue, a return or a
             statement of nothing but a value written out, a value
-            written out given to plain names, and a loop, an `if`, a
-            `match` or a `try` nothing in which could raise; True for
-            everything else.
+            written out given to plain names, a raise of an error the
+            language carries, and a loop, an `if`, a `match` or a
+            `try` nothing in which could raise; True for everything
+            else.
     '''
 
     if isinstance(statement, (ast.Pass, ast.Break, ast.Continue)):
@@ -2390,6 +2397,24 @@ def _could_raise(statement: ast.stmt) -> bool:
     if isinstance(statement, ast.Expr):
         return not _quiet_expression(statement.value)
 
+    if isinstance(statement, ast.Raise):
+        return not _raised_quietly(statement)
+
+    return _written_could_raise(statement)
+
+
+def _written_could_raise(statement: ast.stmt) -> bool:
+
+    '''Whether giving a value a name, or a `try`, could raise.
+
+    Args:
+        statement (ast.stmt): The statement to read.
+
+    Returns:
+        bool: Whether that statement could raise where it stands, and
+            whether a statement holding a block of its own could.
+    '''
+
     if isinstance(statement, (ast.Assign, ast.AnnAssign)):
         return _given_could_raise(statement)
 
@@ -2399,6 +2424,39 @@ def _could_raise(statement: ast.stmt) -> bool:
     return _holder_could_raise(statement)
 
 
+def _raised_quietly(statement: ast.Raise) -> bool:
+
+    '''Whether working out what a raise takes could not itself raise.
+
+    A bare raise works nothing out. An error the language carries,
+    named plainly or called with values written out, is worked out
+    without raising anything but itself; the raise is then the way out
+    it says it is, and nothing more.
+
+    Args:
+        statement (ast.Raise): The statement to read.
+
+    Returns:
+        bool: True where nothing but the raise itself could come of it.
+    '''
+
+    if statement.exc is None:
+        return True
+
+    named = statement.exc
+    given: list[ast.expr] = []
+
+    if isinstance(named, ast.Call):
+        given = [*named.args, *(word.value for word in named.keywords)]
+        named = named.func
+
+    return (
+        isinstance(named, ast.Name)
+        and named.id in _KNOWN_ERRORS
+        and all(_quiet_expression(part) for part in given)
+    )
+
+
 def _given_could_raise(statement: ast.Assign | ast.AnnAssign) -> bool:
 
     '''Whether giving a value a name could raise where it stands.
@@ -2406,6 +2464,8 @@ def _given_could_raise(statement: ast.Assign | ast.AnnAssign) -> bool:
     Working out the value could, and so could handing it to anything
     but a plain name: an attribute or a subscript asks the thing it
     sits on, and several names at once ask the value to come apart.
+    A name given no value at all is still worked out where it is more
+    than a name.
 
     Args:
         statement (ast.Assign): The statement to read.
@@ -2426,7 +2486,7 @@ def _given_could_raise(statement: ast.Assign | ast.AnnAssign) -> bool:
         given = list(statement.targets)
 
     if statement.value is None:
-        return False
+        return any(not isinstance(name, ast.Name) for name in given)
 
     if not _quiet_expression(statement.value):
         return True
@@ -2439,8 +2499,11 @@ def _takes_the_value(name: ast.expr, value: ast.expr) -> bool:
     '''Whether what a value is given to can take it without raising.
 
     A plain name takes anything. Names written out together take a
-    value written out with one thing for each of them; anything else
-    asks the value or the thing it sits on something, and could raise.
+    value written out with one thing for each of them, whatever holds
+    those things; where one of the names is starred it takes what is
+    left over, so there need only be enough to go round. An `and` or
+    an `or` is read as the part it stands as. Anything else asks the
+    value or the thing it sits on something, and could raise.
 
     Args:
         name (ast.expr): What the value is given to.
@@ -2456,14 +2519,41 @@ def _takes_the_value(name: ast.expr, value: ast.expr) -> bool:
     if not isinstance(name, (ast.Tuple, ast.List)):
         return False
 
-    held = _written_as(value)
+    if isinstance(value, ast.BoolOp):
+        stands = _part_that_stands(value)
 
-    return (
-        held is not None
-        and isinstance(held[0], (list, tuple))
-        and len(held[0]) == len(name.elts)
-        and all(isinstance(part, ast.Name) for part in name.elts)
-    )
+        return stands is not None and _takes_the_value(name, stands)
+
+    return _enough_to_go_round(name, _written_as(value))
+
+
+def _enough_to_go_round(name: ast.Tuple | ast.List, held: tuple[Any] | None) -> bool:
+
+    '''Whether a value written out has a thing for each name in a row.
+
+    Where one of the names is starred it takes whatever is left over,
+    so there need only be enough for the rest.
+
+    Args:
+        name (ast.Tuple): The names the value is given to.
+        held (tuple[Any] | None): The value written out, or None.
+
+    Returns:
+        bool: True where handing it over could not raise.
+    '''
+
+    if held is None or not isinstance(held[0], _GONE_OVER):
+        return False
+
+    if any(not isinstance(part, (ast.Name, ast.Starred)) for part in name.elts):
+        return False
+
+    wanted = [part for part in name.elts if not isinstance(part, ast.Starred)]
+
+    if len(wanted) < len(name.elts):
+        return len(held[0]) >= len(wanted)
+
+    return len(held[0]) == len(wanted)
 
 
 def _tried_could_raise(statement: ast.Try | ast.TryStar) -> bool:
@@ -2471,9 +2561,12 @@ def _tried_could_raise(statement: ast.Try | ast.TryStar) -> bool:
     '''Whether a `try` statement could raise where it stands.
 
     A body nothing in which could raise reaches no handler, so only
-    its `else` and its `finally` are left to ask. Otherwise a raise
-    the handlers do not certainly catch could carry out, and a handler
-    that can run could raise of its own.
+    its `else` and its `finally` are left to ask — and the `else` only
+    where the body reaches its end. Otherwise the handlers are tried:
+    the kind each names is worked out, and a handler that runs could
+    raise of its own. A raise the handlers do not catch is a way out
+    of the statement rather than something it could raise unsaid, and
+    is read as that.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -2482,15 +2575,64 @@ def _tried_could_raise(statement: ast.Try | ast.TryStar) -> bool:
         bool: True where it could raise.
     '''
 
-    if _may_raise(statement.finalbody) or _may_raise(statement.orelse):
+    if _may_raise(statement.finalbody):
         return True
 
-    if not _may_raise(statement.body):
-        return False
+    held = _block_ways(statement.body)
+    unsaid = _may_raise(statement.body)
 
-    return not _catches_anything(statement) or any(
-        _may_raise(handler.body) for handler in statement.handlers
+    if (unsaid or any(way.startswith(_RAISE) for way in held)) and any(
+        _handler_could_raise(handler) for handler in statement.handlers
+    ):
+        return True
+
+    if unsaid and not _catches_anything(statement):
+        return True
+
+    return _CARRIES_ON in held and _may_raise(statement.orelse)
+
+
+def _names_known_errors(named: ast.expr) -> bool:
+
+    '''Whether what is named is nothing but errors the language carries.
+
+    Such a name is bound wherever the file runs, so working it out
+    raises nothing. A name the project binds itself could be anything
+    by then, and anything else named is worked out as it stands.
+
+    Args:
+        named (ast.expr): The kinds named, one or several.
+
+    Returns:
+        bool: True where each is an error the language carries.
+    '''
+
+    held = named.elts if isinstance(named, ast.Tuple) else [named]
+
+    return all(
+        isinstance(part, ast.Name) and part.id in _KNOWN_ERRORS for part in held
     )
+
+
+def _handler_could_raise(handler: ast.ExceptHandler) -> bool:
+
+    '''Whether reaching or running one handler could raise.
+
+    The kind a handler names is worked out as the raise arrives, so a
+    kind named through anything but an error the language itself
+    carries could raise before the handler runs at all.
+
+    Args:
+        handler (ast.ExceptHandler): The handler to read.
+
+    Returns:
+        bool: True where it could raise.
+    '''
+
+    if handler.type is not None and not _names_known_errors(handler.type):
+        return True
+
+    return _may_raise(handler.body)
 
 
 def _holder_could_raise(statement: ast.stmt) -> bool:
