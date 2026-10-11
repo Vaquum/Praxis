@@ -4987,6 +4987,37 @@ class TestWhatADeepNestCosts:
         assert held.stdout.strip() == '1'
 
 
+class TestWhatAnUnassignedRowCosts:
+    def test_a_row_of_brackets_is_answered_at_once(self) -> None:
+        text = '| ' + '()' * 20000 + ' | why | unassigned |\n'
+        script = (
+            'import importlib.util\n'
+            'import sys\n'
+            f'spec = importlib.util.spec_from_file_location("gate", {str(_SCRIPT)!r})\n'
+            'gate = importlib.util.module_from_spec(spec)\n'
+            'sys.modules["gate"] = gate\n'
+            'spec.loader.exec_module(gate)\n'
+            f'print(sorted(gate._unresolved_questions({text!r})))\n'
+        )
+        held = subprocess.run(  # noqa: S603
+            [sys.executable, '-c', script],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+
+        assert held.returncode == 0
+        assert held.stdout.strip() == '[]'
+
+    def test_a_question_in_a_bracketed_row_is_still_found(self) -> None:
+        text = '| H-01 | [a page](atoms/one.md) raises U-09 | why | unassigned |'
+
+        assert check_wiki._unresolved_questions(text) == {'U-09'}
+
+    def test_an_answered_row_carries_no_question(self) -> None:
+        text = '| H-01 | [a page](atoms/one.md) raises U-09 | why | P1-01 |'
+
+        assert check_wiki._unresolved_questions(text) == set()
+
+
 class TestWhatARefusalMustCite:
     @staticmethod
     def _held(source: str, row: str, monkeypatch: pytest.MonkeyPatch) -> list[str]:

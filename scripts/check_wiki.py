@@ -186,7 +186,6 @@ ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
 REFUSAL_RE = re.compile(
     r'\b(refus\w+|rejec\w+|turned away|forbidd\w+)\b', re.IGNORECASE,
 )
-UNASSIGNED_RE = re.compile(r'^\|([^|]*\([^|]*\))?[^|]*\|[^|]*\| unassigned \|$', re.MULTILINE)
 UNRESOLVED_RE = re.compile(r'\bU-\d+\b')
 PINNED_ROW_RE = re.compile(r'^\| (Praxis|Nexus) \| `([0-9a-f]{7,40})` \|', re.MULTILINE)
 _SEVERAL = (
@@ -5707,6 +5706,10 @@ def _unresolved_questions(text: str) -> set[str]:
 
     '''Return the questions the register carries with nobody to answer them.
 
+    A row is read by its last cell rather than matched whole, so a row
+    written with any number of brackets in its first cell is answered
+    as quickly as any other.
+
     Args:
         text (str): The register.
 
@@ -5715,10 +5718,6 @@ def _unresolved_questions(text: str) -> set[str]:
     '''
 
     return {
-        found
-        for row in UNASSIGNED_RE.findall(text)
-        for found in UNRESOLVED_RE.findall(row)
-    } | {
         found
         for row in text.splitlines()
         if row.endswith('| unassigned |')

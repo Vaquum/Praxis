@@ -2,9 +2,9 @@
 row: P3-15
 baseline: 49aa659
 created: 2026-09-30 09:14 UTC
-modified: 2026-10-11 18:54 UTC
+modified: 2026-10-11 19:11 UTC
 evidence:
-  - claim: "One result is recorded per request, across its retries, with the waiting counted in the time"
+  - claim: "One result is recorded per request that goes through the retrying path, across its retries, with the waiting counted in the time"
     source: "`binance_adapter.py` 578-604"
   - claim: "Recording is skipped for a missing order against the simulator"
     source: "`binance_adapter.py` 632-634"
@@ -37,9 +37,9 @@ It is kept per [account](what-an-account-is.md), since accounts are answered sep
 
 ## What counts as a request
 
-One result is recorded per request rather than per attempt, so a call that retried counts once — with the waiting included in how long it took.
+One result is recorded per request taking the retrying path, not per attempt, so a call that retried counts once, the waiting included in how long it took.
 
-Not everything is recorded. Asking the venue the time records no result, and a missing order against [the simulated venue](binsim.md) is skipped. An order the venue **rejects** is recorded as a success, because the venue answered: this measures whether the venue replied, leaving what the order did to be judged elsewhere.
+Not everything is recorded. Asking the venue the time, its trading rules or [the order book](the-order-book.md) records no result, each going straight out, and a missing order against [the simulated venue](binsim.md) is skipped. An order the venue **rejects** is recorded as a success, because the venue answered: this measures whether the venue replied, leaving what the order did to others.
 
 [A replay's venue](the-replay-venue.md) measures none of this. It hands back a report with every figure at zero — which the decision side reads as an account in good health, rather than as an account it knows nothing about.
 

@@ -2,9 +2,9 @@
 row: P3-09
 baseline: 49aa659
 created: 2026-09-28 11:26 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:11 UTC
 evidence:
-  - claim: "A gap that is not above zero is refused"
+  - claim: "A gap at or below zero is refused"
     source: "`mark_sampler.py` 56-57"
   - claim: "It samples, then waits the gap, over and over"
     source: "`mark_sampler.py` 131-141"
@@ -19,7 +19,7 @@ evidence:
 
 The **mark sampler** writes down what the market was worth from time to time, so a paper run has something to measure against between its trades.
 
-It samples, waits the gap it was given, and goes again — refusing a gap that is not above zero. So the spacing is a wait between attempts rather than a promise about when each lands.
+It samples, waits the gap it was given, and goes again — refusing a gap at or below zero. So the spacing is a wait between attempts rather than a promise about when each lands.
 
 ## When there is no price
 
