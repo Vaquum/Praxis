@@ -4684,6 +4684,28 @@ def _link_targets(body: str) -> tuple[list[str], list[str]]:
     return targets, broken
 
 
+def _rows_of(target: Path) -> str | None:
+
+    '''Return a link target's rows, where they can be read as text.
+
+    Args:
+        target (Path): The file or folder a link names.
+
+    Returns:
+        str | None: The rows, empty where the target holds none, and None
+            where the target is not written in text.
+    '''
+
+    if not target.is_file():
+        return ''
+
+    try:
+        return target.read_text()
+
+    except (UnicodeDecodeError, OSError):
+        return None
+
+
 def _broken_links(page: Path, body: str) -> list[str]:
 
     '''Return the links pointing at a page or anchor that is absent.
@@ -4711,7 +4733,13 @@ def _broken_links(page: Path, body: str) -> list[str]:
                 broken.append(f'links to {path}, which does not exist')
                 continue
 
-            text = resolved.read_text() if resolved.is_file() else ''
+            rows = _rows_of(resolved) if anchor else ''
+
+            if rows is None:
+                broken.append(f'links to {target}, which is not written in text')
+                continue
+
+            text = rows
         else:
             text = body
 

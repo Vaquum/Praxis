@@ -594,6 +594,21 @@ class TestProtocolExemption:
                 id='replacement-import',
             ),
             pytest.param(
+                'from typing import Protocol\nclass Protocol:\n    pass\n'
+                'class A(Protocol):\n' + _STUB,
+                id='rebound-by-a-class',
+            ),
+            pytest.param(
+                'from typing import Protocol\ndef Protocol():\n    pass\n'
+                'class A(Protocol):\n' + _STUB,
+                id='rebound-by-a-function',
+            ),
+            pytest.param(
+                'from typing import Protocol\nasync def Protocol():\n    pass\n'
+                'class A(Protocol):\n' + _STUB,
+                id='rebound-by-an-awaited-function',
+            ),
+            pytest.param(
                 'from typing import Protocol\nProtocol, other = object, None\n'
                 'class A(Protocol):\n' + _STUB,
                 id='unpacking',
@@ -1873,6 +1888,32 @@ class TestTheFinallyClause:
                 unpaired.append(label)
 
         assert unpaired == list(shapes)
+
+    def test_an_unread_kind_past_the_last_said_raise_cannot_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            raise ValueError()\n        except ValueError:\n"
+            "            return 1\n        except errors.Other:\n"
+            "            pass\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 10 in second for first, second in spans)
+
+    def test_an_unread_kind_a_body_cannot_reach_cannot_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            kept = 1\n"
+            "            try:\n                return 1\n"
+            "            except errors.ValueError:\n                work()\n"
+            "        kept = 2\n    except ValueError:\n        handle()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 11 in second for first, second in spans)
 
     def test_a_handler_naming_a_kind_through_something_else_still_runs(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -4448,6 +4489,31 @@ class TestReferenceLinks:
 
         assert check_wiki._broken_links(page, page.read_text()) == [
             'links to b.md, which does not exist',
+        ]
+
+    def test_a_link_to_a_drawing_is_left_alone(self, tmp_path: Path) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the drawing](shape.png)\n')
+        (tmp_path / 'shape.png').write_bytes(b'\x89PNG\r\n\x1a\n\xff\xfe')
+
+        assert check_wiki._broken_links(page, page.read_text()) == []
+
+    def test_an_anchor_in_a_drawing_is_refused(self, tmp_path: Path) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the drawing](shape.png#here)\n')
+        (tmp_path / 'shape.png').write_bytes(b'\x89PNG\r\n\x1a\n\xff\xfe')
+
+        assert check_wiki._broken_links(page, page.read_text()) == [
+            'links to shape.png#here, which is not written in text',
+        ]
+
+    def test_an_anchor_in_a_folder_is_a_missing_heading(self, tmp_path: Path) -> None:
+        page = tmp_path / 'a.md'
+        page.write_text('see [the folder](atoms#here)\n')
+        (tmp_path / 'atoms').mkdir()
+
+        assert check_wiki._broken_links(page, page.read_text()) == [
+            'links to atoms#here, whose heading does not exist',
         ]
 
     def test_a_defined_shortcut_reference_is_a_target(self) -> None:
