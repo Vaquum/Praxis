@@ -2,7 +2,7 @@
 row: P3-16
 baseline: 49aa659
 created: 2026-09-30 07:02 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:35 UTC
 evidence:
   - claim: "A connection is opened per account where the venue uses the Binance adapter"
     source: "`praxis/trading.py` 581-589, on the branch at 569"
@@ -20,8 +20,8 @@ evidence:
     source: "`binance_ws.py` 414-415"
   - claim: "The wait before trying again doubles up to a ceiling, then is drawn at random below it"
     source: "`binance_ws.py` 344-347"
-  - claim: "A successful connection resets that ceiling"
-    source: "`binance_ws.py` 355"
+  - claim: "A successful connection resets the count the ceiling is raised by"
+    source: "`binance_ws.py` 355, that count read at 344-347"
   - claim: "Reconnecting sets the account reconciling and asks the venue what it missed"
     source: "`praxis/trading.py` 1455-1464 with the gate at 1400-1407"
   - claim: "Fills also reach Praxis by being asked for"
@@ -45,7 +45,7 @@ Of the frames that do carry an event, the handler acts on one kind and ignores t
 
 A connection that closes, or errors, ends the listening. Praxis waits, then opens a new one.
 
-The wait grows: a ceiling that doubles each failure up to a limit, with the actual wait drawn at random below that ceiling. The random factor reduces the chance of accounts retrying together. A connection that succeeds resets the ceiling.
+The wait grows: a ceiling that doubles each failure up to a limit, with the actual wait drawn at random below that ceiling. The random factor reduces the chance of accounts retrying together. A connection that succeeds sets that count of failures back to nothing, so the ceiling starts over.
 
 ## What reconnecting means
 

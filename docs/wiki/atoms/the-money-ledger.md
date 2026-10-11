@@ -2,7 +2,7 @@
 row: P3-11
 baseline: 49aa659
 created: 2026-09-28 12:14 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:35 UTC
 evidence:
   - claim: "There are five accounts and no others"
     source: "`chart_of_accounts.py` 20-24"
@@ -24,7 +24,7 @@ evidence:
     source: "`account_ledger.py` 336-338"
   - claim: "What a sell brought in, and what it cost, are posted apart from the fee"
     source: "`account_ledger.py` 340-354"
-  - claim: "The fee is posted on lines of its own"
+  - claim: "The fee is posted on lines of its own, where there is a fee above nothing"
     source: "`account_ledger.py` 384-389"
   - claim: "Profit is gathered per trade, and the fee taken off at the end"
     source: "gathered at `account_ledger.py` 415-417, taken off at `trade_pnl.py` 40"

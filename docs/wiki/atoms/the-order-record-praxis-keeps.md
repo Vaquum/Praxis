@@ -2,7 +2,7 @@
 row: P4-11
 baseline: 49aa659
 created: 2026-10-03 17:09 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:35 UTC
 evidence:
   - claim: "The record is made before the venue is called"
     source: "`execution_manager.py` 4264-4265 into `trading_state.py` 309-326, ahead of the placement that follows"
@@ -22,7 +22,7 @@ evidence:
     source: "`trading_state.py` 430-431"
   - claim: "A fill landing on a record already ended is added the same way"
     source: "`trading_state.py` 419-422"
-  - claim: "The amount filled may not exceed the size when the record is made"
+  - claim: "The amount filled may not exceed the size when the record is made, where a size was named"
     source: "`order.py` 133-135"
   - claim: "It carries a commission, added to only where a buy's fee was charged in Bitcoin, tested by name"
     source: "`order.py` 78, added at `trading_state.py` 432 through the test at 66 and 84-87"

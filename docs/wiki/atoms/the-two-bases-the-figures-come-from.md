@@ -2,9 +2,9 @@
 row: P4-18
 baseline: 49aa659
 created: 2026-10-03 21:05 UTC
-modified: 2026-10-11 19:33 UTC
+modified: 2026-10-11 20:35 UTC
 evidence:
-  - claim: "Both bases pass their series through the same assembler, which publishes eight names"
+  - claim: "Both bases pass their series through the same assembler, which names the same eight measures, seven of them published as three figures each and the eighth as one"
     source: "`snapshot_result.py` 27-36 and 82-105, called at `snapshot_metrics.py` 52-61 and `limen_snapshot.py` 173-181"
   - claim: "Six distributions come back as a low, a middle and a high, each rounded, or as three nothings where no real figure is left to read"
     source: "`snapshot_result.py` 82-97 into `percentiles.py` 57-66"
@@ -31,7 +31,7 @@ evidence:
 ---
 # The two bases the figures come from
 
-[The summary figures](the-metrics.md) over a run's distribution are worked out two ways, from two different starting points. Both pass their series through the same assembler, so the eight names they publish are the same eight.
+[The summary figures](the-metrics.md) over a run's distribution are worked out two ways, from two different starting points. Both pass their series through the same assembler, so the eight measures they report are the same eight.
 
 ## What the assembler publishes
 
