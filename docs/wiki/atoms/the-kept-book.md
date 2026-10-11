@@ -2,7 +2,7 @@
 row: P2-26
 baseline: 49aa659
 created: 2026-09-25 19:08 UTC
-modified: 2026-10-11 20:17 UTC
+modified: 2026-10-11 20:29 UTC
 evidence:
   - claim: "A copy of the latest book per symbol, held in memory with its arrival time"
     source: "`book_cache.py` 38 for the store, 44-45 for the write, 29-31 for what a copy holds"
@@ -10,8 +10,8 @@ evidence:
     source: "`launcher.py` 3819-3831, reached only past 3799-3800, the ordinary start handing none in at 4984-4991"
   - claim: "Each poll overwrites the copy for that symbol"
     source: "`book_poller.py` 76-77 into `book_cache.py` 44-45"
-  - claim: "One reader builds the gap and the age"
-    source: "`book_cache.py` 124-125 and 134-139"
+  - claim: "One reader builds the gap and hands back the two moments an age is taken from"
+    source: "`book_cache.py` 124-125 and 134-139, subtracted by Nexus `price_stage.py` 281"
   - claim: "It builds the drift only when a strategy price was supplied and is above zero"
     source: "`book_cache.py` 130-132"
   - claim: "The other reads the middle of the gap alone"
@@ -35,7 +35,7 @@ One background task is meant to run for each trading pair the paper accounts nam
 
 Two readers use the copy, and neither talks to the venue.
 
-One serves the checks a request passes before it is accepted. It always builds the gap between the best buy and sell prices, and how old the copy is. It builds a third figure — how far the middle of that gap sits from the price the request expected — only when a strategy price came with the request and is above zero.
+One serves the checks a request passes before it is accepted. It always builds the gap between the best buy and sell prices, and hands back both moments — its own and the copy's — which the [decision side](what-a-reconciliation-tells-nexus.md) subtracts for an age. It builds a third figure — how far the middle of that gap sits from the price the request expected — only when a strategy price came with the request and is above zero.
 
 The other reads the middle of the gap alone, to turn an amount of money into an amount of coin.
 

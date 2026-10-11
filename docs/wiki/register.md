@@ -133,7 +133,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is not in this package. Of its 70 modules, 16 are cited in passing by a Praxis article or a recorded finding, and none is traced. That is a package of its own, not a tail on this one.
+Nexus is not in this package. Of its 70 modules, 17 are cited in passing by a Praxis article or a recorded finding, and none is traced. That is a package of its own, not a tail on this one.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -283,4 +283,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-11 19:23 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-11 20:29 UTC

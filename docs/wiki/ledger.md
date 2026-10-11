@@ -108,6 +108,7 @@ Every Praxis module is named here: 46 are `full`, 37 `partial` and 5 `uncovered`
 | `nexus/core/domain/order_types.py` | partial | cited, not traced |
 | `nexus/core/health_evaluator.py` | partial | cited, not traced |
 | `nexus/core/validator/health_stage.py` | partial | cited, not traced |
+| `nexus/core/validator/price_stage.py` | partial | cited, not traced |
 | `nexus/core/health_loop.py` | partial | cited, not traced |
 | `nexus/core/mode_controller.py` | partial | cited, not traced |
 | `nexus/infrastructure/manifest.py` | partial | cited, not traced |
@@ -121,7 +122,7 @@ Every Praxis module is named here: 46 are `full`, 37 `partial` and 5 `uncovered`
 | `nexus/strategy/action_submit.py` | partial | cited, not traced |
 | `nexus/strategy/loader.py` | partial | cited, not traced |
 | `nexus/strategy/predict_loop.py` | partial | cited, not traced |
-| the other 54 | uncovered | — |
+| the other 53 | uncovered | — |
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
@@ -129,4 +130,4 @@ The modules listed above are `partial` by citation rather than by tracing: a Pra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-11 19:29 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-11 20:29 UTC
