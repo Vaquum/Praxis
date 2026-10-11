@@ -1107,7 +1107,9 @@ def _overridden(scopes: _Scopes, line: int, own: str) -> tuple[str, int] | None:
     branch, and is passed over. So is one the branch never reaches: a
     break or a continue bound for a loop inside the `try` stays in
     there, and the `finally` has not run when what follows the loop
-    does.
+    does. The nearest `finally` is read first, and the way it leaves by
+    is what the one around it is asked about, since that is the way the
+    branch is on by then.
 
     Args:
         scopes (_Scopes): What a branch leaving the path can skip.
@@ -1120,16 +1122,21 @@ def _overridden(scopes: _Scopes, line: int, own: str) -> tuple[str, int] | None:
     '''
 
     floor = _function_floor(scopes, line)
+    found: tuple[str, int] | None = None
+    way = own
 
-    for block, kind in scopes.overrides:
+    for block, kind in sorted(scopes.overrides, key=lambda held: -held[0].start):
 
         if block.start < floor or block.skipped_by(line):
             continue
 
-        if _leaves_the_try(own, scopes, line, block.start):
-            return kind, block.start
+        if not _leaves_the_try(way, scopes, line, block.start):
+            break
 
-    return None
+        found = kind, block.start
+        way = kind
+
+    return found
 
 
 def _leaves_the_try(own: str, scopes: _Scopes, line: int, start: int) -> bool:
@@ -1137,7 +1144,8 @@ def _leaves_the_try(own: str, scopes: _Scopes, line: int, start: int) -> bool:
     '''Whether a branch's own way out crosses a `try` to reach its end.
 
     A return or a raise leaves whatever holds it, so it crosses. A
-    break or a continue reaches the loop around it, and crosses only
+    break or a continue reaches the loop around it — a loop whose
+    `else` holds the line having finished already — and crosses only
     where that loop is outside the `try`. A branch leaving by nothing
     nameable crosses nothing.
 
@@ -1158,7 +1166,7 @@ def _leaves_the_try(own: str, scopes: _Scopes, line: int, start: int) -> bool:
         return False
 
     return not any(
-        start < held <= line <= end for held, end in scopes.loops.items()
+        start < held for held in _loops_around(scopes, line)
     )
 
 

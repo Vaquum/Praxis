@@ -2323,6 +2323,49 @@ class TestTheFinallyClause:
 
         assert unpaired == list(shapes)
 
+    def test_the_nearest_finally_is_what_the_branch_is_on(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    for outer in [0]:\n        try:\n"
+            "            for inner in [0]:\n                try:\n"
+            "                    if flag:\n                        return 1\n"
+            "                finally:\n                    break\n"
+            "            reached()\n        finally:\n            return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(7 in first and 10 in second for first, second in spans)
+
+    def test_a_nearer_finally_hands_its_way_to_the_one_around_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        for x in [0]:\n            try:\n"
+            "                if flag:\n                    mark()\n"
+            "                    break\n            finally:\n"
+            "                return 1\n        after_loop()\n    finally:\n"
+            "        return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(6 in first and 10 in second for first, second in spans)
+
+    def test_a_jump_in_a_loops_else_reaches_the_loop_outside(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    for outer in [0]:\n        try:\n"
+            "            for inner in []:\n                pass\n"
+            "            else:\n                if flag:\n"
+            "                    marked()\n                    break\n"
+            "        finally:\n            continue\n    else:\n"
+            "        reached()\n    return 1\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(8 in first and 13 in second for first, second in spans)
+
     def test_a_finally_overrides_no_arm_that_names_no_way(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
