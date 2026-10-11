@@ -89,6 +89,7 @@ _COMPARISONS: dict[type[ast.cmpop], Callable[[Any, Any], Any]] = {
 }
 _BUILT_WITH = 3
 _LINE_DIGITS = 9
+_ROWS_AT_MOST = 1000
 _PAST_EVERY_FILE: int = 10 ** _LINE_DIGITS
 _GROUPED_ERRORS = ('ExceptionGroup', 'BaseExceptionGroup')
 _CARRIES_ON = 'carries on'
@@ -2731,6 +2732,24 @@ def _as_line(written: str) -> int:
     return int(written)
 
 
+def _as_count(written: str) -> int:
+
+    '''Return a count as written, or one no count reaches.
+
+    A number too long to turn into one at all is answered with a figure
+    nothing counted could match, so the claim is reported as wrong
+    rather than ending the run.
+
+    Args:
+        written (str): The number as the page wrote it, commas and all.
+
+    Returns:
+        int: That number, or one past every count.
+    '''
+
+    return _as_line(written.replace(',', ''))
+
+
 def _nothing_written(held: ast.expr) -> bool:
 
     '''Whether an expression is written out as nothing at all.
@@ -5229,7 +5248,7 @@ def _ledger_package(
         )
 
     remainder = len(modules) - len(named & modules)
-    grouped = sum(int(count) for count in LEDGER_GROUP_RE.findall(body))
+    grouped = sum(_as_count(count) for count in LEDGER_GROUP_RE.findall(body))
 
     if grouped != remainder:
         failures.append(
@@ -5252,7 +5271,9 @@ def _ledger_coverage() -> list[str]:
     '''
 
     text = LEDGER.read_text(encoding='utf-8')
-    counts = {name: int(count) for name, count in LEDGER_HEADING_RE.findall(text)}
+    counts = {
+        name: _as_count(count) for name, count in LEDGER_HEADING_RE.findall(text)
+    }
     sections = _ledger_sections(text)
     failures: list[str] = []
 
@@ -5352,6 +5373,32 @@ def _note_cited(cited: dict[str, set[str]], row: str, source: str) -> None:
             cited.setdefault(_identity(name) or _tree_relative(path), set()).add(row)
 
 
+def _named_between(package: str, first: str, last: str) -> set[str]:
+
+    '''Return the row identifiers a span of one package names.
+
+    A span reaching past any number a register row could carry names
+    nothing, the rows of a package being counted in tens. One running
+    backwards names nothing either, there being no row between its
+    ends.
+
+    Args:
+        package (str): The package the rows belong to.
+        first (str): Where the span starts, as the cell wrote it.
+        last (str): Where it ends.
+
+    Returns:
+        set[str]: Each identifier in the span.
+    '''
+
+    opening, closing = _as_count(first), _as_count(last)
+
+    if closing >= _ROWS_AT_MOST:
+        return set()
+
+    return {f'{package}-{held:02d}' for held in range(opening, closing + 1)}
+
+
 def _ledger_listed(column: str) -> set[str]:
 
     '''Return the row identifiers a ledger cell names, spans expanded.
@@ -5370,7 +5417,7 @@ def _ledger_listed(column: str) -> set[str]:
 
         if span is not None:
             package, first, last = span.groups()
-            listed |= {f'{package}-{n:02d}' for n in range(int(first), int(last) + 1)}
+            listed |= _named_between(package, first, last)
 
         elif ROW_ID.fullmatch(part):
             listed.add(part)
@@ -5530,7 +5577,7 @@ def _nexus_counts() -> tuple[int, int]:
 
     body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Nexus', '')
     named = len(LEDGER_ROW_RE.findall(body))
-    grouped = sum(int(count) for count in LEDGER_GROUP_RE.findall(body))
+    grouped = sum(_as_count(count) for count in LEDGER_GROUP_RE.findall(body))
 
     return named, named + grouped
 
@@ -5550,7 +5597,7 @@ def _counted_lines(page: Path, text: str) -> list[str]:
     failures = []
 
     for written in LINE_COUNT_RE.finditer(text):
-        name, said = written.group(1), int(written.group(2).replace(',', ''))
+        name, said = written.group(1), _as_count(written.group(2))
 
         if _reaches_absent_nexus(name):
             continue
@@ -5595,7 +5642,7 @@ def _counted_states() -> list[str]:
 
         for written in STATE_COUNT_RE.finditer(text):
 
-            if tuple(int(n) for n in written.groups()) != counted:
+            if tuple(_as_count(n) for n in written.groups()) != counted:
                 failures.append(
                     f'{page}: "{written.group(0)}" against {counted[0]} full, '
                     f'{counted[1]} partial and {counted[2]} uncovered in the ledger',
@@ -5613,7 +5660,7 @@ def _counted_states() -> list[str]:
 
             for written in pattern.finditer(text):
 
-                if int(written.group(1)) != truth:
+                if _as_count(written.group(1)) != truth:
                     failures.append(
                         f'{page}: "{written.group(0)}" against {truth} {what}',
                     )
@@ -5685,7 +5732,7 @@ def _latest_release_counts() -> list[str]:
     failures = []
 
     for written in EVIDENCE_COUNT_RE.finditer(entry):
-        said = tuple(int(number.replace(',', '')) for number in written.groups())
+        said = tuple(_as_count(number) for number in written.groups())
 
         if said != (references, claims):
             failures.append(
@@ -5700,7 +5747,7 @@ def _latest_release_counts() -> list[str]:
 
         for written in pattern.finditer(entry):
 
-            if int(written.group(1).replace(',', '')) != truth:
+            if _as_count(written.group(1)) != truth:
                 failures.append(
                     f'{CHANGELOG}: "{written.group(0)}" against {truth} {what}',
                 )

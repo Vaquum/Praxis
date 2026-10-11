@@ -3630,6 +3630,109 @@ class TestTheIndexVocabulary:
         ]
 
 
+class TestACountBeyondCounting:
+    def test_a_length_beyond_counting_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        (wiki / 'atoms').mkdir(parents=True)
+        (wiki / 'README.md').write_text(
+            f"`order.py` is {'9' * 4301} lines\n", encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        failures = check_wiki._counted_states()
+
+        assert any('order.py' in failure for failure in failures)
+
+    def test_references_beyond_counting_are_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        log = tmp_path / 'CHANGELOG.md'
+        log.write_text(
+            '## v1.0.0 on 1st of January, 2026\n\n'
+            f"- Add {'9' * 4301} line references across 1 claims\n",
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'CHANGELOG', log)
+        failures = check_wiki._latest_release_counts()
+
+        assert any('line references' in failure for failure in failures)
+
+    def test_states_beyond_counting_are_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        (wiki / 'atoms').mkdir(parents=True)
+        held = '9' * 4301
+        (wiki / 'README.md').write_text(
+            f'{held} are `full`, {held} `partial` and {held} `uncovered`\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        failures = check_wiki._counted_states()
+
+        assert any('full' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    def test_a_grouped_ledger_count_beyond_counting_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ledger = tmp_path / 'ledger.md'
+        ledger.write_text(
+            '## Praxis — 1 modules\n\n'
+            f"| all {'9' * 4301} | full |\n",
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'LEDGER', ledger)
+        failures = check_wiki._ledger_coverage()
+
+        assert failures
+
+    @_NEEDS_BASELINE
+    def test_a_ledger_count_beyond_counting_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ledger = tmp_path / 'ledger.md'
+        ledger.write_text(
+            f"## Praxis — {'9' * 4301} modules\n\n| a.py | full |\n",
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'LEDGER', ledger)
+        failures = check_wiki._ledger_coverage()
+
+        assert any('modules' in failure for failure in failures)
+
+    def test_an_article_count_on_a_page_beyond_counting_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = tmp_path / 'wiki'
+        (wiki / 'atoms').mkdir(parents=True)
+        (wiki / 'README.md').write_text(
+            f"{'9' * 4301} articles\n", encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'README', wiki / 'README.md')
+        monkeypatch.setattr(check_wiki, 'WIKI', wiki)
+        failures = check_wiki._counted_states()
+
+        assert any('articles in the wiki' in failure for failure in failures)
+
+    def test_an_article_count_beyond_counting_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        log = tmp_path / 'CHANGELOG.md'
+        log.write_text(
+            '## v1.0.0 on 1st of January, 2026\n\n'
+            f"- Add {'9' * 4301} articles\n",
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'CHANGELOG', log)
+        failures = check_wiki._latest_release_counts()
+
+        assert any('articles' in failure for failure in failures)
+
+
 class TestThePinnedTable:
 
     def test_the_table_names_the_commits_that_are_read(self) -> None:
@@ -4706,6 +4809,21 @@ class TestWhatACitationMayName:
         held = check_wiki._as_line('9' * 4301)
 
         assert held == check_wiki._PAST_EVERY_FILE
+
+    def test_a_count_too_long_to_read_reaches_no_count(self) -> None:
+        assert check_wiki._as_count('9,' + '9' * 4301) == check_wiki._PAST_EVERY_FILE
+
+    def test_a_count_of_a_readable_length_is_read(self) -> None:
+        assert check_wiki._as_count('2,204') == 2204
+
+    def test_a_span_of_rows_beyond_counting_names_nothing(self) -> None:
+        assert check_wiki._named_between('P4', '1', '5000') == set()
+
+    def test_a_span_of_rows_running_backwards_names_nothing(self) -> None:
+        assert check_wiki._named_between('P4', '5', '3') == set()
+
+    def test_a_span_of_rows_names_each_one(self) -> None:
+        assert check_wiki._named_between('P4', '1', '3') == {'P4-01', 'P4-02', 'P4-03'}
 
     def test_a_number_of_a_readable_length_is_read(self) -> None:
         assert check_wiki._as_line('585') == 585
