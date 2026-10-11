@@ -2,11 +2,11 @@
 row: P2-37
 baseline: 49aa659
 created: 2026-09-25 20:52 UTC
-modified: 2026-10-09 17:24 UTC
+modified: 2026-10-11 20:49 UTC
 evidence:
   - claim: "A walk holds no expected row count and no mark for which row should be last"
     source: "`event_spine.py` 1254-1291, with the kept values at 100-102 written at 593-595"
-  - claim: "Rows carrying no mark are passed over while the run of them lasts"
+  - claim: "Rows carrying no mark are passed over while the opening run of them lasts"
     source: "`event_spine.py` 1261-1269"
   - claim: "The passing-over starts switched on and is only turned off by the first marked row"
     source: "`event_spine.py` 1255, turned off at 1271"
@@ -14,8 +14,8 @@ evidence:
     source: "`event_spine.py` 1272-1277"
   - claim: "A marked row surviving that is checked against its own fields"
     source: "`event_spine.py` 1279-1287"
-  - claim: "A row inside a run of unmarked rows is passed over the same way"
-    source: "`event_spine.py` 1261-1269"
+  - claim: "One carrying no mark after a marked row refuses the walk instead"
+    source: "`event_spine.py` 1262-1268"
 ---
 # What the chain misses
 
@@ -23,7 +23,7 @@ evidence:
 
 ## Rows that never had codes
 
-A row with no code is skipped rather than refused. Anything done inside such a run of rows — changing one, or taking one out — is skipped with it, while the stored rows after it still pass their checks.
+A row with no code is skipped rather than refused, while the opening run of such rows lasts. Anything done inside that run — changing one, or taking one out — is skipped with it, and the rows after it still pass their checks. One standing after a row that has a code refuses the walk instead, so the skipping covers the start of the record alone.
 
 ## Rows taken off the end
 

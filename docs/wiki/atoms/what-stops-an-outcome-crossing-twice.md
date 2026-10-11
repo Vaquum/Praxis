@@ -2,7 +2,7 @@
 row: P4-30
 baseline: 49aa659
 created: 2026-10-02 10:10 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:49 UTC
 evidence:
   - claim: "Once an ending has been made, later outcomes for that command are dropped"
     source: "`outcome_translator.py` 156-164, the name kept at 257"
@@ -12,8 +12,8 @@ evidence:
     source: "`outcome_translator.py` 257-260"
   - claim: "A duplicate passed on after forgetting has nothing applied for it only where its own name went through before"
     source: "Nexus `outcome_processor.py` 130-140, the names kept at 163-165"
-  - claim: "A full fill adding nothing makes no full-fill leg, so that name is new when it comes round again"
-    source: "`outcome_translator.py` 216-223 within 212-225"
+  - claim: "A full fill adding nothing makes no full-fill leg, so that leg's name never reaches the far end, though the command is marked ended all the same"
+    source: "`outcome_translator.py` 216-223 within 212-225, marked at 224 either way"
   - claim: "Each crossing outcome is named from the account, the command and which leg it is, with a number on successive part-fills"
     source: "`outcome_translator.py` 388-390"
   - claim: "Both names are written down with the outcome and read back from there"
