@@ -2333,6 +2333,22 @@ class TestTheFinallyClause:
 
         assert not self._spans(source, tmp_path, monkeypatch)
 
+    def test_a_later_grouped_kind_is_weighed_after_an_earlier_match(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            value = 1\n"
+            "            try:\n                raise ValueError()\n"
+            "            except* ValueError:\n                value = 2\n"
+            "            except* boom():\n                value = 3\n"
+            "            return 1\n        value = 4\n    except RuntimeError:\n"
+            "        value = 5\n    return 0\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 14 in second for first, second in spans)
+        assert any(4 in first and 12 in second for first, second in spans)
+
     def test_every_kind_a_grouped_try_names_is_worked_out(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
