@@ -2,7 +2,7 @@
 row: P4-41
 baseline: 49aa659
 created: 2026-10-03 21:05 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 18:26 UTC
 evidence:
   - claim: "A run of no bars is refused"
     source: "`limen_snapshot.py` 102-103"
@@ -14,7 +14,7 @@ evidence:
     source: "`limen_snapshot.py` 116-117"
   - claim: "A prediction that is neither nought nor one is refused"
     source: "`limen_snapshot.py` 119-120"
-  - claim: "A price change that does not equal the close less the opening is refused, within a tolerance"
+  - claim: "A price change that does not equal the close less the opening is refused, within a tolerance, weighed only across the bars holding all three figures and passed where no bar holds them"
     source: "`limen_snapshot.py` 122-131, the tolerance at 32-33"
   - claim: "A bar counts only where all three of its figures are there and its opening differs from nought"
     source: "`limen_snapshot.py` 122 and 133, applied at 139-140"
@@ -37,21 +37,21 @@ evidence:
 ---
 # What the parity figures refuse
 
-The [bar basis](the-two-bases-the-figures-come-from.md) checks what it is given before working anything out, and refuses six things outright.
+The [bar basis](the-two-bases-the-figures-come-from.md) checks what it is given before working anything out, and refuses what it cannot work with.
 
-## The six refusals
+## What it refuses
 
 A run of no bars at all. Columns of unequal length. A moment that is not a moment, or carries no zone. A lag below nought. A prediction that is neither nought nor one.
 
-And a price change that does not equal the closing price less the opening one, within a tolerance.
+And a price change that does not equal the closing price less the opening one, within a tolerance — weighed only where a bar's opening, close and change are all there, so a wrong change beside a missing figure stands, as does one where no bar holds all three.
 
 ## What is left out instead
 
-Past those checks, a bar counts only where all three of its figures are there and its opening differs from nought. One failing that is left out rather than refused.
+Past those checks, a bar counts only where all three figures are there and its opening is not nought. One failing that is left out rather than refused.
 
-Left out, though, is not the same as absent. The run of held bars is broken across it, so the bar before it can read as an exit and the bar after as a fresh entry.
+A bar left out still leaves a mark: the run of held bars breaks across it, so the bar before can read as an exit and the bar after as a fresh entry.
 
-The first bars are left out too, as many of them as the lag. The prediction is shifted forward by that lag — one bar unless another is given — so the earliest bars have nothing shifted into them.
+The first bars are left out too, as many as the lag. The prediction is shifted forward by that lag — one bar unless another is given — so the earliest bars have nothing shifted into them.
 
 ## How a return is reckoned
 
@@ -61,7 +61,7 @@ A bar entered on returns the change across it, over its opening price. A bar mer
 
 A fee and a slip, five hundredths of a percent each unless given otherwise, charged at entry and at exit.
 
-The slip is applied differently at each end: entry divides by one plus it, where exit multiplies by one less it.
+At entry the slip divides by one plus it; at exit it multiplies by one less.
 
 ## Related
 

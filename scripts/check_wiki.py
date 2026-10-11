@@ -185,9 +185,13 @@ ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
 UNASSIGNED_RE = re.compile(r'^\|([^|]*\([^|]*\))?[^|]*\|[^|]*\| unassigned \|$', re.MULTILINE)
 UNRESOLVED_RE = re.compile(r'\bU-\d+\b')
 PINNED_ROW_RE = re.compile(r'^\| (Praxis|Nexus) \| `([0-9a-f]{7,40})` \|', re.MULTILINE)
+_SEVERAL = (
+    r'two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|'
+    r'thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|'
+    r'twenty|twenty-one|thirty'
+)
 TEASED_COUNT_RE = re.compile(
-    r'\bthe (two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|'
-    r'twenty|twenty-one|thirty) [a-z]',
+    rf'\b(?:the (?:one|{_SEVERAL}) (?=[a-z])|(?:{_SEVERAL}) of\b)',
 )
 INDEX_ENTRY_RE = re.compile(
     r'^- \[[^]]*\]\(atoms/([a-z0-9-]+\.md)\) — (.*)$', re.MULTILINE,
@@ -5441,6 +5445,10 @@ def _row_file_citations() -> dict[str, set[str]]:
 
     '''Return which register rows cite each file, by ledger path.
 
+    A row naming an article that is not there, or one whose rows cannot
+    be read, cites nothing: the row is reported by the check that reads
+    the set as a whole, and this one carries on so that it can be.
+
     Returns:
         dict[str, set[str]]: Path to the rows citing it.
     '''
@@ -5449,7 +5457,7 @@ def _row_file_citations() -> dict[str, set[str]]:
 
     text = REGISTER.read_text(encoding='utf-8')
     sources = [
-        (row, _split_front_matter((WIKI / article).read_text(encoding='utf-8'))[0])
+        (row, _split_front_matter(_rows_of(WIKI / article) or '')[0])
         for row, article in REGISTER_ROW_RE.findall(text)
     ]
 
@@ -6014,7 +6022,9 @@ def _index_vocabulary() -> list[str]:
     An entry is read before the article defining its words, so a term
     another article owns is opaque there however clear it is in place.
     A count stands in the same way where it is teased rather than
-    spent: `the six ceilings` names none of them.
+    spent: `the six ceilings` names none of them, and neither does
+    `the one fee` or `two of an outcome's figures`. One thing taken out
+    of several is no count, so `take one of` and `any one of` stand.
 
     Returns:
         list[str]: One failure per entry using such a term.
@@ -6032,7 +6042,7 @@ def _index_vocabulary() -> list[str]:
 
     return failures + [
         f'{README}: the entry for {article} counts rather than describes, '
-        f'at "the {teased.group(1)}"'
+        f'at "{teased.group(0).strip()}"'
         for article, description in entries
         if (teased := TEASED_COUNT_RE.search(description)) is not None
     ]

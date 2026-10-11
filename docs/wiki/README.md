@@ -27,16 +27,16 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Starting a host](atoms/starting-a-host.md) — what one process does to bring Praxis and Nexus up, in the order it does it.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [The settings each way of working takes](atoms/the-settings-each-way-of-working-takes.md) — each way of working carries settings of the kind it registers, and each kind has demands of its own.
-- [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — what a request to alter work must carry, and the one change refused twice over.
+- [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — what a request to alter work must carry, and why a change asking to spread work across prices is turned away when it arrives and again if it gets through by another road.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — the fields each kind of change offers, and the rules each holds them to.
-- [The position Praxis keeps](atoms/the-position-praxis-keeps.md) — what Praxis records of the coin it holds per trade, and the one fee it nets off.
+- [The position Praxis keeps](atoms/the-position-praxis-keeps.md) — what Praxis records of the coin it holds per trade, and when a purchase charge is taken off the amount that purchase adds.
 - [The order record Praxis keeps](atoms/the-order-record-praxis-keeps.md) — what Praxis holds about one attempt to place an order at the venue.
 - [What changes on an order](atoms/what-changes-on-an-order.md) — the fields that move as the venue reports, and the rules that stop applying once the record exists.
 - [What a command must carry](atoms/what-a-command-must-carry.md) — one instruction to Praxis, built from what a caller gave and checked as it is built.
 - [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — the checks on the names, the deadline and the reference price each rest on one ground, a test for emptiness or a comparison with nought, so a value wrong on another ground passes, to break later or never be caught at all.
 - [How a decision becomes a command](atoms/how-a-decision-becomes-a-command.md) — work crossing from Nexus into Praxis is re-keyed field by field, and its settings converted.
 - [The payload a mode's settings arrive in](atoms/the-payload-a-modes-settings-arrive-in.md) — a decision carries a mode's settings as a payload, turned into the settings object that mode wants.
-- [What a reconciliation tells Nexus](atoms/what-a-reconciliation-tells-nexus.md) — the findings that cross when Praxis squares its books, and the one request that comes the other way.
+- [What a reconciliation tells Nexus](atoms/what-a-reconciliation-tells-nexus.md) — the findings that cross when Praxis squares its books, and the answer it sends back when Nexus asks what it is holding.
 - [When a balance shortfall is reported](atoms/when-a-balance-shortfall-is-reported.md) — the venue holding less of an asset than the books say, compared asset by asset and told to Nexus.
 - [Reports that do not get through](atoms/reports-that-do-not-get-through.md) — what happens to a shortfall Nexus never took, and the stale one that keeps waiting.
 - [How an outcome crosses back](atoms/how-an-outcome-crosses-back.md) — Praxis reports running totals for a command and Nexus wants one event's figures, so one report becomes several or none.
@@ -104,7 +104,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Outcomes](atoms/what-an-outcome-is.md) — what Praxis reports back about a request: where it has got to, how much filled, and at what average.
 - [The figures an outcome carries](atoms/the-figures-an-outcome-carries.md) — the rules its numbers must satisfy, or it is refused.
 - [What an outcome does not check](atoms/what-an-outcome-does-not-check.md) — the figures an outcome's rules never weigh, which is how an impossible report gets through.
-- [The figures an outcome reports](atoms/the-figures-an-outcome-reports.md) — two of an outcome's figures mean different things depending on which part of Praxis made the report.
+- [The figures an outcome reports](atoms/the-figures-an-outcome-reports.md) — why a report of how many parts went out, and of how far along the work is, means something different depending on which part of Praxis wrote it.
 - [How an outcome is delivered](atoms/how-an-outcome-is-delivered.md) — an outcome is written down before it is handed over, and the handing over can fail.
 - [How an undelivered outcome is replayed](atoms/how-an-undelivered-outcome-is-replayed.md) — how the next startup works out which reports are not yet accounted for.
 - [Who a restart tells again](atoms/who-a-restart-tells-again.md) — a startup resends some reports and not others, and this is which.
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-10 16:25 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-11 18:26 UTC

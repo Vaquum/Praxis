@@ -3720,6 +3720,44 @@ class TestTheIndexVocabulary:
             'at "the six"',
         ]
 
+    @pytest.mark.parametrize(
+        ('described', 'teased'),
+        [
+            pytest.param('the six ceilings on what a host may do.', 'the six', id='the-six'),
+            pytest.param('the one fee it nets off.', 'the one', id='the-one'),
+            pytest.param("two of an outcome's figures differ.", 'two of', id='two-of'),
+            pytest.param('the thirty names a venue answers to.', 'the thirty', id='the-thirty'),
+        ],
+    )
+    def test_every_way_of_teasing_a_count_is_caught(
+        self, described: str, teased: str, tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = tmp_path / 'README.md'
+        page.write_text(f'- [One](atoms/one.md) — {described}\n', encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'README', page)
+
+        assert check_wiki._index_vocabulary() == [
+            f'{page}: the entry for one.md counts rather than describes, '
+            f'at "{teased}"',
+        ]
+
+    @pytest.mark.parametrize(
+        'described',
+        [
+            pytest.param('a permit most calls take one of; asking the time takes none.', id='take-one-of'),
+            pytest.param('the checks a host is read through, any one of which ends the start.', id='any-one-of'),
+        ],
+    )
+    def test_one_taken_out_of_several_is_no_count(
+        self, described: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        page = tmp_path / 'README.md'
+        page.write_text(f'- [One](atoms/one.md) — {described}\n', encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'README', page)
+
+        assert check_wiki._index_vocabulary() == []
+
     def test_an_entry_using_an_owned_term_is_caught(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -3993,6 +4031,20 @@ class TestTheGateOverACopiedWiki:
         page.write_text(
             page.read_text(encoding='utf-8').replace(
                 '`events.py` 585-595', '`events.py` 99999',
+            ),
+            encoding='utf-8',
+        )
+
+        assert check_wiki.main() == 1
+
+    def test_a_row_naming_a_missing_article_fails_the_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wiki = self._copied(tmp_path, monkeypatch)
+        register = wiki / 'register.md'
+        register.write_text(
+            register.read_text(encoding='utf-8').replace(
+                'atoms/what-a-fill-is.md', 'atoms/what-a-fill-was.md', 1,
             ),
             encoding='utf-8',
         )
