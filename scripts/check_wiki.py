@@ -88,6 +88,8 @@ _COMPARISONS: dict[type[ast.cmpop], Callable[[Any, Any], Any]] = {
     ast.NotIn: _held_apart,
 }
 _BUILT_WITH = 3
+_LINE_DIGITS = 9
+_PAST_EVERY_FILE: int = 10 ** _LINE_DIGITS
 _GROUPED_ERRORS = ('ExceptionGroup', 'BaseExceptionGroup')
 _CARRIES_ON = 'carries on'
 _GONE_OVER = (str, bytes, list, tuple, set, frozenset, dict)
@@ -1670,8 +1672,10 @@ def _handlers_tried(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]
 
     The kinds are worked out in the order they are written, until one
     catches what arrived; a raise the body could take without saying so
-    could be of any kind, so every kind is worked out for it. Where
-    nothing can arrive, no kind is worked out at all.
+    could be of any kind, so every kind is worked out for it. A `try`
+    taking errors in groups weighs every kind against the group, so
+    none of them is passed over. Where nothing can arrive, no kind is
+    worked out at all.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -1693,7 +1697,7 @@ def _handlers_tried(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]
         found.append(handler)
         left -= _caught_by_handler(handler, left)
 
-        if not unsaid and not left:
+        if not unsaid and not left and not isinstance(statement, ast.TryStar):
             break
 
     return found
@@ -2704,6 +2708,27 @@ def _built_from_anything(held: type) -> bool:
             return False
 
     return True
+
+
+def _as_line(written: str) -> int:
+
+    '''Return a line number as written, or one past every file.
+
+    A number too long to turn into one at all is answered with a line
+    no file reaches, so the citation is refused for running past the
+    end rather than ending the run.
+
+    Args:
+        written (str): The number as the row wrote it.
+
+    Returns:
+        int: That number, or one past every file.
+    '''
+
+    if len(written) > _LINE_DIGITS:
+        return _PAST_EVERY_FILE
+
+    return int(written)
 
 
 def _nothing_written(held: ast.expr) -> bool:
@@ -4086,8 +4111,8 @@ def _impossible_line(match: re.Match[str], facts: _FileFacts) -> str | None:
         str | None: The reason, or None where the line is in range.
     '''
 
-    start = int(match.group(1))
-    end = int(match.group(2) or match.group(1))
+    start = _as_line(match.group(1))
+    end = _as_line(match.group(2) or match.group(1))
 
     if start < 1:
         return 'no such line'
@@ -4178,7 +4203,8 @@ def _row_citations(whole: str, cache: _SourceFacts) -> list[str]:
 
         assert key is not None
         note = _impossible_line(match, facts)
-        start, end = int(match.group(1)), int(match.group(2) or match.group(1))
+        start = _as_line(match.group(1))
+        end = _as_line(match.group(2) or match.group(1))
 
         if note is None:
             cited.append((key, start, end, match.start()))

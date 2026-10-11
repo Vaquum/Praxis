@@ -2333,6 +2333,20 @@ class TestTheFinallyClause:
 
         assert not self._spans(source, tmp_path, monkeypatch)
 
+    def test_every_kind_a_grouped_try_names_is_worked_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    try:\n        if flag:\n            try:\n"
+            "                raise ValueError\n            except* ValueError:\n"
+            "                pass\n            except* missing:\n"
+            "                pass\n            return\n    except NameError:\n"
+            "        pass\n    marker()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 13 in second for first, second in spans)
+
     def test_a_kind_written_over_several_lines_shares_its_last(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -4651,6 +4665,34 @@ class TestWhatACitationMayName:
         ]
 
         assert held == ['585-595', '10000000']
+
+    @_NEEDS_BASELINE
+    def test_a_number_too_long_to_read_is_refused_as_a_citation(self) -> None:
+        held = '9' * 4301
+        notes = check_wiki._row_citations(
+            f'a claim | `praxis/trading.py` {held}', check_wiki._SourceFacts(),
+        )
+
+        assert len(notes) == 1
+        assert 'past end of file' in notes[0]
+
+    @_NEEDS_BASELINE
+    def test_a_number_too_long_to_read_is_refused_in_a_range(self) -> None:
+        held = '9' * 4301
+        notes = check_wiki._docstring_citations(
+            f'|a claim | `praxis/trading.py` 1-{held}|', check_wiki._SourceFacts(),
+        )
+
+        assert len(notes) == 1
+        assert 'past end of file' in notes[0]
+
+    def test_a_number_too_long_to_read_runs_past_every_file(self) -> None:
+        held = check_wiki._as_line('9' * 4301)
+
+        assert held == check_wiki._PAST_EVERY_FILE
+
+    def test_a_number_of_a_readable_length_is_read(self) -> None:
+        assert check_wiki._as_line('585') == 585
 
     def test_a_count_with_no_number_is_no_count(self) -> None:
         assert not check_wiki.EVIDENCE_COUNT_RE.search(
