@@ -87,6 +87,7 @@ _COMPARISONS: dict[type[ast.cmpop], Callable[[Any, Any], Any]] = {
     ast.In: _held_among,
     ast.NotIn: _held_apart,
 }
+_BUILT_WITH = 3
 _CARRIES_ON = 'carries on'
 _GONE_OVER = (str, bytes, list, tuple, set, frozenset, dict)
 _ENDLESS = 'endless'
@@ -1243,7 +1244,7 @@ def _holder_ways(statement: ast.stmt) -> set[str]:
     if isinstance(statement, (ast.With, ast.AsyncWith)):
         return _held_ways(
             _block_ways(statement.body),
-            could_raise=_may_raise(statement.body) or len(statement.items) > 1,
+            could_raise=_may_raise(statement.body) or _held_could_swallow(statement),
         )
 
     if isinstance(statement, (ast.Try, ast.TryStar)):
@@ -1285,6 +1286,32 @@ def _match_ways(statement: ast.Match) -> set[str]:
             return ways
 
     return ways if _covers_everything(statement) else ways | {_CARRIES_ON}
+
+
+def _held_could_swallow(statement: ast.With | ast.AsyncWith) -> bool:
+
+    '''Whether a `with` could swallow a raise of its own making.
+
+    A statement holding more than one manager can swallow the ending
+    of another in it, and handing what a manager gives back to
+    anything but a plain name could raise where that happens, which
+    the managers are there to swallow.
+
+    Args:
+        statement (ast.With): The statement to read.
+
+    Returns:
+        bool: True where such a raise could be swallowed.
+    '''
+
+    if len(statement.items) > 1:
+        return True
+
+    return any(
+        item.optional_vars is not None
+        and not isinstance(item.optional_vars, ast.Name)
+        for item in statement.items
+    )
 
 
 def _held_ways(ways: set[str], *, could_raise: bool) -> set[str]:
@@ -1538,6 +1565,41 @@ def _handler_ways(statement: ast.Try | ast.TryStar) -> set[str]:
         for handler in _handlers_that_run(statement)
         for way in _block_ways(handler.body)
     }
+
+
+def _handlers_tried(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]:
+
+    '''Return the handlers whose kinds could be worked out.
+
+    The kinds are worked out in the order they are written, until one
+    catches what arrived; a raise the body could take without saying so
+    could be of any kind, so every kind is worked out for it. Where
+    nothing can arrive, no kind is worked out at all.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        list[ast.ExceptHandler]: Those handlers, in order.
+    '''
+
+    held = _block_ways(statement.body)
+    left = {way for way in held if way.startswith(_RAISE)}
+    unsaid = _may_raise(statement.body)
+
+    if not left and not unsaid:
+        return []
+
+    found: list[ast.ExceptHandler] = []
+
+    for handler in statement.handlers:
+        found.append(handler)
+        left -= _caught_by_handler(handler, left)
+
+        if not unsaid and not left:
+            break
+
+    return found
 
 
 def _handlers_that_run(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]:
@@ -2478,14 +2540,75 @@ def _written_could_raise(statement: ast.stmt) -> bool:
     return _holder_could_raise(statement)
 
 
+@functools.cache
+def _plain_errors() -> frozenset[str]:
+
+    '''Return the errors the language carries that any call can build.
+
+    Most take whatever they are given. A group and the errors about
+    letters ask for an exact number of values and refuse the call
+    otherwise, so a raise of one takes something other than what it
+    names.
+
+    Returns:
+        frozenset[str]: The names of the rest.
+    '''
+
+    return frozenset(
+        name
+        for name, held in vars(builtins).items()
+        if isinstance(held, type)
+        and issubclass(held, BaseException)
+        and _built_from_anything(held)
+    )
+
+
+def _built_from_anything(held: type) -> bool:
+
+    '''Whether an error can be built from any number of values.
+
+    Args:
+        held (type): The error to build.
+
+    Returns:
+        bool: True where it takes none, one and two without refusing.
+    '''
+
+    for count in range(_BUILT_WITH):
+
+        try:
+            held(*([None] * count))
+
+        except TypeError:
+            return False
+
+    return True
+
+
+def _nothing_written(held: ast.expr) -> bool:
+
+    '''Whether an expression is written out as nothing at all.
+
+    Args:
+        held (ast.expr): The expression to read.
+
+    Returns:
+        bool: True where it is nothing.
+    '''
+
+    return isinstance(held, ast.Constant) and held.value is None
+
+
 def _error_written_quietly(held: ast.expr) -> bool:
 
     '''Whether what is written as an error is worked out without raising.
 
-    Nothing at all is, and so is an error the language carries, named
-    plainly or called with values written out. A word named in that
-    call is not: the errors the language carries take none, and refuse
-    the call where one is given.
+    An error the language carries, named plainly or called with values
+    written out, is — so long as any number of values will build it; a
+    group and the errors about letters ask for an exact number and
+    refuse the call otherwise. A word named in that call is not: the
+    errors the language carries take none, and refuse the call where
+    one is given.
 
     Args:
         held (ast.expr): What is written.
@@ -2493,9 +2616,6 @@ def _error_written_quietly(held: ast.expr) -> bool:
     Returns:
         bool: True where working it out could not raise.
     '''
-
-    if isinstance(held, ast.Constant) and held.value is None:
-        return True
 
     named = held
     given: list[ast.expr] = []
@@ -2509,7 +2629,7 @@ def _error_written_quietly(held: ast.expr) -> bool:
 
     return (
         isinstance(named, ast.Name)
-        and named.id in _KNOWN_ERRORS
+        and named.id in _plain_errors()
         and all(_quiet_expression(part) for part in given)
     )
 
@@ -2532,7 +2652,9 @@ def _raised_quietly(statement: ast.Raise) -> bool:
         bool: True where nothing but the raise itself could come of it.
     '''
 
-    if statement.cause is not None and not _error_written_quietly(statement.cause):
+    if statement.cause is not None and not (
+        _nothing_written(statement.cause) or _error_written_quietly(statement.cause)
+    ):
         return False
 
     return statement.exc is None or _error_written_quietly(statement.exc)
@@ -2682,9 +2804,10 @@ def _tried_could_raise(statement: ast.Try | ast.TryStar) -> bool:
     held = _block_ways(statement.body)
     unsaid = _may_raise(statement.body)
 
-    if any(
-        _handler_could_raise(handler) for handler in _handlers_that_run(statement)
-    ):
+    if any(_kind_could_raise(handler) for handler in _handlers_tried(statement)):
+        return True
+
+    if any(_may_raise(handler.body) for handler in _handlers_that_run(statement)):
         return True
 
     if unsaid and not _catches_anything(statement):
@@ -2715,25 +2838,22 @@ def _names_known_errors(named: ast.expr) -> bool:
     )
 
 
-def _handler_could_raise(handler: ast.ExceptHandler) -> bool:
+def _kind_could_raise(handler: ast.ExceptHandler) -> bool:
 
-    '''Whether reaching or running one handler could raise.
+    '''Whether working out the kind a handler names could raise.
 
-    The kind a handler names is worked out as the raise arrives, so a
-    kind named through anything but an error the language itself
-    carries could raise before the handler runs at all.
+    The kind is worked out as a raise arrives, whether or not the
+    handler then runs, and raises nothing of its own only where every
+    kind named is an error the language itself carries.
 
     Args:
         handler (ast.ExceptHandler): The handler to read.
 
     Returns:
-        bool: True where it could raise.
+        bool: True where working its kind out could raise.
     '''
 
-    if handler.type is not None and not _names_known_errors(handler.type):
-        return True
-
-    return _may_raise(handler.body)
+    return handler.type is not None and not _names_known_errors(handler.type)
 
 
 def _holder_could_raise(statement: ast.stmt) -> bool:

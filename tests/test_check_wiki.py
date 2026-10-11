@@ -2216,6 +2216,17 @@ class TestTheFinallyClause:
 
         assert not any(4 in first and 5 in second for first, second in spans)
 
+    def test_what_a_with_hands_over_may_come_apart(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        with held() as (first, second):\n"
+            "            return 1\n    return 2\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(4 in first and 5 in second for first, second in spans)
+
     def test_a_with_of_many_managers_inside_a_branch_may_carry_on(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2797,6 +2808,10 @@ class TestTheFinallyClause:
             ),
             'a value an and stands as': '            held, kept = True and (1, 2)\n',
             'a name taking what is left': '            held, *kept = (1, 2, 3)\n',
+            'a kind no raise of the body reaches': (
+                '            try:\n                return 1\n'
+                '            except (1 / 0):\n                pass\n'
+            ),
             'a handler no raise of the body reaches': (
                 '            try:\n                raise ValueError()\n'
                 '            except ValueError:\n                return 3\n'
@@ -2883,6 +2898,12 @@ class TestTheFinallyClause:
             'too few things to go round': '            held, kept = (1,)\n',
             'a name on something else': '            held.part = 1\n',
             'a starred name on something else': '            *held.part, = [1]\n',
+            'too few things for the names left': '            held, *kept, last = (1,)\n',
+            'a kind worked out by a handler that never runs': (
+                '            try:\n                raise ValueError()\n'
+                '            except (1 / 0):\n                pass\n'
+                '            except ValueError:\n                return 3\n'
+            ),
             'a value not written out': '            held = work()\n',
             'a kind named by a name': '            held: int = 2\n',
             'an ending that acts': (
@@ -4413,6 +4434,12 @@ class TestWhatARaiseWorksOut:
             'one called with a word named': 'raise ValueError(part=text)\n',
             'one with a cause worked out': 'raise ValueError() from fail()\n',
             'one with a cause that is no error': 'raise ValueError() from 1\n',
+            'nothing at all taken': 'raise None\n',
+            'an error asking for an exact number': 'raise UnicodeDecodeError()\n',
+            'a group of errors': 'raise ExceptionGroup\n',
+            'one called with a word named and a value written out': (
+                'raise ValueError(bad=1)\n'
+            ),
         }
         noisy = [
             label for label, source in shapes.items()
