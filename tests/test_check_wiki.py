@@ -4444,6 +4444,10 @@ class TestWhatARaiseWorksOut:
             'an error asking for an exact number': 'raise UnicodeDecodeError()\n',
             'a group of errors': 'raise ExceptionGroup\n',
             'an error asking a shape of its values': "raise SyntaxError('bad', 1)\n",
+            'an error the system chooses': "raise OSError(1, 'no')\n",
+            'one of that family refusing a value': (
+                'raise BlockingIOError(None, None, 1.2)\n'
+            ),
             'one called with a word named and a value written out': (
                 'raise ValueError(bad=1)\n'
             ),

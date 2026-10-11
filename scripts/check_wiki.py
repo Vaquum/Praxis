@@ -2548,8 +2548,9 @@ def _plain_errors() -> frozenset[str]:
 
     Most take whatever they are given. A group and the errors about
     letters ask for an exact number of values and refuse the call
-    otherwise, so a raise of one takes something other than what it
-    names.
+    otherwise, and the errors about the system around the program are
+    chosen by the number they are given, so a raise of any of those
+    takes something other than what it names.
 
     Returns:
         frozenset[str]: The names of the rest.
@@ -2560,8 +2561,28 @@ def _plain_errors() -> frozenset[str]:
         for name, held in vars(builtins).items()
         if isinstance(held, type)
         and issubclass(held, BaseException)
+        and _built_as_itself(held)
         and _built_from_anything(held)
     )
+
+
+def _built_as_itself(held: type) -> bool:
+
+    '''Whether building an error always gives that very error.
+
+    The errors about the system around the program are chosen by the
+    number they are given: asking for one by name can hand back
+    another, and some of them refuse values the rest take. None of
+    that family is read as built plainly.
+
+    Args:
+        held (type): The error to build.
+
+    Returns:
+        bool: True where the name written is the error built.
+    '''
+
+    return not issubclass(held, OSError)
 
 
 def _built_from_anything(held: type) -> bool:
