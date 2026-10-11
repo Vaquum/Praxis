@@ -2,7 +2,7 @@
 row: P3-04
 baseline: 49aa659
 created: 2026-09-30 19:29 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:33 UTC
 evidence:
   - claim: "A scenario carries the account, the series, a step length, the symbol and its venue rules, the starting money, the strategy text and the bars"
     source: "`replay_scenario.py` 63-70"
@@ -12,7 +12,7 @@ evidence:
     source: "`run_replay.py` 103-108 against the ending at 174-177 and `launcher.py` 3904-3941"
   - claim: "A bar carries a shared timestamp, its closing moment, its opening and closing price, a prediction and a probability"
     source: "`replay_scenario.py` 37-43"
-  - claim: "A prediction that is not 0 or 1 is refused and the tick skipped"
+  - claim: "A prediction cut to a whole number that is then neither 0 nor 1 is refused and the tick skipped"
     source: "Nexus `predict_loop.py` 399-405"
   - claim: "Where a bar carries its own opening timestamp, the store takes the shared timestamp as the closing moment rather than adding the step length"
     source: "`run_replay.py` 234-235 into `materialize_bar_frames.py` 76-77, with the effect at `arrow_price_store.py` 115"
@@ -37,7 +37,7 @@ Alongside it the run takes a directory to work in and a number for the run. It m
 
 ## The bars
 
-Each bar carries a shared timestamp, the moment it closes, its opening and closing price, a prediction, which is refused unless it is 0 or 1, and the probability behind it. A bar may also carry its own opening timestamp; where it does, the store takes that shared timestamp as the closing moment rather than adding the step length.
+Each bar carries a shared timestamp, the moment it closes, its opening and closing price, a prediction, which is cut to a whole number and then refused unless it is 0 or 1, and the probability behind it. A bar may also carry its own opening timestamp; where it does, the store takes that shared timestamp as the closing moment rather than adding the step length.
 
 The closing price is the price [the venue](the-replay-venue.md) fills at.
 

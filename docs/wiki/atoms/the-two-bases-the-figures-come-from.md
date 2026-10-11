@@ -2,11 +2,11 @@
 row: P4-18
 baseline: 49aa659
 created: 2026-10-03 21:05 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:33 UTC
 evidence:
   - claim: "Both bases pass their series through the same assembler, which publishes eight names"
     source: "`snapshot_result.py` 27-36 and 82-105, called at `snapshot_metrics.py` 52-61 and `limen_snapshot.py` 173-181"
-  - claim: "Six distributions come back as a low, a middle and a high, each rounded"
+  - claim: "Six distributions come back as a low, a middle and a high, each rounded, or as three nothings where no real figure is left to read"
     source: "`snapshot_result.py` 82-97 into `percentiles.py` 57-66"
   - claim: "A seventh does too, rounded to three places, being a length in days"
     source: "`snapshot_result.py` 99-102, the three at 23, the days worked at `snapshot_metrics.py` 163-165 against `metric_conventions.py` 15"
@@ -35,7 +35,7 @@ evidence:
 
 ## What the assembler publishes
 
-Six distributions each come back as a low, a middle and a high, each rounded. A seventh does too, rounded to three places, being a length in days rather than a return.
+Six distributions each come back as a low, a middle and a high, each rounded — or as three nothings, where no real figure is left to read. A seventh comes back the same way, rounded to three places, being a length in days rather than a return.
 
 The eighth is a single figure: the average of the finite window returns at or below their lowest twentieth, rounded to one place. Where none of those returns is finite, no figure is given at all.
 

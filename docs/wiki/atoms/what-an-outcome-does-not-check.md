@@ -2,11 +2,11 @@
 row: P2-42
 baseline: 49aa659
 created: 2026-09-26 20:29 UTC
-modified: 2026-10-09 07:31 UTC
+modified: 2026-10-11 19:33 UTC
 evidence:
   - claim: "No rule ties the value to the amount times the price"
     source: "`praxis/core/domain/trade_outcome.py` 111-164, which multiplies nothing"
-  - claim: "Only the target amount is required to be a finite figure"
+  - claim: "Only the target amount is required to be a finite figure, and only where one is given at all"
     source: "`praxis/core/domain/trade_outcome.py` 111-164, which tests for one at 120 and nowhere else"
   - claim: "The status is read nowhere among the rules"
     source: "`praxis/core/domain/trade_outcome.py` 111-164, which names it nowhere"
