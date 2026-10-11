@@ -2,12 +2,12 @@
 row: P2-26
 baseline: 49aa659
 created: 2026-09-25 19:08 UTC
-modified: 2026-10-11 19:29 UTC
+modified: 2026-10-11 20:01 UTC
 evidence:
   - claim: "A copy of the latest book per symbol, held in memory with its arrival time"
     source: "`book_cache.py` 38 for the store, 44-45 for the write, 29-31 for what a copy holds"
-  - claim: "One poller per symbol being traded, started when the host starts"
-    source: "`launcher.py` 3819-3831"
+  - claim: "One poller per symbol being traded, where a venue was handed in, which the ordinary start does not do"
+    source: "`launcher.py` 3819-3831, reached only past 3799-3800, the ordinary start handing none in at 4984-4991"
   - claim: "Each poll overwrites the copy for that symbol"
     source: "`book_poller.py` 76-77 into `book_cache.py` 44-45"
   - claim: "One reader builds the gap and the age"
@@ -29,7 +29,7 @@ evidence:
 
 The **kept book** is Praxis's own copy of the latest [order book](the-order-book.md) for a trading pair, held in memory with the time it arrived, so a check can read a price without waiting on the [venue](what-a-venue-is.md).
 
-One background task runs for each trading pair. Every couple of seconds it fetches five levels and overwrites that symbol's copy.
+One background task is meant to run for each trading pair, fetching five levels every couple of seconds and overwriting that symbol's copy. None of them starts unless a venue was handed to the host, which the [ordinary start](starting-a-host.md) does not do.
 
 ## What reads it
 

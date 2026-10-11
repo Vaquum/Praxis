@@ -2,13 +2,13 @@
 row: P3-06
 baseline: 49aa659
 created: 2026-09-28 10:46 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:01 UTC
 evidence:
   - claim: "The book is replaced whole rather than changed in part"
     source: "`book.py` 115-116"
   - claim: "A background poller fetches and replaces it, waiting between goes"
     source: "`feed.py` 157 into 267, waiting at 303-329"
-  - claim: "An interval that is not above zero is refused"
+  - claim: "An interval at or below zero is refused"
     source: "`feed.py` 100-101"
   - claim: "An order sized in coin takes from each level what it holds, or what is left"
     source: "`book.py` 162-163"
@@ -25,7 +25,7 @@ evidence:
 ---
 # Binsim's book
 
-The book [the simulated venue](binsim.md) fills against is a list of prices it is handed, rather than one it builds. A background poller fetches a fresh one, replaces the whole thing, waits, and goes again — refusing an interval that is not above zero.
+The book [the simulated venue](binsim.md) fills against is a list of prices it is handed, rather than one it builds. A background poller fetches a fresh one, replaces the whole thing, waits, and goes again — refusing an interval at or below zero.
 
 So nothing anyone sends to binsim ever joins its book. The book comes from outside and is only ever read.
 

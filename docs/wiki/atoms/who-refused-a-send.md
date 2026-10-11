@@ -2,11 +2,11 @@
 row: P3-21
 baseline: 49aa659
 created: 2026-09-30 18:44 UTC
-modified: 2026-10-11 19:43 UTC
+modified: 2026-10-11 20:01 UTC
 evidence:
   - claim: "Three answers are possible: the venue, Praxis, or unknown"
     source: "`praxis/core/domain/enums.py` 28-30"
-  - claim: "A refusal raised before any send is put down to Praxis"
+  - claim: "A refusal from the adapter's own order checks is put down to Praxis"
     source: "`classify_submit_failure.py` 60-61, that kind raised at `binance_adapter.py` 1194-1234 from 1520, before the send built past it"
   - claim: "A refusal the venue sent is put down to the venue, with its code kept"
     source: "`classify_submit_failure.py` 63-64"
@@ -37,7 +37,7 @@ The answer is usually worked out from the kind of failure. A caller may also sup
 
 ## How it is worked out
 
-A refusal raised before the send is built is Praxis's. One the venue sent is the venue's, with the code the venue gave kept alongside.
+A refusal from the adapter's own checks on the order is Praxis's. One the venue sent is the venue's, with the code the venue gave kept alongside.
 
 A duplicate-name refusal is the venue's. Its code survives only where what raised it was itself a venue refusal; otherwise none is kept. The adapter raises that kind from one rejection code whatever lay behind it, so the label is surer than the reason.
 

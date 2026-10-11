@@ -27,7 +27,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Starting a host](atoms/starting-a-host.md) — what one process does to bring Praxis and Nexus up, in the order it does it.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [The settings each way of working takes](atoms/the-settings-each-way-of-working-takes.md) — each way of working carries settings of the kind it registers, and each kind has demands of its own.
-- [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — what a request to alter work must carry, and why a change asking to spread work across prices is turned away when it arrives and again if it gets through by another road.
+- [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — what a request to alter work must carry, and why a change to the shares of work spread over time is turned away when it arrives and again if it gets through by another road.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — the fields each kind of change offers, and the rules each holds them to.
 - [The position Praxis keeps](atoms/the-position-praxis-keeps.md) — what Praxis records of the coin it holds per trade, and when a purchase charge is taken off the amount that purchase adds.
 - [The order record Praxis keeps](atoms/the-order-record-praxis-keeps.md) — what Praxis holds about one attempt to place an order at the venue.
@@ -156,4 +156,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-11 18:26 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-11 20:01 UTC

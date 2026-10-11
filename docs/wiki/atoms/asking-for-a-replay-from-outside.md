@@ -2,7 +2,7 @@
 row: P4-17
 baseline: 49aa659
 created: 2026-10-03 20:49 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:01 UTC
 evidence:
   - claim: "One address starts a run and another reports on it"
     source: "`replay_api.py` 172-173"
@@ -16,7 +16,7 @@ evidence:
     source: "`replay_api.py` 119-125"
   - claim: "A request names a series, a gap, a window, an account, a pair, starting money, the pair's rules and the strategy's text"
     source: "`replay_api.py` 197-228 and 247-254"
-  - claim: "The gap must be above nought"
+  - claim: "The gap is cut to a whole number, which must then be above nought"
     source: "`replay_api.py` 198 and 200-202"
   - claim: "The window must not run backwards"
     source: "`replay_api.py` 207-209"
@@ -41,7 +41,7 @@ A peer that is not the local machine is refused, and the listener binds to the l
 
 A series and a gap, a window of two moments, an account, a trading pair, starting money, the five rules for that pair, and the strategy's own text.
 
-A body that is not JSON is refused, and so is one that is JSON but not an object. The gap must be above nought. The window must not run backwards. The starting money, and each of the five rules, must be a finite number above nought.
+A body that is not JSON is refused, and so is one that is JSON but not an object. The gap is cut to a whole number, which must then be above nought — so a gap under a second is cut to nothing and refused. The window must not run backwards. The starting money, and each of the five rules, must be a finite number above nought.
 
 ## What the window must resolve to
 

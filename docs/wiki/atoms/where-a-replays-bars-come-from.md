@@ -2,7 +2,7 @@
 row: P4-16
 baseline: 49aa659
 created: 2026-10-03 20:39 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 20:01 UTC
 evidence:
   - claim: "Bars for a run over real history are read from two frames, one of predictions and one of prices"
     source: "`load_replay_bars.py` 62-63, called at `replay_api.py` 211-218"
@@ -20,7 +20,7 @@ evidence:
     source: "`load_replay_bars.py` 84-85"
   - claim: "A window edge with no zone at all refuses the load"
     source: "`load_replay_bars.py` 58-60"
-  - claim: "Each surviving row becomes one bar, carrying its stamp, its close, its two prices, the prediction and its probability"
+  - claim: "Each surviving row becomes one bar, carrying its stamp, its close, its two prices, the prediction cut to a whole number and its probability"
     source: "`load_replay_bars.py` 89-102"
 ---
 # Where a replay's bars come from
@@ -43,7 +43,7 @@ Otherwise the interval handed in is added to the stamp to find it — the interv
 
 ## What a bar carries
 
-Each surviving row becomes one bar: its stamp, its closing moment, its opening and closing price, the prediction and the probability behind it, and for the dollar kind the opening stamp as well.
+Each surviving row becomes one bar: its stamp, its closing moment, its opening and closing price, the prediction cut to a whole number, the probability behind it, and for the dollar kind the opening stamp as well.
 
 Both edges of the window must carry a zone. One that does not refuses the load outright.
 
