@@ -2,7 +2,7 @@
 row: P4-32
 baseline: 49aa659
 created: 2026-10-03 09:57 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:23 UTC
 evidence:
   - claim: "The waiting reports are kept apart from the remembered differences"
     source: "`trading.py` 1290 and 1267, keyed at 1258"
@@ -16,7 +16,7 @@ evidence:
     source: "`trading.py` 1264-1265"
   - claim: "A waiting report is tried before the fresh comparison and kept on failure, so one survives its asset recovering"
     source: "`trading.py` 1251 ahead of 1253, retried at 1306-1310 against the clearing at 1260-1262"
-  - claim: "A failed handover never leaves the pass"
+  - claim: "A handover failing in the ordinary way never leaves the pass"
     source: "`trading.py` 1325-1333"
 ---
 # Reports that do not get through
@@ -37,7 +37,7 @@ A handover getting through is what empties the place.
 
 ## What a failure costs
 
-A failed handover never leaves the pass. An unreachable Nexus cannot stop Praxis squaring its books; it only delays what Nexus is told about them.
+A handover failing in the ordinary way never leaves the pass. An unreachable Nexus cannot stop Praxis squaring its books; it only delays what Nexus is told about them.
 
 ## Related
 

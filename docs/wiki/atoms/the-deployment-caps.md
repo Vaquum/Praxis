@@ -2,7 +2,7 @@
 row: P4-27
 baseline: 49aa659
 created: 2026-10-02 09:11 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-11 19:23 UTC
 evidence:
   - claim: "Six ceilings are read from the settings: an order's size in money, a position's size, how often orders may go out, how wide the book may be, how old the book's figures may be, and how far the price worked out of the book may sit from the one expected"
     source: "`launcher.py` 760-767"
@@ -19,7 +19,7 @@ evidence:
   - claim: "On paper an unset cap is carried as nothing and the start goes on"
     source: "`launcher.py` 769-770"
   - claim: "On live every unset cap is gathered and named together, and the start refused"
-    source: "`launcher.py` 772-786"
+    source: "`launcher.py` 772-786, the six names gathered over at 730-737"
 ---
 # The deployment caps
 
