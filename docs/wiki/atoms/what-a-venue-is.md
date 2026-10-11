@@ -2,7 +2,7 @@
 row: P2-11
 baseline: 49aa659
 created: 2026-09-24 20:13 UTC
-modified: 2026-10-04 15:46 UTC
+modified: 2026-10-11 20:45 UTC
 evidence:
   - claim: "Execution holds one venue and calls it by name throughout"
     source: "stored once at `execution_manager.py` 679"
@@ -16,7 +16,7 @@ evidence:
     source: "either `execution_manager.py` 8527-8531 or 8521-8525"
   - claim: "It asks what became of an order, and of a linked pair separately"
     source: "either `execution_manager.py` 5519-5523 or 5582"
-  - claim: "It asks what the account holds and what it has traded"
+  - claim: "It asks what the account holds of one named asset, and what it has traded in one pair"
     source: "`execution_manager.py` 6662-6664 and 8061"
   - claim: "It asks for the book before pricing an order"
     source: "`execution_manager.py` 4194-4197"
