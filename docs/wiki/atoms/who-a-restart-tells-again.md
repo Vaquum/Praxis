@@ -2,11 +2,11 @@
 row: P2-44
 baseline: 49aa659
 created: 2026-09-27 07:39 UTC
-modified: 2026-10-09 08:46 UTC
+modified: 2026-10-11 21:12 UTC
 evidence:
   - claim: "Where a host supplies its own receiver, the outcome is queued for handling before that receiver is awaited"
     source: "`launcher.py` 3001-3003, the queue fed at 2992"
-  - claim: "The queueing and that receiver are called as one, and a failed attempt calls the pair again"
+  - claim: "The queueing and that receiver are called as one, and a failed attempt short of the last calls the pair again"
     source: "the pair at `launcher.py` 3001-3003, set at 3005, called under the attempts at `execution_manager.py` 760-794"
   - claim: "The confirming record is written by the handling itself, where it succeeded and nothing failed to store"
     source: "`launcher.py` 4464-4465, the mark set at 4403 and cleared only at 4441"
@@ -44,4 +44,4 @@ Nothing puts that right afterwards. A host that supplies its own receiver and ne
 
 ---
 
-Created 2026-09-27 07:39 UTC · Last modified 2026-10-09 08:46 UTC
+Created 2026-09-27 07:39 UTC · Last modified 2026-10-11 21:12 UTC

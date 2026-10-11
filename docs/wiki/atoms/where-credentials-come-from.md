@@ -2,7 +2,7 @@
 row: P3-19
 baseline: 49aa659
 created: 2026-09-30 19:01 UTC
-modified: 2026-10-11 21:09 UTC
+modified: 2026-10-11 21:12 UTC
 evidence:
   - claim: "Credentials must be text and neither part may be empty"
     source: "`secret_store.py` 67-73"
@@ -16,9 +16,9 @@ evidence:
     source: "`launcher.py` 4954-4967 into `trading_inbound.py` 123-132"
   - claim: "The venue call keeps a reference to the same value and reads it back when sending"
     source: "`binance_adapter.py` 444, read back at 480 and 721"
-  - claim: "A file is used where one is named, otherwise the system's own store"
-    source: "either `launcher.py` 4945-4948 or 4949-4952"
-  - claim: "A mapping in memory serves paper trading and tests"
+  - claim: "On live a file is used where one is named, otherwise the system's own store"
+    source: "past `launcher.py` 4945, either 4946-4948 or 4950"
+  - claim: "A mapping in memory serves every other way of working"
     source: "`secret_store.py` 229 and 247, chosen at `launcher.py` 4952"
   - claim: "The system store separates nothing recorded from a store that would not answer"
     source: "either `secret_store.py` 211 or 205-207"
@@ -41,7 +41,7 @@ That covers printing the value. Reading its two fields gives the real thing — 
 
 ## Where they are kept
 
-Three places. A file is used where one is named; otherwise the system's own store. A mapping held in memory serves paper trading and tests.
+Three places. On live, a file is used where one is named; otherwise the system's own store. Every other way of working takes a mapping held in memory.
 
 ## Telling absence from failure
 
