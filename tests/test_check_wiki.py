@@ -2797,6 +2797,11 @@ class TestTheFinallyClause:
             ),
             'a value an and stands as': '            held, kept = True and (1, 2)\n',
             'a name taking what is left': '            held, *kept = (1, 2, 3)\n',
+            'a handler no raise of the body reaches': (
+                '            try:\n                raise ValueError()\n'
+                '            except ValueError:\n                return 3\n'
+                '            except named():\n                pass\n'
+            ),
             'an else the body never reaches': (
                 '            try:\n                return 1\n'
                 '            except ValueError:\n                pass\n'
@@ -2831,12 +2836,53 @@ class TestTheFinallyClause:
 
         assert paired == list(shapes)
 
+    def test_no_handler_runs_after_one_naming_every_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            try:\n"
+            "                work()\n                raise ValueError()\n"
+            "            except BaseException:\n                return 3\n"
+            "            except ValueError:\n                pass\n"
+            "    except ValueError:\n        pass\n    two()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 13 in second for first, second in spans)
+
+    def test_a_handler_an_earlier_one_took_the_raise_from_never_runs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(x):\n    try:\n        if x:\n            try:\n"
+            "                raise ValueError()\n"
+            "            except ValueError:\n                return 3\n"
+            "            except Exception:\n                pass\n"
+            "    except ValueError:\n        pass\n    two()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(4 in first and 12 in second for first, second in spans)
+
+    def test_a_handler_naming_another_kind_never_runs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "def f(flag):\n    if flag:\n        mark()\n        try:\n"
+            "            raise ValueError('no')\n        except TypeError:\n"
+            "            return 3\n    later()\n"
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 8 in second for first, second in spans)
+
     def test_a_value_coming_apart_could_raise(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         shapes = {
             'too few things to go round': '            held, kept = (1,)\n',
             'a name on something else': '            held.part = 1\n',
+            'a starred name on something else': '            *held.part, = [1]\n',
             'a value not written out': '            held = work()\n',
             'a kind named by a name': '            held: int = 2\n',
             'an ending that acts': (
@@ -4350,6 +4396,7 @@ class TestWhatARaiseWorksOut:
             'an error the language carries': 'raise ValueError\n',
             'one called with nothing': 'raise ValueError()\n',
             'one called with a value written out': "raise ValueError('no')\n",
+            'one with nothing named as its cause': 'raise ValueError() from None\n',
         }
         quiet = [
             label for label, source in shapes.items()
@@ -4364,6 +4411,8 @@ class TestWhatARaiseWorksOut:
             'one named through something else': 'raise errors.Failure()\n',
             'one called with a name': 'raise ValueError(text)\n',
             'one called with a word named': 'raise ValueError(part=text)\n',
+            'one with a cause worked out': 'raise ValueError() from fail()\n',
+            'one with a cause that is no error': 'raise ValueError() from 1\n',
         }
         noisy = [
             label for label, source in shapes.items()

@@ -1521,9 +1521,10 @@ def _handler_ways(statement: ast.Try | ast.TryStar) -> set[str]:
 
     '''Return the ways the handlers of a `try` can end.
 
-    Handlers are read in the order they are written. One whose every
-    kind an earlier handler already catches cannot run, and nothing
-    after one naming every error can run either.
+    Only the handlers something could reach are read: one whose every
+    kind an earlier handler already catches cannot run, nor can one no
+    raise of the body could arrive at, nor anything after a handler
+    naming every error.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -1532,21 +1533,74 @@ def _handler_ways(statement: ast.Try | ast.TryStar) -> set[str]:
         set[str]: Those ways.
     '''
 
-    ways: set[str] = set()
+    return {
+        way
+        for handler in _handlers_that_run(statement)
+        for way in _block_ways(handler.body)
+    }
+
+
+def _handlers_that_run(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]:
+
+    '''Return the handlers of a `try` something could reach.
+
+    Handlers are read in the order they are written. A raise the body
+    says it takes arrives at the first handler naming its kind, and at
+    none after that; a raise the body could take without saying so
+    could arrive anywhere. One whose every kind an earlier handler
+    already catches cannot run, and nothing after a handler naming
+    every error can.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        list[ast.ExceptHandler]: Those handlers, in order.
+    '''
+
+    held = _block_ways(statement.body)
+    left = {way for way in held if way.startswith(_RAISE)}
+    unsaid = _may_raise(statement.body)
     seen: set[str] = set()
+    found: list[ast.ExceptHandler] = []
 
     for handler in statement.handlers:
+        caught = _caught_by_handler(handler, left)
 
-        if _covered_already(handler, seen):
-            continue
+        if (unsaid or caught) and not _covered_already(handler, seen):
+            found.append(handler)
 
-        ways |= _block_ways(handler.body)
         seen |= _named_kinds(handler.type)
+        left -= caught
 
         if handler.type is not None and _names_every_error(handler.type):
             break
 
-    return ways
+    return found
+
+
+def _caught_by_handler(handler: ast.ExceptHandler, ways: set[str]) -> set[str]:
+
+    '''Return the raises one handler certainly catches.
+
+    Args:
+        handler (ast.ExceptHandler): The handler to read.
+        ways (set[str]): The raise ways still looking for a handler.
+
+    Returns:
+        set[str]: Those of them it catches.
+    '''
+
+    if handler.type is None or _names_every_error(handler.type):
+        return set(ways)
+
+    kinds = _named_kinds(handler.type)
+    caught = {way for way in ways if way.partition(':')[2] in kinds}
+
+    if 'Exception' in kinds:
+        caught |= {way for way in ways if _under_exception(way)}
+
+    return caught
 
 
 def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
@@ -2424,14 +2478,52 @@ def _written_could_raise(statement: ast.stmt) -> bool:
     return _holder_could_raise(statement)
 
 
+def _error_written_quietly(held: ast.expr) -> bool:
+
+    '''Whether what is written as an error is worked out without raising.
+
+    Nothing at all is, and so is an error the language carries, named
+    plainly or called with values written out. A word named in that
+    call is not: the errors the language carries take none, and refuse
+    the call where one is given.
+
+    Args:
+        held (ast.expr): What is written.
+
+    Returns:
+        bool: True where working it out could not raise.
+    '''
+
+    if isinstance(held, ast.Constant) and held.value is None:
+        return True
+
+    named = held
+    given: list[ast.expr] = []
+
+    if isinstance(named, ast.Call):
+        if named.keywords:
+            return False
+
+        given = list(named.args)
+        named = named.func
+
+    return (
+        isinstance(named, ast.Name)
+        and named.id in _KNOWN_ERRORS
+        and all(_quiet_expression(part) for part in given)
+    )
+
+
 def _raised_quietly(statement: ast.Raise) -> bool:
 
     '''Whether working out what a raise takes could not itself raise.
 
     A bare raise works nothing out. An error the language carries,
-    named plainly or called with values written out, is worked out
-    without raising anything but itself; the raise is then the way out
-    it says it is, and nothing more.
+    named plainly or called with values written out and nothing named
+    by word, is worked out without raising anything but itself; the
+    raise is then the way out it says it is, and nothing more. What a
+    raise names as its cause is worked out too, and must be nothing at
+    all or such an error.
 
     Args:
         statement (ast.Raise): The statement to read.
@@ -2440,21 +2532,10 @@ def _raised_quietly(statement: ast.Raise) -> bool:
         bool: True where nothing but the raise itself could come of it.
     '''
 
-    if statement.exc is None:
-        return True
+    if statement.cause is not None and not _error_written_quietly(statement.cause):
+        return False
 
-    named = statement.exc
-    given: list[ast.expr] = []
-
-    if isinstance(named, ast.Call):
-        given = [*named.args, *(word.value for word in named.keywords)]
-        named = named.func
-
-    return (
-        isinstance(named, ast.Name)
-        and named.id in _KNOWN_ERRORS
-        and all(_quiet_expression(part) for part in given)
-    )
+    return statement.exc is None or _error_written_quietly(statement.exc)
 
 
 def _given_could_raise(statement: ast.Assign | ast.AnnAssign) -> bool:
@@ -2527,6 +2608,26 @@ def _takes_the_value(name: ast.expr, value: ast.expr) -> bool:
     return _enough_to_go_round(name, _written_as(value))
 
 
+def _plainly_named(part: ast.expr) -> bool:
+
+    '''Whether one of several names a value is given to is a plain one.
+
+    A starred name takes what is left over, and is read for the name
+    it holds.
+
+    Args:
+        part (ast.expr): One of the names written out.
+
+    Returns:
+        bool: True where it is a name and nothing more.
+    '''
+
+    if isinstance(part, ast.Starred):
+        return isinstance(part.value, ast.Name)
+
+    return isinstance(part, ast.Name)
+
+
 def _enough_to_go_round(name: ast.Tuple | ast.List, held: tuple[Any] | None) -> bool:
 
     '''Whether a value written out has a thing for each name in a row.
@@ -2545,7 +2646,7 @@ def _enough_to_go_round(name: ast.Tuple | ast.List, held: tuple[Any] | None) -> 
     if held is None or not isinstance(held[0], _GONE_OVER):
         return False
 
-    if any(not isinstance(part, (ast.Name, ast.Starred)) for part in name.elts):
+    if any(not _plainly_named(part) for part in name.elts):
         return False
 
     wanted = [part for part in name.elts if not isinstance(part, ast.Starred)]
@@ -2581,8 +2682,8 @@ def _tried_could_raise(statement: ast.Try | ast.TryStar) -> bool:
     held = _block_ways(statement.body)
     unsaid = _may_raise(statement.body)
 
-    if (unsaid or any(way.startswith(_RAISE) for way in held)) and any(
-        _handler_could_raise(handler) for handler in statement.handlers
+    if any(
+        _handler_could_raise(handler) for handler in _handlers_that_run(statement)
     ):
         return True
 
