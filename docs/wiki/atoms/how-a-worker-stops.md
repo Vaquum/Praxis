@@ -2,7 +2,7 @@
 row: P1-12
 baseline: 49aa659
 created: 2026-10-12 07:10 UTC
-modified: 2026-10-12 11:15 UTC
+modified: 2026-10-12 11:35 UTC
 evidence:
   - claim: "A pass that dies poisons the account on its way out, empties its queue and ends the loop"
     source: "`execution_manager.py` 4025-4046, nothing after it taking a pass"
@@ -33,7 +33,7 @@ Cancelling the work is how [unregistering an account](what-stopping-leaves-undon
 
 A boot that runs through and ends not ready leaves the account starting for good, and this is the ending where the loop is still turning. The host carries on: that boot is logged and parked, and the other accounts start.
 
-A boot that raises instead is a cancelling: every account started so far is unregistered, which cancels its worker, no later account starts, and the raise carries out of the host's starting. Every pass takes the startup wait and does nothing else, so none of the work below that wait is ever reached. The failing startup empties the queue itself, rather than leaving it to a pass.
+A boot that raises instead is a cancelling: every account started so far is unregistered, which cancels its worker, no later account starts, and the raise [carries out of the host's starting](what-a-failure-at-startup-does.md). Every pass takes the startup wait and does nothing else, so none of the work below that wait is ever reached. The failing startup empties the queue itself, rather than leaving it to a pass.
 
 ## Related
 
@@ -43,4 +43,4 @@ A boot that raises instead is a cancelling: every account started so far is unre
 
 ---
 
-Created 2026-10-12 07:10 UTC · Last modified 2026-10-12 11:15 UTC
+Created 2026-10-12 07:10 UTC · Last modified 2026-10-12 11:35 UTC
