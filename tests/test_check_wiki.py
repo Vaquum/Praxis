@@ -1927,6 +1927,54 @@ class TestTheFinallyClause:
 
         assert not any(5 in first and 7 in second for first, second in spans)
 
+    @pytest.mark.parametrize(
+        ('raised', 'caught'),
+        [
+            pytest.param('KeyError', 'LookupError', id='a-lookup'),
+            pytest.param('ZeroDivisionError', 'ArithmeticError', id='an-arithmetic'),
+            pytest.param('IndexError', 'LookupError', id='an-index'),
+            pytest.param('KeyError', 'Exception', id='an-exception'),
+            pytest.param('KeyError', 'KeyError', id='the-kind-itself'),
+        ],
+    )
+    def test_a_handler_catches_the_kinds_it_covers(
+        self, raised: str, caught: str, tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            f'def f(flag, step):\n    if flag:\n        step()\n        try:\n'
+            f'            raise {raised}()\n        except {caught}:\n'
+            f'            pass\n    return 1\n'
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(3 in first and 8 in second for first, second in spans)
+
+    def test_a_kind_the_handler_does_not_cover_still_leaves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(flag, step):\n    if flag:\n        step()\n        try:\n'
+            '            raise KeyError()\n        except ArithmeticError:\n'
+            '            pass\n    return 1\n'
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert any(3 in first and 8 in second for first, second in spans)
+
+    def test_a_finally_that_could_raise_reaches_the_handlers_around_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(flag, a):\n    try:\n        try:\n            if flag:\n'
+            '                return 1\n            held = 2\n'
+            '        finally:\n            assert a\n    except Exception:\n'
+            '        held = 3\n'
+        )
+        spans = self._spans(source, tmp_path, monkeypatch)
+
+        assert not any(5 in first and 10 in second for first, second in spans)
+
     def test_an_unread_kind_past_the_last_said_raise_cannot_run(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -4456,7 +4504,7 @@ class TestWhatAlwaysLeaves:
             ),
         }
         read = {
-            label: check_wiki._always_leaves(self._last(source))
+            label: check_wiki._CARRIES_ON not in check_wiki._statement_ways(self._last(source))
             for label, source in shapes.items()
         }
 
@@ -4522,7 +4570,7 @@ class TestWhatAlwaysLeaves:
             ),
         }
         read = {
-            label: check_wiki._always_leaves(self._last(source))
+            label: check_wiki._CARRIES_ON not in check_wiki._statement_ways(self._last(source))
             for label, source in shapes.items()
         }
 
@@ -4778,7 +4826,7 @@ class TestWhatABreakLeaves:
     def test_a_break_in_a_branch_leaves_the_loop(self) -> None:
         source = 'def f(xs, flag):\n    for x in xs:\n        if flag:\n            break\n'
 
-        assert check_wiki._breaks_out(self._body(source))
+        assert 'break' in check_wiki._block_ways(self._body(source))
 
     def test_a_break_a_finally_overrides_reaches_nothing(self) -> None:
         source = (
@@ -4786,7 +4834,7 @@ class TestWhatABreakLeaves:
             '            break\n        finally:\n            return 1\n'
         )
 
-        assert not check_wiki._breaks_out(self._body(source))
+        assert 'break' not in check_wiki._block_ways(self._body(source))
 
     def test_a_break_a_finally_leaving_two_ways_overrides_reaches_nothing(self) -> None:
         source = (
@@ -4795,7 +4843,7 @@ class TestWhatABreakLeaves:
             '            else:\n                raise E()\n'
         )
 
-        assert not check_wiki._breaks_out(self._body(source))
+        assert 'break' not in check_wiki._block_ways(self._body(source))
 
     def test_a_break_under_a_finally_that_carries_on_still_reaches(self) -> None:
         source = (
@@ -4803,7 +4851,7 @@ class TestWhatABreakLeaves:
             '        finally:\n            shut()\n'
         )
 
-        assert check_wiki._breaks_out(self._body(source))
+        assert 'break' in check_wiki._block_ways(self._body(source))
 
     def test_a_break_under_a_finally_that_breaks_still_reaches(self) -> None:
         source = (
@@ -4811,14 +4859,14 @@ class TestWhatABreakLeaves:
             '            break\n        finally:\n            break\n'
         )
 
-        assert check_wiki._breaks_out(self._body(source))
+        assert 'break' in check_wiki._block_ways(self._body(source))
 
     def test_a_break_in_a_nested_loop_leaves_that_loop(self) -> None:
         source = (
             'def f(xs, ys):\n    for x in xs:\n        for y in ys:\n            break\n'
         )
 
-        assert not check_wiki._breaks_out(self._body(source))
+        assert 'break' not in check_wiki._block_ways(self._body(source))
 
     def test_a_break_in_a_nested_loops_else_reaches_past_its_body(self) -> None:
         source = (
@@ -4827,7 +4875,7 @@ class TestWhatABreakLeaves:
             '            break\n'
         )
 
-        assert check_wiki._breaks_out(self._body(source))
+        assert 'break' in check_wiki._block_ways(self._body(source))
 
     def test_a_break_in_a_nested_loops_else_leaves_the_loop_outside(self) -> None:
         source = (
@@ -4835,7 +4883,7 @@ class TestWhatABreakLeaves:
             '        else:\n            break\n'
         )
 
-        assert check_wiki._breaks_out(self._body(source))
+        assert 'break' in check_wiki._block_ways(self._body(source))
 
 
 class TestTheGateWiring:
@@ -5131,6 +5179,21 @@ class TestWhatTheMetadataMustLookLike:
                 _GOOD.replace('source: "`order.py` 3"', 'source: "\u200b"'),
                 'carries a source that names nothing',
                 id='a-source-of-a-mark-that-shows-nothing',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"\u200e"'),
+                'a claim that says nothing',
+                id='a-claim-of-a-mark-outside-the-five',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"A thing\x00is so"'),
+                'neither a claim nor a source',
+                id='a-claim-holding-a-control-character',
+            ),
+            pytest.param(
+                _GOOD.replace('source: "`order.py` 3"', 'source: "`order\x01.py` 3"'),
+                'neither a claim nor a source',
+                id='a-source-holding-a-control-character',
             ),
             pytest.param(
                 'row: P1-01\nbaseline: 49aa659\ncreated: 2099-01-01 00:00 UTC\n'
@@ -5793,3 +5856,55 @@ class TestWhatACitationMayName:
 
         assert held is not None
         assert held.groups() == ('2,204', '1,203')
+
+
+class TestWhatTheGateLeavesUnreached:
+
+    @staticmethod
+    def _written(tree: ast.Module) -> dict[str, int]:
+        held: dict[str, int] = {}
+
+        for node in tree.body:
+
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                held[node.name] = node.lineno
+
+            elif isinstance(node, ast.Assign):
+                held.update({
+                    target.id: node.lineno
+                    for target in node.targets
+                    if isinstance(target, ast.Name)
+                })
+
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                held[node.target.id] = node.lineno
+
+        return held
+
+    @staticmethod
+    def _read(tree: ast.Module) -> set[str]:
+        return {
+            node.id for node in ast.walk(tree)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+        }
+
+    def test_every_name_the_gate_writes_is_read_in_it(self) -> None:
+        tree = ast.parse(_SCRIPT.read_text(encoding='utf-8'))
+        read = self._read(tree)
+        unreached = {
+            name: line for name, line in self._written(tree).items()
+            if not name.startswith('__') and name not in read
+        }
+
+        assert unreached == {}, unreached
+
+    def test_a_name_nothing_reads_is_found(self) -> None:
+        tree = ast.parse(
+            'KEPT = 1\n\n\ndef _held() -> int:\n    return KEPT\n\n\n'
+            'def _stranded() -> int:\n    return 2\n',
+        )
+        read = self._read(tree)
+        unreached = [name for name in self._written(tree) if name not in read]
+
+        assert '_stranded' in unreached
+        assert 'KEPT' not in unreached

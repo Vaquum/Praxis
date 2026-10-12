@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import sys
+import unicodedata
 from collections.abc import Callable, Iterable
 import dataclasses
 from dataclasses import dataclass
@@ -107,6 +108,14 @@ _UNDER_EXCEPTION = frozenset(
     name for name, held in vars(builtins).items()
     if isinstance(held, type) and issubclass(held, Exception)
 )
+_COVERED_BY = {
+    name: frozenset(
+        under for under, each in vars(builtins).items()
+        if isinstance(each, type) and issubclass(each, held)
+    )
+    for name, held in vars(builtins).items()
+    if isinstance(held, type) and issubclass(held, BaseException)
+}
 APPARATUS = ('## Evidence', '| Claim | Source |')
 CODE_LABEL = re.compile(r'`([^`]+)`')
 RATIONALE = re.compile(
@@ -161,7 +170,6 @@ PROSE_WORD_CAP = 300
 BASELINE = '49aa659'
 NEXUS_ROOT = Path('../Nexus')
 NEXUS_BASELINE = '953477a'
-BASELINE_RE = re.compile(r'^baseline:\s*(\S+)\s*$', re.MULTILINE)
 CREATED_RE = re.compile(r'^created:\s*(.+?)\s*$', re.MULTILINE)
 SEARCH_PREFIXES = ('praxis/', 'nexus/', 'scripts/', 'tests/')
 LEDGER = WIKI / 'ledger.md'
@@ -409,9 +417,10 @@ def _docstring_lines(path: Path) -> set[int]:
 
 _METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
 _PARTING = ' | '
-_BLANKS = ('\u200b', '\u200c', '\u200d', '\u2060', '\ufeff')
+_FORMAT_MARK = 'Cf'
 EVIDENCE_LINE = re.compile(
-    r'^(  - claim: "[^"\\]*"|    source: "[^"\\]*")$',
+    r'^(  - claim: "[^"\\\x00-\x1f\x7f]*"'
+    r'|    source: "[^"\\\x00-\x1f\x7f]*")$',
 )
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
@@ -529,24 +538,6 @@ def _marked_between(source: str, first: int, second: int) -> bool:
     closing = held.ends[bisect.bisect_right(held.starts, high) - 1]
 
     return _marks_within(held.marks, closing, closing + _MARKER_REACH)
-
-
-def _marks(stretch: str) -> bool:
-
-    '''Whether a stretch of a source half holds an alternation marker.
-
-    Args:
-        stretch (str): The stretch to read.
-
-    Returns:
-        bool: True where a marker word stands in it.
-    '''
-
-    lowered = stretch.lower()
-
-    return any(
-        re.search(rf'\b{re.escape(word)}\b', lowered) for word in ALTERNATION_WORDS
-    )
 
 
 @dataclass(frozen=True)
@@ -1125,7 +1116,7 @@ def _after_the_branch(
     if kind == 'continue':
         running += scopes.after_a_loop
 
-    if own == _RAISE or raising:
+    if own == _RAISE or raising or cleanup is not None:
         running += scopes.handlers
 
     return after - _still_runs(running, node.lineno)
@@ -1880,12 +1871,11 @@ def _caught_by_handler(handler: ast.ExceptHandler, ways: set[str]) -> set[str]:
         return set(ways)
 
     kinds = _named_kinds(handler.type)
-    caught = {way for way in ways if way.partition(':')[2] in kinds}
+    covered = {
+        under for kind in kinds for under in _COVERED_BY.get(kind, frozenset())
+    }
 
-    if 'Exception' in kinds:
-        caught |= {way for way in ways if _under_exception(way)}
-
-    return caught
+    return {way for way in ways if way.partition(':')[2] in kinds | covered}
 
 
 def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
@@ -2251,20 +2241,6 @@ def _takes_anything(pattern: ast.pattern) -> bool:
         return any(_takes_anything(held) for held in pattern.patterns)
 
     return False
-
-
-def _always_leaves(statement: ast.stmt) -> bool:
-
-    '''Whether a statement always takes the path out of what follows.
-
-    Args:
-        statement (ast.stmt): The statement to read.
-
-    Returns:
-        bool: True where nothing after it runs.
-    '''
-
-    return _CARRIES_ON not in _statement_ways(statement)
 
 
 def _raises_before_a_turn(statement: ast.For | ast.AsyncFor | ast.While) -> bool:
@@ -3459,20 +3435,6 @@ def _endless(test: ast.expr) -> bool:
     '''
 
     return _written_truth(test) is True
-
-
-def _breaks_out(body: list[ast.stmt]) -> bool:
-
-    '''Whether a break written in a block leaves the loop holding it.
-
-    Args:
-        body (list[ast.stmt]): The loop body's statements.
-
-    Returns:
-        bool: True where a break reaches the loop.
-    '''
-
-    return 'break' in _block_ways(body)
 
 
 def _leaves_the_path(body: list[ast.stmt]) -> bool:
@@ -5485,8 +5447,10 @@ def _said(value: str) -> str:
     '''Return what a claim or a source says, blanks of every kind removed.
 
     A space, a tab and a mark that shows nothing at all each leave a
-    value that reads as written and says nothing, so each is taken off
-    before asking whether anything is left.
+    value that reads as written and says nothing, so every character
+    Unicode files as a format mark is taken off, along with the
+    whitespace around what is left, before asking whether anything is
+    left at all.
 
     Args:
         value (str): The value as the block wrote it.
@@ -5495,10 +5459,12 @@ def _said(value: str) -> str:
         str: What is left of it.
     '''
 
-    for blank in _BLANKS:
-        value = value.replace(blank, '')
+    held = ''.join(
+        letter for letter in value
+        if unicodedata.category(letter) != _FORMAT_MARK
+    )
 
-    return value.strip()
+    return held.strip()
 
 
 def _evidence_pairs(held: list[str]) -> list[str]:

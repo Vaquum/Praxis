@@ -26,8 +26,11 @@ HOLDERS = ('kept()', 'swallowed()')
 KINDS = (
     'ValueError', 'Exception', 'TypeError', 'KeyError', 'OSError',
     '(ValueError, TypeError)', 'errors.ValueError', 'BaseException',
+    'LookupError', 'ArithmeticError',
 )
 RAISES = (
+    'raise KeyError()',
+    'raise ZeroDivisionError()',
     'raise ValueError()',
     "raise ValueError('why')",
     "raise OSError(1, 'no')",
@@ -38,11 +41,16 @@ RAISES = (
     "raise ValueError('why') from None",
 )
 CASES = ('case True:', 'case 1:', 'case _ if b:', 'case _:', 'case [1, 2]:', 'case str():')
-STATEMENTS = ('step()', 'risky()', 'raise ValueError()', 'return 1', 'pass', 'held = 1')
+STATEMENTS = (
+    'step()', 'risky()', 'raise ValueError()', 'raise KeyError()', 'return 1',
+    'pass', 'held = 1',
+)
 OTHERWISE = ('', 'step()', 'return 2')
 WRAPPERS = (
     (),
     ('try:', '...', 'except ValueError:', '    held = 2'),
+    ('try:', '...', 'except LookupError:', '    held = 2'),
+    ('try:', '...', 'except ArithmeticError:', '    held = 2'),
     ('try:', '...', 'except TypeError:', '    held = 2'),
     (
         'try:', '...', 'except ValueError:', '    held = 2', 'finally:',
@@ -72,8 +80,34 @@ PLACES = (
     ('try:', '...', 'except* ValueError:', '    held = 2'),
     ('try:', '    risky()', 'except* ValueError:', '...'),
 )
-BODIES = ('step()', 'risky()', 'raise ValueError()', 'raise TypeError()', 'pass')
-SIBLING_KINDS = ('ValueError', 'TypeError', 'Exception', 'errors.ValueError')
+BODIES = (
+    'step()', 'risky()', 'raise ValueError()', 'raise TypeError()',
+    'raise KeyError()', 'pass',
+)
+RAISED = ('KeyError', 'ZeroDivisionError', 'ValueError', 'IndexError')
+CATCHING = (
+    'LookupError', 'ArithmeticError', 'Exception', 'ValueError', 'TypeError',
+    'BaseException', 'KeyError',
+)
+LEAVING = ('return 1', 'raise ValueError()', 'return 2')
+CLEANUPS = (
+    'finally:\n            risky()\n',
+    'finally:\n            assert a\n',
+    'finally:\n            with kept():\n                assert a\n',
+    'finally:\n            with swallowed():\n                raise ValueError()\n',
+)
+AROUND = (
+    '    except Exception:\n        pass\n    else:\n        pass\n',
+    '    except ValueError:\n        pass\n    else:\n        pass\n',
+    (
+        '    except Exception:\n        pass\n'
+        '    except errors.ValueError:\n        pass\n'
+        '    else:\n        pass\n    finally:\n        pass\n'
+    ),
+)
+SIBLING_KINDS = (
+    'ValueError', 'TypeError', 'Exception', 'errors.ValueError', 'LookupError',
+)
 DONE = ('held = 1', 'return 1')
 ENDS = ('', 'finally:\n        return 9\n')
 SUBJECTS = ('a', '1', "'x'", '[1, 2]', 'ValueError()')
@@ -571,15 +605,64 @@ def settled_shapes() -> list[str]:
     '''Return every small shape of the kind the findings have come from.
 
     Writing shapes at random reaches such a shape only by chance; these
-    are all of them, in three families: an arm inside a construct that
+    are all of them, in five families: an arm inside a construct that
     takes the way it leaves or takes it over, two handlers of one `try`,
-    and two cases of one `match`.
+    two cases of one `match`, an arm raising a kind its own handler
+    covers, and an arm under an ending that could raise.
 
     Returns:
         list[str]: One source per shape.
     '''
 
-    return _arm_shapes() + _handler_shapes() + _case_shapes()
+    return (
+        _arm_shapes() + _handler_shapes() + _case_shapes()
+        + _caught_shapes() + _cleanup_shapes()
+    )
+
+
+def _cleanup_shapes() -> list[str]:
+
+    '''Return an arm leaving under an ending that could raise.
+
+    What the ending raises on the way out is caught further out, so the
+    handlers around it run after the arm has left, and the lines of
+    those handlers are no alternative to it.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    return [
+        f'{_HEAD}    try:\n        try:\n            if c:\n'
+        f'                held = 2\n            else:\n'
+        f'                {leaving}\n        except {inner}:\n'
+        f'            held = 3\n        {cleanup}{around}{_TAIL}'
+        for leaving in LEAVING
+        for inner in ('Exception', 'TypeError')
+        for cleanup in CLEANUPS
+        for around in AROUND
+    ]
+
+
+def _caught_shapes() -> list[str]:
+
+    '''Return an arm whose own `try` raises one kind and catches another.
+
+    A handler catches a raise by the kinds it covers as well as by name,
+    so an arm raising under a kind the handler names does not leave.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    return [
+        f'{_HEAD}    if a:\n        {acted}\n        try:\n'
+        f'            raise {raised}()\n        except {caught}:\n'
+        f'            pass\n{_TAIL}'
+        for acted in ('step()', 'held = 1', 'pass')
+        for raised in RAISED
+        for caught in CATCHING
+    ]
 
 
 def _arm_shapes() -> list[str]:

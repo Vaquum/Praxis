@@ -2,28 +2,20 @@
 row: P1-03
 baseline: 49aa659
 created: 2026-09-20 16:30 UTC
-modified: 2026-10-12 03:12 UTC
+modified: 2026-10-12 04:22 UTC
 evidence:
   - claim: "One worker per account; a second registration is refused"
     source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"
   - claim: "The worker goes round until stopped"
     source: "`execution_manager.py` 3901-3907"
-  - claim: "Between passes it waits a tenth of a second, or less where an admitted event wakes it; queueing a request wakes nothing"
-    source: "`execution_manager.py` 3885-3888 with the wait at 143, woken only from 3212"
+  - claim: "A pass with nothing to take waits up to a tenth of a second, or less where an admitted event wakes it; queueing a request wakes nothing"
+    source: "`execution_manager.py` 3885-3888 with the wait at 143, reached from 3981, woken only from 3212"
+  - claim: "A pass that takes a request goes round again without waiting"
+    source: "`execution_manager.py` 3984 then the top of the loop at 3902, rather than the wait at 3981"
   - claim: "Venue news is drained before the priority line"
     source: "called at `execution_manager.py` 3907, body at 3734-3737"
   - claim: "Slices now due, protection waiting to go up and a sweep asked for all run before the ordinary queue is reached"
     source: "`execution_manager.py` 3973-3978, ahead of 3980"
-  - claim: "After a failure the ordinary queue is emptied and each item refused"
-    source: "`execution_manager.py` 3962-3967, body at 6988-6999"
-  - claim: "A request whose refusal report cannot be built is dropped unreported"
-    source: "`execution_manager.py` 7003-7019"
-  - claim: "A cancelled worker stops the emptying and leaves the rest queued"
-    source: "`execution_manager.py` 7000-7002"
-  - claim: "Held or failed takes no new submitted work"
-    source: "`execution_manager.py` 3969-3971"
-  - claim: "The cancellation retry runs before that leaving point"
-    source: "`execution_manager.py` 3960"
   - claim: "At most one item is taken for execution per pass, though a failure empties the queue separately"
     source: "`execution_manager.py` 3980-3984, the failure path instead emptying it at 6988-6999"
   - claim: "Fed-out work past its deadline is ended instead of started"
@@ -47,11 +39,9 @@ At most one submitted request is taken per circuit, and many passes take none.
 
 ## What holds a pass back
 
-Between passes it waits a tenth of a second, less where an admitted event wakes it; queueing a request wakes nothing. While the account is still starting up, the pass does nothing else and waits that tenth out.
+A pass that finds its ordinary queue empty waits there for up to a tenth of a second. An admitted event ends that wait early; queueing a request does not, so the request sits until the wait runs out. A pass that does take a request goes straight round to the next one, which is how a queue of orders drains. While the account is still starting up, the pass does nothing else and waits that tenth out.
 
-Paused or failed, the circuit still takes the waiting venue updates, empties the priority queue, retries a due [cancellation](how-a-trade-is-cancelled.md) and, if failed, empties its ordinary queue refusing each item. Paused, that queue is left as it stands, so the requests in it wait. The circuit then ends. Changes put back in the queue are left until the next circuit.
-
-A request whose refusal report cannot be built is dropped with nothing reported. If the worker is cancelled partway through that emptying, it stops there and whatever is still queued stays queued.
+A pass under an account that is [reconciling or poisoned](when-an-account-is-reconciling-or-poisoned.md) ends on that same wait, having taken no submitted work.
 
 ## What taking one item does
 

@@ -2,14 +2,14 @@
 row: P2-22
 baseline: 49aa659
 created: 2026-09-28 07:18 UTC
-modified: 2026-10-11 18:54 UTC
+modified: 2026-10-12 04:22 UTC
 evidence:
   - claim: "The settings carry a shown amount and a price to rest at, both above zero"
     source: "`iceberg_params.py` 30-31, required positive at 37-41"
   - claim: "The shown amount cannot be above the whole"
     source: "`validate_trade_command.py` 353-355"
-  - claim: "Praxis refuses it unless it clears the venue's smallest size, step and value on its own"
-    source: "`validate_trade_command.py` 429-432"
+  - claim: "The checks against the venue's smallest size, step and value are written but unreached, the one caller passing no venue rules"
+    source: "`validate_trade_command.py` 429-432, reached only past 143, called without rules at `execution_manager.py` 3479"
   - claim: "One limit order for the whole amount is sent, at that price, with the shown amount named on it"
     source: "`execution_manager.py` 5322-5331, the figure chosen at 5296"
   - claim: "Where the shown amount equals the whole, nothing is named"
@@ -31,13 +31,13 @@ evidence:
 ---
 # Part-shown orders
 
-A **part-shown order** is a single order for the whole amount, resting at a named price, of which the venue displays only part at a time. Praxis sends one order, not several: the whole amount goes in one go, at the given price, with the amount to show named alongside it.
+A **part-shown order** is a single order for the whole amount, resting at a named price, of which the venue displays only part at a time. Praxis sends one order: the whole amount in one go, at the given price, with the amount to show named alongside it.
 
 ## What must be given
 
 The settings carry how much to show at a time and the price the order rests at. Both must be above zero.
 
-The shown amount cannot be larger than the whole. Praxis also refuses it unless it clears the venue's smallest allowed size on its own, sits on the venue's step, and is worth enough by itself.
+The shown amount cannot be larger than the whole. Checks that it clears the venue's smallest size, sits on its step and is worth enough are written and unreached: the one place admitting a request passes no venue rules, which are weighed against the whole amount later.
 
 ## When nothing is hidden
 
@@ -45,9 +45,9 @@ Where the amount to show equals the whole, nothing is held back and no shown amo
 
 ## What Praxis does and does not do
 
-The sending path sends that one order and goes on to report it. It does not send portion after portion, nor wait for one to fill before the next.
+The sending path sends that one order and reports it. It sends no portion after portion, and waits for none to fill before the next.
 
-Praxis hands the figure over and does nothing further with it. What the venue displays, and when it shows the next part, is past what this code can show.
+Praxis hands the figure over and does nothing further with it. What the venue displays, and when, is past what this code can show.
 
 Naming a shown amount also settles how long the order rests. The builder carrying it refuses the amount on anything but a limit order, and refuses again where it is not below the whole. Two kinds of send miss that builder entirely: a market order sized in money, and a linked pair.
 

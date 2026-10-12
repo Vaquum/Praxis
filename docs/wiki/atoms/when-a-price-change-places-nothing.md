@@ -2,14 +2,16 @@
 row: P3-26
 baseline: 49aa659
 created: 2026-10-12 01:40 UTC
-modified: 2026-10-12 03:12 UTC
+modified: 2026-10-12 04:22 UTC
 evidence:
   - claim: "A cancel the venue does not confirm leaves the order live and places nothing, and parks no change for a later pass"
     source: "`execution_manager.py` 8717-8723, returning before the parking at 8747-8748"
   - claim: "An order the venue still calls live places nothing either, and is left alone"
     source: "`execution_manager.py` 8725-8732"
-  - claim: "What is left below the venue's smallest size is never placed, and the request is reported filled on what it already has"
-    source: "`execution_manager.py` 8803-8808, reported at 10471-10479"
+  - claim: "What is left is weighed against the smallest size loaded for that symbol, and falling short the request is reported filled on what it already has"
+    source: "`execution_manager.py` 8799-8808, reported at 10471-10479"
+  - claim: "Where no size was loaded for the symbol the weighing is against zero, so any remainder at all is placed"
+    source: "`execution_manager.py` 8800-8801 reading the cache at `binance_adapter.py` 2153, filled only from `trading.py` 562"
   - claim: "A replacement that times out, is refused, or cannot be found afterwards ends the request cancelled on what it had filled"
     source: "`execution_manager.py` 10355-10365, reported at 10505-10512"
 ---
@@ -25,7 +27,9 @@ Where the venue answers and the order is still working, nothing is placed either
 
 ## Too little is left to trade
 
-Where what remains is below the smallest size the venue trades in — an amount equal to it still goes — no order can carry it. The request is reported filled on what it already has, and the remainder is left as dust.
+What remains is weighed against the smallest size the venue trades in, as loaded for that symbol when the account started. Where it falls short, no order can carry it: the request is reported filled on what it already has, and the remainder is left as dust. An amount equal to that smallest size still goes.
+
+Where no size was loaded for the symbol, the weighing is against zero instead, and any remainder at all is placed, however far under what the venue will take.
 
 ## The replacement will not go
 
@@ -39,4 +43,4 @@ Where the replacement times out, the venue is asked about it first, and the chan
 
 ---
 
-Created 2026-10-12 01:40 UTC · Last modified 2026-10-12 03:12 UTC
+Created 2026-10-12 01:40 UTC · Last modified 2026-10-12 04:22 UTC
