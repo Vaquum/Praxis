@@ -1897,7 +1897,9 @@ def _handler_reach(
     works out the kind it names whether or not that kind then catches.
     Nothing is tried once every raise the body can take is certainly
     caught, nor where the body takes none at all, and nothing written
-    after a handler naming every error is tried or run either.
+    after a handler naming every error is tried or run either. A `try`
+    taking errors in groups weighs every handler against what is left
+    of the group, so each of them is tried while anything can arrive.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -1910,6 +1912,8 @@ def _handler_reach(
     held = _block_ways(statement.body)
     left = {way for way in held if way.startswith(_RAISE)}
     unsaid = _may_raise(statement.body)
+    grouped = isinstance(statement, ast.TryStar)
+    arriving = bool(unsaid or left)
     seen: set[str] = set()
     found: list[tuple[ast.ExceptHandler, bool, bool]] = []
 
@@ -1917,7 +1921,7 @@ def _handler_reach(
         caught = _caught_by_handler(handler, left)
         unread = handler.type is not None and not _every_part_named(handler.type)
         unnamed = any(not way.partition(':')[2] for way in left)
-        tried = bool(unsaid or left)
+        tried = arriving if grouped else bool(unsaid or left)
         runs = bool(
             (unsaid or caught or unnamed or (unread and left))
             and not _covered_already(handler, seen),
@@ -4041,7 +4045,9 @@ def _declared_in_a_function(tree: ast.AST) -> frozenset[int]:
 
     Such an annotation makes the name the function's own wherever it
     stands in there, so a name the language carries is no longer that
-    error inside it. At module level it binds nothing at all.
+    error inside it. At module level it binds nothing at all, and nor
+    does one in a class body, whose names stand apart from the
+    function holding it.
 
     Args:
         tree (ast.AST): The parsed file.
@@ -4052,15 +4058,24 @@ def _declared_in_a_function(tree: ast.AST) -> frozenset[int]:
 
     held: set[int] = set()
 
-    for node in ast.walk(tree):
+    def walk(node: ast.AST, *, inside: bool) -> None:
 
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
+        for child in ast.iter_child_nodes(node):
 
-        held |= {
-            id(inside) for inside in ast.walk(node)
-            if isinstance(inside, ast.AnnAssign) and inside.value is None
-        }
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                walk(child, inside=True)
+                continue
+
+            if isinstance(child, ast.ClassDef):
+                walk(child, inside=False)
+                continue
+
+            if inside and isinstance(child, ast.AnnAssign) and child.value is None:
+                held.add(id(child))
+
+            walk(child, inside=inside)
+
+    walk(tree, inside=False)
 
     return frozenset(held)
 
@@ -4070,7 +4085,9 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
     '''Return how many times each name is given a value in the module.
 
     A name bound once by an import and nowhere else holds what that
-    import brought; one bound again holds whatever came last. An
+    import brought; one bound again holds whatever came last. A type
+    written out as a name of its own binds that name, and so does a
+    type a function or a class is written to take. An
     annotation with no value beside it binds nothing where the module
     itself carries it, so a name given only a type is left as it was —
     while one written inside a function makes the name that
@@ -4120,8 +4137,14 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
                 if item.optional_vars is not None:
                     bind(_bound_names(item.optional_vars))
 
-        elif isinstance(node, ast.ExceptHandler) and node.name is not None:
+        elif isinstance(node, ast.TypeAlias):
+            bind(_bound_names(node.name))
+
+        elif isinstance(node, (ast.TypeVar, ast.ParamSpec, ast.TypeVarTuple)):
             bind({node.name})
+
+        elif isinstance(node, ast.ExceptHandler):
+            bind({node.name} if node.name is not None else set())
 
         elif isinstance(node, ast.NamedExpr):
             bind(_bound_names(node.target))
