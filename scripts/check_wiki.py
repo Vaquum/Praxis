@@ -605,6 +605,64 @@ class _Scopes:
     cleaned: dict[int, int]
 
 
+_TAKEN_OVER: frozenset[str] = frozenset()
+
+
+def _taken_over(tree: ast.AST) -> frozenset[str]:
+
+    """Return the error names this file gives some other value.
+
+    A plain name is read as the error the language carries under it,
+    which holds only while the file has not bound that name itself. A
+    parameter, an import, an assignment or a loop target of the same
+    name leaves nothing weighable, so every such name is kept and the
+    kind helpers abstain on it.
+
+    Args:
+        tree (ast.AST): The parsed file.
+
+    Returns:
+        frozenset[str]: Those names.
+    """
+
+    return frozenset(_rebound_names(tree) & _KNOWN_ERRORS)
+
+
+def _kind_named(held: ast.expr | None) -> str | None:
+
+    """Return the kind a piece of a raise or a handler names, weighably.
+
+    A kind is weighable where it is written as a plain name the file
+    has not bound itself: an attribute, a call's result or a name the
+    file gives some other value says nothing a handler can be matched
+    against.
+
+    Args:
+        held (ast.expr | None): What was written, or nothing.
+
+    Returns:
+        str | None: That name, or None where nothing is weighable.
+    """
+
+    if not isinstance(held, ast.Name) or held.id in _TAKEN_OVER:
+        return None
+
+    return held.id
+
+
+def _reading(tree: ast.AST) -> None:
+
+    """Note which error names the file being read has taken over.
+
+    Args:
+        tree (ast.AST): The parsed file.
+    """
+
+    global _TAKEN_OVER  # noqa: PLW0603
+
+    _TAKEN_OVER = _taken_over(tree)
+
+
 def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
 
     '''Return pairs of line sets that cannot both run for one input.
@@ -625,6 +683,7 @@ def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
     except (OSError, SyntaxError):
         return []
 
+    _reading(tree)
     scopes = _scopes(tree, text.splitlines())
     pairs: list[tuple[set[int], set[int]]] = []
 
@@ -1596,10 +1655,9 @@ def _raise_way(statement: ast.Raise) -> str:
     if isinstance(named, ast.Call):
         named = named.func
 
-    if isinstance(named, ast.Name):
-        return f'{_RAISE}:{named.id}'
+    kind = _kind_named(named)
 
-    return _RAISE
+    return _RAISE if kind is None else f'{_RAISE}:{kind}'
 
 
 def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
@@ -1671,7 +1729,7 @@ def _names_every_error(named: ast.expr) -> bool:
     if isinstance(named, ast.Tuple):
         return any(_names_every_error(held) for held in named.elts)
 
-    return isinstance(named, ast.Name) and named.id == 'BaseException'
+    return _kind_named(named) == 'BaseException'
 
 
 def _handler_kinds(node: ast.Try | ast.TryStar) -> set[str]:
@@ -1815,22 +1873,46 @@ def _handlers_that_run(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandl
         list[ast.ExceptHandler]: Those handlers, in order.
     '''
 
+    return [
+        handler for handler, _tried, runs in _handler_reach(statement) if runs
+    ]
+
+
+def _handler_reach(
+    statement: ast.Try | ast.TryStar,
+) -> list[tuple[ast.ExceptHandler, bool, bool]]:
+
+    '''Return what can reach each handler of a `try`, in order.
+
+    A handler is tried where a raise reaches it looking for one, which
+    works out the kind it names whether or not that kind then catches.
+    Nothing is tried once every raise the body can take is certainly
+    caught, nor where the body takes none at all.
+
+    Args:
+        statement (ast.Try): The statement to read.
+
+    Returns:
+        list[tuple[ast.ExceptHandler, bool, bool]]: Each handler, with
+            whether it is tried at all and whether its body runs.
+    '''
+
     held = _block_ways(statement.body)
     left = {way for way in held if way.startswith(_RAISE)}
     unsaid = _may_raise(statement.body)
     seen: set[str] = set()
-    found: list[ast.ExceptHandler] = []
+    found: list[tuple[ast.ExceptHandler, bool, bool]] = []
 
     for handler in statement.handlers:
         caught = _caught_by_handler(handler, left)
         unread = handler.type is not None and not _every_part_named(handler.type)
         unnamed = any(not way.partition(':')[2] for way in left)
-
-        if (unsaid or caught or unnamed or (unread and left)) and not _covered_already(
-            handler, seen,
-        ):
-            found.append(handler)
-
+        tried = bool(unsaid or left)
+        runs = bool(
+            (unsaid or caught or unnamed or (unread and left))
+            and not _covered_already(handler, seen),
+        )
+        found.append((handler, tried, runs))
         seen |= _named_kinds(handler.type)
         left -= caught
 
@@ -1924,7 +2006,7 @@ def _every_part_named(named: ast.expr | None) -> bool:
 
     held = named.elts if isinstance(named, ast.Tuple) else [named]
 
-    return all(isinstance(part, ast.Name) for part in held)
+    return all(_kind_named(part) is not None for part in held)
 
 
 def _named_kinds(named: ast.expr | None) -> set[str]:
@@ -1943,7 +2025,7 @@ def _named_kinds(named: ast.expr | None) -> set[str]:
 
     held = named.elts if isinstance(named, ast.Tuple) else [named]
 
-    return {part.id for part in held if isinstance(part, ast.Name)}
+    return {kind for part in held if (kind := _kind_named(part)) is not None}
 
 
 def _loop_ways(statement: ast.For | ast.AsyncFor | ast.While) -> set[str]:
@@ -2754,8 +2836,10 @@ def _assert_answer(statement: ast.Assert) -> bool | None:
 
     An assert raises `AssertionError` where its test is falsy and
     nothing else, so a test written out with its answer known says
-    which of those happens. A message that could raise as it is worked
-    out leaves the answer unknown, as does a test read at the time.
+    which of those happens. A test that always holds settles it: the
+    message is never worked out. Where the test fails or is read at
+    the time, a message that could raise as it is worked out leaves
+    the answer unknown.
 
     Args:
         statement (ast.Assert): The statement to read.
@@ -2765,10 +2849,15 @@ def _assert_answer(statement: ast.Assert) -> bool | None:
             does, None where neither is known.
     '''
 
+    answer = _written_truth(statement.test)
+
+    if answer:
+        return True
+
     if statement.msg is not None and not _quiet_expression(statement.msg):
         return None
 
-    return _written_truth(statement.test)
+    return answer
 
 
 def _written_could_raise(statement: ast.stmt) -> bool:
@@ -2940,8 +3029,7 @@ def _error_written_quietly(held: ast.expr) -> bool:
         named = named.func
 
     return (
-        isinstance(named, ast.Name)
-        and named.id in _plain_errors()
+        _kind_named(named) in _plain_errors()
         and all(_quiet_expression(part) for part in given)
     )
 
@@ -3910,6 +3998,23 @@ def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
     }
 
 
+def _taken_names(args: ast.arguments) -> set[str]:
+
+    """Return the names a signature binds.
+
+    Args:
+        args (ast.arguments): The signature to read.
+
+    Returns:
+        set[str]: Every name it binds, starred ones included.
+    """
+
+    held = [*args.posonlyargs, *args.args, *args.kwonlyargs]
+    held += [one for one in (args.vararg, args.kwarg) if one is not None]
+
+    return {one.arg for one in held}
+
+
 def _rebound_names(tree: ast.AST) -> set[str]:
 
     '''Return names given some other value anywhere in the module.'''
@@ -3920,6 +4025,9 @@ def _rebound_names(tree: ast.AST) -> set[str]:
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             rebound.add(node.name)
+
+            if not isinstance(node, ast.ClassDef):
+                rebound.update(_taken_names(node.args))
 
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             rebound.update(_imported_names(node))
@@ -4257,9 +4365,11 @@ def _unreachable_lines(path: Path) -> set[int]:
 
     A handler whose every kind an earlier handler already catches
     cannot run, and nor can one of a `try` whose body raises nothing at
-    all. Citing such a handler cites lines no input reaches, its own
-    line among them: the kind it names is worked out as a raise is
-    matched against it, which never happens where nothing arrives.
+    all. Citing the body of such a handler cites lines no input
+    reaches. Its own line goes with the body only where nothing is
+    tried against it — where no raise reaches it looking for a handler
+    — since a handler that is tried and misses still has the kind it
+    names worked out.
 
     Args:
         path (Path): The file to read, at its pinned commit.
@@ -4275,20 +4385,21 @@ def _unreachable_lines(path: Path) -> set[int]:
     except SyntaxError:
         return held
 
+    _reading(tree)
+
     for node in ast.walk(tree):
 
         if not isinstance(node, (ast.Try, ast.TryStar)):
             continue
 
-        running = {id(handler) for handler in _handlers_that_run(node)}
+        for handler, tried, runs in _handler_reach(node):
 
-        for handler in node.handlers:
-
-            if id(handler) in running:
+            if runs:
                 continue
 
             closing = handler.body[-1].end_lineno or handler.lineno
-            held |= set(range(handler.lineno, closing + 1))
+            opening = handler.body[0].lineno if tried else handler.lineno
+            held |= set(range(opening, closing + 1))
 
     return held
 
@@ -4625,7 +4736,10 @@ def _what_a_citation_lands_on(
     The whole range is read. A citation refused for its first lines and
     kept for its last would depend on where the reading stopped. A
     range holding nothing but logging, blank lines and comments is
-    logging, whichever of them it opens on.
+    logging, whichever of them it opens on. Blank lines and comments
+    are passed over in weighing whether a range stands inside a
+    handler nothing arrives at, since padding a citation with them
+    would otherwise answer for the lines that do run.
 
     Args:
         start (int): The first line cited.
@@ -4656,7 +4770,9 @@ def _what_a_citation_lands_on(
     if _only_logs(span, facts) and not _claims_a_message(claim):
         return 'log call'
 
-    if set(span) <= facts.unreachable:
+    standing = {n for n in span if n not in facts.blanks | facts.comments}
+
+    if standing and standing <= facts.unreachable:
         return 'a handler nothing arrives at'
 
     return None

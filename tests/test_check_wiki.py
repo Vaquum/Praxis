@@ -5991,7 +5991,7 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
-    def test_the_except_line_of_a_dead_handler_is_refused(
+    def test_the_except_line_of_a_handler_covered_earlier_stands(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         source = (
@@ -5999,9 +5999,9 @@ class TestWhatAHandlerNothingArrivesAtCosts:
             '    except LookupError:\n        held = 3\n'
             '    except KeyError:\n        held = 4\n    return 5\n'
         )
-        held = self._landed(source, 6, 7, tmp_path, monkeypatch)
+        held = self._landed(source, 6, 6, tmp_path, monkeypatch)
 
-        assert held == 'a handler nothing arrives at'
+        assert held is None
 
     def test_the_except_line_of_a_live_handler_stands(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -6014,6 +6014,121 @@ class TestWhatAHandlerNothingArrivesAtCosts:
         held = self._landed(source, 4, 5, tmp_path, monkeypatch)
 
         assert held is None
+
+    def test_the_except_line_of_a_handler_tried_and_missed_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 4, 4, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_the_body_of_a_handler_tried_and_missed_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_the_except_line_of_a_handler_nothing_reaches_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        pass\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 4, 4, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_dead_handler_padded_with_a_blank_line_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        pass\n'
+            '    except KeyError:\n        held = 1\n'
+            '\n    return 2\n'
+        )
+        held = self._landed(source, 4, 6, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_range_running_out_of_a_dead_handler_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        pass\n'
+            '    except KeyError:\n        held = 1\n'
+            '\n    return 2\n'
+        )
+        held = self._landed(source, 4, 7, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_an_error_name_the_file_takes_over_is_weighed_against_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(flag, ValueError):\n    if flag:\n        try:\n'
+            '            assert True\n            raise ValueError()\n'
+            '        except KeyError:\n            pass\n    return 42\n'
+        )
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+        held = self._landed(source, 7, 7, tmp_path, monkeypatch)
+
+        assert spans == []
+        assert held is None
+
+    def test_a_handler_naming_a_name_the_file_takes_over_stays_live(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(work, KeyError):\n    try:\n        work()\n'
+            '    except LookupError:\n        held = 1\n'
+            '    except (LookupError, KeyError):\n        held = 2\n    return 3\n'
+        )
+        held = self._landed(source, 6, 7, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_name_the_file_takes_over_covers_no_later_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(work, LookupError):\n    try:\n        work()\n'
+            '    except LookupError:\n        held = 1\n'
+            '    except KeyError:\n        held = 2\n    return 3\n'
+        )
+        held = self._landed(source, 6, 7, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_the_same_shape_under_the_language_s_own_error_is_weighed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(flag):\n    if flag:\n        try:\n'
+            '            assert True\n            raise ValueError()\n'
+            '        except KeyError:\n            pass\n    return 42\n'
+        )
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+        held = self._landed(source, 7, 7, tmp_path, monkeypatch)
+
+        assert any(3 in first and 8 in second for first, second in spans), spans
+        assert held == 'a handler nothing arrives at'
 
     def test_a_handler_the_earlier_one_leaves_alone_stands(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -6075,12 +6190,23 @@ class TestWhatAHandlerNothingArrivesAtCosts:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         source = (
-            'def f(why):\n    try:\n        assert 1 < 2, why\n'
+            'def f(why):\n    try:\n        assert 2 < 1, why\n'
             '    except KeyError:\n        held = 1\n    return 2\n'
         )
         held = self._landed(source, 5, 5, tmp_path, monkeypatch)
 
         assert held is None
+
+    def test_an_assert_that_holds_never_works_its_message_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(why):\n    try:\n        assert 1 < 2, why\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
 
     def test_an_arm_ending_in_an_assert_that_holds_can_carry_on(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
