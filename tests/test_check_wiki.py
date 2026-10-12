@@ -604,6 +604,10 @@ class TestProtocolExemption:
                 id='replacement-import',
             ),
             pytest.param(
+                'from typing import Protocol as P, Any as P\nclass A(P):\n' + _STUB,
+                id='two-aliases-of-one-name',
+            ),
+            pytest.param(
                 'from typing import Protocol\nclass Protocol:\n    pass\n'
                 'class A(Protocol):\n' + _STUB,
                 id='rebound-by-a-class',

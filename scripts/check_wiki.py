@@ -3988,18 +3988,21 @@ def _bound_names(node: ast.AST) -> set[str]:
     return set()
 
 
-def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
+def _imported_names(node: ast.Import | ast.ImportFrom) -> list[str]:
 
-    '''Return the names one import binds.
+    '''Return the names one import binds, one per alias it writes.
+
+    Two aliases of one name is two bindings, the later holding what it
+    brought, so each is counted rather than gathered into a set.
 
     Args:
         node (ast.Import | ast.ImportFrom): The import to read.
 
     Returns:
-        set[str]: The names it binds.
+        list[str]: The names it binds, in the order written.
     '''
 
-    return {alias.asname or alias.name.split('.')[0] for alias in node.names}
+    return [alias.asname or alias.name.split('.')[0] for alias in node.names]
 
 
 def _taken_names(args: ast.arguments) -> set[str]:
@@ -4042,7 +4045,7 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
 
     counted: dict[str, int] = {}
 
-    def bind(names: set[str]) -> None:
+    def bind(names: Iterable[str]) -> None:
 
         for name in names:
             counted[name] = counted.get(name, 0) + 1
