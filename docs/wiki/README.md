@@ -93,7 +93,8 @@ Read them in order if you are new. Every term is explained where it first appear
 ## Changing and stopping
 
 - [Changing work already sent](atoms/changing-work-already-sent.md) — asking Praxis to alter work it has accepted, what may be altered depending on how that work is carried out.
-- [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest — or none does, where too little is left to trade.
+- [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest.
+- [When a price change places nothing](atoms/when-a-price-change-places-nothing.md) — where the replacement never goes out at all: an unsettled cancel, an order still working, too little left to trade, or a send that will not go, and what each leaves the request as.
 
 ## When time runs out
 
@@ -153,8 +154,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-110 articles exist. Every Praxis module is named in the ledger: 46 are `full`, 37 `partial` and 5 `uncovered`. Of the 70 in Nexus, 17 are cited in passing and 53 untouched. The ledger lists them.
+111 articles exist. Every Praxis module is named in the ledger: 46 are `full`, 37 `partial` and 5 `uncovered`. Of the 70 in Nexus, 17 are cited in passing and 53 untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 01:51 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 02:11 UTC

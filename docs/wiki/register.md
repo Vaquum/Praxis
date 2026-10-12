@@ -73,6 +73,7 @@ Seeded first, then traced and written. Every row below is now written.
 | P3-23 | The guard against a second protective pair, and the two endings recovery can report | written | [when-protection-is-put-up-again.md](atoms/when-protection-is-put-up-again.md) |
 | P3-24 | What a replay run reports | written | [what-a-replay-reports.md](atoms/what-a-replay-reports.md) |
 | P3-25 | How a price change is carried out | written | [how-a-price-change-is-carried-out.md](atoms/how-a-price-change-is-carried-out.md) |
+| P3-26 | When a price change places nothing | written | [when-a-price-change-places-nothing.md](atoms/when-a-price-change-places-nothing.md) |
 | P3-22 | Modes allowed only against a real venue | written | [ways-of-working-a-host-may-drive.md](atoms/ways-of-working-a-host-may-drive.md) |
 | P2-44 | Which caller a restart offers an outcome to again, and which it does not | written | [who-a-restart-tells-again.md](atoms/who-a-restart-tells-again.md) |
 | P2-14 | Order types, and what a market order means here | written | [order-types.md](atoms/order-types.md) |
@@ -239,9 +240,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-025 | If that question cannot be answered, the order is recorded as refused even though the venue may hold it. The body logs and gives up; that the venue feed later repairs the record appears only in the docstring at 5505-5510 and no body establishes it. | Praxis `execution_manager.py` body 5533-5542 | timeout (carried) | promoted to U-01; repair claim unverified |
 | H-026 | The money is given back straight away only for failures that provably happened before the request was handed over. | Nexus `action_submit.py` 273, or 300, or 325 | timeout (carried) | folds into timeout (carried) |
 | H-027 | Is an order held under an unknown result ever swept and released, and on what schedule? Not established by this trace. | — | timeout (carried) | promoted to U-02 |
-| H-028 | A replacement that fails to place ends the whole order as cancelled, counting the fills from both the old order and the failed replacement. The original is already gone by then. | `execution_manager.py` `_emit_amend_failed` 10481-10513 | modification | folds into modification |
-| H-029 | A replacement that times out is not assumed dead. The venue is asked about it first, and if the venue has it the change carries on normally. | `execution_manager.py` `_process_modify` 10355-10366 | modification | folds into modification |
-| H-030 | If that question to the venue cannot be answered, the order is ended as cancelled anyway, though the venue may hold the replacement. Same gap as U-01, on the replacement. | `execution_manager.py` 10359-10365, with `_rescue_by_client_order_id` returning nothing at 5532, or 5542 | modification | folds into modification; extends U-01 |
+| H-028 | A replacement that fails to place ends the whole order as cancelled, counting the fills from both the old order and the failed replacement. The original is already gone by then. | `execution_manager.py` `_emit_amend_failed` 10481-10513 | P3-26 | folds into P3-26, which states the ending |
+| H-029 | A replacement that times out is not assumed dead. The venue is asked about it first, and if the venue has it the change carries on normally. | `execution_manager.py` `_place_amend_replacement` 10355-10366 | P3-26 | folds into P3-26, which states the asking |
+| H-030 | If that question to the venue cannot be answered, the order is ended as cancelled anyway, though the venue may hold the replacement. Same gap as U-01, on the replacement. | `execution_manager.py` 10359-10365, with `_rescue_by_client_order_id` returning nothing at 5532, or 5542 | P3-26 | folds into P3-26, which states the ending and names U-01 |
 | H-031 | Changing a bracket's protective prices is a cancel and replace, not an edit. The resting pair is cancelled, the exposure is recomputed from the venue, and a new pair is placed. | `execution_manager.py` `_process_bracket_modify` 9438-9449 into 9453-9456, then 9488-9490 | bracket change | folds into the bracket change |
 | H-032 | Each durable record is written before the venue action it authorises, so a crash cannot leave an action nobody recorded. | `execution_manager.py` 9449 ahead of 9453-9456, and 9649 ahead of 9652-9660 | bracket change | folds into the bracket change |
 | H-033 | Three endings: protection active again, an unclear cancel that stops and waits for reconciliation, or a definite failure to replace. What happens after a failure is decided elsewhere. | `execution_manager.py` 9790-9802, or 9459-9472, or 10025 | bracket change | folds into the bracket change |
@@ -284,4 +285,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 02:05 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 02:11 UTC

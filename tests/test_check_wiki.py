@@ -5096,6 +5096,57 @@ class TestWhatTheMetadataMustLookLike:
 
         assert any(wanted in note for note in held), held
 
+    @pytest.mark.parametrize(
+        ('meta', 'wanted'),
+        [
+            pytest.param(
+                'row: P1-01\nbaseline: 49aa659\ncreated: 2099-01-01 00:00 UTC\n'
+                '  - claim: "A thing is so"\n    source: "`order.py` 3"\n'
+                'modified: 2099-01-01 00:00 UTC\nevidence:',
+                'holds a line before its evidence',
+                id='a-pair-smuggled-above-evidence',
+            ),
+            pytest.param(
+                _GOOD.replace('row: P1-01', 'row: banana').replace(
+                    '"A thing is so"', '"A thing is so, see P1-01"',
+                ),
+                'claims no register row',
+                id='a-row-value-that-is-not-an-id',
+            ),
+            pytest.param(
+                _GOOD.replace('baseline: 49aa659', 'baseline: nothing').replace(
+                    '"A thing is so"', '"A thing is so at 49aa659"',
+                ),
+                'baseline nothing is not 49aa659',
+                id='a-baseline-only-inside-a-claim',
+            ),
+            pytest.param(
+                _GOOD.replace('baseline: 49aa659', 'xbaseline: 49aa659'),
+                'names no baseline commit',
+                id='a-baseline-under-a-longer-key',
+            ),
+            pytest.param(
+                _GOOD.replace('row: P1-01', 'arow: P1-01'),
+                'claims no register row',
+                id='a-row-under-a-longer-key',
+            ),
+            pytest.param(
+                _GOOD.replace('row: P1-01', 'row: P9-99'),
+                'unknown register row P9-99',
+                id='a-row-no-register-carries',
+            ),
+        ],
+    )
+    def test_a_key_read_from_elsewhere_is_refused(
+        self, meta: str, wanted: str,
+    ) -> None:
+        held = check_wiki._check_metadata(meta, {'P1-01'})
+
+        assert any(wanted in note for note in held), held
+
+    def test_the_block_the_wiki_writes_passes_the_key_check(self) -> None:
+        assert check_wiki._check_metadata(self._GOOD, {'P1-01'}) == []
+
     def test_a_misshapen_block_is_refused_by_the_page_check(self) -> None:
         held = check_wiki._check_metadata(
             self._GOOD.replace('evidence:', 'evidence: |'), {'P1-01'},

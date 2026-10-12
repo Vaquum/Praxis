@@ -5385,6 +5385,31 @@ def _check_voice(body: str) -> list[str]:
     return notes
 
 
+def _written_under(key: str, meta: str) -> str | None:
+
+    '''Return what one metadata key holds, read from that key's own line.
+
+    Searching the block instead would take a row identifier or a commit
+    written anywhere in it — inside a claim, say — for the value of the
+    key that should carry it.
+
+    Args:
+        key (str): The key to read.
+        meta (str): The page's metadata block.
+
+    Returns:
+        str | None: Its value, or None where the key is not a line of
+            the block's own.
+    '''
+
+    for row in meta.splitlines():
+
+        if row.startswith(f'{key}:'):
+            return row[len(key) + 1:].strip()
+
+    return None
+
+
 def _metadata_shape(meta: str) -> list[str]:
 
     '''Return what a page's metadata block gets wrong in its shape.
@@ -5422,7 +5447,13 @@ def _metadata_shape(meta: str) -> list[str]:
     if named[-1].strip() != 'evidence:':
         notes.append('metadata writes evidence as a value rather than a list')
 
-    held = rows[rows.index(named[-1]) + 1:]
+    opened = rows.index(named[-1])
+    notes.extend(
+        f'metadata holds a line before its evidence: "{row.strip()}"'
+        for row in rows[:opened]
+        if row.startswith((' ', '\t'))
+    )
+    held = rows[opened + 1:]
 
     if held and not held[0].strip().startswith('- claim:'):
         notes.append('the evidence list opens on something other than a claim')
@@ -5488,21 +5519,22 @@ def _check_metadata(meta: str, ids: set[str]) -> list[str]:
     '''
 
     notes = _metadata_shape(meta)
-    baseline = BASELINE_RE.search(meta)
+    baseline = _written_under('baseline', meta)
 
-    if baseline is None:
+    if baseline is None or not BASELINE_RE.fullmatch(f'baseline: {baseline}'):
         notes.append('metadata names no baseline commit')
-    elif baseline.group(1) != BASELINE:
+    elif baseline != BASELINE:
         notes.append(
-            f'baseline {baseline.group(1)} is not {BASELINE}, '
+            f'baseline {baseline} is not {BASELINE}, '
             'which every citation is resolved against',
         )
 
-    claimed = ROW_ID.findall(meta)
+    claimed = _written_under('row', meta)
 
-    notes.extend(
-        f'claims unknown register row {row}' for row in claimed if row not in ids
-    )
+    if claimed is None or not ROW_ID.fullmatch(claimed):
+        notes.append('claims no register row')
+    elif claimed not in ids:
+        notes.append(f'claims unknown register row {claimed}')
 
     return notes
 
