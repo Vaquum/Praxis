@@ -6385,6 +6385,43 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
+    def test_a_class_body_name_is_no_part_of_its_methods(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class C:\n    ValueError = TypeError\n\n'
+            '    def m(self):\n        try:\n'
+            "            raise ValueError('x')\n"
+            '        except TypeError:\n            return 2\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_class_body_name_is_no_part_of_a_class_inside_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class C:\n    ValueError = TypeError\n\n    class D:\n        try:\n'
+            "            raise ValueError('x')\n"
+            '        except TypeError:\n            held = 2\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_function_name_is_read_inside_a_function_it_holds(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    ValueError = TypeError\n\n    def g():\n        try:\n'
+            "            raise ValueError('x')\n"
+            '        except TypeError:\n            return 2\n\n    return g\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held is None
+
     def test_a_name_a_class_body_takes_holds_inside_that_body(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

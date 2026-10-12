@@ -611,7 +611,7 @@ class _Scopes:
 
 
 _TAKEN_OVER: frozenset[str] = frozenset()
-_TAKEN_WITHIN: tuple[tuple[int, int, frozenset[str]], ...] = ()
+_TAKEN_WITHIN: tuple[tuple[int, int, str, frozenset[str]], ...] = ()
 _GROUPS_HELD: frozenset[str] = frozenset(_GROUPED_ERRORS)
 
 
@@ -688,25 +688,36 @@ def _taken_within_at(line: int) -> frozenset[str]:
 
     """Return the names a scope of its own takes over at one line.
 
+    A class body's names are read for the lines standing in it alone:
+    a function or a class written inside one does not see them, so
+    only the innermost scope counts where that scope is a class.
+    Functions count the whole way out, a name one of them binds being
+    read inside everything it holds.
+
     Args:
         line (int): The line being read.
 
     Returns:
-        frozenset[str]: The names the functions and class bodies
-            holding it have bound, the module's own left out.
+        frozenset[str]: Those names, the module's own left out.
     """
 
+    reaching = sorted(
+        (row for row in _TAKEN_WITHIN if row[0] <= line <= row[1]),
+        key=lambda row: row[1] - row[0],
+    )
     held: frozenset[str] = frozenset()
 
-    for start, end, names in _TAKEN_WITHIN:
+    for at, (_start, _end, kind, names) in enumerate(reaching):
 
-        if start <= line <= end:
-            held |= names
+        if kind == 'class' and at > 0:
+            continue
+
+        held |= names
 
     return held
 
 
-def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, frozenset[str]], ...]:
+def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, str, frozenset[str]], ...]:
 
     """Return the error names each scope of its own takes over, and where.
 
@@ -717,15 +728,19 @@ def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, frozenset[str]], ...]:
     starts a scope of its own. A name bound in one of them more than
     once is kept like any other.
 
+    Every scope is listed, those taking nothing over included, so
+    that what holds a line is known from the list alone.
+
     Args:
         tree (ast.AST): The parsed file.
 
     Returns:
-        tuple[tuple[int, int, frozenset[str]], ...]: Each scope's first
-            and last line against the names it takes over.
+        tuple[tuple[int, int, str, frozenset[str]], ...]: Each scope's
+            first and last line, which kind of scope it is, and the
+            names it takes over.
     """
 
-    found: list[tuple[int, int, frozenset[str]]] = []
+    found: list[tuple[int, int, str, frozenset[str]]] = []
 
     for node in ast.walk(tree):
 
@@ -750,8 +765,7 @@ def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, frozenset[str]], ...]:
             | {name for name, count in counted.items() if count > 1},
         )
 
-        if names:
-            found.append((node.lineno, node.end_lineno or node.lineno, names))
+        found.append((node.lineno, node.end_lineno or node.lineno, held, names))
 
     return tuple(found)
 
