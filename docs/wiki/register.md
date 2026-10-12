@@ -212,8 +212,8 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 | Harvest ID | Question or observation | Source anchor | From | Disposition |
 |---|---|---|---|---|
-| H-001 | A newly queued order does not wake the worker. Only an admitted event sets the wake flag; commands wait out the poll interval, currently 0.1s. | `execution_manager.py` `_wait_for_work` 3885-3888, `admit` 3212, `_QUEUE_POLL_INTERVAL` 143 | P1-03 | folds into P1-03 |
-| H-002 | While the account is still starting, the worker does nothing at all — it sleeps a poll interval and starts the round again. | `execution_manager.py` `_account_loop` 3903-3905 | P1-03 | folds into P1-03 |
+| H-001 | A newly queued order does not wake the worker. Only an admitted event sets the wake flag; commands wait out the poll interval, currently 0.1s. | `execution_manager.py` `_wait_for_work` 3885-3888, `admit` 3212, `_QUEUE_POLL_INTERVAL` 143 | P1-03 | folds into P1-03, which states the wait and what wakes it |
+| H-002 | While the account is still starting, the worker does nothing at all — it sleeps a poll interval and starts the round again. | `execution_manager.py` `_account_loop` 3903-3905 | P1-03 | folds into P1-03, which states the waiting while it starts |
 | H-003 | The priority queue drains fully every pass. The command queue yields at most one order per pass. | `execution_manager.py` 3910, 3984 | P1-03 | folds into P1-03 |
 | H-004 | A cancel runs even while the account is reconnecting or stopped; a change is deferred and put back on the queue to retry next pass. | `execution_manager.py` 3912-3928, 3953-3954 | P1-03 | split: cancel half folds P1-04, change half folds P1-08 |
 | H-005 | A stopped account fails every waiting order instead of sending it. | `execution_manager.py` `_fail_queued_commands` 3963 | P1-03 | folds into P1-03 |
@@ -284,4 +284,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 01:51 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 02:05 UTC
