@@ -610,11 +610,12 @@ def settled_shapes() -> list[str]:
     '''Return every small shape of the kind the findings have come from.
 
     Writing shapes at random reaches such a shape only by chance; these
-    are all of them, in six families: an arm inside a construct that
+    are all of them, in seven families: an arm inside a construct that
     takes the way it leaves or takes it over, two handlers of one `try`,
     two cases of one `match`, an arm raising a kind its own handler
-    covers, an arm under an ending that could raise, and an arm whose
-    own `try` raises with no kind named.
+    covers, an arm under an ending that could raise, an arm whose own
+    `try` raises with no kind named, and an arm raising a name the
+    shape itself has taken over.
 
     Returns:
         list[str]: One source per shape.
@@ -623,7 +624,34 @@ def settled_shapes() -> list[str]:
     return (
         _arm_shapes() + _handler_shapes() + _case_shapes()
         + _caught_shapes() + _cleanup_shapes() + _bare_shapes()
+        + _taken_shapes()
     )
+
+
+def _taken_shapes() -> list[str]:
+
+    '''Return an arm whose own `try` raises a name the shape took over.
+
+    A name the file binds itself holds whatever it was given rather
+    than the error the language carries under it, so nothing about the
+    handlers around it can be weighed.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    head = _HEAD.replace(
+        'swallowed):', 'swallowed, ValueError=KeyError, KeyError=ValueError):',
+    )
+
+    return [
+        f'{head}    if a:\n        {acted}\n        try:\n'
+        f'            raise {raised}()\n        except {caught}:\n'
+        f'            pass\n{_TAIL}'
+        for acted in ('step()', 'held = 1')
+        for raised in ('ValueError', 'KeyError')
+        for caught in ('LookupError', 'ValueError', 'KeyError', 'TypeError', 'Exception')
+    ]
 
 
 def _bare_shapes() -> list[str]:
