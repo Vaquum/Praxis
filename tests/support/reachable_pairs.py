@@ -608,10 +608,11 @@ def settled_shapes() -> list[str]:
     '''Return every small shape of the kind the findings have come from.
 
     Writing shapes at random reaches such a shape only by chance; these
-    are all of them, in five families: an arm inside a construct that
+    are all of them, in six families: an arm inside a construct that
     takes the way it leaves or takes it over, two handlers of one `try`,
     two cases of one `match`, an arm raising a kind its own handler
-    covers, and an arm under an ending that could raise.
+    covers, an arm under an ending that could raise, and an arm whose
+    own `try` raises with no kind named.
 
     Returns:
         list[str]: One source per shape.
@@ -619,8 +620,29 @@ def settled_shapes() -> list[str]:
 
     return (
         _arm_shapes() + _handler_shapes() + _case_shapes()
-        + _caught_shapes() + _cleanup_shapes()
+        + _caught_shapes() + _cleanup_shapes() + _bare_shapes()
     )
+
+
+def _bare_shapes() -> list[str]:
+
+    '''Return an arm whose own `try` raises with no kind named.
+
+    A bare raise carries whatever is already being handled, and where
+    nothing is it raises the error for that, so any handler could
+    catch it and none can be read as unable to run.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    return [
+        f'{_HEAD}    if a:\n        {acted}\n        try:\n'
+        f'            raise\n        except {caught}:\n'
+        f'            pass\n{_TAIL}'
+        for acted in ('step()', 'held = 1', 'pass')
+        for caught in (*CATCHING, 'RuntimeError')
+    ]
 
 
 def _cleanup_shapes() -> list[str]:

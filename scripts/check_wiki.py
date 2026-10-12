@@ -1798,7 +1798,10 @@ def _handlers_that_run(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandl
     says it takes arrives at the first handler naming its kind, and at
     none after that; a raise the body could take without saying so
     could arrive anywhere, and so could one still looking for a handler
-    when a kind named through anything but a plain name is reached. One whose every kind an earlier handler
+    when a kind named through anything but a plain name is reached, and
+    so could one naming no kind at all — a bare raise carries whatever
+    is already being handled, which any handler could catch. One whose
+    every kind an earlier handler
     already catches cannot run, and nothing after a handler naming
     every error can.
 
@@ -1818,8 +1821,9 @@ def _handlers_that_run(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandl
     for handler in statement.handlers:
         caught = _caught_by_handler(handler, left)
         unread = handler.type is not None and not _every_part_named(handler.type)
+        unnamed = any(not way.partition(':')[2] for way in left)
 
-        if (unsaid or caught or (unread and left)) and not _covered_already(
+        if (unsaid or caught or unnamed or (unread and left)) and not _covered_already(
             handler, seen,
         ):
             found.append(handler)

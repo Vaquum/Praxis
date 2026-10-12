@@ -6060,3 +6060,29 @@ class TestWhatAHandlerNothingArrivesAtCosts:
         spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
 
         assert spans == []
+
+    def test_a_handler_a_bare_raise_could_reach_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise\n'
+            '    except RuntimeError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_an_arm_whose_bare_raise_is_caught_is_no_alternative(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(flag, mark, after):\n    if flag:\n        mark()\n        try:\n'
+            '            raise\n        except RuntimeError:\n'
+            '            pass\n    after()\n'
+        )
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+
+        assert spans == []

@@ -2,7 +2,7 @@
 row: P3-18
 baseline: 49aa659
 created: 2026-09-30 10:22 UTC
-modified: 2026-10-11 20:06 UTC
+modified: 2026-10-12 06:23 UTC
 evidence:
   - claim: "A store of permits refills steadily and is capped"
     source: "`token_bucket.py` 76-79"
@@ -18,6 +18,8 @@ evidence:
     source: "`binance_adapter.py` 588, 2173 and 2263"
   - claim: "Asking the exchange the time takes none, and reads no allowance"
     source: "`binance_adapter.py` 2353-2364"
+  - claim: "Nothing in the running system makes that call"
+    source: "`binance_adapter.py` 2353-2364, with no such call in `execution_manager.py`, no such call in `trading.py`, no such call in `launcher.py`"
   - claim: "The allowance used is read from the answers that carry it, where the figure reads as a whole number of nought or more"
     source: "`binance_adapter.py` 2425 into 2428-2433"
   - claim: "A limit of six thousand stands until the venue says otherwise"
@@ -49,7 +51,7 @@ The store is held only long enough to take a permit and work out the wait. The w
 
 ## What the exchange says
 
-Three kinds of call take a permit. Asking the exchange the time takes none, and reads no allowance either.
+Three kinds of call take a permit. Asking the exchange the time takes none, and reads no allowance either — and nothing in the running system makes that call.
 
 The allowance used is read from the answers that carry it, and from that comes the share [a health report](health.md) carries. That share is the part **used**, though the field it travels in is named for the part left — [recorded](../register.md) as H-054. A figure of six thousand stands until the venue says otherwise, and an answer carrying no limits leaves whatever is already known; where the limit is nothing or less, nought is reported instead of a share.
 
