@@ -681,7 +681,22 @@ def _taken_at(line: int) -> frozenset[str]:
         frozenset[str]: The names the scopes around it have bound.
     """
 
-    held = _TAKEN_OVER
+    return _TAKEN_OVER | _taken_within_at(line)
+
+
+def _taken_within_at(line: int) -> frozenset[str]:
+
+    """Return the names a scope of its own takes over at one line.
+
+    Args:
+        line (int): The line being read.
+
+    Returns:
+        frozenset[str]: The names the functions and class bodies
+            holding it have bound, the module's own left out.
+    """
+
+    held: frozenset[str] = frozenset()
 
     for start, end, names in _TAKEN_WITHIN:
 
@@ -696,8 +711,11 @@ def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, frozenset[str]], ...]:
     """Return the error names each scope of its own takes over, and where.
 
     A function's parameters and locals are its own, and a class body's
-    names are the class's, so each reaches only the lines it holds. A
-    name bound in one of them more than once is kept like any other.
+    names are the class's, so each reaches only the lines it holds. An
+    `if`, a `try` or a loop belongs to the scope around it, so what it
+    binds is that scope's; a function or a class written inside one
+    starts a scope of its own. A name bound in one of them more than
+    once is kept like any other.
 
     Args:
         tree (ast.AST): The parsed file.
@@ -725,16 +743,7 @@ def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, frozenset[str]], ...]:
 
         held = 'class' if isinstance(node, ast.ClassDef) else 'function'
 
-        for child in ast.iter_child_nodes(node):
-
-            if isinstance(
-                child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
-            ):
-                counted[child.name] = counted.get(child.name, 0) + 1
-                continue
-
-            for name in _statement_binds(child, scope=held):
-                counted[name] = counted.get(name, 0) + 1
+        _scope_binds(node, counted, scope=held)
 
         names = frozenset(
             {name for name in counted if name in _KNOWN_ERRORS}
@@ -745,6 +754,28 @@ def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, frozenset[str]], ...]:
             found.append((node.lineno, node.end_lineno or node.lineno, names))
 
     return tuple(found)
+
+
+def _scope_binds(node: ast.AST, counted: dict[str, int], *, scope: str) -> None:
+
+    """Count what one scope binds, to the edge of the scopes inside it.
+
+    Args:
+        node (ast.AST): The scope, or a statement of it.
+        counted (dict[str, int]): Where to count each name bound.
+        scope (str): Whether a function or a class body holds it.
+    """
+
+    for child in ast.iter_child_nodes(node):
+
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            counted[child.name] = counted.get(child.name, 0) + 1
+            continue
+
+        for name in _statement_binds(child, scope=scope):
+            counted[name] = counted.get(name, 0) + 1
+
+        _scope_binds(child, counted, scope=scope)
 
 
 def _groups_held(tree: ast.AST) -> frozenset[str]:
@@ -3446,7 +3477,9 @@ def _names_a_group(named: ast.expr) -> bool:
     The two the language carries are, unless the module has given
     that name something else, and so is a class the file writes on
     one of them — read by the name as written, a class of that name
-    being the binding that makes it a group.
+    being the binding that makes it a group. A scope of its own
+    binding that name holds something else by then, so a handler
+    inside it names no group.
 
     Args:
         named (ast.expr): The kinds named, one or several.
@@ -3458,7 +3491,10 @@ def _names_a_group(named: ast.expr) -> bool:
     held = named.elts if isinstance(named, ast.Tuple) else [named]
 
     return any(
-        isinstance(part, ast.Name) and part.id in _GROUPS_HELD for part in held
+        isinstance(part, ast.Name)
+        and part.id in _GROUPS_HELD
+        and part.id not in _taken_within_at(part.lineno)
+        for part in held
     )
 
 

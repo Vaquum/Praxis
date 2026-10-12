@@ -6351,6 +6351,28 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held is None
 
+    def test_a_name_bound_inside_an_if_is_the_scope_s_own(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    if True:\n        ValueError = TypeError\n    try:\n'
+            '        raise ValueError()\n    except TypeError:\n        return 1\n'
+        )
+        held = self._landed(source, 7, 7, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_group_name_a_parameter_holds_is_no_group(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(ExceptionGroup):\n    try:\n        raise ValueError()\n'
+            '    except* ExceptionGroup:\n        result = 1\n    return result\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held is None
+
     def test_a_name_a_method_takes_leaves_another_function_weighed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
