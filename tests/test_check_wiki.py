@@ -902,13 +902,13 @@ class TestProseWords:
 
         assert held > 1, line
 
-    def test_a_real_table_is_not_counted(self) -> None:
+    def test_words_written_between_cell_marks_are_counted(self) -> None:
         page = (
-            '# Title\n\nOne two three.\n\n'
-            '| ID | Topic |\n|---|---|\n| P1-01 | A thing |\n'
+            '# Title\n\n| ID | Topic |\n|---|---|\n'
+            '| P1-01 | one two three four five six seven |\n'
         )
 
-        assert check_wiki._prose_words(page) == 4
+        assert check_wiki._prose_words(page) > 6
 
     def test_the_pages_own_stamp_is_not_counted(self) -> None:
         plain = '# Title\n\nOne two three.\n'
@@ -4241,7 +4241,7 @@ class TestTheGateOverACopiedWiki:
             'class Venue(Protocol):\n\n'
             '    def submit(self) -> None:\n        ...\n'
         )
-        rebound = check_wiki._rebound_names(ast.parse(source))
+        rebound = check_wiki._name_bindings(ast.parse(source))
 
         assert 'Protocol' in rebound
 
@@ -4253,7 +4253,7 @@ class TestTheGateOverACopiedWiki:
             '    def submit(self) -> None:\n        ...\n'
         )
 
-        assert 'Protocol' in check_wiki._rebound_names(ast.parse(source))
+        assert 'Protocol' in check_wiki._name_bindings(ast.parse(source))
 
     def test_an_async_with_target_rebinds_the_protocol(self) -> None:
         source = (
@@ -4261,7 +4261,7 @@ class TestTheGateOverACopiedWiki:
             'async def f():\n    async with cm() as Protocol:\n        pass\n'
         )
 
-        assert 'Protocol' in check_wiki._rebound_names(ast.parse(source))
+        assert 'Protocol' in check_wiki._name_bindings(ast.parse(source))
 
 
 class TestEveryListedShape:
@@ -6317,6 +6317,18 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
+    def test_a_group_the_file_binds_again_stops_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class Boom(ExceptionGroup):\n    pass\n\n\nBoom = ValueError\n\n\n'
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except* Boom:\n        held = 3\n    return 1\n'
+        )
+        held = self._landed(source, 12, 12, tmp_path, monkeypatch)
+
+        assert held is None
+
     def test_a_group_the_file_writes_stops_it_too(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -6338,6 +6350,66 @@ class TestWhatAHandlerNothingArrivesAtCosts:
         held = self._landed(source, 5, 5, tmp_path, monkeypatch)
 
         assert held is None
+
+    def test_a_name_a_method_takes_leaves_another_function_weighed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class C:\n    def m(self, ValueError):\n        return 1\n\n\n'
+            "def f():\n    try:\n        raise ValueError('x')\n"
+            '    except TypeError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 10, 10, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_name_a_class_body_takes_holds_inside_that_body(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class C:\n    ValueError = TypeError\n    try:\n'
+            "        raise ValueError('x')\n"
+            '    except TypeError:\n        held = 2\n'
+        )
+        held = self._landed(source, 6, 6, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_group_base_the_module_rebinds_makes_no_group(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'ExceptionGroup = ValueError\n\n\nclass Boom(ExceptionGroup):\n'
+            '    pass\n\n\ndef f(work):\n    try:\n        work()\n'
+            '    except* Boom:\n        held = 3\n    return 1\n'
+        )
+        held = self._landed(source, 12, 12, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_group_name_the_module_rebinds_is_no_group(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'ExceptionGroup = ValueError\n\n\ndef f(work):\n    try:\n'
+            '        work()\n    except* ExceptionGroup:\n'
+            '        held = 3\n    return 1\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_group_written_under_the_language_s_own_name_is_one(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class ExceptionGroup(BaseExceptionGroup):\n    pass\n\n\n'
+            'def f(work):\n    try:\n        work()\n'
+            '    except* ExceptionGroup:\n        held = 3\n    return 1\n'
+        )
+        held = self._landed(source, 9, 9, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
 
     def test_a_name_assigned_in_a_class_body_is_that_class_s_own(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

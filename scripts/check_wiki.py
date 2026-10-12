@@ -422,12 +422,10 @@ EVIDENCE_LINE = re.compile(
     r'|    source: "[^"\\\x00-\x1f\x7f]*")$',
 )
 DIVIDER = re.compile(r'-{3,}')
-TABLE_ROW = re.compile(r'\|.*\|')
 STAMP_LINE = re.compile(
     r'Created \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC · '
     r'Last modified \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC',
 )
-TABLE_RULE = re.compile(r'\|(\s*:?-+:?\s*\|)+')
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
     'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
@@ -613,6 +611,7 @@ class _Scopes:
 
 
 _TAKEN_OVER: frozenset[str] = frozenset()
+_TAKEN_WITHIN: tuple[tuple[int, int, frozenset[str]], ...] = ()
 _GROUPS_HELD: frozenset[str] = frozenset(_GROUPED_ERRORS)
 
 
@@ -624,8 +623,10 @@ def _taken_over(tree: ast.AST) -> frozenset[str]:
     which holds only while the file has not bound that name itself. A
     parameter, an import, an assignment or a loop target of the same
     name leaves nothing weighable, so every such name is kept and the
-    kind helpers abstain on it. A wildcard import could have brought
-    any of those names, so a file holding one has all of them kept.
+    kind helpers abstain on it. A name the file binds more than once
+    is kept whatever it is, holding whatever came last by the time a
+    handler names it. A wildcard import could have brought any of
+    those names, so a file holding one has all of them kept.
 
     Args:
         tree (ast.AST): The parsed file.
@@ -637,17 +638,24 @@ def _taken_over(tree: ast.AST) -> frozenset[str]:
     if _has_wildcard_import(tree):
         return _KNOWN_ERRORS
 
-    return frozenset(_rebound_names(tree) & _KNOWN_ERRORS)
+    held = _module_bindings(tree)
+
+    return frozenset(
+        {name for name in held if name in _KNOWN_ERRORS}
+        | {name for name, count in held.items() if count > 1},
+    )
 
 
 def _kind_named(held: ast.expr | None) -> str | None:
 
     """Return the kind a piece of a raise or a handler names, weighably.
 
-    A kind is weighable where it is written as a plain name the file
-    has not bound itself: an attribute, a call's result or a name the
-    file gives some other value says nothing a handler can be matched
-    against.
+    A kind is weighable where it is written as a plain name nothing
+    around it has bound: an attribute, a call's result or a name
+    something holding the line gives some other value says nothing a
+    handler can be matched against. The scopes reaching that line are
+    what count, so a name one function binds leaves another's reading
+    of it alone.
 
     Args:
         held (ast.expr | None): What was written, or nothing.
@@ -656,18 +664,98 @@ def _kind_named(held: ast.expr | None) -> str | None:
         str | None: That name, or None where nothing is weighable.
     """
 
-    if not isinstance(held, ast.Name) or held.id in _TAKEN_OVER:
+    if not isinstance(held, ast.Name) or held.id in _taken_at(held.lineno):
         return None
 
     return held.id
+
+
+def _taken_at(line: int) -> frozenset[str]:
+
+    """Return the names taken over where one line stands.
+
+    Args:
+        line (int): The line being read.
+
+    Returns:
+        frozenset[str]: The names the scopes around it have bound.
+    """
+
+    held = _TAKEN_OVER
+
+    for start, end, names in _TAKEN_WITHIN:
+
+        if start <= line <= end:
+            held |= names
+
+    return held
+
+
+def _taken_within(tree: ast.AST) -> tuple[tuple[int, int, frozenset[str]], ...]:
+
+    """Return the error names each scope of its own takes over, and where.
+
+    A function's parameters and locals are its own, and a class body's
+    names are the class's, so each reaches only the lines it holds. A
+    name bound in one of them more than once is kept like any other.
+
+    Args:
+        tree (ast.AST): The parsed file.
+
+    Returns:
+        tuple[tuple[int, int, frozenset[str]], ...]: Each scope's first
+            and last line against the names it takes over.
+    """
+
+    found: list[tuple[int, int, frozenset[str]]] = []
+
+    for node in ast.walk(tree):
+
+        if not isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+        ):
+            continue
+
+        counted: dict[str, int] = {}
+
+        if not isinstance(node, ast.ClassDef):
+
+            for name in _taken_names(node.args):
+                counted[name] = counted.get(name, 0) + 1
+
+        held = 'class' if isinstance(node, ast.ClassDef) else 'function'
+
+        for child in ast.iter_child_nodes(node):
+
+            if isinstance(
+                child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+            ):
+                counted[child.name] = counted.get(child.name, 0) + 1
+                continue
+
+            for name in _statement_binds(child, scope=held):
+                counted[name] = counted.get(name, 0) + 1
+
+        names = frozenset(
+            {name for name in counted if name in _KNOWN_ERRORS}
+            | {name for name, count in counted.items() if count > 1},
+        )
+
+        if names:
+            found.append((node.lineno, node.end_lineno or node.lineno, names))
+
+    return tuple(found)
 
 
 def _groups_held(tree: ast.AST) -> frozenset[str]:
 
     """Return the names this file holds that stand for a group of errors.
 
-    The language carries two, and a class written on one of them is
-    another, however many classes deep that goes.
+    The language carries two, each unless the module has given that
+    name something else, and a class written on one of those is
+    another, however many classes deep that goes — so long as the
+    module binds that class's name once and nothing else, what it
+    holds otherwise being whatever came last.
 
     Args:
         tree (ast.AST): The parsed file.
@@ -676,8 +764,12 @@ def _groups_held(tree: ast.AST) -> frozenset[str]:
         frozenset[str]: Those names.
     """
 
-    held = set(_GROUPED_ERRORS)
-    classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    held = {name for name in _GROUPED_ERRORS if name not in _TAKEN_OVER}
+    bound = _module_bindings(tree)
+    classes = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and bound.get(node.name, 0) <= 1
+    ]
     growing = True
 
     while growing:
@@ -688,9 +780,7 @@ def _groups_held(tree: ast.AST) -> frozenset[str]:
             if node.name in held:
                 continue
 
-            if any(
-                isinstance(base, ast.Name) and base.id in held for base in node.bases
-            ):
+            if any(_kind_named(base) in held for base in node.bases):
                 held.add(node.name)
                 growing = True
 
@@ -706,9 +796,11 @@ def _reading(tree: ast.AST) -> None:
     """
 
     global _TAKEN_OVER  # noqa: PLW0603
+    global _TAKEN_WITHIN  # noqa: PLW0603
     global _GROUPS_HELD  # noqa: PLW0603
 
     _TAKEN_OVER = _taken_over(tree)
+    _TAKEN_WITHIN = _taken_within(tree)
     _GROUPS_HELD = _groups_held(tree)
 
 
@@ -3351,8 +3443,10 @@ def _names_a_group(named: ast.expr) -> bool:
 
     '''Whether what a handler names is a group of errors.
 
-    The two the language carries are, and so is a class the file
-    writes on one of them.
+    The two the language carries are, unless the module has given
+    that name something else, and so is a class the file writes on
+    one of them — read by the name as written, a class of that name
+    being the binding that makes it a group.
 
     Args:
         named (ast.expr): The kinds named, one or several.
@@ -3363,7 +3457,9 @@ def _names_a_group(named: ast.expr) -> bool:
 
     held = named.elts if isinstance(named, ast.Tuple) else [named]
 
-    return any(_kind_named(part) in _GROUPS_HELD for part in held)
+    return any(
+        isinstance(part, ast.Name) and part.id in _GROUPS_HELD for part in held
+    )
 
 
 def _holder_could_raise(statement: ast.stmt) -> bool:
@@ -4096,11 +4192,44 @@ def _taken_names(args: ast.arguments) -> set[str]:
     return {one.arg for one in held}
 
 
-def _rebound_names(tree: ast.AST) -> set[str]:
+def _module_bindings(tree: ast.AST) -> dict[str, int]:
 
-    '''Return names given some other value anywhere in the module.'''
+    """Return how many times the module itself gives each name a value.
 
-    return set(_name_bindings(tree))
+    Nothing inside a function or a class counts: those names are that
+    scope's own, and the lines they reach are read against them
+    separately.
+
+    Args:
+        tree (ast.AST): The parsed file.
+
+    Returns:
+        dict[str, int]: Each name against how often the module binds it.
+    """
+
+    counted: dict[str, int] = {}
+
+    def bind(names: Iterable[str]) -> None:
+
+        for name in names:
+            counted[name] = counted.get(name, 0) + 1
+
+    def walk(node: ast.AST) -> None:
+
+        for child in ast.iter_child_nodes(node):
+
+            if isinstance(
+                child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+            ):
+                bind({child.name})
+                continue
+
+            bind(_statement_binds(child, scope='module'))
+            walk(child)
+
+    walk(tree)
+
+    return counted
 
 
 def _name_bindings(tree: ast.AST) -> dict[str, int]:
@@ -4335,41 +4464,6 @@ def _signature_lines(path: Path) -> set[int]:
     return lines - _protocol_lines(tree)
 
 
-def _table_rows(rows: list[str]) -> frozenset[int]:
-
-    """Return which rows a table holds, by the rule under its heading.
-
-    A table is known by the row of dashes under its heading, and runs
-    as far as the rows on either side of that are shaped like its
-    own. A line opening on the mark that parts a table's cells is
-    prose anywhere else.
-
-    Args:
-        rows (list[str]): The page's lines, one per row.
-
-    Returns:
-        frozenset[int]: The index of each row a table holds.
-    """
-
-    held: set[int] = set()
-
-    for at, row in enumerate(rows):
-
-        if not TABLE_RULE.fullmatch(row.strip()):
-            continue
-
-        held.add(at)
-
-        for step in (-1, 1):
-            reach = at + step
-
-            while 0 <= reach < len(rows) and TABLE_ROW.fullmatch(rows[reach].strip()):
-                held.add(reach)
-                reach += step
-
-    return frozenset(held)
-
-
 def _prose_words(text: str) -> int:
 
     '''Return the words a page spends on prose and headings.
@@ -4378,19 +4472,19 @@ def _prose_words(text: str) -> int:
         text (str): The rows to scan, one per line.
 
     Returns:
-        int: The count, navigation links, tables, dividers and the
-            page's own stamp excluded, each read as the whole thing it
-            is rather than by what it opens on.
+        int: The count, navigation links, dividers and the page's own
+            stamp excluded, each read as the whole thing it is rather
+            than by what it opens on. A table's own rows are counted
+            like any other prose: no article carries one, and a reader
+            given words inside a cell reads them as words.
     '''
 
     words = 0
-    rows = text.splitlines()
-    tabled = _table_rows(rows)
 
-    for at, line in enumerate(rows):
+    for line in text.splitlines():
         stripped = line.strip()
 
-        if not stripped or at in tabled or DIVIDER.fullmatch(stripped):
+        if not stripped or DIVIDER.fullmatch(stripped):
             continue
 
         if stripped.startswith('#'):

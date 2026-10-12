@@ -2,7 +2,7 @@
 row: P1-11
 baseline: 49aa659
 created: 2026-10-12 04:21 UTC
-modified: 2026-10-12 14:26 UTC
+modified: 2026-10-12 15:27 UTC
 evidence:
   - claim: "A reconciling or poisoned account takes no submitted work, and its pass ends on the wait"
     source: "`execution_manager.py` 3969-3971"
@@ -10,6 +10,8 @@ evidence:
     source: "`execution_manager.py` 3903-3905 ahead of 3907, registered as starting at 831-835 from `trading.py` 522, cleared only at `execution_manager.py` 3672 from `trading.py` 607"
   - claim: "Starting against a live venue sets the account reconciling before it waits on the backfill, so passes taken during that wait are both"
     source: "`trading.py` 590-592 rather than 594-596, into 1455 and 1406-1407, awaited at 1459, the flag off again at 1487-1489"
+  - claim: "The stream opened at startup goes on answering until the boot gives up, so a disconnect can put the hold back on and a reconnect can run another reconcile"
+    source: "`trading.py` 588 into 575-576 and 578-579, reaching 1420-1426 and 1449-1452, closed only at 624"
   - claim: "The pass still takes venue news, empties the priority line and retries a due cancellation"
     source: "`execution_manager.py` 3907 and 3910, with the retry at 3960"
   - claim: "Poisoning while the worker runs comes from projecting an admitted event or a venue update that failed"
@@ -39,7 +41,7 @@ A refusal that cannot be reported leaves the decision side with nothing, the log
 
 An account is poisoned while its worker runs when projecting fails, whether an admitted event or a venue update.
 
-All of it sits below the startup wait, so a pass still starting does none. Starting against a live venue sets the account reconciling before waiting on its backfill, so passes taken then are both. The two need not end together: startup can finish with the hold on, and a boot left not ready keeps that wait for good, its hold standing or lifted as its own reconcile ended, with nothing reconnecting to change either.
+All of it sits below the startup wait, so a pass still starting does none. Starting against a live venue sets the account reconciling before waiting on its backfill, so passes taken then are both. The two need not end together: startup can finish with the hold on, and a boot left not ready keeps that wait for good. Its hold is not settled by that boot either — the stream it opened is still live until the boot gives up, so a disconnect and a reconnect can put the hold back on and run another reconcile first.
 
 ## Related
 
@@ -51,4 +53,4 @@ All of it sits below the startup wait, so a pass still starting does none. Start
 
 ---
 
-Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 14:26 UTC
+Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 15:27 UTC
