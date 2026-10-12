@@ -3967,7 +3967,9 @@ def _protocol_names(tree: ast.AST) -> set[str]:
                 if alias.name == 'Protocol'
             )
 
-    return names - _rebound_names(tree)
+    held = _name_bindings(tree)
+
+    return {name for name in names if held.get(name, 0) <= 1}
 
 
 def _bound_names(node: ast.AST) -> set[str]:
@@ -3988,7 +3990,7 @@ def _bound_names(node: ast.AST) -> set[str]:
 
 def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
 
-    '''Return the names one import binds, bar `Protocol` from `typing`.
+    '''Return the names one import binds.
 
     Args:
         node (ast.Import | ast.ImportFrom): The import to read.
@@ -3997,15 +3999,7 @@ def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
         set[str]: The names it binds.
     '''
 
-    withheld = (
-        isinstance(node, ast.ImportFrom) and node.module == 'typing' and not node.level
-    )
-
-    return {
-        alias.asname or alias.name.split('.')[0]
-        for alias in node.names
-        if not (withheld and alias.name == 'Protocol')
-    }
+    return {alias.asname or alias.name.split('.')[0] for alias in node.names}
 
 
 def _taken_names(args: ast.arguments) -> set[str]:
@@ -4029,47 +4023,69 @@ def _rebound_names(tree: ast.AST) -> set[str]:
 
     '''Return names given some other value anywhere in the module.'''
 
-    rebound: set[str] = set()
+    return set(_name_bindings(tree))
+
+
+def _name_bindings(tree: ast.AST) -> dict[str, int]:
+
+    '''Return how many times each name is given a value in the module.
+
+    A name bound once by an import and nowhere else holds what that
+    import brought; one bound again holds whatever came last.
+
+    Args:
+        tree (ast.AST): The parsed file.
+
+    Returns:
+        dict[str, int]: Each name against how often it is bound.
+    '''
+
+    counted: dict[str, int] = {}
+
+    def bind(names: set[str]) -> None:
+
+        for name in names:
+            counted[name] = counted.get(name, 0) + 1
 
     for node in ast.walk(tree):
 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            rebound.add(node.name)
+            bind({node.name})
 
             if not isinstance(node, ast.ClassDef):
-                rebound.update(_taken_names(node.args))
+                bind(_taken_names(node.args))
 
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            rebound.update(_imported_names(node))
+            bind(_imported_names(node))
 
         elif isinstance(node, (ast.Assign, ast.Delete)):
             for target in node.targets:
-                rebound.update(_bound_names(target))
+                bind(_bound_names(target))
 
         elif isinstance(
             node, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor),
         ):
-            rebound.update(_bound_names(node.target))
+            bind(_bound_names(node.target))
 
         elif isinstance(node, (ast.With, ast.AsyncWith)):
             for item in node.items:
 
                 if item.optional_vars is not None:
-                    rebound.update(_bound_names(item.optional_vars))
+                    bind(_bound_names(item.optional_vars))
 
         elif isinstance(node, ast.ExceptHandler) and node.name is not None:
-            rebound.add(node.name)
+            bind({node.name})
 
         elif isinstance(node, ast.NamedExpr):
-            rebound.update(_bound_names(node.target))
+            bind(_bound_names(node.target))
 
         elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name is not None:
-            rebound.add(node.name)
+            bind({node.name})
 
         elif isinstance(node, ast.MatchMapping) and node.rest is not None:
-            rebound.add(node.rest)
+            bind({node.rest})
 
-    return rebound
+    return counted
 
 
 def _is_protocol(node: ast.ClassDef, protocol_names: set[str]) -> bool:

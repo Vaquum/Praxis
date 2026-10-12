@@ -2,7 +2,7 @@
 row: P3-25
 baseline: 49aa659
 created: 2026-10-12 00:45 UTC
-modified: 2026-10-12 02:11 UTC
+modified: 2026-10-12 10:12 UTC
 evidence:
   - claim: "A price change on a single order cancels the resting order and places a fresh one"
     source: "`execution_manager.py` 8716 and 8746 into 8786-8795, the fresh one sent from 8810-8813"
@@ -34,10 +34,10 @@ Where the asking cannot be made to agree, the change is parked and the original 
 ## Related
 
 - [Changing work already sent](changing-work-already-sent.md)
-- [When a price change places nothing](when-a-price-change-places-nothing.md)
+- [When a price change leaves no new order](when-a-price-change-places-nothing.md)
 - [What a venue is](what-a-venue-is.md)
 - [Fills and the order](fills-and-the-order.md)
 
 ---
 
-Created 2026-10-12 00:45 UTC · Last modified 2026-10-12 02:11 UTC
+Created 2026-10-12 00:45 UTC · Last modified 2026-10-12 10:12 UTC

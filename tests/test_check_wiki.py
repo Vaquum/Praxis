@@ -6108,6 +6108,18 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
+    def test_a_protocol_imported_under_an_error_name_is_weighed_against_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'from typing import Protocol as ValueError\n\n\n'
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except TypeError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held is None
+
     def test_a_name_the_file_deletes_is_weighed_against_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

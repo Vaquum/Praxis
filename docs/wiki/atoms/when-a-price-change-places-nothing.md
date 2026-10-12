@@ -2,7 +2,7 @@
 row: P3-26
 baseline: 49aa659
 created: 2026-10-12 01:40 UTC
-modified: 2026-10-12 05:34 UTC
+modified: 2026-10-12 10:12 UTC
 evidence:
   - claim: "A cancel the venue does not confirm leaves the order live and places nothing, and parks no change for a later pass"
     source: "`execution_manager.py` 8717-8723, returning before the parking at 8747-8748"
@@ -15,25 +15,25 @@ evidence:
   - claim: "A replacement that times out, is refused, or cannot be found afterwards ends the request cancelled on what it had filled"
     source: "`execution_manager.py` 10355-10365, reported at 10505-10512"
 ---
-# When a price change places nothing
+# When a price change leaves no new order
 
-[A price change](how-a-price-change-is-carried-out.md) replaces the resting order, and several things stop the replacement ever going out. Each leaves the request in a different state.
+[A price change](how-a-price-change-is-carried-out.md) replaces the resting order, and several things leave the request with no replacement it can account for. The first three stop the send before it happens, each leaving the request differently placed; the last is a send that went out and came back unconfirmed, where the replacement may be resting after all.
 
 ## The cancel does not settle
 
-Where the venue neither confirms the cancel nor answers what the order came to, the order is left live and nothing is placed. The change is not parked either: nothing is set down for a later pass to pick up, so the request is left waiting on an order that is still working.
+Where the venue neither confirms the cancel nor answers what the order came to, the order is left live and nothing is placed. Nothing is parked for a later pass either, so the request waits on an order that is still working.
 
-Where the venue answers and the order is still working, nothing is placed either, and the order is again left as it is.
+Where the venue answers and the order is still working, nothing is placed and the order is again left as it is.
 
 ## Too little is left to trade
 
-What remains is weighed against [the smallest size the venue trades in](the-sizes-a-venue-trades-in.md), as loaded for that symbol when the account started. Where it falls short, no order can carry it: the request is reported filled on what it already has, and the remainder is left as dust. An amount equal to that smallest size still goes.
+What remains is weighed against [the smallest size the venue trades in](the-sizes-a-venue-trades-in.md), as loaded for that symbol at startup. Falling short, it cannot be carried: the request is reported filled on what it has, and the remainder is left as dust. An amount equal to that size still goes.
 
-Where no size was loaded for the symbol, the weighing is against zero instead, and any remainder at all is placed, however far under what the venue will take.
+With no size loaded for the symbol, the weighing is against zero, so any remainder at all is placed, however far under what the venue takes.
 
-## The replacement will not go
+## The send is not confirmed
 
-Where the replacement times out, the venue is asked about it first, and the change carries on where the venue has it. Where it is refused, or the asking cannot be answered, the request ends cancelled — reported on what the old order and the failed replacement filled between them, the original being gone by then. The venue may still be holding that replacement, which is [recorded](../register.md) as U-01.
+The order has gone to the venue here. Where the send times out, the venue is asked about it, and the change carries on where the venue has it. Where it is refused, or the asking cannot be answered, the request ends cancelled — reported on what the old order and the failed replacement filled between them, the original being gone by then. The venue may still be holding that replacement, which is [recorded](../register.md) as U-01.
 
 ## Related
 
@@ -43,4 +43,4 @@ Where the replacement times out, the venue is asked about it first, and the chan
 
 ---
 
-Created 2026-10-12 01:40 UTC · Last modified 2026-10-12 05:34 UTC
+Created 2026-10-12 01:40 UTC · Last modified 2026-10-12 10:12 UTC

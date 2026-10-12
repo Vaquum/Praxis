@@ -76,7 +76,7 @@ Seeded first, then traced and written. Every row below is now written.
 | P3-23 | The guard against a second protective pair, and the two endings recovery can report | written | [when-protection-is-put-up-again.md](atoms/when-protection-is-put-up-again.md) |
 | P3-24 | What a replay run reports | written | [what-a-replay-reports.md](atoms/what-a-replay-reports.md) |
 | P3-25 | How a price change is carried out | written | [how-a-price-change-is-carried-out.md](atoms/how-a-price-change-is-carried-out.md) |
-| P3-26 | When a price change places nothing | written | [when-a-price-change-places-nothing.md](atoms/when-a-price-change-places-nothing.md) |
+| P3-26 | When a price change leaves no new order | written | [when-a-price-change-places-nothing.md](atoms/when-a-price-change-places-nothing.md) |
 | P3-22 | Modes allowed only against a real venue | written | [ways-of-working-a-host-may-drive.md](atoms/ways-of-working-a-host-may-drive.md) |
 | P2-44 | Which caller a restart offers an outcome to again, and which it does not | written | [who-a-restart-tells-again.md](atoms/who-a-restart-tells-again.md) |
 | P2-14 | Order types, and what a market order means here | written | [order-types.md](atoms/order-types.md) |
@@ -289,4 +289,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 08:51 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 10:12 UTC

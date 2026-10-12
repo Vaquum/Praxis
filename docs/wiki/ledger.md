@@ -51,7 +51,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/estimate_slippage.py` | partial | P1-06, P3-03 |
 | `praxis/replay/run_replay.py` | partial | P3-01, P3-02, P3-04, P3-22, P3-24, P4-13, P4-17, P4-39 |
 | `praxis/replay/replay_clock.py` | full | P3-02 |
-| `praxis/replay/replay_venue_adapter.py` | partial | P2-12, P3-03, P3-04, P3-15, P3-18, P4-13 |
+| `praxis/replay/replay_venue_adapter.py` | partial | P2-12, P2-46, P3-03, P3-04, P3-15, P3-18, P4-13 |
 | `praxis/replay/replay_scenario.py` | full | P3-04 |
 | `praxis/replay/build_replay_report.py` | partial | P3-01, P3-04, P3-08, P3-10, P3-24, P4-18, P4-19 |
 | `praxis/replay/replay_report.py` | uncovered | — |
@@ -130,4 +130,4 @@ The modules listed above are `partial` by citation rather than by tracing: a Pra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 08:06 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 10:12 UTC
