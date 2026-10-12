@@ -6986,6 +6986,37 @@ def _finding_citations(cache: _SourceFacts) -> list[str]:
     ]
 
 
+def _index_sections() -> list[str]:
+
+    """Check that the index groups articles for a reader, not by package.
+
+    The register sorts the work into packages, which are the order it
+    was written in rather than anything a reader wants. A package's
+    name standing over a group of index entries is that order leaking
+    into the index, and the group it heads then holds whatever was
+    written at the time rather than one subject.
+
+    Returns:
+        list[str]: One complaint per section named after a package.
+    """
+
+    held = {
+        row.removeprefix('## ').split(' — ')[-1].strip().lower()
+        for row in REGISTER.read_text(encoding='utf-8').splitlines()
+        if row.startswith('## Package')
+    }
+
+    return [
+        f'{README}: the index groups entries under "{row.removeprefix("## ")}",'
+        ' which is a register package rather than a subject'
+        for row in README.read_text(encoding='utf-8').splitlines()
+        if row.startswith('## ')
+        and row.removeprefix('## ').strip().lower().lstrip('the ') in {
+            name.lstrip('the ') for name in held
+        }
+    ]
+
+
 def _index_vocabulary() -> list[str]:
 
     '''Check that no index entry leans on a term the wiki owns.
@@ -7060,6 +7091,7 @@ def main() -> int:
     failures += _latest_release_counts()
     failures += _index_coverage()
     failures += _index_vocabulary()
+    failures += _index_sections()
     failures += _pinned_table()
     failures += _finding_citations(cache)
 

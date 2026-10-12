@@ -5977,6 +5977,42 @@ class TestWhatACitationMayName:
         assert held.groups() == ('2,204', '1,203')
 
 
+class TestHowTheIndexGroups:
+    @staticmethod
+    def _held(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, heading: str,
+    ) -> list[str]:
+        register = tmp_path / 'register.md'
+        register.write_text(
+            '# The register\n\n## Package 1\n\n## Package 2 — the vocabulary\n',
+            encoding='utf-8',
+        )
+        readme = tmp_path / 'README.md'
+        readme.write_text(
+            f'# How it works\n\n{heading}\n\n- [One](atoms/one.md) — a thing.\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
+        monkeypatch.setattr(check_wiki, 'README', readme)
+        held: list[str] = check_wiki._index_sections()
+
+        return held
+
+    def test_a_section_named_after_a_package_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(tmp_path, monkeypatch, '## The vocabulary')
+
+        assert any('register package' in note for note in held), held
+
+    def test_a_section_named_for_its_subject_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(tmp_path, monkeypatch, '## The words a reader needs')
+
+        assert held == []
+
+
 class TestWhatTheGateLeavesUnreached:
 
     @staticmethod
