@@ -215,7 +215,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-001 | A newly queued order does not wake the worker. Only an admitted event sets the wake flag; commands wait out the poll interval, currently 0.1s. | `execution_manager.py` `_wait_for_work` 3885-3888, `admit` 3212, `_QUEUE_POLL_INTERVAL` 143 | P1-03 | folds into P1-03 |
 | H-002 | While the account is still starting, the worker does nothing at all — it sleeps a poll interval and starts the round again. | `execution_manager.py` `_account_loop` 3903-3905 | P1-03 | folds into P1-03 |
 | H-003 | The priority queue drains fully every pass. The command queue yields at most one order per pass. | `execution_manager.py` 3910, 3984 | P1-03 | folds into P1-03 |
-| H-004 | A cancel runs even while the account is reconnecting or stopped; a change is deferred and put back on the queue to retry next pass. | `execution_manager.py` 3912-3928, 3953-3954 | P1-03 | split: cancel half folds P1-04, change half folds P3-13 |
+| H-004 | A cancel runs even while the account is reconnecting or stopped; a change is deferred and put back on the queue to retry next pass. | `execution_manager.py` 3912-3928, 3953-3954 | P1-03 | split: cancel half folds P1-04, change half folds P1-08 |
 | H-005 | A stopped account fails every waiting order instead of sending it. | `execution_manager.py` `_fail_queued_commands` 3963 | P1-03 | folds into P1-03 |
 | H-006 | While reconnecting but not stopped, the worker halts before the command queue. Waiting orders are neither sent nor ended — they stay. | `execution_manager.py` 3966-3968 | P1-03 | folds into P1-03 |
 | H-007 | Venue news is drained before any new order is started. | `execution_manager.py` `_drain_external_events` 3907 | P1-03 | folds into P1-03 |
@@ -231,7 +231,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-017 | The replacement is placed only after the original is confirmed gone and any fill that raced the cancel has been accounted for. Both orders live at once is not reachable by this route. | `execution_manager.py` `_drive_single_amend` 8776-8800 | P3-13 | folds into P3-25, which states the order of it |
 | H-018 | If the racing fill cannot be accounted for, the change is parked and the original is deliberately left unfinished, so the missed fill stays recoverable instead of being stranded. | `execution_manager.py` 8783-8784 with 8747-8748 | P3-13 | folds into P3-25, which states the parking |
 | H-019 | The replacement is sized from the command's whole quantity less everything recorded filled across that command's orders, open and closed, the record having first been brought up to the venue's figure for the cancelled order, so a fill the cancel raced is counted rather than ordered a second time. | `execution_manager.py` 8798-8799 summing 2674-2683, brought up to the venue's figure first at 8779-8782 | P3-13 | folds into P3-25, which states the sizing |
-| H-020 | A record is written before the cancel, so a restart in the middle rebuilds the sequence rather than reusing an order name. | `execution_manager.py` 8695-8697 into 8700-8713, ahead of the cancel at 8716 | P3-13 | folds into P3-13 |
+| H-020 | A record is written before the cancel, so a restart in the middle rebuilds the sequence rather than reusing an order name. | `execution_manager.py` 8695-8697 into 8700-8713, ahead of the cancel at 8716 | P3-13 | folds into P3-25, which states the record and the restart |
 | H-021 | A change aimed at an order that already finished is dropped. A sliced order and a bracket each go to their own change path. | `execution_manager.py` 8615-8624 | P3-13 | folds into P3-13 |
 | H-022 | Two different waits can time out and they are not the same event: the decision side waiting on the execution side, and the execution side waiting on the venue. The reader's evidence and the system's response differ for each. | Nexus `action_submit.py` 337-368; Praxis `execution_manager.py` `_rescue_by_client_order_id` 5513-5542 | timeout (carried) | folds into timeout (carried) |
 | H-023 | When the decision side gives up waiting, the order is marked unknown rather than failed. The money stays held and the records stay, so a later report can still be matched to it. | Nexus `action_submit.py` 338-368 | timeout (carried) | folds into timeout (carried) |
@@ -284,4 +284,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 01:31 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 01:51 UTC

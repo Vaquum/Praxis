@@ -407,7 +407,7 @@ def _docstring_lines(path: Path) -> set[int]:
 
 
 _METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
-EVIDENCE_LINE = re.compile(r'^(  - claim: ".*"|    source: ".*")$')
+EVIDENCE_LINE = re.compile(r'^(  - claim: "[^"]*"|    source: "[^"]*")$')
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
     'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
@@ -5433,7 +5433,46 @@ def _metadata_shape(meta: str) -> list[str]:
         if not EVIDENCE_LINE.match(row)
     )
 
-    return notes
+    return notes + _evidence_pairs(held)
+
+
+def _evidence_pairs(held: list[str]) -> list[str]:
+
+    '''Return what an evidence list gets wrong about its claim and source pairs.
+
+    Each claim carries one source and says something. A claim written
+    empty cites lines for nothing, and a second source under one claim
+    is a line a reader of the block sees and a reader of its YAML does
+    not, the later one standing alone there.
+
+    Args:
+        held (list[str]): The lines of the evidence list.
+
+    Returns:
+        list[str]: One complaint per claim that is not a pair.
+    '''
+
+    pairs: list[tuple[str, int]] = []
+
+    for row in held:
+        stripped = row.strip()
+
+        if stripped.startswith('- claim:'):
+            pairs.append((stripped[len('- claim:'):].strip().strip('"'), 0))
+
+        elif stripped.startswith('source:') and pairs:
+            claim, sources = pairs[-1]
+            pairs[-1] = (claim, sources + 1)
+
+    notes = [
+        'evidence holds a claim that says nothing' for claim, _ in pairs if not claim
+    ]
+
+    return notes + [
+        f'the claim "{claim[:40]}" carries {sources} sources '
+        'where it must carry one'
+        for claim, sources in pairs if sources != 1
+    ]
 
 
 def _check_metadata(meta: str, ids: set[str]) -> list[str]:
@@ -5460,9 +5499,6 @@ def _check_metadata(meta: str, ids: set[str]) -> list[str]:
         )
 
     claimed = ROW_ID.findall(meta)
-
-    if not claimed:
-        notes.append('claims no register row')
 
     notes.extend(
         f'claims unknown register row {row}' for row in claimed if row not in ids

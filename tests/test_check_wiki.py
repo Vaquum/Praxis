@@ -5064,6 +5064,38 @@ class TestWhatTheMetadataMustLookLike:
 
         assert any(wanted in note for note in held), held
 
+    @pytest.mark.parametrize(
+        ('meta', 'wanted'),
+        [
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '""'),
+                'a claim that says nothing',
+                id='an-empty-claim',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"A "quoted" thing"'),
+                'neither a claim nor a source',
+                id='a-claim-quoting-inside-itself',
+            ),
+            pytest.param(
+                _GOOD + '\n    source: "`order.py` 2"',
+                'carries 2 sources',
+                id='two-sources-under-one-claim',
+            ),
+            pytest.param(
+                _GOOD + '\n  - claim: "Another thing"',
+                'carries 0 sources',
+                id='a-claim-with-no-source',
+            ),
+        ],
+    )
+    def test_a_claim_that_is_not_one_pair_is_refused(
+        self, meta: str, wanted: str,
+    ) -> None:
+        held = check_wiki._metadata_shape(meta)
+
+        assert any(wanted in note for note in held), held
+
     def test_a_misshapen_block_is_refused_by_the_page_check(self) -> None:
         held = check_wiki._check_metadata(
             self._GOOD.replace('evidence:', 'evidence: |'), {'P1-01'},

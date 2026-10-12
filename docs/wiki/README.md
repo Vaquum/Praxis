@@ -93,7 +93,7 @@ Read them in order if you are new. Every term is explained where it first appear
 ## Changing and stopping
 
 - [Changing work already sent](atoms/changing-work-already-sent.md) — asking Praxis to alter work it has accepted, what may be altered depending on how that work is carried out.
-- [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest.
+- [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest — or none does, where too little is left to trade.
 
 ## When time runs out
 
@@ -157,4 +157,4 @@ Each article has a word limit. One that outgrows it is split into two rather tha
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 01:12 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 01:51 UTC
