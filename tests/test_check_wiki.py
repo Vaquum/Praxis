@@ -5006,6 +5006,172 @@ class TestWhatAnAbsentTreeIsSaid:
         assert check_wiki._unchecked_trees() == []
 
 
+class TestWhatManyReferencesCost:
+    @staticmethod
+    def _held(count: int, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        monkeypatch.setattr(
+            check_wiki, '_source_text', lambda _p: 'def f():\n    work()\n',
+        )
+        monkeypatch.setattr(
+            check_wiki, '_resolve_source', lambda _k: Path('order.py'),
+        )
+        row = 'a claim | `order.py` ' + ', '.join(['2'] * count)
+        found: list[str] = check_wiki._row_citations(row, check_wiki._SourceFacts())
+
+        return found
+
+    def test_a_row_past_the_bound_says_so(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(check_wiki._REFERENCES_AT_MOST + 1, monkeypatch)
+
+        assert any('a row is weighed in pairs over' in note for note in held)
+
+    def test_a_row_at_the_bound_is_weighed(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        assert self._held(check_wiki._REFERENCES_AT_MOST, monkeypatch) == []
+
+    def test_a_row_of_many_references_is_answered_at_once(self) -> None:
+        script = (
+            'import importlib.util\n'
+            'import sys\n'
+            'from pathlib import Path\n'
+            f'spec = importlib.util.spec_from_file_location("gate", {str(_SCRIPT)!r})\n'
+            'gate = importlib.util.module_from_spec(spec)\n'
+            'sys.modules["gate"] = gate\n'
+            'spec.loader.exec_module(gate)\n'
+            'gate._source_text = lambda _p: "def f():\\n    work()\\n"\n'
+            'gate._resolve_source = lambda _k: Path("order.py")\n'
+            'row = "a claim | `order.py` " + ", ".join(["2"] * 20000)\n'
+            'print(len(gate._row_citations(row, gate._SourceFacts())))\n'
+        )
+        held = subprocess.run(  # noqa: S603
+            [sys.executable, '-c', script],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+
+        assert held.returncode == 0
+        assert held.stdout.strip() == '1'
+
+
+class TestEveryRuleThePageWalkRuns:
+    _GOOD = (
+        '---\nrow: P1-01\nbaseline: 49aa659\n'
+        'created: 2099-01-01 00:00 UTC\nmodified: 2099-01-01 00:00 UTC\n'
+        'evidence:\n  - claim: "A thing is so"\n'
+        '    source: "`order.py` 3"\n---\n'
+        '# One\n\nA thing that is so.\n'
+    )
+
+    @staticmethod
+    def _walked(tmp_path: Path, text: str, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        atoms = tmp_path / 'atoms'
+        atoms.mkdir(exist_ok=True)
+        page = atoms / 'one.md'
+        page.write_text(text, encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: 'a\nb\nwork()\n')
+        monkeypatch.setattr(
+            check_wiki, '_resolve_source', lambda _k: Path('order.py'),
+        )
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        monkeypatch.setattr(check_wiki, '_edited_since', lambda _p: None)
+        held: list[str] = check_wiki._check_page(
+            page, {'P1-01'}, check_wiki._SourceFacts(),
+        )
+
+        return held
+
+    def test_a_page_breaking_no_rule_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        assert self._walked(tmp_path, self._GOOD, monkeypatch) == []
+
+    @pytest.mark.parametrize(
+        ('broken', 'wanted'),
+        [
+            pytest.param(
+                '# One\n\nA thing that is so.\n',
+                'has no metadata block',
+                id='no-metadata',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'evidence:\n  - claim: "A thing is so"\n    source: "`order.py` 3"\n',
+                    'evidence: []\n',
+                ),
+                'carries no evidence',
+                id='no-evidence',
+            ),
+            pytest.param(
+                _GOOD.replace('A thing that is so.', 'This is about a thing.'),
+                'lead',
+                id='voice',
+            ),
+            pytest.param(
+                _GOOD.replace('    source: "`order.py` 3"\n', '    source: ""\n'),
+                'claim',
+                id='uncited-claim',
+            ),
+            pytest.param(
+                _GOOD.replace('`order.py` 3', '`order.py`'),
+                'cites no line of it',
+                id='unlined-source',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'A thing that is so.',
+                    'A thing that is so, not a thing that is not.',
+                ),
+                'negation',
+                id='negative-definition',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'A thing that is so.',
+                    'A thing that is so, read from the order book.',
+                ),
+                'order book',
+                id='owned-term-unlinked',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'A thing that is so.\n',
+                    'A thing that is so.\n## Two\n\nAnother thing so.\n',
+                ),
+                'heading',
+                id='unspaced-heading',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'A thing that is so.',
+                    'A thing that is so. ' + ' '.join(['word'] * 301),
+                ),
+                'exceeds the 300 cap',
+                id='over-the-cap',
+            ),
+            pytest.param(
+                _GOOD.replace('row: P1-01', 'row: P9-99'),
+                'P9-99',
+                id='unknown-row',
+            ),
+            pytest.param(
+                _GOOD.replace('`order.py` 3', '`order.py` 99'),
+                'past end of file',
+                id='citation-past-the-end',
+            ),
+        ],
+    )
+    def test_every_rule_is_run_by_the_page_walk(
+        self, broken: str, wanted: str, tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._walked(tmp_path, broken, monkeypatch)
+
+        assert any(wanted in note for note in held), held
+
+
 class TestWhatARunWithoutNexusSays:
     @_NEEDS_BASELINE
     def test_the_gate_writes_the_note(self, tmp_path: Path) -> None:

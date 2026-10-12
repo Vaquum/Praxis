@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import bisect
 import functools
 import itertools
 import operator
@@ -405,10 +406,77 @@ def _docstring_lines(path: Path) -> set[int]:
     return lines
 
 
+_REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
     'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
     'against', 'need not', 'not both', 'alternative',
 )
+
+
+@dataclass(frozen=True)
+class _RowMarks:
+
+    '''Where one evidence row holds its citations and its marker words.
+
+    Args:
+        starts (tuple[int, ...]): Where each citation starts, in order.
+        ends (tuple[int, ...]): Where each of those citations ends.
+        marks (tuple[tuple[int, int], ...]): Each marker word's span.
+    '''
+
+    starts: tuple[int, ...]
+    ends: tuple[int, ...]
+    marks: tuple[tuple[int, int], ...]
+
+
+@functools.cache
+def _row_marks(source: str) -> _RowMarks:
+
+    '''Read one row's citations and marker words, once for every pair.
+
+    A row is asked about every pair of citations it carries, so reading
+    it again for each pair would cost the cube of what it holds.
+
+    Args:
+        source (str): The source half of the evidence row.
+
+    Returns:
+        _RowMarks: Those positions.
+    '''
+
+    refs = list(LINE_REF.finditer(source))
+    lowered = source.lower()
+    marks = sorted(
+        (match.start(), match.end())
+        for word in ALTERNATION_WORDS
+        for match in re.finditer(rf'\b{re.escape(word)}\b', lowered)
+    )
+
+    return _RowMarks(
+        tuple(match.start() for match in refs),
+        tuple(match.end() for match in refs),
+        tuple(marks),
+    )
+
+
+def _marks_within(
+    marks: tuple[tuple[int, int], ...], start: int, end: int,
+) -> bool:
+
+    '''Whether a marker word stands wholly inside one stretch.
+
+    Args:
+        marks (tuple[tuple[int, int], ...]): Each marker word's span.
+        start (int): Where the stretch starts.
+        end (int): Where it ends.
+
+    Returns:
+        bool: True where one of them lies inside it.
+    '''
+
+    at = bisect.bisect_left(marks, (start, start))
+
+    return at < len(marks) and marks[at][1] <= end
 
 
 def _marked_between(source: str, first: int, second: int) -> bool:
@@ -439,15 +507,21 @@ def _marked_between(source: str, first: int, second: int) -> bool:
     '''
 
     low, high = sorted((first, second))
-    refs = list(LINE_REF.finditer(source))
-    within = [match for match in refs if low <= match.start() <= high]
-    inner = source[within[0].end():high]
-    lead = source[max(refs[0].start() - _MARKER_REACH, 0):refs[0].start()]
-    trail = '' if any(match.start() > high for match in refs) else source[
-        within[-1].end():within[-1].end() + _MARKER_REACH
-    ]
+    held = _row_marks(source)
+    opening = held.ends[bisect.bisect_left(held.starts, low)]
+    first_ref = held.starts[0]
 
-    return _marks(inner) or _marks(lead) or _marks(trail)
+    if _marks_within(held.marks, opening, high) or _marks_within(
+        held.marks, max(first_ref - _MARKER_REACH, 0), first_ref,
+    ):
+        return True
+
+    if held.starts[-1] > high:
+        return False
+
+    closing = held.ends[bisect.bisect_right(held.starts, high) - 1]
+
+    return _marks_within(held.marks, closing, closing + _MARKER_REACH)
 
 
 def _marks(stretch: str) -> bool:
@@ -3633,9 +3707,18 @@ def _exclusive_citations(
         cache (_SourceFacts): Where the branch spans are read from.
         row (str): The evidence row, read for a marker between a pair.
 
+    A row carrying more references than can be weighed is reported as
+    that rather than weighed, every pair of them being read.
+
     Returns:
         str | None: The clash found, or None where there is none.
     '''
+
+    if len(cited) > _REFERENCES_AT_MOST:
+        return (
+            f'cites {len(cited)} line references, past the '
+            f'{_REFERENCES_AT_MOST} a row is weighed in pairs over'
+        )
 
     source = row.split(' | ', 1)[1] if ' | ' in row else row
 
