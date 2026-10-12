@@ -218,7 +218,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-003 | The priority queue drains fully every pass. The command queue yields at most one order per pass. | `execution_manager.py` 3910, 3984 | P1-03 | folds into P1-03 |
 | H-004 | A cancel runs even while the account is reconnecting or stopped; a change is deferred and put back on the queue to retry next pass. | `execution_manager.py` 3912-3928, 3953-3954 | P1-03 | split: cancel half folds P1-04, change half folds P1-08 |
 | H-005 | A stopped account fails every waiting order instead of sending it. | `execution_manager.py` `_fail_queued_commands` 3963 | P1-03 | folds into P1-03 |
-| H-006 | While reconnecting but not stopped, the worker halts before the command queue. Waiting orders are neither sent nor ended — they stay. | `execution_manager.py` 3966-3968 | P1-03 | folds into P1-03 |
+| H-006 | While reconnecting but not stopped, the worker halts before the command queue. Waiting orders are neither sent nor ended — they stay. | `execution_manager.py` 3966-3968 | P1-03 | folds into P1-03, which says a paused queue is left as it stands |
 | H-007 | Venue news is drained before any new order is started. | `execution_manager.py` `_drain_external_events` 3907 | P1-03 | folds into P1-03 |
 | H-008 | A sliced order past its deadline is ended without being sent, with no slices placed. A single order has separate deadline handling after submission. | `execution_manager.py` `_expire_stale_command` 4123-4130 | P1-03 | folds into P1-03 |
 | H-009 | Scheme slices, pending protection and a protection sweep all run before the command queue is reached. | `execution_manager.py` 3971-3978 | P1-03 | folds into P1-03, which names all three |
@@ -285,4 +285,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 02:11 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 02:35 UTC

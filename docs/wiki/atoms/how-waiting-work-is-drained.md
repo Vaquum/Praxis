@@ -2,7 +2,7 @@
 row: P1-03
 baseline: 49aa659
 created: 2026-09-20 16:30 UTC
-modified: 2026-10-12 02:05 UTC
+modified: 2026-10-12 02:35 UTC
 evidence:
   - claim: "One worker per account; a second registration is refused"
     source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"
@@ -49,7 +49,7 @@ At most one submitted request is taken per circuit, and many passes take none.
 
 While the account is still starting up, the pass does nothing else: it waits that same tenth of a second and goes round again.
 
-Paused or failed, the circuit still takes the waiting venue updates, empties the priority queue, retries a due [cancellation](how-a-trade-is-cancelled.md) and, if failed, empties its ordinary queue refusing each item. The circuit then ends. Changes put back in the queue are left until the next circuit.
+Paused or failed, the circuit still takes the waiting venue updates, empties the priority queue, retries a due [cancellation](how-a-trade-is-cancelled.md) and, if failed, empties its ordinary queue refusing each item. Paused, that queue is left as it stands, so the requests in it wait. The circuit then ends. Changes put back in the queue are left until the next circuit.
 
 A request whose refusal report cannot be built is dropped with nothing reported. If the worker is cancelled partway through that emptying, it stops there and whatever is still queued stays queued.
 
