@@ -610,12 +610,13 @@ def settled_shapes() -> list[str]:
     '''Return every small shape of the kind the findings have come from.
 
     Writing shapes at random reaches such a shape only by chance; these
-    are all of them, in seven families: an arm inside a construct that
+    are all of them, in eight families: an arm inside a construct that
     takes the way it leaves or takes it over, two handlers of one `try`,
     two cases of one `match`, an arm raising a kind its own handler
     covers, an arm under an ending that could raise, an arm whose own
-    `try` raises with no kind named, and an arm raising a name the
-    shape itself has taken over.
+    `try` raises with no kind named, an arm raising a name the shape
+    itself has taken over, and an arm holding a `try` that takes its
+    errors in groups.
 
     Returns:
         list[str]: One source per shape.
@@ -624,8 +625,38 @@ def settled_shapes() -> list[str]:
     return (
         _arm_shapes() + _handler_shapes() + _case_shapes()
         + _caught_shapes() + _cleanup_shapes() + _bare_shapes()
-        + _taken_shapes()
+        + _taken_shapes() + _grouped_shapes()
     )
+
+
+def _grouped_shapes() -> list[str]:
+
+    '''Return an arm holding a `try` that takes its errors in groups.
+
+    Every kind such a `try` names is worked out against what is left
+    of the group, even where an earlier handler has caught all of it,
+    so a kind that cannot be worked out raises there and carries to
+    the handlers around the arm.
+
+    Returns:
+        list[str]: One source per shape.
+    '''
+
+    return [
+        f'{_HEAD}    try:\n        if a:\n            {acted}\n'
+        '            try:\n'
+        f'                {raised}\n'
+        f'            except* {caught}:\n                pass\n'
+        f'            except* {second}:\n                pass\n'
+        f'            {leaving}\n'
+        '    except NameError:\n        held = 2\n'
+        f'{_TAIL}'
+        for acted in ('held = 1', 'step()')
+        for raised in ('raise ValueError()', 'held = 3')
+        for caught in ('BaseException', 'ValueError')
+        for second in ('missing', 'KeyError')
+        for leaving in LEAVING
+    ]
 
 
 def _taken_shapes() -> list[str]:

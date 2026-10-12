@@ -1829,7 +1829,8 @@ def _handlers_tried(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]
     none of them is passed over. Where nothing can arrive, no kind is
     worked out at all, and nothing written after a handler naming
     every error is worked out either, that handler having caught
-    whatever arrived.
+    whatever arrived — unless the errors come in groups, where every
+    kind written is worked out against what is left of one.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -1851,10 +1852,13 @@ def _handlers_tried(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]
         found.append(handler)
         left -= _caught_by_handler(handler, left)
 
+        if isinstance(statement, ast.TryStar):
+            continue
+
         if handler.type is not None and _names_every_error(handler.type):
             break
 
-        if not unsaid and not left and not isinstance(statement, ast.TryStar):
+        if not unsaid and not left:
             break
 
     return found
@@ -1897,7 +1901,9 @@ def _handler_reach(
     works out the kind it names whether or not that kind then catches.
     Nothing is tried once every raise the body can take is certainly
     caught, nor where the body takes none at all, and nothing written
-    after a handler naming every error is tried or run either. A `try`
+    after a handler naming every error runs. Such a handler is still
+    tried where the errors come in groups, its kind being worked out
+    against what is left of one even though its body cannot run. A `try`
     taking errors in groups weighs every handler against what is left
     of the group, so each of them is tried while anything can arrive.
 
@@ -1932,7 +1938,10 @@ def _handler_reach(
 
         if handler.type is not None and _names_every_error(handler.type):
             after = statement.handlers[statement.handlers.index(handler) + 1:]
-            found += [(held_after, False, False) for held_after in after]
+            found += [
+                (held_after, arriving if grouped else False, False)
+                for held_after in after
+            ]
             break
 
     return found

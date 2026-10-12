@@ -6218,6 +6218,30 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
+    def test_a_grouped_handler_after_a_catch_all_keeps_its_line(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except* BaseException:\n        pass\n'
+            '    except* missing:\n        pass\n    return 1\n'
+        )
+        held = self._landed(source, 6, 6, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_an_ordinary_handler_after_a_catch_all_loses_its_line(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except BaseException:\n        pass\n'
+            '    except KeyError:\n        pass\n    return 1\n'
+        )
+        held = self._landed(source, 6, 6, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
     def test_a_grouped_handler_after_one_that_caught_keeps_its_line(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
