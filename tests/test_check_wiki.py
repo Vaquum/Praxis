@@ -888,6 +888,17 @@ class TestProseWords:
     def test_headings_are_counted(self) -> None:
         assert check_wiki._prose_words('# Title\n\n## A heading here\n\nOne.\n') > 1
 
+    def test_a_divider_is_not_counted(self) -> None:
+        plain = '# Title\n\nOne two three.\n'
+        ruled = plain + '\n---\n'
+
+        assert check_wiki._prose_words(ruled) == check_wiki._prose_words(plain)
+
+    def test_a_paragraph_opening_on_dashes_is_counted(self) -> None:
+        held = check_wiki._prose_words('# Title\n\n---one two three four.\n')
+
+        assert held == 5
+
 
 class TestLeadParagraph:
     def test_a_lead_that_is_about_its_subject_is_refused(self) -> None:
@@ -6242,6 +6253,29 @@ class TestWhatAHandlerNothingArrivesAtCosts:
         held = self._landed(source, 10, 10, tmp_path, monkeypatch)
 
         assert held is None
+
+    def test_a_body_sharing_the_handler_line_is_kept_with_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except TypeError: pass\n'
+            '    except ValueError: pass\n    return 1\n'
+        )
+        held = self._landed(source, 4, 4, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_body_sharing_the_line_of_a_handler_nothing_reaches_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        pass\n'
+            '    except TypeError: pass\n    return 1\n'
+        )
+        held = self._landed(source, 4, 4, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
 
     def test_an_ordinary_handler_after_a_catch_all_loses_its_line(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

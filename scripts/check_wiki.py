@@ -421,6 +421,7 @@ EVIDENCE_LINE = re.compile(
     r'^(  - claim: "[^"\\\x00-\x1f\x7f]*"'
     r'|    source: "[^"\\\x00-\x1f\x7f]*")$',
 )
+DIVIDER = re.compile(r'-{3,}')
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
     'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
@@ -4269,7 +4270,7 @@ def _prose_words(text: str) -> int:
         text (str): The rows to scan, one per line.
 
     Returns:
-        int: The count, navigation links and tables excluded.
+        int: The count, navigation links, tables and dividers excluded.
     '''
 
     words = 0
@@ -4277,7 +4278,7 @@ def _prose_words(text: str) -> int:
     for line in text.splitlines():
         stripped = line.strip()
 
-        if not stripped or stripped.startswith(('|', '---')):
+        if not stripped or stripped.startswith('|') or DIVIDER.fullmatch(stripped):
             continue
 
         if stripped.startswith('#'):
@@ -4478,7 +4479,8 @@ def _unreachable_lines(path: Path) -> set[int]:
     reaches. Its own line goes with the body only where nothing is
     tried against it — where no raise reaches it looking for a handler
     — since a handler that is tried and misses still has the kind it
-    names worked out.
+    names worked out, and a body written on that same line is kept
+    with it.
 
     Args:
         path (Path): The file to read, at its pinned commit.
@@ -4507,7 +4509,11 @@ def _unreachable_lines(path: Path) -> set[int]:
                 continue
 
             closing = handler.body[-1].end_lineno or handler.lineno
-            opening = handler.body[0].lineno if tried else handler.lineno
+            opening = (
+                max(handler.body[0].lineno, handler.lineno + 1)
+                if tried
+                else handler.lineno
+            )
             held |= set(range(opening, closing + 1))
 
     return held
