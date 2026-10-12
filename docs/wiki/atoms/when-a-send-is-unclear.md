@@ -2,14 +2,14 @@
 row: P1-07
 baseline: 49aa659
 created: 2026-09-23 08:18 UTC
-modified: 2026-10-11 20:58 UTC
+modified: 2026-10-12 00:15 UTC
 evidence:
   - claim: "A transport failure leaving the retry loop on an order send is wrapped as a submit timeout, where the send carried a name of its own"
     source: "`binance_adapter.py` 1637-1643 past the test at 1628, wrapping what leaves the loop at 680, either built there at 660-662 or raised at 1135-1137 and caught instead at 595-596"
   - claim: "A send with no order name of its own returns earlier and is not wrapped"
     source: "`binance_adapter.py` 1628-1631"
-  - claim: "One rejection code is wrapped as a duplicate name, whatever its reason"
-    source: "`binance_adapter.py` 1644-1651 with 94, the handler reading only the code"
+  - claim: "One rejection code is wrapped as a duplicate name, whatever its reason, where the send carried a name of its own"
+    source: "`binance_adapter.py` 1644-1651 past the test at 1628, with 94, the handler reading only the code"
   - claim: "Other venue errors and settings the venue will not accept are recorded failed on the spot"
     source: "either `execution_manager.py` 4292-4295 or 4296-4299"
   - claim: "Either wrap triggers a lookup before the send is called failed"

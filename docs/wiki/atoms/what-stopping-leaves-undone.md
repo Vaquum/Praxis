@@ -2,7 +2,7 @@
 row: P4-23
 baseline: 49aa659
 created: 2026-10-01 18:04 UTC
-modified: 2026-10-11 22:51 UTC
+modified: 2026-10-12 00:15 UTC
 evidence:
   - claim: "A cancel the venue refuses in the second pass is logged as a warning and the next order taken up"
     source: "`trading.py` 735-742"
@@ -23,7 +23,7 @@ evidence:
 ---
 # What stopping leaves undone
 
-Stopping a [host](stopping-a-host.md) carries on through three things going wrong: a cancel the venue refuses, a drain that runs out of time, and a close that fails. Each is logged and the next step taken up, so stopping can finish with things still open.
+Stopping a [host](stopping-a-host.md) carries on through three ordinary things going wrong: a cancel the venue refuses, a drain that runs out of time, and a close that fails. Each is logged and the next step taken up, so stopping can finish with things still open. Being called off is not one of those: it is passed straight on, and the step after it is left undone.
 
 ## Passed over
 

@@ -80,7 +80,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/command_translator.py` | partial | P4-04, P4-28 |
 | `praxis/outcome_translator.py` | partial | P2-39, P2-41, P2-43, P4-05, P4-29, P4-30 |
 | `praxis/reconciliation_translate.py` | full | P4-06 |
-| `praxis/core/domain/trade_command.py` | full | P2-24, P2-43, P4-07, P4-08, P4-29, P4-33, P4-36 |
+| `praxis/core/domain/trade_command.py` | full | P2-23, P2-24, P2-43, P4-07, P4-08, P4-29, P4-33, P4-36 |
 | `praxis/core/domain/_require_str.py` | full | P4-07, P4-09 to P4-12, P4-33 |
 | `praxis/core/domain/execution_params.py` | full | P4-08, P4-09, P4-28 |
 | `praxis/core/domain/single_shot_params.py` | full | P4-08, P4-09, P4-28 |
@@ -130,4 +130,4 @@ The modules listed above are `partial` by citation rather than by tracing: a Pra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-11 20:29 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 00:15 UTC

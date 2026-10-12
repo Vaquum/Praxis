@@ -2,7 +2,7 @@
 row: P2-21
 baseline: 49aa659
 created: 2026-09-28 06:24 UTC
-modified: 2026-10-11 20:13 UTC
+modified: 2026-10-12 00:15 UTC
 evidence:
   - claim: "The opening order is sent as a market order"
     source: "`execution_manager.py` 4521-4523 into 5968, where that kind is named"
@@ -16,7 +16,7 @@ evidence:
     source: "`execution_manager.py` 4909-4911"
   - claim: "It is a linked pair, one to take a profit and one to stop a loss"
     source: "`execution_manager.py` 4968-4977"
-  - claim: "The two are handed to the venue as one linked pair, for it to cancel the second when the first fills"
+  - claim: "The two are handed to the venue as one linked pair, in the kind it keeps for a pair"
     source: "`praxis/core/domain/enums.py` 73 for the kind, sent as one at `binance_adapter.py` 1522-1536"
   - claim: "The profit price is given outright or worked out as a distance"
     source: "either `execution_manager.py` 5208-5209 or 5210-5217"
@@ -39,7 +39,7 @@ The opening order goes out as a market order. Protection follows only once that 
 
 ## The two prices
 
-The protection is a [linked pair](order-types.md) on the side opposite the entry, so a buy is protected by sells. One takes a profit, the other stops a loss, and the first to fill cancels the other.
+The protection is a [linked pair](order-types.md) on the side opposite the entry, so a buy is protected by sells. One takes a profit and the other stops a loss. Cancelling the second when the first fills is the venue's own rule for the kind of pair it is sent as, which Praxis asks for rather than carries out.
 
 Each price is either given outright or given as a distance and worked out from the price the entry actually averaged. The distance runs one way for a buy and the other for a sell, so the profit sits on the far side and the stop on the near one.
 

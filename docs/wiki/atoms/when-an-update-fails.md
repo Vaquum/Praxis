@@ -2,13 +2,13 @@
 row: P2-34
 baseline: 49aa659
 created: 2026-09-26 07:02 UTC
-modified: 2026-10-11 22:51 UTC
+modified: 2026-10-12 00:15 UTC
 evidence:
   - claim: "The call handing an event to the order-and-holdings update carries no guard"
     source: "`execution_manager.py` 2081"
   - claim: "The money update is guarded where it is called"
     source: "`execution_manager.py` 2092-2098"
-  - claim: "Events admitted from outside and events off the venue's feed stop the account"
+  - claim: "Events admitted from outside and events off the venue's feed stop the account where projecting them fails in the ordinary way"
     source: "either `execution_manager.py` 3249-3261 or 3768-3780"
   - claim: "A stopped account turns away the commands waiting in its queue"
     source: "`execution_manager.py` 3958-3963"

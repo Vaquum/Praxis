@@ -2,7 +2,7 @@
 row: P2-23
 baseline: 49aa659
 created: 2026-09-24 20:16 UTC
-modified: 2026-10-11 20:06 UTC
+modified: 2026-10-12 00:15 UTC
 evidence:
   - claim: "The clock runs from the time supplied on the command, not from the accept written later"
     source: "`execution_manager.py` 2925 reading the time stored at 3476, the accept taking its own clock at 3517"
@@ -20,8 +20,10 @@ evidence:
     source: "stored at either `execution_manager.py` 4281 or 4291, compared at 4414"
   - claim: "A bracket and a hidden-size order are measured against neither clock"
     source: "dispatched by either `execution_manager.py` 4000 or 4002, the one sending at 4521 and the other returning at 5396, neither reading a clock"
-  - claim: "A run or a ladder that starts gets a fresh clock, opened from the moment recorded at its start, where a gap above nought was given it"
+  - claim: "A run or a ladder that starts gets a fresh clock, opened from the moment recorded at its start, where the gap it was given compares above nought"
     source: "either `execution_manager.py` 5784-5787 from the time taken at 5760, or 6128-6131 from 6107"
+  - claim: "The gap is refused on the way in by comparison alone, so one comparing neither way is taken"
+    source: "`praxis/core/domain/trade_command.py` 106-108"
   - claim: "The same pass begins winding either of them up against that clock"
     source: "`execution_manager.py` 5816-5824, which skips one already draining or mid-change at 5817-5821"
   - claim: "Winding up cancels children and leaves the run on the books until they settle"
@@ -49,7 +51,7 @@ Short of the time at that moment, the order is reported as it stands and never m
 
 ## A second clock
 
-Work being fed out, and a ladder, get a fresh clock when they start, so one that waited a long time to begin does not inherit the wait. Past that clock a [run](work-already-under-way.md) only *begins* winding up: its children are asked to cancel, and it stays on the books until they settle. Work already waiting for its orders to finish, or being changed, is skipped entirely.
+Work being fed out, and a ladder, get a fresh clock when they start, where the gap they were given compares above nought. The way in refuses only a gap at or below nought, so one comparing neither way leaves no clock. Past that clock a [run](work-already-under-way.md) only *begins* winding up: its children are asked to cancel, and it stays on the books until they settle. Work already waiting for its orders to finish, or being changed, is skipped entirely.
 
 ## Related
 

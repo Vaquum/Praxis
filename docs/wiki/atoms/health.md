@@ -2,9 +2,9 @@
 row: P3-15
 baseline: 49aa659
 created: 2026-09-30 09:14 UTC
-modified: 2026-10-11 20:06 UTC
+modified: 2026-10-12 00:15 UTC
 evidence:
-  - claim: "One result is recorded per request that goes through the retrying path, across its retries, with the waiting counted in the time"
+  - claim: "One result is recorded per request that goes through the retrying path and is not among those skipped, across its retries, with the waiting counted in the time"
     source: "`binance_adapter.py` 578-604 for one that answers, or for one that does not either 607, or 633, or 655, or 658, or 673"
   - claim: "Recording is skipped for a missing order against the simulator"
     source: "`binance_adapter.py` 632-634"
