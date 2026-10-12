@@ -888,6 +888,37 @@ class TestProseWords:
     def test_headings_are_counted(self) -> None:
         assert check_wiki._prose_words('# Title\n\n## A heading here\n\nOne.\n') > 1
 
+    @pytest.mark.parametrize(
+        'line',
+        [
+            pytest.param('---one two three four.', id='dashes'),
+            pytest.param('| one two three four.', id='a-pipe'),
+            pytest.param('Created in haste, the Last modified one two.', id='the-stamp'),
+            pytest.param('- [one](a.md) two three four five.', id='a-link'),
+        ],
+    )
+    def test_prose_shaped_like_something_else_is_counted(self, line: str) -> None:
+        held = check_wiki._prose_words(f'# Title\n\n{line}\n')
+
+        assert held > 1, line
+
+    def test_a_real_table_is_not_counted(self) -> None:
+        page = (
+            '# Title\n\nOne two three.\n\n'
+            '| ID | Topic |\n|---|---|\n| P1-01 | A thing |\n'
+        )
+
+        assert check_wiki._prose_words(page) == 4
+
+    def test_the_pages_own_stamp_is_not_counted(self) -> None:
+        plain = '# Title\n\nOne two three.\n'
+        stamped = plain + (
+            '\n---\n\nCreated 2026-01-01 00:00 UTC · '
+            'Last modified 2026-01-02 00:00 UTC\n'
+        )
+
+        assert check_wiki._prose_words(stamped) == check_wiki._prose_words(plain)
+
     def test_a_divider_is_not_counted(self) -> None:
         plain = '# Title\n\nOne two three.\n'
         ruled = plain + '\n---\n'

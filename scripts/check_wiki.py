@@ -422,6 +422,12 @@ EVIDENCE_LINE = re.compile(
     r'|    source: "[^"\\\x00-\x1f\x7f]*")$',
 )
 DIVIDER = re.compile(r'-{3,}')
+TABLE_ROW = re.compile(r'\|.*\|')
+STAMP_LINE = re.compile(
+    r'Created \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC · '
+    r'Last modified \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC',
+)
+TABLE_RULE = re.compile(r'\|(\s*:?-+:?\s*\|)+')
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
     'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
@@ -4284,6 +4290,41 @@ def _signature_lines(path: Path) -> set[int]:
     return lines - _protocol_lines(tree)
 
 
+def _table_rows(rows: list[str]) -> frozenset[int]:
+
+    """Return which rows a table holds, by the rule under its heading.
+
+    A table is known by the row of dashes under its heading, and runs
+    as far as the rows on either side of that are shaped like its
+    own. A line opening on the mark that parts a table's cells is
+    prose anywhere else.
+
+    Args:
+        rows (list[str]): The page's lines, one per row.
+
+    Returns:
+        frozenset[int]: The index of each row a table holds.
+    """
+
+    held: set[int] = set()
+
+    for at, row in enumerate(rows):
+
+        if not TABLE_RULE.fullmatch(row.strip()):
+            continue
+
+        held.add(at)
+
+        for step in (-1, 1):
+            reach = at + step
+
+            while 0 <= reach < len(rows) and TABLE_ROW.fullmatch(rows[reach].strip()):
+                held.add(reach)
+                reach += step
+
+    return frozenset(held)
+
+
 def _prose_words(text: str) -> int:
 
     '''Return the words a page spends on prose and headings.
@@ -4292,22 +4333,26 @@ def _prose_words(text: str) -> int:
         text (str): The rows to scan, one per line.
 
     Returns:
-        int: The count, navigation links, tables and dividers excluded.
+        int: The count, navigation links, tables, dividers and the
+            page's own stamp excluded, each read as the whole thing it
+            is rather than by what it opens on.
     '''
 
     words = 0
+    rows = text.splitlines()
+    tabled = _table_rows(rows)
 
-    for line in text.splitlines():
+    for at, line in enumerate(rows):
         stripped = line.strip()
 
-        if not stripped or stripped.startswith('|') or DIVIDER.fullmatch(stripped):
+        if not stripped or at in tabled or DIVIDER.fullmatch(stripped):
             continue
 
         if stripped.startswith('#'):
             words += len(stripped.lstrip('# ').split())
             continue
 
-        if stripped.startswith('Created ') and 'Last modified' in stripped:
+        if STAMP_LINE.fullmatch(stripped):
             continue
 
         if LINK_ONLY.fullmatch(stripped):
