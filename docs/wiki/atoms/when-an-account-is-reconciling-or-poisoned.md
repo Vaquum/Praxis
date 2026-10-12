@@ -2,14 +2,14 @@
 row: P1-11
 baseline: 49aa659
 created: 2026-10-12 04:21 UTC
-modified: 2026-10-12 10:41 UTC
+modified: 2026-10-12 10:55 UTC
 evidence:
   - claim: "A reconciling or poisoned account takes no submitted work, and its pass ends on the wait"
     source: "`execution_manager.py` 3969-3971"
   - claim: "All of that is below the startup wait, so no pass reaches it while the account is still starting"
     source: "`execution_manager.py` 3903-3905 ahead of 3907, registered as starting at 831-835 from `trading.py` 522, cleared only at `execution_manager.py` 3672 from `trading.py` 607"
-  - claim: "Startup itself sets the account reconciling before it waits on the backfill, so passes taken during that wait are both"
-    source: "`trading.py` 590-592 into 1455 and 1406-1407, awaited at 1459, the flag off again at 1487-1489"
+  - claim: "Starting against a live venue sets the account reconciling before it waits on the backfill, so passes taken during that wait are both"
+    source: "`trading.py` 590-592 rather than 594-596, into 1455 and 1406-1407, awaited at 1459, the flag off again at 1487-1489"
   - claim: "The pass still takes venue news, empties the priority line and retries a due cancellation"
     source: "`execution_manager.py` 3907 and 3910, with the retry at 3960"
   - claim: "A change is deferred for as long as the hold lasts, going back on the line each pass"
@@ -45,7 +45,7 @@ A request whose refusal report cannot be built is dropped, with nothing reported
 
 An account is poisoned while its worker runs when projecting fails — an admitted event or an update from the venue.
 
-All of the above sits below the startup wait, so a pass taken while the account is still starting does none of it. Startup sets the account reconciling before waiting on the venue's backfill, so passes taken during that wait are both at once, until the backfill comes back and the hold is lifted.
+All of the above sits below the startup wait, so a pass taken while the account is still starting does none of it. Starting against a live venue sets the account reconciling before waiting on its backfill, so passes taken during that wait are both at once, until the backfill comes back and the hold is lifted.
 
 ## Related
 
@@ -56,4 +56,4 @@ All of the above sits below the startup wait, so a pass taken while the account 
 
 ---
 
-Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 10:41 UTC
+Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 10:55 UTC

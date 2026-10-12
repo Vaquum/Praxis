@@ -2,7 +2,7 @@
 row: P1-03
 baseline: 49aa659
 created: 2026-09-20 16:30 UTC
-modified: 2026-10-12 04:22 UTC
+modified: 2026-10-12 10:55 UTC
 evidence:
   - claim: "One worker per account; a second registration is refused"
     source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"
@@ -41,7 +41,7 @@ At most one submitted request is taken per circuit, and many passes take none.
 
 A pass that finds its ordinary queue empty waits there for up to a tenth of a second. An admitted event ends that wait early; queueing a request does not, so the request sits until the wait runs out. A pass that does take a request goes straight round to the next one, which is how a queue of orders drains. While the account is still starting up, the pass does nothing else and waits that tenth out.
 
-A pass under an account that is [reconciling or poisoned](when-an-account-is-reconciling-or-poisoned.md) ends on that same wait, having taken no submitted work.
+A pass past startup under an account that is [reconciling or poisoned](when-an-account-is-reconciling-or-poisoned.md) ends on that same wait, having taken no submitted work; one still starting takes the startup wait instead, whatever else holds the account.
 
 ## What taking one item does
 

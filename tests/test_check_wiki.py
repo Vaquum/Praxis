@@ -568,6 +568,16 @@ class TestProtocolExemption:
         [
             pytest.param('from typing import Protocol\nclass A(Protocol):\n' + _STUB, id='stub'),
             pytest.param('from typing import Protocol as P\nclass A(P):\n' + _STUB, id='alias'),
+            pytest.param(
+                'from typing import Protocol\nfrom typing import Protocol as Protocol\n'
+                'class A(Protocol):\n' + _STUB,
+                id='imported-twice-from-typing',
+            ),
+            pytest.param(
+                'from typing import Protocol\nProtocol: type\n'
+                'class A(Protocol):\n' + _STUB,
+                id='annotated-with-no-value',
+            ),
         ],
     )
     def test_protocol_stub_signature_is_citable(self, source: str) -> None:
@@ -606,6 +616,11 @@ class TestProtocolExemption:
             pytest.param(
                 'from typing import Protocol as P, Any as P\nclass A(P):\n' + _STUB,
                 id='two-aliases-of-one-name',
+            ),
+            pytest.param(
+                'from typing import Protocol\nProtocol: type\n'
+                'from abc import ABC as Protocol\nclass A(Protocol):\n' + _STUB,
+                id='annotated-then-replaced',
             ),
             pytest.param(
                 'from typing import Protocol\nclass Protocol:\n    pass\n'
@@ -6118,6 +6133,30 @@ class TestWhatAHandlerNothingArrivesAtCosts:
         source = (
             'from typing import Protocol as ValueError\n\n\n'
             'def f():\n    try:\n        raise ValueError()\n'
+            '    except TypeError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_name_carrying_only_a_type_is_weighed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'ValueError: int\n\n\ndef f():\n    try:\n'
+            '        raise ValueError()\n'
+            '    except TypeError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_name_given_a_value_with_its_type_is_weighed_against_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'ValueError: int = 1\n\n\ndef f():\n    try:\n'
+            '        raise ValueError()\n'
             '    except TypeError:\n        return 2\n    return 1\n'
         )
         held = self._landed(source, 8, 8, tmp_path, monkeypatch)

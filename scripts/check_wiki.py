@@ -3958,18 +3958,24 @@ def _protocol_names(tree: ast.AST) -> set[str]:
     if not isinstance(tree, ast.Module) or _has_wildcard_import(tree):
         return names
 
+    brought: dict[str, int] = {}
+
     for node in tree.body:
 
         if isinstance(node, ast.ImportFrom) and node.module == 'typing' and not node.level:
-            names.update(
-                alias.asname or alias.name
-                for alias in node.names
-                if alias.name == 'Protocol'
-            )
+
+            for alias in node.names:
+
+                if alias.name != 'Protocol':
+                    continue
+
+                name = alias.asname or alias.name
+                names.add(name)
+                brought[name] = brought.get(name, 0) + 1
 
     held = _name_bindings(tree)
 
-    return {name for name in names if held.get(name, 0) <= 1}
+    return {name for name in names if held.get(name, 0) == brought[name]}
 
 
 def _bound_names(node: ast.AST) -> set[str]:
@@ -4034,7 +4040,9 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
     '''Return how many times each name is given a value in the module.
 
     A name bound once by an import and nowhere else holds what that
-    import brought; one bound again holds whatever came last.
+    import brought; one bound again holds whatever came last. An
+    annotation with no value beside it binds nothing, so a name
+    carrying only a type is left as it was.
 
     Args:
         tree (ast.AST): The parsed file.
@@ -4065,9 +4073,12 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
             for target in node.targets:
                 bind(_bound_names(target))
 
-        elif isinstance(
-            node, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor),
-        ):
+        elif isinstance(node, ast.AnnAssign):
+
+            if node.value is not None:
+                bind(_bound_names(node.target))
+
+        elif isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor)):
             bind(_bound_names(node.target))
 
         elif isinstance(node, (ast.With, ast.AsyncWith)):
