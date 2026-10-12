@@ -2,7 +2,7 @@
 row: P1-12
 baseline: 49aa659
 created: 2026-10-12 07:10 UTC
-modified: 2026-10-12 10:29 UTC
+modified: 2026-10-12 11:15 UTC
 evidence:
   - claim: "A pass that dies poisons the account on its way out, empties its queue and ends the loop"
     source: "`execution_manager.py` 4025-4046, nothing after it taking a pass"
@@ -12,8 +12,10 @@ evidence:
     source: "`execution_manager.py` 3434-3436 against 3060-3074, reached from `trading.py` 1910-1917"
   - claim: "A worker cancelled instead stops with nothing poisoned and its queue as it stands"
     source: "`execution_manager.py` 4022-4024, cancelled from 2966-2969"
-  - claim: "A boot that ends failed leaves the account starting for good, and its queue is emptied from outside any pass"
+  - claim: "A boot that runs through and ends not ready leaves the account starting for good, and its queue is emptied from outside any pass"
     source: "`trading.py` 606-623 reaching `execution_manager.py` 3643 and 3658-3661 instead of the finish at 3672, the pass then taking 3903-3905"
+  - claim: "A boot that raises instead takes every started account's worker down with it, and no later account starts"
+    source: "`trading.py` 525-528 into 813-818, leaving the loop at 521-524"
 ---
 # How a worker stops taking work
 
@@ -29,7 +31,9 @@ Cancelling the work is how [unregistering an account](what-stopping-leaves-undon
 
 ## A boot that never finishes
 
-A boot that fails leaves the account starting for good, and this is the ending where the loop is still turning. The host carries on: the failed boot is logged and parked, and the other accounts start. Every pass takes the startup wait and does nothing else, so none of the work below that wait is ever reached. The failing startup empties the queue itself, rather than leaving it to a pass.
+A boot that runs through and ends not ready leaves the account starting for good, and this is the ending where the loop is still turning. The host carries on: that boot is logged and parked, and the other accounts start.
+
+A boot that raises instead is a cancelling: every account started so far is unregistered, which cancels its worker, no later account starts, and the raise carries out of the host's starting. Every pass takes the startup wait and does nothing else, so none of the work below that wait is ever reached. The failing startup empties the queue itself, rather than leaving it to a pass.
 
 ## Related
 
@@ -39,4 +43,4 @@ A boot that fails leaves the account starting for good, and this is the ending w
 
 ---
 
-Created 2026-10-12 07:10 UTC · Last modified 2026-10-12 10:29 UTC
+Created 2026-10-12 07:10 UTC · Last modified 2026-10-12 11:15 UTC

@@ -6139,6 +6139,19 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held is None
 
+    def test_a_name_declared_inside_a_function_is_weighed_against_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    ValueError: type\n    try:\n'
+            '        raise ValueError()\n'
+            "    except UnboundLocalError:\n        return 'runs'\n"
+            "    except ValueError:\n        return 'never'\n"
+        )
+        held = self._landed(source, 6, 6, tmp_path, monkeypatch)
+
+        assert held is None
+
     def test_a_name_carrying_only_a_type_is_weighed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

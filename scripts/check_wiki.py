@@ -4035,14 +4035,46 @@ def _rebound_names(tree: ast.AST) -> set[str]:
     return set(_name_bindings(tree))
 
 
+def _declared_in_a_function(tree: ast.AST) -> frozenset[int]:
+
+    """Return the annotations inside a function that give no value.
+
+    Such an annotation makes the name the function's own wherever it
+    stands in there, so a name the language carries is no longer that
+    error inside it. At module level it binds nothing at all.
+
+    Args:
+        tree (ast.AST): The parsed file.
+
+    Returns:
+        frozenset[int]: The id of each such annotation.
+    """
+
+    held: set[int] = set()
+
+    for node in ast.walk(tree):
+
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+
+        held |= {
+            id(inside) for inside in ast.walk(node)
+            if isinstance(inside, ast.AnnAssign) and inside.value is None
+        }
+
+    return frozenset(held)
+
+
 def _name_bindings(tree: ast.AST) -> dict[str, int]:
 
     '''Return how many times each name is given a value in the module.
 
     A name bound once by an import and nowhere else holds what that
     import brought; one bound again holds whatever came last. An
-    annotation with no value beside it binds nothing, so a name
-    carrying only a type is left as it was.
+    annotation with no value beside it binds nothing where the module
+    itself carries it, so a name given only a type is left as it was —
+    while one written inside a function makes the name that
+    function's own throughout, as a deletion does.
 
     Args:
         tree (ast.AST): The parsed file.
@@ -4052,6 +4084,7 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
     '''
 
     counted: dict[str, int] = {}
+    declared = _declared_in_a_function(tree)
 
     def bind(names: Iterable[str]) -> None:
 
@@ -4075,7 +4108,7 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
 
         elif isinstance(node, ast.AnnAssign):
 
-            if node.value is not None:
+            if node.value is not None or id(node) in declared:
                 bind(_bound_names(node.target))
 
         elif isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor)):
