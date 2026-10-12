@@ -6048,6 +6048,104 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
+    def test_a_handler_after_one_naming_every_error_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(impossible):\n    try:\n        raise ValueError()\n'
+            '    except BaseException:\n        pass\n'
+            '    except KeyError:\n        impossible()\n    return 1\n'
+        )
+        held = self._landed(source, 7, 7, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_citation_taking_in_a_missed_handler_whole_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 4, 5, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_citation_of_the_whole_try_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError()\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 2, 6, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_kind_worked_out_after_a_catch_all_reaches_no_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(work, boom, dead):\n    try:\n        try:\n'
+            '            work()\n'
+            '        except BaseException:\n            return 1\n'
+            '        except boom():\n            return 2\n'
+            '    except KeyError:\n        dead()\n    return 3\n'
+        )
+        held = self._landed(source, 10, 10, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_the_except_line_after_one_naming_every_error_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(impossible):\n    try:\n        raise ValueError()\n'
+            '    except BaseException:\n        pass\n'
+            '    except KeyError:\n        impossible()\n    return 1\n'
+        )
+        held = self._landed(source, 6, 6, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_file_with_a_wildcard_import_weighs_no_kind(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'from provider import *\n\n\ndef f():\n    try:\n'
+            '        raise ValueError()\n    except KeyError:\n'
+            '        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_the_same_file_without_one_weighs_its_kinds(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'from provider import held_elsewhere\n\n\ndef f():\n    try:\n'
+            '        raise ValueError()\n    except KeyError:\n'
+            '        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 8, 8, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_kind_the_file_took_over_could_raise_as_it_is_matched(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(ValueError):\n    try:\n        try:\n'
+            '            raise KeyError()\n'
+            '        except ValueError:\n            pass\n'
+            '        except BaseException:\n            pass\n'
+            '    except TypeError:\n        return 42\n    return 1\n'
+        )
+        held = self._landed(source, 10, 10, tmp_path, monkeypatch)
+
+        assert held is None
+
     def test_a_dead_handler_padded_with_a_blank_line_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

@@ -616,7 +616,8 @@ def _taken_over(tree: ast.AST) -> frozenset[str]:
     which holds only while the file has not bound that name itself. A
     parameter, an import, an assignment or a loop target of the same
     name leaves nothing weighable, so every such name is kept and the
-    kind helpers abstain on it.
+    kind helpers abstain on it. A wildcard import could have brought
+    any of those names, so a file holding one has all of them kept.
 
     Args:
         tree (ast.AST): The parsed file.
@@ -624,6 +625,9 @@ def _taken_over(tree: ast.AST) -> frozenset[str]:
     Returns:
         frozenset[str]: Those names.
     """
+
+    if _has_wildcard_import(tree):
+        return _KNOWN_ERRORS
 
     return frozenset(_rebound_names(tree) & _KNOWN_ERRORS)
 
@@ -1823,7 +1827,9 @@ def _handlers_tried(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]
     could be of any kind, so every kind is worked out for it. A `try`
     taking errors in groups weighs every kind against the group, so
     none of them is passed over. Where nothing can arrive, no kind is
-    worked out at all.
+    worked out at all, and nothing written after a handler naming
+    every error is worked out either, that handler having caught
+    whatever arrived.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -1844,6 +1850,9 @@ def _handlers_tried(statement: ast.Try | ast.TryStar) -> list[ast.ExceptHandler]
     for handler in statement.handlers:
         found.append(handler)
         left -= _caught_by_handler(handler, left)
+
+        if handler.type is not None and _names_every_error(handler.type):
+            break
 
         if not unsaid and not left and not isinstance(statement, ast.TryStar):
             break
@@ -1887,7 +1896,8 @@ def _handler_reach(
     A handler is tried where a raise reaches it looking for one, which
     works out the kind it names whether or not that kind then catches.
     Nothing is tried once every raise the body can take is certainly
-    caught, nor where the body takes none at all.
+    caught, nor where the body takes none at all, and nothing written
+    after a handler naming every error is tried or run either.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -1917,6 +1927,8 @@ def _handler_reach(
         left -= caught
 
         if handler.type is not None and _names_every_error(handler.type):
+            after = statement.handlers[statement.handlers.index(handler) + 1:]
+            found += [(held_after, False, False) for held_after in after]
             break
 
     return found
@@ -3238,9 +3250,7 @@ def _names_known_errors(named: ast.expr) -> bool:
 
     held = named.elts if isinstance(named, ast.Tuple) else [named]
 
-    return all(
-        isinstance(part, ast.Name) and part.id in _KNOWN_ERRORS for part in held
-    )
+    return all(_kind_named(part) in _KNOWN_ERRORS for part in held)
 
 
 def _kind_could_raise(handler: ast.ExceptHandler, *, grouped: bool) -> bool:
@@ -4291,6 +4301,8 @@ class _FileFacts:
             with a raise standing next after it in the same block, that
             ending line against the raise's own lines.
         unreachable (set[int]): Lines of a handler nothing can arrive at.
+        missed (dict[int, int]): Where each handler whose body cannot run
+            starts and ends, its own line included.
     '''
 
     length: int
@@ -4302,6 +4314,7 @@ class _FileFacts:
     exclusive: list[tuple[set[int], set[int]]]
     before_a_raise: dict[int, frozenset[int]]
     unreachable: set[int]
+    missed: dict[int, int]
 
 
 class _SourceFacts:
@@ -4354,6 +4367,7 @@ class _SourceFacts:
                 exclusive=_exclusive_spans(path),
                 before_a_raise=_before_a_raise(path),
                 unreachable=_unreachable_lines(path),
+                missed=_missed_handlers(path),
             )
 
         return self._known[key]
@@ -4400,6 +4414,45 @@ def _unreachable_lines(path: Path) -> set[int]:
             closing = handler.body[-1].end_lineno or handler.lineno
             opening = handler.body[0].lineno if tried else handler.lineno
             held |= set(range(opening, closing + 1))
+
+    return held
+
+
+def _missed_handlers(path: Path) -> dict[int, int]:
+
+    """Return where each handler whose body cannot run starts and ends.
+
+    A handler that is tried and misses has the kind it names worked
+    out and its body passed over, so a citation taking in that line
+    and the body below it is citing lines that do not run together.
+
+    Args:
+        path (Path): The file to read, at its pinned commit.
+
+    Returns:
+        dict[int, int]: That handler's own line against its last.
+    """
+
+    held: dict[int, int] = {}
+
+    try:
+        tree = ast.parse(_source_text(path))
+    except SyntaxError:
+        return held
+
+    _reading(tree)
+
+    for node in ast.walk(tree):
+
+        if not isinstance(node, (ast.Try, ast.TryStar)):
+            continue
+
+        for handler, _tried, runs in _handler_reach(node):
+
+            if not runs:
+                held[handler.lineno] = (
+                    handler.body[-1].end_lineno or handler.lineno
+                )
 
     return held
 
@@ -4770,12 +4823,41 @@ def _what_a_citation_lands_on(
     if _only_logs(span, facts) and not _claims_a_message(claim):
         return 'log call'
 
-    standing = {n for n in span if n not in facts.blanks | facts.comments}
-
-    if standing and standing <= facts.unreachable:
+    if _nothing_arrives_at(span, facts):
         return 'a handler nothing arrives at'
 
     return None
+
+
+def _nothing_arrives_at(span: list[int], facts: _FileFacts) -> bool:
+
+    '''Whether a cited range stands in a handler nothing arrives at.
+
+    Every line of it may be such a handler's, blank lines and comments
+    padding it answering for nothing. A range inside one handler that
+    takes in a line of its body does too, that body never running
+    whether or not the kind above it is worked out.
+
+    Args:
+        span (list[int]): The lines cited.
+        facts (_FileFacts): What the cited file states.
+
+    Returns:
+        bool: True where the range is in such a handler.
+    '''
+
+    standing = {n for n in span if n not in facts.blanks | facts.comments}
+
+    if not standing:
+        return False
+
+    if standing <= facts.unreachable:
+        return True
+
+    return bool(standing & facts.unreachable) and any(
+        start <= min(standing) and max(standing) <= end
+        for start, end in facts.missed.items()
+    )
 
 
 def _only_says(span: list[int], facts: _FileFacts) -> bool:
