@@ -4042,7 +4042,7 @@ def _rebound_names(tree: ast.AST) -> set[str]:
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             rebound.update(_imported_names(node))
 
-        elif isinstance(node, ast.Assign):
+        elif isinstance(node, (ast.Assign, ast.Delete)):
             for target in node.targets:
                 rebound.update(_bound_names(target))
 

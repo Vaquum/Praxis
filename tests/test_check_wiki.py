@@ -6108,6 +6108,29 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
+    def test_a_name_the_file_deletes_is_weighed_against_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError\n'
+            '    except UnboundLocalError:\n        return 2\n'
+            '    del ValueError\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_the_same_shape_without_the_deletion_is_weighed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        raise ValueError\n'
+            '    except UnboundLocalError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
     def test_a_file_with_a_wildcard_import_weighs_no_kind(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
