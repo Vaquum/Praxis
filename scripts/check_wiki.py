@@ -1907,6 +1907,9 @@ def _handler_reach(
     against what is left of one even though its body cannot run. A `try`
     taking errors in groups weighs every handler against what is left
     of the group, so each of them is tried while anything can arrive.
+    A handler of such a `try` naming a group of errors raises as it is
+    worked out, the language refusing that pairing, so its own body
+    cannot run and nothing after it is reached at all.
 
     Args:
         statement (ast.Try): The statement to read.
@@ -1933,6 +1936,12 @@ def _handler_reach(
             (unsaid or caught or unnamed or (unread and left))
             and not _covered_already(handler, seen),
         )
+        if grouped and handler.type is not None and _names_a_group(handler.type):
+            after = statement.handlers[statement.handlers.index(handler) + 1:]
+            found.append((handler, tried, False))
+            found += [(held_after, False, False) for held_after in after]
+            break
+
         found.append((handler, tried, runs))
         seen |= _named_kinds(handler.type)
         left -= caught
@@ -4049,45 +4058,55 @@ def _rebound_names(tree: ast.AST) -> set[str]:
     return set(_name_bindings(tree))
 
 
-def _declared_in_a_function(tree: ast.AST) -> frozenset[int]:
+def _scoped_nodes(tree: ast.AST) -> tuple[frozenset[int], frozenset[int]]:
 
-    """Return the annotations inside a function that give no value.
+    """Return which statements a scope reads differently from the rest.
 
-    Such an annotation makes the name the function's own wherever it
-    stands in there, so a name the language carries is no longer that
-    error inside it. At module level it binds nothing at all, and nor
-    does one in a class body, whose names stand apart from the
-    function holding it.
+    An annotation with no value makes the name the function's own
+    wherever it stands in there, while at module level it binds
+    nothing at all. A class body's names stand apart from whatever
+    holds it, so neither such an annotation nor a type written out
+    there touches the name outside.
 
     Args:
         tree (ast.AST): The parsed file.
 
     Returns:
-        frozenset[int]: The id of each such annotation.
+        tuple[frozenset[int], frozenset[int]]: The id of each
+            valueless annotation inside a function, and the id of each
+            statement written straight into a class body.
     """
 
-    held: set[int] = set()
+    declared: set[int] = set()
+    inside_a_class: set[int] = set()
 
-    def walk(node: ast.AST, *, inside: bool) -> None:
+    def walk(node: ast.AST, *, scope: str) -> None:
 
         for child in ast.iter_child_nodes(node):
 
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                walk(child, inside=True)
+                walk(child, scope='function')
                 continue
 
             if isinstance(child, ast.ClassDef):
-                walk(child, inside=False)
+                walk(child, scope='class')
                 continue
 
-            if inside and isinstance(child, ast.AnnAssign) and child.value is None:
-                held.add(id(child))
+            if scope == 'class':
+                inside_a_class.add(id(child))
 
-            walk(child, inside=inside)
+            elif (
+                scope == 'function'
+                and isinstance(child, ast.AnnAssign)
+                and child.value is None
+            ):
+                declared.add(id(child))
 
-    walk(tree, inside=False)
+            walk(child, scope=scope)
 
-    return frozenset(held)
+    walk(tree, scope='module')
+
+    return frozenset(declared), frozenset(inside_a_class)
 
 
 def _name_bindings(tree: ast.AST) -> dict[str, int]:
@@ -4097,7 +4116,8 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
     A name bound once by an import and nowhere else holds what that
     import brought; one bound again holds whatever came last. A type
     written out as a name of its own binds that name, and so does a
-    type a function or a class is written to take. An
+    type a function or a class is written to take, though one written
+    straight into a class body is that class's own. An
     annotation with no value beside it binds nothing where the module
     itself carries it, so a name given only a type is left as it was —
     while one written inside a function makes the name that
@@ -4111,7 +4131,7 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
     '''
 
     counted: dict[str, int] = {}
-    declared = _declared_in_a_function(tree)
+    declared, inside_a_class = _scoped_nodes(tree)
 
     def bind(names: Iterable[str]) -> None:
 
@@ -4148,7 +4168,9 @@ def _name_bindings(tree: ast.AST) -> dict[str, int]:
                     bind(_bound_names(item.optional_vars))
 
         elif isinstance(node, ast.TypeAlias):
-            bind(_bound_names(node.name))
+
+            if id(node) not in inside_a_class:
+                bind(_bound_names(node.name))
 
         elif isinstance(node, (ast.TypeVar, ast.ParamSpec, ast.TypeVarTuple)):
             bind({node.name})

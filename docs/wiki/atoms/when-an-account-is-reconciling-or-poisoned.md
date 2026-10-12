@@ -2,7 +2,7 @@
 row: P1-11
 baseline: 49aa659
 created: 2026-10-12 04:21 UTC
-modified: 2026-10-12 11:35 UTC
+modified: 2026-10-12 13:29 UTC
 evidence:
   - claim: "A reconciling or poisoned account takes no submitted work, and its pass ends on the wait"
     source: "`execution_manager.py` 3969-3971"
@@ -35,7 +35,7 @@ An account being brought back into step with the venue is **reconciling**, and o
 
 ## What the pass still does
 
-It takes the waiting venue news, empties [the priority line](the-priority-line.md) and retries a [cancellation](how-a-trade-is-cancelled.md) that is due. A change on that line is put back rather than carried out, coming up again next pass, so it waits as long as the hold. A reconciling hold lifts once the account is in step, a failed reconcile leaving it on until a later one finishes; a poisoned hold never lifts, so a change there waits for the host's life. Putting them back is the last of the line's own work, so a change is lost only where the pass is cancelled first.
+It takes the venue news, empties [the priority line](the-priority-line.md) and retries a due [cancellation](how-a-trade-is-cancelled.md). A change on that line is put back rather than carried out, coming up again next pass, so it waits out the hold. A reconciling hold lifts once the account is in step, a failed reconcile leaving it on until a later one finishes; a poisoned hold never lifts, so a change there waits for the host's life. Putting them back is the last of the line's own work, so a change is lost only where the pass is cancelled first.
 
 Poisoned, the pass then empties its ordinary queue, refusing each request. Reconciling, that queue stands as it is, its requests waiting for the account to come back.
 
@@ -47,7 +47,7 @@ A request whose refusal cannot be reported is dropped. A worker cancelled partwa
 
 An account is poisoned while its worker runs when projecting fails, whether an admitted event or a venue update.
 
-All of it sits below the startup wait, so a pass still starting does none of it. Starting against a live venue sets the account reconciling before waiting on its backfill, so passes taken then are both at once. The two then part: startup can finish with the hold still on, and a boot left not ready keeps taking that wait however the backfill ended.
+All of it sits below the startup wait, so a pass still starting does none of it. Starting against a live venue sets the account reconciling before waiting on its backfill, so passes taken then are both. The two need not end together: startup can finish with the hold on, and a boot left not ready keeps that wait and that hold for good, nothing reconnecting to lift it.
 
 ## Related
 
@@ -58,4 +58,4 @@ All of it sits below the startup wait, so a pass still starting does none of it.
 
 ---
 
-Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 11:35 UTC
+Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 13:29 UTC

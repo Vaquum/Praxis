@@ -6254,6 +6254,54 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held is None
 
+    def test_a_grouped_handler_naming_a_group_reaches_nothing_after_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    held = 0\n    try:\n        raise KeyError()\n'
+            '    except* ExceptionGroup:\n        held = 3\n'
+            '    except* KeyError:\n        held = 2\n    return held\n'
+        )
+        held = self._landed(source, 7, 8, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_the_body_of_a_handler_naming_a_group_cannot_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(work):\n    held = 0\n    try:\n        work()\n'
+            '    except* ExceptionGroup:\n        held = 3\n'
+            '    except* KeyError:\n        held = 2\n    return held\n'
+        )
+        held = self._landed(source, 6, 6, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_that_groups_own_line_still_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    held = 0\n    try:\n        raise KeyError()\n'
+            '    except* ExceptionGroup:\n        held = 3\n'
+            '    except* KeyError:\n        held = 2\n    return held\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_type_written_in_a_class_body_is_that_class_s_own(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class C:\n    type ValueError = int\n\n\ndef f():\n    try:\n'
+            "        raise ValueError('x')\n"
+            '    except TypeError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 9, 9, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
     def test_a_body_sharing_the_handler_line_is_kept_with_it(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
