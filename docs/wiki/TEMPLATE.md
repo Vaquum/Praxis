@@ -30,7 +30,7 @@ Evidence is apparatus. It is how the article is checked, not part of what it say
 row: P1-02
 baseline: 49aa659
 created: 2026-09-20 15:52 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-12 00:18 UTC
 evidence:
   - claim: "A full queue is refused"
     source: "`execution_manager.py` 3497-3511"
@@ -57,11 +57,13 @@ The same applies to a log message. A line reading `_log.warning('placing the rep
 
 ## Cite a body, not a shape
 
-A citation must land on code that does the thing. The check blocks three ways of failing that, each one first caught by hand after it had already reached a finished article:
+A citation must land on code that does the thing. The check blocks these ways of failing that, each one first caught by hand after it had already reached a finished article:
 
 - **A signature only.** A range covering `def place_order(...)` and its parameters proves nothing about behaviour. Cite where the work happens.
 - **A docstring, or a log line.** Covered above.
 - **Two mutually exclusive branches, cited as a sequence.** An early `return` and the code after it, or both halves of an `if`/`else`, cannot both run for one request. Citing them together reads as "first this, then that" and is wrong. Where the point genuinely is that they are alternatives, say so in the row — "need not", "instead", "rather than", "unless" — and the check allows it.
+- **A refusal cited without the raise that refuses.** A range ending on the line before the raise covers the condition and the message it is given, and leaves out the refusal itself. Cite the raise too, or name it elsewhere in the row.
+- **More references in one row than can be weighed.** A row is read for every pair of its citations, so a row carrying more than a hundred of them is reported as that rather than weighed.
 
 A cited file that cannot be found is a failure too, not a skip.
 
@@ -72,4 +74,4 @@ A cited file that cannot be found is a failure too, not a skip.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-04 11:43 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 00:18 UTC
