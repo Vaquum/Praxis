@@ -1434,6 +1434,31 @@ class TestTheFindings:
         )
         assert notes == ['praxis/core/domain/trade_outcome.py:6-7 (docstring)']
 
+    @_NEEDS_BASELINE
+    def test_a_source_saying_docstring_exempts_nothing(self) -> None:
+        notes = check_wiki._row_citations(
+            'the body does it | the docstring at '
+            '`praxis/core/domain/trade_outcome.py` 6-7',
+            check_wiki._SourceFacts(),
+        )
+        assert notes == ['praxis/core/domain/trade_outcome.py:6-7 (docstring)']
+
+    @_NEEDS_BASELINE
+    def test_a_source_saying_warning_exempts_nothing(self) -> None:
+        notes = check_wiki._row_citations(
+            'the account is held | the warning at `execution_manager.py` 3986-3991',
+            check_wiki._SourceFacts(),
+        )
+        assert notes == ['execution_manager:3986-3991 (log call)']
+
+    @_NEEDS_BASELINE
+    def test_a_claim_about_a_logged_message_may_cite_it(self) -> None:
+        notes = check_wiki._row_citations(
+            'the log line names the account | `execution_manager.py` 3986-3991',
+            check_wiki._SourceFacts(),
+        )
+        assert notes == []
+
 
 class TestWholeRanges:
 

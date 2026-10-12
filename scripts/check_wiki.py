@@ -4055,34 +4055,40 @@ def _prose_words(text: str) -> int:
     return words
 
 
-def _claims_a_message(row: str) -> bool:
+def _claims_a_message(claim: str) -> bool:
 
-    '''Whether a row claims something about a logged message.
+    '''Whether a claim says something about a logged message.
+
+    The claim alone is read. A source saying the word would otherwise
+    exempt whatever the claim beside it says.
 
     Args:
-        row (str): One evidence row, as `claim | source`.
+        claim (str): The claim half of an evidence row.
 
     Returns:
         bool: True where it names a log line, a warning or a message.
     '''
 
-    lowered = row.lower()
+    lowered = claim.lower()
 
     return any(word in lowered for word in ('log line', 'warning', 'logged', 'message'))
 
 
-def _claims_a_docstring(row: str) -> bool:
+def _claims_a_docstring(claim: str) -> bool:
 
-    '''Whether a row claims something about a docstring itself.
+    '''Whether a claim says something about a docstring itself.
+
+    The claim alone is read. A source saying the word would otherwise
+    exempt whatever the claim beside it says.
 
     Args:
-        row (str): One evidence row, as `claim | source`.
+        claim (str): The claim half of an evidence row.
 
     Returns:
         bool: True where it says the subject is a docstring.
     '''
 
-    return 'docstring' in row.lower()
+    return 'docstring' in claim.lower()
 
 
 def _log_lines(path: Path) -> set[int]:
@@ -4553,8 +4559,8 @@ def _what_a_citation_lands_on(
         start (int): The first line cited.
         end (int): The last line cited.
         facts (_FileFacts): What the cited file states.
-        row (str): The whole evidence row, read for a claim about a
-            logged message or about a docstring.
+        row (str): The whole evidence row, whose claim is read for a
+            claim about a logged message or about a docstring.
 
     Returns:
         str | None: What it landed on, or None where it landed on code.
@@ -4562,9 +4568,10 @@ def _what_a_citation_lands_on(
 
     span = list(range(start, end + 1))
     bare = facts.blanks | facts.comments | facts.docstrings | facts.signatures
+    claim = row.split(_PARTING, 1)[0]
 
     if _only_says(span, facts):
-        return None if _claims_a_docstring(row) else 'docstring'
+        return None if _claims_a_docstring(claim) else 'docstring'
 
     if all(n in bare for n in span):
         return 'no executable line'
@@ -4574,7 +4581,7 @@ def _what_a_citation_lands_on(
     if start in facts.docstrings or (inside and len(inside) * 2 > len(span)):
         return 'docstring'
 
-    if _only_logs(span, facts) and not _claims_a_message(row):
+    if _only_logs(span, facts) and not _claims_a_message(claim):
         return 'log call'
 
     return None
