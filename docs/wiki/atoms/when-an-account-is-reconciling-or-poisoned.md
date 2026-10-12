@@ -2,7 +2,7 @@
 row: P1-11
 baseline: 49aa659
 created: 2026-10-12 04:21 UTC
-modified: 2026-10-12 05:34 UTC
+modified: 2026-10-12 06:40 UTC
 evidence:
   - claim: "A reconciling or poisoned account takes no submitted work, and its pass ends on the wait"
     source: "`execution_manager.py` 3969-3971"
@@ -14,10 +14,12 @@ evidence:
     source: "`execution_manager.py` 7003-7019"
   - claim: "A cancelled worker stops the emptying and leaves the rest queued"
     source: "`execution_manager.py` 7000-7002"
-  - claim: "Poisoning while the worker runs comes from a projection that failed"
-    source: "`execution_manager.py` 3768-3780"
+  - claim: "Poisoning while the worker runs comes from projecting an admitted event that failed, the failure being handed back to whoever admitted it"
+    source: "`execution_manager.py` 3249-3254, reached from the pass at 3809, handed back at 3830-3832"
   - claim: "A pass that dies poisons the account on its way out, empties its queue and ends the loop"
     source: "`execution_manager.py` 4025-4046, nothing after it taking a pass"
+  - claim: "A worker cancelled instead stops with nothing poisoned and its queue as it stands"
+    source: "`execution_manager.py` 4022-4024, cancelled from 2966-2969"
   - claim: "A boot that ends failed leaves the account starting for good, and its queue is emptied from outside any pass"
     source: "`trading.py` 606-623 reaching `execution_manager.py` 3643 and 3658-3661 instead of the finish at 3672, the pass then taking 3903-3905"
 ---
@@ -37,7 +39,7 @@ A request whose refusal report cannot be built is dropped with nothing reported 
 
 ## Where there is no such pass
 
-An account is poisoned while its worker runs when projecting an admitted event fails. Two other endings leave no pass to describe. A pass that dies of anything else poisons the account on its way out, empties the queue and ends the loop, so the worker is gone rather than going round. And an account whose [startup](what-a-failure-at-startup-does.md) ends failed never finishes starting: every pass takes the startup wait and does nothing else, and the queue is emptied by the failing startup itself rather than by a pass.
+An account is poisoned while its worker runs when projecting an admitted event fails; the pass hands that failure back to whoever admitted the event and carries on. Three other endings leave no pass to describe. A pass that dies otherwise poisons the account on its way out, empties the queue and ends the loop, so the worker is gone rather than going round. A worker cancelled, which is how [stopping](what-stopping-leaves-undone.md) ends one, stops with nothing poisoned and the queue as it stands. And an account whose [startup](what-a-failure-at-startup-does.md) ends failed never finishes starting: every pass takes the startup wait and does nothing else, its queue being emptied by the failing startup rather than by a pass.
 
 ## Related
 
@@ -47,4 +49,4 @@ An account is poisoned while its worker runs when projecting an admitted event f
 
 ---
 
-Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 05:34 UTC
+Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 06:40 UTC

@@ -2,10 +2,10 @@
 row: P2-46
 baseline: 49aa659
 created: 2026-10-12 05:40 UTC
-modified: 2026-10-12 06:23 UTC
+modified: 2026-10-12 06:40 UTC
 evidence:
-  - claim: "The figures are asked of the venue once per account as it starts, for the symbols known then"
-    source: "`trading.py` 554-562, the store filled only at `binance_adapter.py` 2135-2138"
+  - claim: "The figures are asked for as each account starts, and of the venue only for a symbol nothing has asked about yet"
+    source: "`trading.py` 554-562, the store read first at `binance_adapter.py` 2136 and filled at 2138"
   - claim: "An amount is cut down to the step before it is weighed at all"
     source: "`binance_adapter.py` 1518 into 1314-1317"
   - claim: "So the step test the cut amount meets cannot refuse it"
@@ -25,11 +25,11 @@ evidence:
 ---
 # The sizes a venue trades in
 
-A venue trades only in certain sizes: an amount has to sit on a step and fall between a smallest and a largest, and an order carrying a price has to rest on a price tick and be worth at least a smallest value. Praxis keeps those figures for each symbol and weighs an order against them on its way out.
+A venue trades only in certain sizes: amounts come in steps between a smallest and a largest, and a price rests on a tick, with a smallest value an order must be worth. Praxis keeps those figures per symbol, cuts an amount down to the step, and weighs what is left on the way out.
 
 ## Where the figures come from
 
-They are asked of the venue once for each account as it starts, covering the symbols that account is known to trade by then. Nothing asks again while the host runs, so a symbol that turns up later has none.
+Each account asks as it starts, for the symbols it is known to trade by then; the venue itself is asked only about a symbol nothing has asked about yet, so a second account naming one is answered from the first. Nothing asks again later, so a symbol turning up then has none.
 
 ## What is weighed
 
@@ -39,9 +39,7 @@ That amount is refused if it falls under the smallest size or over the largest. 
 
 ## What goes out unweighed
 
-A market buy sized in money, rather than in the asset, is sent before any of this is reached.
-
-So is an order for a symbol with no figures kept: a line is logged and it goes out as it stands, uncut and unweighed, whatever its size or price.
+A market buy sized in money, rather than in the asset, is sent before any of this is reached. So is an order for a symbol with no figures kept: a line is logged and it goes out uncut and unweighed, whatever its size.
 
 ## Related
 
@@ -51,4 +49,4 @@ So is an order for a symbol with no figures kept: a line is logged and it goes o
 
 ---
 
-Created 2026-10-12 05:40 UTC · Last modified 2026-10-12 06:23 UTC
+Created 2026-10-12 05:40 UTC · Last modified 2026-10-12 06:40 UTC

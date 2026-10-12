@@ -1391,8 +1391,11 @@ def _ways_read(statement: ast.stmt) -> set[str]:
     if isinstance(statement, ast.Raise):
         return {_raise_way(statement)}
 
-    if isinstance(statement, ast.Assert) and _asserts_quietly(statement):
-        return {_CARRIES_ON, f'{_RAISE}:AssertionError'}
+    if isinstance(statement, ast.Assert):
+        answer = _assert_answer(statement)
+
+        if answer is not None:
+            return {_CARRIES_ON} if answer else {f'{_RAISE}:AssertionError'}
 
     plain = _plainly_leaves(statement)
 
@@ -2740,30 +2743,32 @@ def _raise_read(statement: ast.stmt) -> bool:
         return not _raised_quietly(statement)
 
     if isinstance(statement, ast.Assert):
-        return not _asserts_quietly(statement)
+        return _assert_answer(statement) is None
 
     return _written_could_raise(statement)
 
 
-def _asserts_quietly(statement: ast.Assert) -> bool:
+def _assert_answer(statement: ast.Assert) -> bool | None:
 
-    '''Whether an assert can raise nothing but the error it is for.
+    '''Return what an assert does where that is known where it stands.
 
-    An assert raises `AssertionError` where its test is falsy, and
-    nothing else where neither the test nor the message it carries
-    could raise as it is worked out.
+    An assert raises `AssertionError` where its test is falsy and
+    nothing else, so a test written out with its answer known says
+    which of those happens. A message that could raise as it is worked
+    out leaves the answer unknown, as does a test read at the time.
 
     Args:
         statement (ast.Assert): The statement to read.
 
     Returns:
-        bool: True where `AssertionError` is all it can raise.
+        bool | None: True where it never raises, False where it always
+            does, None where neither is known.
     '''
 
-    if not _quiet_expression(statement.test):
-        return False
+    if statement.msg is not None and not _quiet_expression(statement.msg):
+        return None
 
-    return statement.msg is None or _quiet_expression(statement.msg)
+    return _written_truth(statement.test)
 
 
 def _written_could_raise(statement: ast.stmt) -> bool:
@@ -4252,7 +4257,9 @@ def _unreachable_lines(path: Path) -> set[int]:
 
     A handler whose every kind an earlier handler already catches
     cannot run, and nor can one of a `try` whose body raises nothing at
-    all. Citing such a handler cites lines no input reaches.
+    all. Citing such a handler cites lines no input reaches, its own
+    line among them: the kind it names is worked out as a raise is
+    matched against it, which never happens where nothing arrives.
 
     Args:
         path (Path): The file to read, at its pinned commit.
@@ -4280,9 +4287,8 @@ def _unreachable_lines(path: Path) -> set[int]:
             if id(handler) in running:
                 continue
 
-            opening = handler.body[0].lineno
-            closing = handler.body[-1].end_lineno or opening
-            held |= set(range(opening, closing + 1))
+            closing = handler.body[-1].end_lineno or handler.lineno
+            held |= set(range(handler.lineno, closing + 1))
 
     return held
 

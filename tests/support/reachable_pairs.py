@@ -251,6 +251,8 @@ class _Writer:
             f'{pad}return',
             f'{pad}{self.rng.choice(RAISES)}',
             f'{pad}assert a',
+            f'{pad}assert 1 < 2',
+            f'{pad}assert 2 < 1',
             f'{pad}del held',
         ]
 
