@@ -104,10 +104,6 @@ _KNOWN_ERRORS = frozenset(
     name for name, held in vars(builtins).items()
     if isinstance(held, type) and issubclass(held, BaseException)
 )
-_UNDER_EXCEPTION = frozenset(
-    name for name, held in vars(builtins).items()
-    if isinstance(held, type) and issubclass(held, Exception)
-)
 _COVERED_BY = {
     name: frozenset(
         under for under, each in vars(builtins).items()
@@ -417,7 +413,10 @@ def _docstring_lines(path: Path) -> set[int]:
 
 _METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
 _PARTING = ' | '
-_FORMAT_MARK = 'Cf'
+_SHOWS_NOTHING = frozenset({'Cc', 'Cf'})
+_UNPRINTABLE = re.compile(
+    '[^\t\x20-\x7e\x85\xa0-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]',
+)
 EVIDENCE_LINE = re.compile(
     r'^(  - claim: "[^"\\\x00-\x1f\x7f]*"'
     r'|    source: "[^"\\\x00-\x1f\x7f]*")$',
@@ -1392,6 +1391,9 @@ def _ways_read(statement: ast.stmt) -> set[str]:
     if isinstance(statement, ast.Raise):
         return {_raise_way(statement)}
 
+    if isinstance(statement, ast.Assert) and _asserts_quietly(statement):
+        return {_CARRIES_ON, f'{_RAISE}:AssertionError'}
+
     plain = _plainly_leaves(statement)
 
     if plain:
@@ -1602,13 +1604,12 @@ def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
     '''Return the raises a `try`'s own handlers certainly catch.
 
     A handler naming no kind catches anything, as does one naming
-    `BaseException`. One naming `Exception` catches the kinds the
-    language carries under it, and a kind named nowhere there is left
-    uncaught, standing where it stands being the project's own
-    affair. One naming some other kind
-    catches a raise of that kind by name alone: a raise of a kind under
-    it, or of a kind named through something else, is left as a way
-    out, and so is a raise naming nothing.
+    `BaseException`. Any other handler catches a raise of the kind it
+    names and of every kind the language carries under that one, so
+    `LookupError` catches a `KeyError`. A kind the language carries
+    nowhere is left uncaught, standing where it stands being the
+    project's own affair, and so is a raise of a kind named through
+    something else, or one naming nothing at all.
 
     Args:
         node (ast.Try): The statement to read.
@@ -1626,13 +1627,9 @@ def _caught_by(node: ast.Try | ast.TryStar, ways: set[str]) -> set[str]:
     if _catches_anything(node):
         return raises
 
-    named = _handler_kinds(node)
-    caught = {way for way in raises if way.partition(':')[2] in named}
+    named = _covered_kinds(_handler_kinds(node))
 
-    if 'Exception' in named:
-        caught |= {way for way in raises if _under_exception(way)}
-
-    return caught
+    return {way for way in raises if way.partition(':')[2] in named}
 
 
 def _catches_anything(node: ast.Try | ast.TryStar) -> bool:
@@ -1672,25 +1669,6 @@ def _names_every_error(named: ast.expr) -> bool:
         return any(_names_every_error(held) for held in named.elts)
 
     return isinstance(named, ast.Name) and named.id == 'BaseException'
-
-
-def _under_exception(way: str) -> bool:
-
-    '''Whether a raise way names a kind `Exception` covers.
-
-    The kinds it covers are the errors the language itself carries
-    under it. A kind named nowhere there may stand under `Exception`
-    or outside it — a project writes its own either way — and a raise
-    naming nothing at all could be any kind, so neither is covered.
-
-    Args:
-        way (str): The way, as `raise` with the kind it names.
-
-    Returns:
-        bool: True where that kind stands under `Exception`.
-    '''
-
-    return way.partition(':')[2] in _UNDER_EXCEPTION
 
 
 def _handler_kinds(node: ast.Try | ast.TryStar) -> set[str]:
@@ -1870,12 +1848,29 @@ def _caught_by_handler(handler: ast.ExceptHandler, ways: set[str]) -> set[str]:
     if handler.type is None or _names_every_error(handler.type):
         return set(ways)
 
-    kinds = _named_kinds(handler.type)
-    covered = {
-        under for kind in kinds for under in _COVERED_BY.get(kind, frozenset())
-    }
+    covered = _covered_kinds(_named_kinds(handler.type))
 
-    return {way for way in ways if way.partition(':')[2] in kinds | covered}
+    return {way for way in ways if way.partition(':')[2] in covered}
+
+
+def _covered_kinds(kinds: set[str]) -> frozenset[str]:
+
+    '''Return every kind a set of named kinds catches between them.
+
+    A handler catches a raise of the kind it names and of every kind
+    the language carries under that one, so `LookupError` catches a
+    `KeyError` and `Exception` catches whatever stands under it.
+
+    Args:
+        kinds (set[str]): The kinds named.
+
+    Returns:
+        frozenset[str]: Those kinds and everything under them.
+    '''
+
+    return frozenset(kinds).union(*(
+        _COVERED_BY.get(kind, frozenset()) for kind in kinds
+    )) if kinds else frozenset()
 
 
 def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
@@ -1901,10 +1896,9 @@ def _covered_already(handler: ast.ExceptHandler, seen: set[str]) -> bool:
     if not kinds or not _every_part_named(handler.type):
         return False
 
-    return all(
-        kind in seen or ('Exception' in seen and kind in _UNDER_EXCEPTION)
-        for kind in kinds
-    )
+    covered = _covered_kinds(seen)
+
+    return all(kind in covered for kind in kinds)
 
 
 def _every_part_named(named: ast.expr | None) -> bool:
@@ -2741,7 +2735,31 @@ def _raise_read(statement: ast.stmt) -> bool:
     if isinstance(statement, ast.Raise):
         return not _raised_quietly(statement)
 
+    if isinstance(statement, ast.Assert):
+        return not _asserts_quietly(statement)
+
     return _written_could_raise(statement)
+
+
+def _asserts_quietly(statement: ast.Assert) -> bool:
+
+    '''Whether an assert can raise nothing but the error it is for.
+
+    An assert raises `AssertionError` where its test is falsy, and
+    nothing else where neither the test nor the message it carries
+    could raise as it is worked out.
+
+    Args:
+        statement (ast.Assert): The statement to read.
+
+    Returns:
+        bool: True where `AssertionError` is all it can raise.
+    '''
+
+    if not _quiet_expression(statement.test):
+        return False
+
+    return statement.msg is None or _quiet_expression(statement.msg)
 
 
 def _written_could_raise(statement: ast.stmt) -> bool:
@@ -4155,6 +4173,7 @@ class _FileFacts:
         before_a_raise (dict[int, frozenset[int]]): Where a statement ends
             with a raise standing next after it in the same block, that
             ending line against the raise's own lines.
+        unreachable (set[int]): Lines of a handler nothing can arrive at.
     '''
 
     length: int
@@ -4165,6 +4184,7 @@ class _FileFacts:
     signatures: set[int]
     exclusive: list[tuple[set[int], set[int]]]
     before_a_raise: dict[int, frozenset[int]]
+    unreachable: set[int]
 
 
 class _SourceFacts:
@@ -4216,9 +4236,51 @@ class _SourceFacts:
                 signatures=_signature_lines(path),
                 exclusive=_exclusive_spans(path),
                 before_a_raise=_before_a_raise(path),
+                unreachable=_unreachable_lines(path),
             )
 
         return self._known[key]
+
+
+def _unreachable_lines(path: Path) -> set[int]:
+
+    '''Return the lines of every handler nothing can arrive at.
+
+    A handler whose every kind an earlier handler already catches
+    cannot run, and nor can one of a `try` whose body raises nothing at
+    all. Citing such a handler cites lines no input reaches.
+
+    Args:
+        path (Path): The file to read, at its pinned commit.
+
+    Returns:
+        set[int]: Those line numbers.
+    '''
+
+    held: set[int] = set()
+
+    try:
+        tree = ast.parse(_source_text(path))
+    except SyntaxError:
+        return held
+
+    for node in ast.walk(tree):
+
+        if not isinstance(node, (ast.Try, ast.TryStar)):
+            continue
+
+        running = {id(handler) for handler in _handlers_that_run(node)}
+
+        for handler in node.handlers:
+
+            if id(handler) in running:
+                continue
+
+            opening = handler.body[0].lineno
+            closing = handler.body[-1].end_lineno or opening
+            held |= set(range(opening, closing + 1))
+
+    return held
 
 
 def _before_a_raise(path: Path) -> dict[int, frozenset[int]]:
@@ -4583,6 +4645,9 @@ def _what_a_citation_lands_on(
 
     if _only_logs(span, facts) and not _claims_a_message(claim):
         return 'log call'
+
+    if set(span) <= facts.unreachable:
+        return 'a handler nothing arrives at'
 
     return None
 
@@ -5445,6 +5510,12 @@ def _metadata_shape(meta: str) -> list[str]:
         for row in held
         if not EVIDENCE_LINE.match(row)
     )
+    notes.extend(
+        'evidence holds a character the YAML behind it cannot carry: '
+        f'"{row.strip()[:40]}"'
+        for row in held
+        if _UNPRINTABLE.search(row)
+    )
 
     return notes + _evidence_pairs(held)
 
@@ -5455,9 +5526,9 @@ def _said(value: str) -> str:
 
     A space, a tab and a mark that shows nothing at all each leave a
     value that reads as written and says nothing, so every character
-    Unicode files as a format mark is taken off, along with the
-    whitespace around what is left, before asking whether anything is
-    left at all.
+    Unicode files as a format or a control mark is taken off, along
+    with the whitespace around what is left, before asking whether
+    anything is left at all.
 
     Args:
         value (str): The value as the block wrote it.
@@ -5468,7 +5539,7 @@ def _said(value: str) -> str:
 
     held = ''.join(
         letter for letter in value
-        if unicodedata.category(letter) != _FORMAT_MARK
+        if unicodedata.category(letter) not in _SHOWS_NOTHING
     )
 
     return held.strip()

@@ -1853,13 +1853,13 @@ class TestTheFinallyClause:
         )
         covered = [
             kind for kind in kinds
-            if check_wiki._under_exception(f'raise:{kind}')
+            if kind in check_wiki._covered_kinds({'Exception'})
         ]
 
         assert covered == []
 
     def test_a_kind_inside_exception_is_covered(self) -> None:
-        assert check_wiki._under_exception('raise:ValueError')
+        assert 'ValueError' in check_wiki._covered_kinds({'Exception'})
 
     def test_dead_code_after_a_plain_return_raises_nothing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -5089,6 +5089,13 @@ class TestWhatTheMetadataMustLookLike:
     def test_the_shape_the_wiki_writes_passes(self) -> None:
         assert check_wiki._metadata_shape(self._GOOD) == []
 
+    def test_a_printable_character_outside_ascii_passes(self) -> None:
+        held = check_wiki._metadata_shape(
+            self._GOOD.replace('"A thing is so"', '"A thing is s\u00f8"'),
+        )
+
+        assert held == []
+
     @pytest.mark.parametrize(
         ('meta', 'wanted'),
         [
@@ -5209,6 +5216,26 @@ class TestWhatTheMetadataMustLookLike:
                 _GOOD.replace('"A thing is so"', '"\u200e"'),
                 'a claim that says nothing',
                 id='a-claim-of-a-mark-outside-the-five',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"\u00ad"'),
+                'a claim that says nothing',
+                id='a-claim-of-a-soft-hyphen',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"A thing\u0080is so"'),
+                'a character the YAML behind it cannot carry',
+                id='a-claim-holding-a-c1-control',
+            ),
+            pytest.param(
+                _GOOD.replace('source: "`order.py` 3"', 'source: "`order\u009f.py` 3"'),
+                'a character the YAML behind it cannot carry',
+                id='a-source-holding-a-c1-control',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"A thing\ufffe is so"'),
+                'a character the YAML behind it cannot carry',
+                id='a-claim-holding-a-noncharacter',
             ),
             pytest.param(
                 _GOOD.replace('"A thing is so"', '"A thing\x00is so"'),
@@ -5933,3 +5960,103 @@ class TestWhatTheGateLeavesUnreached:
 
         assert '_stranded' in unreached
         assert 'KEPT' not in unreached
+
+
+class TestWhatAHandlerNothingArrivesAtCosts:
+
+    @staticmethod
+    def _landed(
+        source: str, start: int, end: int,
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> str | None:
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        facts = check_wiki._SourceFacts().of('sample.py', path)
+        held: str | None = check_wiki._what_a_citation_lands_on(
+            start, end, facts, 'a claim',
+        )
+
+        return held
+
+    def test_a_handler_an_earlier_one_covers_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        work()\n'
+            '    except LookupError:\n        held = 3\n'
+            '    except KeyError:\n        held = 4\n    return 5\n'
+        )
+        held = self._landed(source, 7, 7, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_handler_the_earlier_one_leaves_alone_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        work()\n'
+            '    except KeyError:\n        held = 3\n'
+            '    except LookupError:\n        held = 4\n    return 5\n'
+        )
+        held = self._landed(source, 7, 7, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_handler_of_a_try_that_raises_nothing_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        held = 1\n'
+            '    except KeyError:\n        held = 2\n    return 3\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_handler_for_an_asserts_own_error_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        assert 1 < 2\n'
+            '    except AssertionError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_handler_an_assert_cannot_reach_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f():\n    try:\n        assert 1 < 2\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_an_assert_whose_message_could_raise_reaches_any_handler(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(why):\n    try:\n        assert 1 < 2, why\n'
+            '    except KeyError:\n        held = 1\n    return 2\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_an_arm_ending_in_an_assert_can_carry_on(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(flag, step, later):\n    if flag:\n        step()\n'
+            '        assert 1 < 2\n    later()\n'
+        )
+        path = tmp_path / 'sample.py'
+        path.write_text(source)
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _p: source)
+        spans: list[tuple[set[int], set[int]]] = check_wiki._exclusive_spans(path)
+
+        assert spans == []

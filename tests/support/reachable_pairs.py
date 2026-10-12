@@ -19,7 +19,10 @@ from typing import Any
 CONDITIONS = (
     'a', 'b', 'c', 'not a', 'not b', 'True', 'False', '1 < 2', '2 < 1',
     '1 < 2 < 3', "'a' in 'abc'", '0', "''", '(1, 2)', 'a and True',
-    'False or b', 'not False',
+    'False or b', 'not False', '1 < 2 < 1', "1 < 'a'", '(1, 2) < (1, 3)',
+    '[1] == [1]', '1 in (1, 2)', "'b' not in 'abc'", '1 == 1.0',
+    'None is None', 'not (1 < 2)', '0 or 1', '1 and 0', '() or 2',
+    'a is None', 'held is held', "{'a': 1} == {}", '1 < 2 and a',
 )
 CALLS = ('step()', 'risky()')
 HOLDERS = ('kept()', 'swallowed()')

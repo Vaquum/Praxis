@@ -2,7 +2,7 @@
 row: P2-22
 baseline: 49aa659
 created: 2026-09-28 07:18 UTC
-modified: 2026-10-12 04:22 UTC
+modified: 2026-10-12 05:34 UTC
 evidence:
   - claim: "The settings carry a shown amount and a price to rest at, both above zero"
     source: "`iceberg_params.py` 30-31, required positive at 37-41"
@@ -37,7 +37,7 @@ A **part-shown order** is a single order for the whole amount, resting at a name
 
 The settings carry how much to show at a time and the price the order rests at. Both must be above zero.
 
-The shown amount cannot be larger than the whole. Checks that it clears the venue's smallest size, sits on its step and is worth enough are written and unreached: the one place admitting a request passes no venue rules, which are weighed against the whole amount later.
+The shown amount cannot be larger than the whole. Checks that it clears [the sizes the venue trades in](the-sizes-a-venue-trades-in.md) are written beside that one and unreached: the place admitting a request passes no venue rules, and the sizes are weighed on the way out against the whole amount.
 
 ## When nothing is hidden
 

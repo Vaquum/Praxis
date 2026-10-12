@@ -2,7 +2,7 @@
 row: P1-11
 baseline: 49aa659
 created: 2026-10-12 04:21 UTC
-modified: 2026-10-12 04:21 UTC
+modified: 2026-10-12 05:34 UTC
 evidence:
   - claim: "A reconciling or poisoned account takes no submitted work, and its pass ends on the wait"
     source: "`execution_manager.py` 3969-3971"
@@ -14,6 +14,12 @@ evidence:
     source: "`execution_manager.py` 7003-7019"
   - claim: "A cancelled worker stops the emptying and leaves the rest queued"
     source: "`execution_manager.py` 7000-7002"
+  - claim: "Poisoning while the worker runs comes from a projection that failed"
+    source: "`execution_manager.py` 3768-3780"
+  - claim: "A pass that dies poisons the account on its way out, empties its queue and ends the loop"
+    source: "`execution_manager.py` 4025-4046, nothing after it taking a pass"
+  - claim: "A boot that ends failed leaves the account starting for good, and its queue is emptied from outside any pass"
+    source: "`trading.py` 606-623 reaching `execution_manager.py` 3643 and 3658-3661 instead of the finish at 3672, the pass then taking 3903-3905"
 ---
 # When an account is reconciling or poisoned
 
@@ -29,6 +35,10 @@ Poisoned, the pass then empties its ordinary queue, refusing each request in it.
 
 A request whose refusal report cannot be built is dropped with nothing reported at all. Where the worker is cancelled partway through the emptying, it stops where it was and whatever is still queued stays queued.
 
+## Where there is no such pass
+
+An account is poisoned while its worker runs when projecting an admitted event fails. Two other endings leave no pass to describe. A pass that dies of anything else poisons the account on its way out, empties the queue and ends the loop, so the worker is gone rather than going round. And an account whose [startup](what-a-failure-at-startup-does.md) ends failed never finishes starting: every pass takes the startup wait and does nothing else, and the queue is emptied by the failing startup itself rather than by a pass.
+
 ## Related
 
 - [The account worker](how-waiting-work-is-drained.md)
@@ -37,4 +47,4 @@ A request whose refusal report cannot be built is dropped with nothing reported 
 
 ---
 
-Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 04:21 UTC
+Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 05:34 UTC

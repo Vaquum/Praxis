@@ -83,11 +83,12 @@ Read them in order if you are new. Every term is explained where it first appear
 - [Estimating the likely price](atoms/how-the-likely-price-is-worked-out.md) — how that price is worked out from the offers standing at the venue.
 - [Work fed out over time](atoms/work-fed-out-over-time.md) — an amount broken into slices that go out one at a time with a gap between them.
 - [Part-shown orders](atoms/part-shown-orders.md) — one resting order the venue displays only part of at a time.
+- [The sizes a venue trades in](atoms/the-sizes-a-venue-trades-in.md) — a venue accepts only certain amounts and prices, and Praxis weighs an order against the figures it holds for that symbol — or sends it unweighed when it holds none.
 - [Protection](atoms/protection.md) — a pair of orders put up after an opening order, to close the position at either a good price or a bad one.
 - [When protection is put up again](atoms/when-protection-is-put-up-again.md) — protection is put up once, guarded by a flag that turns a second attempt back.
 - [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, an order each, sent one after another in one pass.
 - [The account worker](atoms/how-waiting-work-is-drained.md) — each account has one worker going round the same circuit until it is stopped, taking work off a queue.
-- [When an account is reconciling or poisoned](atoms/when-an-account-is-reconciling-or-poisoned.md) — an account being brought back into step with the venue, or carrying a fault that needs a restart, is left with a worker that still goes round but takes nothing new.
+- [When an account is reconciling or poisoned](atoms/when-an-account-is-reconciling-or-poisoned.md) — what a pass does for an account being brought back into step with the venue, or carrying a fault that needs a restart, and when there is no pass left to do it.
 - [The priority line](atoms/the-priority-line.md) — cancellations and changes wait in a line of their own, emptied on each circuit once the account has started, before anything waiting to be placed.
 - [Work already under way](atoms/work-already-under-way.md) — the work the loop moves along between taking one request and the next.
 
@@ -155,8 +156,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-112 articles exist. Every Praxis module is named in the ledger: 46 are `full`, 37 `partial` and 5 `uncovered`. Of the 70 in Nexus, 17 are cited in passing and 53 untouched. The ledger lists them.
+113 articles exist. Every Praxis module is named in the ledger: 46 are `full`, 37 `partial` and 5 `uncovered`. Of the 70 in Nexus, 17 are cited in passing and 53 untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 04:22 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 05:34 UTC
