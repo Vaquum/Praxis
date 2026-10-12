@@ -220,7 +220,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-006 | While reconnecting but not stopped, the worker halts before the command queue. Waiting orders are neither sent nor ended — they stay. | `execution_manager.py` 3966-3968 | P1-03 | folds into P1-03 |
 | H-007 | Venue news is drained before any new order is started. | `execution_manager.py` `_drain_external_events` 3907 | P1-03 | folds into P1-03 |
 | H-008 | A sliced order past its deadline is ended without being sent, with no slices placed. A single order has separate deadline handling after submission. | `execution_manager.py` `_expire_stale_command` 4123-4130 | P1-03 | folds into P1-03 |
-| H-009 | Scheme slices, pending protection and a protection sweep all run before the command queue is reached. | `execution_manager.py` 3971-3978 | P1-03 | folds into P1-03 |
+| H-009 | Scheme slices, pending protection and a protection sweep all run before the command queue is reached. | `execution_manager.py` 3971-3978 | P1-03 | folds into P1-03, which names all three |
 | H-010 | A cancel for an order that has not reached the venue is only marked, not acted on. The mark is what stops it later. | `execution_manager.py` `_process_abort` 8500-8511 | P1-04 | folds into P1-04 |
 | H-011 | Every starting path reads the cancel mark on entry, four of them as their first statement and the scheme path after working out its schedule, and sets out to end the order with no fills where one is set. Four of the five do end it; the ladder path passes a zero slice total and has its ending refused, as H-042 records. | `execution_manager.py` 4154, 4482, 5275, 5713, 6074 | P1-04 | folds into P1-04 |
 | H-012 | Because cancels drain fully before any order is taken, a cancel already queued when a pass begins beats the order that pass would have sent. | `execution_manager.py` 3910 with 3984 | P1-04 | folds into P1-04 |
@@ -284,4 +284,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 01:12 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 01:31 UTC

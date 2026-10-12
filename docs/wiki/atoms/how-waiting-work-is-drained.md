@@ -2,7 +2,7 @@
 row: P1-03
 baseline: 49aa659
 created: 2026-09-20 16:30 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-12 01:31 UTC
 evidence:
   - claim: "One worker per account; a second registration is refused"
     source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"
@@ -10,6 +10,8 @@ evidence:
     source: "`execution_manager.py` 3901-3907"
   - claim: "Venue news is drained before the priority line"
     source: "called at `execution_manager.py` 3907, body at 3734-3737"
+  - claim: "Slices now due, protection waiting to go up and a sweep asked for all run before the ordinary queue is reached"
+    source: "`execution_manager.py` 3973-3978, ahead of 3980"
   - claim: "After a failure the ordinary queue is emptied and each item refused"
     source: "`execution_manager.py` 3962-3967, body at 6988-6999"
   - claim: "A request whose refusal report cannot be built is dropped unreported"
@@ -35,7 +37,7 @@ Each account has one **worker**: a background loop going round the same circuit 
 
 A pass takes from the queues in this order: updates from the venue, then [the priority line](the-priority-line.md), then at most one piece of [submitted work](how-an-order-is-placed.md).
 
-Between the priority line and that last step it carries on with [work already under way](work-already-under-way.md).
+Between the priority line and that last step it carries on with [work already under way](work-already-under-way.md): slices now due, [protection](protection.md) waiting to go up, and a sweep of protection where one was asked for.
 
 ## The ordinary queue
 
