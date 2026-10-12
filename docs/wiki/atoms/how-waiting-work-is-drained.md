@@ -2,7 +2,7 @@
 row: P1-03
 baseline: 49aa659
 created: 2026-09-20 16:30 UTC
-modified: 2026-10-12 02:35 UTC
+modified: 2026-10-12 03:12 UTC
 evidence:
   - claim: "One worker per account; a second registration is refused"
     source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"
@@ -47,7 +47,7 @@ At most one submitted request is taken per circuit, and many passes take none.
 
 ## What holds a pass back
 
-While the account is still starting up, the pass does nothing else: it waits that same tenth of a second and goes round again.
+Between passes it waits a tenth of a second, less where an admitted event wakes it; queueing a request wakes nothing. While the account is still starting up, the pass does nothing else and waits that tenth out.
 
 Paused or failed, the circuit still takes the waiting venue updates, empties the priority queue, retries a due [cancellation](how-a-trade-is-cancelled.md) and, if failed, empties its ordinary queue refusing each item. Paused, that queue is left as it stands, so the requests in it wait. The circuit then ends. Changes put back in the queue are left until the next circuit.
 

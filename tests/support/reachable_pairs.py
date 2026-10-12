@@ -513,10 +513,14 @@ def _runs(source: str) -> list[set[int]]:
 
 def _within_one_loop(tree: ast.AST, first: set[int], second: set[int]) -> bool:
 
-    '''Whether one loop holds both sides of a pair.
+    '''Whether one loop holds a pair the gate reads as same-turn alternatives.
 
     Two arms inside one loop are read as alternatives for one turn, so a
-    pass taking several turns reaching both is no disagreement.
+    pass taking several turns reaching both is no disagreement. One side
+    may reach past the loop as well — a branch leaving the path carries
+    its reach to the end of the function — and what matters is that a
+    loop's body holds the whole of one side and some of the other, since
+    those are the lines two turns can reach.
 
     Args:
         tree (ast.AST): The parsed shape.
@@ -524,7 +528,8 @@ def _within_one_loop(tree: ast.AST, first: set[int], second: set[int]) -> bool:
         second (set[int]): The other side.
 
     Returns:
-        bool: True where some loop's body holds every line of both.
+        bool: True where some loop's body holds one side whole and part
+            of the other.
     '''
 
     for node in ast.walk(tree):
@@ -534,9 +539,12 @@ def _within_one_loop(tree: ast.AST, first: set[int], second: set[int]) -> bool:
 
         opening = node.body[0].lineno
         closing = node.body[-1].end_lineno or opening
+        held = set(range(opening, closing + 1))
 
-        if all(opening <= line <= closing for line in first | second):
-            return True
+        for one, other in ((first, second), (second, first)):
+
+            if one <= held and other & held:
+                return True
 
     return False
 

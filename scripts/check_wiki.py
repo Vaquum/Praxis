@@ -38,6 +38,7 @@ META_STAMP = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 ROW_ID = re.compile(r'\bP\d+-\d{2}\b')
+COMMIT_ID = re.compile(r'[0-9a-f]{7,40}')
 ROW_OPENING = re.compile(r'^\|\s*(P\d+-\d{2})\s*\|', re.MULTILINE)
 BANNED_HEADINGS = ('## What it is', '## Overview', '## Introduction')
 NEGATIVE_DEF = re.compile(r',\s+not\s+(?:a|an|the|yet|by|its|one)\b', re.IGNORECASE)
@@ -408,6 +409,7 @@ def _docstring_lines(path: Path) -> set[int]:
 
 _METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
 _PARTING = ' | '
+_BLANKS = ('\u200b', '\u200c', '\u200d', '\u2060', '\ufeff')
 EVIDENCE_LINE = re.compile(
     r'^(  - claim: "[^"\\]*"|    source: "[^"\\]*")$',
 )
@@ -5447,6 +5449,14 @@ def _metadata_shape(meta: str) -> list[str]:
         if not row[len(key) + 1:].strip()
     ]
 
+    written = dict(row.split(':', 1) for row in named[:-1])
+
+    if not COMMIT_ID.fullmatch(written['baseline'].strip()):
+        notes.append('metadata writes a baseline that is not a commit')
+
+    if not ROW_ID.fullmatch(written['row'].strip()):
+        notes.append('metadata writes a row that is not a register row')
+
     if named[-1].strip() != 'evidence:':
         notes.append('metadata writes evidence as a value rather than a list')
 
@@ -5468,6 +5478,27 @@ def _metadata_shape(meta: str) -> list[str]:
     )
 
     return notes + _evidence_pairs(held)
+
+
+def _said(value: str) -> str:
+
+    '''Return what a claim or a source says, blanks of every kind removed.
+
+    A space, a tab and a mark that shows nothing at all each leave a
+    value that reads as written and says nothing, so each is taken off
+    before asking whether anything is left.
+
+    Args:
+        value (str): The value as the block wrote it.
+
+    Returns:
+        str: What is left of it.
+    '''
+
+    for blank in _BLANKS:
+        value = value.replace(blank, '')
+
+    return value.strip()
 
 
 def _evidence_pairs(held: list[str]) -> list[str]:
@@ -5499,11 +5530,12 @@ def _evidence_pairs(held: list[str]) -> list[str]:
             claim, sources = pairs[-1]
             pairs[-1] = (claim, sources + 1)
 
-            if not stripped[len('source:'):].strip().strip('"'):
+            if not _said(stripped[len('source:'):].strip().strip('"')):
                 empty.append(claim)
 
     notes = [
-        'evidence holds a claim that says nothing' for claim, _ in pairs if not claim
+        'evidence holds a claim that says nothing'
+        for claim, _ in pairs if not _said(claim)
     ]
     notes += [
         f'the claim "{claim[:40]}" holds the mark that parts a claim from its source'
@@ -5537,7 +5569,7 @@ def _check_metadata(meta: str, ids: set[str]) -> list[str]:
     notes = _metadata_shape(meta)
     baseline = _written_under('baseline', meta)
 
-    if baseline is None or not BASELINE_RE.fullmatch(f'baseline: {baseline}'):
+    if baseline is None:
         notes.append('metadata names no baseline commit')
     elif baseline != BASELINE:
         notes.append(

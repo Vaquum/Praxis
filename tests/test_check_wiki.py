@@ -5105,6 +5105,40 @@ class TestWhatTheMetadataMustLookLike:
                 'carries a source that names nothing',
                 id='a-source-naming-nothing',
             ),
+            pytest.param(
+                _GOOD.replace(
+                    'source: "`order.py` 3"', 'source: "`order.py` 3, the "only" line"',
+                ),
+                'neither a claim nor a source',
+                id='a-source-quoting-inside-itself',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"   "'),
+                'a claim that says nothing',
+                id='a-claim-of-spaces',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"\t"'),
+                'a claim that says nothing',
+                id='a-claim-of-one-tab',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"\u200b"'),
+                'a claim that says nothing',
+                id='a-claim-of-a-mark-that-shows-nothing',
+            ),
+            pytest.param(
+                _GOOD.replace('source: "`order.py` 3"', 'source: "\u200b"'),
+                'carries a source that names nothing',
+                id='a-source-of-a-mark-that-shows-nothing',
+            ),
+            pytest.param(
+                'row: P1-01\nbaseline: 49aa659\ncreated: 2099-01-01 00:00 UTC\n'
+                '\t- claim: "smuggled"\n\tsource: "`order.py` 3"\n'
+                'modified: 2099-01-01 00:00 UTC\nevidence:',
+                'holds a line before its evidence',
+                id='a-pair-smuggled-above-evidence-with-tabs',
+            ),
         ],
     )
     def test_a_claim_that_is_not_one_pair_is_refused(
@@ -5147,6 +5181,26 @@ class TestWhatTheMetadataMustLookLike:
                 _GOOD.replace('row: P1-01', 'arow: P1-01'),
                 'claims no register row',
                 id='a-row-under-a-longer-key',
+            ),
+            pytest.param(
+                _GOOD.replace('baseline: 49aa659', 'baseline:'),
+                'writes baseline as nothing',
+                id='a-baseline-written-as-nothing',
+            ),
+            pytest.param(
+                _GOOD.replace('baseline: 49aa659', 'baseline: nothing'),
+                'writes a baseline that is not a commit',
+                id='a-baseline-that-is-not-a-commit',
+            ),
+            pytest.param(
+                _GOOD.replace('baseline: 49aa659', 'baseline: 49aa659 extra'),
+                'writes a baseline that is not a commit',
+                id='a-baseline-with-more-after-it',
+            ),
+            pytest.param(
+                _GOOD.replace('row: P1-01', 'row: banana'),
+                'writes a row that is not a register row',
+                id='a-row-that-is-not-a-row',
             ),
             pytest.param(
                 _GOOD.replace('row: P1-01', 'row: P9-99'),

@@ -213,7 +213,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 | Harvest ID | Question or observation | Source anchor | From | Disposition |
 |---|---|---|---|---|
-| H-001 | A newly queued order does not wake the worker. Only an admitted event sets the wake flag; commands wait out the poll interval, currently 0.1s. | `execution_manager.py` `_wait_for_work` 3885-3888, `admit` 3212, `_QUEUE_POLL_INTERVAL` 143 | P1-03 | folds into P1-03, which states the wait and what wakes it |
+| H-001 | A newly queued order does not wake the worker. Only an admitted event sets the wake flag; commands wait out the poll interval, currently 0.1s. | `execution_manager.py` `_wait_for_work` 3885-3888, `admit` 3212, `_QUEUE_POLL_INTERVAL` 143 | P1-03 | folds into P1-03, which states the wait, what wakes it, and that queueing wakes nothing |
 | H-002 | While the account is still starting, the worker does nothing at all — it sleeps a poll interval and starts the round again. | `execution_manager.py` `_account_loop` 3903-3905 | P1-03 | folds into P1-03, which states the waiting while it starts |
 | H-003 | The priority queue drains fully every pass. The command queue yields at most one order per pass. | `execution_manager.py` 3910, 3984 | P1-03 | folds into P1-03, which states one item a pass, and P1-08 the line emptied |
 | H-004 | A cancel runs even while the account is reconnecting or stopped; a change is deferred and put back on the queue to retry next pass. | `execution_manager.py` 3912-3928, 3953-3954 | P1-03 | split: cancel half folds P1-04, change half folds P1-08 |
@@ -224,7 +224,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-009 | Scheme slices, pending protection and a protection sweep all run before the command queue is reached. | `execution_manager.py` 3971-3978 | P1-03 | folds into P1-03, which names all three |
 | H-010 | A cancel for an order that has not reached the venue is only marked, not acted on. The mark is what stops it later. | `execution_manager.py` `_process_abort` 8500-8511 | P1-04 | folds into P1-04, which states the marking and the later dropping |
 | H-011 | Every starting path reads the cancel mark on entry, four of them as their first statement and the scheme path after working out its schedule, and sets out to end the order with no fills where one is set. Four of the five do end it; the ladder path passes a zero slice total and has its ending refused, as H-042 records. | `execution_manager.py` 4154, 4482, 5275, 5713, 6074 | P1-04 | folds into P1-04, which states the mark read at every start; H-042 carries the ladder |
-| H-012 | Because cancels drain fully before any order is taken, a cancel already queued when a pass begins beats the order that pass would have sent. | `execution_manager.py` 3910 with 3984 | P1-04 | folds into P1-04 and P1-08, which state the line taken before submitted work |
+| H-012 | Because cancels drain fully before any order is taken, a cancel already queued when a pass begins beats the order that pass would have sent. | `execution_manager.py` 3910 with 3984 | P1-04 | folds into P1-08, which states a cancel beating the order a pass would have sent |
 | H-013 | A cancel aimed at an order that already finished is dropped at submission and never queued. | `validate_trade_abort.py` 40-53, `execution_manager.py` 3014-3021 | P1-04 | folds into P1-04, which states finished work makes the ask do nothing |
 | H-014 | A cancel for an order the venue already has takes a different route: it asks the venue to cancel and records whether the venue confirmed. | `execution_manager.py` `_process_abort` 8515-8532 | P1-04 | folds into P1-04, which states the venue cancel and what it records |
 | H-015 | A cancel aimed at a sliced order goes to a separate path rather than the single-order one. | `execution_manager.py` `_abort_scheme` 8489-8491 | P1-04 | folds into P1-04, which states work already begun leaving for its own path |
@@ -285,4 +285,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 02:43 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 03:12 UTC

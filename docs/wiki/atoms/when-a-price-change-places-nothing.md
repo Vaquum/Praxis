@@ -2,13 +2,13 @@
 row: P3-26
 baseline: 49aa659
 created: 2026-10-12 01:40 UTC
-modified: 2026-10-12 01:40 UTC
+modified: 2026-10-12 03:12 UTC
 evidence:
-  - claim: "A cancel the venue does not confirm leaves the order live and places nothing"
-    source: "`execution_manager.py` 8717-8723"
+  - claim: "A cancel the venue does not confirm leaves the order live and places nothing, and parks no change for a later pass"
+    source: "`execution_manager.py` 8717-8723, returning before the parking at 8747-8748"
   - claim: "An order the venue still calls live places nothing either, and is left alone"
     source: "`execution_manager.py` 8725-8732"
-  - claim: "What is left at or below the venue's smallest size is never placed, and the request is reported filled on what it already has"
+  - claim: "What is left below the venue's smallest size is never placed, and the request is reported filled on what it already has"
     source: "`execution_manager.py` 8803-8808, reported at 10471-10479"
   - claim: "A replacement that times out, is refused, or cannot be found afterwards ends the request cancelled on what it had filled"
     source: "`execution_manager.py` 10355-10365, reported at 10505-10512"
@@ -19,13 +19,13 @@ evidence:
 
 ## The cancel does not settle
 
-Where the venue neither confirms the cancel nor answers what the order came to, the order is left live and nothing is placed. The request keeps waiting, and a later pass or a restart has to deal with it.
+Where the venue neither confirms the cancel nor answers what the order came to, the order is left live and nothing is placed. The change is not parked either: nothing is set down for a later pass to pick up, so the request is left waiting on an order that is still working.
 
 Where the venue answers and the order is still working, nothing is placed either, and the order is again left as it is.
 
 ## Too little is left to trade
 
-Where what remains is at or below the smallest size the venue trades in, no order can carry it. The request is reported filled on what it already has, and the remainder is left as dust.
+Where what remains is below the smallest size the venue trades in — an amount equal to it still goes — no order can carry it. The request is reported filled on what it already has, and the remainder is left as dust.
 
 ## The replacement will not go
 
@@ -39,4 +39,4 @@ Where the replacement times out, the venue is asked about it first, and the chan
 
 ---
 
-Created 2026-10-12 01:40 UTC · Last modified 2026-10-12 01:40 UTC
+Created 2026-10-12 01:40 UTC · Last modified 2026-10-12 03:12 UTC
