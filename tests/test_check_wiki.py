@@ -5087,6 +5087,24 @@ class TestWhatTheMetadataMustLookLike:
                 'carries 0 sources',
                 id='a-claim-with-no-source',
             ),
+            pytest.param(
+                _GOOD.replace(
+                    '  - claim: "A thing is so"\n    source: "`order.py` 3"',
+                    '  - claim: "A thing is so | `order.py` 3"\n    source: ""',
+                ),
+                'holds the mark that parts a claim from its source',
+                id='a-citation-smuggled-into-the-claim',
+            ),
+            pytest.param(
+                _GOOD.replace('"A thing is so"', '"\\q"'),
+                'neither a claim nor a source',
+                id='a-claim-with-a-bad-escape',
+            ),
+            pytest.param(
+                _GOOD.replace('source: "`order.py` 3"', 'source: ""'),
+                'carries a source that names nothing',
+                id='a-source-naming-nothing',
+            ),
         ],
     )
     def test_a_claim_that_is_not_one_pair_is_refused(

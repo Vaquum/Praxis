@@ -407,7 +407,10 @@ def _docstring_lines(path: Path) -> set[int]:
 
 
 _METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
-EVIDENCE_LINE = re.compile(r'^(  - claim: "[^"]*"|    source: "[^"]*")$')
+_PARTING = ' | '
+EVIDENCE_LINE = re.compile(
+    r'^(  - claim: "[^"\\]*"|    source: "[^"\\]*")$',
+)
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
     'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
@@ -5484,6 +5487,7 @@ def _evidence_pairs(held: list[str]) -> list[str]:
     '''
 
     pairs: list[tuple[str, int]] = []
+    empty: list[str] = []
 
     for row in held:
         stripped = row.strip()
@@ -5495,8 +5499,20 @@ def _evidence_pairs(held: list[str]) -> list[str]:
             claim, sources = pairs[-1]
             pairs[-1] = (claim, sources + 1)
 
+            if not stripped[len('source:'):].strip().strip('"'):
+                empty.append(claim)
+
     notes = [
         'evidence holds a claim that says nothing' for claim, _ in pairs if not claim
+    ]
+    notes += [
+        f'the claim "{claim[:40]}" holds the mark that parts a claim from its source'
+        for claim, _ in pairs if _PARTING in claim
+    ]
+
+    notes += [
+        f'the claim "{claim[:40]}" carries a source that names nothing'
+        for claim in empty
     ]
 
     return notes + [
