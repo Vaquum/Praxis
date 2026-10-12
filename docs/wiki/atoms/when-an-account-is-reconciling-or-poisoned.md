@@ -2,10 +2,14 @@
 row: P1-11
 baseline: 49aa659
 created: 2026-10-12 04:21 UTC
-modified: 2026-10-12 09:16 UTC
+modified: 2026-10-12 10:29 UTC
 evidence:
   - claim: "A reconciling or poisoned account takes no submitted work, and its pass ends on the wait"
     source: "`execution_manager.py` 3969-3971"
+  - claim: "All of that is below the startup wait, so no pass reaches it while the account is still starting"
+    source: "`execution_manager.py` 3903-3905 ahead of 3907, registered as starting at 831-835 from `trading.py` 522, cleared only at `execution_manager.py` 3672 from `trading.py` 607"
+  - claim: "Startup itself sets the account reconciling before it waits on the backfill, so those passes are both"
+    source: "`trading.py` 590-592 into 1455 and 1406-1407, awaited at 1459"
   - claim: "The pass still takes venue news, empties the priority line and retries a due cancellation"
     source: "`execution_manager.py` 3907 and 3910, with the retry at 3960"
   - claim: "A change is deferred for as long as the hold lasts, going back on the line each pass"
@@ -25,21 +29,23 @@ evidence:
 ---
 # When an account is reconciling or poisoned
 
-An account being brought back into step with the venue is **reconciling**, and one carrying a fault that needs a restart is **poisoned**. [A pass](how-waiting-work-is-drained.md) under either takes no [submitted work](how-an-order-is-placed.md), and ends on the same wait an empty queue brings.
+An account being brought back into step with the venue is **reconciling**, and one carrying a fault that needs a restart is **poisoned**. [A pass](how-waiting-work-is-drained.md) past startup under either takes no [submitted work](how-an-order-is-placed.md), and ends on the same wait an empty queue brings.
 
 ## What the pass still does
 
-It takes the waiting venue news, empties [the priority line](the-priority-line.md) and retries a [cancellation](how-a-trade-is-cancelled.md) that is due. A change on that line is put back rather than carried out, and comes up again on the next pass, so it waits as long as the hold does. A reconciling hold is lifted from outside once the account is in step again; a failed one is never lifted, so a change left there waits for the life of the host. Putting them back is the last thing the line itself gets, so a change is lost only where the pass is cancelled while still working through the line.
+It takes the waiting venue news, empties [the priority line](the-priority-line.md) and retries a [cancellation](how-a-trade-is-cancelled.md) that is due. A change on that line is put back rather than carried out and comes up again next pass, so it waits as long as the hold. A reconciling hold lifts from outside once the account is in step; a failed one never lifts, so a change there waits for the life of the host. The putting back is the last of the line's own work, so a change is lost only where the pass is cancelled before it.
 
-Poisoned, the pass then empties its ordinary queue, refusing each request in it. Reconciling, that queue is left as it stands, so the requests in it go on waiting for the account to come back.
+Poisoned, the pass then empties its ordinary queue, refusing each request. Reconciling, that queue stands as it is, so its requests wait for the account to come back.
 
 ## What the emptying leaves
 
-A request whose refusal report cannot be built is dropped with nothing reported at all. Where the worker is cancelled partway through the emptying, it stops where it was and whatever is still queued stays queued.
+A request whose refusal report cannot be built is dropped, with nothing reported. A worker cancelled partway through stops there, and whatever is still queued stays queued.
 
 ## Where there is no such pass
 
-An account is poisoned while its worker runs when projecting fails — an admitted event or an update from the venue. The other endings leave no pass to describe, and are [how the worker stops](how-a-worker-stops.md).
+An account is poisoned while its worker runs when projecting fails — an admitted event or an update from the venue.
+
+All of the above sits below the startup wait, so a pass taken while the account is still starting does none of it. Startup sets the account reconciling before waiting on the venue's backfill, so its own early passes are both at once — as are every pass of [a boot that fails](how-a-worker-stops.md).
 
 ## Related
 
@@ -50,4 +56,4 @@ An account is poisoned while its worker runs when projecting fails — an admitt
 
 ---
 
-Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 09:16 UTC
+Created 2026-10-12 04:21 UTC · Last modified 2026-10-12 10:29 UTC
