@@ -2,7 +2,7 @@
 row: P3-13
 baseline: 49aa659
 created: 2026-09-30 05:58 UTC
-modified: 2026-10-11 20:10 UTC
+modified: 2026-10-12 01:12 UTC
 evidence:
   - claim: "Each way of working has one kind of change that fits it"
     source: "`modify_params.py` 31-39, matched at `validate_trade_modify.py` 193-198"
@@ -39,7 +39,7 @@ evidence:
 ---
 # Changing work already sent
 
-A **change** asks Praxis to alter work it has already accepted, rather than cancel it and start again. What may be altered depends entirely on how the work is being carried out, and each way of working has one kind of change that fits it.
+A **change** asks Praxis to alter work it has already accepted. What may be altered depends on how that work is being carried out, and each way of working has one kind of change that fits it. On a single order the altering is done by [replacing the order](how-a-price-change-is-carried-out.md).
 
 A single order may change the price it rests at — and only if a limit order of its own is still on the books; a trigger price cannot be changed at all. Work [fed out in slices](work-fed-out-over-time.md) may change how many parts and the gap between them, except where the parts are weighted, which may change only the gap. Work [at several prices](orders-at-several-prices.md) may change those prices, their weights, or both. A [part-shown order](part-shown-orders.md) may change its shown amount, its price, or both. Either way a change naming neither is refused. [Protection](protection.md) has three prices that can change.
 

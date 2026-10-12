@@ -406,6 +406,8 @@ def _docstring_lines(path: Path) -> set[int]:
     return lines
 
 
+_METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
+EVIDENCE_LINE = re.compile(r'^(  - claim: ".*"|    source: ".*")$')
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
     'or', 'either', 'otherwise', 'instead', 'rather than', 'unless',
@@ -5383,6 +5385,57 @@ def _check_voice(body: str) -> list[str]:
     return notes
 
 
+def _metadata_shape(meta: str) -> list[str]:
+
+    '''Return what a page's metadata block gets wrong in its shape.
+
+    The keys are read by name and by position rather than by searching
+    the block, so a row identifier or a baseline standing under some
+    other key, or an evidence list written as one string, is refused
+    rather than read as though it were in its place. What the keys hold
+    is read beside this rather than instead of it, so a block both
+    misshapen and wrong about its baseline is told both.
+
+    Args:
+        meta (str): The page's metadata block.
+
+    Returns:
+        list[str]: One complaint per way the block is misshapen.
+    '''
+
+    rows = meta.splitlines()
+    named = [row for row in rows if row and not row.startswith((' ', '\t'))]
+    keys = [row.split(':', 1)[0] for row in named]
+
+    if keys != list(_METADATA_KEYS):
+        return [
+            'metadata names ' + (', '.join(keys) or 'nothing')
+            + ', rather than ' + ', '.join(_METADATA_KEYS) + ' in that order',
+        ]
+
+    notes = [
+        f'metadata writes {key} as nothing'
+        for key, row in zip(_METADATA_KEYS[:-1], named, strict=False)
+        if not row[len(key) + 1:].strip()
+    ]
+
+    if named[-1].strip() != 'evidence:':
+        notes.append('metadata writes evidence as a value rather than a list')
+
+    held = rows[rows.index(named[-1]) + 1:]
+
+    if held and not held[0].strip().startswith('- claim:'):
+        notes.append('the evidence list opens on something other than a claim')
+
+    notes.extend(
+        f'evidence holds a line that is neither a claim nor a source: "{row.strip()}"'
+        for row in held
+        if not EVIDENCE_LINE.match(row)
+    )
+
+    return notes
+
+
 def _check_metadata(meta: str, ids: set[str]) -> list[str]:
 
     '''Return what a page's metadata gets wrong about its pin and its row.
@@ -5395,7 +5448,7 @@ def _check_metadata(meta: str, ids: set[str]) -> list[str]:
         list[str]: One complaint per failure.
     '''
 
-    notes: list[str] = []
+    notes = _metadata_shape(meta)
     baseline = BASELINE_RE.search(meta)
 
     if baseline is None:

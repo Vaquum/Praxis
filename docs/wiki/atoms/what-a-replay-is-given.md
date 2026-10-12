@@ -2,7 +2,7 @@
 row: P3-04
 baseline: 49aa659
 created: 2026-09-30 19:29 UTC
-modified: 2026-10-11 20:42 UTC
+modified: 2026-10-12 01:12 UTC
 evidence:
   - claim: "A scenario carries the account, the series, a step length, the symbol and its venue rules, the starting money, the strategy text and the bars"
     source: "`replay_scenario.py` 63-70"
@@ -45,7 +45,7 @@ The closing price is the price [the venue](the-replay-venue.md) fills at.
 
 The strategy arrives as the text of a module. The run writes it into the working directory, which is put on the import path so it can be loaded and taken off again when the run ends.
 
-The account's settings are written out from the scenario too. The starting money is cut to a whole number there, so sizing works from the whole number while [the summary](what-a-replay-reports.md) scores against the uncut figure.
+The account's settings are written out from the scenario too. The starting money is cut to a whole number there, so sizing works from the whole number while [the summary](what-a-replay-reports.md) scores against the uncut figure. A sum below one is cut to nought, which the settings refuse, so no run of it reaches either figure.
 
 ## Related
 

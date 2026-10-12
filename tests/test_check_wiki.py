@@ -5006,6 +5006,72 @@ class TestWhatAnAbsentTreeIsSaid:
         assert check_wiki._unchecked_trees() == []
 
 
+class TestWhatTheMetadataMustLookLike:
+    _GOOD = (
+        'row: P1-01\nbaseline: 49aa659\ncreated: 2099-01-01 00:00 UTC\n'
+        'modified: 2099-01-01 00:00 UTC\nevidence:\n'
+        '  - claim: "A thing is so"\n    source: "`order.py` 3"'
+    )
+
+    def test_the_shape_the_wiki_writes_passes(self) -> None:
+        assert check_wiki._metadata_shape(self._GOOD) == []
+
+    @pytest.mark.parametrize(
+        ('meta', 'wanted'),
+        [
+            pytest.param(
+                _GOOD.replace('evidence:', 'evidence: |'),
+                'writes evidence as a value',
+                id='evidence-as-a-string',
+            ),
+            pytest.param(
+                _GOOD.replace('row: P1-01', 'arbitrary: P1-01'),
+                'rather than row, baseline',
+                id='row-under-another-key',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'row: P1-01\nbaseline: 49aa659',
+                    'baseline: 49aa659\nrow: P1-01',
+                ),
+                'in that order',
+                id='keys-out-of-order',
+            ),
+            pytest.param(
+                _GOOD + '\nextra: here',
+                'in that order',
+                id='a-stray-key',
+            ),
+            pytest.param(
+                _GOOD.replace('row: P1-01', 'row:'),
+                'writes row as nothing',
+                id='an-empty-key',
+            ),
+            pytest.param(
+                _GOOD.replace('  - claim: "A thing is so"\n', ''),
+                'opens on something other than a claim',
+                id='a-source-with-no-claim',
+            ),
+            pytest.param(
+                _GOOD + '\n  - note: "something"',
+                'neither a claim nor a source',
+                id='a-stray-evidence-line',
+            ),
+        ],
+    )
+    def test_a_misshapen_block_is_refused(self, meta: str, wanted: str) -> None:
+        held = check_wiki._metadata_shape(meta)
+
+        assert any(wanted in note for note in held), held
+
+    def test_a_misshapen_block_is_refused_by_the_page_check(self) -> None:
+        held = check_wiki._check_metadata(
+            self._GOOD.replace('evidence:', 'evidence: |'), {'P1-01'},
+        )
+
+        assert any('writes evidence as a value' in note for note in held)
+
+
 class TestWhatManyReferencesCost:
     @staticmethod
     def _held(count: int, monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -5065,23 +5131,73 @@ class TestEveryRuleThePageWalkRuns:
     )
 
     @staticmethod
-    def _walked(tmp_path: Path, text: str, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    def _walked(
+        tmp_path: Path, text: str, monkeypatch: pytest.MonkeyPatch,
+        named: str = 'one.md', committed: str | None = None,
+    ) -> list[str]:
         atoms = tmp_path / 'atoms'
         atoms.mkdir(exist_ok=True)
-        page = atoms / 'one.md'
+        page = atoms / named
         page.write_text(text, encoding='utf-8')
         monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
         monkeypatch.setattr(check_wiki, '_source_text', lambda _p: 'a\nb\nwork()\n')
         monkeypatch.setattr(
             check_wiki, '_resolve_source', lambda _k: Path('order.py'),
         )
-        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: None)
+        monkeypatch.setattr(
+            check_wiki, '_last_commit_date', lambda _p: committed,
+        )
         monkeypatch.setattr(check_wiki, '_edited_since', lambda _p: None)
         held: list[str] = check_wiki._check_page(
             page, {'P1-01'}, check_wiki._SourceFacts(),
         )
 
         return held
+
+    @pytest.mark.parametrize(
+        ('name', 'broken', 'wanted'),
+        [
+            pytest.param(
+                'one.md',
+                _GOOD.replace('2099-01-01', '2000-01-01'),
+                'older than its last commit',
+                id='stale-stamp',
+            ),
+            pytest.param(
+                'one.md',
+                _GOOD.replace(
+                    'A thing that is so.',
+                    'A thing that is so, said [elsewhere](nowhere-at-all.md).',
+                ),
+                'which does not exist',
+                id='broken-link',
+            ),
+        ],
+    )
+    def test_a_rule_run_for_every_page_is_run(
+        self, name: str, broken: str, wanted: str, tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._walked(
+            tmp_path, broken, monkeypatch, named=name, committed='2026-01-01',
+        )
+
+        assert any(wanted in note for note in held), held
+
+    def test_a_page_outside_the_atoms_is_still_walked(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-01-01')
+        page = tmp_path / 'README.md'
+        page.write_text(
+            '# Index\n\nA list, said [elsewhere](nowhere-at-all.md).\n\n'
+            '---\n\nCreated 2099-01-01 00:00 UTC · Last modified 2099-01-01 00:00 UTC\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
+        held = check_wiki._check_page(page, {'P1-01'}, check_wiki._SourceFacts())
+
+        assert any('which does not exist' in note for note in held), held
 
     def test_a_page_breaking_no_rule_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
