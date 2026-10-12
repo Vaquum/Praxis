@@ -2,7 +2,7 @@
 row: P2-34
 baseline: 49aa659
 created: 2026-09-26 07:02 UTC
-modified: 2026-10-12 00:15 UTC
+modified: 2026-10-12 00:35 UTC
 evidence:
   - claim: "The call handing an event to the order-and-holdings update carries no guard"
     source: "`execution_manager.py` 2081"
@@ -33,7 +33,7 @@ What becomes of the first kind turns on where it was asked for.
 
 ## From outside the loop
 
-An event admitted from outside, and an event arriving on the venue's feed, both stop the [account](what-an-account-is.md).
+An event admitted from outside, and an event arriving on the venue's feed, both stop the [account](what-an-account-is.md) where projecting them fails in the ordinary way; being called off during either leaves it running.
 
 A stopped account is not an idle one. The requests waiting in its queue are turned away. But [a cancellation](how-a-trade-is-cancelled.md) handed to it is still carried out, so a position can still be closed, and a change is put back to wait until the account is usable again — which takes a restart.
 
