@@ -6230,6 +6230,19 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held is None
 
+    def test_a_kind_worked_out_past_a_grouped_catch_all_reaches_the_handlers_round_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(boom):\n    try:\n        try:\n            raise ValueError()\n'
+            '        except* BaseException:\n            pass\n'
+            '        except* boom():\n            pass\n'
+            '    except RuntimeError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 10, 10, tmp_path, monkeypatch)
+
+        assert held is None
+
     def test_an_ordinary_handler_after_a_catch_all_loses_its_line(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
