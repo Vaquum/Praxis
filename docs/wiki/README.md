@@ -90,6 +90,7 @@ Read them in order if you are new. Every term is explained where it first appear
 - [The account worker](atoms/how-waiting-work-is-drained.md) — each account has one worker going round the same circuit until it is stopped, taking work off a queue.
 - [When an account is reconciling or poisoned](atoms/when-an-account-is-reconciling-or-poisoned.md) — what a pass does for an account being brought back into step with the venue, or carrying a fault that needs a restart, and when there is no pass left to do it.
 - [How a worker stops taking work](atoms/how-a-worker-stops.md) — the loop an account takes its work from can die, be cancelled, or go on turning without ever reaching that work, and each leaves the account differently placed.
+- [A change waiting out a hold](atoms/a-change-waiting-out-a-hold.md) — a change asking to alter work already sent is set aside while the account is out of step or stopped, and how long it sits there depends on which.
 - [The priority line](atoms/the-priority-line.md) — cancellations and changes wait in a line of their own, emptied on each circuit once the account has started, before anything waiting to be placed.
 - [Work already under way](atoms/work-already-under-way.md) — the work the loop moves along between taking one request and the next.
 
@@ -157,8 +158,8 @@ Read them in order if you are new. Every term is explained where it first appear
 
 Each article has a word limit. One that outgrows it is split into two rather than made longer, so the wiki grows by adding articles.
 
-114 articles exist. Every Praxis module is named in the ledger: 46 are `full`, 37 `partial` and 5 `uncovered`. Of the 70 in Nexus, 17 are cited in passing and 53 untouched. The ledger lists them.
+115 articles exist. Every Praxis module is named in the ledger: 46 are `full`, 37 `partial` and 5 `uncovered`. Of the 70 in Nexus, 17 are cited in passing and 53 untouched. The ledger lists them.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 10:12 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 14:26 UTC

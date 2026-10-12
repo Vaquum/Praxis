@@ -10,7 +10,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 
 | File | State | Rows |
 |---|---|---|
-| `praxis/core/execution_manager.py` | partial | P1-01 to P1-12, P2-11 to P2-13, P2-15 to P2-25, P2-27 to P2-29, P2-31, P2-32, P2-34, P2-38, P2-43 to P2-45, P3-01 to P3-03, P3-13, P3-14, P3-18, P3-21 to P3-23, P3-25, P3-26, P4-04, P4-06 to P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35 |
+| `praxis/core/execution_manager.py` | partial | P1-01 to P1-13, P2-11 to P2-13, P2-15 to P2-25, P2-27 to P2-29, P2-31, P2-32, P2-34, P2-38, P2-43 to P2-45, P3-01 to P3-03, P3-13, P3-14, P3-18, P3-21 to P3-23, P3-25, P3-26, P4-04, P4-06 to P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35 |
 | `praxis/core/domain/fill.py` | uncovered | — |
 | `praxis/core/account_ledger.py` | partial | P2-29, P2-30, P3-11, P3-12, P4-06, P4-12 |
 | `praxis/core/generate_client_order_id.py` | full | P1-01, P2-24, P3-14, P4-07, P4-33 |
@@ -35,7 +35,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/validate_trade_abort.py` | full | P1-04, P4-10 |
 | `praxis/core/domain/trade_outcome.py` | partial | P1-04, P2-18, P2-40, P2-42, P2-43 |
 | `praxis/infrastructure/binance_adapter.py` | partial | P1-02, P1-04, P1-07, P1-09, P1-10, P2-11 to P2-14, P2-17, P2-21, P2-22, P2-25, P2-27, P2-28, P2-45, P2-46, P3-14, P3-15, P3-17 to P3-19, P3-21, P3-26, P4-13 |
-| `praxis/trading.py` | partial | P1-01, P1-04, P1-11, P1-12, P2-11, P2-12, P2-24, P2-25, P2-27, P2-32, P2-46, P3-16, P3-17, P3-18, P3-22, P3-26, P4-06, P4-10, P4-20, P4-22, P4-23, P4-31, P4-32 |
+| `praxis/trading.py` | partial | P1-01, P1-04, P1-11 to P1-13, P2-11, P2-12, P2-24, P2-25, P2-27, P2-32, P2-46, P3-16, P3-17, P3-18, P3-22, P3-26, P4-06, P4-10, P4-20, P4-22, P4-23, P4-31, P4-32 |
 | `praxis/trading_inbound.py` | partial | P2-12, P3-19 |
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-22, P2-24, P2-27, P2-28, P4-04, P4-08, P4-33 |
 | `praxis/core/domain/enums.py` | partial | P2-14, P2-18, P2-21, P3-21, P4-04, P4-09, P4-28 |
@@ -130,4 +130,4 @@ The modules listed above are `partial` by citation rather than by tracing: a Pra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 10:29 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 14:26 UTC

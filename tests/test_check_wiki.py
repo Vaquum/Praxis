@@ -6297,6 +6297,60 @@ class TestWhatAHandlerNothingArrivesAtCosts:
 
         assert held == 'a handler nothing arrives at'
 
+    @pytest.mark.parametrize(
+        ('named', 'line'),
+        [
+            pytest.param('ExceptionGroup', 5, id='the-group'),
+            pytest.param('BaseExceptionGroup', 5, id='the-other-group'),
+            pytest.param('(ValueError, ExceptionGroup)', 5, id='a-group-in-a-tuple'),
+        ],
+    )
+    def test_every_group_a_grouped_handler_can_name_stops_it(
+        self, named: str, line: int,
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(work):\n    try:\n        work()\n'
+            f'    except* {named}:\n        held = 3\n    return 1\n'
+        )
+        held = self._landed(source, line, line, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_a_group_the_file_writes_stops_it_too(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class Boom(ExceptionGroup):\n    pass\n\n\ndef f(work):\n    try:\n'
+            '        work()\n    except* Boom:\n        held = 3\n    return 1\n'
+        )
+        held = self._landed(source, 9, 9, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
+    def test_an_ordinary_kind_in_a_grouped_handler_runs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'def f(work):\n    try:\n        work()\n'
+            '    except* ValueError:\n        held = 3\n    return 1\n'
+        )
+        held = self._landed(source, 5, 5, tmp_path, monkeypatch)
+
+        assert held is None
+
+    def test_a_name_assigned_in_a_class_body_is_that_class_s_own(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            'class C:\n    ValueError = int\n\n\ndef f():\n    try:\n'
+            "        raise ValueError('x')\n"
+            '    except TypeError:\n        return 2\n    return 1\n'
+        )
+        held = self._landed(source, 9, 9, tmp_path, monkeypatch)
+
+        assert held == 'a handler nothing arrives at'
+
     def test_the_body_of_a_handler_naming_a_group_cannot_run(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

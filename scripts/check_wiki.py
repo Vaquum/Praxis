@@ -613,6 +613,7 @@ class _Scopes:
 
 
 _TAKEN_OVER: frozenset[str] = frozenset()
+_GROUPS_HELD: frozenset[str] = frozenset(_GROUPED_ERRORS)
 
 
 def _taken_over(tree: ast.AST) -> frozenset[str]:
@@ -661,17 +662,54 @@ def _kind_named(held: ast.expr | None) -> str | None:
     return held.id
 
 
+def _groups_held(tree: ast.AST) -> frozenset[str]:
+
+    """Return the names this file holds that stand for a group of errors.
+
+    The language carries two, and a class written on one of them is
+    another, however many classes deep that goes.
+
+    Args:
+        tree (ast.AST): The parsed file.
+
+    Returns:
+        frozenset[str]: Those names.
+    """
+
+    held = set(_GROUPED_ERRORS)
+    classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    growing = True
+
+    while growing:
+        growing = False
+
+        for node in classes:
+
+            if node.name in held:
+                continue
+
+            if any(
+                isinstance(base, ast.Name) and base.id in held for base in node.bases
+            ):
+                held.add(node.name)
+                growing = True
+
+    return frozenset(held)
+
+
 def _reading(tree: ast.AST) -> None:
 
-    """Note which error names the file being read has taken over.
+    """Note what the file being read has taken over or written out.
 
     Args:
         tree (ast.AST): The parsed file.
     """
 
     global _TAKEN_OVER  # noqa: PLW0603
+    global _GROUPS_HELD  # noqa: PLW0603
 
     _TAKEN_OVER = _taken_over(tree)
+    _GROUPS_HELD = _groups_held(tree)
 
 
 def _exclusive_spans(path: Path) -> list[tuple[set[int], set[int]]]:
@@ -3313,6 +3351,9 @@ def _names_a_group(named: ast.expr) -> bool:
 
     '''Whether what a handler names is a group of errors.
 
+    The two the language carries are, and so is a class the file
+    writes on one of them.
+
     Args:
         named (ast.expr): The kinds named, one or several.
 
@@ -3322,9 +3363,7 @@ def _names_a_group(named: ast.expr) -> bool:
 
     held = named.elts if isinstance(named, ast.Tuple) else [named]
 
-    return any(
-        isinstance(part, ast.Name) and part.id in _GROUPED_ERRORS for part in held
-    )
+    return any(_kind_named(part) in _GROUPS_HELD for part in held)
 
 
 def _holder_could_raise(statement: ast.stmt) -> bool:
@@ -4064,138 +4103,144 @@ def _rebound_names(tree: ast.AST) -> set[str]:
     return set(_name_bindings(tree))
 
 
-def _scoped_nodes(tree: ast.AST) -> tuple[frozenset[int], frozenset[int]]:
-
-    """Return which statements a scope reads differently from the rest.
-
-    An annotation with no value makes the name the function's own
-    wherever it stands in there, while at module level it binds
-    nothing at all. A class body's names stand apart from whatever
-    holds it, so neither such an annotation nor a type written out
-    there touches the name outside.
-
-    Args:
-        tree (ast.AST): The parsed file.
-
-    Returns:
-        tuple[frozenset[int], frozenset[int]]: The id of each
-            valueless annotation inside a function, and the id of each
-            statement written straight into a class body.
-    """
-
-    declared: set[int] = set()
-    inside_a_class: set[int] = set()
-
-    def walk(node: ast.AST, *, scope: str) -> None:
-
-        for child in ast.iter_child_nodes(node):
-
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                walk(child, scope='function')
-                continue
-
-            if isinstance(child, ast.ClassDef):
-                walk(child, scope='class')
-                continue
-
-            if scope == 'class':
-                inside_a_class.add(id(child))
-
-            elif (
-                scope == 'function'
-                and isinstance(child, ast.AnnAssign)
-                and child.value is None
-            ):
-                declared.add(id(child))
-
-            walk(child, scope=scope)
-
-    walk(tree, scope='module')
-
-    return frozenset(declared), frozenset(inside_a_class)
-
-
 def _name_bindings(tree: ast.AST) -> dict[str, int]:
 
-    '''Return how many times each name is given a value in the module.
+    """Return how many times each name is given a value in the module.
 
     A name bound once by an import and nowhere else holds what that
     import brought; one bound again holds whatever came last. A type
     written out as a name of its own binds that name, and so does a
-    type a function or a class is written to take, though one written
-    straight into a class body is that class's own. An
-    annotation with no value beside it binds nothing where the module
-    itself carries it, so a name given only a type is left as it was —
-    while one written inside a function makes the name that
-    function's own throughout, as a deletion does.
+    type a function or a class is written to take. An annotation with
+    no value beside it binds nothing where the module itself carries
+    it, so a name given only a type is left as it was — while one
+    written inside a function makes the name that function's own
+    throughout, as a deletion does. A class body's names are the
+    class's own, so nothing written straight into one is counted, its
+    own methods and classes included.
 
     Args:
         tree (ast.AST): The parsed file.
 
     Returns:
         dict[str, int]: Each name against how often it is bound.
-    '''
+    """
 
     counted: dict[str, int] = {}
-    declared, inside_a_class = _scoped_nodes(tree)
 
     def bind(names: Iterable[str]) -> None:
 
         for name in names:
             counted[name] = counted.get(name, 0) + 1
 
-    for node in ast.walk(tree):
+    def walk(node: ast.AST, *, scope: str) -> None:
 
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bind({node.name})
+        for child in ast.iter_child_nodes(node):
 
-            if not isinstance(node, ast.ClassDef):
-                bind(_taken_names(node.args))
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
 
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            bind(_imported_names(node))
+                if scope != 'class':
+                    bind({child.name})
 
-        elif isinstance(node, (ast.Assign, ast.Delete)):
-            for target in node.targets:
-                bind(_bound_names(target))
+                bind(_taken_names(child.args))
+                walk(child, scope='function')
+                continue
 
-        elif isinstance(node, ast.AnnAssign):
+            if isinstance(child, ast.ClassDef):
 
-            if node.value is not None or id(node) in declared:
-                bind(_bound_names(node.target))
+                if scope != 'class':
+                    bind({child.name})
 
-        elif isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor)):
-            bind(_bound_names(node.target))
+                walk(child, scope='class')
+                continue
 
-        elif isinstance(node, (ast.With, ast.AsyncWith)):
-            for item in node.items:
+            if scope != 'class':
+                bind(_statement_binds(child, scope=scope))
 
-                if item.optional_vars is not None:
-                    bind(_bound_names(item.optional_vars))
+            walk(child, scope=scope)
 
-        elif isinstance(node, ast.TypeAlias):
-
-            if id(node) not in inside_a_class:
-                bind(_bound_names(node.name))
-
-        elif isinstance(node, (ast.TypeVar, ast.ParamSpec, ast.TypeVarTuple)):
-            bind({node.name})
-
-        elif isinstance(node, ast.ExceptHandler):
-            bind({node.name} if node.name is not None else set())
-
-        elif isinstance(node, ast.NamedExpr):
-            bind(_bound_names(node.target))
-
-        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name is not None:
-            bind({node.name})
-
-        elif isinstance(node, ast.MatchMapping) and node.rest is not None:
-            bind({node.rest})
+    walk(tree, scope='module')
 
     return counted
 
 
+def _statement_binds(node: ast.AST, *, scope: str) -> list[str]:
+
+    """Return the names one statement gives a value where it stands.
+
+    An import binds one name per alias it writes, two aliases of one
+    name being two bindings, so those come back as written rather
+    than gathered.
+
+    Args:
+        node (ast.AST): The statement to read.
+        scope (str): Whether a module or a function holds it.
+
+    Returns:
+        list[str]: Those names, or none where it binds nothing.
+    """
+
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        return _imported_names(node)
+
+    if isinstance(node, ast.AnnAssign):
+        held = node.value is not None or scope == 'function'
+
+        return sorted(_bound_names(node.target)) if held else []
+
+    return sorted(_bound_statement_names(node))
+
+
+def _bound_statement_names(node: ast.AST) -> set[str]:
+
+    """Return the names a statement writing to targets binds.
+
+    Args:
+        node (ast.AST): The statement to read.
+
+    Returns:
+        set[str]: Those names, or none where it binds nothing.
+    """
+
+    if isinstance(node, (ast.Assign, ast.Delete)):
+        return {name for target in node.targets for name in _bound_names(target)}
+
+    if isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor, ast.NamedExpr)):
+        return _bound_names(node.target)
+
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return {
+            name for item in node.items
+            if item.optional_vars is not None
+            for name in _bound_names(item.optional_vars)
+        }
+
+    if isinstance(node, ast.TypeAlias):
+        return _bound_names(node.name)
+
+    return _bound_capture(node)
+
+
+def _bound_capture(node: ast.AST) -> set[str]:
+
+    """Return the name a statement catching or matching binds.
+
+    Args:
+        node (ast.AST): The statement to read.
+
+    Returns:
+        set[str]: That name, or none where it binds nothing.
+    """
+
+    if isinstance(node, (ast.TypeVar, ast.ParamSpec, ast.TypeVarTuple)):
+        return {node.name}
+
+    if isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)):
+        return {node.name} if node.name is not None else set()
+
+    if isinstance(node, ast.MatchMapping) and node.rest is not None:
+        return {node.rest}
+
+    return set()
 def _is_protocol(node: ast.ClassDef, protocol_names: set[str]) -> bool:
 
     '''Whether a class lists an imported `typing.Protocol` among its bases.'''
