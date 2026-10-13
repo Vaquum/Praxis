@@ -15,7 +15,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # The wiki gate resolves every citation in the tree its repository is
+      # pinned to, so the tests covering it need that commit fetched.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4

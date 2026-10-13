@@ -1,0 +1,43 @@
+---
+row: P2-15
+baseline: 49aa659
+created: 2026-09-26 05:44 UTC
+modified: 2026-10-04 11:43 UTC
+evidence:
+  - claim: "A fill carries venue and Praxis names, symbol, side, amount, price, fee and fee asset, and whether it was posted or taken"
+    source: "built with all of them at `execution_manager.py` 4312-4326"
+  - claim: "One send can come back reporting several"
+    source: "`execution_manager.py` 4311"
+  - claim: "A protective replacement found already finished is held instead, and the reply's reports go unmade"
+    source: "`execution_manager.py` 9749-9767 holding an already-finished replacement and returning, rather than entering the immediate-fill loop at 9769"
+  - claim: "A later reconciling can still make them, from the venue's own trade list"
+    source: "`execution_manager.py` 8188-8206, called at 7452-7455"
+  - claim: "Refused unless the amount and price are above zero and the fee is not below it"
+    source: "`events.py` 585-595"
+  - claim: "Refused unless its names are present and its time carries a zone"
+    source: "`events.py` 577-583, the time checked by the base at 574"
+---
+# Fills
+
+A **fill** is a report from a [venue](what-a-venue-is.md) that some of an [order](what-a-trade-is.md) has traded: an amount, at a price, at a time. A single send can come back reporting several, and on the ordinary path a fill is made for each.
+
+Each one carries the venue's own name for that trade and for the order, the Praxis names for the trade and the request behind it, the trading pair, whether it bought or sold, the amount, the price, the fee and the asset the fee was charged in, and whether the order waited for someone to trade with it or took an offer already there.
+
+## What a fill must have
+
+A fill is refused as it is made unless its amount and its price are both above zero, and its fee is zero or more.
+
+It is refused too unless each of its names has something in it, and unless its time carries a zone. A fill with no zone on it cannot be placed against the others in order, so it is turned away rather than guessed at.
+
+## A trade the reply does not report
+
+A protective pair put up to replace another, found already finished the moment it was placed, is held aside to be sorted out later. The executions its reply reported are passed over there.
+
+They are not lost. A later check reads the venue's own list of trades for that order and makes the fills from those instead — one of the [several routes](where-duplicates-stop.md) by which the same execution can arrive.
+
+Every fill, however it was made, is offered to the record before anything acts on it.
+
+## Related
+
+- [Where duplicates stop](where-duplicates-stop.md)
+- [What a fill changes](what-a-fill-changes.md)

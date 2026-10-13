@@ -1,0 +1,48 @@
+---
+row: P1-03
+baseline: 49aa659
+created: 2026-09-20 16:30 UTC
+modified: 2026-10-12 10:55 UTC
+evidence:
+  - claim: "One worker per account; a second registration is refused"
+    source: "`execution_manager.py` 816-818, otherwise started and kept at 832-836"
+  - claim: "The worker goes round until stopped"
+    source: "`execution_manager.py` 3901-3907"
+  - claim: "A pass with nothing to take waits up to a tenth of a second, or less where an admitted event wakes it; queueing a request wakes nothing"
+    source: "`execution_manager.py` 3885-3888 with the wait at 143, reached from 3981, woken only from 3212"
+  - claim: "A pass that takes a request goes round again without waiting"
+    source: "`execution_manager.py` 3984 then the top of the loop at 3902, rather than the wait at 3981"
+  - claim: "Venue news is drained before the priority line"
+    source: "called at `execution_manager.py` 3907, body at 3734-3737"
+  - claim: "Slices now due, protection waiting to go up and a sweep asked for all run before the ordinary queue is reached"
+    source: "`execution_manager.py` 3973-3978, ahead of 3980"
+  - claim: "At most one item is taken for execution per pass, though a failure empties the queue separately"
+    source: "`execution_manager.py` 3980-3984, the failure path instead emptying it at 6988-6999"
+  - claim: "Fed-out work past its deadline is ended instead of started"
+    source: "`execution_manager.py` 3995-3996 rather than the start at 3998"
+  - claim: "A ladder past its deadline is ended instead of started"
+    source: "`execution_manager.py` 4004-4005 rather than the start at 4007"
+---
+# The account worker
+
+Each account has one **worker**: a background loop going round the same circuit until it is stopped. Work waits in a queue for it to come round. One turn of that circuit is a **pass**.
+
+## What a pass takes
+
+A pass takes from the queues in this order: updates from the venue, then [the priority line](the-priority-line.md), then at most one piece of [submitted work](how-an-order-is-placed.md).
+
+Between the priority line and that last step it carries on with [work already under way](work-already-under-way.md): slices now due, [protection](protection.md) waiting to go up, and a sweep of protection where one was asked for.
+
+## The ordinary queue
+
+At most one submitted request is taken per circuit, and many passes take none.
+
+## What holds a pass back
+
+A pass that finds its ordinary queue empty waits there for up to a tenth of a second. An admitted event ends that wait early; queueing a request does not, so the request sits until the wait runs out. A pass that does take a request goes straight round to the next one, which is how a queue of orders drains. While the account is still starting up, the pass does nothing else and waits that tenth out.
+
+A pass past startup under an account that is [reconciling or poisoned](when-an-account-is-reconciling-or-poisoned.md) ends on that same wait, having taken no submitted work; one still starting takes the startup wait instead, whatever else holds the account.
+
+## What taking one item does
+
+The request is then handled according to the way it was to be carried out. Work meant to be fed out over time, and work meant to be laddered, is ended rather than started if its deadline has already passed.
