@@ -65,6 +65,9 @@ the others where it appears.
 - [Part-shown orders](atoms/part-shown-orders.md) — one resting order the venue displays only part of at a time.
 - [Protection](atoms/protection.md) — the pair of orders put up after an opening one, to close the position at a good price or at a bad one.
 - [When protection is put up again](atoms/when-protection-is-put-up-again.md) — the protective pair goes up once and a second attempt is turned back — except where the prices are being changed, which sends a fresh pair past that guard.
+- [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
+- [When a flatten places nothing](atoms/when-a-flatten-places-nothing.md) — the order that closes an unprotected position is only an attempt: an unknown venue, a pair that may still be resting, or too little left to close stop it before anything goes out.
+- [How big a flatten goes out](atoms/how-big-a-flatten-goes-out.md) — the remainder cut down to what the account can pay with and rounded to the venue's step, against a price worked out for that purpose alone.
 
 ## Changing, cancelling and giving up
 
@@ -135,6 +138,7 @@ the others where it appears.
 - [What a reconciliation tells Nexus](atoms/what-a-reconciliation-tells-nexus.md) — the findings that cross when Praxis squares its books, and the answer it sends back when Nexus asks what it is holding.
 - [When a balance shortfall is reported](atoms/when-a-balance-shortfall-is-reported.md) — the venue holding less of an asset than the books say, compared asset by asset and told to Nexus.
 - [Reports that do not get through](atoms/reports-that-do-not-get-through.md) — what happens to a shortfall Nexus never took, and the stale one that keeps waiting.
+- [The holds a report places](atoms/the-holds-a-report-places.md) — what a reported finding does to the account: halt it, block new entries, or log it, and only a hand from outside lifts the hold.
 
 ## The settings a host runs on
 
@@ -177,6 +181,8 @@ the others where it appears.
 - [Binsim](atoms/binsim.md) — a simulated exchange Praxis can be pointed at, answering over the web on the real venue's paths.
 - [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
 - [Binsim's ledger](atoms/binsims-ledger.md) — what the simulated venue keeps per account: the balances it holds and the fills it has been given.
+- [When binsim turns an order away](atoms/when-binsim-turns-an-order-away.md) — the refusals that turn on the venue's own state: a book too old, a name booked before, a balance that cannot cover it, and a size the venue will not take.
+- [What a binsim snapshot is turned away for](atoms/what-a-binsim-snapshot-is-turned-away-for.md) — depth, progress and shape are each checked before a snapshot replaces the book, and orders go on filling against whatever was accepted last.
 
 ## Summing up a replay or a paper run
 
@@ -198,12 +204,12 @@ Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
 The wiki is about Praxis. How Nexus decides is barely written up here: it
-appears where decisions cross into Praxis and where results cross back. 115
-articles exist. Of Praxis's own source files 46 are accounted for in full, 37 in
-part and 5 not at all; of the 70 in Nexus, 17 are cited in passing and 53
-untouched. [The file ledger](ledger.md) names every one of them, so a subject
+appears where decisions cross into Praxis and where results cross back. 121
+articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
+part and 4 not at all; of the 70 in Nexus, 21 are cited in passing and 49
+untouched — six of the 21 carry a row of their own, and fifteen are reached by an article that needed them. [The file ledger](ledger.md) names every one of them, so a subject
 with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-12 19:08 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-13 09:30 UTC

@@ -53,6 +53,8 @@ Seeded first, then traced and written. Every row below is now written.
 | P2-43 | What the slice counts and the progress figure are worth, by producer | written | [the-figures-an-outcome-reports.md](atoms/the-figures-an-outcome-reports.md) |
 | P2-45 | What a venue refusal says, and how each kind is read | written | [what-a-refusal-says.md](atoms/what-a-refusal-says.md) |
 | P2-46 | The sizes a venue trades in, and when they are not weighed | written | [the-sizes-a-venue-trades-in.md](atoms/the-sizes-a-venue-trades-in.md) |
+| P2-47 | When the simulated venue turns an order away | written | [when-binsim-turns-an-order-away.md](atoms/when-binsim-turns-an-order-away.md) |
+| P2-48 | What the simulated venue turns a snapshot away for | written | [what-a-binsim-snapshot-is-turned-away-for.md](atoms/what-a-binsim-snapshot-is-turned-away-for.md) |
 | P3-01 | Replay, and driving the live path over recorded bars | written | [replay.md](atoms/replay.md) |
 | P3-02 | The simulated clock a replay runs on | written | [the-replay-clock.md](atoms/the-replay-clock.md) |
 | P3-03 | The in-process venue a replay sends to | written | [the-replay-venue.md](atoms/the-replay-venue.md) |
@@ -139,7 +141,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is not in this package. Of its 70 modules, 17 are cited in passing by a Praxis article or a recorded finding, and none is traced. That is a package of its own, not a tail on this one.
+Nexus is not in this package. Of its 70 modules, 21 are cited in passing by a Praxis article or a recorded finding, and six of those carry a row — the two policy reactions a reported finding runs into, the answers they choose from, and the mode controller and manifest those answers reach. That is a package of its own, not a tail on this one.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -183,6 +185,10 @@ Nexus is not in this package. Of its 70 modules, 17 are cited in passing by a Pr
 | P4-39 | The frames a replay writes | written | [the-frames-a-replay-writes.md](atoms/the-frames-a-replay-writes.md) |
 | P4-40 | What a replay run reports back | written | [what-a-replay-run-reports-back.md](atoms/what-a-replay-run-reports-back.md) |
 | P4-41 | What the parity figures refuse | written | [what-the-parity-figures-refuse.md](atoms/what-the-parity-figures-refuse.md) |
+| P4-42 | What a lost protection costs the account | written | [when-protection-is-lost.md](atoms/when-protection-is-lost.md) |
+| P4-43 | The holds a reported finding places, and what lifts them | written | [the-holds-a-report-places.md](atoms/the-holds-a-report-places.md) |
+| P4-44 | What stops a flatten before anything goes out | written | [when-a-flatten-places-nothing.md](atoms/when-a-flatten-places-nothing.md) |
+| P4-45 | How big a flatten goes out, and what the cap reads | written | [how-big-a-flatten-goes-out.md](atoms/how-big-a-flatten-goes-out.md) |
 
 ## Considered and rejected
 
@@ -290,4 +296,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-12 14:26 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-13 09:30 UTC

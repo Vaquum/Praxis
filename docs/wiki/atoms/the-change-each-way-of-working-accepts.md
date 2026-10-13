@@ -2,7 +2,7 @@
 row: P4-09
 baseline: 49aa659
 created: 2026-10-03 16:39 UTC
-modified: 2026-10-11 07:15 UTC
+modified: 2026-10-13 05:54 UTC
 evidence:
   - claim: "Six kinds of change answer the seven ways of working, the two fixed-pace ways sharing one"
     source: "`modify_params.py` 31-39, the ways listed at `praxis/core/domain/enums.py` 119-125"
@@ -26,9 +26,13 @@ evidence:
     source: "`interval_slice_modify.py` 42-56"
   - claim: "A single order's original price settings allow an endless price, where its change refuses one"
     source: "`single_shot_params.py` 38-42 against `single_shot_modify.py` 45-51"
+  - claim: "A change to a single order naming either stop price is refused outright, whichever side it is"
+    source: "`validate_trade_modify.py` 200-208"
+  - claim: "A change to a buy is refused where a price it commits money at rises above the original, a sell passing untested"
+    source: "`validate_trade_modify.py` 220-226, weighed at 97-98 and 109-128, the fields named at 26-29, a ladder at 100-107"
   - claim: "A weighted change naming weights is refused as it is submitted, by a raise the caller sees"
     source: "`validate_trade_modify.py` 210-218, called at `execution_manager.py` 3060-3065"
-  - claim: "A change naming a command already ended, with no bracket of its own left, takes an earlier road, which logs and returns rather than raising"
+  - claim: "A change naming a command already ended, with no bracket of its own left, is answered before the three refusals, logged and returned rather than raised"
     source: "`validate_trade_modify.py` 171-175 into `execution_manager.py` 3067-3072"
   - claim: "Where one reaches the handler anyway, it is turned away before any gap on it is reached"
     source: "`execution_manager.py` 10101-10107"
@@ -39,25 +43,31 @@ evidence:
 ---
 # The change each way of working accepts
 
-A [change](changing-work-already-sent.md) carries its own settings, as [a command](what-a-command-must-carry.md) does. Six kinds answer the seven [ways of working](ways-of-working-a-host-may-drive.md), the two fixed-pace ways sharing one, which mirrors how the settings themselves are registered.
+A [change](changing-work-already-sent.md) carries its own settings, as [a command](what-a-command-must-carry.md) does. Six kinds answer the seven [ways of working](ways-of-working-a-host-may-drive.md), the fixed-pace two sharing one.
 
 ## What every change carries
 
-The name of the command being changed, the account, and a reason — each of which must be something rather than nothing. A moment that carries a zone and an offset.
+The name of the command being changed, the account, and a reason, each something rather than nothing, plus a moment carrying a zone and offset.
 
 ## What every kind has in common
 
-Every field of every kind may be left unset, since a change names only what it alters. So every kind refuses a change with nothing set at all, there being nothing to do.
+Every field may be left unset, since a change names only what it alters — so each kind refuses one with nothing set at all.
 
-Where a price or an amount is given, it must be a finite decimal above nought. A count of parts and a gap in seconds are whole numbers instead, and held to their own bounds.
+A price or amount given must be a finite decimal above nought; a count of parts or a gap in seconds is a whole number, held to its own bounds.
 
-A single order is the one place a change is stricter than the settings it replaces: those settings allow an endless price, and the change refuses one.
+A single order is where a change is stricter than the settings it replaces: those allow an endless price and the change refuses one, and naming either of its stop prices is refused outright, whichever side.
+
+## A buy committing more
+
+A change to a buy is refused where a price it commits money at rises above the original, the caller told to place a new order. Which prices count turns on the way of working; a ladder is weighed on its rungs' weighted total, and a missing or incomparable original counts as a rise. A sell passes untested.
 
 ## A weighted change naming weights
 
-It is refused as it is submitted, by a raise the caller sees, so the weights are never applied — unless the command it names has already ended with no bracket of its own left, which is caught earlier and merely logged.
+It is refused as it is submitted, by a raise the caller sees, so the weights are never applied; one reaching the handler by another road is turned away there too, before any gap on it is reached, losing the gap with the weights.
 
-Should one reach the handler by another road, it is turned away there before any gap on it is reached — a change asking for both loses the gap along with the weights, and that turning-away makes no outcome and calls nobody back.
+## Before any of them
+
+A change naming a command already ended, with no bracket of its own left, is answered first — logged and returned rather than raised.
 
 ## Related
 

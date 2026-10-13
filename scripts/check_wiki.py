@@ -177,16 +177,18 @@ REGISTER_ROW_RE = re.compile(r'^\|\s*(P\d+-\d{2})\s*\|[^|]*\|[^|]*\|[^(]*\((atom
                              re.MULTILINE)
 ROW_SPAN_RE = re.compile(r'^(P\d+)-(\d{2}) to P\d+-(\d{2})$')
 STATE_COUNT_RE = re.compile(
-    r'(\d+) are `full`, (\d+) `partial` and (\d+) `uncovered`',
+    r'(\d+)\s+are\s+`full`,\s+(\d+)\s+`partial`\s+and\s+(\d+)\s+`uncovered`',
 )
-ARTICLE_COUNT_RE = re.compile(r'(\d+) articles\b')
-NEXUS_COUNT_RE = re.compile(r'(\d+) are cited in passing')
-NEXUS_TOTAL_RE = re.compile(r'(?:the|its) (\d+) (?:in Nexus|modules)')
-NEXUS_UNTOUCHED_RE = re.compile(r'(\d+) untouched')
+ARTICLE_COUNT_RE = re.compile(r'(\d+)\s+articles\b')
+NEXUS_COUNT_RE = re.compile(r'(\d+)\s+are\s+cited\s+in\s+passing')
+NEXUS_TOTAL_RE = re.compile(r'(?:the|its)\s+(\d+)\s+(?:in\s+Nexus|modules)')
+NEXUS_UNTOUCHED_RE = re.compile(r'(\d+)\s+untouched')
 CHANGELOG = Path('CHANGELOG.md')
 RELEASE_RE = re.compile(r'^## v\d+\.\d+\.\d+', re.MULTILINE)
-EVIDENCE_COUNT_RE = re.compile(r'(\d[\d,]*) line references across (\d[\d,]*) claims')
-FINDING_COUNT_RE = re.compile(r'Record (\d[\d,]*) findings')
+EVIDENCE_COUNT_RE = re.compile(
+    r'(\d[\d,]*)\s+line\s+references\s+across\s+(\d[\d,]*)\s+claims',
+)
+FINDING_COUNT_RE = re.compile(r'Record\s+(\d[\d,]*)\s+findings')
 FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
 ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
 REFUSAL_RE = re.compile(
@@ -210,7 +212,9 @@ FINDING_ROW_CELLS_RE = re.compile(
     r'^\| ([HU]-\d+) \|[^|]*\|([^|]*)\|[^|]*\|([^|]*)\|', re.MULTILINE,
 )
 UNNAMED = 'cited with no file named before it'
-LINE_COUNT_RE = re.compile(r'`([a-z_/]+\.py)`[,]? (?:is|at) (\d[\d,]*) lines')
+LINE_COUNT_RE = re.compile(
+    r'`([a-z_/]+\.py)`[,]?\s+(?:is|at)\s+(\d[\d,]*)\s+lines',
+)
 _MARKER_REACH = 40
 ABSENCE_WORDS = ('nothing further', 'nowhere', 'absent from', 'no such')
 GIT = shutil.which('git')
@@ -5406,6 +5410,24 @@ def _lead_paragraph(body: str) -> str | None:
     return None
 
 
+def _term_pattern(term: str) -> str:
+
+    """Return the pattern matching a term as whole words, wrapped or not.
+
+    Args:
+        term (str): The term another article owns.
+
+    Returns:
+        str: The pattern, its inner spaces matching any whitespace.
+    """
+
+    return (
+        r'(?<!\w)'
+        + r'\s+'.join(re.escape(word) for word in term.split())
+        + r'(?!\w)'
+    )
+
+
 def _unlinked_terms(page: Path, body: str) -> list[str]:
 
     '''Return the terms another article owns that are first met unlinked.
@@ -5415,6 +5437,11 @@ def _unlinked_terms(page: Path, body: str) -> list[str]:
     sitting only in the navigation list at the foot does not count, since
     that list is a fallback rather than the way a reader is meant to
     travel.
+
+    A term is matched on word boundaries, so a longer word beginning with
+    one is a different word: `order booked` is not the order book. The
+    space inside a term matches a line break too, since prose a writer
+    wrapped carries the term across one.
 
     Args:
         page (Path): The page being read, which owns its own terms.
@@ -5433,9 +5460,9 @@ def _unlinked_terms(page: Path, body: str) -> list[str]:
             continue
 
         for term in terms:
-            first = prose.lower().find(term.lower())
+            found = re.search(_term_pattern(term), prose, re.IGNORECASE)
 
-            if first >= 0 and not _within_link(prose, first, owner):
+            if found is not None and not _within_link(prose, found.start(), owner):
                 missing.append(f'first mentions "{term}" without linking {owner}')
 
     return missing

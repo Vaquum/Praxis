@@ -1523,3 +1523,21 @@
 
 - Refuse an index section named after a register package. The register sorts the work into packages, which is the order it was written in rather than anything a reader wants, and a package name standing over a group of entries is that order leaking into the index — the group under it then holds whatever was written at the time
 
+
+## v0.101.0 on 13th of October, 2026
+
+### Add
+
+- Add six articles to [the wiki](docs/wiki/README.md): what the simulated venue turns an order away for, and what it turns a depth snapshot away for; what a lost protection costs the account, freeze by freeze; what stops the order that closes the position it leaves open — a sell for a long, a buy for a short — and how big that order goes out; and the holds a reported finding places on an account, down to the lifts nothing in the running system calls. 121 articles, 2,525 line references across 1,311 claims
+
+- Add the branches three articles stopped short of. A venue frame whose handler raises is logged and the frame dropped, so a feed being up says nothing about whether what arrived was taken in. A change to a buy that would commit more money than the order first did is refused, and the caller told to place a new order. Each leg of a protective pair takes exactly one of an outright price or a distance from the entry, and both or neither is refused
+
+### Fix
+
+- Count a figure in the wiki's own prose that a line wrap separated from the thing it counts. Every count the gate checks was matched with a literal space, so the index's article count sat wrong across a wrap while the check passed. Every count the gate reads now matches across any whitespace, and a term another article owns is matched as whole words with the same tolerance — so `order booked` no longer reads as the order book, and a term wrapped onto the next line no longer escapes needing its link
+
+- State the finite, positive requirement a protective pair's figures are held to, and the refusal of a change raising a buy's commitment, in the prose of the articles that cite them rather than in their front matter alone
+
+### Change
+
+- Name six Nexus modules in [the ledger](docs/wiki/ledger.md) with a row of their own rather than a passing citation, taking the modules it names from 17 to 21 of the 70: the two reactions a reported finding runs into, the two lists of answers they choose from, and the mode controller and manifest those answers reach. Praxis stands at 46 `full`, 38 `partial` and 4 `uncovered`, `bracket_params.py` having moved off the uncovered list

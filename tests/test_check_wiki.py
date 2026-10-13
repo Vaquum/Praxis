@@ -6013,6 +6013,113 @@ class TestHowTheIndexGroups:
         assert held == []
 
 
+class TestHowACountIsRead:
+
+    @pytest.mark.parametrize(
+        'written',
+        [
+            '120 articles exist.',
+            'Of these, 120\narticles exist.',
+            'Of these, 120\n   articles exist.',
+        ],
+    )
+    def test_a_count_is_read_across_a_wrap(self, written: str) -> None:
+        found = check_wiki.ARTICLE_COUNT_RE.search(written)
+
+        assert found is not None, written
+        assert found.group(1) == '120'
+
+    @pytest.mark.parametrize(
+        'pattern, written, number',
+        [
+            (
+                'STATE_COUNT_RE',
+                '46 are `full`, 38\n`partial` and 4 `uncovered`',
+                '46',
+            ),
+            ('NEXUS_COUNT_RE', '21 are cited in\npassing', '21'),
+            ('NEXUS_TOTAL_RE', 'the 70\nin Nexus', '70'),
+            ('NEXUS_UNTOUCHED_RE', '49\nuntouched', '49'),
+            (
+                'EVIDENCE_COUNT_RE',
+                '2,474 line references\nacross 1,293 claims',
+                '2,474',
+            ),
+            ('FINDING_COUNT_RE', 'Record 70\nfindings', '70'),
+            (
+                'LINE_COUNT_RE',
+                '`execution_manager.py`, at 10,899\nlines',
+                'execution_manager.py',
+            ),
+        ],
+    )
+    def test_every_count_is_read_across_a_wrap(
+        self, pattern: str, written: str, number: str,
+    ) -> None:
+        found = getattr(check_wiki, pattern).search(written)
+
+        assert found is not None, written
+        assert found.group(1) == number
+
+    def test_a_count_of_something_else_is_left_alone(self) -> None:
+        assert check_wiki.ARTICLE_COUNT_RE.search('12 articled pages') is None
+
+
+class TestWhichWordCarriesATerm:
+
+    @staticmethod
+    def _held(
+        page: str, body: str, monkeypatch: pytest.MonkeyPatch,
+    ) -> list[str]:
+        monkeypatch.setattr(
+            check_wiki, 'OWNED_TERMS', {'the-order-book.md': ('order book',)},
+        )
+        held: list[str] = check_wiki._unlinked_terms(Path(page), body)
+
+        return held
+
+    def test_a_longer_word_is_not_the_term(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            'one.md', 'A name an order booked under is refused.\n', monkeypatch,
+        )
+
+        assert held == []
+
+    def test_the_term_itself_still_wants_its_link(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held('one.md', 'The order book is read.\n', monkeypatch)
+
+        assert any('order book' in note for note in held), held
+
+    def test_the_term_linked_where_it_is_met_stands(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            'one.md', 'The [order book](the-order-book.md) is read.\n', monkeypatch,
+        )
+
+        assert held == []
+
+    def test_a_term_carried_across_a_wrap_still_wants_its_link(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held('one.md', 'The order\nbook is read.\n', monkeypatch)
+
+        assert any('order book' in note for note in held), held
+
+    def test_a_term_wrapped_inside_its_link_stands(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            'one.md', 'The [order\nbook](the-order-book.md) is read.\n', monkeypatch,
+        )
+
+        assert held == []
+
+
 class TestWhatTheGateLeavesUnreached:
 
     @staticmethod
