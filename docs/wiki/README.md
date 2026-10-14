@@ -91,6 +91,7 @@ the others where it appears.
 - [Fills and the order](atoms/fills-and-the-order.md) — how a fill moves an order's totals and status, including one arriving too late.
 - [When an update fails](atoms/when-an-update-fails.md) — failing to update the order's own totals stops the account; failing to update the money record is logged and passed over.
 - [Where duplicates stop](atoms/where-duplicates-stop.md) — the same fill can arrive from the send, from the live feed and from a later query — it is written down once, and only that copy is acted on.
+- [The part of a fill a command counts](atoms/the-part-of-a-fill-a-command-counts.md) — the whole fill goes into the books, and only what fits the order's budget reaches the figures Nexus hears.
 
 ## The records Praxis keeps
 
@@ -155,6 +156,7 @@ the others where it appears.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
 - [Stopping a host](atoms/stopping-a-host.md) — a host comes down when its stop flag is set, which a signal or an escaping exception does.
 - [What becomes of work still open](atoms/what-becomes-of-work-still-open.md) — what a stopping host does with commands part-way through and orders resting at the venue.
+- [What a restart puts back](atoms/what-a-restart-puts-back.md) — the live work rebuilt from the record, each kind at the point it had reached, with nothing already at the venue sent again.
 - [What stopping leaves undone](atoms/what-stopping-leaves-undone.md) — stopping carries on past a refused cancel, a drain out of time and a failed close, logging each, while being called off stops it where it stands.
 
 ## Watching a host run
@@ -203,13 +205,14 @@ the others where it appears.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-The wiki is about Praxis. How Nexus decides is barely written up here: it
-appears where decisions cross into Praxis and where results cross back. 121
+Both sides are the subject, and Praxis is the side that has been written. 123
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 21 are cited in passing and 49
-untouched — six of the 21 carry a row of their own, and fifteen are reached by an article that needed them. [The file ledger](ledger.md) names every one of them, so a subject
-with no article can be found there rather than guessed at.
+untouched — six of the 21 carry a row of their own, and fifteen are reached by an
+article that needed them. How Nexus decides what to send is the work that
+remains. [The file ledger](ledger.md) names every file on both sides, so a
+subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-13 09:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-14 06:40 UTC

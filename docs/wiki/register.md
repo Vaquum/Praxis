@@ -55,6 +55,7 @@ Seeded first, then traced and written. Every row below is now written.
 | P2-46 | The sizes a venue trades in, and when they are not weighed | written | [the-sizes-a-venue-trades-in.md](atoms/the-sizes-a-venue-trades-in.md) |
 | P2-47 | When the simulated venue turns an order away | written | [when-binsim-turns-an-order-away.md](atoms/when-binsim-turns-an-order-away.md) |
 | P2-48 | What the simulated venue turns a snapshot away for | written | [what-a-binsim-snapshot-is-turned-away-for.md](atoms/what-a-binsim-snapshot-is-turned-away-for.md) |
+| P2-49 | The part of a fill a command counts, and what the books keep anyway | written | [the-part-of-a-fill-a-command-counts.md](atoms/the-part-of-a-fill-a-command-counts.md) |
 | P3-01 | Replay, and driving the live path over recorded bars | written | [replay.md](atoms/replay.md) |
 | P3-02 | The simulated clock a replay runs on | written | [the-replay-clock.md](atoms/the-replay-clock.md) |
 | P3-03 | The in-process venue a replay sends to | written | [the-replay-venue.md](atoms/the-replay-venue.md) |
@@ -141,7 +142,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is not in this package. Of its 70 modules, 21 are cited in passing by a Praxis article or a recorded finding, and six of those carry a row — the two policy reactions a reported finding runs into, the answers they choose from, and the mode controller and manifest those answers reach. That is a package of its own, not a tail on this one.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 21 are cited in passing by a Praxis article or a recorded finding, and six of those carry a row — the two policy reactions a reported finding runs into, the answers they choose from, and the mode controller and manifest those answers reach. The 49 untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -189,6 +190,7 @@ Nexus is not in this package. Of its 70 modules, 21 are cited in passing by a Pr
 | P4-43 | The holds a reported finding places, and what lifts them | written | [the-holds-a-report-places.md](atoms/the-holds-a-report-places.md) |
 | P4-44 | What stops a flatten before anything goes out | written | [when-a-flatten-places-nothing.md](atoms/when-a-flatten-places-nothing.md) |
 | P4-45 | How big a flatten goes out, and what the cap reads | written | [how-big-a-flatten-goes-out.md](atoms/how-big-a-flatten-goes-out.md) |
+| P4-46 | What a restart puts back, and at what point | written | [what-a-restart-puts-back.md](atoms/what-a-restart-puts-back.md) |
 
 ## Considered and rejected
 
@@ -216,6 +218,23 @@ Found while answering package 1, not answered by it. These enter the next packag
 | Is the hardcoded base asset in the holdings fee-netting (U-04) a live defect? | Holdings net a buy's commission only when the fee asset is `'BTC'`. On any other symbol the record sits above the wallet by the commission on every buy — the compounding error the netting exists to prevent. Prod trades one symbol today, so the reach depends on whether a second is ever added. | unassigned |
 | Are two terminal outcomes for one command id a live defect (U-05)? | H-050 traces `CANCELED` then `FILLED` for one exit command id through bracket protection recovery. A caller that treats the first terminal report as final would have the trade's end wrong. Needs a decision on whether the second report is intended, and whether the exit command should carry a fresh id. | unassigned |
 | Does a schedule change survive a restart? | Answered: H-040 traces the write, the fold and the restore. It does; the docstring saying otherwise is stale, and TD-135 already records the fix. | H-040 |
+
+## Seeded for the Nexus side
+
+The brief covers both repositories, and these are the Nexus subjects a reader of
+the Praxis side is left needing. Candidates, not approved subjects: each enters a
+package through its own Seed stage, and may be rejected or rewritten there. Pinned
+at Nexus `953477a`.
+
+| Candidate | What it has to explain |
+|---|---|
+| What a decision passes through before it is handed over | The ordered checks a decision meets, which actions skip which, and the registration taken before the handover — `nexus/core/validator/pipeline_executor.py`, `nexus/strategy/action_submit.py` |
+| What Nexus does when a command does not get across | A refusal before the send gives the money back; a timeout after registration keeps it and marks the command unknown — `nexus/strategy/action_submit.py` |
+| How Nexus sets money aside for an order | The refusals on allocation, strategy budget, free capital and utilisation; a reservation expiring; reserved money becoming money in flight — `nexus/core/capital_controller/capital_controller.py` |
+| What an outcome changes in Nexus | An entry fill against an exit fill, the order the position moves in, what a refusal or a cancellation releases, and why a deposit does not enlarge the pool — `nexus/infrastructure/praxis_connector/outcome_processor.py` |
+| What decides whether Nexus may trade at all | Health against the holds, and a daily-loss hold that can clear where a drawdown hold has no clearing branch — `nexus/core/mode_controller.py` |
+| How Nexus squares its positions at startup | A position only Nexus has stopping the start, one only Praxis has being considered for import, and a matching one taking Praxis's amount — `nexus/startup/sequencer.py` |
+| How a strategy produces the next decision | The loop that asks a strategy, what a prediction is, and how it becomes a request — `nexus/strategy/predict_loop.py`, `nexus/strategy/loader.py` |
 
 ## Harvest
 
@@ -296,4 +315,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-13 09:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-14 06:40 UTC

@@ -1528,7 +1528,7 @@
 
 ### Add
 
-- Add six articles to [the wiki](docs/wiki/README.md): what the simulated venue turns an order away for, and what it turns a depth snapshot away for; what a lost protection costs the account, freeze by freeze; what stops the order that closes the position it leaves open — a sell for a long, a buy for a short — and how big that order goes out; and the holds a reported finding places on an account, down to the lifts nothing in the running system calls. 121 articles, 2,525 line references across 1,311 claims
+- Add six articles to [the wiki](docs/wiki/README.md): what the simulated venue turns an order away for, and what it turns a depth snapshot away for; what a lost protection costs the account, freeze by freeze; what stops the order that closes the position it leaves open — a sell for a long, a buy for a short — and how big that order goes out; and the holds a reported finding places on an account, down to the lifts nothing in the running system calls Add a seventh on the part of a fill a command counts: the whole fill reaches the order and the money record, and only what fits the order's budget reaches the figures Nexus hears, so the two part company by exactly what was discarded. Add an eighth on what a restart puts back: each kind of live work rebuilt at the point it had reached, with nothing already standing at the venue sent again, and a scheme's hold rebuilt under the precedence the running one keeps. 123 articles, 2,554 line references across 1,328 claims
 
 - Add the branches three articles stopped short of. A venue frame whose handler raises is logged and the frame dropped, so a feed being up says nothing about whether what arrived was taken in. A change to a buy that would commit more money than the order first did is refused, and the caller told to place a new order. Each leg of a protective pair takes exactly one of an outright price or a distance from the entry, and both or neither is refused
 
@@ -1539,5 +1539,7 @@
 - State the finite, positive requirement a protective pair's figures are held to, and the refusal of a change raising a buy's commitment, in the prose of the articles that cite them rather than in their front matter alone
 
 ### Change
+
+- State the wiki's scope as both repositories, which is what [issue #185](https://github.com/Vaquum/Praxis/issues/185) asks for. The index and the register had come to say the wiki was about Praxis and that Nexus was not in the package — a narrowing that was never asked for and does not match the brief, which puts Nexus's 81 files in scope and requires boundary articles written from both ends. Seed the seven Nexus subjects a reader of the Praxis side is left needing, as candidates for their own Seed stage
 
 - Name six Nexus modules in [the ledger](docs/wiki/ledger.md) with a row of their own rather than a passing citation, taking the modules it names from 17 to 21 of the 70: the two reactions a reported finding runs into, the two lists of answers they choose from, and the mode controller and manifest those answers reach. Praxis stands at 46 `full`, 38 `partial` and 4 `uncovered`, `bracket_params.py` having moved off the uncovered list

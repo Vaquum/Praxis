@@ -10,7 +10,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 
 | File | State | Rows |
 |---|---|---|
-| `praxis/core/execution_manager.py` | partial | P1-01 to P1-13, P2-11 to P2-13, P2-15 to P2-25, P2-27 to P2-29, P2-31, P2-32, P2-34, P2-38, P2-43 to P2-45, P3-01 to P3-03, P3-13, P3-14, P3-18, P3-21 to P3-23, P3-25, P3-26, P4-04, P4-06 to P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35, P4-42, P4-44, P4-45 |
+| `praxis/core/execution_manager.py` | partial | P1-01 to P1-13, P2-11 to P2-13, P2-15 to P2-25, P2-27 to P2-29, P2-31, P2-32, P2-34, P2-38, P2-43 to P2-45, P3-01 to P3-03, P3-13, P3-14, P3-18, P3-21 to P3-23, P3-25, P3-26, P4-04, P4-06 to P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35, P4-42, P4-44, P4-45, P2-49, P4-46 |
 | `praxis/core/domain/fill.py` | uncovered | — |
 | `praxis/core/account_ledger.py` | partial | P2-29, P2-30, P3-11, P3-12, P4-06, P4-12 |
 | `praxis/core/generate_client_order_id.py` | full | P1-01, P2-24, P3-14, P4-07, P4-33 |
@@ -130,8 +130,8 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-Fifteen of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other six carry a row — P4-43 traces the two policy reactions and the two lists of answers they choose from end to end, and reaches into the mode controller and the manifest for the holds those answers place and the settings they are read from. No Nexus package has been seeded.
+Fifteen of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other six carry a row — P4-43 traces the two policy reactions and the two lists of answers they choose from end to end, and reaches into the mode controller and the manifest for the holds those answers place and the settings they are read from. The 49 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-13 09:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-14 06:40 UTC
