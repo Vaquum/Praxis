@@ -2,7 +2,7 @@
 row: P4-42
 baseline: 49aa659
 created: 2026-10-13 06:50 UTC
-modified: 2026-10-13 06:50 UTC
+modified: 2026-10-14 13:10 UTC
 evidence:
   - claim: "Every live scheme is frozen, each freeze written down before it takes hold in memory"
     source: "`execution_manager.py` 6630-6638"
@@ -16,6 +16,8 @@ evidence:
     source: "`execution_manager.py` 6933-6941"
   - claim: "A pair whose standing is unknown is watched, and one found resting is taken up again instead"
     source: "`execution_manager.py` 7388-7392"
+  - claim: "A leg query that fails, or fills that will not settle, return without reaching the deadline, so the pair can stay unknown past it"
+    source: "`execution_manager.py` 7442-7443 and 7457-7458, reached from 7398, against the deadline at 7511-7513"
   - claim: "One still unanswerable waits out a deadline and is then taken as lost on the record alone"
     source: "`execution_manager.py` 7395 into 7512-7513, remediated at 7523"
   - claim: "A pair gone with nothing left to protect ends the bracket rather than counting as lost, reporting a close only where the exit filled"
@@ -37,23 +39,23 @@ evidence:
 ---
 # When protection is lost
 
-Protection is lost when the [protective pair](protection.md) guarding a filled position is settled gone, stays unknown past a deadline, or never goes up — in each case with exposure still on the books. A pair merely unknown is watched, and that watch can find it resting. With nothing left to protect, one gone ends the bracket and a passed deadline leaves it unknown. Praxis answers a loss in a fixed order: freeze, record, close out, tell Nexus.
+Protection is lost when the [protective pair](protection.md) guarding a filled position is settled gone, stays unknown past a deadline, or never goes up — in each case with exposure still on the books. A pair merely unknown is watched, and that watch can find it resting. With nothing left to protect, one gone ends the bracket. The deadline binds only the unanswerable case: where asking about a leg fails, or its fills will not settle, the watch returns before reaching it, and the pair can stay unknown past it. Praxis answers a loss in a fixed order: freeze, record, close out, tell Nexus.
 
 ## Frozen against adding more
 
-Every live [scheme](work-fed-out-over-time.md) on the account is frozen against a further slice, each freeze written to [the record](the-event-spine.md) before it takes hold — so a restart resumes it frozen rather than re-arming its timer.
+Every live [scheme](work-fed-out-over-time.md) on the account is frozen against a further slice, each freeze written to [the record](the-event-spine.md) before it takes hold — so a restart resumes it frozen.
 
-A scheme held for a failed slice — a hold an amend can lift — takes the protection hold instead, so no amend restarts it. One already protection-held, or draining, is left alone.
+A scheme held for a failed slice takes the protection hold instead, so no amend restarts it. One already protection-held, or draining, is left alone.
 
 ## The record comes before the close
 
 The failure is written down next, naming which revision of the pair it was — and refusing a revision below the first, so an unamended pair's zero is raised to one.
 
-Only then is [the remainder closed out](when-a-flatten-places-nothing.md), and only where the account's policy is to flatten and halt — an order that can place nothing. The other leaves it standing; an account named in neither gets the flattening one.
+Only then is [the remainder closed out](when-a-flatten-places-nothing.md), and only where the account's policy is to flatten and halt. The other leaves it standing; an account named in neither gets the flattening one.
 
 ## Told as soon as it can be
 
-The word to Nexus is kept under the command's name, offered at once, then on each protection scan until it lands. One that raises is logged and left waiting, the scan's six other jobs running anyway.
+The word to Nexus is kept under the command's name, offered at once, then on each protection scan until it lands. One that raises is logged and left waiting.
 
 One that lands is written down too, and only that stops a restart offering it again — [the hold it places](the-holds-a-report-places.md) is lifted by hand.
 
@@ -66,4 +68,4 @@ One that lands is written down too, and only that stops a restart offering it ag
 
 ---
 
-Created 2026-10-13 06:50 UTC · Last modified 2026-10-13 06:50 UTC
+Created 2026-10-13 06:50 UTC · Last modified 2026-10-14 13:10 UTC

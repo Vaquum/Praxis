@@ -2,7 +2,7 @@
 row: P4-54
 baseline: 49aa659
 created: 2026-10-14 10:25 UTC
-modified: 2026-10-14 10:25 UTC
+modified: 2026-10-14 13:10 UTC
 evidence:
   - claim: "Recovery works from the written failures rather than from any closing order, so a stop before one was written is still picked up"
     source: "`execution_manager.py` 7919-7926"
@@ -16,6 +16,8 @@ evidence:
     source: "`execution_manager.py` 7984-7994"
   - claim: "One the venue shows with fills has those taken in, local records written for an order that already exists"
     source: "`execution_manager.py` 7972-7982 into 8035, 8048 and 8058"
+  - claim: "That happens only where the record carries no fills for it yet"
+    source: "`execution_manager.py` 8019-8026 before 8061"
   - claim: "One the venue has never heard of, and one ended with nothing filled, are sent again"
     source: "`execution_manager.py` 7996-7999"
   - claim: "The queue is drained before the exposure is weighed again, and a poisoned account stops there"
@@ -33,7 +35,7 @@ The order's name is worked out from the request, and the venue asked about it.
 
 An order the record already holds as ended with something filled on it is passed over before that, since something did close. A query failing for any reason other than the venue not having the name skips that command for this start.
 
-One the venue shows still working is left in place for the feed to finish. One it shows with fills on it has those taken into the record, and local records for it written there and then: the record catching up with an order that already exists at the venue.
+One the venue shows still working is left in place for the feed to finish. One it shows with fills on it has those taken into the record, and local records for it written there and then: the record catching up with an order that already exists at the venue. That only happens where the record carries no fills for it yet — a part-recorded close is left to ordinary squaring instead.
 
 ## What is sent again
 
@@ -51,4 +53,4 @@ An account poisoned on the way through that drain stops there and sends nothing 
 
 ---
 
-Created 2026-10-14 10:25 UTC · Last modified 2026-10-14 10:25 UTC
+Created 2026-10-14 10:25 UTC · Last modified 2026-10-14 13:10 UTC
