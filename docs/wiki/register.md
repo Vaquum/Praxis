@@ -191,6 +191,17 @@ Nexus is in scope and is where the packages go next. Of its 70 modules, 21 are c
 | P4-44 | What stops a flatten before anything goes out | written | [when-a-flatten-places-nothing.md](atoms/when-a-flatten-places-nothing.md) |
 | P4-45 | How big a flatten goes out, and what the cap reads | written | [how-big-a-flatten-goes-out.md](atoms/how-big-a-flatten-goes-out.md) |
 | P4-46 | What a restart puts back, and at what point | written | [what-a-restart-puts-back.md](atoms/what-a-restart-puts-back.md) |
+| P4-47 | How a ladder's prices are changed, and what a stop leaves | written | [how-a-ladders-prices-are-changed.md](atoms/how-a-ladders-prices-are-changed.md) |
+| P4-48 | How protection's prices are changed, and the ways it ends | written | [how-protections-prices-are-changed.md](atoms/how-protections-prices-are-changed.md) |
+| P4-49 | How a schedule change is carried out, and what it is refused for | written | [how-a-schedule-change-is-carried-out.md](atoms/how-a-schedule-change-is-carried-out.md) |
+| P4-50 | What startup does with orphaned work, on both sides | written | [what-startup-does-with-orphaned-work.md](atoms/what-startup-does-with-orphaned-work.md) |
+| P4-51 | The window a movement is found in, and what it never reaches | written | [the-window-a-movement-is-found-in.md](atoms/the-window-a-movement-is-found-in.md) |
+| P4-52 | When a weight curve plans a part of nothing | written | [when-a-weight-curve-plans-nothing.md](atoms/when-a-weight-curve-plans-nothing.md) |
+| P4-53 | When Praxis retries a venue call, and what each attempt costs | written | [when-praxis-retries-a-venue-call.md](atoms/when-praxis-retries-a-venue-call.md) |
+| P4-54 | How an unfinished close is recovered at a start | written | [how-an-unfinished-close-is-recovered.md](atoms/how-an-unfinished-close-is-recovered.md) |
+| P4-55 | How an order is brought back into step with the venue | written | [how-an-order-is-brought-back-into-step.md](atoms/how-an-order-is-brought-back-into-step.md) |
+| P4-56 | What stops a ladder's new rungs going up | written | [what-stops-a-ladders-new-rungs.md](atoms/what-stops-a-ladders-new-rungs.md) |
+| P4-57 | What a restart puts back of a bracket | written | [what-a-restart-puts-back-of-a-bracket.md](atoms/what-a-restart-puts-back-of-a-bracket.md) |
 
 ## Considered and rejected
 
@@ -218,6 +229,25 @@ Found while answering package 1, not answered by it. These enter the next packag
 | Is the hardcoded base asset in the holdings fee-netting (U-04) a live defect? | Holdings net a buy's commission only when the fee asset is `'BTC'`. On any other symbol the record sits above the wallet by the commission on every buy — the compounding error the netting exists to prevent. Prod trades one symbol today, so the reach depends on whether a second is ever added. | unassigned |
 | Are two terminal outcomes for one command id a live defect (U-05)? | H-050 traces `CANCELED` then `FILLED` for one exit command id through bracket protection recovery. A caller that treats the first terminal report as final would have the trade's end wrong. Needs a decision on whether the second report is intended, and whether the exit command should carry a fresh id. | unassigned |
 | Does a schedule change survive a restart? | Answered: H-040 traces the write, the fold and the restore. It does; the docstring saying otherwise is stale, and TD-135 already records the fix. | H-040 |
+
+## Seeded for the Praxis remainder
+
+What two independent reviews of this package found still uncovered on the Praxis
+side. Candidates, not approved subjects. Pinned at Praxis `49aa659`.
+
+| Candidate | What it has to explain |
+|---|---|
+| How an outside event enters the record | A running account queues an event to its writer while parked recovery appends straight through; cancelling the waiting caller does not cancel the queued write, and unregistering mid-append can leave the event durable while the caller is told it failed — `execution_manager.py` 3118-3263 and 3783-3835 |
+| When reconnecting releases an account | A disconnect gates the account at once; a reconnect during a running recovery asks for one rerun and a disconnect during it keeps the gate shut. An incomplete backfill, a venue failure and a cancellation each leave it gated — `trading.py` 1389-1501 against 1337-1387 |
+| When an older record can be opened | Opening refuses a newer shape and a chain identity that does not match; migrating legacy fills needs provable ownership, and ambiguous history refuses outright — `praxis/infrastructure/event_spine.py` 493-536, 598-704 and 817-861 |
+
+Branches named in existing articles and not yet written: a ladder amend refused
+while another is underway or the ladder is held (`execution_manager.py`
+8882-8926); the separate not-active refusal on a protection re-price (9402-9409);
+the confirmed-terminal watch returning because a leg query or a fill backfill
+failed, which does not take the deadline fallback (7394-7398 and 7440-7458); and
+that squaring an order makes no filled ending of its own, leaving ordinary fill
+projection to close it (`trading.py` 1660-1689).
 
 ## Seeded for the Nexus side
 
@@ -315,4 +345,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-14 06:40 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-14 12:00 UTC

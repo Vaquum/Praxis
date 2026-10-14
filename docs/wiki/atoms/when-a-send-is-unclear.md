@@ -2,7 +2,7 @@
 row: P1-07
 baseline: 49aa659
 created: 2026-09-23 08:18 UTC
-modified: 2026-10-12 00:15 UTC
+modified: 2026-10-14 08:50 UTC
 evidence:
   - claim: "A transport failure leaving the retry loop on an order send is wrapped as a submit timeout, where the send carried a name of its own"
     source: "`binance_adapter.py` 1637-1643 past the test at 1628, wrapping what leaves the loop at 680, either built there at 660-662 or raised at 1135-1137 and caught instead at 595-596"
@@ -26,6 +26,12 @@ evidence:
     source: "the loop at `execution_manager.py` 5670-5676 returning for all of it at 5677-5688"
   - claim: "A found list that is neither rejected nor finished is adopted as live without asking its legs"
     source: "`execution_manager.py` 5620-5621, instead of the rejection at 5606-5614 or the leg query at 5616-5619"
+  - claim: "A trade for an order already closed is taken in, adding to its amount, money and a buy's commission in the coin while its status stands"
+    source: "`praxis/core/trading_state.py` 417-424, reached from `trading.py` 1753-1757"
+  - claim: "Anything other than a trade for an already-closed order is passed over"
+    source: "`trading.py` 1746-1751"
+  - claim: "The name cannot be used again, a second request under it being refused as in use"
+    source: "`execution_manager.py` 3452-3457"
 ---
 # When a send's outcome is unknown
 
@@ -36,6 +42,12 @@ A call to the venue can fail without settling whether the order reached it. Prax
 Two kinds of failure send Praxis back to the venue to ask. Both kinds cover more than their names suggest: transport failures of several kinds — a timeout, a dropped connection, a server error, a body that will not parse — become the first, and a single venue rejection code becomes the second, whatever the venue gave as its reason.
 
 Other venue errors and settings the venue will not accept are recorded failed on the spot. [A reply Praxis cannot read](a-reply-that-cannot-be-read.md) ends several ways of its own, and some of them record nothing.
+
+## A fill that arrives after the answer
+
+A send written off as refused leaves an order in the closed half of the record. A trade for it arriving later on the venue's feed is still taken in: its amount, its money and any commission a buy was charged in the coin are added to that closed order, and the order keeps the status it was closed with. Anything other than a trade for an already-closed order is passed over.
+
+So a late fill corrects the figures and leaves the ending alone. Nothing revisits the outcome already reported, and the name cannot be used again — a second request under it is refused as in use.
 
 ## Related
 

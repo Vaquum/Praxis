@@ -42,6 +42,7 @@ the others where it appears.
 - [The sizes a venue trades in](atoms/the-sizes-a-venue-trades-in.md) — a venue accepts only certain amounts and prices, and Praxis weighs an order against the figures it holds for that symbol — or sends it unweighed when it holds none.
 - [What a venue must be able to do](atoms/what-a-venue-must-be-able-to-do.md) — the jobs every venue has to offer — register an account, place, cancel, report balances — written down as one list.
 - [Holding back sends](atoms/holding-back-sends.md) — a limit on how fast Praxis may call the venue: most calls wait for a slot, and asking the time does not.
+- [When Praxis retries a venue call](atoms/when-praxis-retries-a-venue-call.md) — a repeatable call gets three attempts and a send gets one, and each attempt spends a slot of the allowance.
 - [When a send's outcome is unknown](atoms/when-a-send-is-unclear.md) — a call to the venue can fail without settling whether the order arrived, so Praxis asks the venue before deciding.
 - [A reply that cannot be read](atoms/a-reply-that-cannot-be-read.md) — what happens when the venue answers in a shape Praxis cannot understand.
 - [Who refused a send](atoms/who-refused-a-send.md) — a failed send is put down to the venue, to Praxis, or to neither, so a later reader need not judge the wording.
@@ -63,9 +64,12 @@ the others where it appears.
 - [Work fed out over time](atoms/work-fed-out-over-time.md) — an amount broken into slices that go out one at a time with a gap between them.
 - [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, an order each, sent one after another in one pass.
 - [Part-shown orders](atoms/part-shown-orders.md) — one resting order the venue displays only part of at a time.
+- [When a weight curve plans nothing](atoms/when-a-weight-curve-plans-nothing.md) — a curve that passes every settings check can still split an amount into a part of nothing, caught on the way out rather than at the start.
 - [Protection](atoms/protection.md) — the pair of orders put up after an opening one, to close the position at a good price or at a bad one.
 - [When protection is put up again](atoms/when-protection-is-put-up-again.md) — the protective pair goes up once and a second attempt is turned back — except where the prices are being changed, which sends a fresh pair past that guard.
+- [How protection's prices are changed](atoms/how-protections-prices-are-changed.md) — the resting pair taken down and a fresh one put up for what is left, or nothing put up where nothing is worth protecting.
 - [When protection is lost](atoms/when-protection-is-lost.md) — once the pair guarding a position counts as gone, the account stops adding to it, a closing order is attempted where the policy says so, and Nexus is told.
+- [How an unfinished close is recovered](atoms/how-an-unfinished-close-is-recovered.md) — a start picks up a close that never settled from the failures written down, and weighs what is open again before sending.
 - [When a flatten places nothing](atoms/when-a-flatten-places-nothing.md) — the order that closes an unprotected position is only an attempt: an unknown venue, a pair that may still be resting, or too little left to close stop it before anything goes out.
 - [How big a flatten goes out](atoms/how-big-a-flatten-goes-out.md) — the remainder cut down to what the account can pay with and rounded to the venue's step, against a price worked out for that purpose alone.
 
@@ -74,7 +78,10 @@ the others where it appears.
 - [Changing work already sent](atoms/changing-work-already-sent.md) — asking Praxis to alter work it has accepted, what may be altered depending on how that work is carried out.
 - [The change each way of working accepts](atoms/the-change-each-way-of-working-accepts.md) — every request to alter work must name the command, the account and a reason, and a change to how work is spread over time is refused outright.
 - [What each change insists on](atoms/what-each-change-insists-on.md) — which fields each way of working lets a change touch, and what it checks before touching them.
+- [How a schedule change is carried out](atoms/how-a-schedule-change-is-carried-out.md) — the parts already sent kept, the rest planned again, and the next part set a full gap from now.
 - [How a price change is carried out](atoms/how-a-price-change-is-carried-out.md) — a price change replaces the order rather than editing it: the resting one is cancelled, what it really filled is settled, and a fresh one goes out for the rest.
+- [How a ladder's prices are changed](atoms/how-a-ladders-prices-are-changed.md) — the whole grid replaced: every old rung cancelled and seen to be over before one new rung goes out.
+- [What stops a ladder's new rungs](atoms/what-stops-a-ladders-new-rungs.md) — a grid can be left short: nothing worth placing, a freeze, or a rung that halts the run each time it is tried.
 - [When a price change leaves no new order](atoms/when-a-price-change-places-nothing.md) — a price change can end with nothing resting in place of the order it replaced: the cancel never settles, the order is still working, too little is left to trade, or the send goes out and comes back unconfirmed.
 - [Cancellation](atoms/how-a-trade-is-cancelled.md) — asking Praxis to stop a request already submitted, answered at once or taken up in the line of its own.
 - [Abandoning work outright](atoms/abandoning-work-outright.md) — asking Praxis to give up on one command rather than alter it, cancelling at the venue where an order is out.
@@ -115,6 +122,7 @@ the others where it appears.
 - [The venue feed](atoms/the-venue-feed.md) — a connection kept open per account, over which the venue says what happened to that account's orders unasked.
 - [The kept book](atoms/the-kept-book.md) — Praxis's own copy of the latest offers for a pair, held with the time it arrived so a check need not wait on the venue.
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for trades Praxis did not hear about, after the feed was away or at a start.
+- [How an order is brought back into step](atoms/how-an-order-is-brought-back-into-step.md) — the venue asked what became of each working order, fills taken in before any ending is concluded.
 
 ## The prices a strategy is priced against
 
@@ -139,6 +147,7 @@ the others where it appears.
 - [What a reconciliation tells Nexus](atoms/what-a-reconciliation-tells-nexus.md) — the findings that cross when Praxis squares its books, and the answer it sends back when Nexus asks what it is holding.
 - [When a balance shortfall is reported](atoms/when-a-balance-shortfall-is-reported.md) — the venue holding less of an asset than the books say, compared asset by asset and told to Nexus.
 - [Reports that do not get through](atoms/reports-that-do-not-get-through.md) — what happens to a shortfall Nexus never took, and the stale one that keeps waiting.
+- [The window a movement is found in](atoms/the-window-a-movement-is-found-in.md) — money moving in or out is looked for from the last one seen, and never from before the account was taken on.
 - [The holds a report places](atoms/the-holds-a-report-places.md) — what a reported finding does to the account: halt it, block new entries, or log it, and only a hand from outside lifts the hold.
 
 ## The settings a host runs on
@@ -154,9 +163,11 @@ the others where it appears.
 - [Starting a host](atoms/starting-a-host.md) — what one process does to bring Praxis and Nexus up, in the order it does it.
 - [What a starting host reports](atoms/what-a-starting-host-reports.md) — what the figures a starting host publishes actually confirm, and why reading healthy does not mean every account is ready.
 - [What a failure at startup does](atoms/what-a-failure-at-startup-does.md) — which steps stop the host when they go wrong, and which are written off.
+- [What startup does with orphaned work](atoms/what-startup-does-with-orphaned-work.md) — work the record cannot account for, and orders at the venue it has never heard of.
 - [Stopping a host](atoms/stopping-a-host.md) — a host comes down when its stop flag is set, which a signal or an escaping exception does.
 - [What becomes of work still open](atoms/what-becomes-of-work-still-open.md) — what a stopping host does with commands part-way through and orders resting at the venue.
 - [What a restart puts back](atoms/what-a-restart-puts-back.md) — the live work rebuilt from the record, each kind at the point it had reached, with nothing already at the venue sent again.
+- [What a restart puts back of a bracket](atoms/what-a-restart-puts-back-of-a-bracket.md) — a resting pair left alone, one that never got out sent, one mid-change left for the watch, and a stale one passed over.
 - [What stopping leaves undone](atoms/what-stopping-leaves-undone.md) — stopping carries on past a refused cancel, a drain out of time and a failed close, logging each, while being called off stops it where it stands.
 
 ## Watching a host run
@@ -205,7 +216,7 @@ the others where it appears.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 123
+Both sides are the subject, and Praxis is the side that has been written. 134
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 21 are cited in passing and 49
 untouched — six of the 21 carry a row of their own, and fifteen are reached by an
@@ -215,4 +226,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-14 06:40 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-14 12:00 UTC

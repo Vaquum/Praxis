@@ -2,10 +2,12 @@
 row: P2-49
 baseline: 49aa659
 created: 2026-10-13 11:10 UTC
-modified: 2026-10-13 11:10 UTC
+modified: 2026-10-14 08:05 UTC
 evidence:
-  - claim: "The whole fill goes into the order and the money record, and only then is the part that counts worked out"
-    source: "`execution_manager.py` 2081 and 2087 against 2084"
+  - claim: "The whole fill goes into the order first, the part that counts is worked out next, and the money record is written after that"
+    source: "`execution_manager.py` 2081 before 2084 before 2087"
+  - claim: "A buy charged its commission in the coin has that off the holding and never off what the command counted"
+    source: "`praxis/core/trading_state.py` 84-85, against `execution_manager.py` 2505-2518"
   - claim: "A running total of what has counted is kept against the command's name"
     source: "`execution_manager.py` 2474-2476, written at 2561-2563"
   - claim: "An amount-sized command counts a fill up to what is left of its amount"
@@ -41,7 +43,7 @@ Dividing money by a price rounds, so bounding each fill's part would not bound t
 
 ## What goes unreported
 
-Where less is counted than arrived, the difference is logged as discarded. The order and the money record still hold the whole fill, so what Praxis holds and what Nexus hears differ by exactly that much.
+Where less is counted than arrived, the difference is logged as discarded. The order still holds the whole fill, so what Praxis records and what Nexus hears part company. They part company for a second reason too: a buy charged its commission in the coin has that taken off the holding, and never off what the command counted.
 
 ## Related
 
@@ -51,4 +53,4 @@ Where less is counted than arrived, the difference is logged as discarded. The o
 
 ---
 
-Created 2026-10-13 11:10 UTC · Last modified 2026-10-13 11:10 UTC
+Created 2026-10-13 11:10 UTC · Last modified 2026-10-14 08:05 UTC

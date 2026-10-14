@@ -2,7 +2,7 @@
 row: P2-16
 baseline: 49aa659
 created: 2026-09-26 05:47 UTC
-modified: 2026-10-04 11:43 UTC
+modified: 2026-10-14 11:20 UTC
 evidence:
   - claim: "Kept per trade and account, not per symbol"
     source: "`trading_state.py` 482, the record built at 489-497"
@@ -18,6 +18,10 @@ evidence:
     source: "`trading_state.py` 571-572"
   - claim: "A trade can be closed with an amount still standing"
     source: "`execution_manager.py` 10891-10899, the close emitted at 10806-10816"
+  - claim: "A reducing fill leaving less than the venue's step closes the position"
+    source: "`execution_manager.py` 10899"
+  - claim: "With the venue's sizes absent, the test answers yes for any reducing fill that reaches it"
+    source: "`execution_manager.py` 10896-10897, reached from 10891"
 ---
 # Holdings
 
@@ -34,6 +38,12 @@ A reducing fill that brings the amount to zero drops it. One that would take the
 And closing the trade drops it whatever it holds. A trade can be closed with a small amount left, too small to sell on its own, and the record goes with the close rather than with a fill.
 
 Only a reducing fill reaches the first two tests, and a record holding nothing still meets them: the next fill on the other side takes it below zero, where it is set to zero and dropped like any other.
+
+## Closing without the venue's sizes
+
+Whether a reducing fill closes the position outright is normally decided against the venue's smallest step: less than a step left is too little to trade and the position is closed.
+
+Where the venue's sizes are not to hand, that test answers yes for any reducing fill reaching it. The remainder is then whatever was left, tradeable or not — so a position can be written closed with an amount in it the venue would have accepted.
 
 ## Related
 
