@@ -2,7 +2,7 @@
 row: S-02
 baseline: 49aa659
 created: 2026-10-15 08:10 UTC
-modified: 2026-10-15 08:10 UTC
+modified: 2026-10-15 20:30 UTC
 evidence:
   - claim: "A starting account's pass does nothing and waits"
     source: "`execution_manager.py` 3903-3905"
@@ -10,22 +10,28 @@ evidence:
     source: "`execution_manager.py` 3907 before 3910 before 3984"
   - claim: "The priority line is emptied in one loop, and a held change is put back only past it"
     source: "`execution_manager.py` 3910-3929 against 3954"
-  - claim: "A raise inside that loop is logged and the loop carries on"
-    source: "`execution_manager.py` 3945-3951"
+  - claim: "An ordinary raise inside that loop is logged and the loop carries on"
+    source: "`execution_manager.py` 3944-3951"
+  - claim: "A pass called off is passed straight on instead of logged"
+    source: "`execution_manager.py` 3942-3943"
   - claim: "Cancellations left part done are driven before anything new starts"
     source: "`execution_manager.py` 3960 before 3973"
   - claim: "A poisoned account refuses what is queued, and either hold ends the pass"
     source: "`execution_manager.py` 3962-3967 and 3969-3971"
   - claim: "Work already running is moved along, and protection put up, before a new request is taken"
     source: "`execution_manager.py` 3973-3974 before 3984"
-  - claim: "Exactly one request is taken off the ordinary queue each pass"
-    source: "`execution_manager.py` 3980-3984"
+  - claim: "Protection goes up only for a bracket whose opening order has ended with something filled"
+    source: "`execution_manager.py` 4743-4744 and 4748-4749"
+  - claim: "A scan the squaring tick asked for runs on the worker, after that and before a new request"
+    source: "`execution_manager.py` 3976-3978, its jobs at 7290-7300"
+  - claim: "At most one request is taken off the ordinary queue, an empty one ending the pass"
+    source: "`execution_manager.py` 3980-3982 against 3984"
   - claim: "The deadline is weighed for a run and a ladder, and starting is the other branch"
     source: "`execution_manager.py` 3994-3998 and 4004-4007"
 ---
 # Draining an account's queues
 
-One pass of [an account's worker](../atoms/how-waiting-work-is-drained.md), from what it looks at first to what it does when there is nothing left. Each step hands off to the article that owns it.
+One pass of [an account's worker](../atoms/how-waiting-work-is-drained.md), from what it looks at first to what it does when there is nothing left. Each sentence hands off to the article owning the behaviour it names, and the order they happen in is proved below rather than borrowed.
 
 **Starts from** a worker running on an account, with work possibly waiting in either of its queues.
 
@@ -59,7 +65,7 @@ One pass of [an account's worker](../atoms/how-waiting-work-is-drained.md), from
 
 11. Protection is then put up for a bracket whose opening order has ended with something filled — [Protection](../atoms/protection.md).
 
-12. A scan the squaring tick asked for runs its watches here, on the worker rather than on that tick — [When protection is lost](../atoms/when-protection-is-lost.md).
+12. A scan the squaring tick asked for runs here rather than on that tick, and it carries more than protection: drains, ladder and ordinary changes, and failed closes — [Work already under way](../atoms/work-already-under-way.md). Its protection watches are the part that can take a pair as lost — [When protection is lost](../atoms/when-protection-is-lost.md).
 
 ## At most one new thing
 
@@ -78,4 +84,4 @@ One pass of [an account's worker](../atoms/how-waiting-work-is-drained.md), from
 
 ---
 
-Created 2026-10-15 08:10 UTC · Last modified 2026-10-15 08:10 UTC
+Created 2026-10-15 08:10 UTC · Last modified 2026-10-15 20:30 UTC

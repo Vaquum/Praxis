@@ -2,16 +2,16 @@
 row: S-04
 baseline: 49aa659
 created: 2026-10-15 08:40 UTC
-modified: 2026-10-15 08:40 UTC
+modified: 2026-10-15 20:50 UTC
 evidence:
-  - claim: "The stop flag is what the host waits on, and a signal or an account's own failure sets it"
-    source: "`launcher.py` 2824-2825"
-  - claim: "Trading told to stop refuses every way in from that moment"
-    source: "`trading.py` 1878-1880, 1904-1906 and 1913-1915"
+  - claim: "The host waits on the stop flag, which a signal sets and an account's own failure sets too"
+    source: "`launcher.py` 2837, set at 2844 and 4040, the handlers installed at 2824-2825"
+  - claim: "Trading marks itself stopping first, and from then every way in is refused"
+    source: "`trading.py` 655 before 1878-1880, 1904-1906 and 1913-1915"
   - claim: "The squaring loop is called off before any work is abandoned"
     source: "`trading.py` 657-661 before 665"
-  - claim: "Every command in flight is abandoned onto the priority line, and only then are resting orders cancelled"
-    source: "`trading.py` 665-670 before 700-701"
+  - claim: "Every command in flight is put onto the priority line, and the second pass begins without waiting for the worker to take them"
+    source: "`trading.py` 665-670 into `execution_manager.py` 3027, before `trading.py` 700"
   - claim: "An order belonging to a command still in flight is passed over by that second pass"
     source: "`trading.py` 701-702"
   - claim: "An order put up to close a position is passed over by name"
@@ -19,7 +19,7 @@ evidence:
 ---
 # Stopping a host with work in flight
 
-The route a host takes when it is told to stop while requests are part-way through and orders are resting at the venue. Each step hands off to the article that owns it.
+The route a host takes when it is told to stop while requests are part-way through and orders are resting at the venue. Each sentence hands off to the article owning the behaviour it names, and the order they happen in is proved below rather than borrowed.
 
 **Starts from** a running host whose stop flag has been set.
 
@@ -37,7 +37,7 @@ The route a host takes when it is told to stop while requests are part-way throu
 
 4. Every command still in flight is then sent an abandonment marked as a shutdown, onto the line the worker takes priority work from — [What becomes of work still open](../atoms/what-becomes-of-work-still-open.md).
 
-5. Each of those takes the same three arms a cancellation does once the worker picks it up — [Where an abandonment lands](../atoms/where-an-abandonment-lands.md), and from there [the cancel route](cancelling-a-trade.md) — [Cancellation](../atoms/how-a-trade-is-cancelled.md).
+5. Each of those takes the same three arms a cancellation does, whenever the worker picks it up — [Where an abandonment lands](../atoms/where-an-abandonment-lands.md). Stopping does not wait for that: it goes on to its own pass while they sit on the line — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
 
 6. An abandonment refused on the way in — no worker left to drain it, among other grounds — has its command struck from the skip list, so the next pass picks its orders up instead — [What becomes of work still open](../atoms/what-becomes-of-work-still-open.md).
 
@@ -64,4 +64,4 @@ The route a host takes when it is told to stop while requests are part-way throu
 
 ---
 
-Created 2026-10-15 08:40 UTC · Last modified 2026-10-15 08:40 UTC
+Created 2026-10-15 08:40 UTC · Last modified 2026-10-15 20:50 UTC

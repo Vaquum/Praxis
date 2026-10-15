@@ -2,22 +2,24 @@
 row: S-05
 baseline: 49aa659
 created: 2026-10-15 08:55 UTC
-modified: 2026-10-15 10:30 UTC
+modified: 2026-10-15 20:30 UTC
 evidence:
   - claim: "The record's marks are walked before any of it is replayed"
     source: "`trading.py` 513 before 515"
-  - claim: "Only the started run's events are read, and they are sorted by account"
+  - claim: "Only the started run's events are read, and they are grouped by account"
     source: "`trading.py` 515 and 517-519"
   - claim: "One account is registered and started to the end before the next is begun"
     source: "`trading.py` 521-524"
-  - claim: "Orphan commands are answered straight after replay, before the venue is asked anything"
+  - claim: "Orphan commands are answered straight after replay, before the orphan venue sweep"
     source: "`execution_manager.py` 2254-2258 reached from `trading.py` 550, before 567"
-  - claim: "The orphan venue sweep is what decides the account may trade"
-    source: "`trading.py` 567 into 606-608"
+  - claim: "The orphan venue sweep is what the readiness flag is taken from"
+    source: "`trading.py` 567 into 606"
   - claim: "The feed is opened after that sweep"
     source: "`trading.py` 567 before 588"
-  - claim: "Against a live venue the backfill and squaring run together, and another venue reaches the squaring alone"
-    source: "`trading.py` 590-591 against 594-595"
+  - claim: "The branch is the adapter's kind, and on it the backfill is waited on before the squaring"
+    source: "`trading.py` 569 into 590-591, the backfill before the squaring at 1459-1464"
+  - claim: "Any other adapter reaches the squaring with no feed opened"
+    source: "`trading.py` 594-595"
   - claim: "What the squaring queued is drained before an unfinished close is picked up"
     source: "`trading.py` 598 before 600"
   - claim: "The account may trade where the sweep succeeded and nothing poisoned it"
@@ -27,7 +29,7 @@ evidence:
 ---
 # Starting a host back up
 
-The route one account takes inside a starting host, from the record on disk to the moment it is let trade or refused. Each step hands off to the article that owns it.
+The route one account takes inside a starting host, from the record on disk to the moment it is let trade or refused. Each sentence hands off to the article owning the behaviour it names, and the order they happen in is proved below rather than borrowed.
 
 **Starts from** a process whose settings are read, starting the trading it runs.
 
@@ -39,7 +41,7 @@ The route one account takes inside a starting host, from the record on disk to t
 
 2. The record's own marks are walked before any of it is replayed, and a record whose marks do not hold is refused — [What the chain proves](../atoms/what-the-chain-proves.md). What that walk cannot notice is its own subject — [What the chain misses](../atoms/what-the-chain-misses.md).
 
-3. Only the events of the run being started are read back, each run's being kept apart in the record — [The event spine](../atoms/the-event-spine.md).
+3. Only the events of the run being started are read back, and they are grouped by account — [The event spine](../atoms/the-event-spine.md).
 
 ## Then one account at a time
 
@@ -49,15 +51,15 @@ The route one account takes inside a starting host, from the record on disk to t
 
 6. Work the record cannot account for is answered straight after that replay, so a caller waiting on it hears something — [What startup does with orphaned work](../atoms/what-startup-does-with-orphaned-work.md).
 
-7. Orders the venue still shows and the record has never heard of are swept next, and whether that sweep succeeded is what decides this account may trade — [What startup does with orphaned work](../atoms/what-startup-does-with-orphaned-work.md).
+7. Orders the venue still shows and the record has never heard of are swept next — though only those whose names carry a command this account owns are cancelled, the rest being left alone — [What startup does with orphaned work](../atoms/what-startup-does-with-orphaned-work.md).
 
-8. Against a live venue the feed is opened after that sweep, so anything the sweep cancelled is gone before the feed could deliver news of it — [The venue feed](../atoms/the-venue-feed.md).
+8. Where the venue is reached through the Binance adapter — which the simulated venue is too — the feed is opened after that sweep — [The venue feed](../atoms/the-venue-feed.md).
 
-9. On that same live path, trades missed while the account was down are fetched a page at a time — [Backfilling missed trades](../atoms/backfilling-missed-trades.md). Against a simulated venue there is no feed and no such fetch, and the squaring below is reached directly — [Binsim](../atoms/binsim.md).
+9. On that same branch, trades missed while the account was down are fetched a page at a time, and that fetch is waited on before the squaring below — [Backfilling missed trades](../atoms/backfilling-missed-trades.md). Any other adapter reaches the squaring with no feed and no such fetch — [What a venue must be able to do](../atoms/what-a-venue-must-be-able-to-do.md).
 
 10. Each order the record still holds as working is then squared against the venue, fills taken in before any ending is concluded — [How an order is brought back into step](../atoms/how-an-order-is-brought-back-into-step.md).
 
-11. What that squaring queued is drained — [How waiting work is drained](../atoms/how-waiting-work-is-drained.md) — and only then is a close left unfinished picked up — [How an unfinished close is recovered](../atoms/how-an-unfinished-close-is-recovered.md).
+11. What that squaring queued is drained, and only then is a close left unfinished picked up — [How an unfinished close is recovered](../atoms/how-an-unfinished-close-is-recovered.md).
 
 ## Let trade, or not
 
@@ -77,4 +79,4 @@ The route one account takes inside a starting host, from the record on disk to t
 
 ---
 
-Created 2026-10-15 08:55 UTC · Last modified 2026-10-15 10:30 UTC
+Created 2026-10-15 08:55 UTC · Last modified 2026-10-15 20:30 UTC

@@ -2,7 +2,7 @@
 row: S-01
 baseline: 49aa659
 created: 2026-10-14 14:00 UTC
-modified: 2026-10-15 08:20 UTC
+modified: 2026-10-15 20:50 UTC
 evidence:
   - claim: "The host's own refusals run before the manager is reached at all"
     source: "`trading.py` 1904-1907 before `execution_manager.py` 2996"
@@ -21,7 +21,7 @@ evidence:
 ---
 # Cancelling a trade
 
-The route a cancellation takes from the moment a caller asks for it to the moment that caller is told what happened. Each step hands off to the article that owns it: this page sequences them and asserts nothing of its own.
+The route a cancellation takes from the moment a caller asks for it to the moment that caller is told what happened. Each step hands off to the article that owns it: this page owns the order they happen in and nothing else.
 
 **Starts from** a caller asking Praxis to stop a request it has already submitted.
 
@@ -74,4 +74,4 @@ The route a cancellation takes from the moment a caller asks for it to the momen
 
 ---
 
-Created 2026-10-14 14:00 UTC · Last modified 2026-10-15 08:20 UTC
+Created 2026-10-14 14:00 UTC · Last modified 2026-10-15 20:50 UTC

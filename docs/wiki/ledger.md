@@ -10,11 +10,11 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 
 | File | State | Rows |
 |---|---|---|
-| `praxis/core/execution_manager.py` | partial | P1-01 to P1-13, P2-11 to P2-13, P2-15 to P2-25, P2-27 to P2-29, P2-31, P2-32, P2-34, P2-38, P2-43 to P2-45, P2-49, P3-01 to P3-03, P3-13, P3-14, P3-18, P3-21 to P3-23, P3-25, P3-26, P4-04, P4-06 to P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35, P4-42, P4-44, P4-45, P4-46, P4-47, P4-48, P4-49, P4-50, P4-52, P4-54, P4-56, P4-57, P4-58, S-01, S-02, S-03, S-05 |
+| `praxis/core/execution_manager.py` | partial | P1-01 to P1-13, P2-11 to P2-13, P2-15 to P2-25, P2-27 to P2-29, P2-31, P2-32, P2-34, P2-38, P2-43 to P2-45, P2-49, P3-01 to P3-03, P3-13, P3-14, P3-18, P3-21 to P3-23, P3-25, P3-26, P4-04, P4-06 to P4-12, P4-22, P4-24, P4-27, P4-29, P4-30, P4-33, P4-35, P4-42, P4-44, P4-45, P4-46, P4-47, P4-48, P4-49, P4-50, P4-52, P4-54, P4-56, P4-57, P4-58, S-01, S-02, S-03, S-04, S-05 |
 | `praxis/core/domain/fill.py` | uncovered | — |
 | `praxis/core/account_ledger.py` | partial | P2-29, P2-30, P3-11, P3-12, P4-06, P4-12, P4-51 |
 | `praxis/core/generate_client_order_id.py` | full | P1-01, P2-24, P3-14, P4-07, P4-33 |
-| `praxis/core/validate_trade_modify.py` | partial | P3-13, P4-09 |
+| `praxis/core/validate_trade_modify.py` | partial | P3-13, P4-09, S-03 |
 | `praxis/infrastructure/binance_ws.py` | partial | P3-16 |
 | `praxis/infrastructure/mytrades_backfill.py` | full | P3-17 |
 | `praxis/core/health_tracker.py` | full | P3-15 |
@@ -134,4 +134,4 @@ Fifteen of the modules listed above are `partial` by citation rather than by tra
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-15 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-15 20:40 UTC
