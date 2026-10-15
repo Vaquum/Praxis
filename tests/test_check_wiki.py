@@ -6119,6 +6119,62 @@ class TestWhichWordCarriesATerm:
 
         assert held == []
 
+class TestWhatASpineProves:
+
+    @staticmethod
+    def _spine(tmp_path: Path, meta: str) -> list[str]:
+        spines = tmp_path / 'spines'
+        spines.mkdir()
+        page = spines / 'a-route.md'
+        page.write_text(
+            f'---\n{meta}---\n# A route\n\n'
+            '1. A step — [One](../atoms/one.md).\n',
+            encoding='utf-8',
+        )
+
+        return check_wiki._evidence_rows(
+            check_wiki._split_front_matter(page.read_text(encoding='utf-8'))[0],
+        )
+
+    def test_a_spine_carrying_evidence_has_rows(self, tmp_path: Path) -> None:
+        meta = (
+            'row: S-01\nbaseline: 49aa659\n'
+            'created: 2026-10-15 00:00 UTC\nmodified: 2026-10-15 00:00 UTC\n'
+            'evidence:\n'
+            '  - claim: "One thing happens before another"\n'
+            '    source: "`trading.py` 1 before 2"\n'
+        )
+
+        assert self._spine(tmp_path, meta)
+
+    def test_a_spine_carrying_none_has_no_rows(self, tmp_path: Path) -> None:
+        meta = (
+            'row: S-01\nbaseline: 49aa659\n'
+            'created: 2026-10-15 00:00 UTC\nmodified: 2026-10-15 00:00 UTC\n'
+        )
+
+        assert self._spine(tmp_path, meta) == []
+
+    def test_a_spine_row_is_a_row_identifier(self) -> None:
+        assert check_wiki.ROW_ID.fullmatch('S-01')
+        assert check_wiki.ROW_ID.fullmatch('P4-58')
+
+    def test_the_register_reads_a_spine_row(self) -> None:
+        row = (
+            '| S-02 | A route | written | '
+            '[a-route.md](spines/a-route.md) |'
+        )
+
+        assert check_wiki.REGISTER_ROW_RE.findall(row) == [
+            ('S-02', 'spines/a-route.md'),
+        ]
+
+    def test_the_index_reads_a_spine_link(self) -> None:
+        found = check_wiki.ARTICLE_LINK_RE.findall('- [A](spines/a-route.md)')
+
+        assert found == ['spines/a-route.md']
+
+
 class TestHowASpineIsOwned:
 
     @pytest.mark.parametrize(

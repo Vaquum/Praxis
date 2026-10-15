@@ -2,7 +2,7 @@
 row: P4-58
 baseline: 49aa659
 created: 2026-10-14 16:00 UTC
-modified: 2026-10-14 16:00 UTC
+modified: 2026-10-15 09:00 UTC
 evidence:
   - claim: "A host shutting down refuses a new request, a cancellation and a change alike"
     source: "`trading.py` 1878-1880, 1904-1906 and 1913-1915"
@@ -41,4 +41,4 @@ An account is marked ready only after its start has finished. So work arriving t
 
 ---
 
-Created 2026-10-14 16:00 UTC · Last modified 2026-10-14 16:00 UTC
+Created 2026-10-14 16:00 UTC · Last modified 2026-10-15 09:00 UTC

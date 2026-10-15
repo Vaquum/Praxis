@@ -38,9 +38,9 @@ META_STAMP = re.compile(
     r'^modified: (\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC)$',
     re.MULTILINE | re.DOTALL,
 )
-ROW_ID = re.compile(r'\bP\d+-\d{2}\b')
+ROW_ID = re.compile(r'\b(?:P\d+|S)-\d{2}\b')
 COMMIT_ID = re.compile(r'[0-9a-f]{7,40}')
-ROW_OPENING = re.compile(r'^\|\s*(P\d+-\d{2})\s*\|', re.MULTILINE)
+ROW_OPENING = re.compile(r'^\|\s*((?:P\d+|S)-\d{2})\s*\|', re.MULTILINE)
 BANNED_HEADINGS = ('## What it is', '## Overview', '## Introduction')
 NEGATIVE_DEF = re.compile(r',\s+not\s+(?:a|an|the|yet|by|its|one)\b', re.IGNORECASE)
 DOUBLE_NEGATIVE = re.compile(
@@ -178,7 +178,7 @@ LEDGER_PATH_RE = re.compile(r'`((?:praxis|nexus)/[^`]*\.py)`')
 LEDGER_HEADING_RE = re.compile(r'^## (Praxis|Nexus) — (\d+) modules$', re.MULTILINE)
 LEDGER_GROUP_RE = re.compile(r'^\| (?:all|the other) (\d+) \|', re.MULTILINE)
 LEDGER_ROW_RE = re.compile(r'^\| `([^`]+)` \| (\w+) \| ([^|]*) \|$', re.MULTILINE)
-REGISTER_ROW_RE = re.compile(r'^\|\s*(P\d+-\d{2})\s*\|[^|]*\|[^|]*\|[^(]*\((atoms/[^)]+)\)',
+REGISTER_ROW_RE = re.compile(r'^\|\s*((?:P\d+|S)-\d{2})\s*\|[^|]*\|[^|]*\|[^(]*\(((?:atoms|spines)/[^)]+)\)',
                              re.MULTILINE)
 ROW_SPAN_RE = re.compile(r'^(P\d+)-(\d{2}) to P\d+-(\d{2})$')
 STATE_COUNT_RE = re.compile(
@@ -195,7 +195,7 @@ EVIDENCE_COUNT_RE = re.compile(
 )
 FINDING_COUNT_RE = re.compile(r'Record\s+(\d[\d,]*)\s+findings')
 FINDING_ROW_RE = re.compile(r'^\| H-\d+ \|', re.MULTILINE)
-ARTICLE_LINK_RE = re.compile(r'\((atoms/[a-z0-9-]+\.md)\)')
+ARTICLE_LINK_RE = re.compile(r'\((?:\./)?((?:atoms|spines)/[a-z0-9-]+\.md)\)')
 REFUSAL_RE = re.compile(
     r'\b(refus\w+|rejec\w+|turned away|forbidd\w+)\b', re.IGNORECASE,
 )
@@ -5409,6 +5409,11 @@ def _spine_steps(body: str) -> list[str]:
     names the article that owns it, repeating the link where two
     sentences share an owner.
 
+    An article owns a behaviour; none owns the order behaviours happen
+    in, which is the whole of what a spine adds. So a spine carries
+    evidence of its own as well, proving its route against the pinned
+    source the way an article proves a behaviour.
+
     Args:
         body (str): The spine's prose, its metadata removed.
 
@@ -6407,7 +6412,20 @@ def _check_page(
     )
 
     if page.parent.name == 'spines':
-        failures.extend(f'{rel}: {note}' for note in _spine_steps(body or text))
+        spine_rows = _evidence_rows(meta)
+
+        for notes in (
+            _spine_steps(body or text),
+            ([] if spine_rows else ['metadata carries no evidence for the route']),
+            _check_voice(body),
+            _uncited_claims(spine_rows),
+            _unlined_sources(spine_rows),
+            _negative_definitions(body),
+            _unspaced_headings(body),
+            _check_metadata(meta, ids),
+            _check_citations(spine_rows, cache),
+        ):
+            failures.extend(f'{rel}: {note}' for note in notes)
 
     if page.parent.name != 'atoms':
         return failures
@@ -7039,6 +7057,9 @@ def _index_coverage() -> list[str]:
     '''
 
     written = {f'atoms/{page.name}' for page in (WIKI / 'atoms').glob('*.md')}
+    written |= {
+        f'spines/{page.name}' for page in (WIKI / 'spines').glob('*.md')
+    }
     named = REGISTER_ROW_RE.findall(REGISTER.read_text(encoding='utf-8'))
     per_article = _rows_per_article(named)
     listed = set(ARTICLE_LINK_RE.findall(README.read_text(encoding='utf-8')))

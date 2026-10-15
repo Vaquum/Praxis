@@ -234,15 +234,22 @@ Found while answering package 1, not answered by it. These enter the next packag
 ## Spines
 
 A spine is a numbered walkthrough sequencing articles end to end, with every
-fork named. It asserts nothing of its own: each step hands off to the article
-that owns it, which the check enforces by refusing a step that names none.
+fork named. Each sentence hands off to the article that owns its behaviour, and
+the route itself — the order those behaviours happen in, which no article owns —
+is proved by the spine's own evidence against the same pinned commits an article
+cites. The check enforces both.
 
 | ID | Route | Status | Spine |
 |---|---|---|---|
 | S-01 | Cancelling a trade, with every fork it can leave by | written | [cancelling-a-trade.md](spines/cancelling-a-trade.md) |
+| S-02 | Draining an account's queues, one pass end to end | written | [draining-an-accounts-queues.md](spines/draining-an-accounts-queues.md) |
+| S-03 | Changing work already sent, one arm per way of working | written | [changing-work-already-sent.md](spines/changing-work-already-sent.md) |
+| S-04 | Stopping a host with work in flight | written | [stopping-a-host-with-work-in-flight.md](spines/stopping-a-host-with-work-in-flight.md) |
+| S-05 | Starting a host back up, to ready or gated | written | [starting-a-host-back-up.md](spines/starting-a-host-back-up.md) |
 
-Four more the brief names, none seeded: changing work already sent, draining the
-account's queues, stopping a host with work in flight, and starting one back up.
+These are the five the brief names. Each was walked against the code rather than
+assembled from the articles, after the first draft of S-01 was rejected for
+sequencing articles instead of the dispatch.
 
 ## Seeded for the Praxis remainder
 
@@ -359,4 +366,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-15 07:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-15 12:00 UTC

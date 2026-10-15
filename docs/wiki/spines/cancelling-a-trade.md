@@ -2,7 +2,22 @@
 row: S-01
 baseline: 49aa659
 created: 2026-10-14 14:00 UTC
-modified: 2026-10-14 15:30 UTC
+modified: 2026-10-15 08:20 UTC
+evidence:
+  - claim: "The host's own refusals run before the manager is reached at all"
+    source: "`trading.py` 1904-1907 before `execution_manager.py` 2996"
+  - claim: "A request already ended is answered before anything is queued"
+    source: "`execution_manager.py` 3014-3025 before 3027"
+  - claim: "The worker takes the venue's news, then the priority line, then its ordinary queue"
+    source: "`execution_manager.py` 3907, 3910 and 3984"
+  - claim: "A queued cancellation takes one of three arms and returns from each, so none follows another"
+    source: "`execution_manager.py` 8482-8487, 8489-8491 and 8493-8512"
+  - claim: "The three answers to the venue call are arms of one attempt, not stages"
+    source: "`execution_manager.py` 8519-8531, 8532-8533 and 8534-8536"
+  - claim: "The cancellation is written down before the report is built"
+    source: "`execution_manager.py` 8538-8547 before 8568"
+  - claim: "A request whose trade cannot be named is left without a report, past both"
+    source: "`execution_manager.py` 8558-8566"
 ---
 # Cancelling a trade
 
@@ -46,7 +61,7 @@ The route a cancellation takes from the moment a caller asks for it to the momen
 
 13. On the two results that stay on the route, whatever had already been counted as filled is reported with the cancellation, and no fresh count is fetched — [Cancellation](../atoms/how-a-trade-is-cancelled.md), [The figures an outcome carries](../atoms/the-figures-an-outcome-carries.md).
 
-14. A report that will not build leaves the caller with nothing, after the venue was asked — [The figures an outcome carries](../atoms/the-figures-an-outcome-carries.md), [Outcomes that never come back](../atoms/outcomes-that-never-come-back.md).
+14. A report the figures will not let build leaves the caller empty-handed, after the venue was asked — [The figures an outcome carries](../atoms/the-figures-an-outcome-carries.md), [Outcomes that never come back](../atoms/outcomes-that-never-come-back.md).
 
 15. Otherwise the report is handed over, and handing it over can fail in its own right — [How an outcome crosses back](../atoms/how-an-outcome-crosses-back.md), [How an outcome is delivered](../atoms/how-an-outcome-is-delivered.md).
 
@@ -59,4 +74,4 @@ The route a cancellation takes from the moment a caller asks for it to the momen
 
 ---
 
-Created 2026-10-14 14:00 UTC · Last modified 2026-10-14 15:30 UTC
+Created 2026-10-14 14:00 UTC · Last modified 2026-10-15 08:20 UTC

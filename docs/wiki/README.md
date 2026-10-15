@@ -214,6 +214,10 @@ names every fork. Start here if you want to follow one thing through rather than
 look one thing up.
 
 - [Cancelling a trade](spines/cancelling-a-trade.md) — from the asking to the report, including the forks that report nothing at all.
+- [Draining an account's queues](spines/draining-an-accounts-queues.md) — one pass of the worker, which every other route is carried by.
+- [Changing work already sent](spines/changing-work-already-sent.md) — the checks a change meets, then one arm for each way of working.
+- [Stopping a host with work in flight](spines/stopping-a-host-with-work-in-flight.md) — abandon what is in flight, cancel what is resting, and what it carries on through.
+- [Starting a host back up](spines/starting-a-host-back-up.md) — replay, ask the venue, and the points that leave an account gated instead of ready.
 
 ## How this wiki works
 
@@ -235,4 +239,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-15 07:20 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-15 12:00 UTC
