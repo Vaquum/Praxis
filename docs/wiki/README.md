@@ -32,6 +32,7 @@ the others where it appears.
 - [The payload a mode's settings arrive in](atoms/the-payload-a-modes-settings-arrive-in.md) — the settings that ride along with a decision, and how they are turned into the ones the chosen way of working needs.
 - [What a command's checks let through](atoms/what-a-commands-checks-let-through.md) — the checks on an instruction only ask whether something is there, or whether a number is above zero, so other mistakes pass and surface later.
 - [What turns work away](atoms/what-turns-work-away.md) — the checks work must pass before Praxis records it at all, before it is ever queued.
+- [What the host refuses first](atoms/what-the-host-refuses-first.md) — one guard every way in shares, answered by a raise before anything is written down.
 
 ## Getting an order to the venue
 
@@ -206,6 +207,14 @@ the others where it appears.
 - [What the parity figures refuse](atoms/what-the-parity-figures-refuse.md) — the bar-based figures turn away empty input, mismatched columns and a prediction that is neither yes nor no, and assume a fee unless told otherwise.
 - [The metrics](atoms/the-metrics.md) — the figures a run is summed up by, and the units they come in.
 
+## Routes end to end
+
+A route sequences the articles below into the order things actually happen, and
+names every fork. Start here if you want to follow one thing through rather than
+look one thing up.
+
+- [Cancelling a trade](spines/cancelling-a-trade.md) — from the asking to the report, including the forks that report nothing at all.
+
 ## How this wiki works
 
 - [The register](register.md) — every topic, whether it is written yet, and everything found while reading the code.
@@ -216,7 +225,7 @@ the others where it appears.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 134
+Both sides are the subject, and Praxis is the side that has been written. 135
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 21 are cited in passing and 49
 untouched — six of the 21 carry a row of their own, and fifteen are reached by an
@@ -226,4 +235,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-14 12:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-15 07:20 UTC

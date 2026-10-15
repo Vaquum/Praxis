@@ -162,6 +162,11 @@ SOURCE_FILES = {
         '../Nexus/nexus/core/capital_controller/capital_controller.py',
     ),
 }
+SPINE_STEP = re.compile(r'^(\d+)\.\s+(.*)$')
+SETEXT_RULE = re.compile(r'\s*(?:=+|-{2,})\s*')
+LINKED_TEXT = re.compile(r'\[([^\]]*)\]\([^)]*\)')
+SENTENCE_END = re.compile(r'(?<=[.!?])\s+')
+_COMPLAINT_WORDS = 48
 PROSE_WORD_CAP = 300
 BASELINE = '49aa659'
 NEXUS_ROOT = Path('../Nexus')
@@ -5331,6 +5336,140 @@ def _last_commit_date(path: Path) -> str | None:
     return result.stdout.strip() or None
 
 
+def _says_something(said: str) -> bool:
+
+    """Return whether a sentence makes a claim rather than carrying links.
+
+    A trailing run of links, and a bold label with nothing after it, say
+    nothing a reader could check, so neither needs an owner of its own.
+
+    Args:
+        said (str): One sentence of a step.
+
+    Returns:
+        bool: Whether it asserts anything.
+    """
+
+    bare = LINKED_TEXT.sub(r'\1', said).replace('*', '')
+
+    return bool(re.search(r'[A-Za-z]{3}', re.sub(r'^[\s,;—-]+', '', bare)))
+
+
+def _names_an_article(said: str) -> bool:
+
+    """Return whether a sentence hands off to an article.
+
+    Args:
+        said (str): One sentence of a step.
+
+    Returns:
+        bool: Whether it links one.
+    """
+
+    return any(
+        target.startswith('../atoms/') for target in MD_LINK.findall(said)
+    )
+
+
+def _shortened(said: str) -> str:
+
+    """Return a sentence trimmed to name it in a complaint.
+
+    Args:
+        said (str): The sentence.
+
+    Returns:
+        str: Its first words.
+    """
+
+    bare = ' '.join(LINKED_TEXT.sub(r'\1', said).replace('*', '').split())
+
+    return bare if len(bare) <= _COMPLAINT_WORDS else f'{bare[:_COMPLAINT_WORDS]}…'
+
+
+def _spine_steps(body: str) -> list[str]:
+
+    """Return a spine's departures from being a sequence of owned steps.
+
+    A spine sequences articles; it owns no behaviour of its own. So every
+    numbered step has to hand off to at least one article, and a step
+    that names none is an assertion the spine is making itself. The
+    numbering has to run from one without a gap, so a step lost to an
+    edit shows up rather than reading as a shorter route.
+
+    A step ends at the next step or the next heading, so a link under a
+    later heading cannot stand in for the one a step is missing. A
+    bullet saying where the route is not taken is a route claim too, so
+    it names an article on the same terms.
+
+    Ownership is per sentence, not per step. One link at the end of a
+    step reads as covering every sentence in it, and that is how a
+    spine comes to assert what no article says: the sentence carrying
+    the claim is not the sentence carrying the link. So each sentence
+    names the article that owns it, repeating the link where two
+    sentences share an owner.
+
+    Args:
+        body (str): The spine's prose, its metadata removed.
+
+    Returns:
+        list[str]: One complaint per step that owns what it says, plus
+            one where the route is missing or misnumbered.
+    """
+
+    steps: list[tuple[str, list[str]]] = []
+
+    open_step = False
+
+    for line in body.splitlines():
+        start = SPINE_STEP.match(line)
+
+        if line.startswith('#') or SETEXT_RULE.fullmatch(line):
+            open_step = False
+
+        if start is not None:
+            steps.append((start.group(1), []))
+            open_step = True
+
+        rest = line if start is None else start.group(2)
+
+        if open_step and rest.strip():
+            steps[-1][1].append(rest.strip())
+
+    if not steps:
+        return ['carries no numbered route']
+
+    failures = []
+
+    for number, lines in steps:
+        unowned = [
+            said for said in SENTENCE_END.split(' '.join(lines))
+            if _says_something(said) and not _names_an_article(said)
+        ]
+        failures += [
+            f'step {number} says "{_shortened(said)}" and names no article for it'
+            for said in unowned
+        ]
+    counted = [number for number, _links in steps]
+    expected = [str(at + 1) for at in range(len(steps))]
+
+    if counted != expected:
+        failures.append(
+            f'the route is numbered {", ".join(counted)}, not 1 to {len(steps)}',
+        )
+
+    failures += [
+        f'a bullet says where the route is not taken and names no article: {line.strip()}'
+        for line in body.splitlines()
+        if line.startswith('- ')
+        and not any(
+            target.startswith('../atoms/') for target in MD_LINK.findall(line)
+        )
+    ]
+
+    return failures
+
+
 def _unspaced_headings(body: str) -> list[str]:
 
     '''Return headings that run straight on from the line above.'''
@@ -6266,6 +6405,9 @@ def _check_page(
     failures.extend(
         f'{rel}: {note}' for note in _broken_links(page, body if meta else text)
     )
+
+    if page.parent.name == 'spines':
+        failures.extend(f'{rel}: {note}' for note in _spine_steps(body or text))
 
     if page.parent.name != 'atoms':
         return failures

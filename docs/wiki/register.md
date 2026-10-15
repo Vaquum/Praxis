@@ -202,6 +202,7 @@ Nexus is in scope and is where the packages go next. Of its 70 modules, 21 are c
 | P4-55 | How an order is brought back into step with the venue | written | [how-an-order-is-brought-back-into-step.md](atoms/how-an-order-is-brought-back-into-step.md) |
 | P4-56 | What stops a ladder's new rungs going up | written | [what-stops-a-ladders-new-rungs.md](atoms/what-stops-a-ladders-new-rungs.md) |
 | P4-57 | What a restart puts back of a bracket | written | [what-a-restart-puts-back-of-a-bracket.md](atoms/what-a-restart-puts-back-of-a-bracket.md) |
+| P4-58 | What the host refuses before the books are reached | written | [what-the-host-refuses-first.md](atoms/what-the-host-refuses-first.md) |
 
 ## Considered and rejected
 
@@ -229,6 +230,19 @@ Found while answering package 1, not answered by it. These enter the next packag
 | Is the hardcoded base asset in the holdings fee-netting (U-04) a live defect? | Holdings net a buy's commission only when the fee asset is `'BTC'`. On any other symbol the record sits above the wallet by the commission on every buy — the compounding error the netting exists to prevent. Prod trades one symbol today, so the reach depends on whether a second is ever added. | unassigned |
 | Are two terminal outcomes for one command id a live defect (U-05)? | H-050 traces `CANCELED` then `FILLED` for one exit command id through bracket protection recovery. A caller that treats the first terminal report as final would have the trade's end wrong. Needs a decision on whether the second report is intended, and whether the exit command should carry a fresh id. | unassigned |
 | Does a schedule change survive a restart? | Answered: H-040 traces the write, the fold and the restore. It does; the docstring saying otherwise is stale, and TD-135 already records the fix. | H-040 |
+
+## Spines
+
+A spine is a numbered walkthrough sequencing articles end to end, with every
+fork named. It asserts nothing of its own: each step hands off to the article
+that owns it, which the check enforces by refusing a step that names none.
+
+| ID | Route | Status | Spine |
+|---|---|---|---|
+| S-01 | Cancelling a trade, with every fork it can leave by | written | [cancelling-a-trade.md](spines/cancelling-a-trade.md) |
+
+Four more the brief names, none seeded: changing work already sent, draining the
+account's queues, stopping a host with work in flight, and starting one back up.
 
 ## Seeded for the Praxis remainder
 
@@ -345,4 +359,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-14 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-15 07:20 UTC

@@ -6119,6 +6119,112 @@ class TestWhichWordCarriesATerm:
 
         assert held == []
 
+class TestHowASpineIsOwned:
+
+    @pytest.mark.parametrize(
+        'body, expected',
+        [
+            (
+                '1. First [One](../atoms/one.md).\n\n2. Then [Two](../atoms/two.md).\n',
+                [],
+            ),
+            (
+                '1. First, and the owner is\n   [One](../atoms/one.md).\n',
+                [],
+            ),
+        ],
+    )
+    def test_a_sequence_of_owned_steps_stands(
+        self, body: str, expected: list[str],
+    ) -> None:
+        assert check_wiki._spine_steps(body) == expected
+
+    def test_a_step_naming_no_article_is_refused(self) -> None:
+        body = '1. First [One](../atoms/one.md).\n\n2. Then it is dropped.\n'
+        held = check_wiki._spine_steps(body)
+
+        assert any('step 2 says' in note for note in held), held
+
+    def test_a_step_linking_off_the_articles_is_refused(self) -> None:
+        held = check_wiki._spine_steps('1. First [Elsewhere](../README.md).\n')
+
+        assert any('step 1 says' in note for note in held), held
+
+    def test_a_link_under_a_later_heading_does_not_own_a_step(self) -> None:
+        body = (
+            '1. It drops every order.\n\n'
+            '## Related\n\n'
+            '[One](../atoms/one.md)\n'
+        )
+        held = check_wiki._spine_steps(body)
+
+        assert any('step 1 says' in note for note in held), held
+
+    def test_a_second_sentence_riding_on_the_first_link_is_refused(self) -> None:
+        body = '1. It drops them — [One](../atoms/one.md). It also waits.\n'
+        held = check_wiki._spine_steps(body)
+
+        assert any('names no article for it' in note for note in held), held
+
+    def test_each_sentence_naming_its_own_article_stands(self) -> None:
+        body = (
+            '1. It drops them — [One](../atoms/one.md). '
+            'It waits — [Two](../atoms/two.md).\n'
+        )
+
+        assert check_wiki._spine_steps(body) == []
+
+    def test_a_trailing_run_of_links_needs_no_owner(self) -> None:
+        body = '1. It drops them — [One](../atoms/one.md), [Two](../atoms/two.md).\n'
+
+        assert check_wiki._spine_steps(body) == []
+
+    def test_a_bold_label_needs_no_owner_of_its_own(self) -> None:
+        body = '1. **Arm one.** It drops them — [One](../atoms/one.md).\n'
+
+        assert check_wiki._spine_steps(body) == []
+
+    def test_a_setext_heading_closes_a_step(self) -> None:
+        body = (
+            '1. It drops every order.\n\n'
+            'Related\n'
+            '-------\n\n'
+            '[One](../atoms/one.md)\n'
+        )
+        held = check_wiki._spine_steps(body)
+
+        assert any('step 1 says' in note for note in held), held
+
+    def test_a_bullet_asserting_a_route_alone_is_refused(self) -> None:
+        body = (
+            '1. A [One](../atoms/one.md).\n\n'
+            '- A host stopping does it differently.\n'
+        )
+        held = check_wiki._spine_steps(body)
+
+        assert any('names no article' in note for note in held), held
+
+    def test_a_bullet_naming_its_article_stands(self) -> None:
+        body = (
+            '1. A [One](../atoms/one.md).\n\n'
+            '- Not here — [Two](../atoms/two.md).\n'
+        )
+
+        assert check_wiki._spine_steps(body) == []
+
+    def test_a_page_with_no_route_is_refused(self) -> None:
+        held = check_wiki._spine_steps('# A spine\n\nProse and [One](../atoms/one.md).\n')
+
+        assert held == ['carries no numbered route']
+
+    def test_a_lost_step_is_refused(self) -> None:
+        body = '1. First [One](../atoms/one.md).\n\n3. Then [Two](../atoms/two.md).\n'
+        held = check_wiki._spine_steps(body)
+
+        assert any('numbered 1, 3' in note for note in held), held
+
+
+
 
 class TestWhatTheGateLeavesUnreached:
 
