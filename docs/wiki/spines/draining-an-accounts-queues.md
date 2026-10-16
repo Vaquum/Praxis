@@ -2,7 +2,7 @@
 row: S-02
 baseline: 49aa659
 created: 2026-10-15 08:10 UTC
-modified: 2026-10-15 20:30 UTC
+modified: 2026-10-15 23:10 UTC
 evidence:
   - claim: "A starting account's pass does nothing and waits"
     source: "`execution_manager.py` 3903-3905"
@@ -73,7 +73,7 @@ One pass of [an account's worker](../atoms/how-waiting-work-is-drained.md), from
 
 14. Otherwise exactly one request is taken off it, and the pass goes straight round afterwards rather than waiting — [How waiting work is drained](../atoms/how-waiting-work-is-drained.md).
 
-15. A run or a ladder found past its deadline is reported expired rather than started — [Deadlines](../atoms/deadlines.md). Anything else, and anything not past it, is started: [placing an order](../atoms/how-an-order-is-placed.md), or the first step of the way of working it named — [Order placement](../atoms/how-an-order-is-placed.md).
+15. A run or a ladder found past its deadline is reported expired rather than started — [Deadlines](../atoms/deadlines.md). Anything else, and anything not past it, is started by the way of working it named: a plain order is [placed](../atoms/how-an-order-is-placed.md), a run begins [feeding out](../atoms/work-fed-out-over-time.md), a ladder [rests its rungs](../atoms/orders-at-several-prices.md), a part-shown order [shows less than it is](../atoms/part-shown-orders.md), and a bracket [sends its opening order](../atoms/protection.md).
 
 16. Starting it can raise, which is logged against that one request — [When an update fails](../atoms/when-an-update-fails.md). A failure escaping the pass itself poisons the account, refuses what is queued, and ends the loop — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
 
@@ -84,4 +84,4 @@ One pass of [an account's worker](../atoms/how-waiting-work-is-drained.md), from
 
 ---
 
-Created 2026-10-15 08:10 UTC · Last modified 2026-10-15 20:30 UTC
+Created 2026-10-15 08:10 UTC · Last modified 2026-10-15 23:10 UTC

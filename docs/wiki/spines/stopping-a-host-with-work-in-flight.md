@@ -2,7 +2,7 @@
 row: S-04
 baseline: 49aa659
 created: 2026-10-15 08:40 UTC
-modified: 2026-10-15 20:50 UTC
+modified: 2026-10-15 23:10 UTC
 evidence:
   - claim: "The host waits on the stop flag, which a signal sets and an account's own failure sets too"
     source: "`launcher.py` 2837, set at 2844 and 4040, the handlers installed at 2824-2825"
@@ -10,12 +10,20 @@ evidence:
     source: "`trading.py` 655 before 1878-1880, 1904-1906 and 1913-1915"
   - claim: "The squaring loop is called off before any work is abandoned"
     source: "`trading.py` 657-661 before 665"
-  - claim: "Every command in flight is put onto the priority line, and the second pass begins without waiting for the worker to take them"
+  - claim: "Every command in flight is submitted for abandonment, and the second pass begins without waiting for the worker to take any of them"
     source: "`trading.py` 665-670 into `execution_manager.py` 3027, before `trading.py` 700"
   - claim: "An order belonging to a command still in flight is passed over by that second pass"
     source: "`trading.py` 701-702"
   - claim: "An order put up to close a position is passed over by name"
     source: "`trading.py` 704 into 721"
+  - claim: "Stopping waits for the open work to clear before any feed is closed"
+    source: "`trading.py` 749-762 before 766"
+  - claim: "Feeds close, then the venue connection, then the accounts are unregistered"
+    source: "`trading.py` 766-768, 776 and 783-785"
+  - claim: "A worker is stopped as its account is unregistered, not past them all"
+    source: "`trading.py` 785 into `trading_inbound.py` 158 into `execution_manager.py` 2966-2969"
+  - claim: "An unregister failure is kept while the rest are attempted, and raised past them, leaving trading marked started"
+    source: "`trading.py` 791-793 into 795-796, against 798"
 ---
 # Stopping a host with work in flight
 
@@ -49,13 +57,19 @@ The route a host takes when it is told to stop while requests are part-way throu
 
 9. An order put up to close a position is passed over deliberately, known by the names this account recorded when it posted one — cancelling it would hand back a position this host can no longer watch — [What becomes of work still open](../atoms/what-becomes-of-work-still-open.md).
 
+## Then down, stage by stage
+
+10. Stopping then waits for the open work to clear, and a wait that runs out is logged with the stages below taken up anyway — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
+
+11. Each account's feed is closed, then the venue connection, each failure logged and passed over — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
+
+12. Each account is then unregistered, which is where its worker is stopped — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md). What the account is left as turns on which way that worker stopped — [How a worker stops](../atoms/how-a-worker-stops.md). A failure unregistering one is kept and the rest still attempted, the first raised at the end, so trading is left marked as started — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
+
 ## What it carries on through
 
-10. A cancel the venue refuses, a drain that runs out of time, and a close that fails are each logged and the next step taken up, so stopping can finish with things still open — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
+13. A cancel the venue refuses, a drain that runs out of time, and a close that fails are each logged and the next stage taken up, so stopping can finish with things still open — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
 
-11. Being called off is not one of those: it is passed straight on, and the step after it is left undone entirely — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
-
-12. The worker itself stops taking work, and what the account is left as turns on which way it stopped — [How a worker stops](../atoms/how-a-worker-stops.md). What the rest of the host does from here, and what it is left with, is its own subject — [Stopping a host](../atoms/stopping-a-host.md).
+14. Being called off is not one of those: it is passed straight on, and the stage after it is left undone entirely — [What stopping leaves undone](../atoms/what-stopping-leaves-undone.md).
 
 ## Where this route is not taken
 
@@ -64,4 +78,4 @@ The route a host takes when it is told to stop while requests are part-way throu
 
 ---
 
-Created 2026-10-15 08:40 UTC · Last modified 2026-10-15 20:50 UTC
+Created 2026-10-15 08:40 UTC · Last modified 2026-10-15 23:10 UTC

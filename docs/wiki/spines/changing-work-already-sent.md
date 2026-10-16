@@ -2,10 +2,10 @@
 row: S-03
 baseline: 49aa659
 created: 2026-10-15 08:20 UTC
-modified: 2026-10-15 20:40 UTC
+modified: 2026-10-16 08:00 UTC
 evidence:
   - claim: "The host's own refusals run before the manager is reached"
-    source: "`trading.py` 1913-1916 before `execution_manager.py` 3048"
+    source: "`trading.py` 1913-1916 before 1917, handed on at `trading_inbound.py` 262 into `execution_manager.py` 3048"
   - claim: "Every admitted change is queued, none going to the venue from here"
     source: "`execution_manager.py` 3060-3072 into 3074"
   - claim: "A protective pair's change is the first arm inside the pass, before the ended-command check"
@@ -22,8 +22,10 @@ evidence:
     source: "`validate_trade_modify.py` 171-175"
   - claim: "An order the record has as anything but resting at a price is refused on the worker"
     source: "`execution_manager.py` 8680-8684"
-  - claim: "A part-shown order's change may name only the amount to show, keeping its price"
-    source: "`execution_manager.py` 10213-10225"
+  - claim: "A part-shown order's change takes the named price or the one the order had, and the named amount or the one it had"
+    source: "`execution_manager.py` 10215-10225"
+  - claim: "The settings must match the way of working before the change is queued, and are matched again on the worker"
+    source: "`validate_trade_modify.py` 193-198 before `execution_manager.py` 8655-8661"
 ---
 # Changing work already sent
 
@@ -45,7 +47,7 @@ The route a change takes from the caller to the venue, and the arm it leaves by 
 
 5. [The worker's next pass](draining-an-accounts-queues.md) takes that line — [How waiting work is drained](../atoms/how-waiting-work-is-drained.md).
 
-6. A change reaching it while the account is catching up with the venue is put back rather than carried out, and tried again on a later pass — [A change waiting out a hold](../atoms/a-change-waiting-out-a-hold.md).
+6. A change reaching it while the account is catching up with the venue is put back rather than carried out, and tried again on a later pass — [A change waiting out a hold](../atoms/a-change-waiting-out-a-hold.md). A poisoned account holds it the same way, and that hold does not lift while the host runs — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
 
 ## One arm per way of working
 
@@ -59,17 +61,17 @@ The route a change takes from the caller to the venue, and the arm it leaves by 
 
 11. **Arm three — a ladder.** The whole grid is replaced: the old rungs come down and are confirmed over before any new rung goes up — [How a ladder's prices are changed](../atoms/how-a-ladders-prices-are-changed.md). What can leave that grid short is its own matter — [What stops a ladder's new rungs](../atoms/what-stops-a-ladders-new-rungs.md).
 
-12. **Arm four — a single order or a part-shown one.** A change naming neither of those two kinds of settings is refused here — [Changing work already sent](../atoms/changing-work-already-sent.md).
+12. **Arm four — a single order or a part-shown one.** A change whose settings match neither kind is refused here, a second time: the first such refusal was the raise before it was ever queued — [The change each way of working accepts](../atoms/the-change-each-way-of-working-accepts.md).
 
-13. An order the record has as anything but resting at a named price is refused — [Changing work already sent](../atoms/changing-work-already-sent.md). A part-shown order's change may name only the amount to show, keeping the price it had — [What each change insists on](../atoms/what-each-change-insists-on.md).
+13. An order the record has as anything but resting at a named price is refused — [Changing work already sent](../atoms/changing-work-already-sent.md). A part-shown order's change may name the amount to show, the price, or both, and whichever it leaves out keeps the value it had — [What each change insists on](../atoms/what-each-change-insists-on.md).
 
 14. Otherwise the order is replaced: cancelled, settled, and a fresh one placed for what is left — [How a price change is carried out](../atoms/how-a-price-change-is-carried-out.md). Where the figures cannot be settled, the change is parked and the original left unfinished — [How a price change is carried out](../atoms/how-a-price-change-is-carried-out.md). Where the cancel itself is unconfirmed, nothing is placed and the order is left live — [When a price change places nothing](../atoms/when-a-price-change-places-nothing.md).
 
 ## Where this route is not taken
 
 - Giving up on work entirely asks for an abandonment, which takes its own route — [Abandoning work outright](../atoms/abandoning-work-outright.md).
-- A protective pair put up again after a loss arrives by the placing road — [When protection is put up again](../atoms/when-protection-is-put-up-again.md).
+- A protection recovered after a loss sends a closing order rather than another pair — [How an unfinished close is recovered](../atoms/how-an-unfinished-close-is-recovered.md).
 
 ---
 
-Created 2026-10-15 08:20 UTC · Last modified 2026-10-15 20:40 UTC
+Created 2026-10-15 08:20 UTC · Last modified 2026-10-16 08:00 UTC

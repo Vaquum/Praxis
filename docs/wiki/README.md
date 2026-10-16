@@ -55,6 +55,7 @@ the others where it appears.
 - [The priority line](atoms/the-priority-line.md) — cancellations and changes wait in a line of their own, emptied on each circuit once the account has started, before anything waiting to be placed.
 - [Work already under way](atoms/work-already-under-way.md) — what a pass moves along between taking one request and the next — a cancel tried again, a slice now due, protection waiting to go up.
 - [When an account is reconciling or poisoned](atoms/when-an-account-is-reconciling-or-poisoned.md) — what a pass does for an account being brought back into step with the venue, or carrying a fault that needs a restart, and when there is no pass left to do it.
+- [When a reconnection releases an account](atoms/when-a-reconnection-releases-an-account.md) — a gated account waits on its feed coming back, not on time passing.
 - [A change waiting out a hold](atoms/a-change-waiting-out-a-hold.md) — a change to an order already sent is put aside while the account is catching up with the venue, and is never taken up at all once the worker has stopped.
 - [How a worker stops taking work](atoms/how-a-worker-stops.md) — the loop an account takes its work from can die, be cancelled, or go on turning without ever reaching that work, and each leaves the account differently placed.
 
@@ -98,6 +99,7 @@ the others where it appears.
 - [What a fill changes](atoms/what-a-fill-changes.md) — a fill updates the order's record and then the money's, so a failure on the first leaves the second alone.
 - [Fills and the order](atoms/fills-and-the-order.md) — how a fill moves an order's totals and status, including one arriving too late.
 - [When an update fails](atoms/when-an-update-fails.md) — failing to update the order's own totals stops the account; failing to update the money record is logged and passed over.
+- [How an outside event enters the record](atoms/how-an-outside-event-enters-the-record.md) — news from outside is written by the account's own writer, and the caller waits to be told how it went.
 - [Where duplicates stop](atoms/where-duplicates-stop.md) — the same fill can arrive from the send, from the live feed and from a later query — it is written down once, and only that copy is acted on.
 - [The part of a fill a command counts](atoms/the-part-of-a-fill-a-command-counts.md) — the whole fill goes into the books, and only what fits the order's budget reaches the figures Nexus hears.
 
@@ -115,6 +117,7 @@ the others where it appears.
 
 - [The event spine](atoms/the-event-spine.md) — the file Praxis writes its events to, in the order it wrote them.
 - [The chain](atoms/the-chain.md) — records carry codes drawn from the record before, so editing a coded one shows up.
+- [When an older record can be opened](atoms/when-an-older-record-can-be-opened.md) — a record from an earlier build is brought forward to the shape this one expects, unless its identity or its duplicate marks say otherwise.
 - [What the chain proves](atoms/what-the-chain-proves.md) — checking the chain end to end says whether every row that has codes still matches its contents and the row before it.
 - [What the chain misses](atoms/what-the-chain-misses.md) — ways of altering the records that the check does not notice.
 
@@ -229,7 +232,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 135
+Both sides are the subject, and Praxis is the side that has been written. 138
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 21 are cited in passing and 49
 untouched — six of the 21 carry a row of their own, and fifteen are reached by an
@@ -239,4 +242,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-15 12:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-16 07:40 UTC

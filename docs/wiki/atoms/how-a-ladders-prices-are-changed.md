@@ -2,8 +2,10 @@
 row: P4-47
 baseline: 49aa659
 created: 2026-10-14 07:10 UTC
-modified: 2026-10-14 07:10 UTC
+modified: 2026-10-16 08:20 UTC
 evidence:
+  - claim: "Another change already under way, a ladder under any hold, and settings that are not a ladder's each turn it away first"
+    source: "`execution_manager.py` 8882-8889, 8891-8897 and 8899-8904"
   - claim: "The change is written down and the stage set to cancelling before the venue is touched"
     source: "`execution_manager.py` 8941-8942 before 8951"
   - claim: "A rung the record already has as ended is accepted, one it has no order for is passed over, and the rest are cancelled and asked after before any new rung is placed"
@@ -19,13 +21,15 @@ evidence:
 ---
 # How a ladder's prices are changed
 
-Changing the prices of [a ladder](orders-at-several-prices.md) replaces its whole grid: the rungs resting now are taken down, and a fresh set goes up for what is left to buy. The stage it has reached is written down, so the same work finishes whoever picks it up.
+Changing the prices of [a ladder](orders-at-several-prices.md) replaces its whole grid: the rungs resting now come down, and a fresh set goes up for what is left to buy. The stage reached is written down, so the same work finishes whoever picks it up.
 
 ## Cancelled first, confirmed second
 
-The change is written down, and the stage set to cancelling, before the venue hears anything.
+Another change already under way, a ladder under any hold, and settings that belong to another way of working each turn it away first, logged and returned.
 
-Each rung of the old grid is then taken down. One the record already has as ended is accepted as it stands, and one the record has no order for at all is passed over; the rest are cancelled and then asked after, and must come back ended with their fills taken into the record. Only once all of them have can a new rung go out. Four things stop the change here: a cancel the venue refuses, a query that fails, a rung the venue still shows working, and fills that will not reconcile.
+Past those, the change is written down and the stage set to cancelling, before the venue hears anything.
+
+Each rung of the old grid is then taken down. One the record already has as ended is accepted as it stands, and one it has no order for is passed over; the rest are cancelled and asked after, and must come back ended with their fills taken in. Only once all of them have can a new rung go out. Four things stop the change here: a cancel the venue refuses, a query that fails, a rung it still shows working, and fills that will not reconcile.
 
 ## What a stop leaves
 
@@ -44,4 +48,4 @@ What is left to buy is worked out from what the old grid filled, and the new pla
 
 ---
 
-Created 2026-10-14 07:10 UTC · Last modified 2026-10-14 07:10 UTC
+Created 2026-10-14 07:10 UTC · Last modified 2026-10-16 08:20 UTC

@@ -203,6 +203,9 @@ Nexus is in scope and is where the packages go next. Of its 70 modules, 21 are c
 | P4-56 | What stops a ladder's new rungs going up | written | [what-stops-a-ladders-new-rungs.md](atoms/what-stops-a-ladders-new-rungs.md) |
 | P4-57 | What a restart puts back of a bracket | written | [what-a-restart-puts-back-of-a-bracket.md](atoms/what-a-restart-puts-back-of-a-bracket.md) |
 | P4-58 | What the host refuses before the books are reached | written | [what-the-host-refuses-first.md](atoms/what-the-host-refuses-first.md) |
+| P4-59 | How an outside event enters the record, and who may write it | written | [how-an-outside-event-enters-the-record.md](atoms/how-an-outside-event-enters-the-record.md) |
+| P4-60 | When a reconnection releases an account, and what leaves it gated | written | [when-a-reconnection-releases-an-account.md](atoms/when-a-reconnection-releases-an-account.md) |
+| P4-61 | When an older record can be opened, and the three refusals | written | [when-an-older-record-can-be-opened.md](atoms/when-an-older-record-can-be-opened.md) |
 
 ## Considered and rejected
 
@@ -254,21 +257,14 @@ sequencing articles instead of the dispatch.
 ## Seeded for the Praxis remainder
 
 What two independent reviews of this package found still uncovered on the Praxis
-side. Candidates, not approved subjects. Pinned at Praxis `49aa659`.
+side. The three subjects listed here are now written, as P4-59 to P4-61; what
+remains is the branches below.
 
-| Candidate | What it has to explain |
-|---|---|
-| How an outside event enters the record | A running account queues an event to its writer while parked recovery appends straight through; cancelling the waiting caller does not cancel the queued write, and unregistering mid-append can leave the event durable while the caller is told it failed — `execution_manager.py` 3118-3263 and 3783-3835 |
-| When reconnecting releases an account | A disconnect gates the account at once; a reconnect during a running recovery asks for one rerun and a disconnect during it keeps the gate shut. An incomplete backfill, a venue failure and a cancellation each leave it gated — `trading.py` 1389-1501 against 1337-1387 |
-| When an older record can be opened | Opening refuses a newer shape and a chain identity that does not match; migrating legacy fills needs provable ownership, and ambiguous history refuses outright — `praxis/infrastructure/event_spine.py` 493-536, 598-704 and 817-861 |
-
-Branches named in existing articles and not yet written: a ladder amend refused
-while another is underway or the ladder is held (`execution_manager.py`
-8882-8926); the separate not-active refusal on a protection re-price (9402-9409);
-the confirmed-terminal watch returning because a leg query or a fill backfill
-failed, which does not take the deadline fallback (7394-7398 and 7440-7458); and
-that squaring an order makes no filled ending of its own, leaving ordinary fill
-projection to close it (`trading.py` 1660-1689).
+The four branches this list carried are written too: the ladder amend's three
+refusals in P4-47, the not-active refusal on a protection re-price in P4-48,
+the watch returning before its deadline in P4-42, and squaring an order making
+no filled ending of its own in P4-55. Nothing on the Praxis side is seeded and
+unwritten; the Nexus side below is where the packages go next.
 
 ## Seeded for the Nexus side
 
@@ -366,4 +362,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-15 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-16 08:30 UTC

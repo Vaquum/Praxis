@@ -2,7 +2,7 @@
 row: S-05
 baseline: 49aa659
 created: 2026-10-15 08:55 UTC
-modified: 2026-10-15 20:30 UTC
+modified: 2026-10-16 08:00 UTC
 evidence:
   - claim: "The record's marks are walked before any of it is replayed"
     source: "`trading.py` 513 before 515"
@@ -11,7 +11,9 @@ evidence:
   - claim: "One account is registered and started to the end before the next is begun"
     source: "`trading.py` 521-524"
   - claim: "Orphan commands are answered straight after replay, before the orphan venue sweep"
-    source: "`execution_manager.py` 2254-2258 reached from `trading.py` 550, before 567"
+    source: "`trading.py` 548 before 550-552, before 567"
+  - claim: "Answering one is a report sent on the account's behalf, not only a classification"
+    source: "`execution_manager.py` 2270-2271 and 2277-2281 into 2330"
   - claim: "The orphan venue sweep is what the readiness flag is taken from"
     source: "`trading.py` 567 into 606"
   - claim: "The feed is opened after that sweep"
@@ -45,7 +47,7 @@ The route one account takes inside a starting host, from the record on disk to t
 
 ## Then one account at a time
 
-4. An account is marked as starting, which is what makes its worker do nothing while this runs, and its whole start is finished before the next account is begun — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
+4. An account is marked as starting, which is what makes its worker do nothing while this runs — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md). Its whole start then finishes before the next account is begun, which the evidence below is what proves — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
 
 5. Its events are replayed, rebuilding the live work at the point it had reached — [What a restart puts back](../atoms/what-a-restart-puts-back.md). A bracket comes back by what its pair was doing, and only one with nothing recorded, or still going out, is placed — [What a restart puts back of a bracket](../atoms/what-a-restart-puts-back-of-a-bracket.md).
 
@@ -55,7 +57,7 @@ The route one account takes inside a starting host, from the record on disk to t
 
 8. Where the venue is reached through the Binance adapter — which the simulated venue is too — the feed is opened after that sweep — [The venue feed](../atoms/the-venue-feed.md).
 
-9. On that same branch, trades missed while the account was down are fetched a page at a time, and that fetch is waited on before the squaring below — [Backfilling missed trades](../atoms/backfilling-missed-trades.md). Any other adapter reaches the squaring with no feed and no such fetch — [What a venue must be able to do](../atoms/what-a-venue-must-be-able-to-do.md).
+9. On that same branch — and only it, any other adapter reaching the squaring below with no feed opened and no such fetch — trades missed while the account was down are fetched a page at a time, waited on before that squaring — [Backfilling missed trades](../atoms/backfilling-missed-trades.md).
 
 10. Each order the record still holds as working is then squared against the venue, fills taken in before any ending is concluded — [How an order is brought back into step](../atoms/how-an-order-is-brought-back-into-step.md).
 
@@ -65,9 +67,9 @@ The route one account takes inside a starting host, from the record on disk to t
 
 12. The account may trade where its sweep succeeded and nothing poisoned it — [What startup does with orphaned work](../atoms/what-startup-does-with-orphaned-work.md). Only then do the ways in accept anything for it — [What the host refuses first](../atoms/what-the-host-refuses-first.md).
 
-13. A sweep that failed, and an account poisoned on the way through, are each logged and leave it refused — [What a failure at startup does](../atoms/what-a-failure-at-startup-does.md), [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
+13. A sweep that failed leaves it refused — [What startup does with orphaned work](../atoms/what-startup-does-with-orphaned-work.md) — and so does an account poisoned on the way through — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
 
-14. A squaring that failed or came back incomplete is a separate matter: it leaves the hold on without stopping the account being let trade, and only a feed reconnection asks again — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
+14. On that same adapter branch, a backfill coming back incomplete leaves the hold on without stopping the account being let trade, and only a feed reconnection asks again — [When an account is reconciling or poisoned](../atoms/when-an-account-is-reconciling-or-poisoned.md).
 
 15. What a watcher is told meanwhile says less than it looks — [What a starting host reports](../atoms/what-a-starting-host-reports.md).
 
@@ -79,4 +81,4 @@ The route one account takes inside a starting host, from the record on disk to t
 
 ---
 
-Created 2026-10-15 08:55 UTC · Last modified 2026-10-15 20:30 UTC
+Created 2026-10-15 08:55 UTC · Last modified 2026-10-16 08:00 UTC
