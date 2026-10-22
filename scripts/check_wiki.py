@@ -38,9 +38,15 @@ META_STAMP = re.compile(
     r'^modified: (\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC)$',
     re.MULTILINE | re.DOTALL,
 )
-ROW_ID = re.compile(r'\b(?:P\d+|S)-\d{2}\b')
+ROW_ID = re.compile(r'\b(?:[PN]\d+|S)-\d{2}\b')
 COMMIT_ID = re.compile(r'[0-9a-f]{7,40}')
-ROW_OPENING = re.compile(r'^\|\s*((?:P\d+|S)-\d{2})\s*\|', re.MULTILINE)
+ROW_OPENING = re.compile(r'^\|\s*((?:[PN]\d+|S)-\d{2})\s*\|', re.MULTILINE)
+ROW_STATE = re.compile(
+    r'^\|\s*((?:[PN]\d+|S)-\d{2})\s*\|[^|]*\|\s*([^|]*?)\s*\|',
+    re.MULTILINE,
+)
+_ROW_STATES = ('written', 'reviewed')
+REVIEW_COUNT_RE = re.compile(r'(\d+)\s+of\s+them\s+reviewed,\s+(\d+)\s+not\b')
 BANNED_HEADINGS = ('## What it is', '## Overview', '## Introduction')
 NEGATIVE_DEF = re.compile(r',\s+not\s+(?:a|an|the|yet|by|its|one)\b', re.IGNORECASE)
 DOUBLE_NEGATIVE = re.compile(
@@ -49,6 +55,28 @@ DOUBLE_NEGATIVE = re.compile(
     re.IGNORECASE,
 )
 HEADING_NEGATION = re.compile(r',\s+not\b', re.IGNORECASE)
+ORDINAL_ANCHOR = re.compile(r'\b(?:a|the)\s+first\b', re.IGNORECASE)
+_ORDINALS = 'third|fourth|fifth|sixth|seventh|eighth|ninth|tenth'
+_STANDS_ALONE = (
+    r'is|was|does|has|can|will|comes|goes|takes|keeps|'
+    r'weighs|gives|adds|refuses'
+)
+BARE_ORDINAL = re.compile(
+    rf'\bthe\s+(?:{_ORDINALS})\s+(?:{_STANDS_ALONE})\b',
+    re.IGNORECASE,
+)
+_OPENS_A_CLAUSE = (
+    'and|but|yet|or|although|though|while|whereas|before|after|when|'
+    'whenever|unless|until|if|once|where|whether|which|who|whom|whose'
+)
+OBLIGED_PURPOSE = re.compile(
+    r'\b(?:because|so\s+that|lest|on\s+the\s+grounds\s+that)\b'
+    rf'(?:(?!\b(?:{_OPENS_A_CLAUSE})\b)'
+    r'(?! - )(?!--)[^.;:!?,()\[\]\u2013\u2014]){0,80}'
+    r'\b(?:must|should|ought|needs?\s+to|ha(?:s|ve)\s+to|'
+    r'cannot\s+be\s+allowed)\b(?!-)',
+    re.IGNORECASE,
+)
 def _held_among(left: Any, right: Any) -> bool:
 
     """Whether the left stands among the right.
@@ -178,14 +206,22 @@ LEDGER_PATH_RE = re.compile(r'`((?:praxis|nexus)/[^`]*\.py)`')
 LEDGER_HEADING_RE = re.compile(r'^## (Praxis|Nexus) — (\d+) modules$', re.MULTILINE)
 LEDGER_GROUP_RE = re.compile(r'^\| (?:all|the other) (\d+) \|', re.MULTILINE)
 LEDGER_ROW_RE = re.compile(r'^\| `([^`]+)` \| (\w+) \| ([^|]*) \|$', re.MULTILINE)
-REGISTER_ROW_RE = re.compile(r'^\|\s*((?:P\d+|S)-\d{2})\s*\|[^|]*\|[^|]*\|[^(]*\(((?:atoms|spines)/[^)]+)\)',
-                             re.MULTILINE)
-ROW_SPAN_RE = re.compile(r'^(P\d+)-(\d{2}) to P\d+-(\d{2})$')
+REGISTER_ROW_RE = re.compile(
+    r'^\|\s*((?:[PN]\d+|S)-\d{2})\s*\|[^|]*\|[^|]*\|'
+    r'[^(]*\(((?:atoms|spines)/[^)]+)\)',
+    re.MULTILINE,
+)
+ROW_SPAN_RE = re.compile(r'^([PN]\d+)-(\d{2}) to \1-(\d{2})$')
 STATE_COUNT_RE = re.compile(
     r'(\d+)\s+are\s+`full`,\s+(\d+)\s+`partial`\s+and\s+(\d+)\s+`uncovered`',
 )
 ARTICLE_COUNT_RE = re.compile(r'(\d+)\s+articles\b')
-NEXUS_COUNT_RE = re.compile(r'(\d+)\s+are\s+cited\s+in\s+passing')
+NEXUS_COUNT_RE = re.compile(r'(\d+)\s+are\s+named')
+NEXUS_OWNED_RE = re.compile(r'(\d+)\s+carry\s+a\s+row')
+NEXUS_CITED_RE = re.compile(r'(\d+)\s+are\s+reached\s+by\s+an')
+NEXUS_CITED_ALT_RE = re.compile(r'(\d+)\s+of\s+the\s+modules\s+listed')
+NEXUS_OWNED_ALT_RE = re.compile(r'The\s+other\s+(\d+)\s+carry\s+a\s+row')
+NEXUS_UNOWNED_RE = re.compile(r'The\s+(\d+)\s+with\s+no\s+row')
 NEXUS_TOTAL_RE = re.compile(r'(?:the|its)\s+(\d+)\s+(?:in\s+Nexus|modules)')
 NEXUS_UNTOUCHED_RE = re.compile(r'(\d+)\s+untouched')
 CHANGELOG = Path('CHANGELOG.md')
@@ -421,6 +457,7 @@ def _docstring_lines(path: Path) -> set[int]:
 
 
 _METADATA_KEYS = ('row', 'baseline', 'created', 'modified', 'evidence')
+_OPTIONAL_METADATA_KEYS = ('reviewed',)
 _PARTING = ' | '
 _SHOWS_NOTHING = frozenset({'Cc', 'Cf'})
 _UNPRINTABLE = re.compile(
@@ -434,6 +471,15 @@ DIVIDER = re.compile(r'-{3,}')
 STAMP_LINE = re.compile(
     r'Created \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC · '
     r'Last modified \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC',
+)
+ANY_STAMP = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC')
+LIST_ITEM = re.compile(r'^(?:>\s*)*(?:[-*+]|\d+\.)\s')
+FENCE = re.compile(r'^(?:`{3,}|~{3,})')
+QUOTED = re.compile(r'^\s*(?:>\s?)+')
+BREAK = re.compile(r'(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,}')
+STAMP_IN_PLACE = re.compile(
+    r'(?:Pinned at|created:|modified:|reviewed:)\s*'
+    r'\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC',
 )
 _REFERENCES_AT_MOST = 100
 ALTERNATION_WORDS = (
@@ -5286,6 +5332,123 @@ def _write(line: str) -> None:
     sys.stdout.write(f'{line}\n')
 
 
+def _row_states() -> dict[str, str]:
+
+    """Return what each register row says about its own state.
+
+    Returns:
+        dict[str, str]: Row identifier against the word in its state
+            column.
+    """
+
+    if not REGISTER.exists():
+        return {}
+
+    return dict(ROW_STATE.findall(REGISTER.read_text(encoding='utf-8')))
+
+
+def _reviewed_versions() -> list[str]:
+
+    """Return where a row claiming review does not cover what is there now.
+
+    Review is a fact about a version, not a property a page keeps. An
+    article whose row reads `reviewed` carries the stamp it was reviewed
+    at, and that stamp has to be the one it was last modified at. Edit
+    the article and the two part, which is the row saying the review no
+    longer covers the text.
+
+    Returns:
+        list[str]: One failure per row whose claim has gone stale.
+    """
+
+    reviewed = {
+        row for row, state in _row_states().items() if state == 'reviewed'
+    }
+
+    if not reviewed:
+        return []
+
+    failures = []
+
+    for row, article in REGISTER_ROW_RE.findall(
+        REGISTER.read_text(encoding='utf-8'),
+    ):
+
+        if row not in reviewed:
+            continue
+
+        page = WIKI / article
+
+        if not page.exists():
+            continue
+
+        meta = _split_front_matter(page.read_text(encoding='utf-8'))[0]
+        seen = _written_under('reviewed', meta)
+        changed = _written_under('modified', meta)
+
+        if seen is None:
+            failures.append(
+                f'{page}: its row reads reviewed and it names no version reviewed',
+            )
+        elif changed is None:
+            failures.append(
+                f'{page}: its row reads reviewed and it names no version at all',
+            )
+        elif seen < changed:
+            failures.append(
+                f'{page}: reviewed at {seen}, modified at {changed}, '
+                'so the review no longer covers it',
+            )
+        elif seen > changed:
+            failures.append(
+                f'{page}: reviewed at {seen}, modified at {changed}, '
+                'so the review is stamped for a version that never existed',
+            )
+
+    return failures
+
+
+def _review_states() -> list[str]:
+
+    """Return where the register's review states are not states at all.
+
+    A row is `written` or `reviewed`, and nothing else. Reviewed means a
+    reviewer re-derived the article from the source its claims cite, as
+    the brief requires; written means nobody has. The count of each is
+    stated in the register and checked here, so the unreviewed ones are
+    a number on the page rather than an absence nobody sees.
+
+    Returns:
+        list[str]: One failure per unknown state, plus one where a
+            stated count disagrees with the table.
+    """
+
+    states = _row_states()
+    failures = [
+        f'{REGISTER}: row {row} is `{state}`, which is neither written nor reviewed'
+        for row, state in sorted(states.items())
+        if state not in _ROW_STATES
+    ]
+    reviewed = sum(1 for state in states.values() if state == 'reviewed')
+    counted = (reviewed, len(states) - reviewed)
+
+    for page in (REGISTER, README):
+
+        if not page.exists():
+            continue
+
+        for written in REVIEW_COUNT_RE.finditer(page.read_text(encoding='utf-8')):
+            said = tuple(_as_count(number) for number in written.groups())
+
+            if said != counted:
+                failures.append(
+                    f'{page}: "{written.group(0)}" against {counted[0]} reviewed '
+                    f'and {counted[1]} not',
+                )
+
+    return failures
+
+
 def _register_ids() -> set[str]:
 
     '''Return every row identifier the register carries.
@@ -5521,6 +5684,220 @@ def _negative_definitions(body: str) -> list[str]:
             f'double negative: "{m.group(0).strip()}"'
             for m in DOUBLE_NEGATIVE.finditer(prose)
         )
+
+    return found
+
+
+def _plain_words(line: str) -> str:
+
+    """Return a line with its links and emphasis taken off.
+
+    A word wrapped in emphasis is the same word, and the checks that
+    read prose should see it as one: `The *first* weighs the order`
+    anchors an ordinal exactly as the unmarked sentence does.
+
+    Args:
+        line (str): One line of prose.
+
+    Returns:
+        str: The line, as its words alone.
+    """
+
+    said = re.sub(r'\[([^]]+)\]\([^)]+\)', r'\1', line)
+
+    return re.sub(r'[*_`]', '', said)
+
+
+def _prose_blocks(body: str) -> list[list[str]]:
+
+    """Return the prose of each section, one joined block per paragraph.
+
+    Both voice checks used to read a line at a time, so a sentence that
+    wrapped escaped them while the same sentence on one line did not.
+    Joining each paragraph puts a wrapped sentence back together, and
+    keeping the paragraphs of a section together lets an ordinal find a
+    first written earlier in that section.
+
+    Args:
+        body (str): The page's prose, its metadata removed.
+
+    What a fence holds is not prose and is passed over: the template
+    shows a metadata block inside one, and joining its lines made the
+    moments in it read as a sentence carrying a moment.
+
+    A fence opening inside a list item is not read as one. Treating it
+    as a fence was tried and was wrong: it took three list items each
+    beginning with a backtick run for one fenced block, and hid the
+    middle one. No page here puts a fence in a list, so the simpler
+    reading is the correct one until one does.
+
+    Returns:
+        list[list[str]]: Each section, as its paragraphs in order.
+    """
+
+    sections: list[list[str]] = [[]]
+    paragraph: list[str] = []
+    fenced: str | None = None
+    quoting = False
+
+    for line in body.splitlines():
+        quoted = QUOTED.match(line) is not None
+        stripped = QUOTED.sub('', line).strip()
+
+        if quoting and not quoted:
+            fenced = None
+
+            if paragraph:
+                sections[-1].append(' '.join(paragraph))
+                paragraph = []
+
+        if quoted and not quoting and paragraph:
+            sections[-1].append(' '.join(paragraph))
+            paragraph = []
+
+        quoting = quoted
+        listed = LIST_ITEM.match(stripped)
+        opening = None if listed else FENCE.match(stripped)
+
+        if BREAK.fullmatch(stripped) and fenced is None:
+            if paragraph:
+                sections[-1].append(' '.join(paragraph))
+                paragraph = []
+
+            continue
+
+        shut = (
+            fenced is not None
+            and opening is not None
+            and opening.group(0)[0] == fenced[0]
+            and len(opening.group(0)) >= len(fenced)
+            and not stripped[len(opening.group(0)):].strip()
+        )
+
+        if opening is not None and (fenced is None or shut):
+            if paragraph:
+                sections[-1].append(' '.join(paragraph))
+                paragraph = []
+
+            fenced = None if fenced else opening.group(0)
+
+            continue
+
+        if fenced:
+            continue
+
+        if stripped.startswith('#'):
+            if paragraph:
+                sections[-1].append(' '.join(paragraph))
+                paragraph = []
+
+            sections.append([])
+
+            continue
+
+        if not stripped or listed:
+            if paragraph:
+                sections[-1].append(' '.join(paragraph))
+                paragraph = []
+
+            if not stripped:
+                continue
+
+        paragraph.append(_plain_words(stripped))
+
+    if paragraph:
+        sections[-1].append(' '.join(paragraph))
+
+    return [section for section in sections if section]
+
+
+def _bare_ordinals(body: str) -> list[str]:
+
+    """Return the prose standing an ordinal in for a thing.
+
+    "The fourth goes the other way" leans on a count given in an earlier
+    sentence, and that count went stale three rounds running as each
+    verify pass turned up another branch. An ordinal with no noun cannot
+    be read against the source on its own, and renumbers every time the
+    list grows. An ordinal qualifying a noun — "the fourth stage" — says
+    what it counts and is left alone.
+
+    An ordinal following "the first" in the same section is left alone:
+    the reader has the list in front of them, and the count is whatever
+    the section just enumerated. The defect is the ordinal with no such
+    anchor, reading a count from somewhere the reader has to go back
+    for.
+
+    Args:
+        body (str): The page's prose, its metadata removed.
+
+    Returns:
+        list[str]: One complaint per ordinal standing alone.
+    """
+
+    found: list[str] = []
+
+    for section in _prose_blocks(body):
+        anchored = False
+
+        for prose in section:
+            opens = ORDINAL_ANCHOR.search(prose)
+
+            if not anchored:
+                found.extend(
+                    f'an ordinal stands in for a thing, with no first before '
+                    f'it in this section: "{m.group(0)}"'
+                    for m in BARE_ORDINAL.finditer(prose)
+                    if opens is None or m.start() < opens.start()
+                )
+
+            if opens is not None:
+                anchored = True
+
+    return found
+
+
+def _obliged_purpose(body: str) -> list[str]:
+
+    """Return the prose giving a purpose the code is under no obligation to serve.
+
+    Four review rounds running turned up a reason attached to a true
+    fact — an urgency the bypass never tests, a venue the shutdown never
+    identifies. Each read as a purpose the code serves, and each was the
+    writer's, not the code's. Code holds conditions, so a reason given
+    as something the system must or should do is the writer explaining
+    rather than reporting. A cause with no obligation in it — this
+    happens because that returned — stays allowed, being a fact about
+    the path, and so does a cause coordinated with a separate
+    obligation, which a word opening another clause inside the window
+    stops. That lets a compound subject through: "because the host and
+    venue must agree" goes unread. Missing one is the cheaper error.
+
+    `that` is not among those words, because the defect this exists for
+    reads "because a venue that cannot be reached must not leave the
+    host unable to stop" — a relative clause sits inside the real case.
+    So an obligation inside a noun phrase is read as a purpose, whether
+    the clause is marked ("a response that the caller must acknowledge")
+    or not ("the size the position must release has moved"). Both are
+    refused and the writer rewords them. That known false positive is
+    the price of the catch.
+
+    Args:
+        body (str): The page's prose, its metadata removed.
+
+    Returns:
+        list[str]: One complaint per sentence binding the two.
+    """
+
+    found: list[str] = []
+
+    for section in _prose_blocks(body):
+        for prose in section:
+            found.extend(
+                f'gives a purpose the code is under no obligation to serve: '
+                f'"{_shortened(m.group(0))}"'
+                for m in OBLIGED_PURPOSE.finditer(prose)
+            )
 
     return found
 
@@ -6023,6 +6400,35 @@ def _edited_since(page: Path) -> str | None:
     return stamp.group(2) if stamp is not None else None
 
 
+def _stamps_in_prose(body: str) -> list[str]:
+
+    """Return the prose lines carrying a moment that belongs elsewhere.
+
+    Stamping an article means rewriting the line that carries its time,
+    and one such rewrite landed inside a paragraph quoting the footer
+    convention, leaving a sentence half-replaced and a code span open.
+    A moment written in the prose is either that accident or apparatus
+    the body should not carry, so the gate refuses both.
+
+    Args:
+        body (str): The page's prose, its metadata removed.
+
+    Returns:
+        list[str]: One complaint per line carrying one.
+    """
+
+    return [
+        f'prose carries a moment, which belongs in the metadata or the '
+        f'footer: "{_shortened(said)}"'
+        for section in _prose_blocks(body)
+        for said in section
+        if ANY_STAMP.search(said)
+        and not STAMP_LINE.fullmatch(said.strip())
+        and not said.lstrip().startswith('|')
+        and not STAMP_IN_PLACE.fullmatch(said.strip())
+    ]
+
+
 def _check_stamps(page: Path, text: str, meta: str) -> list[str]:
 
     '''Return what a page's timestamps get wrong.
@@ -6196,6 +6602,10 @@ def _metadata_shape(meta: str) -> list[str]:
     is read beside this rather than instead of it, so a block both
     misshapen and wrong about its baseline is told both.
 
+    A page reviewed carries the version that review covers, which may
+    sit anywhere among the rest, so that key is left out of the order
+    this insists on.
+
     Args:
         meta (str): The page's metadata block.
 
@@ -6204,8 +6614,26 @@ def _metadata_shape(meta: str) -> list[str]:
     '''
 
     rows = meta.splitlines()
-    named = [row for row in rows if row and not row.startswith((' ', '\t'))]
+    top = [row for row in rows if row and not row.startswith((' ', '\t'))]
+    named = [
+        row for row in top
+        if row.split(':', 1)[0] not in _OPTIONAL_METADATA_KEYS
+    ]
     keys = [row.split(':', 1)[0] for row in named]
+    spare = [row for row in top if row not in named]
+    loose = [
+        f'metadata writes {key} more than once' if seen > 1
+        else f'metadata writes {key} without a value'
+        for key in _OPTIONAL_METADATA_KEYS
+        for seen in [sum(1 for row in spare if row.split(':', 1)[0] == key)]
+        if seen > 1 or any(
+            row == key or not row.partition(':')[2].strip()
+            for row in spare if row.split(':', 1)[0] == key
+        )
+    ]
+
+    if loose:
+        return loose
 
     if keys != list(_METADATA_KEYS):
         return [
@@ -6236,7 +6664,18 @@ def _metadata_shape(meta: str) -> list[str]:
         for row in rows[:opened]
         if row.startswith((' ', '\t'))
     )
-    held = rows[opened + 1:]
+    listed = rows[opened + 1:]
+    spared = [
+        at for at, row in enumerate(listed)
+        if row.split(':', 1)[0] in _OPTIONAL_METADATA_KEYS
+    ]
+    notes.extend(
+        'metadata holds a line in the middle of its evidence: '
+        f'"{listed[at].strip()}"'
+        for at in spared
+        if any(row.strip() for row in listed[at + 1:])
+    )
+    held = [row for at, row in enumerate(listed) if at not in spared]
 
     if held and not held[0].strip().startswith('- claim:'):
         notes.append('the evidence list opens on something other than a claim')
@@ -6410,6 +6849,9 @@ def _check_page(
     failures.extend(
         f'{rel}: {note}' for note in _broken_links(page, body if meta else text)
     )
+    failures.extend(
+        f'{rel}: {note}' for note in _stamps_in_prose(body if meta else text)
+    )
 
     if page.parent.name == 'spines':
         spine_rows = _evidence_rows(meta)
@@ -6421,6 +6863,8 @@ def _check_page(
             _uncited_claims(spine_rows),
             _unlined_sources(spine_rows),
             _negative_definitions(body),
+            _obliged_purpose(body),
+            _bare_ordinals(body),
             _unspaced_headings(body),
             _check_metadata(meta, ids),
             _check_citations(spine_rows, cache),
@@ -6440,6 +6884,8 @@ def _check_page(
         _unlined_sources(rows),
         _unlinked_terms(page, body),
         _negative_definitions(body),
+        _obliged_purpose(body),
+        _bare_ordinals(body),
         _unspaced_headings(body),
         _check_length(body),
         _check_metadata(meta, ids),
@@ -6856,19 +7302,27 @@ def _ledger_rows() -> list[str]:
     return failures
 
 
-def _nexus_counts() -> tuple[int, int]:
+def _nexus_counts() -> tuple[int, int, int]:
 
-    '''Return how many Nexus modules the ledger names and how many it holds.
+    '''Return how many Nexus modules the ledger names, owns and holds.
+
+    A module is owned where its row cites an article; one whose row
+    says only that something cited it is named without being owned.
+    Three articles stated that split and all three had it wrong, each
+    from a reading taken when it was true.
 
     Returns:
-        tuple[int, int]: The rows naming a module, and every module.
+        tuple[int, int, int]: The rows naming a module, those among
+            them carrying a row of their own, and every module.
     '''
 
     body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Nexus', '')
-    named = len(LEDGER_ROW_RE.findall(body))
+    rows = LEDGER_ROW_RE.findall(body)
+    named = len(rows)
+    owned = sum(1 for row in rows if 'cited, not traced' not in row[-1])
     grouped = sum(_as_count(count) for count in LEDGER_GROUP_RE.findall(body))
 
-    return named, named + grouped
+    return named, owned, named + grouped
 
 
 def _counted_lines(page: Path, text: str) -> list[str]:
@@ -6922,7 +7376,7 @@ def _counted_states() -> list[str]:
     states = [state for _, state, _ in LEDGER_ROW_RE.findall(body)]
     counted = (states.count('full'), states.count('partial'), states.count('uncovered'))
     articles = len(list((WIKI / 'atoms').glob('*.md')))
-    nexus_named, nexus_total = _nexus_counts()
+    nexus_named, nexus_owned, nexus_total = _nexus_counts()
     failures = []
 
     for page in (README, LEDGER, REGISTER):
@@ -6940,6 +7394,23 @@ def _counted_states() -> list[str]:
         for pattern, truth, what in (
             (ARTICLE_COUNT_RE, articles, 'articles in the wiki'),
             (NEXUS_COUNT_RE, nexus_named, 'Nexus rows in the ledger'),
+            (NEXUS_OWNED_RE, nexus_owned, 'Nexus rows naming an article'),
+            (
+                NEXUS_OWNED_ALT_RE, nexus_owned,
+                'Nexus rows naming an article',
+            ),
+            (
+                NEXUS_CITED_RE, nexus_named - nexus_owned,
+                'Nexus rows naming no article',
+            ),
+            (
+                NEXUS_CITED_ALT_RE, nexus_named - nexus_owned,
+                'Nexus rows naming no article',
+            ),
+            (
+                NEXUS_UNOWNED_RE, nexus_total - nexus_owned,
+                'Nexus modules with no row',
+            ),
             (NEXUS_TOTAL_RE, nexus_total, 'Nexus modules in the ledger'),
             (
                 NEXUS_UNTOUCHED_RE, nexus_total - nexus_named,
@@ -7284,6 +7755,8 @@ def main() -> int:
     failures += _index_sections()
     failures += _pinned_table()
     failures += _finding_citations(cache)
+    failures += _review_states()
+    failures += _reviewed_versions()
 
     for note in _unchecked_trees():
         _write(f'note: {note}')

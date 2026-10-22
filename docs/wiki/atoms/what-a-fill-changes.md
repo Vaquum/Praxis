@@ -2,7 +2,7 @@
 row: P2-29
 baseline: 49aa659
 created: 2026-09-26 05:58 UTC
-modified: 2026-10-11 20:45 UTC
+modified: 2026-10-21 19:00 UTC
 evidence:
   - claim: "Two running pictures are updated, one after the other, the second only for a fill or an ending"
     source: "`execution_manager.py` 2081 and 2086-2087"
@@ -29,7 +29,7 @@ A failure there is not swallowed where it happens. It travels back out, and [wha
 
 ## The money
 
-The second keeps the account's money, its groups of purchases and its profit.
+The money record keeps the account's money, its groups of purchases and its profit.
 
 A failure there is written to the log and passed over, so trading carries on with the money picture left behind.
 

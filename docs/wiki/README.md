@@ -154,6 +154,24 @@ the others where it appears.
 - [The window a movement is found in](atoms/the-window-a-movement-is-found-in.md) — money moving in or out is looked for from the last one seen, and never from before the account was taken on.
 - [The holds a report places](atoms/the-holds-a-report-places.md) — what a reported finding does to the account: halt it, block new entries, or log it, and only a hand from outside lifts the hold.
 
+## What Nexus does with the money
+
+- [The checks a decision passes](atoms/the-checks-a-decision-passes.md) — a given list walked in order until one refuses, and most of it skipped for an action that closes rather than commits.
+- [What a check must answer with](atoms/what-a-check-must-answer-with.md) — two shapes an answer may take, and the answers the walk declines to interpret at all.
+- [What becomes of money set aside](atoms/what-becomes-of-money-set-aside.md) — money held back for a trade that never happens stays held back until something else comes along and asks.
+- [How far down the account is](atoms/how-far-down-the-account-is.md) — losses are measured both from the best the account has ever been worth and from the best its closed trades have ever added up to, and those are different numbers.
+- [What the price check weighs](atoms/what-the-price-check-weighs.md) — the check that looks at the market stops a trade for a number being absent as readily as for one being out of bounds.
+- [What the platform ceilings weigh](atoms/what-the-platform-ceilings-weigh.md) — the last check before an order goes out asks for five numbers and is handed one, and the limits it offers on the rest cannot be used.
+- [What each check weighs](atoms/what-each-check-weighs.md) — six checks stand between a strategy's decision and the venue, and they look at quite different things: the order itself, what the account has lost, and whether the venue is answering.
+- [The roads around the checks](atoms/the-roads-around-the-checks.md) — some orders go out to the venue without passing a single one of the checks the rest pass.
+- [What an entry outcome changes](atoms/what-an-entry-outcome-changes.md) — a report of one kind moves the money set aside for a command on to the next place it sits, and two kinds of report move nothing at all.
+- [What the fee reserve absorbs](atoms/what-the-fee-reserve-absorbs.md) — trading costs are guessed before a trade and billed after it, and the account holds money back for the gap.
+- [What an exit outcome changes](atoms/what-an-exit-outcome-changes.md) — closing a holding gives money back and reports what the trade made, and those are two different sums.
+- [When an entry's position grows](atoms/when-an-entrys-position-grows.md) — buying in pieces leaves one holding at an averaged price, and what that average is later measured against.
+- [An outcome waiting on a strategy](atoms/an-outcome-waiting-on-a-strategy.md) — a report matching no strategy yet is set aside, everything after it for that command waits behind, and a wait that never ends costs them all.
+- [How Nexus sets money aside](atoms/how-nexus-sets-money-aside.md) — a trade is weighed against its share of the pool, its strategy's budget, the free capital and a ceiling on everything deployed, and the fees are held with it.
+- [What Nexus does when a command does not get across](atoms/what-nexus-does-when-a-command-does-not-get-across.md) — the money comes back on every road but one, and that one keeps it on purpose.
+
 ## The settings a host runs on
 
 - [The settings a host is given](atoms/the-settings-a-host-is-given.md) — what a host reads from its environment and its manifests before it starts anything.
@@ -232,14 +250,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 138
+Both sides are the subject, and Praxis is the side that has been written. 153
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
-part and 4 not at all; of the 70 in Nexus, 21 are cited in passing and 49
-untouched — six of the 21 carry a row of their own, and fifteen are reached by an
+part and 4 not at all; of the 70 in Nexus, 37 are named and 33
+untouched — 25 carry a row of their own, and 12 are reached by an
 article that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-16 07:40 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-18 08:20 UTC

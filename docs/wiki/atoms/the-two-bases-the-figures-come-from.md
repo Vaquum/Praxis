@@ -2,7 +2,7 @@
 row: P4-18
 baseline: 49aa659
 created: 2026-10-03 21:05 UTC
-modified: 2026-10-11 20:35 UTC
+modified: 2026-10-22 23:00 UTC
 evidence:
   - claim: "Both bases pass their series through the same assembler, which names the same eight measures, seven of them published as three figures each and the eighth as one"
     source: "`snapshot_result.py` 27-36 and 82-105, called at `snapshot_metrics.py` 52-61 and `limen_snapshot.py` 173-181"
@@ -35,9 +35,9 @@ evidence:
 
 ## What the assembler publishes
 
-Six distributions each come back as a low, a middle and a high, each rounded — or as three nothings, where no real figure is left to read. A seventh comes back the same way, rounded to three places, being a length in days rather than a return.
+Six distributions each come back as a low, a middle and a high, each rounded — or as three nothings, where no real figure is left to read. One further distribution comes back the same way, rounded to three places, being a length in days rather than a return.
 
-The eighth is a single figure: the average of the finite window returns at or below their lowest twentieth, rounded to one place. Where none of those returns is finite, no figure is given at all.
+One more is a single figure: the average of the finite window returns at or below their lowest twentieth, rounded to one place. Where none of those returns is finite, no figure is given at all.
 
 Two of the six are worked out in the assembler itself, from the per-trade returns handed in — one scaling the net return, the other taking the difference between gross and net as the drag of costs.
 

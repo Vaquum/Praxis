@@ -2,7 +2,7 @@
 row: S-02
 baseline: 49aa659
 created: 2026-10-15 08:10 UTC
-modified: 2026-10-15 23:10 UTC
+modified: 2026-10-16 09:40 UTC
 evidence:
   - claim: "A starting account's pass does nothing and waits"
     source: "`execution_manager.py` 3903-3905"
@@ -84,4 +84,4 @@ One pass of [an account's worker](../atoms/how-waiting-work-is-drained.md), from
 
 ---
 
-Created 2026-10-15 08:10 UTC · Last modified 2026-10-15 23:10 UTC
+Created 2026-10-15 08:10 UTC · Last modified 2026-10-16 09:40 UTC

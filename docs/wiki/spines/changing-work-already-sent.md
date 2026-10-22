@@ -2,7 +2,7 @@
 row: S-03
 baseline: 49aa659
 created: 2026-10-15 08:20 UTC
-modified: 2026-10-16 08:00 UTC
+modified: 2026-10-16 09:40 UTC
 evidence:
   - claim: "The host's own refusals run before the manager is reached"
     source: "`trading.py` 1913-1916 before 1917, handed on at `trading_inbound.py` 262 into `execution_manager.py` 3048"
@@ -74,4 +74,4 @@ The route a change takes from the caller to the venue, and the arm it leaves by 
 
 ---
 
-Created 2026-10-15 08:20 UTC · Last modified 2026-10-16 08:00 UTC
+Created 2026-10-15 08:20 UTC · Last modified 2026-10-16 09:40 UTC

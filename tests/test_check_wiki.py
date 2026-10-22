@@ -855,6 +855,696 @@ class TestVoice:
         assert not check_wiki._negative_definitions('A name supplied from outside.')
 
 
+class TestObligedPurpose:
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param(
+                'A send raising anything is passed over, because a venue that '
+                'cannot be reached must not leave the host unable to stop.',
+                id='venue-the-code-never-identifies',
+            ),
+            pytest.param(
+                'The five are skipped so that an action cutting exposure '
+                'should not be stopped.',
+                id='purpose-the-bypass-never-tests',
+            ),
+            pytest.param(
+                'skipped so that a well-placed order should not be stopped',
+                id='a-hyphenated-word-inside-the-window',
+            ),
+            pytest.param(
+                'It is refused because the host must agree.',
+                id='one-subject',
+            ),
+            pytest.param(
+                'It is held lest the order should fill.',
+                id='lest-and-should',
+            ),
+            pytest.param(
+                'It is refused on the grounds that the row ought to name a '
+                'version.',
+                id='on-the-grounds-that-and-ought',
+            ),
+            pytest.param(
+                'It waits because the account needs to settle first.',
+                id='needs-to',
+            ),
+            pytest.param(
+                'It waits because the account has to settle first.',
+                id='has-to',
+            ),
+            pytest.param(
+                'It waits because the two have to agree first.',
+                id='have-to',
+            ),
+            pytest.param(
+                'It is held because the order cannot be allowed to fill.',
+                id='cannot-be-allowed',
+            ),
+            pytest.param(
+                'It is refused so  that the host must agree.',
+                id='a-connective-spaced-wide',
+            ),
+            pytest.param(
+                'It waits because the account has  to settle first.',
+                id='an-obligation-spaced-wide',
+            ),
+            pytest.param(
+                'It is refused because ' + 'x' * 78 + ' must agree.',
+                id='an-obligation-at-the-window-edge',
+            ),
+        ],
+    )
+    def test_a_purpose_carrying_an_obligation_is_refused(
+        self, sentence: str,
+    ) -> None:
+        assert check_wiki._obliged_purpose(sentence)
+
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param(
+                'An order the venue rejects is recorded as a success, '
+                'because the venue answered.',
+                id='cause-with-no-obligation',
+            ),
+            pytest.param(
+                'A refusal must name the stage that made it, a reason code '
+                'and a message.',
+                id='obligation-with-no-purpose',
+            ),
+            pytest.param(
+                'The sign is reversed first, so that either way a worse '
+                'price gives a bigger number.',
+                id='purpose-reporting-arithmetic',
+            ),
+            pytest.param(
+                'Nothing sweeps them because time passed.',
+                id='bare-cause',
+            ),
+        ],
+    )
+    def test_reporting_a_cause_or_a_requirement_passes(
+        self, sentence: str,
+    ) -> None:
+        assert not check_wiki._obliged_purpose(sentence)
+
+    def test_a_heading_is_not_read_for_it(self) -> None:
+        heading = '## Passed over because a venue must answer'
+        assert check_wiki._obliged_purpose(heading.lstrip('# '))
+        assert not check_wiki._obliged_purpose(heading)
+
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param(
+                'It returns because the venue sent a response that the caller '
+                'must acknowledge.',
+                id='a-that-clause',
+            ),
+            pytest.param(
+                'A fill is kept because the size the position must release '
+                'has moved.',
+                id='a-clause-with-no-marker',
+            ),
+        ],
+    )
+    def test_an_obligation_inside_a_noun_phrase_is_read(
+        self, sentence: str,
+    ) -> None:
+        assert check_wiki._obliged_purpose(sentence), (
+            'a known false positive: the defect this check exists for carries '
+            'a relative clause of its own, so one cannot open an exemption'
+        )
+
+    def test_an_obligation_on_a_which_clause_is_not(self) -> None:
+        said = (
+            'It returns because the venue answered which the caller must '
+            'acknowledge.'
+        )
+        assert not check_wiki._obliged_purpose(said)
+
+    def test_an_emphasised_connective_is_still_read(self) -> None:
+        said = 'passed over *because* a venue that cannot be reached must not stop'
+        assert check_wiki._obliged_purpose(said)
+
+    _STOPPERS = (
+        'and', 'but', 'yet', 'or', 'although', 'though', 'while', 'whereas',
+        'before', 'after', 'when', 'whenever', 'unless', 'until', 'if',
+        'once', 'where', 'whether', 'which', 'who', 'whom', 'whose',
+    )
+
+    def test_the_stopper_list_is_the_one_written_here(self) -> None:
+        assert tuple(check_wiki._OPENS_A_CLAUSE.split('|')) == self._STOPPERS
+
+    @pytest.mark.parametrize('stopper', _STOPPERS)
+    def test_every_clause_opener_stops_the_window(self, stopper: str) -> None:
+        said = f'It returns because the venue answered {stopper} it must stop.'
+        assert not check_wiki._obliged_purpose(said)
+
+    @pytest.mark.parametrize(
+        'obligation',
+        ['must', 'should', 'ought', 'need to', 'needs to', 'has to',
+         'have to', 'cannot be allowed'],
+    )
+    def test_every_obligation_is_read(self, obligation: str) -> None:
+        assert check_wiki._obliged_purpose(
+            f'It is refused because the host {obligation} agree.',
+        )
+
+    @pytest.mark.parametrize(
+        'reason', ['because', 'so that', 'lest', 'on the grounds that'],
+    )
+    def test_every_reason_is_read(self, reason: str) -> None:
+        assert check_wiki._obliged_purpose(
+            f'It is refused {reason} the host must agree.',
+        )
+
+    def test_a_reason_opening_a_sentence_is_read(self) -> None:
+        assert check_wiki._obliged_purpose('Because the host must agree.')
+
+    def test_a_hyphenated_word_holding_a_modal_passes(self) -> None:
+        said = 'It is held because the must-have field is missing.'
+        assert not check_wiki._obliged_purpose(said)
+
+    @pytest.mark.parametrize('rule', ['***', '---', '___', '* * *'])
+    def test_a_break_between_them_is_not_read_as_one(self, rule: str) -> None:
+        broken = (
+            f'It returned because the venue answered\n{rule}\n'
+            'A refusal must name its stage.'
+        )
+        assert not check_wiki._obliged_purpose(broken)
+
+    def test_prose_and_a_quote_after_it_are_not_read_as_one(self) -> None:
+        joined = 'It returns because the flag is set\n> The caller must retry.'
+        assert not check_wiki._obliged_purpose(joined)
+
+    def test_two_quoted_paragraphs_are_not_read_as_one(self) -> None:
+        quoted = (
+            '> It returns because the venue answered\n>\n'
+            '> A refusal must name its stage'
+        )
+        assert not check_wiki._obliged_purpose(quoted)
+
+    def test_a_bracketed_requirement_passes(self) -> None:
+        said = 'It returns because the venue answered [the caller must retry].'
+        assert not check_wiki._obliged_purpose(said)
+
+    def test_a_wrapped_purpose_is_still_read(self) -> None:
+        assert check_wiki._obliged_purpose('passed over because a venue\nmust answer')
+
+    @pytest.mark.parametrize('mark', ['*', '+', '> *', '> +'])
+    def test_two_list_items_are_not_read_as_one(self, mark: str) -> None:
+        listed = (
+            f'{mark} It returns because the venue answered\n'
+            f'{mark} A refusal must name its stage'
+        )
+        assert not check_wiki._obliged_purpose(listed)
+
+    def test_a_wrapped_list_item_is_still_one(self) -> None:
+        listed = (
+            '- It is refused because a venue that cannot be reached\n'
+            '  must not stop the host'
+        )
+        assert check_wiki._obliged_purpose(listed)
+
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param(
+                'It returned because the venue answered. A refusal must name '
+                'its stage.',
+                id='split-by-a-full-stop',
+            ),
+            pytest.param(
+                'It returned because the venue answered! A refusal must name '
+                'its stage.',
+                id='split-by-an-exclamation',
+            ),
+            pytest.param(
+                'Did it return because the venue answered? A refusal must '
+                'name its stage.',
+                id='split-by-a-question',
+            ),
+            pytest.param(
+                'It returned because the venue answered; a refusal must name '
+                'its stage.',
+                id='split-by-a-semicolon',
+            ),
+            pytest.param(
+                'It returns because the venue answered (the caller must still '
+                'retry).',
+                id='set-apart-in-brackets',
+            ),
+            pytest.param(
+                'It returns because the venue answered although the caller '
+                'must retry.',
+                id='a-clause-opened-by-although',
+            ),
+            pytest.param(
+                'It returns because the venue answered while the caller must '
+                'retry.',
+                id='a-clause-opened-by-while',
+            ),
+            pytest.param(
+                'It returns because the venue answered before the caller has '
+                'to retry.',
+                id='a-clause-opened-by-before',
+            ),
+            pytest.param(
+                'It returns because the venue answered when the caller must '
+                'retry.',
+                id='a-clause-opened-by-when',
+            ),
+            pytest.param(
+                'It returns because the venue answered unless the caller must '
+                'retry.',
+                id='a-clause-opened-by-unless',
+            ),
+            pytest.param(
+                'It is refused because ' + 'x' * 79 + ' must agree.',
+                id='an-obligation-one-past-the-window',
+            ),
+            pytest.param(
+                'It returned because the venue answered, and a refusal must '
+                'name its stage.',
+                id='split-by-a-comma',
+            ),
+            pytest.param(
+                'It returned because the venue answered \u2014 a refusal must '
+                'name its stage.',
+                id='split-by-an-em-dash',
+            ),
+            pytest.param(
+                'It returned because the venue answered \u2013 a refusal must '
+                'name its stage.',
+                id='split-by-an-en-dash',
+            ),
+            pytest.param(
+                'It returned because the venue answered -- a refusal must '
+                'name its stage.',
+                id='split-by-a-double-hyphen',
+            ),
+            pytest.param(
+                'It returned because the venue answered - a refusal must '
+                'name its stage.',
+                id='split-by-a-hyphen',
+            ),
+            pytest.param(
+                'Nothing has moved since Monday and the book must be fetched '
+                'again.',
+                id='a-temporal-since',
+            ),
+            pytest.param(
+                'Since Monday the book has to be fetched again.',
+                id='a-temporal-since-alone',
+            ),
+            pytest.param(
+                'It returns because the venue answered and the caller must '
+                'retry.',
+                id='a-coordinated-clause',
+            ),
+            pytest.param(
+                'It returns because the venue answered but the caller must '
+                'retry.',
+                id='a-clause-coordinated-by-but',
+            ),
+            pytest.param(
+                'It is refused because the host and venue must agree.',
+                id='a-compound-subject-goes-unread',
+            ),
+        ],
+    )
+    def test_a_cause_and_a_separate_requirement_pass(
+        self, sentence: str,
+    ) -> None:
+        assert not check_wiki._obliged_purpose(sentence)
+
+
+def _tests_the_folder(test: ast.expr) -> bool:
+    """Whether a condition asks which folder the page sits in, and says yes."""
+
+    return (
+        isinstance(test, ast.Compare)
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.Eq)
+        and 'parent' in ast.dump(test.left)
+    )
+
+
+def _page_checks(branch: str) -> tuple[str, ...]:
+
+    """Return the checks `_check_page` runs for one kind of page.
+
+    A check was once added to this list at the wrong indentation: it
+    landed in the spines branch twice and in the atoms branch not at
+    all, which is valid Python and ran green for a day. Reading both
+    branches off the source is what catches that.
+
+    A branch is told by the `if` it sits under, not by what it names,
+    so replacing that test with a constant takes its loop out of the
+    branch it claims rather than leaving the reading unchanged.
+
+    Args:
+        branch (str): 'atoms' or 'spines'.
+
+    Returns:
+        tuple[str, ...]: Each check called in that branch's loop.
+    """
+
+    tree = ast.parse(Path(check_wiki.__file__).read_text(encoding='utf-8'))
+    page = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == '_check_page'
+    )
+    wanted = 'spines' if branch == 'spines' else 'atoms'
+    found: list[str] = []
+    guarded = {
+        id(inner): ast.dump(node.test)
+        for node in ast.walk(page)
+        if isinstance(node, ast.If)
+        and _tests_the_folder(node.test)
+        for inner in ast.walk(node)
+        if isinstance(inner, ast.For)
+    }
+
+    for loop in (n for n in ast.walk(page) if isinstance(n, ast.For)):
+        if not isinstance(loop.iter, ast.Tuple):
+            continue
+
+        held = guarded.get(id(loop), '')
+
+        if 'spines' in held and wanted != 'spines':
+            continue
+
+        if wanted == 'spines' and 'spines' not in held:
+            continue
+
+        names = tuple(
+            call.func.id
+            for call in ast.walk(loop.iter)
+            if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+        )
+        if names:
+            found.extend(names)
+
+    return tuple(found)
+
+
+class TestEveryPageCheckIsWired:
+    SHARED = (
+        '_check_voice',
+        '_uncited_claims',
+        '_unlined_sources',
+        '_negative_definitions',
+        '_obliged_purpose',
+        '_bare_ordinals',
+        '_unspaced_headings',
+        '_check_metadata',
+        '_check_citations',
+    )
+
+    @pytest.mark.parametrize('named', SHARED)
+    def test_an_atom_is_held_to_it(self, named: str) -> None:
+        assert named in _page_checks('atoms')
+
+    @pytest.mark.parametrize('named', SHARED)
+    def test_a_spine_is_held_to_it(self, named: str) -> None:
+        assert named in _page_checks('spines')
+
+    @pytest.mark.parametrize('branch', ['atoms', 'spines'])
+    def test_no_check_is_run_twice(self, branch: str) -> None:
+        names = _page_checks(branch)
+        assert len(names) == len(set(names))
+
+
+class TestAStampInTheProse:
+
+    def test_a_moment_in_a_sentence_is_refused(self) -> None:
+        said = 'It asked for the `Created … Last modified 2026-10-18 11:00 UTC'
+        assert check_wiki._stamps_in_prose(said)
+
+    def test_a_pinning_prefix_on_a_sentence_is_refused(self) -> None:
+        said = 'Pinned at the venue on 2026-10-02 00:00 UTC the order left.'
+        assert check_wiki._stamps_in_prose(said)
+
+    def test_a_moment_wrapped_across_two_lines_is_refused(self) -> None:
+        said = 'It asked for the footer of 2026-10-18\n11:00 UTC gone.'
+        assert check_wiki._stamps_in_prose(said)
+
+    _SHOWN = 'It asked for 2026-10-01 00:00 UTC here.'
+
+    @pytest.mark.parametrize(
+        'fence', ['```', '~~~', '````'],
+        ids=['backticks', 'tildes', 'four-backticks'],
+    )
+    def test_a_moment_inside_a_fence_is_passed_over(self, fence: str) -> None:
+        fenced = f'{fence}\n{self._SHOWN}\n{fence}\n\nProse here.'
+        assert not check_wiki._stamps_in_prose(fenced)
+
+    @pytest.mark.parametrize(
+        'fence', ['```', '~~~', '````'],
+        ids=['backticks', 'tildes', 'four-backticks'],
+    )
+    def test_a_moment_outside_that_fence_is_still_refused(
+        self, fence: str,
+    ) -> None:
+        fenced = f'{fence}\nnothing here\n{fence}\n\n{self._SHOWN}'
+        assert check_wiki._stamps_in_prose(fenced)
+
+    def test_a_shorter_fence_inside_a_longer_one_does_not_close_it(
+        self,
+    ) -> None:
+        nested = f'````\n```\n{self._SHOWN}\n```\n````\n\nProse.'
+        assert not check_wiki._stamps_in_prose(nested)
+
+    def test_a_fence_naming_a_language_does_not_close_one(self) -> None:
+        tagged = f'```\n```python\n{self._SHOWN}\n```\n\nProse.'
+        assert not check_wiki._stamps_in_prose(tagged)
+
+    @pytest.mark.parametrize(
+        'after', ['', '## Next'], ids=['a-blank-line', 'a-heading'],
+    )
+    def test_a_quote_ending_closes_the_fence_it_opened(
+        self, after: str,
+    ) -> None:
+        ended = f'> ```\n> example\n{after}\n\n{self._SHOWN}'
+        assert check_wiki._stamps_in_prose(ended)
+
+    def test_a_backtick_run_opening_a_list_item_is_not_a_fence(self) -> None:
+        listed = f'- ```\n- {self._SHOWN}\n- ```\n\nProse.'
+        assert check_wiki._stamps_in_prose(listed), (
+            'three list items, not one fenced block: reading the run as a '
+            'fence hid the middle item'
+        )
+
+    def test_prose_after_a_list_holding_a_run_is_still_read(self) -> None:
+        listed = f'- ```\n  example\n\n{self._SHOWN}'
+        assert check_wiki._stamps_in_prose(listed)
+
+    def test_a_fence_inside_a_quote_is_still_a_fence(self) -> None:
+        quoted = f'> ```\n> {self._SHOWN}\n> ```\n\nProse.'
+        assert not check_wiki._stamps_in_prose(quoted)
+
+    def test_a_fence_of_the_other_mark_does_not_close_one(self) -> None:
+        crossed = f'```\n~~~\n{self._SHOWN}\n~~~\n```\n\nProse.'
+        assert not check_wiki._stamps_in_prose(crossed)
+
+    def test_a_longer_closer_of_the_same_mark_does_close_one(self) -> None:
+        shut = f'```\nnothing here\n````\n\n{self._SHOWN}'
+        assert check_wiki._stamps_in_prose(shut)
+
+    def test_a_whole_footer_quoted_in_a_sentence_is_refused(self) -> None:
+        footer = (
+            'Created 2026-10-01 00:00 UTC \u00b7 Last modified '
+            '2026-10-02 00:00 UTC'
+        )
+        assert check_wiki._stamps_in_prose(f'It quoted {footer} in a sentence.')
+
+    @pytest.mark.parametrize(
+        'line',
+        [
+            pytest.param(
+                'Created 2026-10-01 00:00 UTC \u00b7 Last modified '
+                '2026-10-02 00:00 UTC',
+                id='the-footer',
+            ),
+            pytest.param('modified: 2026-10-02 00:00 UTC', id='metadata'),
+            pytest.param('reviewed: 2026-10-02 00:00 UTC', id='a-review-stamp'),
+            pytest.param(
+                '| P1-01 | 2026-10-02 00:00 UTC | one |', id='a-table-row',
+            ),
+            pytest.param(
+                'Pinned at 2026-10-02 00:00 UTC', id='a-pinning-line',
+            ),
+        ],
+    )
+    def test_a_moment_where_it_belongs_passes(self, line: str) -> None:
+        assert not check_wiki._stamps_in_prose(line)
+
+
+class TestBareOrdinals:
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param(
+                'The fourth goes the other way: no release is worked out.',
+                id='renumbered-three-rounds-running',
+            ),
+            pytest.param('The third keeps it alone.', id='the-third'),
+            pytest.param('The third is refused.', id='the-third-is'),
+        ],
+    )
+    def test_an_ordinal_standing_for_a_thing_is_refused(
+        self, sentence: str,
+    ) -> None:
+        assert check_wiki._bare_ordinals(sentence)
+
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param('The fourth stage is capital.', id='qualifying-a-noun'),
+            pytest.param(
+                'A second walk comes back with nothing.',
+                id='qualifying-a-noun-before-a-verb',
+            ),
+            pytest.param(
+                'The third figure the fill reports is its value.',
+                id='qualifying-a-noun-with-a-clause',
+            ),
+        ],
+    )
+    def test_an_ordinal_qualifying_a_noun_passes(self, sentence: str) -> None:
+        assert not check_wiki._bare_ordinals(sentence)
+
+    def test_an_ordinal_past_the_seventh_is_read(self) -> None:
+        assert check_wiki._bare_ordinals('The eighth is a single figure.')
+
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param(
+                'A second is enough for the retry.', id='indefinite',
+            ),
+            pytest.param('The second goes by.', id='definite'),
+            pytest.param(
+                'Until the second has elapsed, nothing is sent.', id='clause',
+            ),
+        ],
+    )
+    def test_a_second_of_time_is_left_alone(self, sentence: str) -> None:
+        assert not check_wiki._bare_ordinals(sentence)
+
+    def test_a_month_in_that_slot_is_left_alone(self) -> None:
+        assert not check_wiki._bare_ordinals('The third May is the deadline.')
+
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param(
+                'The third pass checks the ledger.', id='noun-ending-in-s',
+            ),
+            pytest.param(
+                'The fourth process writes the record.', id='another-such-noun',
+            ),
+        ],
+    )
+    def test_a_noun_ending_in_s_is_not_read_as_a_verb(
+        self, sentence: str,
+    ) -> None:
+        assert not check_wiki._bare_ordinals(sentence)
+
+    def test_a_first_earlier_on_the_same_line_anchors_it(self) -> None:
+        line = 'The first weighs the order. The third weighs the budget.'
+        assert not check_wiki._bare_ordinals(line)
+
+    def test_a_first_later_on_the_same_line_does_not(self) -> None:
+        line = 'The third weighs the budget. The first weighs the order.'
+        assert check_wiki._bare_ordinals(line)
+
+    def test_a_heading_is_not_read_for_it(self) -> None:
+        heading = '## The fourth is refused'
+        assert check_wiki._bare_ordinals(heading.lstrip('# '))
+        assert not check_wiki._bare_ordinals(heading)
+
+    def test_an_ordinal_after_a_first_in_the_same_section_passes(self) -> None:
+        body = (
+            '## Four limits\n\nThe first weighs the order.\n\n'
+            'The third weighs the budget.\n'
+        )
+        assert not check_wiki._bare_ordinals(body)
+
+    def test_an_ordinal_whose_first_is_in_another_section_is_refused(
+        self,
+    ) -> None:
+        body = (
+            '## The order\n\nThe first keeps the order.\n\n'
+            '## The money\n\nThe third keeps the money.\n'
+        )
+        assert check_wiki._bare_ordinals(body)
+
+    @pytest.mark.parametrize(
+        'noun', ['hold', 'holds', 'read', 'reads', 'leave', 'leaves'],
+    )
+    def test_an_ordinal_qualifying_a_noun_or_its_plural_passes(
+        self, noun: str,
+    ) -> None:
+        assert not check_wiki._bare_ordinals(f'The third {noun} keeps it.')
+
+    _VERBS = (
+        'is', 'was', 'does', 'has', 'can', 'will', 'comes', 'goes', 'takes',
+        'keeps', 'weighs', 'gives', 'adds', 'refuses',
+    )
+    _ORDINALS = (
+        'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth',
+        'tenth',
+    )
+
+    def test_the_verb_list_is_the_one_written_here(self) -> None:
+        assert tuple(check_wiki._STANDS_ALONE.split('|')) == self._VERBS
+
+    def test_the_ordinal_list_is_the_one_written_here(self) -> None:
+        assert tuple(check_wiki._ORDINALS.split('|')) == self._ORDINALS
+
+    @pytest.mark.parametrize('verb', _VERBS)
+    def test_every_verb_in_the_list_is_read(self, verb: str) -> None:
+        assert check_wiki._bare_ordinals(f'The third {verb} it.')
+
+    @pytest.mark.parametrize('ordinal', _ORDINALS)
+    def test_every_ordinal_in_the_list_is_read(self, ordinal: str) -> None:
+        assert check_wiki._bare_ordinals(f'The {ordinal} is refused.')
+
+    def test_a_wrapped_ordinal_is_still_read(self) -> None:
+        assert check_wiki._bare_ordinals('The third\nkeeps the money.')
+
+    def test_a_first_in_another_list_item_still_anchors_it(self) -> None:
+        listed = '- The first weighs it\n- The third weighs it'
+        assert not check_wiki._bare_ordinals(listed)
+
+
+    def test_an_emphasised_first_still_anchors_it(self) -> None:
+        said = 'The *first* weighs the order. The third weighs the budget.'
+        assert not check_wiki._bare_ordinals(said)
+
+    def test_a_first_wrapped_before_it_still_anchors_it(self) -> None:
+        body = '## A\n\nThe\nfirst weighs the order. The third weighs it.\n'
+        assert not check_wiki._bare_ordinals(body)
+
+    @pytest.mark.parametrize(
+        'sentence',
+        [
+            pytest.param('A third is held in reserve.', id='a-fraction'),
+            pytest.param('A fourth is refused.', id='another-one'),
+            pytest.param(
+                'It failed. A fourth goes the other way.', id='after-a-stop',
+            ),
+        ],
+    )
+    def test_an_indefinite_ordinal_goes_unread(self, sentence: str) -> None:
+        assert not check_wiki._bare_ordinals(sentence)
+
+
 class TestOwnedTerms:
     def test_first_prose_mention_must_carry_its_link(self, tmp_path: Path) -> None:
         page = tmp_path / 'other.md'
@@ -1080,9 +1770,20 @@ class TestTheWikiItself:
 
 class TestTheLedgerRows:
 
+    def test_a_span_across_two_series_names_nothing(self) -> None:
+        assert check_wiki._ledger_listed('N2-01 to P2-03') == set()
+
+    def test_a_span_across_two_packages_names_nothing(self) -> None:
+        assert check_wiki._ledger_listed('N2-01 to N3-03') == set()
+
     def test_a_span_expands(self) -> None:
         assert check_wiki._ledger_listed('P4-01, P4-03 to P4-05') == {
             'P4-01', 'P4-03', 'P4-04', 'P4-05',
+        }
+
+    def test_a_nexus_span_expands_too(self) -> None:
+        assert check_wiki._ledger_listed('N2-01 to N2-03') == {
+            'N2-01', 'N2-02', 'N2-03',
         }
 
     def test_a_phrase_names_no_row(self) -> None:
@@ -1220,7 +1921,7 @@ class TestTheCountedStates:
 
     def test_a_drifted_nexus_count_is_caught(self, tmp_path: Path) -> None:
         page = tmp_path / 'README.md'
-        page.write_text('13 are cited in passing.', encoding='utf-8')
+        page.write_text('13 are named.', encoding='utf-8')
         kept = check_wiki.README
         check_wiki.README = page
 
@@ -1229,7 +1930,44 @@ class TestTheCountedStates:
         finally:
             check_wiki.README = kept
 
-        assert any('13 are cited in passing' in f for f in failures)
+        assert any('13 are named' in f for f in failures)
+
+    @pytest.mark.parametrize(
+        ('written', 'quoted'),
+        [
+            pytest.param('99 carry a row.', '99 carry a row', id='owned'),
+            pytest.param(
+                '99 are reached by an article.', '99 are reached by an',
+                id='cited-only',
+            ),
+            pytest.param(
+                'The other 99 carry a row.', 'The other 99 carry a row',
+                id='owned-as-the-ledger-writes-it',
+            ),
+            pytest.param(
+                '99 of the modules listed are cited.',
+                '99 of the modules listed', id='cited-as-the-ledger-writes-it',
+            ),
+            pytest.param(
+                'The 99 with no row are next.', 'The 99 with no row',
+                id='unowned',
+            ),
+        ],
+    )
+    def test_a_drifted_nexus_subtotal_is_caught(
+        self, tmp_path: Path, written: str, quoted: str,
+    ) -> None:
+        page = tmp_path / 'README.md'
+        page.write_text(written, encoding='utf-8')
+        kept = check_wiki.README
+        check_wiki.README = page
+
+        try:
+            failures = check_wiki._counted_states()
+        finally:
+            check_wiki.README = kept
+
+        assert any(quoted in f for f in failures), failures
 
     def test_one_file_under_two_names_is_still_one_file(self) -> None:
         notes = check_wiki._docstring_citations(
@@ -1549,14 +2287,10 @@ class TestWholeRanges:
         reason='the Nexus rows are checked only where that tree is present',
     )
     def test_a_cited_nexus_file_no_row_names_is_caught(self) -> None:
-        failures = check_wiki._nexus_ledger_rows(
-            {'nexus/core/domain/capital_state.py': {'P2-11'}}, {},
-        )
+        unrowed = 'nexus/core/capital_controller/lifecycle_result.py'
+        failures = check_wiki._nexus_ledger_rows({unrowed: {'P2-11'}}, {})
 
-        assert any(
-            'nexus/core/domain/capital_state.py is cited but not named' in f
-            for f in failures
-        )
+        assert any(f'{unrowed} is cited but not named' in f for f in failures)
 
     @_NEEDS_BASELINE
     @pytest.mark.skipif(
@@ -4978,17 +5712,53 @@ class TestWhatABreakLeaves:
         assert 'break' in check_wiki._block_ways(self._body(source))
 
 
-class TestTheGateWiring:
-    CHECKS = (
-        '_ledger_coverage',
-        '_ledger_rows',
-        '_counted_states',
-        '_latest_release_counts',
-        '_index_coverage',
-        '_index_vocabulary',
-        '_pinned_table',
-        '_finding_citations',
+def _gate_checks() -> tuple[str, ...]:
+
+    """Return the name of every check `main` adds to its failures.
+
+    The list of checks the wiring tests cover was written by hand, and
+    three checks had been added to the gate without reaching it. Reading
+    it off `main` is what stops a fourth.
+
+    Returns:
+        tuple[str, ...]: Each name, in the order the gate runs it.
+    """
+
+    tree = ast.parse(Path(check_wiki.__file__).read_text(encoding='utf-8'))
+    main = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == 'main'
     )
+
+    return tuple(
+        node.value.func.id
+        for node in ast.walk(main)
+        if isinstance(node, ast.AugAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == 'failures'
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+    )
+
+
+class TestTheGateWiring:
+    CHECKS = _gate_checks()
+
+    def test_the_gates_checks_were_found(self) -> None:
+        assert len(self.CHECKS) == len(set(self.CHECKS))
+        assert set(self.CHECKS) >= {
+            '_ledger_coverage',
+            '_ledger_rows',
+            '_counted_states',
+            '_latest_release_counts',
+            '_index_coverage',
+            '_index_vocabulary',
+            '_index_sections',
+            '_pinned_table',
+            '_finding_citations',
+            '_review_states',
+            '_reviewed_versions',
+        }
 
     def _stub(
         self, wiki: Path, monkeypatch: pytest.MonkeyPatch,
@@ -5155,6 +5925,49 @@ class TestWhatTheMetadataMustLookLike:
 
     def test_the_shape_the_wiki_writes_passes(self) -> None:
         assert check_wiki._metadata_shape(self._GOOD) == []
+
+    @pytest.mark.parametrize(
+        'before',
+        ['baseline:', 'created:', 'modified:', 'evidence:'],
+        ids=['second', 'third', 'fourth', 'before-the-evidence'],
+    )
+    def test_a_review_stamp_passes_wherever_it_sits(self, before: str) -> None:
+        stamped = self._GOOD.replace(
+            before, 'reviewed: 2099-01-01 00:00 UTC\n' + before, 1,
+        )
+        assert check_wiki._metadata_shape(stamped) == []
+
+    def test_a_review_stamp_past_the_evidence_list_passes(self) -> None:
+        stamped = self._GOOD + '\nreviewed: 2099-01-01 00:00 UTC'
+        assert check_wiki._metadata_shape(stamped) == []
+
+    def test_a_review_stamp_inside_the_evidence_list_is_refused(self) -> None:
+        stamped = self._GOOD.replace(
+            '    source:', 'reviewed: 2099-01-01 00:00 UTC\n    source:', 1,
+        )
+        notes = check_wiki._metadata_shape(stamped)
+        assert any('middle of its evidence' in note for note in notes), notes
+
+    @pytest.mark.parametrize(
+        'written', ['reviewed', 'reviewed:', 'reviewed:   '],
+        ids=['no-colon', 'colon-alone', 'only-spaces'],
+    )
+    def test_a_review_stamp_with_no_version_is_refused(
+        self, written: str,
+    ) -> None:
+        stamped = self._GOOD.replace('evidence:', written + '\nevidence:', 1)
+        notes = check_wiki._metadata_shape(stamped)
+        assert any('without a value' in note for note in notes), notes
+
+    def test_two_review_stamps_are_refused(self) -> None:
+        both = (
+            'reviewed: 2099-01-01 00:00 UTC\n'
+            'reviewed: 2099-01-02 00:00 UTC\nevidence:'
+        )
+        notes = check_wiki._metadata_shape(
+            self._GOOD.replace('evidence:', both, 1),
+        )
+        assert any('more than once' in note for note in notes), notes
 
     def test_a_printable_character_outside_ascii_passes(self) -> None:
         held = check_wiki._metadata_shape(
@@ -5536,6 +6349,22 @@ class TestEveryRuleThePageWalkRuns:
 
         assert any('which does not exist' in note for note in held), held
 
+    def test_a_moment_on_a_page_outside_the_atoms_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(check_wiki, '_last_commit_date', lambda _p: '2026-01-01')
+        page = tmp_path / 'register.md'
+        page.write_text(
+            '# Register\n\nIt asked for the `Created … Last modified '
+            '2026-10-18 11:00 UTC\n\n---\n\nCreated 2099-01-01 00:00 UTC '
+            '\u00b7 Last modified 2099-01-01 00:00 UTC\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
+        held = check_wiki._check_page(page, {'P1-01'}, check_wiki._SourceFacts())
+
+        assert any('prose carries a moment' in note for note in held), held
+
     def test_a_page_breaking_no_rule_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -5613,6 +6442,27 @@ class TestEveryRuleThePageWalkRuns:
                 _GOOD.replace('`order.py` 3', '`order.py` 99'),
                 'past end of file',
                 id='citation-past-the-end',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'A thing that is so.',
+                    'It asked for the footer of 2026-10-18 11:00 UTC gone.',
+                ),
+                'prose carries a moment',
+                id='a-moment-in-the-prose',
+            ),
+            pytest.param(
+                _GOOD.replace(
+                    'A thing that is so.',
+                    'It is refused because the host must agree.',
+                ),
+                'under no obligation to serve',
+                id='a-purpose-the-code-is-not-under',
+            ),
+            pytest.param(
+                _GOOD.replace('A thing that is so.', 'The third is refused.'),
+                'ordinal stands in for a thing',
+                id='an-ordinal-standing-alone',
             ),
         ],
     )
@@ -6037,7 +6887,12 @@ class TestHowACountIsRead:
                 '46 are `full`, 38\n`partial` and 4 `uncovered`',
                 '46',
             ),
-            ('NEXUS_COUNT_RE', '21 are cited in\npassing', '21'),
+            ('NEXUS_COUNT_RE', '21 are\nnamed', '21'),
+            ('NEXUS_OWNED_RE', '12 carry a\nrow', '12'),
+            ('NEXUS_OWNED_ALT_RE', 'The other 12\ncarry a row', '12'),
+            ('NEXUS_CITED_ALT_RE', '9 of the\nmodules listed', '9'),
+            ('NEXUS_UNOWNED_RE', 'The 9 with\nno row', '9'),
+            ('NEXUS_CITED_RE', '9 are reached by\nan', '9'),
             ('NEXUS_TOTAL_RE', 'the 70\nin Nexus', '70'),
             ('NEXUS_UNTOUCHED_RE', '49\nuntouched', '49'),
             (
@@ -6118,6 +6973,216 @@ class TestWhichWordCarriesATerm:
         )
 
         assert held == []
+
+class TestWhatARowsStateMeans:
+
+    @staticmethod
+    def _held(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        rows: str,
+        index: str = '# How it works\n',
+    ) -> list[str]:
+        register = tmp_path / 'register.md'
+        register.write_text(rows, encoding='utf-8')
+        readme = tmp_path / 'README.md'
+        readme.write_text(index, encoding='utf-8')
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
+        monkeypatch.setattr(check_wiki, 'README', readme)
+        held: list[str] = check_wiki._review_states()
+
+        return held
+
+    def test_the_two_states_stand(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        rows = (
+            '| P1-01 | One | written | [a](atoms/a.md) |\n'
+            '| P1-02 | Two | reviewed | [b](atoms/b.md) |\n'
+            '**1 of them reviewed, 1 not.**\n'
+        )
+
+        assert self._held(tmp_path, monkeypatch, rows) == []
+
+    @pytest.mark.parametrize(
+        ('said', 'quoted'),
+        [
+            pytest.param(
+                '**9 of them reviewed, 1 not.**', '9 of them reviewed, 1 not',
+                id='the-reviewed-count-adrift',
+            ),
+            pytest.param(
+                '**1 of them reviewed, 9 not.**', '1 of them reviewed, 9 not',
+                id='the-unreviewed-count-adrift',
+            ),
+        ],
+    )
+    def test_either_count_adrift_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        said: str, quoted: str,
+    ) -> None:
+        rows = (
+            '| P1-01 | One | written | [a](atoms/a.md) |\n'
+            '| P1-02 | Two | reviewed | [b](atoms/b.md) |\n'
+            f'{said}\n'
+        )
+        held = self._held(tmp_path, monkeypatch, rows)
+
+        assert any(quoted in note for note in held), held
+
+    def test_a_word_running_on_from_not_is_not_the_count(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        rows = (
+            '| P1-01 | One | written | [a](atoms/a.md) |\n'
+            '| P1-02 | Two | reviewed | [b](atoms/b.md) |\n'
+            '**9 of them reviewed, 9 notes.**\n'
+        )
+
+        assert self._held(tmp_path, monkeypatch, rows) == []
+
+    @pytest.mark.parametrize(
+        'state', ['done', 'Reviewed', 'REVIEWED', 'in-review', ' '],
+        ids=['a-word', 'capitalised', 'shouted', 'hyphenated', 'nothing'],
+    )
+    def test_any_other_word_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str,
+    ) -> None:
+        rows = (
+            f'| P1-01 | One | {state} | [a](atoms/a.md) |\n'
+            '**0 of them reviewed, 1 not.**\n'
+        )
+        held = self._held(tmp_path, monkeypatch, rows)
+
+        assert any('neither written nor reviewed' in note for note in held), held
+
+    def test_a_count_on_the_index_is_read_too(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        rows = (
+            '| P1-01 | One | written | [a](atoms/a.md) |\n'
+            '**0 of them reviewed, 1 not.**\n'
+        )
+        held = self._held(
+            tmp_path, monkeypatch, rows,
+            index='**9 of them reviewed, 9 not.**\n',
+        )
+
+        assert any('9 of them reviewed' in note for note in held), held
+
+    def test_a_count_disagreeing_with_the_table_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        rows = (
+            '| P1-01 | One | written | [a](atoms/a.md) |\n'
+            '**1 of them reviewed, 0 not.**\n'
+        )
+        held = self._held(tmp_path, monkeypatch, rows)
+
+        assert any('against 0 reviewed and 1 not' in note for note in held), held
+
+    def test_a_register_stating_no_count_is_left_alone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        rows = '| P1-01 | One | written | [a](atoms/a.md) |\n'
+
+        assert self._held(tmp_path, monkeypatch, rows) == []
+
+
+class TestWhichVersionWasReviewed:
+
+    @staticmethod
+    def _held(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: str, stamps: str,
+    ) -> list[str]:
+        atoms = tmp_path / 'atoms'
+        atoms.mkdir()
+        (atoms / 'a.md').write_text(
+            f'---\nrow: N1-01\nbaseline: 49aa659\n'
+            f'created: 2026-10-01 00:00 UTC\n{stamps}'
+            'evidence:\n  - claim: "A thing"\n    source: "`a.py` 1"\n'
+            '---\n# A\n\nProse.\n',
+            encoding='utf-8',
+        )
+        register = tmp_path / 'register.md'
+        register.write_text(
+            f'| N1-01 | A | {state} | [a.md](atoms/a.md) |\n', encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
+        monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
+        held: list[str] = check_wiki._reviewed_versions()
+
+        return held
+
+    def test_a_written_row_needs_no_version(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            tmp_path, monkeypatch, 'written', 'modified: 2026-10-02 00:00 UTC\n',
+        )
+
+        assert held == []
+
+    def test_a_reviewed_row_naming_no_version_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            tmp_path, monkeypatch, 'reviewed', 'modified: 2026-10-02 00:00 UTC\n',
+        )
+
+        assert any('names no version reviewed' in note for note in held), held
+
+    def test_a_review_older_than_the_article_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            tmp_path, monkeypatch, 'reviewed',
+            'modified: 2026-10-02 00:00 UTC\nreviewed: 2026-10-01 00:00 UTC\n',
+        )
+
+        assert any('no longer covers it' in note for note in held), held
+
+    def test_a_review_of_what_is_there_stands(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            tmp_path, monkeypatch, 'reviewed',
+            'modified: 2026-10-02 00:00 UTC\nreviewed: 2026-10-02 00:00 UTC\n',
+        )
+
+        assert held == []
+
+    def test_a_reviewed_row_naming_no_change_at_all_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            tmp_path, monkeypatch, 'reviewed', 'reviewed: 2026-10-02 00:00 UTC\n',
+        )
+
+        assert any('no version at all' in note for note in held), held
+
+    def test_a_review_newer_than_the_article_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        held = self._held(
+            tmp_path, monkeypatch, 'reviewed',
+            'modified: 2026-10-02 00:00 UTC\nreviewed: 2026-10-03 00:00 UTC\n',
+        )
+
+        assert any('never existed' in note for note in held), held
+
+    def test_a_reviewed_row_whose_article_is_gone_is_passed_over(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        register = tmp_path / 'register.md'
+        register.write_text(
+            '| N1-01 | A | reviewed | [a.md](atoms/a.md) |\n', encoding='utf-8',
+        )
+        monkeypatch.setattr(check_wiki, 'REGISTER', register)
+        monkeypatch.setattr(check_wiki, 'WIKI', tmp_path)
+
+        assert check_wiki._reviewed_versions() == []
+
 
 class TestWhatASpineProves:
 

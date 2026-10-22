@@ -2,7 +2,106 @@
 
 One row per topic. A row exists before its article does. No row, no trace; no trace, no article.
 
-Status: `seeded` approved but not traced · `traced` evidence gathered · `written` article exists · `reviewed` reviewer re-derived it from source.
+Status: `written` the article exists · `reviewed` a reviewer re-derived it from source, at the version its metadata names. A row carrying any other word is refused.
+
+## A reviewer finding declined, with its reason
+
+The verify stage twice asked for the `Created … Last modified …` footer to be
+removed from the articles under review, as apparatus outside the front matter.
+It is declined, and the same answer holds for any article: the footer is the
+convention on all of them, the check knows it by name and excludes it from the
+word count, and removing it from three would make those three the odd ones out
+rather than fix anything. Changing it is a wiki-wide decision, not a finding
+against an article. The reviewer withdrew it once on exactly that ground before
+raising it again.
+
+## A count that renumbers
+
+Three verify rounds running moved the same number. An article said three
+endings leave a position alone, then four, then five, each round turning up a
+branch the last had missed, and the sentence after it read "a fourth goes the
+other way" — an ordinal whose meaning came from the count before it. The sixth
+round found two more, which are the ones that turn an outcome back before any
+handling at all.
+
+The count was the writer's grouping, not the code's. Where the code enumerates —
+six stages in the walk — a number is a fact with a source. Where the writer
+groups branches, it is an arrangement that the next reading undoes. The gate
+refuses an ordinal standing in for a thing, since that is the form whose
+meaning lives in a count nothing holds; an ordinal qualifying a noun says what
+it counts and is left alone.
+
+A tally of part of a group was refused too, at first. Running that across every
+article showed what the form does not separate: "nine of the ten are logged as a
+warning" is a fact with a source, and "only two of them read the order" was the
+writer's grouping. The gate cannot tell those apart, and refusing both would
+have meant rewriting a dozen correct sentences, so that half was withdrawn after
+one pass over the corpus.
+
+What survives is the definite ordinal with no anchor. One after a *first* in
+the same section is left alone — the reader has the list in front of them — and
+one whose first is in another section, or nowhere, is refused.
+
+The indefinite form goes unread. *A third* is a fraction, *a second* is usually
+a length of time, and *a fourth* is as often another one as the one numbered
+four, none of which a pattern separates from the defect. The same judgement
+settled the purpose check, which stops at any word opening
+another clause and so lets a compound subject past: a check that blocks
+correct prose costs more than one that misses, every time.
+
+*that* is the exception, and it is deliberate. The defect the check exists for
+reads "because a venue that cannot be reached must not leave the host unable to
+stop", so a relative clause sits inside the real case and cannot open an
+exemption. An obligation inside a noun phrase is therefore refused,
+whether the clause is marked — "a response that the caller must acknowledge" —
+or not — "the size the position must release has moved". The writer rewords
+them. That is the one known false positive, kept because dropping it would
+cost the catch.
+
+## A purpose the code is not under
+
+Four verify rounds running turned up the same defect in different articles: a
+true fact with a reason attached that the code does not hold. The bypass skipped
+five stages for an exit, and the article said those were the conditions an urgent
+exit most needs to get out under — the bypass tests no urgency. The shutdown
+passed over a failed send, and the article said a venue that cannot be reached
+must not leave the host unable to stop — the code catches every exception and
+names no venue.
+
+The signal both share is a purpose clause carrying an obligation: *because*,
+*so that*, *lest* or *on the grounds that*, and then *must*, *should*, *ought*
+or *needs to*. Code holds conditions, so a reason given as something the
+system is obliged to do is the writer explaining rather than reporting. The
+gate refuses that pairing and leaves a bare cause alone, a cause being a fact
+about the path: an order the
+venue rejects is recorded as a success because the venue answered.
+
+## What a row's state means
+
+A row is `written` or `reviewed`. Reviewed means a reviewer re-derived the article
+from the source its claims cite, and whatever that turned up was settled — fixed,
+or declined with a reason on this page. Reading it and agreeing it sounds right is
+not that, and neither is a review that found things nobody acted on.
+
+Review is a fact about a version, not something a page keeps. A row reading
+`reviewed` names the version it covers in the article's own metadata, and the
+check refuses it where that stamp is absent, older than the article's last
+change, or later than it — a review cannot cover a version that never existed.
+Editing a reviewed article therefore un-reviews it, with no judgement needed
+from anyone.
+
+The check also refuses any other word in that column, and a count that disagrees
+with the table, so the unreviewed rows are a number on this page rather than an
+absence nobody sees.
+
+**The count below read zero for a long time because the rule was wrong.** It was
+set to mean a verify pass that returned nothing at all, which an asked reviewer
+almost never does: the last pass over three articles returned thirty-two findings
+of `supported` against a handful of corrections, and still read as not reviewed.
+A review that finds things, has them fixed, and is confirmed against the fixed
+text is a review. One that finds things nobody acts on is not.
+
+**7 of them reviewed, 151 not.**
 
 ## Package 1
 
@@ -142,7 +241,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 21 are cited in passing by a Praxis article or a recorded finding, and six of those carry a row — the two policy reactions a reported finding runs into, the answers they choose from, and the mode controller and manifest those answers reach. The 49 untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 37 are named and 33 untouched. Of the 37, 25 carry a row of their own and 12 are reached by an article that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -266,6 +365,287 @@ the watch returning before its deadline in P4-42, and squaring an order making
 no filled ending of its own in P4-55. Nothing on the Praxis side is seeded and
 unwritten; the Nexus side below is where the packages go next.
 
+## Nexus package 1 — Seed output
+
+Approved for tracing, not a claim of completeness. The reviewer challenged the
+candidate list, added one subject it missed, narrowed one that was too broad, and
+set the order below as a tracing order rather than a claim that these five things
+happen in sequence. Pinned at Nexus `953477a`; paths below are under `nexus/`.
+
+| Order | Topic | The bounded question, and why here |
+|---|---|---|
+| 1 | The checks a decision passes | What decides which checks run, where validation stops, and what an allowed decision carries out of it — `core/validator/pipeline_executor.py` 45-78 and 162-176, `core/validator/pipeline_models.py` 50-57, with abort actions taking a separate road at `strategy/action_submit.py` 201-203. First, because it establishes the route the rest hang off |
+| 2 | How Nexus sets money aside | Already written as N1-01, retained with its scope. It gives the reservation the checks carry out of them a meaning |
+| 3 | What Nexus does when a command does not get across | Already written as N1-02, retained. Traced after the reservation so what is released or kept has a defined object |
+| 4 | Outcomes waiting on a strategy | An outcome that cannot yet be matched to a strategy is parked, later outcomes for that command queue behind it, and the queue is drained or discarded — `core/outcome_loop.py` 209-231, 278-304 and 327-343. The subject the candidate list missed: the handover is hard to follow without the return-side race |
+| 5 | What an entry outcome changes | How an acknowledgement, a fill, a refusal, a cancellation and an expiry each move an entry's tracked capital, and when its position grows — `infrastructure/praxis_connector/outcome_processor.py` 191-209, 224-239, 256-258, 305-355 and 473-490 |
+
+Both already-written topics survived the challenge with their scope intact. They
+entered out of order, which the note below records; the fix is the package's
+boundaries, not a retrospective case for having picked them.
+
+### Merge and promote, topic one
+
+The one-sentence test on each harvest row from tracing the checks: merge where one
+sentence expresses alternative conditions for the same answer, split where it must
+answer an additional independent question.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-071 | The checks run in a configured order, which by default is intake, risk, price, capital, health, platform limits. | Promoted into N1-03, which states the list and that it is given rather than fixed |
+| Row H-072 | For an exit, an abort, a cancel or a change, five of the six are skipped and only intake runs. | Merged into N1-03 with H-071, one sentence with alternative conditions for the same answer |
+| Row H-073 | A stage answering with the wrong shape, or denying in another stage's name, raises rather than passing. | Promoted, then split out to N1-04 at the verify stage: the shape an answer must take is an additional independent question, and the trace had missed that a refusal must name a stage, a reason and a message while an allowance carries none |
+| Row H-074 | A denial carries forward a reservation an earlier stage granted, where it has none of its own. | Promoted into N1-03, which states it as the reason a refusal has something to give back |
+| Row H-075 | An abort reaches Praxis by a road that does not use this result at all. | Queue as its own candidate. "And also, how does an abort get there?" is an additional independent question, so the test splits it |
+
+The topic was written as one article and came back from verify at 453 words,
+which the cap makes a split rather than a trim. N1-03 keeps the order, the
+skipping and what a decision carries out; N1-04 takes the shape an answer
+must have. H-075 went to the queue below rather than widening either.
+
+### Merge and promote, topic four
+
+The one-sentence test on the six rows from tracing an outcome that cannot be
+matched to a strategy.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-076 | An outcome that cannot be matched is parked under its command's name, with a first retry due shortly after. | Promote. It is the topic's own answer |
+| Row H-077 | A later outcome for that command queues behind it rather than being tried. | Merge with H-076: "the first is parked, the rest queue behind it" is one answer with alternative conditions |
+| Row H-078 | Only the head is retried, and the rest drain behind it once it resolves. | Merge with H-076: still the one answer, about how the queue empties |
+| Row H-079 | A sibling that will not resolve mid-drain becomes the new head. | Merge with H-078: the same answer under a further condition |
+| Row H-080 | A head still outstanding past the last retry has the whole queue discarded and logged. | Merge. "How does the queue end?" has two endings, drained or discarded, which is one answer with alternative conditions rather than a second question |
+| Row H-081 | A queue not yet due is passed over for that pass entirely. | Merge with H-078, which it qualifies: when the head is retried |
+
+All six fold into one row. Nothing splits out, so the topic is one article.
+
+### Merge and promote, topic five
+
+The one-sentence test on the eleven rows from tracing what an outcome for an
+entry moves.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-082 | The outcome's type chooses the handler, and an expiry has none of its own. | Promote. It is the frame the rest of the answer hangs on |
+| Row H-083 | An outcome seen before, or naming a command its context does not, is turned back before any handler runs. | Merge with H-082: "what does this outcome change?" answered with "nothing, and here is why" is the same answer under a further condition |
+| Row H-084 | The name of an outcome that succeeded is recorded. | Merge with H-083, which cannot work without it |
+| Row H-085 | An acknowledgement moves an entry's money from sent to resting. | Promote. It is the topic's own answer |
+| Row H-086 | A fill moves what filled, with its fees, from resting into the position, and a finishing one releases the rest. | Merge with H-085: the same answer for another kind of outcome |
+| Row H-087 | A fee shortfall bigger than the reserve refuses the fill's move. | Merge with H-086, which it qualifies |
+| Row H-090 | A refusal or a cancellation gives back what the order still holds. | Merge with H-085: still the one answer, for the two kinds that end an order early |
+| Row H-091 | A failed giving-back ends an entry's outcome as a failure, where an exit's is passed over. | Merge with H-090, which it qualifies |
+| Row H-088 | The position's size, entry price and cost basis are re-averaged over the new size. | Promote. The money and the position are two things one outcome moves, which is one answer about what changes |
+| Row H-089 | An entry fill with no trade, or no position under it, raises. | Merge with H-088, which it qualifies |
+| Row H-092 | No profit or loss is realized for an entry, so no risk figure moves. | Merge with H-088: it bounds the same answer |
+
+All eleven fold into one row. Written as one article it came back at 333 words,
+which the cap makes a split rather than a trim. N1-06 keeps the dispatch, the
+two outcomes that change nothing and the money each kind moves; N1-07 takes the
+position, which is the other thing a fill moves and the one an exit moves the
+other way.
+
+### Queued by this Seed, not in this package
+
+Necessary Nexus subjects the challenge named, each with what proves it is
+behaviour. They enter a later package rather than enlarging this one.
+
+| Candidate | What proves it |
+|---|---|
+| How an abort reaches Praxis | `nexus/strategy/action_submit.py` 201-203 submits it by a road that does not use the pipeline's result, so the stage skipping is not the whole account — split out of topic one by the merge test as H-075 |
+| The events that ask a strategy to act | `strategy/timer_loop.py` 111-126 and `core/outcome_loop.py` 401-437 both reach a strategy, serialised under its lock at `strategy/executor.py` 76-77, 96-97 and 116-117. The prediction loop is one source of decisions, not the only one |
+| Open positions valued at market prices | `core/mtm_loop.py` 229-246 abandons a tick with no usable mark; 271-309 works out unrealised profit and moves account risk with no execution outcome involved |
+| Equity peaks and drawdown | `core/domain/risk_state.py` 238-270 keeps separate peaks and derives both the current and the worst drawdown |
+| Losses counted over rolling windows | `infrastructure/loss_derivation.py` 39-45 and 87-121 sum only negative results into three windows, profits never offsetting them; `infrastructure/state_store.py` 377-390 refreshes and clears them |
+| Nexus state recovered from its own record | `infrastructure/state_store.py` 259-274 and 286-333, `infrastructure/snapshot.py` 45-53, and `infrastructure/wal.py` 200-220 stopping at a damaged record |
+| Stopping Nexus strategies | `startup/shutdown_sequencer.py` 183-196, 343-386 permitting only exits and aborts, and 614-627 escalating what is still pending |
+| Exit ownership and what is left to sell | `core/validator/intake_stage.py` 237-285 requires a position the asking strategy owns and limits the exit by what is already pending |
+
+Tracing was expected to turn up more, and the re-seed below records what it did:
+exit accounting, dust and fund movements, and the capital lifecycle past its
+first reservation each arrived with evidence. The detailed admission rules,
+persistence across a restart and trading permission are still expected. Each
+enters this queue with its evidence. None of them enlarges this package, and a topic that will not fit
+the template comes back as a narrower five rather than a sixth.
+
+### Re-seed, after writing package 1
+
+What the five traces turned up that no article in this package reaches. These
+enter the next Seed as candidates with their evidence, not as approved topics.
+Paths are under `nexus/`.
+
+| Candidate | What proves it |
+|---|---|
+| What an exit outcome changes | `infrastructure/praxis_connector/outcome_processor.py` 494-597 reduces the position and reports a profit or loss, 358-438 works out what the exit releases, and `core/capital_controller/capital_controller.py` 692-700 gives it back. Promised by both articles here that stop at the entry, and the larger half of the subject |
+| Where a position's last scraps go | `infrastructure/praxis_connector/outcome_processor.py` 576-580 moves a residue too small to sell into the account's dust, and 614-630 closes a position that way with no venue order at all |
+| A deposit the venue reports | `infrastructure/praxis_connector/outcome_processor.py` 718-757 records it, drops a repeat, and deliberately leaves the pool alone, so money arriving in the account buys nothing |
+| Where a realized result is written down | `infrastructure/praxis_connector/outcome_processor.py` 268-291 appends the event under the risk lock before the in-memory figures move, which is the order that keeps the two in step |
+| Stranded money found at boot | `core/capital_controller/capital_controller.py` 129-198 resets aggregates that no live order or reservation backs, which is the only thing that recovers a leak |
+| Money set aside that nobody claimed | `core/capital_controller/capital_controller.py` 476-499 drops reservations past their time, and 563-576 refuses a send against one that has expired |
+
+The exit subject is the one that must come first: two articles in this package
+say a figure waits for the exit, and until it is written those sentences point
+nowhere.
+
+## Nexus package 2 — the exit
+
+The first candidate the re-seed named, taken through the stages on its own
+because two articles already written point at it.
+
+### Merge and promote, the exit
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-093 | An exit fill takes its size off the position and off what it has pending, and a position reaching nought is dropped. | Promote. It is the topic's own answer |
+| Row H-094 | The profit reported is the fill's price against the entry price, times the size, less the exit's fees, signed for the direction. | Promote. What the exit is worth is a second question from what it does to the position |
+| Row H-095 | The money given back is the cost basis times the size sold, which is not the profit. | Merge with H-094: the two figures are one answer about what an exit is worth, read two ways |
+| Row H-096 | What is given back is capped at what the account and the strategy hold. | Merge with H-095, which it bounds |
+| Row H-097 | A release bigger than either by more than a rounding margin is refused, and the position is untouched. | Merge with H-093: "when does the position not move?" is the same answer under a condition |
+| Row H-098 | No release is worked out for a nought basis or another strategy's position, and the fill still reduces it. | Merge with H-093 on the same terms |
+| Row H-099 | A fill naming no trade, none with a position, or bigger than the position raises. | Merge with H-093 on the same terms |
+| Row H-100 | A full close filling short moves the scraps to the account's dust. | Promote. Where the scraps go is its own question, and the re-seed had already queued it |
+| Row H-101 | The profit is written to the strategy's figures and the account's, appended before they move. | Promote. Where a result is written down is its own question, also already queued |
+
+Four rows promote. The first two are one article, the subject being an exit's
+effect and what it is worth; the last two are the two subjects the re-seed had
+already queued, and they stay queued rather than being pulled in here.
+
+### Merge and promote, the fee reserve
+
+The subject that made the entry's article outgrow its cap, so it becomes its
+own article rather than being trimmed out of that one.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-102 | The reserve is one of the five sums taken off the pool to leave what is free to commit. | Promote. It is what the reserve is |
+| Row H-103 | A fill under its estimate lifts the reserve, one over lowers it. | Merge with H-102: how the figure moves is the same answer as what it is |
+| Row H-104 | A shortfall bigger than the reserve by more than a rounding margin refuses the fill's move. | Merge with H-103, which it bounds |
+| Row H-105 | A reserve within that margin of nothing is set to nothing. | Merge with H-103 on the same terms |
+| Row H-106 | A fee difference also comes off what the strategy is recorded as deploying. | Merge with H-103: the same difference, in a second place |
+| Row H-107 | The reserve is written down and read back with the money record, a tiny negative clamped as it is read. | Merge with H-102, being where the figure lives |
+
+All six fold into one row, so the subject is one article.
+
+### Merge and promote, what each check weighs
+
+The subject that made two articles outgrow their caps, three rounds of findings
+running against it, so it becomes its own article.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-108 | The risk stage walks seven figures and refuses at the first over its limit. | Promote. It is the article's own answer |
+| Row H-109 | A figure with no limit set is passed over. | Merge with H-108, which it qualifies |
+| Row H-110 | The platform stage weighs the order's value, an order rate, a projected holding, a day's losses and how much of the pool is committed. | Merge with H-108: "what does each stage weigh?" is one answer, stage by stage |
+| Row H-111 | A figure the platform stage needs and lacks refuses rather than being passed over. | Merge with H-110, which it contrasts with H-109 |
+| Row H-112 | The price stage refuses on the book's age, its spread and a deviation, under a per-strategy cap. | Merge with H-110 on the same terms |
+| Row H-113 | The health stage reads none of the decision. | Merge with H-110 on the same terms |
+| Row H-114 | The capital stage sets the money aside, and is the one place a change's new amount is weighed. | Merge with H-110 on the same terms |
+
+All seven fold into one row, so the subject is one article.
+
+### Merge and promote, the drawdown figures
+
+The subject that made the stage article outgrow its cap on the round it was
+written, a reviewer having found the four drawdown figures are not one measure
+counted twice.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-115 | The whole value is what the account started with, plus what it has closed, plus what is open. | Promote. The two values are what the rest is measured from |
+| Row H-116 | A second value leaves open positions out. | Merge with H-115: two values is one answer |
+| Row H-117 | Each value keeps a high mark that only rises. | Merge with H-115, which it completes |
+| Row H-118 | How far down the account is on its whole value is worked out fresh each time. | Promote. What is measured from those marks is a second question |
+| Row H-119 | The worst on closed money is a record that only rises. | Merge with H-118: the contrast is the answer |
+| Row H-120 | The worst on the whole value is kept and handed to no check. | Merge with H-119: the same kind of record, and what becomes of it |
+| Row H-121 | A high mark of nothing gives a share of nothing. | Merge with H-118, which it bounds |
+
+Two rows promote into one article: what the account's value means, and what is
+measured against it.
+
+### Merge and promote, what becomes of money set aside
+
+The subject that made the article on setting money aside outgrow its cap, after
+a reviewer found three of its sentences wrong in the same round.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-122 | Each reservation carries a moment it expires at. | Promote. It is what the article turns on |
+| Row H-123 | One claimed past that moment is released and the claim refused. | Merge with H-122: what the moment does is the same answer |
+| Row H-124 | One already claimed or gone is refused as not found. | Merge with H-123, the other way the same call fails |
+| Row H-125 | Expired ones are swept only on asking or claiming. | Promote. When the figures catch up is a second question |
+| Row H-126 | A sweep gives each amount back and lowers that strategy's deployment. | Merge with H-125, which it completes |
+| Row H-127 | Claiming moves the amount unchanged, after that sweep. | Merge with H-125: the sweep's reach is the answer |
+| Row H-128 | Nothing in Nexus claims one. | Merge with H-127, being what becomes of the claim |
+
+Two rows promote into one article: when a reservation runs out, and when the
+figures catch up with one that has.
+
+### Merge and promote, the platform ceilings
+
+The subject that made the stage article outgrow its cap after a reviewer found
+that Praxis fills in one of the four figures the stage asks for.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-129 | The stage weighs what the order comes to against a ceiling, read off the decision. | Promote. It is the one check that needs nothing handed in |
+| Row H-130 | It then weighs four figures taken from a snapshot handed in. | Merge with H-129: what the stage weighs is one answer |
+| Row H-131 | Each of those runs only where its limit is set, and refuses where the limit is set and the figure absent. | Merge with H-130, which it qualifies |
+| Row H-132 | It stops at the first refusal. | Merge with H-130 on the same terms |
+| Row H-133 | The snapshot Praxis builds carries the projected holding and nothing else. | Promote. What is actually supplied is a second question, and its answer is what makes the first matter |
+| Row H-134 | That projection is worked out from the live positions under their lock. | Merge with H-133, which it completes |
+
+Two rows promote into one article: what the stage asks for, and what arrives.
+
+### Merge and promote, the price check
+
+The third subject to outgrow the stage survey, three rounds of findings having
+landed on it.
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-135 | The stage weighs the book's age, its spread, and a price's distance from a reference. | Promote. It is what the stage is |
+| Row H-136 | Each runs only where a limit for it is set. | Merge with H-135, which it qualifies |
+| Row H-137 | The age is the snapshot's moment less the book's stamp. | Merge with H-135 on the same terms |
+| Row H-140 | The deviation's cap is the strategy's where there is one. | Merge with H-135 on the same terms |
+| Row H-142 | A deviation past the cap refuses last. | Merge with H-135 on the same terms |
+| Row H-138 | A missing stamp refuses, and so does a book stamped later than the snapshot. | Promote. What refuses without weighing anything is a second question |
+| Row H-139 | A missing spread figure refuses before the spread is weighed. | Merge with H-138: the same answer for another figure |
+| Row H-141 | A deviation refuses on a missing source, a missing figure, or two sources disagreeing. | Merge with H-138 on the same terms |
+
+Two rows promote into one article: what the stage weighs, and what it refuses
+without weighing.
+
+## Nexus package 1 — the money and the handover
+
+Scope: the capital a decision reserves and what becomes of it where the decision
+never reaches Praxis. Owner: the writer. Pinned at Nexus `953477a`. Review date:
+set at the Seed stage below.
+
+**The two rows here were written before this package was seeded.** The brief puts
+Seed first — topics proposed, checked as real parts of the domain, and a reviewer
+challenging what is missing — then tracing with every behaviour harvested, then
+the merge test, and only then writing. These two were traced and reviewed and
+corrected, so they are not discarded; but they entered as a pair somebody picked
+off a candidate list rather than as the output of a stage, and the Seed below is
+run knowing that.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N1-03 | The checks a decision passes, and what it carries out of them | written | [the-checks-a-decision-passes.md](atoms/the-checks-a-decision-passes.md) |
+| N1-04 | What a check must answer with, and the two unreadable answers | written | [what-a-check-must-answer-with.md](atoms/what-a-check-must-answer-with.md) |
+| N1-05 | An outcome waiting on a strategy, and what the queue behind it costs | reviewed | [an-outcome-waiting-on-a-strategy.md](atoms/an-outcome-waiting-on-a-strategy.md) |
+| N1-06 | What an entry outcome changes, and the two that change nothing | written | [what-an-entry-outcome-changes.md](atoms/what-an-entry-outcome-changes.md) |
+| N1-07 | When an entry's position grows, and what is not realized there | written | [when-an-entrys-position-grows.md](atoms/when-an-entrys-position-grows.md) |
+| N1-08 | The roads around the checks, and the skipping set entry that decides nothing | written | [the-roads-around-the-checks.md](atoms/the-roads-around-the-checks.md) |
+| N2-01 | What an exit outcome changes, and the two figures it is worth | written | [what-an-exit-outcome-changes.md](atoms/what-an-exit-outcome-changes.md) |
+| N2-02 | What the fee reserve absorbs, and where it runs out | written | [what-the-fee-reserve-absorbs.md](atoms/what-the-fee-reserve-absorbs.md) |
+| N2-03 | What each check weighs, and where it reads it from | reviewed | [what-each-check-weighs.md](atoms/what-each-check-weighs.md) |
+| N2-04 | How far down the account is, and the record nothing reads | written | [how-far-down-the-account-is.md](atoms/how-far-down-the-account-is.md) |
+| N2-05 | What becomes of money set aside, and when the figures catch up | reviewed | [what-becomes-of-money-set-aside.md](atoms/what-becomes-of-money-set-aside.md) |
+| N2-06 | What the platform ceilings weigh, and the three nothing fills | reviewed | [what-the-platform-ceilings-weigh.md](atoms/what-the-platform-ceilings-weigh.md) |
+| N2-07 | What the price check weighs, and what it refuses unweighed | reviewed | [what-the-price-check-weighs.md](atoms/what-the-price-check-weighs.md) |
+| N1-01 | How Nexus sets money aside, and what it is weighed against | reviewed | [how-nexus-sets-money-aside.md](atoms/how-nexus-sets-money-aside.md) |
+| N1-02 | What Nexus does when a command does not get across | reviewed | [what-nexus-does-when-a-command-does-not-get-across.md](atoms/what-nexus-does-when-a-command-does-not-get-across.md) |
+
 ## Seeded for the Nexus side
 
 The brief covers both repositories, and these are the Nexus subjects a reader of
@@ -276,8 +656,6 @@ at Nexus `953477a`.
 | Candidate | What it has to explain |
 |---|---|
 | What a decision passes through before it is handed over | The ordered checks a decision meets, which actions skip which, and the registration taken before the handover — `nexus/core/validator/pipeline_executor.py`, `nexus/strategy/action_submit.py` |
-| What Nexus does when a command does not get across | A refusal before the send gives the money back; a timeout after registration keeps it and marks the command unknown — `nexus/strategy/action_submit.py` |
-| How Nexus sets money aside for an order | The refusals on allocation, strategy budget, free capital and utilisation; a reservation expiring; reserved money becoming money in flight — `nexus/core/capital_controller/capital_controller.py` |
 | What an outcome changes in Nexus | An entry fill against an exit fill, the order the position moves in, what a refusal or a cancellation releases, and why a deposit does not enlarge the pool — `nexus/infrastructure/praxis_connector/outcome_processor.py` |
 | What decides whether Nexus may trade at all | Health against the holds, and a daily-loss hold that can clear where a drawdown hold has no clearing branch — `nexus/core/mode_controller.py` |
 | How Nexus squares its positions at startup | A position only Nexus has stopping the start, one only Praxis has being considered for import, and a matching one taking Praxis's amount — `nexus/startup/sequencer.py` |
@@ -358,8 +736,80 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-068 | Neither the amount filled nor the running money total is tested for being finite, at the record's making or on assignment, so an endless amount can be assigned and leaves what remains at minus endless. A moment assigned after the making is not tested for carrying a zone either, where one given at the making must. Live reachability was not established. | `order.py` 119-125 and 189-195 against 215-218; the moments at 93-97 against 141-197 | P4-36 | recorded; P4-36 states both |
 | H-069 | A host-supplied outcome receiver is called as one with Praxis's own routing, and the pair is retried together, so a receiver that acts before raising is handed the same outcome again and the routing before it runs again with it. Delivery is reported exhausted only after the last attempt. | the pair at `launcher.py` 3001-3003, set at 3005, retried at `execution_manager.py` 760-794 | P2-44 | recorded; P2-44 states it |
 | H-070 | The adapter's lot-step test can never refuse an order. The amount is floored to the step immediately before the test runs, on every path that reaches it, so the remainder it looks for is always zero. A symbol with no figures kept is neither floored nor tested. Flooring can still take an amount under the smallest size, which the next test does refuse. | floored at `binance_adapter.py` 1518 into 1314-1317, tested at 1194-1198, both passed over for an uncached symbol at 1315-1316 and 1188-1192 | P2-46 | recorded; P2-46 states that the step test cannot turn an order away |
+| H-071 | The order the checks run in is a configured list, not a fixed sequence. The default runs intake, risk, price, capital, health, then platform limits. | `nexus/core/validator/pipeline_models.py` 50-57, walked at `nexus/core/validator/pipeline_executor.py` 47 | Nexus package one | candidate |
+| H-072 | Five of the six stages are skipped outright for an exit, an abort, a cancel and a change: capital, health, platform limits, risk and price. Only intake runs for those, so a closing action is weighed on ownership alone. | `nexus/core/validator/pipeline_executor.py` 162-176, reached at 48 | Nexus package one | candidate |
+| H-073 | A stage returning something other than a decision raises rather than being read as a pass, and so does a denial naming a stage other than the one that produced it. | `nexus/core/validator/pipeline_executor.py` 52-56 and 59-63 | Nexus package one | candidate |
+| H-074 | A reservation granted by an earlier stage is carried on the decision a later stage denies, where that denial carries none of its own — so the denial hands back what was already held rather than losing it. | `nexus/core/validator/pipeline_executor.py` 65-72, the carry at 75-76 and 78 | Nexus package one | candidate |
+| H-075 | An abort action is submitted by its own road rather than through this pipeline's result, which is why the skipping above is not the whole account of how a closing action reaches Praxis. | `nexus/strategy/action_submit.py` 201-203 | Nexus package one | candidate; folds into the first topic or queues as its own |
+| H-076 | An outcome that cannot be matched to a strategy is parked under its command's name, with the first retry due a twentieth of a second later. | `nexus/core/outcome_loop.py` 230-231 into 246-248, the schedule at 58-66 | Nexus package one | folds into N1-05 |
+| H-077 | A later outcome for a command already parked queues behind it rather than being tried, so the order they arrived in is kept. | `nexus/core/outcome_loop.py` 216-228 | Nexus package one | folds into N1-05 |
+| H-078 | Only the head of that queue is retried. Where it resolves, the rest are drained behind it in order. | `nexus/core/outcome_loop.py` 284-288 into 327-328 | Nexus package one | folds into N1-05 |
+| H-079 | A sibling that will not resolve mid-drain is put back as the new head, so the queue keeps its order rather than losing the ones behind it. | `nexus/core/outcome_loop.py` 336-343 | Nexus package one | folds into N1-05 |
+| H-080 | The retries are a fixed schedule that lengthens and then levels off, and a head outstanding past the last of them has the whole queue discarded, logged rather than reported. | `nexus/core/outcome_loop.py` 295-301, the schedule at 58-66 | Nexus package one | folds into N1-05 |
+| H-081 | A queue not yet due is passed over entirely on that pass, so nothing behind an unresolved head moves while it waits. | `nexus/core/outcome_loop.py` 281-282 | Nexus package one | folds into N1-05 |
+| H-082 | Which handler an outcome goes to is chosen by its type: an acknowledgement, a fill whole or part, and a refusal each have one, and everything else, an expiry included, goes to the cancellation handler. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 152-161 | Nexus package one | folds into N1-06 |
+| H-083 | An outcome whose name has been seen before is dropped as a success that changes nothing, and one naming a different command than its context names is refused, both before any handler runs. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 130-140 and 142-150 | Nexus package one | folds into N1-06 |
+| H-084 | The name of an outcome a handler succeeded on is recorded, which is what the dropping above reads. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 163-165 | Nexus package one | folds into N1-06 |
+| H-085 | An acknowledgement moves an entry’s money from what sent orders hold to what resting orders hold; for anything that is not an entry it changes nothing. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 191-195 and 197, the move at `nexus/core/capital_controller/capital_controller.py` 639-640 | Nexus package one | folds into N1-06 |
+| H-086 | A fill on an entry moves what filled, and the fees it cost, out of what resting orders hold and into what the position holds; one finishing the order releases the remainder as well. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 224-230, the moves at `nexus/core/capital_controller/capital_controller.py` 955-956 and 965-967 | Nexus package one | folds into N1-06 |
+| H-087 | The fees estimated for a fill are settled against the actual ones, and a shortfall bigger than the fee reserve refuses the move outright. | `nexus/core/capital_controller/capital_controller.py` 924-938, the reserve adjusted at 957 | Nexus package one | folds into N1-06 |
+| H-088 | The entry's position grows on the fill: its size, its entry price and its cost basis are each re-averaged over the new size. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 473-490 | Nexus package one | folds into N1-06 |
+| H-089 | An entry fill naming no trade, or naming one that has no position, raises rather than being reported as a failure. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 463-465 and 469-471 | Nexus package one | folds into N1-06 |
+| H-090 | A refusal or a cancellation gives back what the order still holds and takes it out of the tracking, from whichever of the two holdings it sat in. | `nexus/core/capital_controller/capital_controller.py` 673-676 with 687-688, and 1002-1005 | Nexus package one | folds into N1-06 |
+| H-091 | Where that giving-back fails on an entry the outcome ends as a failure and its name goes unrecorded; on an exit the same failure is passed over. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 312-317 and 344-349, against 163-165 | Nexus package one | folds into N1-06 |
+| H-092 | No realized profit or loss is reported for an entry fill, so none of the risk figures move for one. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 448-449 against 451, read at 260 | Nexus package one | folds into N1-06 |
+| H-093 | An exit fill takes its size off the position and off what the position has pending, and a position whose size reaches nought is dropped from the record. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 558-560 and 594-595, nought read at `nexus/core/domain/position.py` 91-94 | Nexus package two | folds into N2-01 |
+| H-094 | The profit an exit reports is the price it went off at against the position's entry price, times the size, with the exit's own fees taken off, and the sign turned for a position that was sold short. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 523-525 and 533 | Nexus package two | folds into N2-01 |
+| H-095 | The money the exit gives back is the position's cost basis times the size sold, which counts the entry's fees and is a different figure from the profit. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 438, released at 242-247 | Nexus package two | folds into N2-01 |
+| H-096 | What is given back is capped at what the account and the strategy are each recorded as holding, so neither can be driven below nought by one exit. | `nexus/core/capital_controller/capital_controller.py` 800-806 | Nexus package two | folds into N2-01 |
+| H-097 | A release bigger than either of those by more than a rounding margin is refused instead, and the fill ends as a failure with the position untouched. | `nexus/core/capital_controller/capital_controller.py` 769-782 and 784-798, the return at `nexus/infrastructure/praxis_connector/outcome_processor.py` 248-253 | Nexus package two | folds into N2-01 |
+| H-098 | No release is worked out where the position's cost basis is nought, or where the position belongs to another strategy, and the fill goes through and reduces the position with no money moved. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 422-423 and 426-437, reached at 256-258 | Nexus package two | folds into N2-01 |
+| H-099 | An exit fill naming no trade, naming one with no position, or bigger than the position raises, and nothing is written. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 503-511 and 516-521 before 558-560 | Nexus package two | folds into N2-01 |
+| H-100 | A full close that fills short of the whole position moves the scraps left over into the account's dust and sets the size to nought, the cost basis of those scraps staying in the recorded holdings. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 562-580 | Nexus package two | folds into N2-01 |
+| H-101 | The profit reported is written to the strategy's figures and the account's, the record appended before the figures move and under the same lock the refresher takes. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 260-291 | Nexus package two | folds into N2-01 |
+| H-102 | The fee reserve is one of the five sums taken off the pool to leave what is free to commit. | `nexus/core/domain/capital_state.py` 109-116 | Nexus package two | folds into N2-02 |
+| H-103 | A fill whose actual fee came in under the estimate lifts the reserve by the difference, and one over lowers it. | `nexus/core/capital_controller/capital_controller.py` 924 and 957 | Nexus package two | folds into N2-02 |
+| H-104 | A shortfall bigger than the reserve by more than a rounding margin refuses the fill's move outright, nothing being written. | `nexus/core/capital_controller/capital_controller.py` 926-938 | Nexus package two | folds into N2-02 |
+| H-105 | A reserve left within that margin of nothing is set to nothing. | `nexus/core/capital_controller/capital_controller.py` 959-960 | Nexus package two | folds into N2-02 |
+| H-106 | A fee difference also comes off what the strategy is recorded as having deployed. | `nexus/core/capital_controller/capital_controller.py` 962-963 | Nexus package two | folds into N2-02 |
+| H-107 | The reserve is written down and read back with the rest of the money record, a tiny negative being clamped to nothing as it is read. | `nexus/infrastructure/wal_codec.py` 177 and 202 | Nexus package two | folds into N2-02 |
+| H-108 | The risk stage walks seven figures in a fixed order against their limits and refuses at the first one over: four about drawdown and three about losses run up over a day, a week and a month. | `nexus/core/validator/risk_stage.py` 66-108, walked at 111-121 | Nexus package two | folds into N2-03 |
+| H-109 | A figure with no limit set is passed over rather than treated as nought. | `nexus/core/validator/risk_stage.py` 112-113 | Nexus package two | folds into N2-03 |
+| H-110 | The platform stage weighs what the order comes to against a ceiling, then an order rate, a projected holding, a day's losses and how much of the pool is committed. | `nexus/core/validator/platform_limits_stage.py` 130-143, 145-160, 161-175, 176-188 and 190-205 | Nexus package two | folds into N2-03 |
+| H-111 | A figure the platform stage needs and does not have refuses the decision rather than being passed over. | `nexus/core/validator/platform_limits_stage.py` 146-148 and 177-178 | Nexus package two | folds into N2-03 |
+| H-112 | The price stage refuses on the book's age, its spread, and a deviation handed in, the deviation's cap being the one set for that strategy where there is one. | `nexus/core/validator/price_stage.py` 258-370, the cap chosen at 312-314 | Nexus package two | folds into N2-03 |
+| H-113 | The health stage reads none of the decision, refusing on the health snapshot alone. | `nexus/core/validator/health_stage.py` 356 then 358-365 | Nexus package two | folds into N2-03 |
+| H-114 | The capital stage is the one that sets money aside, and the one place a change's new amount is weighed against the standing one. | `nexus/core/validator/capital_stage.py` 52-61, the weighing at 41-50 | Nexus package two | folds into N2-03 |
+| H-115 | The account's whole value is what it started with plus what it has made and closed, plus what open positions are up or down. | `nexus/core/domain/risk_state.py` 238-239 | Nexus package two | folds into N2-04 |
+| H-116 | A second value counts only what has been made and closed, leaving open positions out. | `nexus/core/domain/risk_state.py` 238 | Nexus package two | folds into N2-04 |
+| H-117 | Each value keeps a high mark that only ever rises, seeded from what the account started with. | `nexus/core/domain/risk_state.py` 240-251 | Nexus package two | folds into N2-04 |
+| H-118 | How far down the account is on its whole value, and that as a share of its high mark, are worked out fresh each time. | `nexus/core/domain/risk_state.py` 253-257 | Nexus package two | folds into N2-04 |
+| H-119 | The worst it has ever been down on closed money, and that worst as a share, are records that only ever rise. | `nexus/core/domain/risk_state.py` 258, 264 and 266-267 | Nexus package two | folds into N2-04 |
+| H-120 | The worst it has ever been down on its whole value is kept the same way and handed to no check. | `nexus/core/domain/risk_state.py` 268-271 against 316-324 | Nexus package two | folds into N2-04 |
+| H-121 | A high mark of nothing gives a share of nothing rather than dividing by it. | `nexus/core/domain/risk_state.py` 254-255 and 261-262 | Nexus package two | folds into N2-04 |
+| H-122 | Each reservation carries a moment it expires at, set from the life asked for when it was granted. | `nexus/core/capital_controller/capital_controller.py` 408-416 | Nexus package two | folds into N2-05 |
+| H-123 | One claimed past that moment is released and the claim refused. | `nexus/core/capital_controller/capital_controller.py` 563-572 | Nexus package two | folds into N2-05 |
+| H-124 | One already claimed or already gone is refused as not found, a single answer covering both. | `nexus/core/capital_controller/capital_controller.py` 553-559 | Nexus package two | folds into N2-05 |
+| H-125 | Expired ones are swept only when a reservation is asked for or claimed; releasing one and acknowledging an order sweep none. | `nexus/core/capital_controller/capital_controller.py` 327 and 578 against 501-526 and 597-642 | Nexus package two | folds into N2-05 |
+| H-126 | A sweep gives each expired amount back and takes it off what that strategy is recorded as deploying. | `nexus/core/capital_controller/capital_controller.py` 482-499 | Nexus package two | folds into N2-05 |
+| H-127 | Claiming moves the amount from set aside to in flight unchanged, after that sweep, so the total deployed can fall across the claim by other reservations' amounts. | `nexus/core/capital_controller/capital_controller.py` 578 before 592-593 | Nexus package two | folds into N2-05 |
+| H-128 | Nothing in Nexus claims one, the road to it having no caller there. | `nexus/strategy/action_submit.py` 566-577 | Nexus package two | folds into N2-05 |
+| H-129 | The platform stage weighs what the order comes to in money against a ceiling, reading that from the decision itself. | `nexus/core/validator/platform_limits_stage.py` 130-143 | Nexus package two | folds into N2-06 |
+| H-130 | It then weighs an order rate, a projected holding, a day's losses and how much of the pool is committed, each taken from a snapshot handed in. | `nexus/core/validator/platform_limits_stage.py` 145-160, 161-175, 176-188 and 190-205 | Nexus package two | folds into N2-06 |
+| H-131 | Each of those four runs only where a limit for it is set, and refuses the decision where the limit is set and the figure absent. | `nexus/core/validator/platform_limits_stage.py` 145-148, 161-164, 176-178 and 190-193 | Nexus package two | folds into N2-06 |
+| H-132 | It stops at the first refusal, every later check standing down once one is made. | `nexus/core/validator/platform_limits_stage.py` 145, 161, 176 and 190 | Nexus package two | folds into N2-06 |
+| H-133 | The snapshot Praxis builds carries the projected holding and nothing else. | `praxis/launcher.py` 617-623 | Nexus package two | folds into N2-06 |
+| H-134 | That projection is worked out from the account's live positions under the lock that guards them. | `praxis/launcher.py` 600-623 | Nexus package two | folds into N2-06 |
+| H-135 | The price stage weighs three things in turn: how old the book is, how wide its spread is, and how far a price sits from a reference. | `nexus/core/validator/price_stage.py` 258, 293 and 316 | Nexus package two | folds into N2-07 |
+| H-136 | Each runs only where a limit for it is set, so an unset limit leaves that figure unread. | `nexus/core/validator/price_stage.py` 258, 293 and 316 | Nexus package two | folds into N2-07 |
+| H-137 | The age is the moment the snapshot was taken less the moment the book was stamped, refused past the limit. | `nexus/core/validator/price_stage.py` 281-289 | Nexus package two | folds into N2-07 |
+| H-138 | A missing stamp refuses, and so does a book stamped later than the snapshot was taken. | `nexus/core/validator/price_stage.py` 259-270 and 273-279 | Nexus package two | folds into N2-07 |
+| H-139 | A missing spread figure refuses before the spread is weighed. | `nexus/core/validator/price_stage.py` 294-300 | Nexus package two | folds into N2-07 |
+| H-140 | The cap on deviation is the one set for the asking strategy where there is one, and the general one otherwise. | `nexus/core/validator/price_stage.py` 312-314 | Nexus package two | folds into N2-07 |
+| H-141 | A deviation refuses where the configured source for the reference price is missing, where the snapshot's deviation or source is missing, or where the two sources disagree, the deviation itself going unread. | `nexus/core/validator/price_stage.py` 317-326, 337-350 and 351-360 | Nexus package two | folds into N2-07 |
+| H-142 | A deviation past the cap refuses last. | `nexus/core/validator/price_stage.py` 361-369 | Nexus package two | folds into N2-07 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-16 08:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-18 08:20 UTC
