@@ -2,7 +2,7 @@
 row: N2-02
 baseline: 49aa659
 created: 2026-10-19 09:30 UTC
-modified: 2026-10-19 09:30 UTC
+modified: 2026-10-22 12:00 UTC
 evidence:
   - claim: "The fee reserve is one of five sums taken off the pool to leave what is free to commit"
     source: "`nexus/core/domain/capital_state.py` 109-116"
@@ -46,4 +46,4 @@ The reserve is written down and read back with the rest of the money record. A t
 
 ---
 
-Created 2026-10-19 09:30 UTC · Last modified 2026-10-19 09:30 UTC
+Created 2026-10-19 09:30 UTC · Last modified 2026-10-22 12:00 UTC

@@ -2,7 +2,7 @@
 row: N2-01
 baseline: 49aa659
 created: 2026-10-18 19:00 UTC
-modified: 2026-10-19 12:00 UTC
+modified: 2026-10-22 12:00 UTC
 evidence:
   - claim: "An exit fill takes its size off the position, and takes the same off what the position has pending, or all of it where less is pending than the fill filled"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 558-560"
@@ -49,4 +49,4 @@ The money given back is a different figure: the cost basis over the size sold, w
 
 ---
 
-Created 2026-10-18 19:00 UTC · Last modified 2026-10-19 12:00 UTC
+Created 2026-10-18 19:00 UTC · Last modified 2026-10-22 12:00 UTC

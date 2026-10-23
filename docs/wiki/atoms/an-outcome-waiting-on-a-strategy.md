@@ -2,8 +2,8 @@
 row: N1-05
 baseline: 49aa659
 created: 2026-10-18 08:20 UTC
-modified: 2026-10-18 11:00 UTC
-reviewed: 2026-10-18 11:00 UTC
+modified: 2026-10-22 12:00 UTC
+reviewed: 2026-10-22 12:00 UTC
 evidence:
   - claim: "An outcome is matched to a strategy by name, and one that cannot be is parked under its command's name"
     source: "`nexus/core/outcome_loop.py` 396-399, parked at 230-231 into 246-248"
@@ -53,4 +53,4 @@ So a strategy that never resolves costs its command every report, not only the f
 
 ---
 
-Created 2026-10-18 08:20 UTC · Last modified 2026-10-18 11:00 UTC
+Created 2026-10-18 08:20 UTC · Last modified 2026-10-22 12:00 UTC

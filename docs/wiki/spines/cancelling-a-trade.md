@@ -2,7 +2,7 @@
 row: S-01
 baseline: 49aa659
 created: 2026-10-14 14:00 UTC
-modified: 2026-10-16 09:40 UTC
+modified: 2026-10-22 12:00 UTC
 evidence:
   - claim: "The host's own refusals run before the manager is reached at all"
     source: "`trading.py` 1904-1907 before 1908, handed on at `trading_inbound.py` 248 into `execution_manager.py` 2996"
@@ -80,4 +80,4 @@ The route a cancellation takes from the moment a caller asks for it to the momen
 
 ---
 
-Created 2026-10-14 14:00 UTC · Last modified 2026-10-16 09:40 UTC
+Created 2026-10-14 14:00 UTC · Last modified 2026-10-22 12:00 UTC

@@ -2,7 +2,7 @@
 row: S-05
 baseline: 49aa659
 created: 2026-10-15 08:55 UTC
-modified: 2026-10-16 09:40 UTC
+modified: 2026-10-22 12:00 UTC
 evidence:
   - claim: "The record's marks are walked before any of it is replayed"
     source: "`trading.py` 513 before 515"
@@ -81,4 +81,4 @@ The route one account takes inside a starting host, from the record on disk to t
 
 ---
 
-Created 2026-10-15 08:55 UTC · Last modified 2026-10-16 09:40 UTC
+Created 2026-10-15 08:55 UTC · Last modified 2026-10-22 12:00 UTC

@@ -69,9 +69,10 @@ must not leave the host unable to stop — the code catches every exception and
 names no venue.
 
 The signal both share is a purpose clause carrying an obligation: *because*,
-*so that*, *lest* or *on the grounds that*, and then *must*, *should*, *ought*
-or *needs to*. Code holds conditions, so a reason given as something the
-system is obliged to do is the writer explaining rather than reporting. The
+*so that*, *lest* or *on the grounds that*, and then *must*, *should*,
+*ought*, *need to*, *needs to*, *has to*, *have to* or *cannot be
+allowed*. Code holds conditions, so a reason given as something the system
+is obliged to do is the writer explaining rather than reporting. The
 gate refuses that pairing and leaves a bare cause alone, a cause being a fact
 about the path: an order the
 venue rejects is recorded as a success because the venue answered.
@@ -101,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**7 of them reviewed, 151 not.**
+**7 of them reviewed, 163 not.**
 
 ## Package 1
 
@@ -241,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 37 are named and 33 untouched. Of the 37, 25 carry a row of their own and 12 are reached by an article that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 39 are named and 31 untouched. Of the 39, 28 carry a row of their own and 11 are reached by an article that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -486,6 +487,48 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 3 — the scraps, the record and the boot
+
+Scope: what becomes of a position too small to sell, what a reported deposit
+changes, where a realized result is written down, and what a boot finds
+stranded. Paths are under `nexus/`.
+
+### Merge and promote, package 3
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-143 | A whole-position close that fills short moves the remainder to the account's dust and removes the position. | Promote. It is where the scraps go |
+| Row H-144 | That road is taken only on a fill, of a close meant to be whole, with something left. | Merge with H-143, which it qualifies |
+| Row H-145 | A close the venue would refuse as too small takes the same road with no order placed. | Merge with H-143: the same answer by another route |
+| Row H-146 | That close is dropped on a repeat of its caller's key. | Merge with H-143 on the same terms |
+| Row H-147 | The key is spent before the position is looked for. | Merge with H-143 on the same terms |
+| Row H-148 | Both roads write the base asset alone, the money staying in the deployed figures. | Merge with H-143 on the same terms |
+| Row H-149 | Nothing weighs the dust once it is written. | Merge with H-143: what the figure is worth is the same question as where it goes |
+| Row H-150 | A reported deposit or withdrawal is marked as seen and written to the log, and touches no money figure. | Promote. What money arriving does is its own question |
+| Row H-151 | It is dropped on a repeat of its own identifier. | Merge with H-150, which it qualifies |
+| Row H-161 | Two pools are kept: the account's own, which the checks weigh against, and the settings' one, sliced into what a strategy is told it has. | Merge with H-150: it is why the deposit changes nothing |
+| Row H-152 | A fill that realizes a result appends the event and then moves the figures, both under one lock. | Promote. The order is the subject |
+| Row H-153 | An append that raises leaves the figures untouched. | Merge with H-152, which is what the order is for |
+| Row H-154 | A fill realizing nothing writes no event. | Merge with H-152 on the same terms |
+| Row H-155 | At boot three figures nothing backs are set to nought. | Promote. What a boot finds stranded is its own question |
+| Row H-156 | The reset refuses to run where an order or a reservation is already tracked. | Merge with H-155, which it qualifies |
+| Row H-157 | Each strategy's deployed figure is rebuilt from the live positions. | Merge with H-155: the same pass, the second half of it |
+| Row H-158 | A position still carrying a pending exit has it cleared. | Merge with H-155 on the same terms |
+| Row H-159 | A position with no cost basis falls back to its entry price. | Merge with H-155 on the same terms |
+| Row H-160 | The one caller outside the tests hands the positions in. | Merge with H-155: it is which half runs |
+
+Four rows promote: where the scraps go, what a deposit changes, the order a
+result is written in, and what a boot finds stranded. Two of them outgrew the
+cap in the writing: the boot carried its rebuild, which is N3-05, and the scraps
+carried what they leave in the money figures, which is N3-06. Verifying the
+order a result is written in turned up which fills have one at all, harvested
+below and promoted as N3-07, and the rebuild carried what being out of step
+refuses, which is N3-08. The scraps carried how much a taking-out takes,
+which is N3-09, and what a start does with a dusted position,
+which is N3-10. That in turn carried what a start weighs each
+position at, which is N3-11. Verifying which fills have a result turned up what the fee
+figure in one is worked out from, which is N3-12.
+
 ## Nexus package 2 — the exit
 
 The first candidate the re-seed named, taken through the stages on its own
@@ -643,6 +686,18 @@ run knowing that.
 | N2-05 | What becomes of money set aside, and when the figures catch up | reviewed | [what-becomes-of-money-set-aside.md](atoms/what-becomes-of-money-set-aside.md) |
 | N2-06 | What the platform ceilings weigh, and the three nothing fills | reviewed | [what-the-platform-ceilings-weigh.md](atoms/what-the-platform-ceilings-weigh.md) |
 | N2-07 | What the price check weighs, and what it refuses unweighed | reviewed | [what-the-price-check-weighs.md](atoms/what-the-price-check-weighs.md) |
+| N3-01 | Where a position's last scraps go, and what the dust is worth | written | [where-a-positions-last-scraps-go.md](atoms/where-a-positions-last-scraps-go.md) |
+| N3-02 | What money arriving in the account changes, and the figure nothing raises | written | [what-money-arriving-in-the-account-changes.md](atoms/what-money-arriving-in-the-account-changes.md) |
+| N3-03 | Where a realized result is written down, and the order that keeps it in step | written | [where-a-realized-result-is-written-down.md](atoms/where-a-realized-result-is-written-down.md) |
+| N3-04 | What a boot finds stranded, and what it gives up to do it | written | [what-a-boot-finds-stranded.md](atoms/what-a-boot-finds-stranded.md) |
+| N3-05 | What a boot rebuilds from the positions, and the half that never runs | written | [what-a-boot-rebuilds-from-the-positions.md](atoms/what-a-boot-rebuilds-from-the-positions.md) |
+| N3-06 | What a dusted scrap leaves behind, and the five things that stop the taking-out | written | [what-a-dusted-scrap-leaves-behind.md](atoms/what-a-dusted-scrap-leaves-behind.md) |
+| N3-07 | Which fills come back with a result, and the price the gain is taken from | written | [which-fills-come-back-with-a-result.md](atoms/which-fills-come-back-with-a-result.md) |
+| N3-08 | What the deployed figures out of step refuse, and the requests that go past it | written | [what-the-deployed-figures-out-of-step-refuse.md](atoms/what-the-deployed-figures-out-of-step-refuse.md) |
+| N3-09 | What a taking-out takes, and the figure it drops rather than keeps | written | [what-a-taking-out-takes.md](atoms/what-a-taking-out-takes.md) |
+| N3-10 | What a start does with a dusted position, and what decides it | written | [what-a-start-does-with-a-dusted-position.md](atoms/what-a-start-does-with-a-dusted-position.md) |
+| N3-11 | What a start weighs a position at, and the price written onto it | written | [what-a-start-weighs-a-position-at.md](atoms/what-a-start-weighs-a-position-at.md) |
+| N3-12 | What a fee figure is worked out from, and the two accounts of one charge | written | [what-a-fee-figure-is-worked-out-from.md](atoms/what-a-fee-figure-is-worked-out-from.md) |
 | N1-01 | How Nexus sets money aside, and what it is weighed against | reviewed | [how-nexus-sets-money-aside.md](atoms/how-nexus-sets-money-aside.md) |
 | N1-02 | What Nexus does when a command does not get across | reviewed | [what-nexus-does-when-a-command-does-not-get-across.md](atoms/what-nexus-does-when-a-command-does-not-get-across.md) |
 
@@ -808,8 +863,31 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-140 | The cap on deviation is the one set for the asking strategy where there is one, and the general one otherwise. | `nexus/core/validator/price_stage.py` 312-314 | Nexus package two | folds into N2-07 |
 | H-141 | A deviation refuses where the configured source for the reference price is missing, where the snapshot's deviation or source is missing, or where the two sources disagree, the deviation itself going unread. | `nexus/core/validator/price_stage.py` 317-326, 337-350 and 351-360 | Nexus package two | folds into N2-07 |
 | H-142 | A deviation past the cap refuses last. | `nexus/core/validator/price_stage.py` 361-369 | Nexus package two | folds into N2-07 |
+| H-143 | A close meant to take the whole position whose finishing fill leaves some of it moves what is left into the account's dust and sets the size to nought, which closes the position and removes it. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 563-564 into 576-592 into 594-595, a size of nought closing it at `nexus/core/domain/position.py` 94 | Nexus package three | is N3-01 |
+| H-144 | That road is taken only where the outcome is a fill, the close was meant to be whole, and something is left. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 563-565 | Nexus package three | folds into N3-01 |
+| H-145 | Making a sale ready for the venue can refuse it — too small for its filters, or a size or reference price that is not finite — and no order is then placed. Where the close was meant to be whole and the position has nothing pending on it, the remainder goes to the dust and the position is removed; otherwise the attempt simply ends. | `praxis/launcher.py` 1323 and 1339-1342 into 1363-1367, ending at 1369 without dusting otherwise, the dust itself at `nexus/infrastructure/praxis_connector/outcome_processor.py` 696-702, the reasons at `praxis/infrastructure/binance_adapter.py` 1361-1376 and 1383-1420 | Nexus package three | folds into N3-01 |
+| H-146 | That close is dropped on a repeat of the key its caller supplies, and answers no. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 676-682 | Nexus package three | folds into N3-01 |
+| H-147 | The key is marked used before the position is looked for, so a close for a position that is not there answers no with the key spent. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 684 against 686-694 | Nexus package three | folds into N3-01 |
+| H-148 | Both roads write the base asset alone. On the road that fills, the sold part's cost basis has already been released, unless the asking was stopped or either figure capped what came out; on the road with no order nothing has. A start writes back any position the host holds that the record is missing, where it can, sets the account's figure from the positions whose size and price it can read, and works each strategy's out from the record. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 577-579 and 698-700, the amount at 438, the release at 242-247 into `nexus/core/capital_controller/capital_controller.py` 800-806, the write-back at `nexus/startup/sequencer.py` 420-423 with the three it passes over at 424-437, 372-377 and 416-418, the account figure at `nexus/startup/sequencer.py` 438, or 450 and 468, into 470-478, the rebuild at `praxis/launcher.py` 4085 and 4101 into `nexus/core/capital_controller/capital_controller.py` 214-272 | Nexus package three | folds into N3-01 |
+| H-149 | Nothing weighs the dust. It is read for shape as the record is validated, written into the snapshot and read back, and no check or decision weighs the figure. | `nexus/core/domain/instance_state.py` 105-117, `nexus/infrastructure/wal_codec.py` 77-93 and 134-149 | Nexus package three | folds into N3-01 |
+| H-150 | A deposit or withdrawal the venue reports is marked as seen and written to the log. The body touches no money figure, so money arriving in the account buys nothing. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 737-757 | Nexus package three | is N3-02 |
+| H-151 | It too is dropped on a repeat of its own identifier. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 737-743 | Nexus package three | folds into N3-02 |
+| H-152 | A fill that realizes a result appends the event and then moves the figures, both under the lock that guards them. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 261-291 | Nexus package three | is N3-03 |
+| H-153 | Appending first is what keeps the two in step: an append that raises leaves the figures untouched and the caller sees it. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 285 before 286-291 | Nexus package three | folds into N3-03 |
+| H-154 | A fill realizing nothing writes no event at all. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 259-261 | Nexus package three | folds into N3-03 |
+| H-155 | At boot each of three figures that no tracked order or reservation backs is set to nought where it stands above it, and logged; one already at nought is left alone and not logged. | `nexus/core/capital_controller/capital_controller.py` 193-212 | Nexus package three | is N3-04 |
+| H-156 | That reset refuses to run where an order or a reservation is already tracked. | `nexus/core/capital_controller/capital_controller.py` 182-188 | Nexus package three | folds into N3-04 |
+| H-157 | Where the live positions are handed in, each strategy’s deployed figure is rebuilt from them and replaces what was kept. | `nexus/core/capital_controller/capital_controller.py` 214-272 | Nexus package three | folds into N3-05 |
+| H-158 | A position still carrying a pending exit at boot has it set to nought, and a sale larger than the position less what is pending is refused at the intake stage, which stands first in the order the walk is handed. | `nexus/core/capital_controller/capital_controller.py` 216-233, the refusal at `nexus/core/validator/intake_stage.py` 278-284, its place in the order at `nexus/core/validator/pipeline_models.py` 50-56, handed to the walk at `praxis/launcher.py` 1010 | Nexus package three | folds into N3-05 |
+| H-159 | A position with no cost basis falls back to the price it was entered at; where that is nought too the basis stays at nought, so its size at that basis adds nothing to the rebuilt figure. | `nexus/core/capital_controller/capital_controller.py` 235-248, the contribution at 258-261 | Nexus package three | folds into N3-05 |
+| H-160 | The one caller outside the tests hands the positions in, so the reset that skips the rebuild is never taken in the running system. | `praxis/launcher.py` 4101 | Nexus package three | folds into N3-05 |
+| H-161 | Two pools are kept: the account's own, read in four places, and the settings' one, sliced into what a strategy is told it has in three more. | `nexus/core/capital_controller/capital_controller.py` 367, 396 and 459, `nexus/core/domain/capital_state.py` 109-115; the settings' at `praxis/launcher.py` 2516, `nexus/startup/sequencer.py` 720 and `nexus/startup/shutdown_sequencer.py` 313 | Nexus package three | folds into N3-02 |
+| H-162 | A fill against a position being entered comes back with no result, though the account's money figures move for it before the position grows. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 448-451 into 256-260, the figures at 224-239 into `nexus/core/capital_controller/capital_controller.py` 955-957 | Nexus package three | is N3-07 |
+| H-163 | A fill against one being sold raises rather than returning where the sale is unnamed, the position is not there, or the fill is larger than the position. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 503-505, 509-511 and 516-521 | Nexus package three | folds into N3-07 |
+| H-164 | The gain is taken from the price the position was entered at, the cost basis being read nowhere in it. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 523-525 | Nexus package three | folds into N3-07 |
+| H-165 | A result of nought is a result: what is read is whether a fill came back with one. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 260 | Nexus package three | folds into N3-07 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-18 08:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-22 12:00 UTC

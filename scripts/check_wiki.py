@@ -4663,30 +4663,71 @@ def _log_lines(path: Path) -> set[int]:
         return set()
 
     lines: set[int] = set()
+    named = _logger_names(tree)
 
     for node in ast.walk(tree):
 
-        if isinstance(node, ast.Call) and _is_a_log_call(node):
+        if isinstance(node, ast.Call) and _is_a_log_call(node, named):
             lines |= set(range(node.lineno, (node.end_lineno or node.lineno) + 1))
 
     return lines
 
 
-def _is_a_log_call(node: ast.Call) -> bool:
+def _logger_names(tree: ast.Module) -> frozenset[str]:
 
-    '''Whether a call is made on the module's logger.
+    '''Return what the module calls its logger.
+
+    The name was taken to be `_log`, which is the house rule on the
+    Praxis side and holds for most of Nexus; one Nexus module writes
+    `_logger`, and a range holding nothing but one of its warnings
+    read as code. Both `logging.getLogger` and structlog's
+    `get_logger` are read, two Nexus modules taking the second.
+
+    Args:
+        tree (ast.Module): The parsed file.
+
+    Returns:
+        frozenset[str]: Every module-level name bound to a logger.
+    '''
+
+    named = set()
+
+    for node in tree.body:
+
+        if not isinstance(node, ast.Assign):
+            continue
+
+        call = node.value
+
+        if (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr in ('getLogger', 'get_logger')
+        ):
+            named |= {
+                target.id for target in node.targets
+                if isinstance(target, ast.Name)
+            }
+
+    return frozenset(named)
+
+
+def _is_a_log_call(node: ast.Call, named: frozenset[str]) -> bool:
+
+    '''Whether a call is made on one of the module's loggers.
 
     Args:
         node (ast.Call): The call to read.
+        named (frozenset[str]): What the module calls its logger.
 
     Returns:
-        bool: True where it calls a method on `_log`.
+        bool: True where it calls a method on one of those names.
     '''
 
     return (
         isinstance(node.func, ast.Attribute)
         and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == '_log'
+        and node.func.value.id in named
     )
 
 
@@ -4701,6 +4742,8 @@ class _FileFacts:
         comments (set[int]): Lines holding nothing but a comment.
         docstrings (set[int]): Lines inside a docstring.
         logs (set[int]): Lines opening a logging call.
+        otherwise (set[int]): Lines carrying `else:`, `try:` or
+            `finally:` and nothing else.
         signatures (set[int]): Lines of a declaration with a body below it.
         exclusive (list[tuple[set[int], set[int]]]): Pairs of line sets that
             cannot both run for one input.
@@ -4717,6 +4760,7 @@ class _FileFacts:
     comments: set[int]
     docstrings: set[int]
     logs: set[int]
+    otherwise: set[int]
     signatures: set[int]
     exclusive: list[tuple[set[int], set[int]]]
     before_a_raise: dict[int, frozenset[int]]
@@ -4770,6 +4814,7 @@ class _SourceFacts:
                 comments=_comment_lines(path),
                 docstrings=_docstring_lines(path),
                 logs=_log_lines(path),
+                otherwise=_otherwise_lines(path),
                 signatures=_signature_lines(path),
                 exclusive=_exclusive_spans(path),
                 before_a_raise=_before_a_raise(path),
@@ -5295,13 +5340,41 @@ def _only_says(span: list[int], facts: _FileFacts) -> bool:
     )
 
 
+OTHERWISE = re.compile(r'^\s*(?:else|try|finally)\s*:\s*(?:#.*)?$')
+
+
+def _otherwise_lines(path: Path) -> set[int]:
+
+    '''Return the lines carrying an opener that states no condition.
+
+    `else:`, `try:` and `finally:` say which way the reader came
+    rather than anything about what happens, so a range of one of
+    them and a logged message is still a range saying only what was
+    logged.
+
+    Args:
+        path (Path): The file to read at its pinned commit.
+
+    Returns:
+        set[int]: Those lines.
+    '''
+
+    return {
+        number
+        for number, line in enumerate(_source_text(path).splitlines(), 1)
+        if OTHERWISE.match(line)
+    }
+
+
 def _only_logs(span: list[int], facts: _FileFacts) -> bool:
 
     '''Whether a cited range says nothing but a logged message.
 
     A range is logging where it holds a logging call and nothing else
-    but blank lines and comments. One that opens on a logging call and
-    runs on into code is citing the code.
+    but blank lines, comments and an opener stating no condition. One
+    that opens on a logging call and runs on into code is citing the
+    code. A range of `else:` and a warning was cited for what the code
+    after it does.
 
     Args:
         span (list[int]): The lines the citation covers.
@@ -5314,7 +5387,7 @@ def _only_logs(span: list[int], facts: _FileFacts) -> bool:
     if not span:
         return False
 
-    quiet = facts.logs | facts.blanks | facts.comments
+    quiet = facts.logs | facts.blanks | facts.comments | facts.otherwise
 
     return any(line in facts.logs for line in span) and all(
         line in quiet for line in span
@@ -6414,7 +6487,7 @@ def _stamps_in_prose(body: str) -> list[str]:
         body (str): The page's prose, its metadata removed.
 
     Returns:
-        list[str]: One complaint per line carrying one.
+        list[str]: One complaint per paragraph carrying one.
     """
 
     return [
@@ -6871,27 +6944,25 @@ def _check_page(
         ):
             failures.extend(f'{rel}: {note}' for note in notes)
 
-    if page.parent.name != 'atoms':
-        return failures
+    if page.parent.name == 'atoms':
+        rows = _evidence_rows(meta)
 
-    rows = _evidence_rows(meta)
-
-    for notes in (
-        ([] if meta else ['has no metadata block; evidence belongs there']),
-        ([] if rows else ['metadata carries no evidence']),
-        _check_voice(body),
-        _uncited_claims(rows),
-        _unlined_sources(rows),
-        _unlinked_terms(page, body),
-        _negative_definitions(body),
-        _obliged_purpose(body),
-        _bare_ordinals(body),
-        _unspaced_headings(body),
-        _check_length(body),
-        _check_metadata(meta, ids),
-        _check_citations(rows, cache),
-    ):
-        failures.extend(f'{rel}: {note}' for note in notes)
+        for notes in (
+            ([] if meta else ['has no metadata block; evidence belongs there']),
+            ([] if rows else ['metadata carries no evidence']),
+            _check_voice(body),
+            _uncited_claims(rows),
+            _unlined_sources(rows),
+            _unlinked_terms(page, body),
+            _negative_definitions(body),
+            _obliged_purpose(body),
+            _bare_ordinals(body),
+            _unspaced_headings(body),
+            _check_length(body),
+            _check_metadata(meta, ids),
+            _check_citations(rows, cache),
+        ):
+            failures.extend(f'{rel}: {note}' for note in notes)
 
     return failures
 
@@ -7167,17 +7238,23 @@ def _nexus_ledger_rows(
 
     '''Check the ledger's Nexus rows against the files the wiki cites.
 
-    The rows there carry no identifiers, so membership is what is
-    checked: a file a row or a finding cites is named, and a file named
-    there is cited. Without that tree nothing resolves into it, so the
-    check is passed over.
+    Membership is checked both ways — a file a row or a finding cites
+    is named, and a file named there is cited — and so is each row
+    identifier, both ways again: a cell's identifier has to belong to
+    an article citing the file, and a cell carrying any has to carry
+    every row that cites it. Two cells named an article that cited
+    neither of their files, and eleven cells went on standing while
+    six new articles cited them. A cell reading `cited, not traced`
+    carries none and is held to neither. Without that tree nothing
+    resolves into it, so the check is passed over.
 
     Args:
         cited (dict[str, set[str]]): Which rows cite each file.
         found (dict[str, set[str]]): Which findings cite each file.
 
     Returns:
-        list[str]: One failure per file on one side only.
+        list[str]: One failure per file on one side only, and one per
+            row identifier on one side of a cell only.
     '''
 
     if not NEXUS_ROOT.is_dir():
@@ -7193,6 +7270,15 @@ def _nexus_ledger_rows(
     ] + [
         f'{LEDGER}: {name} is named in the Nexus rows but nothing cites it'
         for name in sorted(named - reached)
+    ] + [
+        f'{LEDGER}: the row for {name} names {row}, which does not cite it'
+        for name, _, column in LEDGER_ROW_RE.findall(body)
+        for row in sorted(_ledger_listed(column) - cited.get(name, set()))
+    ] + [
+        f'{LEDGER}: the row for {name} carries rows but not {row}, which cites it'
+        for name, _, column in LEDGER_ROW_RE.findall(body)
+        if _ledger_listed(column)
+        for row in sorted(cited.get(name, set()) - _ledger_listed(column))
     ]
 
 
@@ -7302,24 +7388,34 @@ def _ledger_rows() -> list[str]:
     return failures
 
 
-def _nexus_counts() -> tuple[int, int, int]:
+def _nexus_counts(body: str | None = None) -> tuple[int, int, int]:
 
     '''Return how many Nexus modules the ledger names, owns and holds.
 
-    A module is owned where its row cites an article; one whose row
-    says only that something cited it is named without being owned.
-    Three articles stated that split and all three had it wrong, each
-    from a reading taken when it was true.
+    A module is owned where its row carries an article's identifier.
+    Reading that off the absence of `cited, not traced` instead left
+    two cells carrying both counted as unowned, and no count could
+    then be wrong enough to fail. Three articles stated that split
+    and all three had it wrong, each from a reading taken when it
+    was true.
+
+    Args:
+        body (str | None): The ledger's Nexus section, read from the
+            ledger where it is not given.
 
     Returns:
         tuple[int, int, int]: The rows naming a module, those among
             them carrying a row of their own, and every module.
     '''
 
-    body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Nexus', '')
+    if body is None:
+        body = _ledger_sections(
+            LEDGER.read_text(encoding='utf-8'),
+        ).get('Nexus', '')
+
     rows = LEDGER_ROW_RE.findall(body)
     named = len(rows)
-    owned = sum(1 for row in rows if 'cited, not traced' not in row[-1])
+    owned = sum(1 for row in rows if _ledger_listed(row[-1]))
     grouped = sum(_as_count(count) for count in LEDGER_GROUP_RE.findall(body))
 
     return named, owned, named + grouped

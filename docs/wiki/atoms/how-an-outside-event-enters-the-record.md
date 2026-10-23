@@ -2,7 +2,7 @@
 row: P4-59
 baseline: 49aa659
 created: 2026-10-15 22:20 UTC
-modified: 2026-10-16 09:40 UTC
+modified: 2026-10-22 12:00 UTC
 evidence:
   - claim: "A running account's event is queued for its writer, and the caller waits on an answer the writer sets"
     source: "`execution_manager.py` 3210-3214, answered at 3816-3817"
@@ -53,4 +53,4 @@ A writer called off while draining passes that straight on, leaving the caller w
 
 ---
 
-Created 2026-10-15 22:20 UTC · Last modified 2026-10-16 09:40 UTC
+Created 2026-10-15 22:20 UTC · Last modified 2026-10-22 12:00 UTC

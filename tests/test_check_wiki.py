@@ -1182,77 +1182,202 @@ class TestObligedPurpose:
         assert not check_wiki._obliged_purpose(sentence)
 
 
-def _tests_the_folder(test: ast.expr) -> bool:
-    """Whether a condition asks which folder the page sits in, and says yes."""
+_REGISTER_RULE = re.compile(
+    r'carrying an obligation:(.*?)\.\s', re.DOTALL,
+)
 
-    return (
-        isinstance(test, ast.Compare)
-        and len(test.ops) == 1
-        and isinstance(test.ops[0], ast.Eq)
-        and 'parent' in ast.dump(test.left)
-    )
+_ITALIC = re.compile(r'\*([a-z\s]+?)\*')
 
 
-def _page_checks(branch: str) -> tuple[str, ...]:
+def _register_terms() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the causes and the obligations the register names.
 
-    """Return the checks `_check_page` runs for one kind of page.
-
-    A check was once added to this list at the wrong indentation: it
-    landed in the spines branch twice and in the atoms branch not at
-    all, which is valid Python and ran green for a day. Reading both
-    branches off the source is what catches that.
-
-    A branch is told by the `if` it sits under, not by what it names,
-    so replacing that test with a constant takes its loop out of the
-    branch it claims rather than leaving the reading unchanged.
-
-    Args:
-        branch (str): 'atoms' or 'spines'.
+    Reads the whole sentence rather than one run of italics in it, a
+    word appended after the last `or` having gone unread.
 
     Returns:
-        tuple[str, ...]: Each check called in that branch's loop.
+        tuple[tuple[str, ...], tuple[str, ...]]: The causes, then the
+            obligations.
     """
 
-    tree = ast.parse(Path(check_wiki.__file__).read_text(encoding='utf-8'))
-    page = next(
-        node for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == '_check_page'
+    said = _REGISTER_RULE.search(
+        (check_wiki.WIKI / 'register.md').read_text(encoding='utf-8'),
     )
-    wanted = 'spines' if branch == 'spines' else 'atoms'
-    found: list[str] = []
-    guarded = {
-        id(inner): ast.dump(node.test)
-        for node in ast.walk(page)
-        if isinstance(node, ast.If)
-        and _tests_the_folder(node.test)
-        for inner in ast.walk(node)
-        if isinstance(inner, ast.For)
-    }
 
-    for loop in (n for n in ast.walk(page) if isinstance(n, ast.For)):
-        if not isinstance(loop.iter, ast.Tuple):
-            continue
+    if said is None:
+        return (), ()
 
-        held = guarded.get(id(loop), '')
+    before, _, after = said.group(1).partition('and then')
 
-        if 'spines' in held and wanted != 'spines':
-            continue
+    return tuple(
+        tuple(' '.join(word.split()) for word in _ITALIC.findall(half))
+        for half in (before, after)
+    )
 
-        if wanted == 'spines' and 'spines' not in held:
-            continue
 
-        names = tuple(
-            call.func.id
-            for call in ast.walk(loop.iter)
-            if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+_UNREADABLE = frozenset('.+*{}[]^$')
+
+
+def _phrases(source: str) -> tuple[str, ...]:
+    r"""Return every phrase an alternation can match, spelt out.
+
+    Reads the alternation, the `(?:a|b)` groups inside it, a `?` on
+    either, and `\s+` as one space. Anything else stops it: `\s*`
+    was read as one space and so answered that a pattern accepting
+    `needto` named the same words the register did.
+
+    Args:
+        source (str): The inside of an alternation group.
+
+    Returns:
+        tuple[str, ...]: One phrase per thing it matches.
+    """
+
+    def run(place: int) -> tuple[list[str], int]:
+        grown = ['']
+
+        while place < len(source) and source[place] not in '|)':
+            mark = source[place]
+
+            if mark == '(':
+                if source[place:place + 3] != '(?:':
+                    msg = f'unreadable group at {place} in {source!r}'
+                    raise ValueError(msg)
+
+                unit, place = branches(place + 3)
+                place += 1
+
+            elif mark == '\\':
+                if source[place:place + 3] != '\\s+':
+                    msg = f'unreadable escape at {place} in {source!r}'
+                    raise ValueError(msg)
+
+                place += 3
+                unit = [' ']
+
+            elif mark in _UNREADABLE:
+                msg = f'unreadable mark {mark!r} at {place} in {source!r}'
+                raise ValueError(msg)
+
+            else:
+                place += 1
+                unit = [mark]
+
+            if source[place:place + 1] == '?':
+                place += 1
+                unit = [*unit, '']
+
+            grown = [held + one for held in grown for one in unit]
+
+        return grown, place
+
+    def branches(place: int) -> tuple[list[str], int]:
+        grown, place = run(place)
+
+        while source[place:place + 1] == '|':
+            more, place = run(place + 1)
+            grown += more
+
+        return grown, place
+
+    grown, place = branches(0)
+
+    if place != len(source):
+        msg = f'stopped at {place} in {source!r}'
+        raise ValueError(msg)
+
+    return tuple(grown)
+
+
+class TestTheRegisterNamesWhatTheGateRefuses:
+
+    """The register's account of a rule and the rule itself.
+
+    Two of these drifted apart at once: the register named four
+    obligation words where the pattern matched eight, and a docstring
+    promised one complaint per line where the code walks paragraphs.
+    Prose about a check is unread by the check, so it rots silently.
+
+    The two sides answer each other here with nothing in between: a
+    list kept in this file would drift with whichever side it was
+    written beside.
+    """
+
+    CAUSES = re.compile(r'\\b\(\?:([^)]*)\)\\b')
+    OBLIGED = re.compile(
+        r'\\b\(\?:([^)]*(?:\([^)]*\)[^)]*)*)\)\\b\(\?!-\)',
+    )
+
+    def _inside(self, which: re.Pattern[str]) -> str:
+        found = which.search(check_wiki.OBLIGED_PURPOSE.pattern)
+
+        assert found is not None
+
+        return found.group(1)
+
+    def test_the_register_names_the_causes_the_pattern_reads(self) -> None:
+        assert sorted(_phrases(self._inside(self.CAUSES))) == sorted(
+            _register_terms()[0],
         )
-        if names:
-            found.extend(names)
 
-    return tuple(found)
+    def test_the_register_names_what_the_pattern_matches(self) -> None:
+        assert sorted(_phrases(self._inside(self.OBLIGED))) == sorted(
+            _register_terms()[1],
+        )
+
+    @pytest.mark.parametrize('word', _register_terms()[1])
+    def test_each_word_the_register_names_is_refused(self, word: str) -> None:
+        said = f'It is refused because the host {word} answer.'
+
+        assert check_wiki._obliged_purpose(said)
+
+    @pytest.mark.parametrize('cause', _register_terms()[0])
+    def test_each_cause_the_register_names_is_read(self, cause: str) -> None:
+        said = f'It is refused {cause} the host must answer.'
+
+        assert check_wiki._obliged_purpose(said)
+
+    def test_the_register_names_some_of_each(self) -> None:
+        causes, obliged = _register_terms()
+
+        assert len(causes) > 1
+        assert len(obliged) > 1
+
+    @pytest.mark.parametrize(
+        'source',
+        [
+            pytest.param(r'needs?\s*to', id='a-space-that-may-be-absent'),
+            pytest.param(r'needs?\s{1,2}to', id='a-counted-space'),
+            pytest.param(r'need\d+', id='an-escape-it-does-not-know'),
+            pytest.param(r'need.to', id='a-mark-for-anything'),
+            pytest.param(r'needs+ to', id='a-repeated-letter'),
+            pytest.param(r'need[s] to', id='a-set'),
+            pytest.param(r'(need|needs) to', id='a-group-that-remembers'),
+        ],
+    )
+    def test_what_it_cannot_read_stops_it(self, source: str) -> None:
+        with pytest.raises(ValueError):
+            _phrases(source)
+
+    def test_what_it_can_read_it_spells_out(self) -> None:
+        assert sorted(_phrases(r'ha(?:s|ve)\s+to|must')) == [
+            'has to', 'have to', 'must',
+        ]
 
 
 class TestEveryPageCheckIsWired:
+
+    """What `_check_page` runs for an atom and for a spine.
+
+    A check was once added to this list at the wrong indentation: it
+    landed in the spines branch twice and in the atoms branch not at
+    all, which is valid Python and ran green for a day. Reading the
+    source for the shape of those two branches was the first answer,
+    and it could not tell a guard that is always false from one that
+    holds — so each check answers here instead, and the folder the
+    page sits in is the only thing that decides who hears it.
+    """
+
     SHARED = (
         '_check_voice',
         '_uncited_claims',
@@ -1265,18 +1390,79 @@ class TestEveryPageCheckIsWired:
         '_check_citations',
     )
 
-    @pytest.mark.parametrize('named', SHARED)
-    def test_an_atom_is_held_to_it(self, named: str) -> None:
-        assert named in _page_checks('atoms')
+    ATOMS_ALONE = ('_unlinked_terms', '_check_length')
+    SPINES_ALONE = ('_spine_steps',)
 
-    @pytest.mark.parametrize('named', SHARED)
-    def test_a_spine_is_held_to_it(self, named: str) -> None:
-        assert named in _page_checks('spines')
+    @staticmethod
+    def _times(
+        monkeypatch: pytest.MonkeyPatch, folder: str, root: Path, named: str,
+    ) -> int:
+        """How often `_check_page` calls one check for a page in one folder."""
 
-    @pytest.mark.parametrize('branch', ['atoms', 'spines'])
-    def test_no_check_is_run_twice(self, branch: str) -> None:
-        names = _page_checks(branch)
-        assert len(names) == len(set(names))
+        page = root / folder / 'a-page.md'
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text(
+            '---\nrow: P1-01\n---\n# A page\n\nIt is read.\n',
+            encoding='utf-8',
+        )
+        called = []
+        monkeypatch.setattr(
+            check_wiki, named,
+            lambda *_, **__: called.append(named) or [],
+            raising=True,
+        )
+        check_wiki._check_page(page, set(), check_wiki._SourceFacts())
+
+        return len(called)
+
+    @classmethod
+    def _heard(
+        cls, monkeypatch: pytest.MonkeyPatch, folder: str, root: Path,
+        named: str,
+    ) -> bool:
+        return cls._times(monkeypatch, folder, root, named) > 0
+
+    @pytest.mark.parametrize('named', SHARED + ATOMS_ALONE)
+    def test_an_atom_is_held_to_it(
+        self, named: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        assert self._heard(monkeypatch, 'atoms', tmp_path, named)
+
+    @pytest.mark.parametrize('named', SHARED + SPINES_ALONE)
+    def test_a_spine_is_held_to_it(
+        self, named: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        assert self._heard(monkeypatch, 'spines', tmp_path, named)
+
+    @pytest.mark.parametrize('named', ATOMS_ALONE)
+    def test_a_spine_is_spared_the_atom_checks(
+        self, named: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        assert not self._heard(monkeypatch, 'spines', tmp_path, named)
+
+    @pytest.mark.parametrize('named', SPINES_ALONE)
+    def test_an_atom_is_spared_the_spine_checks(
+        self, named: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        assert not self._heard(monkeypatch, 'atoms', tmp_path, named)
+
+    @pytest.mark.parametrize('named', SHARED + ATOMS_ALONE + SPINES_ALONE)
+    def test_a_page_in_neither_folder_is_held_to_nothing(
+        self, named: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        assert not self._heard(monkeypatch, 'elsewhere', tmp_path, named)
+
+    @pytest.mark.parametrize('named', SHARED + ATOMS_ALONE)
+    def test_an_atom_hears_it_once(
+        self, named: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        assert self._times(monkeypatch, 'atoms', tmp_path, named) == 1
+
+    @pytest.mark.parametrize('named', SHARED + SPINES_ALONE)
+    def test_a_spine_hears_it_once(
+        self, named: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        assert self._times(monkeypatch, 'spines', tmp_path, named) == 1
 
 
 class TestAStampInTheProse:
@@ -2307,6 +2493,159 @@ class TestWholeRanges:
         assert not any('nexus/strategy/loader.py is cited but not named' in f
                        for f in failures)
 
+    @staticmethod
+    def _a_nexus_cell() -> tuple[str, set[str]]:
+        """Return a Nexus file the ledger names and every row it lists.
+
+        The cell carrying the most is taken: one carrying a single row
+        cannot tell a check that reports every offender from one that
+        reports the first.
+        """
+
+        body = check_wiki._ledger_sections(
+            check_wiki.LEDGER.read_text(encoding='utf-8'),
+        ).get('Nexus', '')
+
+        return max(
+            (
+                (name, check_wiki._ledger_listed(column))
+                for name, _, column in check_wiki.LEDGER_ROW_RE.findall(body)
+            ),
+            key=lambda cell: len(cell[1]),
+        )
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_nexus_row_naming_an_article_that_does_not_cite_it_is_caught(
+        self,
+    ) -> None:
+        named, rows = self._a_nexus_cell()
+        failures = check_wiki._nexus_ledger_rows({named: {'N9-99'}}, {})
+
+        assert len(rows) > 1
+
+        for row in rows:
+            assert any(
+                f'the row for {named} names {row}, which does not cite it' in f
+                for f in failures
+            )
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_nexus_row_the_article_does_cite_is_left_alone(self) -> None:
+        named, rows = self._a_nexus_cell()
+        failures = check_wiki._nexus_ledger_rows({named: set(rows)}, {})
+
+        assert not any(f'the row for {named}' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_cell_carrying_rows_is_owned_whatever_else_it_says(self) -> None:
+        assert check_wiki._ledger_listed(
+            'N3-01, N3-02, cited, not traced',
+        ) == {'N3-01', 'N3-02'}
+        assert check_wiki._ledger_listed('cited, not traced') == set()
+        assert check_wiki._ledger_listed('N1-01, N2-07') == {'N1-01', 'N2-07'}
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_cell_saying_both_is_counted_by_its_rows(self) -> None:
+        body = (
+            '| File | State | Rows |\n'
+            '|---|---|---|\n'
+            '| `nexus/a.py` | partial | N1-01, cited, not traced |\n'
+            '| `nexus/b.py` | partial | cited, not traced |\n'
+        )
+        named, owned, total = check_wiki._nexus_counts(body)
+
+        assert (named, owned, total) == (2, 1, 2)
+
+    def test_the_ledger_as_it_stands_draws_no_row_complaint(self) -> None:
+        failures = check_wiki._nexus_ledger_rows(
+            check_wiki._row_file_citations(),
+            check_wiki._finding_file_citations(),
+        )
+
+        assert not any('the row for' in f for f in failures)
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_row_citing_a_named_nexus_file_answers_for_it(self) -> None:
+        named, rows = self._a_nexus_cell()
+        failures = check_wiki._nexus_ledger_rows({named: set(rows)}, {})
+
+        assert not any(
+            f'{named} is named in the Nexus rows but nothing cites it' in f
+            for f in failures
+        )
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_finding_citing_a_named_nexus_file_answers_for_it(self) -> None:
+        named, _ = self._a_nexus_cell()
+        failures = check_wiki._nexus_ledger_rows({}, {named: {'H-001'}})
+
+        assert not any(
+            f'{named} is named in the Nexus rows but nothing cites it' in f
+            for f in failures
+        )
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_nexus_cell_missing_a_row_that_cites_it_is_caught(self) -> None:
+        named, rows = self._a_nexus_cell()
+        failures = check_wiki._nexus_ledger_rows(
+            {named: {*rows, 'N9-99'}}, {},
+        )
+
+        assert any(
+            f'the row for {named} carries rows but not N9-99' in f
+            for f in failures
+        )
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the Nexus rows are checked only where that tree is present',
+    )
+    def test_a_nexus_cell_carrying_none_is_held_to_neither(self) -> None:
+        body = check_wiki._ledger_sections(
+            check_wiki.LEDGER.read_text(encoding='utf-8'),
+        ).get('Nexus', '')
+        named = next(
+            name for name, _, column in check_wiki.LEDGER_ROW_RE.findall(body)
+            if not check_wiki._ledger_listed(column)
+        )
+        failures = check_wiki._nexus_ledger_rows({named: {'N9-99'}}, {})
+
+        assert not any(f'the row for {named} carries rows' in f
+                       for f in failures)
 
 class TestAmbiguousNames:
 
@@ -5124,6 +5463,47 @@ class TestRationale:
         )
 
         assert any('log call' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the second logger name lives in the Nexus tree',
+    )
+    def test_a_logger_under_another_name_is_a_log_call(self) -> None:
+        failures = check_wiki._check_citations(
+            ['a claim | `nexus/core/capital_controller/capital_controller.py`'
+             ' 250-257'],
+            check_wiki._SourceFacts(),
+        )
+
+        assert any('log call' in failure for failure in failures)
+
+    @_NEEDS_BASELINE
+    @pytest.mark.skipif(
+        not (check_wiki.NEXUS_ROOT / '.git').exists(),
+        reason='the second logger name lives in the Nexus tree',
+    )
+    def test_a_bare_else_does_not_save_a_range_of_logging(self) -> None:
+        failures = check_wiki._check_citations(
+            ['a claim | `nexus/core/capital_controller/capital_controller.py`'
+             ' 249-257'],
+            check_wiki._SourceFacts(),
+        )
+
+        assert any('log call' in failure for failure in failures)
+
+    def test_what_the_module_calls_its_logger_is_read_off_it(self) -> None:
+        import ast
+
+        named = check_wiki._logger_names(
+            ast.parse('import logging\n_logger = logging.getLogger(__name__)\n'),
+        )
+
+        assert named == frozenset({'_logger'})
+        assert check_wiki._logger_names(ast.parse('_logger = 1\n')) == frozenset()
+        assert check_wiki._logger_names(
+            ast.parse('import structlog\n_log = structlog.get_logger()\n'),
+        ) == frozenset({'_log'})
 
     @_NEEDS_BASELINE
     def test_a_range_running_from_a_log_into_code_is_code(self) -> None:
