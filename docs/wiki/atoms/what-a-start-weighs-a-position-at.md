@@ -2,7 +2,7 @@
 row: N3-11
 baseline: 49aa659
 created: 2026-10-22 23:00 UTC
-modified: 2026-10-22 23:00 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "A position written back into the record counts its size at the price the host gives"
     source: "`nexus/startup/sequencer.py` 438"
@@ -48,4 +48,4 @@ The account's deployed figure is set to what those prices add up to, where that 
 
 ---
 
-Created 2026-10-22 23:00 UTC · Last modified 2026-10-22 23:00 UTC
+Created 2026-10-22 23:00 UTC · Last modified 2026-10-23 09:00 UTC

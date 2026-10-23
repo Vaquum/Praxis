@@ -2,7 +2,7 @@
 row: N1-08
 baseline: 49aa659
 created: 2026-10-18 16:30 UTC
-modified: 2026-10-22 12:00 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "An abandonment a strategy asks for is sent before the walk is reached, so no stage runs for it"
     source: "`nexus/strategy/action_submit.py` 201-203 returning before the walk at 242"
@@ -57,4 +57,4 @@ Where the wait for that closing runs out, each command still pending is abandone
 
 ---
 
-Created 2026-10-18 16:30 UTC · Last modified 2026-10-22 12:00 UTC
+Created 2026-10-18 16:30 UTC · Last modified 2026-10-23 09:00 UTC

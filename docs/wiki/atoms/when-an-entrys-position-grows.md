@@ -2,7 +2,7 @@
 row: N1-07
 baseline: 49aa659
 created: 2026-10-18 13:00 UTC
-modified: 2026-10-22 12:00 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "A fill on an entry grows its position, where one on an exit reduces it instead"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 448-449 against 451"
@@ -53,4 +53,4 @@ An entry's fill reports no profit or loss, and the risk figures are written only
 
 ---
 
-Created 2026-10-18 13:00 UTC · Last modified 2026-10-22 12:00 UTC
+Created 2026-10-18 13:00 UTC · Last modified 2026-10-23 09:00 UTC

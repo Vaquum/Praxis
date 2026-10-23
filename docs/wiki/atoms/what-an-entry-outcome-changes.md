@@ -2,7 +2,7 @@
 row: N1-06
 baseline: 49aa659
 created: 2026-10-18 13:00 UTC
-modified: 2026-10-22 12:00 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "The outcome's type chooses the handler, and everything that is not an acknowledgement, a fill or a refusal goes to the cancellation handler, an expiry included"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 152-161"
@@ -52,4 +52,4 @@ A giving-back that fails ends an entry's outcome as a failure, and a failed outc
 
 ---
 
-Created 2026-10-18 13:00 UTC · Last modified 2026-10-22 12:00 UTC
+Created 2026-10-18 13:00 UTC · Last modified 2026-10-23 09:00 UTC

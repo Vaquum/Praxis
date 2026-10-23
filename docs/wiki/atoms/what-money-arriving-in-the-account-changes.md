@@ -2,7 +2,7 @@
 row: N3-02
 baseline: 49aa659
 created: 2026-10-22 15:10 UTC
-modified: 2026-10-22 16:50 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "A deposit or withdrawal the venue reports is written to the log, and the body touches no figure besides the mark that it was seen"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 737-757"
@@ -46,4 +46,4 @@ So raising the account's pool is a matter of starting an account that has no rec
 
 ---
 
-Created 2026-10-22 15:10 UTC · Last modified 2026-10-22 16:50 UTC
+Created 2026-10-22 15:10 UTC · Last modified 2026-10-23 09:00 UTC

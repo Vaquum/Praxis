@@ -2,7 +2,7 @@
 row: N3-07
 baseline: 49aa659
 created: 2026-10-22 18:10 UTC
-modified: 2026-10-22 18:10 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "A fill against a position being entered comes back with no result"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 448-451 into 256-260"
@@ -48,4 +48,4 @@ A result of nought — a sale that came out even, or one whose gain the fees ate
 
 ---
 
-Created 2026-10-22 18:10 UTC · Last modified 2026-10-22 18:10 UTC
+Created 2026-10-22 18:10 UTC · Last modified 2026-10-23 09:00 UTC

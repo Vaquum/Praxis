@@ -2,7 +2,7 @@
 row: N3-10
 baseline: 49aa659
 created: 2026-10-22 21:00 UTC
-modified: 2026-10-22 21:00 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "A dust write deletes the position from Nexus's record and leaves both deployed figures as they were"
     source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 576-580 into 594-595, and 696-702"
@@ -52,4 +52,4 @@ So the dust write takes the position out of Nexus's record and leaves the money 
 
 ---
 
-Created 2026-10-22 21:00 UTC · Last modified 2026-10-22 21:00 UTC
+Created 2026-10-22 21:00 UTC · Last modified 2026-10-23 09:00 UTC

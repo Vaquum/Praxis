@@ -2,7 +2,7 @@
 row: N3-05
 baseline: 49aa659
 created: 2026-10-22 15:40 UTC
-modified: 2026-10-22 17:00 UTC
+modified: 2026-10-23 09:00 UTC
 evidence:
   - claim: "Where the live positions are handed in, each strategy's deployed figure is worked out again from them and replaces what was carried over"
     source: "`nexus/core/capital_controller/capital_controller.py` 214-272"
@@ -58,4 +58,4 @@ Handing the positions in is optional in the code, and every caller outside the t
 
 ---
 
-Created 2026-10-22 15:40 UTC · Last modified 2026-10-22 17:00 UTC
+Created 2026-10-22 15:40 UTC · Last modified 2026-10-23 09:00 UTC
