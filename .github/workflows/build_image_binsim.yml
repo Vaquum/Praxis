@@ -67,3 +67,11 @@ jobs:
             ${{ steps.meta.outputs.image }}:sha-${{ github.sha }}
             ${{ github.ref == 'refs/heads/main' && format('{0}:{1}', steps.meta.outputs.image, steps.version.outputs.value) || '' }}
             ${{ github.ref == 'refs/heads/main' && format('{0}:main', steps.meta.outputs.image) || '' }}
+
+      - name: Build and push isolated reader rollout
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.binsim-reader
+          push: true
+          tags: ${{ steps.meta.outputs.image }}:sha-${{ github.sha }}-reader

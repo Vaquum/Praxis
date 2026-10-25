@@ -1,0 +1,8 @@
+{
+  "source": "Vaquum/binance-book-collector A, BTCUSDT Spot",
+  "segment_id": 428,
+  "capture_date": "2026-10-24",
+  "rows": 3,
+  "sha256": "b0d9b7ba51d6bdbe2225b0b6c39ada48d2c7ff2bd3ac67d20d57895cfc31d9e2",
+  "notes": "First three original sealed observations. Exchange/receipt clocks, IDs and price/quantity strings are unchanged. Tests that alter fields identify deliberate protocol faults."
+}
