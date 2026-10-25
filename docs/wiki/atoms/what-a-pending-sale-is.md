@@ -2,7 +2,7 @@
 row: N4-02
 baseline: 49aa659
 created: 2026-10-23 11:10 UTC
-modified: 2026-10-23 12:20 UTC
+modified: 2026-10-25 09:00 UTC
 evidence:
   - claim: "A pending sale is written onto the position as the sale is sent, by the size of that order, through the registration the host runs for it"
     source: "`praxis/launcher.py` 2159-2164, reached from `nexus/strategy/action_submit.py` 313-337"
@@ -52,4 +52,4 @@ An acknowledgement of a sale returns before any figure is touched, so the pendin
 
 ---
 
-Created 2026-10-23 11:10 UTC · Last modified 2026-10-23 12:20 UTC
+Created 2026-10-23 11:10 UTC · Last modified 2026-10-25 09:00 UTC

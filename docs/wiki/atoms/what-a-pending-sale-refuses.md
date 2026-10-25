@@ -2,7 +2,7 @@
 row: N4-07
 baseline: 49aa659
 created: 2026-10-23 17:30 UTC
-modified: 2026-10-23 17:30 UTC
+modified: 2026-10-25 09:00 UTC
 evidence:
   - claim: "A sale larger than the position less what is pending on it is refused at the intake stage"
     source: "`nexus/core/validator/intake_stage.py` 278-284"
@@ -38,4 +38,4 @@ So the cap holds for the sales a strategy asks for while the host is running, an
 
 ---
 
-Created 2026-10-23 17:30 UTC · Last modified 2026-10-23 17:30 UTC
+Created 2026-10-23 17:30 UTC · Last modified 2026-10-25 09:00 UTC

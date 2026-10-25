@@ -2,7 +2,7 @@
 row: N4-04
 baseline: 49aa659
 created: 2026-10-23 11:30 UTC
-modified: 2026-10-23 13:00 UTC
+modified: 2026-10-25 09:00 UTC
 evidence:
   - claim: "A reducing fill that leaves a position at nought removes it and raises a count kept against that trade"
     source: "`praxis/core/trading_state.py` 516-521"
@@ -44,4 +44,4 @@ One reader asks a different question and is answered yes or no: whether a fill a
 
 ---
 
-Created 2026-10-23 11:30 UTC · Last modified 2026-10-23 13:00 UTC
+Created 2026-10-23 11:30 UTC · Last modified 2026-10-25 09:00 UTC

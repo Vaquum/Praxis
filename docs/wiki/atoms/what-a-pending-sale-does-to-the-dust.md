@@ -2,7 +2,7 @@
 row: N4-05
 baseline: 49aa659
 created: 2026-10-23 13:30 UTC
-modified: 2026-10-23 13:30 UTC
+modified: 2026-10-25 09:00 UTC
 evidence:
   - claim: "A close the venue refuses before an order exists is written off as dust only where the position has nothing pending on it"
     source: "`praxis/launcher.py` 1323 and 1339-1342 into 1363-1367, ending at 1369, the dust itself at `nexus/infrastructure/praxis_connector/outcome_processor.py` 696-702"
@@ -38,4 +38,4 @@ The position goes with the remainder — a size of nought is what closes it — 
 
 ---
 
-Created 2026-10-23 13:30 UTC · Last modified 2026-10-23 13:30 UTC
+Created 2026-10-23 13:30 UTC · Last modified 2026-10-25 09:00 UTC

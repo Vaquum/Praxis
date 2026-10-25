@@ -2,7 +2,7 @@
 row: N4-01
 baseline: 49aa659
 created: 2026-10-23 11:00 UTC
-modified: 2026-10-23 12:10 UTC
+modified: 2026-10-25 09:00 UTC
 evidence:
   - claim: "Ten places move the figure, and only one of them means to raise it: where money is set aside for a trade"
     source: "`nexus/core/capital_controller/capital_controller.py` 420, against 488-490, 522-524, 565-566, 688, 806, 963, 967, 1017 and 1079-1080"
@@ -60,4 +60,4 @@ A start moves nothing: it [works the whole set out again](what-a-boot-rebuilds-f
 
 ---
 
-Created 2026-10-23 11:00 UTC · Last modified 2026-10-23 12:10 UTC
+Created 2026-10-23 11:00 UTC · Last modified 2026-10-25 09:00 UTC

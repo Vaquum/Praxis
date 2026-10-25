@@ -2,7 +2,7 @@
 row: N4-06
 baseline: 49aa659
 created: 2026-10-23 16:00 UTC
-modified: 2026-10-23 16:00 UTC
+modified: 2026-10-25 09:00 UTC
 evidence:
   - claim: "A fill works out the fee guessed for the part it filled less the fee reported for it"
     source: "`nexus/core/capital_controller/capital_controller.py` 902-907, or 915-921, into 924"
@@ -40,4 +40,4 @@ A reserve left within that same margin of nought is set to nought outright rathe
 
 ---
 
-Created 2026-10-23 16:00 UTC · Last modified 2026-10-23 16:00 UTC
+Created 2026-10-23 16:00 UTC · Last modified 2026-10-25 09:00 UTC

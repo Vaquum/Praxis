@@ -2,7 +2,7 @@
 row: N4-03
 baseline: 49aa659
 created: 2026-10-23 11:20 UTC
-modified: 2026-10-23 12:30 UTC
+modified: 2026-10-25 09:00 UTC
 evidence:
   - claim: "Its size and price are read off what the host gave for it"
     source: "`nexus/startup/sequencer.py` 414-415"
@@ -52,4 +52,4 @@ Nothing is given for [what is already sold against it](what-a-pending-sale-is.md
 
 ---
 
-Created 2026-10-23 11:20 UTC · Last modified 2026-10-23 12:30 UTC
+Created 2026-10-23 11:20 UTC · Last modified 2026-10-25 09:00 UTC
