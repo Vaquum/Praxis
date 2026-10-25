@@ -165,6 +165,13 @@ the others where it appears.
 - [What each check weighs](atoms/what-each-check-weighs.md) — six checks stand between a strategy's decision and the venue, and they look at quite different things: the order itself, what the account has lost, and whether the venue is answering.
 - [The roads around the checks](atoms/the-roads-around-the-checks.md) — some orders go out to the venue without passing a single one of the checks the rest pass.
 - [What an entry outcome changes](atoms/what-an-entry-outcome-changes.md) — a report of one kind moves the money set aside for a command on to the next place it sits, and two kinds of report move nothing at all.
+- [What a settling fee does to the figure](atoms/what-a-settling-fee-does-to-the-figure.md) — the gap between a guessed trading cost and what the report says it came to moves two balances in opposite directions, and can raise the money held against a strategy without anyone committing more.
+- [What a strategy’s committed figure moves on](atoms/what-moves-a-strategys-committed-figure.md) — the money held against one strategy is raised on purpose only where it is set aside for a trade; the rest of what touches it is giving money back, except a settling fee that came in over its guess, which pushes it up in the ordinary way of things; a startup replaces it outright.
+- [What a pending sale refuses](atoms/what-a-pending-sale-refuses.md) — the cap on selling the same holding twice is applied by the first check a request meets, and the sales a host fires off as it shuts down never meet it.
+- [What a pending sale does to the dust](atoms/what-a-pending-sale-does-to-the-dust.md) — an unsettled sale bars one route to writing a holding off and leaves the other wide open, so the same leftover is treated two ways depending on how it got there.
+- [What a pending sale is](atoms/what-a-pending-sale-is.md) — a holding records how much of it already has a sale out, which caps what a further sale asking through the checks may request.
+- [What a written-back position carries](atoms/what-a-written-back-position-carries.md) — a holding rebuilt at startup from the venue side takes one price as both the price it opened at and the price its money is booked at, where a holding built in the ordinary way keeps those apart.
+- [What the host counts when a fill empties a position](atoms/what-the-host-counts-when-a-fill-empties-a-position.md) — a holding is gone before the message announcing its close arrives, so a tally stands in for it and tells a sold-out trade from one that never held anything.
 - [Where a position's last scraps go](atoms/where-a-positions-last-scraps-go.md) — the part of a holding too small to sell is written off to a running total per coin, and no decision ever looks at that total again.
 - [What a taking-out takes](atoms/what-a-taking-out-takes.md) — releasing the money behind a sale removes what was asked for or as much as is there, and a strategy left with a sliver is dropped from the books entirely.
 - [What a start weighs a position at](atoms/what-a-start-weighs-a-position-at.md) — startup values each holding at a different price depending on where it came from, and writes the price it settled on back onto the holding.
@@ -262,14 +269,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 165
+Both sides are the subject, and Praxis is the side that has been written. 172
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
-part and 4 not at all; of the 70 in Nexus, 39 are named and 31
-untouched — 28 carry a row of their own, and 11 are reached by an
+part and 4 not at all; of the 70 in Nexus, 40 are named and 30
+untouched — 29 carry a row of their own, and 11 are reached by an
 article that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-23 11:40 UTC

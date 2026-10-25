@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**7 of them reviewed, 163 not.**
+**7 of them reviewed, 170 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 39 are named and 31 untouched. Of the 39, 28 carry a row of their own and 11 are reached by an article that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 40 are named and 30 untouched. Of the 40, 29 carry a row of their own and 11 are reached by an article that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -487,6 +487,37 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 4 — the figures that follow a position
+
+Scope: what moves a strategy's committed figure, what a pending sale is and
+what clears it, what a position written back at a start is built from, and
+what the host counts when a fill empties a position. The four candidates the
+package-3 re-seed named, taken through the stages together.
+
+### Merge and promote, package 4
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-166 | Ten places move it, and one means to raise it. | Promote. What moves it is the subject |
+| Row H-167 | Six of the others each take a whole back off. | Merge with H-166, which it answers for the other direction |
+| Row H-168 | A sale takes off what it released. | Merge with H-166 on the same terms |
+| Row H-169 | A fill takes off the fee guessed less the fee reported, and raises the figure where the reported fee is the larger. | Merge with H-166: it is the one move that can go either way |
+| Row H-170 | A fill finishing an order short takes the unfilled remainder off too. | Merge with H-166 on the same terms |
+| Row H-171 | Each reading drops the strategy where what is left lands near nought. | Merge with H-166, already stated for one road in N3-09 and true of all of them |
+| Row H-172 | A pending sale is written as the sale is sent, through the registration the host runs for it. | Promote. What the figure is and what clears it is a second question |
+| Row H-173 | It is taken off by the fill, by a cancel, and by a start. | Merge with H-172, which it answers for the other direction |
+| Row H-174 | An acknowledgement touches no figure, and the dust gate is that figure at nought. | Merge with H-172: it is why a resting sale blocks a dust close |
+| Row H-175 | A position written back at a start takes the host's price as both its entry price and its cost basis, where a position the record built keeps the two apart. | Promote. What the written-back position carries is its own question, leaned on by two articles already |
+| Row H-176 | The host counts each time a fill empties a position. | Promote. What that count is for is unanswered |
+| Row H-177 | Every close reads that count, lowering one above one and dropping anything else. | Merge with H-176, which it is the use of |
+
+Four rows promote: what moves a strategy's committed figure, what a pending
+sale is, what a written-back position carries, and what the host counts when
+a fill empties a position. The pending sale outgrew the cap in the writing,
+and what it does to the dust is N4-05; the committed figure outgrew it as the fee
+move was made precise, and that move is N4-06; the pending sale outgrew it again as the
+cancel was made precise, and what it refuses is N4-07.
+
 ## Nexus package 3 — the scraps, the record and the boot
 
 Scope: what becomes of a position too small to sell, what a reported deposit
@@ -528,6 +559,19 @@ which is N3-09, and what a start does with a dusted position,
 which is N3-10. That in turn carried what a start weighs each
 position at, which is N3-11. Verifying which fills have a result turned up what the fee
 figure in one is worked out from, which is N3-12.
+
+### Re-seed, after writing package 3
+
+What verifying the twelve articles turned up that none of them reaches. These
+enter the next Seed as candidates with their evidence, not as approved topics.
+Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| What moves a strategy's committed figure | `core/capital_controller/capital_controller.py` adjusts it in ten places — 420, 488-490, 522-524, 565-566, 688, 806, 963, 967, 1017 and 1079-1080 — only the first meaning to raise it. N3-09 reaches one of the others and reports that the reading which drops a figure left below nought cannot be caused by it; which of the rest can is unanswered |
+| What a pending sale is and what clears it | Written at `praxis/launcher.py` 2159-2164, at `strategy/action_submit.py` 420 against 431-436 where no registration came back, and at `startup/shutdown_sequencer.py` 458 for a sale a host sends on the way out, reduced at `infrastructure/praxis_connector/outcome_processor.py` 560 and 610, each flooring at nought, and set to nought outright at `core/capital_controller/capital_controller.py` 233. An acknowledgement of a sale returns at `infrastructure/praxis_connector/outcome_processor.py` 190-195 and leaves it standing, which is what keeps a resting sale blocking a dust close. N3-01 and N3-05 each lean on the figure without owning it |
+| What an imported position is built with | `startup/sequencer.py` 283-290 builds the position a start writes back. N3-10 and N3-11 both cite it for what the written-back position carries, and neither owns it |
+| A position the host empties twice | `praxis/core/trading_state.py` 507-521 counts each time a fill empties a position, and every close reads that count at 574-579 — lowering one above one and dropping anything else — after taking any position still there out at 572 and before testing at 580 whether one was. What the count is for, and what a close finding nothing does, is unanswered |
 
 ## Nexus package 2 — the exit
 
@@ -698,6 +742,13 @@ run knowing that.
 | N3-10 | What a start does with a dusted position, and what decides it | written | [what-a-start-does-with-a-dusted-position.md](atoms/what-a-start-does-with-a-dusted-position.md) |
 | N3-11 | What a start weighs a position at, and the price written onto it | written | [what-a-start-weighs-a-position-at.md](atoms/what-a-start-weighs-a-position-at.md) |
 | N3-12 | What a fee figure is worked out from, and the two accounts of one charge | written | [what-a-fee-figure-is-worked-out-from.md](atoms/what-a-fee-figure-is-worked-out-from.md) |
+| N4-01 | What a strategy's committed figure moves on, and the move that can go either way | written | [what-moves-a-strategys-committed-figure.md](atoms/what-moves-a-strategys-committed-figure.md) |
+| N4-02 | What a pending sale is, and what it quietly blocks | written | [what-a-pending-sale-is.md](atoms/what-a-pending-sale-is.md) |
+| N4-03 | What a written-back position carries, and the two prices it collapses | written | [what-a-written-back-position-carries.md](atoms/what-a-written-back-position-carries.md) |
+| N4-04 | What the host counts when a fill empties a position | written | [what-the-host-counts-when-a-fill-empties-a-position.md](atoms/what-the-host-counts-when-a-fill-empties-a-position.md) |
+| N4-05 | What a pending sale does to the dust, and the road it leaves open | written | [what-a-pending-sale-does-to-the-dust.md](atoms/what-a-pending-sale-does-to-the-dust.md) |
+| N4-06 | What a settling fee does to the figure, and the margin it goes through on | written | [what-a-settling-fee-does-to-the-figure.md](atoms/what-a-settling-fee-does-to-the-figure.md) |
+| N4-07 | What a pending sale refuses, and the road that is not capped | written | [what-a-pending-sale-refuses.md](atoms/what-a-pending-sale-refuses.md) |
 | N1-01 | How Nexus sets money aside, and what it is weighed against | reviewed | [how-nexus-sets-money-aside.md](atoms/how-nexus-sets-money-aside.md) |
 | N1-02 | What Nexus does when a command does not get across | reviewed | [what-nexus-does-when-a-command-does-not-get-across.md](atoms/what-nexus-does-when-a-command-does-not-get-across.md) |
 
@@ -886,8 +937,20 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-163 | A fill against one being sold raises rather than returning where the sale is unnamed, the position is not there, or the fill is larger than the position. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 503-505, 509-511 and 516-521 | Nexus package three | folds into N3-07 |
 | H-164 | The gain is taken from the price the position was entered at, the cost basis being read nowhere in it. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 523-525 | Nexus package three | folds into N3-07 |
 | H-165 | A result of nought is a result: what is read is whether a fill came back with one. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 260 | Nexus package three | folds into N3-07 |
+| H-166 | Ten places move a strategy's committed figure, and only one means to raise it: where money is set aside for a trade. | `nexus/core/capital_controller/capital_controller.py` 420, against 488-490, 522-524, 565-566, 688, 806, 963, 967, 1017 and 1079-1080 | Nexus package four | is N4-01 |
+| H-167 | A reservation that timed out, one handed back, one found expired at the send, an order refused, one cancelled, and one given up on each take their own total back off. | `nexus/core/capital_controller/capital_controller.py` 488-490, 522-524, 565-566, 688, 1017 and 1079-1080, the giving up at `praxis/launcher.py` 1989-1994, and 4476 and 4481 into 4484-4486 | Nexus package four | folds into N4-01 |
+| H-168 | A sale takes off what it released, capped at either figure. | `nexus/core/capital_controller/capital_controller.py` 800-806 | Nexus package four | folds into N4-01 |
+| H-169 | A fill takes off the fee guessed for the part filled less the fee reported for it, which raises the figure instead where the reported fee is the larger, unless the shortfall overruns the fee held back by more than a millionth of a millionth, which fails the report. | `nexus/core/capital_controller/capital_controller.py` 907 or 921, into 924 and 961-963, the shortfall guard at 926-938 | Nexus package four | folds into N4-01 |
+| H-170 | A fill that finishes an order leaving part of it unfilled takes that remainder off as well. | `nexus/core/capital_controller/capital_controller.py` 922 into 965-967 | Nexus package four | folds into N4-01 |
+| H-171 | Each of those readings drops the strategy from the figures where what is left lands within a millionth of a millionth of nought, or below it. | `nexus/core/capital_controller/capital_controller.py` 1097-1113, the amount at `nexus/core/domain/capital_state.py` 16 | Nexus package four | folds into N4-01 |
+| H-172 | A pending sale is written onto the position as the sale is sent, through the registration the host runs for it, or on Nexus's own side where no registration runs, or by a host shutting down for a sale it sends on the way out, where building the record of that sale can fail after the sale has gone. | `praxis/launcher.py` 2159-2164 reached from `nexus/strategy/action_submit.py` 313-337, `nexus/strategy/action_submit.py` 420 against 431-436, and `nexus/startup/shutdown_sequencer.py` 407 before 432-443, against 458 with the size at 561 | Nexus package four | is N4-02 |
+| H-173 | It is taken off by the fill that answers it, by a cancel taking the smaller of what the report says was left and the size the order was sent with, and by a start setting it to nought. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 560, and 336-342 into 610, and `nexus/core/capital_controller/capital_controller.py` 233 | Nexus package four | folds into N4-02 |
+| H-174 | An acknowledgement of a sale touches no figure, so the pending figure stands while the order is alive, and a close the venue refuses is written off as dust only where that figure is nought. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 190-195, the dust gate at `praxis/launcher.py` 1323 and 1339-1342 into 1363-1367, ending at 1369, the dust itself at `nexus/infrastructure/praxis_connector/outcome_processor.py` 696-702 | Nexus package four | folds into N4-02 |
+| H-175 | A position written back at a start takes the host's size and price, that price standing as both the price entered at and the cost basis, where a position the record built keeps the two apart. | `nexus/startup/sequencer.py` 414-415 into 288-290, against `nexus/infrastructure/praxis_connector/outcome_processor.py` 480-485 into 489-490 | Nexus package four | is N4-03 |
+| H-176 | The host counts each time a fill leaves a position at nought, a size that would go below nought being taken as nought on the way. | `praxis/core/trading_state.py` 507-521 | Nexus package four | is N4-04 |
+| H-177 | A close takes the position out of the book and then reads the count: one above one is lowered, anything else is dropped. Both happen before it looks at whether a position was there; one finding none logs at debug and does nothing else. | `praxis/core/trading_state.py` 572-579 into 580-587 | Nexus package four | folds into N4-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-23 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-23 11:40 UTC
