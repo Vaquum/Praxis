@@ -29,7 +29,7 @@ _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS = 5
 # rejects and the book never primes.
 _MIN_STUCK_UPDATE_ID_POLLS = 2
 # The hosted depth source serves exactly 20 levels per side
-# (`binance-spot-depth20-1000ms.onrender.com`), and the magnitude
+# (the regional Render collectors), and the magnitude
 # floor name + env var both bake "TOP20" in to lock the operator's
 # mental model to that width. If the gate width ever needs to
 # change, the env var name, default constant, and class docstring
@@ -40,50 +40,12 @@ _HTTP_OK = 200
 
 class DepthPoller:
 
-    '''Poll a hosted depth-N snapshot endpoint and feed an `OrderBook`.
+    '''Poll authenticated Render top20 observations in the existing loop.
 
-    Owns a single `aiohttp.ClientSession` and a background poll task.
-    On each successful poll the response is parsed and the bound
-    `OrderBook` is replaced wholesale. Two timestamps come out of this:
-
-      - `book.ts_ms` is set to the upstream `t` field — informational,
-        useful for direct inspection / debugging / future metrics on
-        the snapshot's source-side wall-clock.
-      - `last_success_ts_ms` is set to local wall-clock
-        (`int(time.time() * 1000)`) at receipt, NOT the upstream `t`.
-        This is what the HTTP layer's staleness gate compares against;
-        decoupling it from upstream-trusted data means a future-dated
-        payload `t` (clock skew on the source, payload tampering) cannot
-        silently make the book appear "newer than now" and bypass the
-        gate.
-
-    Failures (network, 5xx, malformed body, schema rejection) are
-    logged and the loop continues at the same cadence — the staleness
-    gate naturally surfaces persistent failure by observing
-    `last_success_ts_ms` falling behind wall-clock.
-
-    Beyond shape validation, two policy rejections also leave the book
-    untouched and `last_success_ts_ms` unadvanced:
-
-      - magnitude floor: a snapshot whose top-N depth on either side
-        sums to less than `min_top20_depth_btc` (env-tunable; see
-        `BINSIM_MIN_TOP20_DEPTH_BTC` and the configured value in the
-        `binsim ready` startup log) is treated as pathological
-        (truncated, cold-start, wrong-symbol, mirror-bug) and
-        rejected. Real Binance BTCUSDT top-20 sits at multiple BTC
-        per side; the historical bad-snapshot range observed on
-        prod is two orders of magnitude below that, so a deployment
-        floor anywhere in between catches the mirror's degraded
-        states without rejecting real market conditions.
-      - stuck `lastUpdateId`: real Binance advances `lastUpdateId` on
-        every diff, so an upstream that serves the identical id
-        across `max_stuck_update_id_polls` consecutive polls
-        (counting the first observation as poll 1) has frozen even
-        if shape- and magnitude-valid.
-
-    Both rejection paths log at ERROR with the offending values, so a
-    persistent upstream problem is louder than a flaky network and
-    diagnosable from the binsim's own log surface.
+    Keep original exchange/receipt microseconds. The existing order-age gate uses
+    the older source clock, so repeated HTTP delivery cannot refresh a cached book.
+    A configured second region is tried after an unavailable or rejected response;
+    the successful region remains first until it fails. Matching policy is unchanged.
     '''
 
     def __init__(
@@ -95,6 +57,9 @@ class DepthPoller:
         request_timeout_s: float = _DEFAULT_REQUEST_TIMEOUT_S,
         min_top20_depth_btc: Decimal = _DEFAULT_MIN_TOP20_DEPTH_BTC,
         max_stuck_update_id_polls: int = _DEFAULT_MAX_STUCK_UPDATE_ID_POLLS,
+        fallback_url: str = '',
+        fallback_token: str = '',
+        staleness_threshold_ms: int = 5000,
     ) -> None:
 
         if poll_interval_ms <= 0:
@@ -120,9 +85,18 @@ class DepthPoller:
                 f'(baseline + one repeat), got {max_stuck_update_id_polls}'
             )
 
+        if staleness_threshold_ms <= 0:
+            raise ValueError('staleness_threshold_ms must be positive')
+
+        if bool(fallback_url) != bool(fallback_token):
+            raise ValueError('fallback_url and fallback_token must be configured together')
+
         self._book = book
-        self._url = url
-        self._token = token
+        self._endpoints = [(url, token)] + ([(fallback_url, fallback_token)] if fallback_url else [])
+        self._preferred = 0
+        self._staleness_threshold_us = staleness_threshold_ms * 1000
+        self.exchange_time_us = 0
+        self.observed_at_us = 0
         self._poll_interval_s = poll_interval_ms / 1000.0
         self._request_timeout = aiohttp.ClientTimeout(total=request_timeout_s)
         self._min_top20_depth_btc = min_top20_depth_btc
@@ -185,9 +159,24 @@ class DepthPoller:
         if self._session is None:
             raise RuntimeError('DepthPoller session not initialised; call start() first')
 
-        headers = {'Authorization': f'Bearer {self._token}'}
+        for offset in range(len(self._endpoints)):
+            index = (self._preferred + offset) % len(self._endpoints)
+            url, token = self._endpoints[index]
+            try:
+                payload = await self._fetch(url, token)
+                if self._accept_payload(payload):
+                    self._preferred = index
+                    return
+            except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError, ArithmeticError) as exc:
+                if offset == len(self._endpoints) - 1:
+                    raise
+                _log.warning('depth region failed; trying peer', url=url, error_type=type(exc).__name__)
 
-        async with self._session.get(self._url, headers=headers) as response:
+    async def _fetch(self, url: str, token: str) -> Any:
+        assert self._session is not None
+        headers = {'Authorization': f'Bearer {token}'}
+
+        async with self._session.get(url, headers=headers) as response:
             if response.status != _HTTP_OK:
                 raise aiohttp.ClientResponseError(
                     request_info=response.request_info,
@@ -204,7 +193,16 @@ class DepthPoller:
             # is louder than a flaky network.
             payload = await response.json(content_type=None)
 
-        ts_ms, last_update_id, bids, asks = self._parse_payload(payload)
+        return payload
+
+    def _accept_payload(self, payload: Any) -> bool:
+        exchange_us, observed_us, last_update_id, bids, asks = self._parse_payload(payload)
+        now_us = int(time.time() * 1_000_000)
+        if exchange_us > now_us or observed_us > now_us:
+            raise ValueError('depth source clock is in the future')
+        if now_us - min(exchange_us, observed_us) > self._staleness_threshold_us:
+            raise ValueError('depth source clock is stale')
+        ts_ms = exchange_us // 1000
 
         # Magnitude floor: an upstream snapshot whose top-N depth on
         # either side sums to less than `min_top20_depth_btc` is
@@ -232,7 +230,7 @@ class DepthPoller:
                 ts_ms=ts_ms,
             )
 
-            return
+            return False
 
         # Stuck-`last_update_id` detector: a real Binance depth-20
         # stream advances `lastUpdateId` on every diff. If the upstream
@@ -262,22 +260,12 @@ class DepthPoller:
                 ts_ms=ts_ms,
             )
 
-            return
+            return False
 
         self._book.replace(bids, asks, last_update_id, ts_ms)
-        # Record local wall-clock at receipt, NOT the upstream `t`.
-        # The HTTP layer's staleness gate compares this against its
-        # own `time.time()`; if we trusted upstream `t` directly, a
-        # future-dated `t` (clock skew on the source, payload tampering)
-        # would silently make the book appear "newer than now" and the
-        # gate's `age_ms > threshold` check would pass forever.
-        # `book.ts_ms` retains the upstream `t` as an informational
-        # property on `OrderBook` (for direct operator inspection /
-        # debugging / future metrics). Real Binance's `/api/v3/depth`
-        # response does not carry a timestamp, so the binsim's depth
-        # endpoint deliberately omits it too to keep the shape
-        # exactly Binance-compatible.
-        self._last_success_ts_ms = int(time.time() * 1000)
+        self.exchange_time_us = exchange_us
+        self.observed_at_us = observed_us
+        self._last_success_ts_ms = min(exchange_us, observed_us) // 1000
 
         # Per-poll success diagnostic: emit a single structured INFO
         # line every successful poll so operators can audit what
@@ -297,6 +285,8 @@ class DepthPoller:
             last_update_id=last_update_id,
             ts_ms=ts_ms,
         )
+
+        return True
 
     async def _poll_loop(self) -> None:
 
@@ -333,38 +323,21 @@ class DepthPoller:
     @staticmethod
     def _parse_payload(
         payload: Any,
-    ) -> tuple[int, int, list[tuple[Decimal, Decimal]], list[tuple[Decimal, Decimal]]]:
-
-        '''Extract (ts_ms, last_update_id, bids, asks) from the source body.
-
-        Source shape: `{t: <unix-ms>, d: {lastUpdateId, bids: [[p, q], ...], asks: [[p, q], ...]}}`.
-        Prices and quantities arrive as strings (Binance convention)
-        and are coerced to `Decimal` at this boundary so downstream
-        math is exact.
-
-        Raises:
-            ValueError: payload (or its `d` sub-object) is not a dict,
-                or a price/qty parses to a non-finite Decimal (NaN /
-                Infinity slip through the bare `Decimal(...)` parse).
-            KeyError: a required field is missing.
-            ArithmeticError: a price/qty string is not a valid Decimal.
-            TypeError: bids/asks entries cannot unpack to (price, qty).
-        '''
-
+    ) -> tuple[int, int, int, list[tuple[Decimal, Decimal]], list[tuple[Decimal, Decimal]]]:
         if not isinstance(payload, dict):
             raise ValueError(f'depth payload must be a JSON object, got {type(payload).__name__}')
-
-        data = payload['d']
-
-        if not isinstance(data, dict):
-            raise ValueError(f"depth payload 'd' must be a JSON object, got {type(data).__name__}")
-
-        ts_ms = int(payload['t'])
-        last_update_id = int(data['lastUpdateId'])
-        bids = [(_finite_decimal(p, 'bid price'), _finite_decimal(q, 'bid qty')) for p, q in data['bids']]
-        asks = [(_finite_decimal(p, 'ask price'), _finite_decimal(q, 'ask qty')) for p, q in data['asks']]
-
-        return ts_ms, last_update_id, bids, asks
+        if payload['market'] != 'spot' or payload['symbol'] != 'BTCUSDT':
+            raise ValueError('depth source must be BTCUSDT Spot')
+        exchange_us, observed_us, update_id = (
+            payload[name] for name in ('exchange_time', 'observed_at', 'update_id')
+        )
+        if any(type(value) is not int or value <= 0 for value in (exchange_us, observed_us, update_id)):
+            raise ValueError('depth source clocks and update_id must be positive integers')
+        bids = [(_finite_decimal(p, 'bid price'), _finite_decimal(q, 'bid qty')) for p, q in payload['bids']]
+        asks = [(_finite_decimal(p, 'ask price'), _finite_decimal(q, 'ask qty')) for p, q in payload['asks']]
+        if len(bids) != _TOP_20_LEVELS or len(asks) != _TOP_20_LEVELS:
+            raise ValueError('depth source must carry twenty levels per side')
+        return exchange_us, observed_us, update_id, bids, asks
 
 
 def _finite_decimal(raw: object, what: str) -> Decimal:

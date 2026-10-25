@@ -22,7 +22,7 @@ A self-contained service that exposes a Binance-shaped REST + WebSocket surface:
 | WebSocket `/ws-api/v3` | Accepts `userDataStream.subscribe.signature`, returns `subscriptionId`; pushes no fills |
 | WebSocket `/stream` | Accepts the connection, pushes no frames |
 
-The order book is replaced wholesale every 1s from the hosted depth-20 service at `binance-spot-depth20-1000ms.onrender.com`. Market-order fills walk this snapshot for VWAP. A staleness gate rejects orders with Binance code `-1003` if the last successful poll is older than the configured threshold.
+The order book is replaced wholesale every 1s from the authenticated Render collector `/latest/spot` endpoint. Frankfurt is first; Singapore is tried when the current region fails or its observation is rejected, then remains first until it fails. Market-order fills walk this top20 snapshot for VWAP. Original `exchange_time` and `observed_at` microseconds are retained. The existing staleness gate uses the older source clock, so re-fetching a cached observation never refreshes it. Future clocks and observations beyond the configured age threshold are rejected. The public Binance-compatible API, matching and ledger are unchanged; these reads make no Binance API requests.
 
 ## Swap From Testnet To Binsim
 
@@ -80,11 +80,13 @@ To revert: unset `BINSIM_URL`. Praxis falls back to testnet immediately on next 
 
 | Env | Required | Default | Notes |
 |---|---|---|---|
-| `BINSIM_DEPTH_TOKEN` | yes | — | Bearer for `binance-spot-depth20-1000ms.onrender.com/top20` |
+| `BINSIM_DEPTH_TOKEN` | yes | — | Frankfurt collector read token |
+| `BINSIM_DEPTH_FALLBACK_TOKEN` | yes | — | Singapore collector read token |
 | `BINSIM_STATE_DIR` | yes | — | Where the ledger snapshot lives (mount a host directory) |
 | `BINSIM_HOST` | no | `0.0.0.0` | Container service bind host |
 | `BINSIM_PORT` | no | `8081` | Container service bind port |
-| `BINSIM_DEPTH_URL` | no | hosted URL | Override only for alt-source experiments |
+| `BINSIM_DEPTH_URL` | no | `https://binance-book-collector-a.onrender.com/latest/spot` | First regional Spot source |
+| `BINSIM_DEPTH_FALLBACK_URL` | no | `https://binance-book-collector-b.onrender.com/latest/spot` | Second regional Spot source |
 | `BINSIM_STALENESS_MS` | no | `5000` | Order-rejection threshold |
 | `BINSIM_POLL_INTERVAL_MS` | no | `1000` | Poll cadence to the depth source |
 | `BINSIM_MIN_TOP20_DEPTH_BTC` | no | `0.05` | Reject snapshots whose top-20 depth on either side sums below this floor; book + `last_success_ts_ms` stay untouched so the 5 s HTTP staleness gate surfaces the upstream as `-1003`. Must be a positive, finite Decimal |
@@ -100,6 +102,7 @@ services:
     image: ghcr.io/vaquum/praxis-binsim:0.61.0
     environment:
       BINSIM_DEPTH_TOKEN: ${BINSIM_DEPTH_TOKEN:?required}
+      BINSIM_DEPTH_FALLBACK_TOKEN: ${BINSIM_DEPTH_FALLBACK_TOKEN:?required}
     volumes:
       - type: bind
         source: ./binsim
@@ -144,3 +147,7 @@ docker compose up -d praxis
 - **Account-key mismatch** between Praxis env and binsim ledger surfaces as HTTP 401 ("unknown API key") on every signed call. Re-run `register` for the missing account, copy the new key, restart Praxis.
 
 For known MMVP gaps (LOT_SIZE filter enforcement, per-account fee rate, unbounded dedup set growth) see TD-064, TD-065, TD-066 in [TechnicalDebt.md](TechnicalDebt.md).
+
+The reader qualification uses original sealed Spot observations and an explicit replay clock. It verifies regional HTTP recovery, exact prices/quantities and exchange/receipt clocks, cached/stale/future response rejection, the existing magnitude/stuck-ID policies, public depth/order behavior and ledger-preserving reader restart. Deliberate protocol faults are identified in the tests. No old collector is used.
+
+The book-reader cutover uses `Dockerfile.binsim-reader`, pinned to the exact deployed 0.78.0 image digest. It replaces only `feed.py` and applies `deploy/binsim-reader.patch` to the existing startup configuration. Book matching, HTTP server, ledger and installed dependencies retain their deployed bytes. The existing image workflow publishes this artifact as `sha-<commit>-reader` separately from the ordinary application image; deploy only that reader artifact for this cutover. The local container proof verifies the preserved module hashes, mapped configuration, both regional HTTP paths, source clocks, stale-order rejection and persisted balances after restart. Normal `main` also carries the reader change for its next deliberate full-runtime release.
