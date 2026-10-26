@@ -2,7 +2,7 @@
 row: N5-02
 baseline: 49aa659
 created: 2026-10-25 11:10 UTC
-modified: 2026-10-25 11:10 UTC
+modified: 2026-10-26 11:10 UTC
 evidence:
   - claim: "A release asked for by order identifier alone answers success where no such order is tracked"
     source: "`nexus/core/capital_controller/capital_controller.py` 1056-1062"

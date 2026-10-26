@@ -2,7 +2,7 @@
 row: N5-06
 baseline: 49aa659
 created: 2026-10-25 14:00 UTC
-modified: 2026-10-25 14:00 UTC
+modified: 2026-10-26 14:00 UTC
 evidence:
   - claim: "A sale a host sends as it stops carries a decision allowing it, rather than asking the walk for one"
     source: "`nexus/startup/shutdown_sequencer.py` 398-404"

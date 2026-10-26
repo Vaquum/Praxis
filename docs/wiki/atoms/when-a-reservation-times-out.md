@@ -2,7 +2,7 @@
 row: N5-01
 baseline: 49aa659
 created: 2026-10-25 11:00 UTC
-modified: 2026-10-25 11:00 UTC
+modified: 2026-10-26 11:00 UTC
 evidence:
   - claim: "Reservations are put on a heap under the moment each expires as they are made"
     source: "`nexus/core/capital_controller/capital_controller.py` 418"
