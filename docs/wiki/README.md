@@ -172,6 +172,17 @@ the others where it appears.
 - [What weighs a shutdown sale](atoms/what-weighs-a-shutdown-sale.md) — an order the system approves itself still meets the guard comparing its price to the open market, and the check against the venue's own minimum size, though an order fed out in pieces misses the first of those entirely.
 - [The sale a host sends as it stops](atoms/the-sale-a-host-sends-as-it-stops.md) — shutting down, the system asks each strategy what to sell and approves those orders itself, so the checks that normally stand in front of an order never see them.
 - [Where an imported position's names come from](atoms/where-an-imported-positions-names-come-from.md) — a holding rebuilt at startup needs three labels off the side that placed the orders, and a holding missing any one of them is left out of the records altogether.
+- [What a stopping host halts first](atoms/what-a-stopping-host-halts-first.md) — on the way down, anything a strategy asks for through the usual checks is turned away, and the background jobs are switched off one after another in a set order.
+- [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
+- [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
+- [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
+- [What a strategy is handed when it is asked to stop](atoms/what-a-strategy-is-handed-when-it-is-asked-to-stop.md) — the holdings it owns, the money it still has room for, and the state trading is in, with its own settings arriving empty.
+- [The abort a host sends as it stops](atoms/the-abort-a-host-sends-as-it-stops.md) — a request to drop an order already handed over, naming it by a label the strategy itself supplies.
+- [What a stopping host waits for](atoms/what-a-stopping-host-waits-for.md) — it keeps a list as it sends and reads replies until that list is clear; should a set time pass with entries left, it tries to drop them and reads once more for half as long before going down regardless.
+- [Where an outcome outside the wait is sent](atoms/where-an-outcome-outside-the-wait-is-sent.md) — a reply arrives for an order the shutdown is not watching, and a second route hands it to the code that keeps the books, which records it against the order where it has a file on one, and otherwise asks for the money back if the reply is a final one.
+- [The name an order comes back with](atoms/the-name-an-order-comes-back-with.md) — the label the other side answers with when an order is handed over, and when a label that differs from what was asked for is treated as a failure.
+- [Which name a command is kept under](atoms/which-name-a-command-is-kept-under.md) — an order is filed under either the label the sender chose or the label the other side answered with, and which of those applies was fixed long before the order went.
+- [Claiming the money after the send](atoms/when-money-set-aside-moves-onto-an-order.md) — on one route the money held in reserve is re-booked against an order only once that order has gone, so a refusal arrives too late to stop it and can leave the reply with no strategy to attach it to.
 - [What a strategy’s committed figure moves on](atoms/what-moves-a-strategys-committed-figure.md) — the money held against one strategy is raised on purpose only where it is set aside for a trade; the rest of what touches it is giving money back, except a settling fee that came in over its guess, which pushes it up in the ordinary way of things; a startup replaces it outright.
 - [What a pending sale refuses](atoms/what-a-pending-sale-refuses.md) — the cap on selling the same holding twice is applied by the first check a request meets, and the sales a host fires off as it shuts down never meet it.
 - [What a pending sale does to the dust](atoms/what-a-pending-sale-does-to-the-dust.md) — an unsettled sale bars one route to writing a holding off and leaves the other wide open, so the same leftover is treated two ways depending on how it got there.
@@ -275,14 +286,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 178
+Both sides are the subject, and Praxis is the side that has been written. 189
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
-part and 4 not at all; of the 70 in Nexus, 40 are named and 30
-untouched — 29 carry a row of their own, and 11 are reached by an
+part and 4 not at all; of the 70 in Nexus, 44 are named and 26
+untouched — 29 carry a row of their own, and 15 are reached by an
 article that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-26 12:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-26 15:00 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**7 of them reviewed, 176 not.**
+**6 of them reviewed, 188 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 40 are named and 30 untouched. Of the 40, 29 carry a row of their own and 11 are reached by an article that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 44 are named and 26 untouched. Of the 44, 29 carry a row of their own and 15 are reached by an article that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -487,6 +487,49 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 6 — stopping a Nexus host
+
+Scope: what a stopping host halts before it asks anything, what a strategy is
+handed when it is asked to stop, the abort that travels with the sales, what
+the host waits for once it has sent, what it does with an outcome it was not
+waiting on, and the name an order comes back with. The four candidates the
+package-5 re-seed carried, with the halting and the wait taken off the queue the
+package-1 Seed left under stopping Nexus strategies.
+
+### Merge and promote, package 6
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-191 | A host stopping hands each strategy its own positions and what is left of its slice of the pool. | Promote. What the asking carries is unanswered |
+| Row H-192 | It hands the operational mode with them, and settings carrying nothing. | Merge with H-191, the rest of the same answer |
+| Row H-193 | It keeps the answer only where the strategy answers with something, and a strategy that raises is logged. | Merge with H-191: what becomes of the answer |
+| Row H-194 | An abort a host sends as it stops goes under a fixed reason against an identifier the answer already carries. | Promote. The other road out of a stopping host, named by N5-04 and no more |
+| Row H-195 | An abort with no identifier cannot be built, so the send's guard against a missing one is never reached; a send that raises is logged. | Merge with H-194, which it is the failing of |
+| Row H-196 | A sent abort's identifier joins the sales' in what the host will wait on, and a sale whose record came apart never joins it. | Merge with H-194: what the sending leaves behind |
+| Row H-197 | The host waits for every identifier it recorded to reach an ending, for a time it was built with. | Promote. What happens after the sending is unanswered |
+| Row H-198 | What is still outstanding is aborted under a different reason, waited on again for half as long, then logged and left. | Merge with H-197, the second half of the same wait |
+| Row H-199 | An outcome for an identifier the host is not waiting on is handed to a handler, or logged as dropped where none is wired. | Promote. What the waiting does with what it did not ask for is a second question, and a fill for a command the stopping never sent reaches the figures by no other road it controls |
+| Row H-200 | A handler that raises is logged and the waiting goes on. | Merge with H-199, which it is the failing of |
+| Row H-201 | Handing a command to Praxis puts the send on another thread's loop and waits on the calling side for a name to come back. | Promote. The handover two articles already lean on |
+| Row H-202 | A name that does not come back in time has the wait dropped and the handover raises. | Merge with H-201, which it is the failing of |
+| Row H-203 | A name coming back different from the one sent refuses the handover, where the receiver was taken as bound to it. | Merge with H-201 on the same terms |
+| Row H-204 | The stopping sequence sets the mode to halted before it stops a loop of its own, two ways. | Promote. What is halted, and in what order, is what the package-1 Seed queued |
+| Row H-205 | It then stops the loop asking for predictions and the one running the timers. | Merge with H-204, the same order carried on |
+| Row H-206 | It calls the stop on the loop reading outcomes last, so the waiting that comes later is meant to be the only reader on that queue. | Merge with H-204: why the order is the order |
+| Row H-207 | One still running when the strategies are asked is logged, and the list handed next is built under a lock where one was supplied. | Merge with H-204 on the same terms |
+
+Six rows promote: what a stopping host halts first, what a strategy is handed
+when it is asked to stop, the abort a host sends as it stops, what the host
+waits for once it has sent, what it does with an outcome it was not waiting
+on, and the name an order comes back with. The halting outgrew the cap in the
+writing, and stopping the loop that reads outcomes is N6-07; the name outgrew it
+as the two roads through the record were made precise, and which name a command
+is kept under is N6-08; that in turn outgrew it as the money behind the command
+was made precise, and when the money set aside moves is N6-09; the halting outgrew it a second
+time as the mode controller was traced, and what the halted mode turns away is
+N6-10; it outgrew it a third time as each loop's own stop was traced, and what a
+loop's stop leaves running is N6-11.
+
 ## Nexus package 5 — the passes that tidy up
 
 Scope: when a reservation times out and what the walk that drops it leaves,
@@ -517,6 +560,27 @@ Five rows promote: when a reservation times out, releasing an order whose
 record was lost, whether a fill closes a position, the sale a host sends as
 it stops, and where an imported position's three names come from. The
 shutdown sale outgrew the cap in the writing, and what weighs it is N5-06.
+
+### Re-seed, after writing package 5
+
+What fourteen rounds of verifying the six articles turned up that none of
+them reaches. These enter the next Seed as candidates with their evidence,
+not as approved topics. Paths are under `nexus/` except where named
+otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| What a strategy is handed when it is asked to stop | `startup/shutdown_sequencer.py` 308-311 gives each strategy only its own positions and 313-315 what is left of its slice of the pool, floored at nought; 325-328 keeps its answer only where it answers with something, and 329-330 logs one that raises and keeps nothing from it. N5-04 says the host asks and keeps without owning what the asking carries |
+| The abort a host sends as it stops | `startup/shutdown_sequencer.py` 581-587 sends it under a fixed reason against an identifier the strategy's answer already carries, 577-579 guards against an answer carrying none, which an answer that was built cannot reach since `strategy/action.py` 240-243 refuses to build one under the frozen shape at 35, 588-590 logs a send that raises and goes on, and 592 adds the identifier to what the host will wait on. N5-04 names this road at 386 and goes no further |
+| An outcome whose identifier the stopping is not waiting on | `startup/shutdown_sequencer.py` 655-657 takes an outcome the host is not waiting on out of the waiting, 692-699 logs it as dropped where no handler is wired, and 702 hands it to the handler the launcher wired. Nothing in this package reaches the waiting at all |
+| The name an order comes back with | `infrastructure/praxis_connector/praxis_outbound.py` 180-183 hands the submission to another thread's loop and 186 waits for a name, 187-193 drops the wait and raises where none comes back in time, 195-198 into 214 refuses the submission where the name returned differs from the one sent and the receiver was taken as bound to it. N5-04 leans on that handover at `startup/shutdown_sequencer.py` 407 without owning it |
+
+Two more were taken this far and dropped: what weighs a market order's price
+against the book, and what the venue's own rules refuse at placement. Both
+read as gaps from N5-06, which reaches each by a single arm, and both are
+already written on the Praxis side — P1-05 and P1-06 own the first, P2-46 the
+second. The four that remain sit outside the ranges the package-1 Seed queued
+under stopping Nexus strategies, which names 183-196, 343-386 and 614-627.
 
 ## Nexus package 4 — the figures that follow a position
 
@@ -774,7 +838,7 @@ run knowing that.
 | N2-02 | What the fee reserve absorbs, and where it runs out | written | [what-the-fee-reserve-absorbs.md](atoms/what-the-fee-reserve-absorbs.md) |
 | N2-03 | What each check weighs, and where it reads it from | reviewed | [what-each-check-weighs.md](atoms/what-each-check-weighs.md) |
 | N2-04 | How far down the account is, and the record nothing reads | written | [how-far-down-the-account-is.md](atoms/how-far-down-the-account-is.md) |
-| N2-05 | What becomes of money set aside, and when the figures catch up | reviewed | [what-becomes-of-money-set-aside.md](atoms/what-becomes-of-money-set-aside.md) |
+| N2-05 | What becomes of money set aside, and when the figures catch up | written | [what-becomes-of-money-set-aside.md](atoms/what-becomes-of-money-set-aside.md) |
 | N2-06 | What the platform ceilings weigh, and the three nothing fills | reviewed | [what-the-platform-ceilings-weigh.md](atoms/what-the-platform-ceilings-weigh.md) |
 | N2-07 | What the price check weighs, and what it refuses unweighed | reviewed | [what-the-price-check-weighs.md](atoms/what-the-price-check-weighs.md) |
 | N3-01 | Where a position's last scraps go, and what the dust is worth | written | [where-a-positions-last-scraps-go.md](atoms/where-a-positions-last-scraps-go.md) |
@@ -802,6 +866,17 @@ run knowing that.
 | N5-04 | The sale a host sends as it stops, and the position no strategy names | written | [the-sale-a-host-sends-as-it-stops.md](atoms/the-sale-a-host-sends-as-it-stops.md) |
 | N5-05 | Where an imported position's names come from, and what a refusal costs | written | [where-an-imported-positions-names-come-from.md](atoms/where-an-imported-positions-names-come-from.md) |
 | N5-06 | What weighs a shutdown sale, and the road that misses the price guard | written | [what-weighs-a-shutdown-sale.md](atoms/what-weighs-a-shutdown-sale.md) |
+| N6-01 | What a stopping host halts first, and why the order is the order | written | [what-a-stopping-host-halts-first.md](atoms/what-a-stopping-host-halts-first.md) |
+| N6-02 | What a strategy is handed when it is asked to stop, and the settings carrying nothing | written | [what-a-strategy-is-handed-when-it-is-asked-to-stop.md](atoms/what-a-strategy-is-handed-when-it-is-asked-to-stop.md) |
+| N6-03 | The abort a host sends as it stops, and the sale that is never waited on | written | [the-abort-a-host-sends-as-it-stops.md](atoms/the-abort-a-host-sends-as-it-stops.md) |
+| N6-04 | What a stopping host waits for, and the second, shorter wait | written | [what-a-stopping-host-waits-for.md](atoms/what-a-stopping-host-waits-for.md) |
+| N6-05 | Where an outcome outside the wait is sent, and what the handler does with it | written | [where-an-outcome-outside-the-wait-is-sent.md](atoms/where-an-outcome-outside-the-wait-is-sent.md) |
+| N6-06 | The name an order comes back with, and the receiver that is held to it | written | [the-name-an-order-comes-back-with.md](atoms/the-name-an-order-comes-back-with.md) |
+| N6-07 | Stopping the loop that reads outcomes, and the worker that outlasts it | written | [stopping-the-loop-that-reads-outcomes.md](atoms/stopping-the-loop-that-reads-outcomes.md) |
+| N6-08 | Which name a command is kept under, and the road where the answer governs | written | [which-name-a-command-is-kept-under.md](atoms/which-name-a-command-is-kept-under.md) |
+| N6-09 | Claiming the money after the send, and what a refusal costs there | written | [when-money-set-aside-moves-onto-an-order.md](atoms/when-money-set-aside-moves-onto-an-order.md) |
+| N6-10 | What the halted mode turns away, and the two roads that go anyway | written | [what-the-halted-mode-turns-away.md](atoms/what-the-halted-mode-turns-away.md) |
+| N6-11 | What a loop's stop leaves running, and the one stop that waits | written | [what-a-loops-stop-leaves-running.md](atoms/what-a-loops-stop-leaves-running.md) |
 | N1-01 | How Nexus sets money aside, and what it is weighed against | reviewed | [how-nexus-sets-money-aside.md](atoms/how-nexus-sets-money-aside.md) |
 | N1-02 | What Nexus does when a command does not get across | reviewed | [what-nexus-does-when-a-command-does-not-get-across.md](atoms/what-nexus-does-when-a-command-does-not-get-across.md) |
 
@@ -1015,8 +1090,27 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-188 | A host shutting down asks each strategy what it wants done, keeps the answers, and sends the sales among them; a position no strategy names gets none. | `nexus/startup/shutdown_sequencer.py` 305-306 into 325-328 into 382-386, the dropping at 343-363, built and sent at 394-407 | Nexus package five | is N5-04 |
 | H-189 | That sale carries a decision allowing it rather than asking for one. | `nexus/startup/shutdown_sequencer.py` 398-404 | Nexus package five | folds into N5-04 |
 | H-190 | An imported position's strategy, symbol and side are worked out before it is built, and nothing is built where they cannot be. | `nexus/startup/sequencer.py` 317-346 into 276-280, feeding the building at 282-291 | Nexus package five | is N5-05 |
+| H-191 | A host stopping hands each strategy only its own positions, and what is left of its slice of the pool once what it has deployed is taken off, floored at nought. | `nexus/startup/shutdown_sequencer.py` 308-315 | Nexus package six | is N6-02 |
+| H-192 | It hands the operational mode with them, and settings carrying nothing. | `nexus/startup/shutdown_sequencer.py` 316-323 | Nexus package six | folds into N6-02 |
+| H-193 | It keeps the answer only where the strategy answers with something, and a strategy that raises is logged and nothing kept from it. | `nexus/startup/shutdown_sequencer.py` 325-330 | Nexus package six | folds into N6-02 |
+| H-194 | An abort a host sends as it stops goes under a fixed reason, against an identifier the strategy's answer already carries. | `nexus/startup/shutdown_sequencer.py` 581-587, the reason at 51 | Nexus package six | is N6-03 |
+| H-195 | An abort with no identifier cannot be built at all, so the send's own guard against a missing one is never reached from a strategy's answer, and a send that raises is logged and the host goes on. | `nexus/strategy/action.py` 240-243 under 35, against `nexus/startup/shutdown_sequencer.py` 577-579, and 588-590 | Nexus package six | folds into N6-03 |
+| H-196 | A sent abort's identifier joins the sales' in what the host will wait on, and a sale whose record came apart after the send never joins it. | `nexus/startup/shutdown_sequencer.py` 592 beside 461, against 443 | Nexus package six | folds into N6-03 |
+| H-197 | The host waits for every identifier it recorded to reach an ending, for a span it is built with and keeps, reading outcomes off a queue that waits a short while of its own on each read. | `nexus/startup/shutdown_sequencer.py` 614-617 into 646-670, the span held at 164, the read at `nexus/infrastructure/praxis_connector/praxis_inbound.py` 42-45 | Nexus package six | is N6-04 |
+| H-198 | What is still outstanding is aborted under a different reason, waited on again for half as long, and what remains after that is logged and left. | `nexus/startup/shutdown_sequencer.py` 622-634 into 793-805, the reason at 52 and the half at 53 | Nexus package six | folds into N6-04 |
+| H-199 | An outcome arriving for an identifier the host is not waiting on is taken out of the waiting and handed to a handler the launcher wired at 702, or logged as dropped at 692-699 where none is. | `nexus/startup/shutdown_sequencer.py` 655-657 into 692-699 and 702 | Nexus package six | is N6-05 |
+| H-200 | A handler that raises is logged and the waiting goes on. | `nexus/startup/shutdown_sequencer.py` 701-708 | Nexus package six | folds into N6-05 |
+| H-201 | Handing a command to Praxis puts the send on another thread's loop and waits on the calling side for a name to come back. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 180-183 into 186 | Nexus package six | is N6-06 |
+| H-202 | A name that does not come back in time has the wait dropped and the handover raises. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 187-193 | Nexus package six | folds into N6-06 |
+| H-203 | A name coming back different from the one sent refuses the handover, where Praxis has been taken as bound to the name sent. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 195-198 into 214 | Nexus package six | folds into N6-06 |
+| H-204 | The stopping sequence sets the mode to halted before it stops a loop of its own, by raising a hold named for the shutdown where a controller is wired and by writing the mode itself where none is, the launcher having stopped three other Nexus loops before the sequence was built. | `nexus/startup/shutdown_sequencer.py` 183 into 219-221 and 222-227, the hold raised at `nexus/core/mode_controller.py` 280 into 436-440, counted among the six at `nexus/core/domain/operational_mode.py` 87-94 and read at `nexus/core/mode_controller.py` 488-489 into 504-508, against `praxis/launcher.py` 4004-4007 before 4009 | Nexus package six | is N6-01 |
+| H-205 | It then stops the loop that asks for predictions and the one that runs the timers, each passed over with a line where none is wired. | `nexus/startup/shutdown_sequencer.py` 184-185 into 238-243 and 252-257 | Nexus package six | folds into N6-01 |
+| H-206 | It calls the stop on the loop reading outcomes last, so the waiting that comes later is meant to be the only reader on that queue, though a worker outlasting the join is left to finish the turn it is in. | `nexus/startup/shutdown_sequencer.py` 186 into 267-271, against 650, the join at `nexus/core/outcome_loop.py` 177-185 | Nexus package six | folds into N6-07 |
+| H-207 | One still running when the strategies are asked is logged, and the list of positions handed to the strategies is built next under a lock where one was supplied. | `nexus/startup/shutdown_sequencer.py` 292-298 before 300-303 | Nexus package six | folds into N6-07 |
+| H-208 | The claim Praxis makes on the money set aside is made before the send only where the receiving side was taken as bound to the name sent; where it was not, no claim is made before the send and one is made after it, under the name that came back. | `praxis/launcher.py` 2088-2093 built only at 4239-4254, against 4287-4293 after `nexus/strategy/action_submit.py` 337 | Nexus package six | is N6-09, and corrects N2-05, which said before the send without the condition |
+| H-209 | The receiver the launcher hands Nexus declares a parameter of the command's own name, so Nexus reads it as bound to that name and the roads for a receiver that is not — the record written after the send, and the claim on the money made after it — are never taken with Praxis's own wiring. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 62 reading the shape of the receiver handed over at `praxis/launcher.py` 453-454 and built at 4075, which carries the name through at 449, answering bound at `nexus/infrastructure/praxis_connector/praxis_outbound.py` 66-67, which returns before them at `praxis/launcher.py` 4270-4271 | Nexus package six | folds into N6-06, N6-08 and N6-09 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-26 10:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-26 15:00 UTC
