@@ -166,6 +166,12 @@ the others where it appears.
 - [The roads around the checks](atoms/the-roads-around-the-checks.md) — some orders go out to the venue without passing a single one of the checks the rest pass.
 - [What an entry outcome changes](atoms/what-an-entry-outcome-changes.md) — a report of one kind moves the money set aside for a command on to the next place it sits, and two kinds of report move nothing at all.
 - [What a settling fee does to the figure](atoms/what-a-settling-fee-does-to-the-figure.md) — the gap between a guessed trading cost and what the report says it came to moves two balances in opposite directions, and can raise the money held against a strategy without anyone committing more.
+- [When a reservation times out](atoms/when-a-reservation-times-out.md) — money held for a trade that never went out is given back by a sweep at the start of a fresh request, and an order finding its own hold already expired hands the money back itself rather than waiting for that sweep.
+- [Releasing an order whose record was lost](atoms/releasing-an-order-whose-record-was-lost.md) — where the system knows an order by name but has lost everything else about it, the money behind it is given back from the name alone, and asking about an order that was never there is treated as success.
+- [Whether a fill closes a position](atoms/whether-a-fill-closes-a-position.md) — a completed trade is checked against the holding it was meant to close, and a leftover below the increment the venue prices sizes in counts as closed.
+- [What weighs a shutdown sale](atoms/what-weighs-a-shutdown-sale.md) — an order the system approves itself still meets the guard comparing its price to the open market, and the check against the venue's own minimum size, though an order fed out in pieces misses the first of those entirely.
+- [The sale a host sends as it stops](atoms/the-sale-a-host-sends-as-it-stops.md) — shutting down, the system asks each strategy what to sell and approves those orders itself, so the checks that normally stand in front of an order never see them.
+- [Where an imported position's names come from](atoms/where-an-imported-positions-names-come-from.md) — a holding rebuilt at startup needs three labels off the side that placed the orders, and a holding missing any one of them is left out of the records altogether.
 - [What a strategy’s committed figure moves on](atoms/what-moves-a-strategys-committed-figure.md) — the money held against one strategy is raised on purpose only where it is set aside for a trade; the rest of what touches it is giving money back, except a settling fee that came in over its guess, which pushes it up in the ordinary way of things; a startup replaces it outright.
 - [What a pending sale refuses](atoms/what-a-pending-sale-refuses.md) — the cap on selling the same holding twice is applied by the first check a request meets, and the sales a host fires off as it shuts down never meet it.
 - [What a pending sale does to the dust](atoms/what-a-pending-sale-does-to-the-dust.md) — an unsettled sale bars one route to writing a holding off and leaves the other wide open, so the same leftover is treated two ways depending on how it got there.
@@ -269,7 +275,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 172
+Both sides are the subject, and Praxis is the side that has been written. 178
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 40 are named and 30
 untouched — 29 carry a row of their own, and 11 are reached by an
@@ -279,4 +285,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-25 09:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-25 12:00 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**7 of them reviewed, 170 not.**
+**7 of them reviewed, 176 not.**
 
 ## Package 1
 
@@ -487,6 +487,37 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 5 — the passes that tidy up
+
+Scope: when a reservation times out and what the walk that drops it leaves,
+releasing an order whose own record was lost, what an order still has
+against it, whether a fill closes a position, and the sale a host sends as
+it stops. The candidates the package-4 re-seed named, taken through the
+stages together.
+
+### Merge and promote, package 5
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-178 | Reservations go onto a heap under the moment each expires, and the walk drops every one whose expiry is at or before the moment given. | Promote. When a reservation times out is the subject |
+| Row H-179 | Each one dropped takes its total off the money set aside and off the strategy's figure, and is logged with how long it was held. | Merge with H-178, which it is the effect of |
+| Row H-180 | One already gone from the register is passed over. | Merge with H-178 on the same terms |
+| Row H-181 | The walk runs at the head of a request for money once read, and on each road out of a send it reaches. | Merge with H-178: when it runs is half the answer |
+| Row H-182 | A send finding its reservation gone walks first; one finding it expired gives the total back itself. | Merge with H-178 on the same terms |
+| Row H-183 | Releasing an order whose record was lost answers success where the order is already gone. | Promote. That release is its own question |
+| Row H-184 | It takes the order out of whichever figure its state puts it in, and refuses where the state is neither. | Merge with H-183, which it is the body of |
+| Row H-185 | What an order has left carries that part's share of the fee guessed for the whole. | Merge with H-183: the figure it releases |
+| Row H-186 | Whether a fill closes a position is answered no where the fill is on the position's own side. | Promote. The question has three answers and one was already written |
+| Row H-187 | It is answered yes with no filters to hand, and otherwise by weighing what is left against the step. | Merge with H-186, the other two answers |
+| Row H-188 | A host shutting down sends the sales its strategies ask for as they stop. | Promote. The shutdown sale is its own subject, reached by two articles already |
+| Row H-189 | That sale carries a decision allowing it rather than asking for one. | Merge with H-188, which is what it skips |
+| Row H-190 | An imported position's strategy, symbol and side are worked out before it is built. | Promote. What those three are taken from is unanswered |
+
+Five rows promote: when a reservation times out, releasing an order whose
+record was lost, whether a fill closes a position, the sale a host sends as
+it stops, and where an imported position's three names come from. The
+shutdown sale outgrew the cap in the writing, and what weighs it is N5-06.
+
 ## Nexus package 4 — the figures that follow a position
 
 Scope: what moves a strategy's committed figure, what a pending sale is and
@@ -517,6 +548,22 @@ a fill empties a position. The pending sale outgrew the cap in the writing,
 and what it does to the dust is N4-05; the committed figure outgrew it as the fee
 move was made precise, and that move is N4-06; the pending sale outgrew it again as the
 cancel was made precise, and what it refuses is N4-07.
+
+### Re-seed, after writing package 4
+
+What seventeen rounds of verifying the seven articles turned up that none of
+them reaches. These enter the next Seed as candidates with their evidence,
+not as approved topics. Paths are under `nexus/` except where named
+otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| When a reservation times out | `core/capital_controller/capital_controller.py` 480-500 walks a heap of reservations by the moment each expires, dropping every one whose expiry is at or before the moment it is given, and is run at the head of a request for money at 327. N4-01 reaches the release at 488-490 and says nothing of when the walk happens or what it leaves |
+| An order whose own record was lost | `core/capital_controller/capital_controller.py` 1021-1080 releases a tracked order by name alone and answers success where the order is already gone. N4-01 reaches its release at 1079-1080; what the function is for, and why answering success is right, is unanswered |
+| What an order still has against it | `core/capital_controller/capital_controller.py` 915-922 and `core/capital_controller/tracked_order.py` 123-129 work out what an order has left, which N4-01 cites for the remainder a finishing fill releases without owning it |
+| Whether a fill closes a position | `praxis/core/execution_manager.py` 10891-10899 answers no where the fill is on the position's own side, yes where the venue's filters are not to hand, and otherwise weighs what is left against the venue's step. N4-04 reaches only the arm taken where no position is there at all |
+| A host selling as it stops | `startup/shutdown_sequencer.py` 325-328 into 382-386 keeps what each strategy asks for and sends the sales among them, built at 394-443 and 555-565, carrying their own decision to allow them. N4-02 and N4-07 each reach a part of that path; what the shutdown sale is and what it skips is unanswered |
+| What an imported position's strategy, symbol and side are taken from | `startup/sequencer.py` 317-346 works those three out, and answers with nothing where it cannot. N4-03 cites it for the refusal without owning what the working out does |
 
 ## Nexus package 3 — the scraps, the record and the boot
 
@@ -749,6 +796,12 @@ run knowing that.
 | N4-05 | What a pending sale does to the dust, and the road it leaves open | written | [what-a-pending-sale-does-to-the-dust.md](atoms/what-a-pending-sale-does-to-the-dust.md) |
 | N4-06 | What a settling fee does to the figure, and the margin it goes through on | written | [what-a-settling-fee-does-to-the-figure.md](atoms/what-a-settling-fee-does-to-the-figure.md) |
 | N4-07 | What a pending sale refuses, and the road that is not capped | written | [what-a-pending-sale-refuses.md](atoms/what-a-pending-sale-refuses.md) |
+| N5-01 | When a reservation times out, and the two roads a send takes past it | written | [when-a-reservation-times-out.md](atoms/when-a-reservation-times-out.md) |
+| N5-02 | Releasing an order whose record was lost, and the success it answers for nothing | written | [releasing-an-order-whose-record-was-lost.md](atoms/releasing-an-order-whose-record-was-lost.md) |
+| N5-03 | Whether a fill closes a position, and the remainder below the step | written | [whether-a-fill-closes-a-position.md](atoms/whether-a-fill-closes-a-position.md) |
+| N5-04 | The sale a host sends as it stops, and the position no strategy names | written | [the-sale-a-host-sends-as-it-stops.md](atoms/the-sale-a-host-sends-as-it-stops.md) |
+| N5-05 | Where an imported position's names come from, and what a refusal costs | written | [where-an-imported-positions-names-come-from.md](atoms/where-an-imported-positions-names-come-from.md) |
+| N5-06 | What weighs a shutdown sale, and the road that misses the price guard | written | [what-weighs-a-shutdown-sale.md](atoms/what-weighs-a-shutdown-sale.md) |
 | N1-01 | How Nexus sets money aside, and what it is weighed against | reviewed | [how-nexus-sets-money-aside.md](atoms/how-nexus-sets-money-aside.md) |
 | N1-02 | What Nexus does when a command does not get across | reviewed | [what-nexus-does-when-a-command-does-not-get-across.md](atoms/what-nexus-does-when-a-command-does-not-get-across.md) |
 
@@ -949,8 +1002,21 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-175 | A position written back at a start takes the host's size and price, that price standing as both the price entered at and the cost basis, where a position the record built keeps the two apart. | `nexus/startup/sequencer.py` 414-415 into 288-290, against `nexus/infrastructure/praxis_connector/outcome_processor.py` 480-485 into 489-490 | Nexus package four | is N4-03 |
 | H-176 | The host counts each time a fill leaves a position at nought, a size that would go below nought being taken as nought on the way. | `praxis/core/trading_state.py` 507-521 | Nexus package four | is N4-04 |
 | H-177 | A close takes the position out of the book and then reads the count: one above one is lowered, anything else is dropped. Both happen before it looks at whether a position was there; one finding none logs at debug and does nothing else. | `praxis/core/trading_state.py` 572-579 into 580-587 | Nexus package four | folds into N4-04 |
+| H-178 | Reservations go onto a heap under the moment each expires as they are made, and the walk drops every one whose expiry is at or before the moment it is given. | `nexus/core/capital_controller/capital_controller.py` 418 into 480-482 | Nexus package five | is N5-01 |
+| H-179 | Each one dropped takes its whole total off the money set aside and asks the same of the strategy's own figure, which drops the strategy where what is left lands near nought, and is logged with how long it was held. | `nexus/core/capital_controller/capital_controller.py` 487-500 into 1096-1115 | Nexus package five | folds into N5-01 |
+| H-180 | One already gone from the register is passed over. | `nexus/core/capital_controller/capital_controller.py` 482-486 | Nexus package five | folds into N5-01 |
+| H-181 | The walk runs at the head of a request for money once the request has been read, and on each road out of a send it reaches past its own reading. | `nexus/core/capital_controller/capital_controller.py` 327 after 300-324, and 578 or 556, or 568, each past 542-551 | Nexus package five | folds into N5-01 |
+| H-182 | A send finding its reservation gone answers that it is not there, having walked first, and one finding it expired gives the total back itself before answering. | `nexus/core/capital_controller/capital_controller.py` 553-560 against 563-574 | Nexus package five | folds into N5-01 |
+| H-183 | Releasing an order whose own record was lost answers success where the order is already gone. | `nexus/core/capital_controller/capital_controller.py` 1056-1062 | Nexus package five | is N5-02 |
+| H-184 | It takes the order out of whichever figure its state puts it in, and refuses where the state is neither. | `nexus/core/capital_controller/capital_controller.py` 1064-1073 | Nexus package five | folds into N5-02 |
+| H-185 | What an order has left is what it has left to fill plus that part's share of the fee guessed for the whole, or the whole guess where the order was for nothing. | `nexus/core/capital_controller/tracked_order.py` 120-129 | Nexus package five | folds into N5-02 |
+| H-186 | Whether a fill closes a position is answered no where the fill is on the position's own side. | `praxis/core/execution_manager.py` 10891-10892 | Nexus package five | is N5-03 |
+| H-187 | It is answered yes where the venue's filters are not to hand, and otherwise by weighing what is left against the step the venue keeps its sizes on. | `praxis/core/execution_manager.py` 10894-10899, the step taken from the venue at `praxis/infrastructure/binance_adapter.py` 2220-2225 | Nexus package five | folds into N5-03 |
+| H-188 | A host shutting down asks each strategy what it wants done, keeps the answers, and sends the sales among them; a position no strategy names gets none. | `nexus/startup/shutdown_sequencer.py` 305-306 into 325-328 into 382-386, the dropping at 343-363, built and sent at 394-407 | Nexus package five | is N5-04 |
+| H-189 | That sale carries a decision allowing it rather than asking for one. | `nexus/startup/shutdown_sequencer.py` 398-404 | Nexus package five | folds into N5-04 |
+| H-190 | An imported position's strategy, symbol and side are worked out before it is built, and nothing is built where they cannot be. | `nexus/startup/sequencer.py` 317-346 into 276-280, feeding the building at 282-291 | Nexus package five | is N5-05 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-25 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-25 10:30 UTC
