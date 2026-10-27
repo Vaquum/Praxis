@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 188 not.**
+**6 of them reviewed, 200 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 44 are named and 26 untouched. Of the 44, 29 carry a row of their own and 15 are reached by an article that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 46 are named and 24 untouched. Of the 46, 33 carry a row of their own and 13 are reached by an article that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -487,6 +487,63 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 7 — the last of stopping, and what sits either side of the checks
+
+Scope: what a stopping host saves of its strategies and how, the last record it
+writes and the account it gives back, what the walk's first stage weighs before
+it reads the mode, what Praxis builds for a strategy's exit before the checks
+see it, the watch over commands whose handover timed out, and what the
+prediction loop's stop leaves running. The five candidates the package-6
+re-seed named, taken through the stages together. The saving outgrew the cap in
+the writing, giving N7-07 and later N7-12; the last record
+outgrew it too, giving N7-08 and then N7-09, the
+first stage giving N7-10 and N7-11, and the saving giving N7-12.
+
+### Merge and promote, package 7
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-210 | Each strategy is asked to put its own state into bytes, and one that raises has empty bytes kept for it. | Promote. What a stopping host saves is the subject, named by N6-04 and owned by nothing |
+| Row H-211 | Nothing is written where no bytes were kept, and a strategy whose bytes are empty is passed over. | Merge with H-210: what is written is the same question |
+| Row H-212 | The directory is made where needed, and a failure to make it ends the writing for every strategy. | Merge with H-210 on the same terms |
+| Row H-213 | A strategy name carrying a path separator is refused rather than written. | Merge with H-210 on the same terms |
+| Row H-214 | Each blob goes to a temporary file, is pushed to the disk, and the temporary is renamed over the target. | Merge with H-210: how it is written is half the answer |
+| Row H-215 | A write that fails on the disk is logged and the rest are still tried, while anything else raising out of the writing ends the stage and leaves the sequence's own checkpoint and deregister undone, the host's own stopping giving the account back regardless. | Merge with H-210 on the same terms |
+| Row H-216 | A last snapshot is taken and the record shortened, the locks for it owned by the store. | Promote. What is written after the saving, and what is given back, is a second question |
+| Row H-217 | That taking is wrapped, so a failure in it is logged and giving the account back is still attempted. | Merge with H-216, which it is the ordering of |
+| Row H-218 | The account is given back last, skipped with a line where the connection out or the account's name is absent. | Merge with H-216, the end of the same road |
+| Row H-219 | The walk's first stage refuses a strategy name that is not identical to itself stripped, which the settings already refused as they were read. | Promote. What that stage weighs before the mode is unanswered, and where each of the three figures comes from is the finding |
+| Row H-220 | It then refuses a request for nothing at all, exempting four kinds. | Merge with H-219, the next in the same order |
+| Row H-221 | It then refuses one against a strategy with no budget, the pool and the share behind it both refused at nought as the settings are read. | Merge with H-219 on the same terms |
+| Row H-222 | The mode is read after those three, and the stage's own hooks after that. | Merge with H-219: where the order ends is part of it |
+| Row H-223 | An exit naming a trade the record has no position for is answered with nothing, before any of that position's own figures are read. | Promote. What Praxis works out for an exit before the checks see it is its own subject |
+| Row H-224 | The size asked is read, and what the position has left is its size less what is already pending on it. | Merge with H-223, the working out itself |
+| Row H-225 | Whether this is a full close is settled there by comparing the size asked with that figure, while an exit put up alongside an entry is marked whole outright. | Merge with H-223 on the same terms |
+| Row H-226 | A command identifier is minted on the spot where the request carries none. | Merge with H-223 on the same terms |
+| Row H-227 | The venue is then asked to fit the size, at the position's entry price. | Merge with H-223, the last of the same working out |
+| Row H-228 | The watch gathers the registrations carrying a mark whose own moment is far enough back. | Promote. N6-01 names this watch and goes no further |
+| Row H-229 | It answers at once where it gathers none, and otherwise works out the longest wait and a capped list of names. | Merge with H-228, the rest of one pass |
+| Row H-230 | The mark is written where a handover timed out and a registration for that command still stands. | Merge with H-228: where what it watches comes from |
+| Row H-231 | It is lifted only by an outcome worked through without failing. | Merge with H-228: how a command leaves the watch |
+| Row H-232 | Success lifts the mark, and only an ending drops the record after it; a failure answered leaves the mark and an ending drops the record anyway; a raise reaches neither. | Merge with H-228 on the same terms |
+| Row H-233 | Its own stop clears a flag and cancels the scan due next. | Excluded. N6-11 already owns this stop, which it names among the four it covers |
+| Row H-234 | The prediction loop's stop clears its flag, raises an event and empties what was due. | Promote. N6-11 names the four stops it covers and leaves this one out |
+| Row H-235 | Its scheduler answers at once where the flag is down, and otherwise copies the bindings now due under the lock. | Merge with H-234, which it is the other half of |
+| Row H-236 | Each copy is then taken with no reading of the flag between the copying and the first take, so a copy made before the stop lands is still taken after it. | Merge with H-234: what the stop leaves running is the point |
+| Row H-237 | A binding whose run raises is logged and the rest still run. | Merge with H-234 on the same terms |
+| Row H-238 | Each binding's next moment is set again after its run, and only where the flag is still up. | Merge with H-234, which it is the ending of |
+
+Six rows promote: what a stopping host saves of its strategies, the last record
+it writes and the account it gives back, what the walk's first stage weighs
+before it reads the mode, what Praxis works out for an exit before the checks
+see it, the watch over commands whose handover timed out, and what the
+prediction loop's stop leaves running. The first of those outgrew the cap as the
+reading side was made precise, and what a start does with the saved state is
+N7-07; the second outgrew it as the checkpoint itself was traced, and what a
+checkpoint holds is N7-08, which outgrew it in turn as the log cut was traced,
+giving N7-09; and what the first stage weighs outgrew it as each test was traced
+upstream, giving N7-10 and then N7-11.
+
 ## Nexus package 6 — stopping a Nexus host
 
 Scope: what a stopping host halts before it asks anything, what a strategy is
@@ -529,6 +586,26 @@ was made precise, and when the money set aside moves is N6-09; the halting outgr
 time as the mode controller was traced, and what the halted mode turns away is
 N6-10; it outgrew it a third time as each loop's own stop was traced, and what a
 loop's stop leaves running is N6-11.
+
+### Re-seed, after writing package 6
+
+What twenty-two rounds of verifying the eleven articles turned up that none of
+them reaches. Each was checked against the index and the ledger before it was
+written down here: the package-5 re-seed named two subjects that were already
+written, and that is the mistake this check is for. Paths are under `nexus/`
+except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The rest of a stopping host's sequence | `startup/shutdown_sequencer.py` 190-196 asks each strategy to put its own state into bytes at 814-822, keeping empty bytes for one that raises; writes each non-empty blob to a file of its own through a temporary and a rename at 836 and 853-858, giving up where the directory cannot be made at 837-839, refusing a strategy name carrying a separator at 846-848; takes a last snapshot and shortens the record at 893; and gives the account back at 898-905. N6-04 names them and owns none of them |
+| What the walk's first stage weighs before it reads the mode | `core/validator/intake_stage.py` 404-410 refuses a strategy name that is not identical to itself stripped, 412-424 a request for nothing and 425-440 one against a strategy with no budget, the last two exempting four kinds by name at 413-416 and 427-431, of which only an exit and a change reach the stage. N6-10 places the mode test after these without owning them,  |
+| What Praxis builds for a strategy's exit before the checks see it | `praxis/launcher.py` 1282-1291 refuses an exit naming a trade the record has no position for, 1305-1307 reads the size asked and works out what the position has left after what is pending on it, 1308 settles whether this is a full close by that figure, 1306 mints a command identifier where the request carries none, and 1310-1321 asks the venue to fit the size. The dust articles take this road from 1323 on and own nothing before it |
+| The watch over commands whose handover timed out | `praxis/launcher.py` 2286-2293 gathers the marks old enough and 2295-2301 answers at once where it gathers none, the mark written at 1975-1978 and lifted at 4374-4378 only by an outcome worked through without failing. N6-01 names the watch and goes no further, and N1-02 owns the writing of the mark alone |
+| What the prediction loop's stop leaves running | `strategy/predict_loop.py` 256-259 clears the flag and empties what was due, while on the scheduler's own thread 297-304 copies what is due under the lock and 306-308 then takes each copy with no reading of the flag between the copying and the first take — so a copy made before the stop lands is still taken after it. N6-11 names the four stops it covers and leaves this one out, and the queued candidate on how a strategy produces the next decision is about the asking rather than the stopping |
+
+Five candidates, three of them Nexus's own and two of them Praxis's. The
+stopping sequence is the one that must come first: N6-04 ends by naming
+stages that point nowhere.
 
 ## Nexus package 5 — the passes that tidy up
 
@@ -877,6 +954,18 @@ run knowing that.
 | N6-09 | Claiming the money after the send, and what a refusal costs there | written | [when-money-set-aside-moves-onto-an-order.md](atoms/when-money-set-aside-moves-onto-an-order.md) |
 | N6-10 | What the halted mode turns away, and the two roads that go anyway | written | [what-the-halted-mode-turns-away.md](atoms/what-the-halted-mode-turns-away.md) |
 | N6-11 | What a loop's stop leaves running, and the one stop that waits | written | [what-a-loops-stop-leaves-running.md](atoms/what-a-loops-stop-leaves-running.md) |
+| N7-01 | What a stopping host saves of its strategies, and the name it refuses | written | [what-a-stopping-host-saves-of-its-strategies.md](atoms/what-a-stopping-host-saves-of-its-strategies.md) |
+| N7-02 | The last record a stopping host writes, and the account it can fail to give back | written | [the-last-record-a-stopping-host-writes.md](atoms/the-last-record-a-stopping-host-writes.md) |
+| N7-03 | What the first stage weighs before the mode, and the two tests only an entry meets | written | [what-the-first-stage-weighs-before-the-mode.md](atoms/what-the-first-stage-weighs-before-the-mode.md) |
+| N7-04 | What Praxis works out for an exit, and where a full close is settled | written | [what-praxis-works-out-for-an-exit.md](atoms/what-praxis-works-out-for-an-exit.md) |
+| N7-05 | The watch over handovers that timed out, and the ending that silences it | written | [the-watch-over-handovers-that-timed-out.md](atoms/the-watch-over-handovers-that-timed-out.md) |
+| N7-06 | What the prediction loop's stop leaves running, and the batch it lets finish | written | [what-the-prediction-loops-stop-leaves-running.md](atoms/what-the-prediction-loops-stop-leaves-running.md) |
+| N7-07 | What a start does with a strategy's saved state, and the directory only one side falls back on | written | [what-a-start-does-with-a-strategys-saved-state.md](atoms/what-a-start-does-with-a-strategys-saved-state.md) |
+| N7-08 | What a checkpoint holds, and the three callers that ask for one | written | [what-a-checkpoint-holds.md](atoms/what-a-checkpoint-holds.md) |
+| N7-09 | What the thirty-day cut leaves, and the two figures that read different moments | written | [what-the-thirty-day-cut-leaves.md](atoms/what-the-thirty-day-cut-leaves.md) |
+| N7-10 | What settles a request before the first stage, and the sum it leaves open | written | [what-settles-a-request-before-the-first-stage.md](atoms/what-settles-a-request-before-the-first-stage.md) |
+| N7-11 | What an entry's sum is worked out from, and the fitting that can make it smaller | written | [what-an-entrys-sum-is-worked-out-from.md](atoms/what-an-entrys-sum-is-worked-out-from.md) |
+| N7-12 | What a failed save costs the stopping, and the raise that carries off the rest | written | [what-a-failed-save-costs-the-stopping.md](atoms/what-a-failed-save-costs-the-stopping.md) |
 | N1-01 | How Nexus sets money aside, and what it is weighed against | reviewed | [how-nexus-sets-money-aside.md](atoms/how-nexus-sets-money-aside.md) |
 | N1-02 | What Nexus does when a command does not get across | reviewed | [what-nexus-does-when-a-command-does-not-get-across.md](atoms/what-nexus-does-when-a-command-does-not-get-across.md) |
 
@@ -1109,8 +1198,37 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-207 | One still running when the strategies are asked is logged, and the list of positions handed to the strategies is built next under a lock where one was supplied. | `nexus/startup/shutdown_sequencer.py` 292-298 before 300-303 | Nexus package six | folds into N6-07 |
 | H-208 | The claim Praxis makes on the money set aside is made before the send only where the receiving side was taken as bound to the name sent; where it was not, no claim is made before the send and one is made after it, under the name that came back. | `praxis/launcher.py` 2088-2093 built only at 4239-4254, against 4287-4293 after `nexus/strategy/action_submit.py` 337 | Nexus package six | is N6-09, and corrects N2-05, which said before the send without the condition |
 | H-209 | The receiver the launcher hands Nexus declares a parameter of the command's own name, so Nexus reads it as bound to that name and the roads for a receiver that is not — the record written after the send, and the claim on the money made after it — are never taken with Praxis's own wiring. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 62 reading the shape of the receiver handed over at `praxis/launcher.py` 453-454 and built at 4075, which carries the name through at 449, answering bound at `nexus/infrastructure/praxis_connector/praxis_outbound.py` 66-67, which returns before them at `praxis/launcher.py` 4270-4271 | Nexus package six | folds into N6-06, N6-08 and N6-09 |
+| H-210 | Each strategy is asked to put its own state into bytes, and one that raises has empty bytes kept for it. | `nexus/startup/shutdown_sequencer.py` 814-822 | Nexus package seven | is N7-01 |
+| H-211 | Nothing is written where no bytes were kept at all, and a strategy whose bytes are empty is passed over. | `nexus/startup/shutdown_sequencer.py` 832-833 and 843-844 | Nexus package seven | folds into N7-01 |
+| H-212 | The directory is made where needed, and a failure to make it ends the writing for every strategy. | `nexus/startup/shutdown_sequencer.py` 836 against 837-839 | Nexus package seven | folds into N7-01 |
+| H-213 | A strategy name carrying a path separator is refused rather than written. | `nexus/startup/shutdown_sequencer.py` 846-848 | Nexus package seven | folds into N7-01 |
+| H-214 | Each blob goes to a temporary file, is pushed to the disk, and the temporary is renamed over the target. | `nexus/startup/shutdown_sequencer.py` 853-858 | Nexus package seven | folds into N7-01 |
+| H-215 | A write that fails on the disk is logged and the rest are still tried, while anything else raising out of the writing ends the stage and, nothing wrapping it, leaves the sequence's own checkpoint and deregister undone, though the host's own stopping gives the account back regardless; the directory itself is pushed to the disk where anything was written. | `nexus/startup/shutdown_sequencer.py` 860-861 catching one kind over 854-858, with no catch around 191 before 193 and 196, the raise caught at `praxis/launcher.py` 4030-4035 and the account given back at 3908-3919 into `praxis/trading.py` 783-785, and 863-871 | Nexus package seven | folds into N7-01 |
+| H-216 | A last snapshot is taken and the record shortened, the locks for it owned by the store rather than the stopping. | `nexus/startup/shutdown_sequencer.py` 893 | Nexus package seven | is N7-02 |
+| H-217 | That taking is wrapped, so a failure in it is logged and giving the account back is still attempted. | `nexus/startup/shutdown_sequencer.py` 192-196 | Nexus package seven | folds into N7-02 |
+| H-218 | The account is given back last, skipped with a line where the connection out or the account's name is absent, and a raise there logged. | `nexus/startup/shutdown_sequencer.py` 898-905 | Nexus package seven | folds into N7-02 |
+| H-219 | The walk's first stage refuses a strategy name that is not identical to itself stripped, before it reads anything else — a refusal the settings already made as they were read, and one the builder forestalls by answering with nothing for a name it does not know. | `nexus/core/validator/intake_stage.py` 404-410, against `nexus/infrastructure/manifest.py` 136-142 and `praxis/launcher.py` 4180-4191 | Nexus package seven | is N7-03 |
+| H-220 | It then refuses a request for nothing at all, exempting an exit, an abandonment, a cancellation and a change. | `nexus/core/validator/intake_stage.py` 412-424 | Nexus package seven | folds into N7-03 |
+| H-221 | It then refuses one against a strategy with no budget, exempting the same four — a budget that is the pool at the strategy's share with nothing deployed taken off, both of which the settings already refuse at nought. | `nexus/core/validator/intake_stage.py` 425-440, the budget at `nexus/core/capital_controller/capital_controller.py` 459-462, the pool refused at `nexus/infrastructure/manifest.py` 250-252 and the share at 159-161 | Nexus package seven | folds into N7-03 |
+| H-222 | The mode is read after those three, and the stage's own hooks after that. | `nexus/core/validator/intake_stage.py` 442 before 446 | Nexus package seven | folds into N7-03 |
+| H-223 | An exit naming a trade the record has no position for is logged and answered with nothing, before any of that position's own figures are read. | `praxis/launcher.py` 1282-1291 before 1293 | Nexus package seven | is N7-04 |
+| H-224 | The size asked is read, and what the position has left is its size less what is already pending on it. | `praxis/launcher.py` 1305 and 1307 | Nexus package seven | folds into N7-04 |
+| H-225 | Whether this is a full close is settled there by comparing the size asked with that figure, while an exit put up alongside an entry is marked whole outright with no comparison. | `praxis/launcher.py` 1308 against 1587 | Nexus package seven | folds into N7-04 |
+| H-226 | A command identifier is minted on the spot where the request carries none. | `praxis/launcher.py` 1306 | Nexus package seven | folds into N7-04 |
+| H-227 | The venue is then asked to fit the size, at the position's entry price, as a market order where the request names no kind. | `praxis/launcher.py` 1310-1321 | Nexus package seven | folds into N7-04 |
+| H-228 | The watch gathers the registrations carrying a mark whose own moment is far enough back. | `praxis/launcher.py` 2286-2293 | Nexus package seven | is N7-05 |
+| H-229 | It answers at once where it gathers none, and otherwise works out the longest wait and a capped list of names. | `praxis/launcher.py` 2295-2301 | Nexus package seven | folds into N7-05 |
+| H-230 | The mark is written where a handover timed out and a registration for that command still stands. | `praxis/launcher.py` 1975-1978 | Nexus package seven | folds into N7-05 |
+| H-231 | It is lifted only by an outcome worked through without failing. | `praxis/launcher.py` 4374-4378 | Nexus package seven | folds into N7-05 |
+| H-232 | A working through that answers success lifts the mark, and only an ending drops the record after it, so a successful acknowledgement lifts the mark and leaves the record; one that answers failure leaves the mark and an ending still drops the record, taking the command off the watch with the mark on it; a raise reaches neither. | `praxis/launcher.py` 4363 into 4374-4378, then 4380-4382, the endings named at `nexus/infrastructure/praxis_connector/trade_outcome_type.py` 37-42 | Nexus package seven | folds into N7-05 |
+| H-233 | Its own stop clears a flag and cancels the scan due next, the same shape the three Nexus loops take. | `praxis/launcher.py` 2275-2279 | Nexus package seven | recorded; N6-11 states it |
+| H-234 | The prediction loop's stop clears its flag, raises an event and empties what was due. | `nexus/strategy/predict_loop.py` 256-259 | Nexus package seven | is N7-06 |
+| H-235 | Its scheduler waits on that event a short while at a time, answers at once where the flag is down, and otherwise copies the bindings now due under the lock. | `nexus/strategy/predict_loop.py` 293-304 | Nexus package seven | folds into N7-06 |
+| H-236 | Each copy is then taken with no reading of the flag between the copying and the first take, so a copy made before the stop lands is still taken after it. | `nexus/strategy/predict_loop.py` 301-304 into 306-308 | Nexus package seven | folds into N7-06 |
+| H-237 | A binding whose run raises is logged and the rest still run. | `nexus/strategy/predict_loop.py` 309-316 | Nexus package seven | folds into N7-06 |
+| H-238 | Each binding's next moment is set again after its run, and only where the flag is still up, so a stop during the batch leaves nothing rescheduled. | `nexus/strategy/predict_loop.py` 317-322 | Nexus package seven | folds into N7-06 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-26 15:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-26 18:00 UTC

@@ -173,6 +173,18 @@ the others where it appears.
 - [The sale a host sends as it stops](atoms/the-sale-a-host-sends-as-it-stops.md) — shutting down, the system asks each strategy what to sell and approves those orders itself, so the checks that normally stand in front of an order never see them.
 - [Where an imported position's names come from](atoms/where-an-imported-positions-names-come-from.md) — a holding rebuilt at startup needs three labels off the side that placed the orders, and a holding missing any one of them is left out of the records altogether.
 - [What a stopping host halts first](atoms/what-a-stopping-host-halts-first.md) — on the way down, anything a strategy asks for through the usual checks is turned away, and the background jobs are switched off one after another in a set order.
+- [What a stopping host saves of its strategies](atoms/what-a-stopping-host-saves-of-its-strategies.md) — each strategy is asked to describe itself in bytes, which are written to a side file and then moved over the old one, so what is on disk is always one whole version.
+- [What a failed save costs the stopping](atoms/what-a-failed-save-costs-the-stopping.md) — a write that fails on the disk loses one strategy's update while leaving what it saved before, a directory that cannot be made loses every update, and a strategy handing back something the writer cannot take costs the shutdown its final saved picture, though the account is still handed back.
+- [What a start does with a strategy's saved state](atoms/what-a-start-does-with-a-strategys-saved-state.md) — the saved bytes are handed back to the strategy, with empty bytes standing in where the file is missing or unreadable, and a setting that is left blank means the start never looks.
+- [The last record a stopping host writes](atoms/the-last-record-a-stopping-host-writes.md) — on the way out a picture of the state is saved and then the account is handed back, each wrapped so a failure is written down and passed over, and the handing back can fail with the account still registered.
+- [What a checkpoint holds](atoms/what-a-checkpoint-holds.md) — the saved picture covers money, risk, holdings and trading state while what each strategy kept for itself goes to separate files; a stopping host, a timer and sometimes a start each ask for one.
+- [What the thirty-day cut leaves](atoms/what-the-thirty-day-cut-leaves.md) — trimming the log goes by when each line was written, while the recent-loss figures rebuilt from what is left go by when the thing described happened, and the running total adds up what survived once repeats of one outcome are dropped.
+- [What the first stage weighs before the mode](atoms/what-the-first-stage-weighs-before-the-mode.md) — a name with space around it, a request worth nothing, and a strategy whose whole allowance is nothing are each turned away before trading state is looked at, while a request to close or to alter an order is named as exempt from the amount test and the allowance test rather than having to clear them.
+- [What settles a request before the first stage](atoms/what-settles-a-request-before-the-first-stage.md) — the name is fixed when the settings are read, while the money allowance is written as the order is put together — from two figures the settings already hold above zero, except on a request to alter an order, which is given no allowance at all.
+- [What an entry's sum is worked out from](atoms/what-an-entrys-sum-is-worked-out-from.md) — an order to buy carries either an amount of money or a quantity, and a quantity is trimmed to what the venue trades in before it is priced, which can make the order smaller than was asked for.
+- [What Praxis works out for an exit](atoms/what-praxis-works-out-for-an-exit.md) — before the checks see a request to close a holding, that holding is looked up, what is left of it after anything already in progress is computed, and a label is minted where none came.
+- [The watch over handovers that timed out](atoms/the-watch-over-handovers-that-timed-out.md) — an order whose handover ran out of time is flagged as unsettled, and a job reports the flags that have stood too long; a final reply the books cannot take in drops the order off the list with its flag still raised, while one that blows up on the way in leaves both standing.
+- [What the prediction loop's stop leaves running](atoms/what-the-prediction-loops-stop-leaves-running.md) — the job that reads predictions and hands them to the strategies gathers its work first and then carries it out, so work gathered before the switch-off is still carried out, and can still reach a strategy and put its answer up for the usual checks.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -286,14 +298,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 189
+Both sides are the subject, and Praxis is the side that has been written. 201
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
-part and 4 not at all; of the 70 in Nexus, 44 are named and 26
-untouched — 29 carry a row of their own, and 15 are reached by an
+part and 4 not at all; of the 70 in Nexus, 46 are named and 24
+untouched — 33 carry a row of their own, and 13 are reached by an
 article that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-26 15:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-26 18:00 UTC
