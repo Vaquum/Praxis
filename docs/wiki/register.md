@@ -487,6 +487,17 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 8 — the log, and the figures that reach it
+
+Scope: how a record reaches the log and what a damaged one costs, which of a
+host's changes reach it and which wait for something else to write, the cap on
+how fast entries may go in and the window that turns a repeated one away, and
+the timer that checkpoints while a host runs. The five candidates the package-7
+re-seed named, taken through the stages together. The log comes first: N7-08 names
+the records of a state change and N7-09 the strategy events, and both say a
+start reads them back; neither says how a record reaches the file, what shape
+it takes there, or what a damaged one costs.
+
 ## Nexus package 7 — the last of stopping, and what sits either side of the checks
 
 Scope: what a stopping host saves of its strategies and how, the last record it
@@ -1245,8 +1256,35 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-236 | Each copy is then taken with no reading of the flag between the copying and the first take, so a copy made before the stop lands is still taken after it. | `nexus/strategy/predict_loop.py` 301-304 into 306-308 | Nexus package seven | folds into N7-06 |
 | H-237 | A binding whose run raises is logged and the rest still run. | `nexus/strategy/predict_loop.py` 309-316 | Nexus package seven | folds into N7-06 |
 | H-238 | Each binding's next moment is set again after its run, and only where the flag is still up, so a stop during the batch leaves nothing rescheduled. | `nexus/strategy/predict_loop.py` 317-322 | Nexus package seven | folds into N7-06 |
+| H-239 | Each record is the payload behind a head of two figures, its length and a checksum of it, and the records follow a fixed marker at the front of the file. | `nexus/infrastructure/wal.py` 62-64 and 84-85, the marker standing at 31 | Nexus package eight |  |
+| H-240 | A file missing or shorter than its marker is written afresh, the marker laid down before the record and the directory pushed to the disk after it. | `nexus/infrastructure/wal.py` 66 into 82-83 and 88-89 | Nexus package eight |  |
+| H-241 | A file past that is read for its marker, and an append into one whose marker reads wrong is refused before anything is written. | `nexus/infrastructure/wal.py` 68-73 | Nexus package eight |  |
+| H-242 | Where the marker reads right, the end of the last record that reads whole and whose checksum matches is found, and only where the file runs past that end is it cut back to there and the cut pushed to the disk. | `nexus/infrastructure/wal.py` 74-80 under the test at 76, the end found at 94-116, a whole record with a wrong checksum ending it at 114-116 | Nexus package eight |  |
+| H-243 | Every record is pushed to the disk as it is appended, so one the caller was told was written is on the disk. | `nexus/infrastructure/wal.py` 86-87 | Nexus package eight |  |
+| H-244 | Reading stops at the first damaged record and keeps what came before it, by a short header, a length past the cap, a length past the file's end, a payload that runs out, or a checksum that does not match. | `nexus/infrastructure/wal.py` 203-218 | Nexus package eight |  |
+| H-245 | A file as long as the marker whose marker reads wrong is read as holding nothing and refuses an append; a shorter one is read as holding nothing too, and an append writes it afresh over whatever it held. | `nexus/infrastructure/wal.py` 197-198 and 68-73, against the repair settled at 66 into 81-83 | Nexus package eight |  |
+| H-246 | A second reader stops the same way on a short header or a payload that runs out and raises instead on a length past the cap or a checksum that does not match; nothing under `nexus/` calls it. | `nexus/infrastructure/wal.py` 144-147 and 155-159 against 149-154 and 160-163, with no call to it anywhere under `nexus/` | Nexus package eight |  |
+| H-247 | A road that empties the file outright, marker and all, has no caller under `nexus/` either. | `nexus/infrastructure/wal.py` 258-261, no caller anywhere under `nexus/` | Nexus package eight |  |
+| H-248 | A host checks the marker and reads the log as it opens the store, numbering its own records on from the last one the file holds. | `nexus/infrastructure/state_store.py` 114-116 | Nexus package eight |  |
+| H-249 | A change writes the whole state, not the part that changed, so a replay takes the last such record as what it starts from. | `nexus/infrastructure/state_store.py` 199 into 200-206, the replay starting from it at 265-267 | Nexus package eight |  |
+| H-250 | Two causes ask for that write: an operator's halt or resume, always; and an outcome worked through, only where it succeeded and moved a position, moved the money, or left a synchronous write still owed. | `praxis/launcher.py` 3548-3549, and 4439 under the test at 4404-4408 | Nexus package eight |  |
+| H-251 | A failure to write after an outcome marks the state unwritten, and on that mark Praxis records nothing to say the outcome was settled, so a replay of its own spine finds it produced but unsettled and works it through again. | `praxis/launcher.py` 4441 read at 4464 before 4465, the settling record appended at 3155-3166, read back at 1735-1736, the unsettled outcome put in the plan at 1774-1776 and worked through again at 1816 into 4533-4537 | Nexus package eight |  |
+| H-252 | A failure to write after an operator's halt or resume answers the operator with a failure instead. | `praxis/launcher.py` 3552 | Nexus package eight |  |
+| H-253 | The valuation loop writes unrealised figures onto each position, onto each strategy and onto the account, and asks for no write of its own. | `nexus/core/mtm_loop.py` 293-309, no store call anywhere in the module | Nexus package eight |  |
+| H-254 | Those figures are carried by whatever write another cause asks for, each write putting all three out. | `nexus/infrastructure/wal_codec.py` 345, 228 and 273 | Nexus package eight |  |
+| H-255 | A checkpoint rewrites the log in place, with no temporary file and no rename, and does not push the directory. | `nexus/infrastructure/wal.py` 294-303 against `nexus/infrastructure/snapshot.py` 46-51 | Nexus package eight |  |
+| H-256 | That rewrite checks the marker first, so a file carrying a marker that reads wrong raises rather than being written over; one shorter than the marker passes the check unread and is written over whatever it holds. | `nexus/infrastructure/wal.py` 287 before 294, the check passing a short file at 242-243 | Nexus package eight |  |
+| H-257 | The moment the rewrite keeps events from is read off the clock as the checkpoint runs, not off anything in the log. | `nexus/infrastructure/snapshot.py` 52 | Nexus package eight |  |
+| H-258 | The timer sets each turn a span after the last, the span read from the environment and standing at five minutes where it carries nothing. | `nexus/infrastructure/snapshot_scheduler.py` 114-116, the span read at `praxis/launcher.py` 4591-4593 over the figure at 207 | Nexus package eight |  |
+| H-259 | A failed checkpoint is passed over and the turn after it still runs; the log is left as it was wherever the failure fell before the open that rewrites it, and cut down to however much of the rewrite had been put down wherever it fell after. | `nexus/infrastructure/snapshot_scheduler.py` 147-148 into 123-126, the snapshot written at `nexus/infrastructure/snapshot.py` 45-51 before 53, the earlier failures at `nexus/infrastructure/wal.py` 287-288, the emptying open at 294 before 295-303 | Nexus package eight |  |
+| H-260 | The timer's stop writes no record of its own, the sequence being relied on for the last one. | `nexus/infrastructure/snapshot_scheduler.py` 92-96, the sequence's own checkpoint at `nexus/startup/shutdown_sequencer.py` 893, reached at 193 | Nexus package eight |  |
+| H-261 | The cap on entries counts them in one list for the whole account, with nothing naming a strategy in what it holds, so every strategy on the account spends the one allowance. | `nexus/core/validator/intake_stage.py` 98 and 112-120, the hooks built once at `praxis/launcher.py` 959-963 inside a walk built per account at 4104 | Nexus package eight |  |
+| H-262 | It reads an entry alone, drops what has aged out of the second behind it, refuses where the count stands at the cap, and counts the rest. | `nexus/core/validator/intake_stage.py` 102-103, 105-110, 112-118 and 120 | Nexus package eight |  |
+| H-263 | It is put in front of the other two only where a figure is carried, which on the one road a running host builds them by is the figure Praxis read from its environment and set on the settings. | `nexus/core/validator/intake_stage.py` 74-78, the one build outside the tests passing no figure of its own at `praxis/launcher.py` 959-963, the settings carrying it from 359 over 763 | Nexus package eight |  |
+| H-264 | The window keeps what it has seen per strategy and identifier, drops what has aged out, and refuses one seen inside it. | `nexus/core/validator/intake_stage.py` 170-174, 179-182, 184-194 and 196-197 | Nexus package eight |  |
+| H-265 | Its two guards, against an entry naming no side and one naming no identifier, are never reached from a live request, the builder supplying both before either branch that makes one. | `nexus/core/validator/intake_stage.py` 153-159 and 162-168 against `praxis/launcher.py` 1171-1172 before 1178-1191 or 1254-1267 | Nexus package eight |  |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-27 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-27 19:00 UTC
