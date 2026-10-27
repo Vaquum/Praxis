@@ -544,6 +544,24 @@ checkpoint holds is N7-08, which outgrew it in turn as the log cut was traced,
 giving N7-09; and what the first stage weighs outgrew it as each test was traced
 upstream, giving N7-10 and then N7-11.
 
+### Re-seed, after writing package 7
+
+What twenty rounds of verifying the twelve articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was
+written down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The cap on how fast entries may go in | `core/validator/intake_stage.py` 102-103 reads an entry and lets everything else by, 105-110 drops what has aged out of the second behind it, 112-118 refuses where the count stands at the cap, and 120 counts the rest. The count is one list made at 98, with nothing naming a strategy in what it holds, and the hooks are built once at `praxis/launcher.py` 959-963 inside a walk built for each account at 4104, so the cap is the account's and every strategy on it spends the same allowance. It is put in front of the other two only where the settings carry a figure, at 74-78. N7-03 names the stage's own hooks after the mode and owns none of them, and no other article reaches this one |
+| The window that turns a repeated entry away | `core/validator/intake_stage.py` 179-182 drops what has aged out of the window and 184-194 refuses an entry whose strategy and identifier were both seen inside it, 196-197 recording the rest. It is kept per strategy, by a key made at 170-174 — the opposite of the cap above. Two guards in front of it, against an entry naming no side at 153-159 and one naming no identifier at 162-168, are never reached from a live request: the builder supplies both at `praxis/launcher.py` 1171-1172, before either branch that makes one at 1178-1191 or 1254-1267. No article reaches this hook either; of the three the stage runs, only the reference-integrity one is covered, by N2-03 and N4-07 |
+| How a record reaches the log | `infrastructure/wal.py` 62-64 works out a length and a checksum for each payload, and 66 then settles which of two roads the write takes. A file missing or shorter than its marker is written afresh, the marker laid down first at 82-83 and the record appended after it at 84-87. A file past that is read for its marker instead: 68-73 refuses the append outright where it reads wrong, and where it reads right 74-80 cuts the file back to the last whole record before that same append. The reading side splits on a damaged record: 203-218 stops at the first sign of one and keeps what came before, while the reader at 144-147 and 155-159 stops the same way on a header or payload that runs out and raises instead at 149-154 and 160-163, on a length past the cap or a checksum that does not match — and that reader has no caller anywhere under `nexus/`. N7-08 and N7-09 reach into this file for the rewrite alone |
+| Which changes reach the log | `infrastructure/state_store.py` 198-207 writes the whole state wherever something asks it to, which is what makes the replay N7-08 describes last-wins, numbering the record from the last one the file held at 115-116 and writing it under a lock. Two causes ask: `praxis/launcher.py` 4439 after an outcome has been worked through, and 3549 on an operator's halt or resume. The valuation loop asks for nothing — `core/mtm_loop.py` 293-309 writes unrealised figures onto the positions and onto each strategy's own risk and stops there — so those figures reach the log on the back of a write some other cause asked for, each such write carrying them along at `infrastructure/wal_codec.py` 228, 273 and 345. N3-03 owns the one other road into this file, the strategy event at 236-245 |
+| The timer that checkpoints while a host runs | `infrastructure/snapshot_scheduler.py` 114-116 sets each turn a span after the last, the span read from the environment at `praxis/launcher.py` 4591-4593 and falling back to the figure standing at 207; 146-149 logs a failure where one lands and 123-126 sets the turn after it regardless, so the log goes on growing until a checkpoint succeeds; and the stop at 92-96 writes no record of its own. N7-08 names this timer as one of three asking for a checkpoint and owns none of it, and N6-11 owns what its stop leaves running and no more |
+
+Five candidates, all five of them Nexus's own. The log is the one that must come
+first: N7-08 and N7-09 both describe what a start reads back from it, and
+neither says what is in it or how it got there.
+
 ## Nexus package 6 — stopping a Nexus host
 
 Scope: what a stopping host halts before it asks anything, what a strategy is
@@ -1231,4 +1249,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-27 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-27 14:00 UTC
