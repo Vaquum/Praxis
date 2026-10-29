@@ -185,6 +185,14 @@ the others where it appears.
 - [What Praxis works out for an exit](atoms/what-praxis-works-out-for-an-exit.md) — before the checks see a request to close a holding, that holding is looked up, what is left of it after anything already in progress is computed, and a label is minted where none came.
 - [The watch over handovers that timed out](atoms/the-watch-over-handovers-that-timed-out.md) — an order whose handover ran out of time is flagged as unsettled, and a job reports the flags that have stood too long; a final reply the books cannot take in drops the order off the list with its flag still raised, while one that blows up on the way in leaves both standing.
 - [What the prediction loop's stop leaves running](atoms/what-the-prediction-loops-stop-leaves-running.md) — the job that reads predictions and hands them to the strategies gathers its work first and then carries it out, so work gathered before the switch-off is still carried out, and can still reach a strategy and put its answer up for the usual checks.
+- [How a record reaches the log](atoms/how-a-record-reaches-the-log.md) — every line added to the log carries a short head saying how long it is and a number worked out from its contents, is forced out to the disk before the write is called done, and a file whose end was left torn is trimmed back to the last sound line before anything new goes on.
+- [What a damaged record costs](atoms/what-a-damaged-record-costs.md) — reading the log stops at the first line that fails any of its checks, a short head, a length past the cap, a length past the file's end, a payload that runs out or a checksum that does not match and keeps only what came before it, so one bad line hides every good line written after it.
+- [When a read raises instead of stopping](atoms/when-a-read-raises-instead-of-stopping.md) — a line whose contents cannot be turned back into a record makes the read fail outright rather than stop, so the caller is handed nothing at all instead of the good lines before it.
+- [Which of a host's changes reach the log](atoms/which-of-a-hosts-changes-reach-the-log.md) — an operator halting or resuming the whole account is written down every time, and an outcome from the venue only where working it through succeeded and one of three marks is set, while the running valuations of what is held are written on nobody's account and ride along with whatever else is being saved.
+- [How the checkpoint rewrites the log](atoms/how-the-checkpoint-rewrites-the-log.md) — trimming the log empties the file and writes the surviving lines back into that same file, so a failure part-way through leaves the file holding less than the history it stood for.
+- [The timer that checkpoints while a host runs](atoms/the-timer-that-checkpoints-while-a-host-runs.md) — a background job saves a picture of the state at a fixed spacing, measuring each wait from the end of the last save, and a save that fails is passed over, the turn after it making a whole new one rather than finishing the last.
+- [The cap on how fast entries may go in](atoms/the-cap-on-how-fast-entries-may-go-in.md) — a limit on how many entries this one check lets by in a second is shared by every strategy on one account, so a busy strategy can spend it all and leave the others turned away.
+- [The window that turns a repeated entry away](atoms/the-window-that-turns-a-repeated-entry-away.md) — a strategy sending the same labelled order twice inside a second has the later one refused, and labels are remembered against the strategy that sent them, so two strategies using one label do not collide.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -298,14 +306,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 201
+Both sides are the subject, and Praxis is the side that has been written. 209
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 46 are named and 24
-untouched — 33 carry a row of their own, and 13 are reached by an
+untouched — 35 carry a row of their own, and 11 are reached by an
 article that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-27 13:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-10-28 18:45 UTC
