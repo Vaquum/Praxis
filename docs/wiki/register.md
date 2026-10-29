@@ -607,6 +607,26 @@ checkpoint holds is N7-08, which outgrew it in turn as the log cut was traced,
 giving N7-09; and what the first stage weighs outgrew it as each test was traced
 upstream, giving N7-10 and then N7-11.
 
+### Re-seed, after writing package 8
+
+What eleven rounds of verifying the eight articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was
+written down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The host that takes no timed checkpoint | The checkpoint timer is started at `praxis/launcher.py` 4675 alone, which the live path reaches at 3995 and undoes at 4006 after the wait at 3999. `praxis/replay/run_replay.py` 150-152 builds a runtime and 163-166 drives it without ever reaching that start, so no turn of the timer falls while that host runs. It can still checkpoint once on the way up: the build calls `sequencer.start()` at `praxis/launcher.py` 4085, and `startup/sequencer.py` 177 into 472 and 478-481 saves one wherever the figure recovered for what is held differs from a total rebuilt at 410-468 over the positions the host reports, each one weighed as N3-11 describes, so the test is against no total reported to it; the docstring at 349-352 calls that update a match to the venue's state, which the rebuild does not make. The save is the same call at `infrastructure/state_store.py` 178-179 that the timer makes at `infrastructure/snapshot_scheduler.py` 147. N8-05 reaches what a turn of the timer does, not which hosts run one |
+| The road that empties the log outright | `infrastructure/wal.py` 258-261 opens the file to write and pushes it, leaving it holding nothing at all, its marker included, and nothing under `nexus/` calls it. What it would leave is the file an append writes afresh, at 66 into 82-83 |
+| What the cut's moving cutoff costs | `infrastructure/snapshot.py` 52 works the cutoff out from the clock as the checkpoint runs, so what survives a rewrite turns on when the rewrite ran: an event one checkpoint keeps a later one drops, with neither the log nor the snapshot having changed in between. The thirty-day span is already carried by what the thirty-day cut leaves, which cites 52-53; that the span moves is carried nowhere |
+| The mark set wherever the position is found | `infrastructure/praxis_connector/outcome_processor.py` 604-612, reached at 310 and 342, sets the position mark on both roads that clear a pending exit, the figure behind it lowered to no less than nothing, so it is set as readily where that figure already stood at nothing |
+| The unpack fault in the reader nothing calls | `infrastructure/wal.py` 164 appends an unpacked record with nothing around it, raising at 334 or 344 as the step at 219 does, inside the reader at 119 that nothing under `nexus/` calls. N8-08 reaches three places that reader parts from the first, and not this fourth raise it shares with it |
+
+Five candidates. Four are Nexus's own; the host that takes no timed checkpoint is
+settled in Praxis, the timer being started there and nowhere else. The moving
+cutoff is the one with a reader already waiting: what the thirty-day cut leaves
+carries the span and not what its moving costs, so that one may want a paragraph
+in an article already written rather than an article of its own.
+
 ### Re-seed, after writing package 7
 
 What twenty rounds of verifying the twelve articles turned up that none of them
@@ -1349,4 +1369,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-29 08:56 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-29 10:31 UTC
