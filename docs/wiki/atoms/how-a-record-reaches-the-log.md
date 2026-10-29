@@ -2,7 +2,7 @@
 row: N8-01
 baseline: 49aa659
 created: 2026-10-28 18:45 UTC
-modified: 2026-10-28 18:45 UTC
+modified: 2026-10-29 09:37 UTC
 evidence:
   - claim: "Each record is the payload behind a head of two figures, its length and a checksum of it"
     source: "`nexus/infrastructure/wal.py` 62-64 and 84-85"
@@ -48,4 +48,4 @@ The head carries no number. A host checks the marker and reads the log as it ope
 
 ---
 
-Created 2026-10-28 18:45 UTC · Last modified 2026-10-28 18:45 UTC
+Created 2026-10-28 18:45 UTC · Last modified 2026-10-29 09:37 UTC

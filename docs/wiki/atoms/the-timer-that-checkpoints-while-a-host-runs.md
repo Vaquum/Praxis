@@ -2,7 +2,7 @@
 row: N8-05
 baseline: 49aa659
 created: 2026-10-28 18:45 UTC
-modified: 2026-10-28 18:45 UTC
+modified: 2026-10-29 09:37 UTC
 evidence:
   - claim: "The timer sets each turn a span after the last, the span read from the environment and standing at five minutes where it carries nothing"
     source: "`nexus/infrastructure/snapshot_scheduler.py` 114-116, the span read at `praxis/launcher.py` 4591-4593 over the figure at 207"
@@ -41,4 +41,4 @@ It writes no record of its own on the way out, so the last turn to complete is t
 
 ---
 
-Created 2026-10-28 18:45 UTC · Last modified 2026-10-28 18:45 UTC
+Created 2026-10-28 18:45 UTC · Last modified 2026-10-29 09:37 UTC

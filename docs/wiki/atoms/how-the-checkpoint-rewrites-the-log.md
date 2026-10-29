@@ -2,7 +2,7 @@
 row: N8-04
 baseline: 49aa659
 created: 2026-10-28 18:45 UTC
-modified: 2026-10-28 18:45 UTC
+modified: 2026-10-29 09:37 UTC
 evidence:
   - claim: "The rewrite keeps the strategy events stamped at or after a cutoff and writes those back, dropping every other record"
     source: "`nexus/infrastructure/wal.py` 289-292 before 295-303"
@@ -45,4 +45,4 @@ What the rewrite is putting back is [the strategy events it keeps](what-the-thir
 
 ---
 
-Created 2026-10-28 18:45 UTC · Last modified 2026-10-28 18:45 UTC
+Created 2026-10-28 18:45 UTC · Last modified 2026-10-29 09:37 UTC

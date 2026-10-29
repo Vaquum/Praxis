@@ -2,7 +2,7 @@
 row: N8-06
 baseline: 49aa659
 created: 2026-10-28 18:45 UTC
-modified: 2026-10-28 18:45 UTC
+modified: 2026-10-29 09:37 UTC
 evidence:
   - claim: "The cap on entries counts them in one list for the whole account, with nothing naming a strategy in what it holds, so every strategy on the account spends the one allowance"
     source: "`nexus/core/validator/intake_stage.py` 98 and 112-120, the hooks built once at `praxis/launcher.py` 959-963 inside a walk built per account at 4104"
@@ -38,4 +38,4 @@ The cap goes ahead of the other two hooks on [the same stage](the-checks-a-decis
 
 ---
 
-Created 2026-10-28 18:45 UTC · Last modified 2026-10-28 18:45 UTC
+Created 2026-10-28 18:45 UTC · Last modified 2026-10-29 09:37 UTC

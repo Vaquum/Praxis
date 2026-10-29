@@ -2,7 +2,7 @@
 row: N8-02
 baseline: 49aa659
 created: 2026-10-28 18:45 UTC
-modified: 2026-10-28 18:45 UTC
+modified: 2026-10-29 09:37 UTC
 evidence:
   - claim: "Reading stops at the first damaged record and keeps what came before it, by a short header, a length past the cap, a length past the file's end, a payload that runs out, or a checksum that does not match"
     source: "`nexus/infrastructure/wal.py` 203-218"
@@ -33,4 +33,4 @@ A file too short to carry a marker is read as holding nothing too. That one an a
 
 ---
 
-Created 2026-10-28 18:45 UTC · Last modified 2026-10-28 18:45 UTC
+Created 2026-10-28 18:45 UTC · Last modified 2026-10-29 09:37 UTC

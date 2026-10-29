@@ -2,7 +2,7 @@
 row: N8-03
 baseline: 49aa659
 created: 2026-10-28 18:45 UTC
-modified: 2026-10-28 18:45 UTC
+modified: 2026-10-29 09:37 UTC
 evidence:
   - claim: "A change writes the whole state, not the part that changed, so a replay takes the last such record as what it starts from"
     source: "`nexus/infrastructure/state_store.py` 199 into 200-206, the replay starting from it at 265-267"
@@ -50,4 +50,4 @@ Those figures reach the log only when one of the two causes above writes the sta
 
 ---
 
-Created 2026-10-28 18:45 UTC · Last modified 2026-10-28 18:45 UTC
+Created 2026-10-28 18:45 UTC · Last modified 2026-10-29 09:37 UTC
