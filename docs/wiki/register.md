@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 46 are named and 24 untouched. Of the 46, 35 carry a row of their own and 11 are reached by an article that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 47 are named and 23 untouched. Of the 47, 35 carry a row of their own and 12 are reached by an article that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -486,6 +486,18 @@ Paths are under `nexus/`.
 The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
+
+## Nexus package 9 — which hosts checkpoint, and the roads into the log nothing takes
+
+Scope: which hosts run the checkpoint timer and which take only the one a start
+may make, what a failed checkpoint costs a start, which clock the log keeps,
+what the cut's moving cutoff costs, which outcomes ask for no write of the
+name they record, and the two roads into the log that nothing in either package
+drives. The five candidates the package-8 re-seed named, taken through the
+stages together. Which hosts run the timer is the subject that must come before
+the rest: N7-08 names a timer among the three that ask for a checkpoint and
+N8-05 says what a turn of one does, and neither says which hosts have one
+running, so a reader of either is left to take every host for the live one.
 
 ## Nexus package 8 — the log, and the figures that reach it
 
@@ -1365,8 +1377,26 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-264 | The window keeps what it has seen per strategy and identifier, drops what has aged out, and refuses one seen inside it. | `nexus/core/validator/intake_stage.py` 170-174, 179-182, 184-194 and 196-197 | Nexus package eight | is N8-07 |
 | H-265 | Its two guards, against an entry naming no side and one naming no identifier, are never reached from a live request, the builder supplying both before either branch that makes one. | `nexus/core/validator/intake_stage.py` 153-159 and 162-168 against `praxis/launcher.py` 1171-1172 before 1178-1191 or 1254-1267 | Nexus package eight | folds into N8-07 |
 | H-266 | On the two roads that clear a pending exit, the position mark is set wherever the position is found at all, the figure behind it lowered to no less than nothing, so it is set as readily where that figure already stood at nothing. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 604-612, reached at 310 and 342 | Nexus package eight | candidate |
+| H-267 | No road besides the three N7-08 names asks a store for a checkpoint anywhere in either package. | `nexus/infrastructure/snapshot_scheduler.py` 147, `nexus/startup/sequencer.py` 481 and `nexus/startup/shutdown_sequencer.py` 893, with no fourth such call anywhere under `nexus/` or `praxis/` | Nexus package nine |  |
+| H-268 | The timer is started in one place, which the live host reaches as it builds its instance and undoes as it stops. | `praxis/launcher.py` 4675, its only start, reached at 3995 on the thread built and started at 3895-3902 from 2830, and stopped at 4006 after the wait at 3999 | Nexus package nine |  |
+| H-269 | A replay builds the same runtime and never reaches that start, so no turn of the timer falls while it runs. | `praxis/replay/run_replay.py` 147, 148, 150-151, 175 and 176, which are every call it makes on the launcher, against the start reached only from `praxis/launcher.py` 3995 | Nexus package nine |  |
+| H-270 | A replay takes no stopping checkpoint either, the sequence that asks for one being built on the thread it never starts. | `praxis/replay/run_replay.py` 176 into `praxis/launcher.py` 3908 over a list filled only at 3901, against the sequence built at 4009-4029 and run at 4030 | Nexus package nine |  |
+| H-271 | Both hosts reach the start's reconciliation, the build handing it a connection out, so neither takes the road that passes the reconciliation over. | `praxis/launcher.py` 4082 before 4085 into `nexus/startup/sequencer.py` 177, against the road at 355-357 | Nexus package nine |  |
+| H-272 | That reconciliation writes only where the account's deployed figure it rebuilds differs from the figure recovered, so a start that agrees with what it recovered writes nothing. | `nexus/startup/sequencer.py` 472 before 478-481, the figure rebuilt at 410-468 and the recovered one read at 470 | Nexus package nine | recorded; N7-08 states it |
+| H-273 | A position taken in from the host rides on that same test, so a start that leaves the total where it was asks for no write of it; N7-08 reaches the two changes to a position already held and not this one. | `nexus/startup/sequencer.py` 437 before the test at 472, against the ranges N7-08 cites at 441-448 and 450-466 | Nexus package nine |  |
+| H-274 | A failed checkpoint stops the start, nothing between the sequence and it catching the raise — where a failed turn of the timer, which N8-05 reaches, is passed over. | `nexus/startup/sequencer.py` 480-483 with no catch on the road from 177 to 189 | Nexus package nine |  |
+| H-275 | Every record the log holds is stamped off the real clock, the store that stamps them being built with no clock to read. | `nexus/infrastructure/state_store.py` 202 and 240, the store built at 106-117 taking none and at `praxis/launcher.py` 4073 given none | Nexus package nine |  |
+| H-276 | So a host driven by a clock of its own stamps its records off the real one, that clock reaching the capital controller, the checks, the mode controller and the prediction loop and not the store. | `praxis/replay/run_replay.py` 141 into `praxis/launcher.py` 2782, handed on at 4100, 4118, 4130 and 4558 against 4073 | Nexus package nine |  |
+| H-277 | An event one checkpoint keeps a later one drops, with neither the log nor the snapshot having changed in between. | `nexus/infrastructure/snapshot.py` 52 before 53 into `nexus/infrastructure/wal.py` 289-292, the span standing at `nexus/infrastructure/snapshot.py` 20 | Nexus package nine |  |
+| H-278 | The road that empties the log leaves no marker behind it, where the rewrite beside it reads the marker first and lays one down again. | `nexus/infrastructure/wal.py` 258-261 against 287 and 294-295 | Nexus package nine |  |
+| H-279 | What that road would leave is the file an append writes afresh, so the append after it repairs rather than refusing. | `nexus/infrastructure/wal.py` 259 into the repair settled at 66 and taken at 81-83, against the refusal at 68-73 under the test at 67 | Nexus package nine |  |
+| H-280 | Turning a payload into a record can fail at the unpacking itself, at something other than a record coming back, at a moment that will not read, at a kind the record has no match for, at a field missing, and at the record's own checks on what it is given; the one catch inside the step takes the missing field alone. | `nexus/infrastructure/wal.py` 331 and 332-334 before the try at 335, with 338, 339 and the building at 336-340 inside it, against the catch at 342-344, the record's own checks at `nexus/infrastructure/wal_entry.py` 43-45 and 55-57 | Nexus package nine |  |
+| H-281 | Both readers put an unpacked record on the list with nothing around the step, so any of those failures raises out of either read; N8-08 cites this step in the reader a start uses and not in the reader nothing calls. | `nexus/infrastructure/wal.py` 164 before the return at 165, and 219 before the return at 220, neither step wrapped, the second reached by a start at `nexus/infrastructure/state_store.py` 115 | Nexus package nine |  |
+| H-282 | The name recorded on a success is itself a change to the state, and the write a host asks for after an outcome reads the three marks alone, so a success setting none of them asks for no write of that name. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 163-165 against `praxis/launcher.py` 4404-4408 before 4439, the third mark read at 4401 from the mapping added to at 2941-2942 under the test at 2938 | Nexus package nine |  |
+| H-283 | A success setting neither mark it carries is reachable: a refusal or a cancellation of an exit, against a position no longer held, where the giving-back failed as well. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 310 or 342 into 607-608, with 312 or 344 passing that failure over for an exit, and 319-324 or 351-356 answering with a success | Nexus package nine |  |
+| H-284 | A start rebuilds that set from the snapshot and the records the log holds, so a name no write reached is absent from it and the dropping has nothing to match. | `nexus/infrastructure/state_store.py` 260-261 into 266-267, the set carried at `nexus/infrastructure/wal_codec.py` 94 and read at `nexus/infrastructure/praxis_connector/outcome_processor.py` 131 | Nexus package nine |  |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-10-29 10:31 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-10-29 16:30 UTC
