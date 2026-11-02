@@ -308,12 +308,12 @@ made longer, which is why some titles are narrow.
 
 Both sides are the subject, and Praxis is the side that has been written. 209
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
-part and 4 not at all; of the 70 in Nexus, 47 are named and 23
-untouched — 35 carry a row of their own, and 12 are reached by an
+part and 4 not at all; of the 70 in Nexus, 48 are named and 22
+untouched — 35 carry a row of their own, and 13 are reached by an
 article that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-10-30 15:33 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-02 15:04 UTC
