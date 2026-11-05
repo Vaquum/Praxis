@@ -193,6 +193,11 @@ the others where it appears.
 - [The timer that checkpoints while a host runs](atoms/the-timer-that-checkpoints-while-a-host-runs.md) — a background job saves a picture of the state at a fixed spacing, measuring each wait from the end of the last save, and a save that fails is passed over, the turn after it making a whole new one rather than finishing the last.
 - [The cap on how fast entries may go in](atoms/the-cap-on-how-fast-entries-may-go-in.md) — a limit on how many entries this one check lets by in a second is shared by every strategy on one account, so a busy strategy can spend it all and leave the others turned away.
 - [The window that turns a repeated entry away](atoms/the-window-that-turns-a-repeated-entry-away.md) — a strategy sending the same labelled order twice inside a second has the later one refused, and labels are remembered against the strategy that sent them, so two strategies using one label do not collide.
+- [Which hosts the checkpoint timer runs on](atoms/which-hosts-the-checkpoint-timer-runs-on.md) — the job that writes a full picture of the state at a fixed spacing is switched on only for a live account; a run over bars that already happened builds the same machinery and never switches it on, so a full picture gets written on such a run only where its own start asks for one.
+- [Which clock a record is stamped off](atoms/which-clock-a-record-is-stamped-off.md) — every line written to the log carries the real time of the machine, even on a run driven by a made-up clock, because the part that writes those lines is never handed that clock.
+- [The road that empties the log](atoms/the-road-that-empties-the-log.md) — one way of clearing the file wipes it completely, opening mark and all, and nothing in either system ever asks for it; the next write would put the mark back rather than refuse the file.
+- [What writes the name a success records](atoms/what-writes-the-name-a-success-records.md) — the label kept of a reply from the venue, so a repeat can be turned away, is never saved to disk on its own account; it goes down with whatever the next save of the state was asked for, so a host that stops with no save of any kind behind it leaves a log and a picture that never held the label, while the turning away of a repeat reads that label where it stands in memory, so the wait costs nothing until a restart.
+- [What a failed checkpoint costs a start](atoms/what-a-failed-checkpoint-costs-a-start.md) — a start that cannot save the state gives up the whole start, and nothing between there and the account's own thread catches it; a run over past bars has no such thread, and shuts the account down before the failure leaves.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -306,14 +311,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 209
+Both sides are the subject, and Praxis is the side that has been written. 214
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 48 are named and 22
-untouched — 35 carry a row of their own, and 13 are reached by an
+untouched — 37 carry a row of their own, and 11 are reached by an
 article that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-02 15:04 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-05 11:10 UTC

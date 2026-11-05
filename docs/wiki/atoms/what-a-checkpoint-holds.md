@@ -2,7 +2,7 @@
 row: N7-08
 baseline: 49aa659
 created: 2026-10-27 15:10 UTC
-modified: 2026-10-27 17:20 UTC
+modified: 2026-11-05 11:10 UTC
 evidence:
   - claim: "A checkpoint writes the state object to a temporary file, pushes it to the disk, renames it over the snapshot and pushes the directory too"
     source: "`nexus/infrastructure/state_store.py` 178-179 into `nexus/infrastructure/snapshot.py` 45-51"
@@ -15,7 +15,7 @@ evidence:
   - claim: "Two other callers ask for a checkpoint with no such writing before it: a timer on every tick, and a start only where the total worth of the positions it rebuilt differs from the total it had stored"
     source: "`nexus/infrastructure/snapshot_scheduler.py` 147, and `nexus/startup/sequencer.py` 481 under the test at 472"
   - claim: "A start that altered positions without changing that total asks for no checkpoint, and writes those alterations nowhere else either"
-    source: "`nexus/startup/sequencer.py` 441-448 and 450-466 before the test at 472, no other write on the road at 164-189"
+    source: "`nexus/startup/sequencer.py` 437 under the test at 422 over the lookup at 420, or 441-448 and 450-466 where that lookup found one, all three before the test at 472, no other write on the road at 164-189"
   - claim: "A start reads the state from the snapshot and then lets any record of a state change the log still holds replace it"
     source: "`nexus/infrastructure/state_store.py` 260-261 into 266-267, the records appended again as the host runs at 198-207"
   - claim: "It then works each strategy's losses and realized result out again from what the log still holds, while the peaks and the deepest fall are kept at whichever is larger, the stored figure or the new one"
@@ -37,7 +37,7 @@ To a temporary file, pushed to the disk, renamed over the snapshot, and the dire
 
 ## Who asks for one
 
-[A stopping host](the-last-record-a-stopping-host-writes.md), once, at the end. A timer, on every tick. And a start, but only where the total worth of the positions it rebuilt differs from the total it had stored. A start that altered individual positions without changing that total asks for no checkpoint — and writes those alterations nowhere else either, so they live only in memory until something else writes.
+[A stopping host](the-last-record-a-stopping-host-writes.md), once, at the end. A timer, on every tick. And a start, but only where the total worth of the positions it rebuilt differs from the total it had stored. A start that altered individual positions without changing that total asks for no checkpoint — and writes those alterations nowhere else either, so they live only in memory until something else writes. A position taken in from Praxis rides the same test, so a start can adopt a holding and record it nowhere.
 
 ## What a start reads back
 
@@ -52,4 +52,4 @@ Even then the snapshot is not simply taken as read: a start [works each strategy
 
 ---
 
-Created 2026-10-27 15:10 UTC · Last modified 2026-10-27 17:20 UTC
+Created 2026-10-27 15:10 UTC · Last modified 2026-11-05 11:10 UTC

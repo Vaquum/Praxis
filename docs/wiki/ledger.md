@@ -49,7 +49,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/book_cache.py` | full | N2-07, P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | N2-07, P2-13, P2-26 |
 | `praxis/core/estimate_slippage.py` | partial | P1-06, P3-03 |
-| `praxis/replay/run_replay.py` | partial | P3-01, P3-02, P3-04, P3-22, P3-24, P4-13, P4-17, P4-39 |
+| `praxis/replay/run_replay.py` | partial | N9-01, N9-02, N9-05, P3-01, P3-02, P3-04, P3-22, P3-24, P4-13, P4-17, P4-39 |
 | `praxis/replay/replay_clock.py` | full | P3-02 |
 | `praxis/replay/replay_venue_adapter.py` | partial | P2-12, P2-46, P3-03, P3-04, P3-15, P3-18, P4-13 |
 | `praxis/replay/replay_scenario.py` | full | P3-04 |
@@ -74,7 +74,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/paper/paper_report.py` | partial | P3-08, P4-19 |
 | `praxis/paper/mark_sampler.py` | partial | P3-09, P4-19 |
 | `praxis/paper/paper_metrics.py` | full | P4-18, P4-19 |
-| `praxis/launcher.py` | partial | N1-02, N1-03, N1-06, N2-03, N2-05, N2-06, N2-07, N3-01, N3-02, N3-05, N3-06, N3-07, N3-10, N3-12, N4-01, N4-02, N4-05, N4-07, N5-02, N6-01, N6-04, N6-05, N6-06, N6-08, N6-09, N6-11, N7-02, N7-03, N7-04, N7-05, N7-07, N7-10, N7-11, N7-12, N8-03, N8-05, N8-06, N8-07, P2-11, P2-13, P2-18, P2-26, P2-32, P2-39, P2-41, P2-43, P2-44, P3-04, P3-08, P3-10, P3-15, P3-16, P3-18, P3-19, P3-20, P3-22, P4-01 to P4-04, P4-06, P4-14, P4-17, P4-20, P4-21, P4-23, P4-25 to P4-27, P4-30, P4-37, P4-39, P4-43, S-04 |
+| `praxis/launcher.py` | partial | N1-02, N1-03, N1-06, N2-03, N2-05, N2-06, N2-07, N3-01, N3-02, N3-05, N3-06, N3-07, N3-10, N3-12, N4-01, N4-02, N4-05, N4-07, N5-02, N6-01, N6-04, N6-05, N6-06, N6-08, N6-09, N6-11, N7-02, N7-03, N7-04, N7-05, N7-07, N7-10, N7-11, N7-12, N8-03, N8-05, N8-06, N8-07, N9-01, N9-02, N9-04, N9-05, P2-11, P2-13, P2-18, P2-26, P2-32, P2-39, P2-41, P2-43, P2-44, P3-04, P3-08, P3-10, P3-15, P3-16, P3-18, P3-19, P3-20, P3-22, P4-01 to P4-04, P4-06, P4-14, P4-17, P4-20, P4-21, P4-23, P4-25 to P4-27, P4-30, P4-37, P4-39, P4-43, S-04 |
 | `praxis/trading_config.py` | partial | P2-24, P3-22, P4-25, P4-42 |
 | `praxis/infrastructure/binance_urls.py` | full | P4-03 |
 | `praxis/command_translator.py` | partial | P4-04, P4-28 |
@@ -132,23 +132,23 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/core/mtm_loop.py` | partial | N6-01, N6-11, N8-03 |
 | `nexus/infrastructure/loss_derivation.py` | partial | N2-03, N7-09 |
 | `nexus/infrastructure/manifest.py` | partial | N3-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43 |
-| `nexus/infrastructure/wal_codec.py` | partial | N2-02, N3-01, N3-02, N7-08, N8-03 |
-| `nexus/infrastructure/state_store.py` | partial | N3-03, N7-02, N7-08, N7-09, N8-01, N8-03 |
-| `nexus/infrastructure/snapshot.py` | partial | N7-08, N7-09, N8-03, N8-04 |
-| `nexus/infrastructure/wal.py` | partial | N7-08, N7-09, N8-01, N8-02, N8-03, N8-04, N8-08 |
-| `nexus/infrastructure/wal_entry.py` | partial | cited, not traced |
-| `nexus/infrastructure/snapshot_scheduler.py` | partial | N6-01, N6-11, N7-08, N7-12, N8-05 |
+| `nexus/infrastructure/wal_codec.py` | partial | N2-02, N3-01, N3-02, N7-08, N8-03, N9-04 |
+| `nexus/infrastructure/state_store.py` | partial | N3-03, N7-02, N7-08, N7-09, N8-01, N8-03, N9-02, N9-04 |
+| `nexus/infrastructure/snapshot.py` | partial | N7-08, N7-09, N8-03, N8-04, N9-04 |
+| `nexus/infrastructure/wal.py` | partial | N7-08, N7-09, N8-01, N8-02, N8-03, N8-04, N8-08, N9-03 |
+| `nexus/infrastructure/wal_entry.py` | partial | N8-08 |
+| `nexus/infrastructure/snapshot_scheduler.py` | partial | N6-01, N6-11, N7-08, N7-12, N8-05, N9-01 |
 | `nexus/infrastructure/praxis_connector/fund_transaction.py` | partial | cited, not traced |
-| `nexus/infrastructure/praxis_connector/outcome_processor.py` | partial | N1-06, N1-07, N2-01, N2-02, N2-06, N3-01, N3-02, N3-03, N3-06, N3-07, N3-09, N3-10, N3-11, N3-12, N4-02, N4-03, N4-05, N7-05, N7-09, P3-24, P4-30 |
+| `nexus/infrastructure/praxis_connector/outcome_processor.py` | partial | N1-06, N1-07, N2-01, N2-02, N2-06, N3-01, N3-02, N3-03, N3-06, N3-07, N3-09, N3-10, N3-11, N3-12, N4-02, N4-03, N4-05, N7-05, N7-09, N9-04, P3-24, P4-30 |
 | `nexus/infrastructure/praxis_connector/praxis_inbound.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | cited, not traced |
-| `nexus/infrastructure/praxis_connector/process_result.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/process_result.py` | partial | N9-04 |
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | partial | N1-07, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | partial | cited, not traced |
 | `nexus/instance_config.py` | partial | cited, not traced |
-| `nexus/startup/sequencer.py` | partial | N3-02, N3-08, N3-10, N3-11, N4-03, N5-05, N7-07, N7-08, P3-04, P4-06 |
-| `nexus/startup/shutdown_sequencer.py` | partial | N1-08, N3-02, N4-02, N4-07, N5-04, N5-06, N6-01, N6-02, N6-03, N6-04, N6-05, N6-07, N6-08, N6-10, N7-01, N7-02, N7-08, N7-12 |
+| `nexus/startup/sequencer.py` | partial | N3-02, N3-08, N3-10, N3-11, N4-03, N5-05, N7-07, N7-08, N9-01, N9-02, N9-05, P3-04, P4-06 |
+| `nexus/startup/shutdown_sequencer.py` | partial | N1-08, N3-02, N4-02, N4-07, N5-04, N5-06, N6-01, N6-02, N6-03, N6-04, N6-05, N6-07, N6-08, N6-10, N7-01, N7-02, N7-08, N7-12, N9-01 |
 | `nexus/strategy/action.py` | partial | N1-08, N6-03, N6-05, N7-03, N7-11 |
 | `nexus/strategy/action_submit.py` | partial | N1-02, N1-08, N2-05, N4-01, N4-02, N5-02, N5-04, N5-06, N6-08, N6-09, N6-10, N7-03, N7-04, N7-05 |
 | `nexus/strategy/loader.py` | partial | cited, not traced |
@@ -157,8 +157,8 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-13 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 35 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 35 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
+11 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 37 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 33 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-02 15:04 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-05 11:10 UTC
