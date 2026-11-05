@@ -719,6 +719,28 @@ checkpoint holds is N7-08, which outgrew it in turn as the log cut was traced,
 giving N7-09; and what the first stage weighs outgrew it as each test was traced
 upstream, giving N7-10 and then N7-11.
 
+### Re-seed, after writing package 9
+
+What thirteen rounds of verifying the five articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| How the third mark is let go | `praxis/launcher.py` 4427 copies every command standing unwritten, and where the write at 4439 returns, 4449 into 4460 walks that copy and 4461-4462 drops each one whose figure still matches, so a write asked for after one command's outcome releases the marks of others; where that write raises instead, the branch at 4449 is never entered, 4462 never runs and every one of them stays. The operator's write at 3549 releases none, holding no such step at all. N8-03 has that mark standing where an earlier result for the command carried one of the other two, and not how it is ever let go |
+| The settled record that fails to go down | `praxis/launcher.py` 3155-3159 builds the record that keeps a report off the next list, reached at 4465, dispatched at 3164-3166 and waited on at 3167, with the catch at 3168 passing a failure over and returning. So a report P2-41 has as marked received can leave no record behind it. P2-41 has that record, gathered into the settled names at 1735-1736 and filtering the plan at 1773-1776, and has the other record built at 3197-3201 and appended at 3207-3208, with the wait at 3210 whose failure the catch at 3211 passes over. That the settled record's own append can fail the same way is carried nowhere |
+| Which starts reconcile against nothing | `startup/sequencer.py` 239 into 246 builds a state afresh where nothing was recovered, `core/domain/instance_state.py` 157 passing on the pool alone so the deployed figure stays at what `core/domain/capital_state.py` 34 gives it from 15. The total that figure is weighed against starts at `startup/sequencer.py` 410 off 28 and grows at 438 for a holding taken in, or at 468 for one already held, inside the walk at 412 over the mapping filled at 378 from what 363 read; a holding the import turns away at 436 adds nothing to it. Then 470 takes the held figure for the test at 472. So a start that recovered nothing and is reported nothing it can take in leaves both at nothing and never reaches 481. N7-08 has the rule that test applies and N9-01 has the checkpoint as one a start may make; which starts meet the test is in neither |
+| The road that reads no settled record | `praxis/launcher.py` 2988 turns each report arriving and 2992 puts it on the queue, the accounting done on the way at 2990, and nothing between them reads the record 1735-1736 gathers. That gather is reached from nothing under `praxis/` but 4526, itself reached only from 4547, inside the build and ahead of the outcome loop made at 4573, so the record is read as a host is built and by nothing it does once running. P2-41 has a later startup reading both records; that the arrival road reads neither is carried nowhere. Who a restart tells again cites the queue feed at 2992, for what that queue carries |
+| The locks a store is given after its first write | `praxis/launcher.py` 4073 builds the store with none and 4141 hands it a pair once `sequencer.start()` at 4085 has returned, that pair reaching the field `infrastructure/state_store.py` 106 set from the construction and 162 sets again. The checkpoint a start may make reaches 178-179 from `startup/sequencer.py` 177 into 481, inside that same start, and the guard at 219 takes the locks at 220-221 only where they are there, so that one checkpoint runs holding neither where the same call after 4141 holds both. The strategy-event write at `infrastructure/state_store.py` 236-245 takes neither at any time, called from `infrastructure/praxis_connector/outcome_processor.py` 285. The last record a stopping host writes has those locks taken inside the store where the launcher has given it a pair, at a checkpoint reached from `startup/shutdown_sequencer.py` 193 into 893, run from `praxis/launcher.py` 4030 once the build returns at 3992 and so after 4141; that the start's runs before it, and that one write never reaches them, is carried nowhere |
+
+Five candidates, and the side they settle on has turned over. Four of the five
+are written in Praxis: the marks, the record a start reads, the road that reads
+none of it, and the moment the store is given its locks. Only which starts
+reconcile against nothing is Nexus's own, and even that turns on weighing a
+figure the Nexus side holds against a total built from what the host reports. The ninth package
+closed the Nexus side's log; what it left open is mostly the Praxis half of the
+seam, which is where the packages go next.
+
 ### Re-seed, after writing package 8
 
 What eleven rounds of verifying the eight articles turned up that none of them
@@ -1508,4 +1530,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-05 11:10 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-05 11:36 UTC
