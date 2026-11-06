@@ -389,6 +389,27 @@ the mark article's account of which road asks for a write at all.
 | P5-06 | When the store writes without its locks | written | [when-the-store-writes-without-its-locks.md](atoms/when-the-store-writes-without-its-locks.md) |
 | P5-07 | Which of the store's writes take which locks | written | [which-of-the-stores-writes-take-which-locks.md](atoms/which-of-the-stores-writes-take-which-locks.md) |
 
+## Package 6 — what one road leaves standing, and what another waits on
+
+Scope: the marks a write leaves standing, and the write a later outcome asks
+for on one of them; the two lock histories behind one write to the log, and the
+roads that never reach it; and what a write of the whole state waits on once
+the locks covering it are attached. The four candidates the package-5 re-seed
+named, taken through the stages together. This is the sixth package on the
+Praxis side, and each of its subjects came out of verifying the fifth rather
+than out of a module with no page.
+
+The marks a write leaves standing is the subject that must come first. P5-01
+has the copy a write takes before it, the walk over that copy after it, and a
+command re-marked in between keeping its mark on the number it carries; the
+copy is read there as holding every mark then standing. A command marked for
+the first time while the copy is already taken stands in no copy at all, so the
+walk never reaches it, and nothing about what that write put down of the
+command's figures comes into it. A mark is earned by either of the two marks a
+result carries, and there are roads that carry each of them alone; the mark is
+set once the accounting has returned, holding neither of the locks the write's
+own guard takes. What the copy held is the whole of what the walk can reach.
+
 ## Considered and rejected
 
 Kept so they are not rediscovered as new.
@@ -1660,8 +1681,30 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-313 | The start runs before those locks exist, so the one checkpoint it may ask for writes with the guard taking neither. | `praxis/launcher.py` 4085 into `nexus/startup/sequencer.py` 177 and 481, reaching `nexus/infrastructure/state_store.py` 178, where 219 leaves 220-221 unreached | Praxis package five | is P5-06 |
 | H-314 | The locks are handed over once that start has returned, and a second handover is refused, as is anything that is not the pair. | `praxis/launcher.py` 4141-4143 into `nexus/infrastructure/state_store.py` 153 and 162, the refusals at 154-156 and 158-160 | Praxis package five | folds into P5-06 |
 | H-315 | The strategy-event write takes the log lock alone inside the store, where the two state writes take the guarded pair as well; its caller holds the first half of that pair, which a check where that pair is built refuses to carry on without, so the second half is the one nothing on that road holds. | `nexus/infrastructure/state_store.py` 236 against 178 and 198, the write called at `nexus/infrastructure/praxis_connector/outcome_processor.py` 285 inside 268, which takes what `nexus/core/domain/risk_state.py` 302 returns, set at `praxis/launcher.py` 4128 to the lock 2579 puts in the pair, the identity refused otherwise at 2569-2576 and the second half taken from 2580 | Praxis package five | is P5-07 |
+| H-316 | The mapping the marks stand in is added to in one place and deleted from in one place, so nothing else in Praxis lets a mark go. | `praxis/launcher.py` 2941-2943 and 4462, the mapping made at 2718 and read at 4401, 4427 and 4461, with no other use of it anywhere under `praxis/` | Praxis package six |  |
+| H-317 | The accounting that earns a mark has returned before the mark is set, and the mark is set under a lock the accounting ran without. | `praxis/launcher.py` 2919 before 2938-2943, the lock taken at 2939 and the earlier block that took it at 2895 having ended at 2900 | Praxis package six |  |
+| H-318 | The copy a write walks is taken under that same lock, and the lock is given up before the write runs. | `praxis/launcher.py` 4426-4427 ending before 4439, against the other hold at 2939-2943 | Praxis package six |  |
+| H-319 | The walk iterates the copy's own keys, so a command absent from the copy has no test run for it at all; P5-01 reaches the marks the copy holds and not the ones it does not. | `praxis/launcher.py` 4459-4460 over the copy taken at 4427, the test at 4461 run for that copy's keys alone | Praxis package six |  |
+| H-320 | The write puts down the state as it stands when the serialize runs, and that state is the same object the accounting mutates. | `praxis/launcher.py` 4088 handed on at 4343 and at 4439, the serialize reached at `nexus/infrastructure/state_store.py` 199 | Praxis package six |  |
+| H-321 | A mark is earned by either of the two marks a result carries, and there are roads that carry each of them alone. | `praxis/launcher.py` 2938 testing either of them, against `nexus/infrastructure/praxis_connector/outcome_processor.py` 206-210, which carries the money mark with the position mark left at the default set at `nexus/infrastructure/praxis_connector/process_result.py` 30; or against `nexus/infrastructure/praxis_connector/outcome_processor.py` 422-423 handing back nothing, so that 243 skips 244 and 222 leaves the money mark false where 256-257 sets the position mark | Praxis package six |  |
+| H-336 | The mark is set holding neither of the locks the write's guard takes, the accounting having returned before it. | `praxis/launcher.py` 2938-2943 reached after 2919 has returned, against `nexus/infrastructure/state_store.py` 220-221, whose first lock is what `praxis/launcher.py` 2579 puts in the pair from what 4345 hands the accounting and whose second is what 2580 puts there from `nexus/core/capital_controller/capital_controller.py` 127 | Praxis package six |  |
+| H-322 | The write an operator asks for puts the whole state down through the same store and drops no mark. | `praxis/launcher.py` 3549 against 4439 | Praxis package six | recorded; P5-01 states it |
+| H-323 | A later outcome for a marked command reads the mark where it stands, and the write is asked for where the result succeeded and that mark or one of the two the result carries is set. | `praxis/launcher.py` 4401 before 4404-4408, reaching the write at 4439 | Praxis package six | recorded; N8-03 states it |
+| H-335 | A repeat of an outcome already worked through answers with a success carrying neither of the two marks the result holds, so a mark standing against its command is the whole of the reason a write is asked for. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 131 into 137-140, which sets neither mark, against `praxis/launcher.py` 4401 before 4404-4408, reaching the write at 4439 | Praxis package six |  |
+| H-337 | And the figures such a write puts down may be down already, the write an operator asked for having put the whole state down while leaving every mark standing. | `praxis/launcher.py` 3549 reaching `nexus/infrastructure/state_store.py` 199, with nothing from `praxis/launcher.py` 3548 to 3552 reaching the mapping that 4462 deletes from | Praxis package six |  |
+| H-324 | The walk can drop the mark of the very command whose outcome asked for the write, the keys it tests being tested on the number alone, so a mark read later may have been let go by that command's own earlier outcome. | `praxis/launcher.py` 4460 over the copy's keys with 4461-4462 testing the number alone, against the read at 4401 | Praxis package six | recorded; P5-01 states it |
+| H-325 | The write of a strategy event is reached with the capital lock taken and given up again on one road, and with it never taken at all on another, the difference being whether a release was worked out for the exit at all. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 438 making the test at 243 true, so that 244 reaches `nexus/core/capital_controller/capital_controller.py` 768 and answers at 808, all before `nexus/infrastructure/praxis_connector/outcome_processor.py` 285; against 422-423, or 426 before 437, handing back nothing, so that 243 skips 244 and 597 still answers for 285 | Praxis package six |  |
+| H-326 | The roads that hand back nothing and still reach that write are two: a holding whose basis stands at nought, and one belonging to another strategy. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 422-423, or 426 before 437, either of them returning rather than reaching 438 | Praxis package six | recorded; N2-01 states it |
+| H-327 | A fill larger than the holding is turned back at the basis step and then raises at the position step, so that road never reaches the write at all. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 424-425, then 257 into 516-521 | Praxis package six | recorded; N3-07 and N2-01 state it |
+| H-328 | A release the controller refuses answers the caller before the write is reached either. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 248-253 against 285 | Praxis package six | recorded; N2-01 states it |
+| H-329 | The write itself takes the log lock alone, its caller holding the lock a check where the pair is built requires to be the positions lock. | `nexus/infrastructure/state_store.py` 236, the caller's lock taken at `nexus/infrastructure/praxis_connector/outcome_processor.py` 268, the identity required at `praxis/launcher.py` 2569-2576 | Praxis package six | recorded; P5-07 states it |
+| H-330 | The lock the pair's second half is is the controller's own, made once as it is built and handed out by a reading that returns it. | `nexus/core/capital_controller/capital_controller.py` 107 returned at 127, put in the pair at `praxis/launcher.py` 2580 | Praxis package six |  |
+| H-331 | Ten of the controller's own roads take that lock, so a write of the whole state waits on whichever of them is under way. | `nexus/core/capital_controller/capital_controller.py` 181, 326, 511, 546, 610, 663, 768, 875, 992 and 1055 against `nexus/infrastructure/state_store.py` 221 under the test at 219, before 179 or 199 | Praxis package six |  |
+| H-332 | Five of the reserving road's refusals are raised before the lock is taken at all; once taken it is held across the purge of what has expired and whichever ending is reached. | `nexus/core/capital_controller/capital_controller.py` 302-304, or 306-308, or 312-314, or 316-318, or 320-322, each of them before 326, which holds 327 and then a refusal at 362, or one at 370, or one at 379, or one at 388, or one at 399, or the record at 408-415 with 417-420 and the answer at 422 | Praxis package six |  |
+| H-333 | That road asks for no store write of any kind, and outside the tests it is reached from one line, the validator's capital stage. | `nexus/core/validator/capital_stage.py` 52, its only caller outside `tests/`, reaching `nexus/core/capital_controller/capital_controller.py` 326, with no call to `nexus/infrastructure/state_store.py` 178, 198 or 236 anywhere under `nexus/core/validator/` | Praxis package six |  |
+| H-334 | The write waits on that lock only once the pair is attached; before then the guard takes nothing. | `nexus/infrastructure/state_store.py` 219 leaving 220-221 unreached, the pair attached at `praxis/launcher.py` 4141-4143 | Praxis package six | recorded; P5-06 states it |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 08:47 UTC
