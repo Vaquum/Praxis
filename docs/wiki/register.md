@@ -801,6 +801,31 @@ checkpoint holds is N7-08, which outgrew it in turn as the log cut was traced,
 giving N7-09; and what the first stage weighs outgrew it as each test was traced
 upstream, giving N7-10 and then N7-11.
 
+### Re-seed, after writing the Praxis half of the seam
+
+What thirteen rounds of verifying the seven articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `praxis/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The marks a write never sees | `launcher.py` 4426-4427 copies every standing mark under the registry lock and gives that lock up before the write at 4439. A command the copy does not hold is never reached by the walk, which goes over that copy alone at 4459-4460 and tests only what it holds at 4461. P5-01 has the copy, the walk, and a command re-marked after the copy keeping its mark on the number; a command absent from the copy altogether is in neither it nor N8-03 |
+| The two lock histories behind one write | `nexus/infrastructure/praxis_connector/outcome_processor.py` 244 reaches `nexus/core/capital_controller/capital_controller.py` 768 and leaves it on the return at 808, all before 285. Where the basis stands at nought, 422-423 hands back nothing instead and the test at 243 skips 244; a fill no larger than the position then reaches 285 with that lock never taken, where a larger one raises at 516-521 before it. So one write runs with two histories behind it and a third road never arrives. P5-07 has which locks the write itself enters; no article has either history |
+| The reserve a store write waits on | `nexus/core/capital_controller/capital_controller.py` 326 takes the lock made at 107, which 127 hands `launcher.py` 2580 as the pair's second half, on a road that asks for no store write at all. Once the pair is attached, a state write takes that same half itself at `nexus/infrastructure/state_store.py` 221 under the test at 219, before it reaches 179 or 199, so a reservation under way holds that write out until it is done. P5-06 and P5-07 have what the store's writes take and when the pair arrives; what else takes it, and what that costs a write, is in neither |
+| The write a standing mark can ask for twice | `launcher.py` 3549 puts the figures down and drops no mark, so a later outcome for that command can find the mark still standing at 4401 and meet the test at 4404-4408 on that mark where it carries neither of the other two, asking for a write at 4439 though it reports nothing changed. That turns on the result having succeeded, 4404 requiring it, and on no other command's write having dropped the mark at 4461-4462 first. P5-01 has the write that drops no mark and N8-03 has the mark that asks for a write; that the two together can ask for a second write is in neither |
+
+Four candidates, and they fall into two kinds. Two are a lock or a mark one road
+holds while another reads it: the reserve that holds half the store's pair, and
+the mark an operator's write leaves for the next outcome to act on. The other two
+are gaps inside one road's own handling — a mark outside the copy that walks the
+marks, and a write reached with two different lock histories behind it.
+
+The package set out to write the Praxis half of the seam, and the seven articles
+now carry it. What verifying them turned up is narrower and harder than which
+road does what: what one road leaves standing or holds for another to wait on,
+and what a single road's own branches leave differently behind them. That is
+where the packages go next.
+
 ### Re-seed, after writing package 9
 
 What thirteen rounds of verifying the five articles turned up that none of them
@@ -1639,4 +1664,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 06:59 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 07:00 UTC
