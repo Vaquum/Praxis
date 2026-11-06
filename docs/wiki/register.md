@@ -307,6 +307,27 @@ Nexus is in scope and is where the packages go next. Of its 70 modules, 48 are n
 | P4-60 | When a reconnection releases an account, and what leaves it gated | written | [when-a-reconnection-releases-an-account.md](atoms/when-a-reconnection-releases-an-account.md) |
 | P4-61 | When an older record can be opened, and the three refusals | written | [when-an-older-record-can-be-opened.md](atoms/when-an-older-record-can-be-opened.md) |
 
+## Package 5 — the Praxis half of the seam
+
+Scope: what lets go of a command's unwritten mark and how far that letting go
+reaches, what a failed settled-record write costs the next start, which starts
+square their figures against nothing at all, the road an arriving report takes
+and what it reads on the way, and the window in which the store writes without
+the locks it is later handed. The five candidates the package-9 re-seed named,
+taken through the stages together. This is the fifth package on the Praxis side;
+the Nexus run reached nine and closed that side's log, and what it left open is
+mostly this seam.
+
+What lets go of the mark is the subject that must come before the rest. N8-03
+has that mark standing where an earlier result for the same command carried one
+of the other two, and no article says what drops it, so a reader of N8-03 is
+left taking the mark for something each command clears on its own account. It is
+let go in bulk, and by a write that went down: such a write drops the mark of
+every command the copy taken before it holds, unless a fresher mark for that
+command has landed by the time the copy is walked. The command whose outcome
+asked for the write need not be in that copy, and a write that raises drops
+nothing.
+
 ## Considered and rejected
 
 Kept so they are not rediscovered as new.
@@ -1526,8 +1547,35 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-283 | A success setting neither mark it carries is reachable: a refusal or a cancellation of an exit, against a position no longer held, where the giving-back failed as well. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 310 or 342 into 607-608, with 312 or 344 passing that failure over for an exit, and 319-324 or 351-356 answering with a success | Nexus package nine | folds into N9-04 |
 | H-284 | A start rebuilds that set from the snapshot and the records the log holds, so a name no write reached is absent from it; what a repeat of that outcome meets there is nothing, the turning away of one resting on that set alone. | `nexus/infrastructure/state_store.py` 260-261 into 266-267, the set carried at `nexus/infrastructure/wal_codec.py` 94 and read at `nexus/infrastructure/praxis_connector/outcome_processor.py` 131 | Nexus package nine | folds into N9-04 |
 | H-285 | An acknowledgement of an order that is not an entry answers with a success carrying neither mark, nothing of the position read or written on the way. | `nexus/infrastructure/praxis_connector/outcome_processor.py` 191-195 reached at 152-153, the marks standing at `nexus/infrastructure/praxis_connector/process_result.py` 30-31, the flag set at `praxis/launcher.py` 1510 before 1530 and at 1586 | Nexus package nine | folds into N9-04 |
+| H-289 | Each unwritten mark carries a number one higher than the last, the counter being raised before the mark is set. | `praxis/launcher.py` 2940 before 2941-2943 | Praxis package five |  |
+| H-290 | The mark is read for the command being handled, so a later result for it that reports nothing changed asks for a write all the same. | `praxis/launcher.py` 4400-4401 into the test at 4404-4408 | Praxis package five | recorded; N8-03 states it |
+| H-291 | What that write puts down is the whole state, the positions and the capital figures among it, so what the mark stands for goes down with it. | `praxis/launcher.py` 4439 into `nexus/infrastructure/state_store.py` 198-206, the payload built at 199 by `nexus/infrastructure/wal_codec.py` 81-97, the capital at 83 and the positions at 85 | Praxis package five | recorded; N8-03 states it |
+| H-292 | Every standing mark is copied before that write and the copy walked after it, each dropped where the number still matches, so one command's write lets go of other commands' marks. | `praxis/launcher.py` 4426-4427 before 4439, the copy walked at 4459-4460 and dropped at 4461-4462 | Praxis package five |  |
+| H-293 | Where the write raises instead, the branch holding that walk is never entered, so every mark stays; the flag cleared in the catch fails the test that stands before the settled record, which that road leaves unreached. | `praxis/launcher.py` 4440-4441 against the `else` at 4449, the flag read at 4464 leaving 4465 unreached | Praxis package five |  |
+| H-294 | The operator's write puts down the same whole state through the same store and lets go of no mark at all, so a mark outlives the write that made what it stands for durable. | `praxis/launcher.py` 3549 against 4439, both reaching the serialize and the append at `nexus/infrastructure/state_store.py` 199 and 206, the runtime the operator's road reads being built at `praxis/launcher.py` 4635 from the very store and state the outcome road writes, handed in at 4636 and 4640 | Praxis package five |  |
+| H-295 | A failed outcome write raises nothing out of the handling, so the same call goes on to the test before the settled record and answers its caller with a result; N8-03 has the operator's half of that contrast and not this one. | `praxis/launcher.py` 4440-4441, which raises nothing, so 4464 is reached after it and 4467 answers | Praxis package five |  |
+| H-296 | The record that keeps a report off the next start's list is asked for where the result succeeded and no write of its changes failed, so a result the receiver took whose handling changed nothing meets that test as readily as one whose write went down. | `praxis/launcher.py` 4403 before the test at 4464, cleared only at 4441, the write at 4439 standing under a test at 4404-4408 that a result carrying none of the three marks does not meet | Praxis package five | recorded; P2-41 states it |
+| H-297 | That record is built, handed to the loop and waited on, and the wait running out is logged and passed over with nothing calling the handed-over work off, so the record may still land after the host has stopped waiting for it; P2-41 has that shape for the stopped-trying record and not for this one. | `praxis/launcher.py` 3155-3159 and 3164-3166 before the wait at 3167, the catch at 3168 logging at 3169-3172 and nothing between 3164 and 3172 calling off what 3164-3166 handed over | Praxis package five |  |
+| H-298 | Where the loop or the trading side is not there the record is not attempted at all, a warning standing in its place. | `praxis/launcher.py` 3148-3153 | Praxis package five |  |
+| H-299 | A start reads those records into one set and passes over any report already in it, putting the rest on a list each of which it then hands the host; a report produced with no delivery context recorded is left off that list as well. | `praxis/launcher.py` 1735-1736 into the test at 1774, which takes 1775 or else reaches the append at 1776, the list walked at 1814 and handed on at 1816 from 4533-4539, against the skip at 1755 into 1763 instead | Praxis package five | recorded; P2-39 states it |
+| H-300 | The record for a leg a start could not apply is not attempted at all where the loop or the trading side is not there, a warning standing in its place, so neither of the two records has a road on which its absence is itself recorded. | `praxis/launcher.py` 3190-3195, which returns rather than reaching 3197-3210, against 3148-3153 | Praxis package five |  |
+| H-301 | What the road out of the squaring does is warn and return, leaving the stored figure as recovery found it and the total it would be weighed against never built. | `nexus/startup/sequencer.py` 355-357, which returns rather than reaching 410-472 | Praxis package five |  |
+| H-302 | A holding Nexus has that Praxis does not report stops the start rather than being given up. | `nexus/startup/sequencer.py` 382-385 into 404-408 | Praxis package five |  |
+| H-303 | A holding Praxis reports that Nexus does not hold is taken in and counted, or turned away and counted for nothing. | `nexus/startup/sequencer.py` 422-423 before 437-438, against the turning away at 424-436 | Praxis package five | recorded; N3-10 and N5-05 state it |
+| H-304 | A holding both sides have takes Praxis's amount where the two differ. | `nexus/startup/sequencer.py` 441 before 448 | Praxis package five | recorded; N3-11 states it |
+| H-305 | A holding whose basis stands at nothing is given a price and has that price written onto the holding. | `nexus/startup/sequencer.py` 450-451 into 465-466 | Praxis package five | recorded; N3-11 states it |
+| H-306 | The rebuilt total and the recovered figure are weighed, and the write is asked for only where they differ, so a start that agrees with what it recovered asks for none. | `nexus/startup/sequencer.py` 470 before the test at 472, with 478 and 480-481 inside it | Praxis package five | recorded; N7-08 states it |
+| H-307 | A start that recovered nothing and is reported nothing it can take in leaves both at nothing, so it is the start that has least to square that squares against nothing. | `nexus/startup/sequencer.py` 239 before 246 into `nexus/core/domain/instance_state.py` 156-157, which passes on the pool alone, the figure taking `nexus/core/domain/capital_state.py` 34 off 15, and the total starting at `nexus/startup/sequencer.py` 410 off 28 | Praxis package five |  |
+| H-308 | The road an arriving report takes turns it into its Nexus form, does the in-memory accounting and puts it on the account's queue, reading no settled record anywhere between. | `praxis/launcher.py` 2988, 2990 and 2992 | Praxis package five |  |
+| H-309 | A report for an account with no queue is dropped where it arrives, a warning standing in its place. | `praxis/launcher.py` 2974-2983 | Praxis package five |  |
+| H-310 | Where that account's wiring is not yet published the accounting is skipped and the report is queued regardless. | `praxis/launcher.py` 2985-2986 and the test at 2989 before 2992, against the publishing at 4354-4355 | Praxis package five |  |
+| H-311 | The gather of settled names is reached from nothing under `praxis/` but one call inside the build, itself reached from one line, and both stand ahead of every loop that build makes. | `praxis/launcher.py` 4526 from 4547, before 4551, 4564 and 4573 | Praxis package five |  |
+| H-312 | The store is built without the guarded pair, the one argument the launcher gives it being where to write, and makes its own log lock on the way. | `praxis/launcher.py` 4073 into `nexus/infrastructure/state_store.py` 106, which takes what it was given, with 117 making the log lock | Praxis package five |  |
+| H-313 | The start runs before those locks exist, so the one checkpoint it may ask for writes with the guard taking neither. | `praxis/launcher.py` 4085 into `nexus/startup/sequencer.py` 177 and 481, reaching `nexus/infrastructure/state_store.py` 178, where 219 leaves 220-221 unreached | Praxis package five |  |
+| H-314 | The locks are handed over once that start has returned, and a second handover is refused, as is anything that is not the pair. | `praxis/launcher.py` 4141-4143 into `nexus/infrastructure/state_store.py` 153 and 162, the refusals at 154-156 and 158-160 | Praxis package five |  |
+| H-315 | The strategy-event write takes the log lock alone inside the store, where the two state writes take the guarded pair as well; its caller holds the first half of that pair, which a check where that pair is built refuses to carry on without, so the second half is the one nothing on that road holds. | `nexus/infrastructure/state_store.py` 236 against 178 and 198, the write called at `nexus/infrastructure/praxis_connector/outcome_processor.py` 285 inside 268, which takes what `nexus/core/domain/risk_state.py` 302 returns, set at `praxis/launcher.py` 4128 to the lock 2579 puts in the pair, the identity refused otherwise at 2569-2576 and the second half taken from 2580 | Praxis package five |  |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-05 11:36 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 06:57 UTC
