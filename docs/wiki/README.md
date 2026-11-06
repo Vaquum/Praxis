@@ -198,6 +198,13 @@ the others where it appears.
 - [The road that empties the log](atoms/the-road-that-empties-the-log.md) — one way of clearing the file wipes it completely, opening mark and all, and nothing in either system ever asks for it; the next write would put the mark back rather than refuse the file.
 - [What writes the name a success records](atoms/what-writes-the-name-a-success-records.md) — the label kept of a reply from the venue, so a repeat can be turned away, is never saved to disk on its own account; it goes down with whatever the next save of the state was asked for, so a host that stops with no save of any kind behind it leaves a log and a picture that never held the label, while the turning away of a repeat reads that label where it stands in memory, so the wait costs nothing until a restart.
 - [What a failed checkpoint costs a start](atoms/what-a-failed-checkpoint-costs-a-start.md) — a start that cannot save the state gives up the whole start, and nothing between there and the account's own thread catches it; a run over past bars has no such thread, and shuts the account down before the failure leaves.
+- [How a command's unwritten mark is let go](atoms/how-a-commands-unwritten-mark-is-let-go.md) — a note that an instruction's figures have moved in memory without being saved yet is cleared in batches, so one instruction's save clears the notes standing against others, while a save an operator asks for clears none of them.
+- [What can stop a closing record going down](atoms/what-can-stop-a-closing-record-going-down.md) — the line written to say a reply was taken, or that Praxis gave up on it, is handed to a background worker and waited on for ten seconds; the wait running out leaves the write still going, and on one road the line is never attempted at all.
+- [What stops a start squaring its holdings](atoms/what-stops-a-start-squaring-its-holdings.md) — a start weighs its own record of what is held against what the trading side reports, and a holding the trading side does not mention ends the start rather than being adjusted away.
+- [Where the figures a start squares start from](atoms/where-the-figures-a-start-squares-start-from.md) — each running total a start compares begins empty: one is carried on the record it recovers, and the other is built up as it reads what the trading side reports.
+- [The road an arriving report takes](atoms/the-road-an-arriving-report-takes.md) — a reply from the venue is converted, has its figures applied in memory and is put on the account's queue, reading nothing of what an earlier run settled; an account with no queue has the reply dropped, and one whose parts are not yet assembled has the figures applied later instead.
+- [When the store writes without its locks](atoms/when-the-store-writes-without-its-locks.md) — the part that saves state is handed the locks covering what it reads only after the start has already saved once, so that early save runs with none of them held.
+- [Which of the store's writes take which locks](atoms/which-of-the-stores-writes-take-which-locks.md) — the saves it makes differ in what they lock: a save of the whole state holds the locks over what it reads, while a save of a single event holds none itself and leans on its caller to hold part of them.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -311,7 +318,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 214
+Both sides are the subject, and Praxis is the side that has been written. 221
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 48 are named and 22
 untouched — 37 carry a row of their own, and 11 are reached by an
@@ -321,4 +328,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-05 11:10 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-06 06:59 UTC

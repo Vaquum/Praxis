@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 213 not.**
+**6 of them reviewed, 220 not.**
 
 ## Package 1
 
@@ -378,6 +378,16 @@ is half N9-01's.
 How the mark is let go is the subject that must come first. The other six can be
 read in any order, but each of the three that touch the store's writes assumes
 the mark article's account of which road asks for a write at all.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P5-01 | How a command's unwritten mark is let go, and the write that lets go of none | written | [how-a-commands-unwritten-mark-is-let-go.md](atoms/how-a-commands-unwritten-mark-is-let-go.md) |
+| P5-02 | What can stop a closing record going down, and the road that attempts neither | written | [what-can-stop-a-closing-record-going-down.md](atoms/what-can-stop-a-closing-record-going-down.md) |
+| P5-03 | What stops a start squaring its holdings | written | [what-stops-a-start-squaring-its-holdings.md](atoms/what-stops-a-start-squaring-its-holdings.md) |
+| P5-04 | Where the figures a start squares start from | written | [where-the-figures-a-start-squares-start-from.md](atoms/where-the-figures-a-start-squares-start-from.md) |
+| P5-05 | The road an arriving report takes, and what it never reads | written | [the-road-an-arriving-report-takes.md](atoms/the-road-an-arriving-report-takes.md) |
+| P5-06 | When the store writes without its locks | written | [when-the-store-writes-without-its-locks.md](atoms/when-the-store-writes-without-its-locks.md) |
+| P5-07 | Which of the store's writes take which locks | written | [which-of-the-stores-writes-take-which-locks.md](atoms/which-of-the-stores-writes-take-which-locks.md) |
 
 ## Considered and rejected
 
@@ -1629,4 +1639,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 06:58 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 06:59 UTC
