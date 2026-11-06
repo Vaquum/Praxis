@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 220 not.**
+**6 of them reviewed, 223 not.**
 
 ## Package 1
 
@@ -473,6 +473,28 @@ drops none rather than on a mark outside any copy, and the two lock subjects do
 not touch the marks at all. Nothing here depends on anything else here. The four
 are numbered in pairs rather than in the order the candidates were named: the two
 that turn on a mark first, then the two that turn on a lock.
+
+Three of the four promoted subjects carry an article. The fourth, the write a
+standing mark can ask for, carries none and holds no row below: every claim drafted for
+it turned out to be written already — the test's third arm at N8-03, and the
+acknowledgement that sets neither of the other two at the article on what an
+entry outcome changes. What remained was a consequence of those two with nothing
+of its own to cite, and the brief refuses a page built that way. The finding
+stands in this register and in no article.
+
+When the money's lock is given back came through the same reading reduced to one
+claim, and was renamed at the writing for it. Of the five rows merged into it,
+four state what a road does to the money or the position, which N2-01, N3-07,
+N3-03 and P5-07 already carry; the one left is what no article has, that the lock
+over the money is given back before the write rather than held across it. The
+two-histories shape the Merge promoted it for could not be written: the other
+history is N3-07's, so the contrast is pointed at rather than stated.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P6-01 | What the walk that lets marks go cannot reach | written | [what-the-walk-that-lets-marks-go-cannot-reach.md](atoms/what-the-walk-that-lets-marks-go-cannot-reach.md) |
+| P6-03 | When the money's lock is given back | written | [when-the-moneys-lock-is-given-back.md](atoms/when-the-moneys-lock-is-given-back.md) |
+| P6-04 | What a write of the whole state waits on | written | [what-a-write-of-the-whole-state-waits-on.md](atoms/what-a-write-of-the-whole-state-waits-on.md) |
 
 ## Considered and rejected
 
@@ -1771,4 +1793,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-06 10:49 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 00:00 UTC
