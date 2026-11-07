@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 55 are named and 15 untouched. Of the 55, 44 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 56 are named and 14 untouched. Of the 56, 44 carry a row of their own and 12 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -686,6 +686,19 @@ Paths are under `nexus/`.
 The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
+
+## Nexus package 12 — what an outcome refuses
+
+Scope: the record Praxis hands back for an instruction it worked through, on the
+roads that build one, and the checks it makes on itself before it exists — what every one of them is
+refused for, what a fill must carry and a non-fill must not, which kinds may
+carry a reason and which must not, and the two measures of how an execution went
+that mean one thing absent and another at nought. One module, the counterpart to
+the record going the other way, and no article reaches it.
+
+What every outcome is checked for is split either side of the choice between the
+two lists. Two names, a kind, a moment and the two measures are checked before
+it; a reason and the size still working are checked after it.
 
 ## Nexus package 11 — what a command refuses
 
@@ -2028,8 +2041,19 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-360 | A new order must carry a side, a self-trade setting, and exactly one of a size or a spend. | `nexus/infrastructure/praxis_connector/trade_command.py` 227-229, or 230-232, or 233-235, or 236-238, all under the test at 226 | Nexus package eleven | is N11-04 |
 | H-361 | A change must carry none of the eleven things beyond the common ones, each refused on its own. | `nexus/infrastructure/praxis_connector/trade_command.py` 241-273 under the test at 240 | Nexus package eleven | folds into N11-04 |
 | H-362 | A cancel must carry none of those eleven either, refused the same way. | `nexus/infrastructure/praxis_connector/trade_command.py` 276-308 under the test at 275 | Nexus package eleven | folds into N11-04 |
+| H-363 | Every outcome is refused unless its own reference and the reference of the command it answers are each text with something left in them once trimmed. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 92-94, or 96-98 | Nexus package twelve |  |
+| H-364 | Its kind must be one of the named ones, its moment must be a moment, and that moment must carry the UTC marker itself. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 100-102, or 104-106, or 108-110 | Nexus package twelve |  |
+| H-365 | A size left over, where one is given at all, must be a finite figure at or above nought. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 138 into 139-144, or 146-148 | Nexus package twelve |  |
+| H-366 | One test on the kind sends an outcome to the list for a fill or the list for anything else, so it is held to one of the two and never to both. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 114 into 115, or else 117 | Nexus package twelve |  |
+| H-367 | A fill must carry four figures: a size, a price, an amount, and the fees paid. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 183-185, or 195-197, or 207-209, or 222-224 | Nexus package twelve |  |
+| H-368 | Each of the four must be a finite figure, and the first three must stand above nought where the fees need only be at or above it. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 187-189, or 199-201, or 211-216, or 226-231, against 191-193, or 203-205, or 218-220, or 233-235 | Nexus package twelve |  |
+| H-369 | An outcome carrying no fill must carry none of those four. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 117 into 240-242, or 244-246, or 248-250, or 252-254 | Nexus package twelve |  |
+| H-370 | A refusal must carry a reason with something left in it once trimmed, and no other kind may carry a refusal's reason. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 119 into 120-122, against 123-125 | Nexus package twelve |  |
+| H-371 | A cancellation may carry a reason or leave it out, but not one with nothing left in it once trimmed, and no other kind may carry a cancellation's reason. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 127 into 128-133, against 134-136 | Nexus package twelve |  |
+| H-372 | Two measures of how an execution went may each be left out, and leaving one out is passed over rather than refused. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 166 over the two names, with 169 into 170 letting an absent one by | Nexus package twelve |  |
+| H-373 | A measure given on an outcome carrying no fill is refused, or else a measure given on an outcome carrying a fill must be a finite figure. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 172-174, or 176-178 | Nexus package twelve |  |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 02:32 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 05:50 UTC
