@@ -699,6 +699,31 @@ article reaches it.
 What every command is checked for comes first, because the checks each kind makes
 on top of those assume them.
 
+### Merge and promote, package 11
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-354 | Every command is refused unless its reference, its account, its venue and its symbol are each text with something left in them once trimmed. | Merge with H-357. The four that must be there and the thirteen that need not are one subject read from either end: what a command is checked for whatever it asks |
+| Row H-355 | Its kind must be one of the three named ones, and the amount it names must be a finite figure at or above nought. | Merge with H-357, the same |
+| Row H-356 | Its moment must be a moment, and must carry the UTC marker itself: a zone that merely stands at UTC is refused, where the same connector accepts one on its other two handoffs. | Promote. The disagreement between one record and the two handoffs beside it is a subject of its own, and no article reaches either side of it |
+| Row H-357 | Thirteen things a command may leave out are each refused where present and wrong, each test standing behind one for its absence. | Promote. What a command is checked for before its kind is weighed is in no article, and it is what the checks each kind makes on top of it assume |
+| Row H-358 | A deadline given as a true-or-false is refused outright, though such a thing counts as a whole number. | Merge with H-357, the sharpest of the thirteen and the one a reader would otherwise get wrong |
+| Row H-359 | A set of settings is not refused for being handed in as something that can still be altered: it is copied and sealed in place of what arrived. | Promote. A sealed record that rewrites one of its own fields rather than refusing it is in no article, and it is the one place this one does anything but check |
+| Row H-360 | A new order must carry a side, a self-trade setting, and exactly one of a size or a spend. | Promote. What each kind must and must not carry is the subject the scope puts second, and no article reaches it |
+| Row H-361 | A change must carry none of the eleven things beyond the common ones, each refused on its own. | Merge with H-360, the far side of the same subject |
+| Row H-362 | A cancel must carry none of those eleven either, refused the same way. | Merge with H-360. That the two kinds refuse the same eleven separately, rather than sharing one check, belongs with what each kind requires |
+
+Four subjects promote and five rows merge, with nothing declined: the module no
+article reaches leaves nothing to collide with, and every row traced for it was
+new.
+
+What a command is checked for comes first, and what each kind must carry second,
+because the second runs only once the first has passed. The moment's marker and
+the settings that are rewritten both sit inside the first and could have folded
+into it; each is held out because what makes it worth reading is a comparison the
+first cannot carry — one against the two handoffs beside this record, the other
+against every other check in the module, which refuses rather than rewrites.
+
 ## Nexus package 10 — how a strategy is reached, and what it is handed
 
 Scope: the one wrapper each strategy sits behind and the lock it holds, the eight
@@ -1961,17 +1986,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-351 | What a strategy is handed carries three things and refuses five: holdings that are not a sealed run, anything in that run that is not a holding, an amount that is not a decimal, an amount that is not finite or falls below nought, and a mode that is not one of the named ones. | `nexus/strategy/context.py` 28-30 against 35-37, or 39-42, or 44-46, or 48-50, or 52-54 | Nexus package ten | is N10-06 |
 | H-352 | The thing handed over cannot be altered while each holding inside it can. | `nexus/strategy/context.py` 14 against `nexus/core/domain/position.py` 20 | Nexus package ten | folds into N10-06 |
 | H-353 | The note at the top of what a strategy is handed says a holding a strategy alters is ignored, and nothing ignores it: the holdings put on it are the host's own objects. | `nexus/startup/shutdown_sequencer.py` 303 and 308-311 before 319-320, and `praxis/launcher.py` 2522-2534 doing the same before the lookup | Nexus package ten | recorded; N6-02 states it |
-| H-354 | Every command is refused unless its reference, its account, its venue and its symbol are each text with something left in them once trimmed. | `nexus/infrastructure/praxis_connector/trade_command.py` 101-103, or 109-111, or 113-115, or 117-119 | Nexus package eleven |  |
-| H-355 | Its kind must be one of the three named ones, and the amount it names must be a finite figure at or above nought. | `nexus/infrastructure/praxis_connector/trade_command.py` 105-107, or 121-127 | Nexus package eleven |  |
-| H-356 | Its moment must be a moment, and must carry the UTC marker itself: a zone that merely stands at UTC is refused, where the same connector accepts one on its other two handoffs. | `nexus/infrastructure/praxis_connector/trade_command.py` 129-131, or 133-135, against `nexus/infrastructure/praxis_connector/praxis_outbound.py` 252 and 307 | Nexus package eleven |  |
-| H-357 | Thirteen things a command may leave out are each refused where present and wrong, each test standing behind one for its absence. | `nexus/infrastructure/praxis_connector/trade_command.py` 137-139, or 141-147, or 149-155, or 157-159, or 161-165, or 167-171, or 173-177, or 179-181, or 183 into 184-186, or 193-199, or 201-205, or 207-213, or 215-219 | Nexus package eleven |  |
-| H-358 | A deadline given as a true-or-false is refused outright, though such a thing counts as a whole number. | `nexus/infrastructure/praxis_connector/trade_command.py` 193-199, the test for it standing at 194 before the one for a whole number at 195 | Nexus package eleven |  |
-| H-359 | A set of settings is not refused for being handed in as something that can still be altered: it is copied and sealed in place of what arrived. | `nexus/infrastructure/praxis_connector/trade_command.py` 184-186 against 187-192 | Nexus package eleven |  |
-| H-360 | A new order must carry a side, a self-trade setting, and exactly one of a size or a spend. | `nexus/infrastructure/praxis_connector/trade_command.py` 227-229, or 230-232, or 233-235, or 236-238, all under the test at 226 | Nexus package eleven |  |
-| H-361 | A change must carry none of the eleven things beyond the common ones, each refused on its own. | `nexus/infrastructure/praxis_connector/trade_command.py` 241-273 under the test at 240 | Nexus package eleven |  |
-| H-362 | A cancel must carry none of those eleven either, refused the same way. | `nexus/infrastructure/praxis_connector/trade_command.py` 276-308 under the test at 275 | Nexus package eleven |  |
+| H-354 | Every command is refused unless its reference, its account, its venue and its symbol are each text with something left in them once trimmed. | `nexus/infrastructure/praxis_connector/trade_command.py` 101-103, or 109-111, or 113-115, or 117-119 | Nexus package eleven | folds into N11-01 |
+| H-355 | Its kind must be one of the three named ones, and the amount it names must be a finite figure at or above nought. | `nexus/infrastructure/praxis_connector/trade_command.py` 105-107, or 121-127 | Nexus package eleven | folds into N11-01 |
+| H-356 | Its moment must be a moment, and must carry the UTC marker itself: a zone that merely stands at UTC is refused, where the same connector accepts one on its other two handoffs. | `nexus/infrastructure/praxis_connector/trade_command.py` 129-131, or 133-135, against `nexus/infrastructure/praxis_connector/praxis_outbound.py` 252 and 307 | Nexus package eleven | is N11-02 |
+| H-357 | Thirteen things a command may leave out are each refused where present and wrong, each test standing behind one for its absence. | `nexus/infrastructure/praxis_connector/trade_command.py` 137-139, or 141-147, or 149-155, or 157-159, or 161-165, or 167-171, or 173-177, or 179-181, or 183 into 184-186, or 193-199, or 201-205, or 207-213, or 215-219 | Nexus package eleven | is N11-01 |
+| H-358 | A deadline given as a true-or-false is refused outright, though such a thing counts as a whole number. | `nexus/infrastructure/praxis_connector/trade_command.py` 193-199, the test for it standing at 194 before the one for a whole number at 195 | Nexus package eleven | folds into N11-01 |
+| H-359 | A set of settings is not refused for being handed in as something that can still be altered: it is copied and sealed in place of what arrived. | `nexus/infrastructure/praxis_connector/trade_command.py` 184-186 against 187-192 | Nexus package eleven | is N11-03 |
+| H-360 | A new order must carry a side, a self-trade setting, and exactly one of a size or a spend. | `nexus/infrastructure/praxis_connector/trade_command.py` 227-229, or 230-232, or 233-235, or 236-238, all under the test at 226 | Nexus package eleven | is N11-04 |
+| H-361 | A change must carry none of the eleven things beyond the common ones, each refused on its own. | `nexus/infrastructure/praxis_connector/trade_command.py` 241-273 under the test at 240 | Nexus package eleven | folds into N11-04 |
+| H-362 | A cancel must carry none of those eleven either, refused the same way. | `nexus/infrastructure/praxis_connector/trade_command.py` 276-308 under the test at 275 | Nexus package eleven | folds into N11-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 00:34 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 00:52 UTC
