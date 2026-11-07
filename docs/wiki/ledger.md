@@ -141,10 +141,10 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/infrastructure/praxis_connector/fund_transaction.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/outcome_processor.py` | partial | N1-06, N1-07, N2-01, N2-02, N2-06, N3-01, N3-02, N3-03, N3-06, N3-07, N3-09, N3-10, N3-11, N3-12, N4-02, N4-03, N4-05, N7-05, N7-09, N9-04, P3-24, P4-30, P6-03 |
 | `nexus/infrastructure/praxis_connector/praxis_inbound.py` | partial | cited, not traced |
-| `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | N11-02, N6-06, N6-08, N6-09, N7-02, N7-05, P4-04, P4-06 |
 | `nexus/infrastructure/praxis_connector/process_result.py` | partial | N9-04 |
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | partial | cited, not traced |
-| `nexus/infrastructure/praxis_connector/trade_command.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04 |
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | partial | N1-07, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | partial | cited, not traced |
 | `nexus/instance_config.py` | partial | cited, not traced |
@@ -163,8 +163,8 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-12 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 42 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 28 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
+10 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 44 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 26 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 00:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 01:05 UTC

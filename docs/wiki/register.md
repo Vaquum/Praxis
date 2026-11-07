@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 229 not.**
+**6 of them reviewed, 233 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 54 are named and 16 untouched. Of the 54, 42 carry a row of their own and 12 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 54 are named and 16 untouched. Of the 54, 44 carry a row of their own and 10 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -723,6 +723,13 @@ the settings that are rewritten both sit inside the first and could have folded
 into it; each is held out because what makes it worth reading is a comparison the
 first cannot carry — one against the two handoffs beside this record, the other
 against every other check in the module, which refuses rather than rewrites.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N11-01 | What a command is checked for | written | [what-a-command-is-checked-for.md](atoms/what-a-command-is-checked-for.md) |
+| N11-02 | The marker a command's moment must carry | written | [the-marker-a-commands-moment-must-carry.md](atoms/the-marker-a-commands-moment-must-carry.md) |
+| N11-03 | The settings a command rewrites | written | [the-settings-a-command-rewrites.md](atoms/the-settings-a-command-rewrites.md) |
+| N11-04 | What each kind of command must carry | written | [what-each-kind-of-command-must-carry.md](atoms/what-each-kind-of-command-must-carry.md) |
 
 ## Nexus package 10 — how a strategy is reached, and what it is handed
 
@@ -1999,4 +2006,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 00:52 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 01:05 UTC
