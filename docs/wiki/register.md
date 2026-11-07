@@ -919,6 +919,45 @@ checkpoint holds is N7-08, which outgrew it in turn as the log cut was traced,
 giving N7-09; and what the first stage weighs outgrew it as each test was traced
 upstream, giving N7-10 and then N7-11.
 
+### Re-seed, after writing what one road leaves standing
+
+What thirteen rounds of verifying the three articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The lock the marks stand under, taken while a write runs | `praxis/launcher.py` 2939-2943 takes the registry lock for the two statements inside it, on the callback 2990 runs before 2992 queues the outcome, where the write at 4439 is reached at 4499 on the separate thread `nexus/core/outcome_loop.py` 150-155 starts and 403 dispatches on, which `praxis/launcher.py` 4673 sets going — after the copying block at 4426-4427 has ended, and without that write taking the registry lock at all. So a mark can go on while a write is already under way. P6-01 has the copying lock given up before the write, and has one command's mark unordered against another command's write; that a mark can be set while a write is running is in neither it nor N8-03 |
+| What takes the money's lock from outside the money | `nexus/core/capital_controller/capital_controller.py` 127 returns that lock, and `praxis/launcher.py` 2580 is its only caller outside the tests anywhere under `praxis/` or `nexus/`, so beyond the controller's own roads the one taker is the guard reached at `nexus/infrastructure/state_store.py` 221. P6-04 has the ten roads and the guard; that those eleven are every acquisition there is — the accessor's other callers, at Praxis's `tests/test_launcher_snapshot_lock_wiring.py` 44 and Nexus's `tests/test_shutdown_sequencer.py` 646, take nothing at those lines, the second arriving at the guard already counted when 663 runs the stopping checkpoint — is in neither it nor P5-06 |
+| The money's figures read without the money's lock | `nexus/core/capital_controller/capital_controller.py` 459 reads the pool with no acquisition anywhere on its road, against the ten roads that take the lock at 181, 326, 511, 546, 610, 663, 768, 875, 992 and 1055. The article citing 459-462 takes those lines for what a request's budget is and says nothing of what guards the read; P6-04 has what the lock costs a write and not what goes without it |
+| Which lock the event write's caller is holding | `nexus/infrastructure/praxis_connector/outcome_processor.py` 268 holds a lock across 285, the object read at `nexus/core/domain/risk_state.py` 302, set at `praxis/launcher.py` 4128, and refused at 2569-2576 unless it is the same one 2579 puts in the pair as its first half. P5-07 has that check and N3-03 has the caller holding a lock across the write; that the lock held is the pair's own first half is in neither, as row H-329 above says |
+
+Four candidates, and three of them are the same subject from different sides:
+which roads take a lock, which take none at all, and which hold one while
+another road is part way through a write. The fourth asks only which lock a hold
+already written about turns out to be. The package set out to write what one
+road leaves standing for another, and what verifying it turned up sits a step
+below that: not what a road leaves behind, but what the locks around it do and
+do not cover. That is where the packages go next.
+
+What this package also showed is worth keeping separate from its candidates. Of
+four subjects the Merge promoted, one carries no article: nothing citable was
+left in it once the written claims were taken out, so there was no page to write.
+The Merge had read "no article states this" claim by claim, which is the right
+question for a row and the wrong one for a page, and it never asked whether what
+remained was still a subject. That question was settled at the writing instead,
+and is recorded above the index.
+
+A second subject nearly went the same way, on worse ground. A reading partway
+through the writing took one of its claims for written when no article held it,
+and the page was cut to the one claim left. The Merge had that row right and the
+reading overturned it. Both claims are back, and the correction is recorded above
+the index as well. Two of the candidates above were struck on the same reasoning
+and then restored, once the articles named were read to the end rather than
+taken at their dispositions. The lesson is not the Merge's: a claim called
+written needs the article naming it read through, and a stage that overturns an
+earlier stage carries the heavier burden.
+
 ### Re-seed, after writing the Praxis half of the seam
 
 What thirteen rounds of verifying the seven articles turned up that none of them
@@ -1804,4 +1843,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 01:35 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 01:42 UTC
