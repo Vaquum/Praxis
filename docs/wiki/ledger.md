@@ -153,12 +153,17 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/strategy/action_submit.py` | partial | N1-02, N1-08, N2-05, N4-01, N4-02, N5-02, N5-04, N5-06, N6-08, N6-09, N6-10, N7-03, N7-04, N7-05 |
 | `nexus/strategy/loader.py` | partial | cited, not traced |
 | `nexus/strategy/predict_loop.py` | partial | N7-06, P3-04, P4-39 |
-| the other 22 | uncovered | — |
+| `nexus/strategy/runner.py` | partial | cited, not traced |
+| `nexus/strategy/executor.py` | partial | cited, not traced |
+| `nexus/strategy/base.py` | partial | cited, not traced |
+| `nexus/strategy/timer_loop.py` | partial | cited, not traced |
+| `nexus/strategy/context.py` | partial | cited, not traced |
+| the other 17 | uncovered | — |
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-11 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 37 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 33 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
+16 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 37 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 33 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 00:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 02:12 UTC

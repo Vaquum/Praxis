@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 48 are named and 22 untouched. Of the 48, 37 carry a row of their own and 11 are reached by an article that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 53 are named and 17 untouched. Of the 53, 37 carry a row of their own and 16 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -686,6 +686,21 @@ Paths are under `nexus/`.
 The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
+
+## Nexus package 10 — how a strategy is reached, and what it is handed
+
+Scope: the one wrapper each strategy sits behind and the lock it holds, the eight
+ways in and the single line that reaches each of them, what a strategy must
+provide and what it may leave alone, the timer road and what a turn of it
+abandons or schedules, and what a strategy is handed on the roads that hand it
+anything at all. Five modules no article reaches at all, which is the largest block of
+untouched Nexus behaviour left and the reason this package was taken before the
+four candidates the Praxis side's sixth package left re-seeded.
+
+The wrapper and its lock comes first because it is the one thing every dispatch
+passes through, and nothing in the wiki yet says a strategy is wrapped at all.
+Two of the eight ways in run before the first timer is registered or the first
+thing a strategy is handed is built, which is a finding of its own.
 
 ## Nexus package 9 — which hosts checkpoint, and the roads into the log nothing takes
 
@@ -1839,8 +1854,24 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-332 | Five of the reserving road's refusals are raised before the lock is taken at all; once taken it is held across the purge of what has expired and whichever ending is reached. | `nexus/core/capital_controller/capital_controller.py` 302-304, or 306-308, or 312-314, or 316-318, or 320-322, each of them before 326, which holds 327 and then a refusal at 362, or one at 370, or one at 379, or one at 388, or one at 399, or the record at 408-415 with 417-420 and the answer at 422 | Praxis package six | folds into P6-04 |
 | H-333 | That road asks for no store write of any kind, and outside the tests it is reached from one line, the validator's capital stage. | `nexus/core/validator/capital_stage.py` 52, its only caller outside `tests/`, reaching `nexus/core/capital_controller/capital_controller.py` 326, with no call to `nexus/infrastructure/state_store.py` 178, 198 or 236 anywhere under `nexus/core/validator/` | Praxis package six | folds into P6-04 |
 | H-334 | The write waits on that lock only once the pair is attached; before then the guard takes nothing. | `nexus/infrastructure/state_store.py` 219 leaving 220-221 unreached, the pair attached at `praxis/launcher.py` 4141-4143 | Praxis package six | folds into P6-04 |
+| H-338 | Each strategy sits behind a wrapper holding a lock of its own, and every one of the eight ways in takes that lock before the strategy sees anything. | `nexus/strategy/executor.py` 33 made per wrapper, taken at 56, 76, 96, 116, 134, 144, 154 and 164 | Nexus package ten |  |
+| H-339 | Because that lock is made one per wrapper, two strategies' callbacks can run at the same moment where one strategy's cannot. | `nexus/strategy/executor.py` 27-33 against `nexus/strategy/runner.py` 52, which holds a wrapper per name | Nexus package ten |  |
+| H-340 | Outside the tests, each of the eight ways in is reached from exactly one line, and nothing under `praxis/` reaches any of them. | `nexus/startup/sequencer.py` 728, 555 and 592, `nexus/strategy/predict_loop.py` 337, `nexus/core/outcome_loop.py` 420, `nexus/strategy/timer_loop.py` 117, and `nexus/startup/shutdown_sequencer.py` 326 and 818, with no mention of any of the eight anywhere under `praxis/`, and each called again on a real router at `tests/test_strategy_runner.py` 182, 192, 201, 209, 217, 225, 233 and 242 | Nexus package ten |  |
+| H-341 | A strategy must provide seven callbacks and may leave the eighth alone, the replay one carrying a body that does nothing with what it is handed. | `nexus/strategy/base.py` 51-52, 64-65, 77-78, 98-99, 120-121, 142-143 and 164-165 against 196, the whole body of the eighth, which discards what it is handed | Nexus package ten |  |
+| H-342 | The thing that routes to a strategy refuses three things at the door: a name that is not a string, one that is empty once trimmed, and one it holds no wrapper for. | `nexus/strategy/runner.py` 57-59, or else 63-65, or else 69-71 | Nexus package ten |  |
+| H-343 | It is built refusing five more: a mapping that is not one, a key that is not a usable name, a value that is not a wrapper, a wrapper whose own name disagrees with its key, and two keys that trim to one name. | `nexus/strategy/runner.py` 25-27, or 32-34, or 38-40, or 42-44, or 46-48 | Nexus package ten |  |
+| H-344 | Every way in trims the name before the lookup, so a name given with spaces round it reaches the same wrapper as one without. | `nexus/strategy/runner.py` 36 at the build against 61 at the lookup | Nexus package ten |  |
+| H-345 | Each timer is its own one-shot countdown, marked so it cannot hold the process up, and kept under a name made of the strategy and the timer joined by a nul. | `nexus/strategy/timer_loop.py` 95-99, 100, 101 and 102 before the start at 103 | Nexus package ten |  |
+| H-346 | A turn tests twice whether the loop still runs, once before it asks for the context and once after, so a stop landing between the two abandons the turn with the context already fetched. | `nexus/strategy/timer_loop.py` 106-107 ahead of 111, then 113-114 ahead of 117, each test either falling through or else returning at 108 or at 115 | Nexus package ten |  |
+| H-347 | Of the five roads that hand a strategy any settings at all, every one builds them empty on the spot, the manifest figures going onto the thing it is handed instead. | `nexus/strategy/timer_loop.py` 120, `nexus/startup/sequencer.py` 721, `nexus/strategy/predict_loop.py` 340, `nexus/core/outcome_loop.py` 423 and `nexus/startup/shutdown_sequencer.py` 318, each building it empty outside the tests, against `nexus/startup/sequencer.py` 720-725 putting the manifest figures on the context | Nexus package ten | recorded in part; N6-02 states the stopping road's |
+| H-348 | A turn whose work raises is logged and passed over and the next turn still asked for, but the asking stands outside the catch, and where the loop has stopped it builds no timer. | `nexus/strategy/timer_loop.py` 144-145 standing outside the try opened at 110, against the catch at 135; and 92-93 returning rather than reaching the timer built at 95-99 | Nexus package ten |  |
+| H-349 | Where either running test sends the turn back, no next turn is scheduled, so a stop ends the chain where a failure does not. | `nexus/strategy/timer_loop.py` 108, or else 115, each returning rather than reaching 144-145 | Nexus package ten |  |
+| H-350 | A submitter that raises is caught around the call alone, which logs and goes on to ask for the next turn, so nothing retries the actions and how far the submitter got is left where it fell. | `nexus/strategy/timer_loop.py` 126 inside the try at 125 and caught at 127-134, which logs rather than undoing, with the test at 124 standing outside it, before 144-145 | Nexus package ten |  |
+| H-351 | What a strategy is handed carries three things and refuses five: holdings that are not a sealed run, anything in that run that is not a holding, an amount that is not a decimal, an amount that is not finite or falls below nought, and a mode that is not one of the named ones. | `nexus/strategy/context.py` 28-30 against 35-37, or 39-42, or 44-46, or 48-50, or 52-54 | Nexus package ten |  |
+| H-352 | The thing handed over cannot be altered while each holding inside it can. | `nexus/strategy/context.py` 14 against `nexus/core/domain/position.py` 20 | Nexus package ten |  |
+| H-353 | The note at the top of what a strategy is handed says a holding a strategy alters is ignored, and nothing ignores it: the holdings put on it are the host's own objects. | `nexus/startup/shutdown_sequencer.py` 303 and 308-311 before 319-320, and `praxis/launcher.py` 2522-2534 doing the same before the lookup | Nexus package ten | recorded; N6-02 states it |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 01:42 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 03:06 UTC
