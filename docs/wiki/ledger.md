@@ -144,6 +144,7 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/process_result.py` | partial | N9-04 |
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | partial | cited, not traced |
+| `nexus/infrastructure/praxis_connector/trade_command.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | partial | N1-07, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | partial | cited, not traced |
 | `nexus/instance_config.py` | partial | cited, not traced |
@@ -158,12 +159,12 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/strategy/base.py` | partial | N10-03 |
 | `nexus/strategy/timer_loop.py` | partial | N10-02, N10-05, N10-06 |
 | `nexus/strategy/context.py` | partial | N10-06 |
-| the other 17 | uncovered | — |
+| the other 16 | uncovered | — |
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-11 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 42 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 28 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
+12 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 42 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 28 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 04:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 00:20 UTC
