@@ -753,6 +753,34 @@ last, and can be read in either order.
 | N10-05 | What a turn of a timer does | written | [what-a-turn-of-a-timer-does.md](atoms/what-a-turn-of-a-timer-does.md) |
 | N10-06 | What a strategy is handed | written | [what-a-strategy-is-handed.md](atoms/what-a-strategy-is-handed.md) |
 
+### Re-seed, after writing package 10
+
+What eight rounds of verifying the six articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The three places what a strategy is handed is built | `nexus/startup/sequencer.py` 722-726 builds one where a start begins a strategy, `nexus/startup/shutdown_sequencer.py` 319-323 builds another where a stop asks it to finish, and the prediction, timer and outcome roads share the one `praxis/launcher.py` 4165-4171 defines, handed to each of them at 4554, 4567 and 4577. N10-02 has the eight roads and N10-06 has what the thing refuses; that five of those roads are served by three builders, three of the five sharing one, is in neither |
+| The holdings a beginning strategy is handed | `nexus/startup/sequencer.py` 723 hands an empty run whatever the host holds, where the builder the three loops share filters the real ones by strategy at `praxis/launcher.py` 2526-2528 before handing them over at 2533-2534, and the stop builds its own at `nexus/startup/shutdown_sequencer.py` 308-311 before handing it over at 320. N6-02 has what the stopping road puts on it; that one road hands nothing of what is held is nowhere |
+| Which mode a strategy is handed, and whose it is | `praxis/launcher.py` 2530-2531 takes a mode stored against that strategy where one is set and the account's otherwise, so two strategies can be handed different modes at one moment; the beginning road hands what `nexus/startup/sequencer.py` 717 reads, set at 672 or else 675, and the stop hands what `nexus/startup/shutdown_sequencer.py` 316 reads. No article names a mode stored per strategy at all |
+| The three roads that hand a strategy none of it | `nexus/strategy/executor.py` 144-145, 154-155 and 164-165 take no context and no settings, against 56-57, 76-77, 96-97, 116-117 and 134-135, which take both. N10-06 has what the thing refuses and N10-02 has the eight roads; that three of the eight hand neither it nor settings is in neither |
+| The raise that ends a chain of turns | `nexus/strategy/timer_loop.py` 127 and 135 each cover the ordinary kind of failure alone, so a raise outside that kind leaves the turn before the asking at 144-145, with nothing the loop itself logs and no next countdown built. N10-05 has what each catch covers and N6-11 has what a loop's stop leaves running; what falls outside both catches is in neither |
+| What stopping the timers cancels | `nexus/strategy/timer_loop.py` 81 takes the lock, 82 marks the loop stopped, 84-85 cancels every countdown already built, and 87 clears them. N10-05 has the asking building no countdown once the loop has stopped; that the ones already waiting are cancelled, so a chain can end with no turn having run at all, is nowhere |
+
+Six candidates: four about what a strategy is handed, and two about the timer
+road. The four are one gap from different sides. Five of the eight roads hand a
+strategy one of these things, built in three places that do not agree: one of the
+three hands no holdings whatever is held, and the three take the mode from three
+different readings. Of the other three roads, two hand a
+payload and nothing else, and one hands nothing at all.
+
+N10-06 has what that thing is, what it refuses, and that four of the roads build
+the settings beside it empty — the last of those folded in at the Merge. What
+verifying it turned up sits beside that rather than inside it: not what the thing
+is, but how unalike the roads are that build one. That is where the packages go
+next.
+
 ## Nexus package 9 — which hosts checkpoint, and the roads into the log nothing takes
 
 Scope: which hosts run the checkpoint timer and which take only the one a start
@@ -1925,4 +1953,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 04:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 00:00 UTC
