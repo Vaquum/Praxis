@@ -797,6 +797,32 @@ last, and can be read in either order.
 | N10-05 | What a turn of a timer does | written | [what-a-turn-of-a-timer-does.md](atoms/what-a-turn-of-a-timer-does.md) |
 | N10-06 | What a strategy is handed | written | [what-a-strategy-is-handed.md](atoms/what-a-strategy-is-handed.md) |
 
+### Re-seed, after writing package 11
+
+What four rounds of verifying the four articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| What the sealing of a command's settings leaves alone | `nexus/infrastructure/praxis_connector/trade_command.py` 190 seals a copy of the mapping's entries, and each entry still holds the object the caller handed in, so a caller that reaches into one of those and alters it alters what the command holds. N11-03 cites those lines for the copy being made and sealed, and says what the sealing covers; what it leaves alone is in no article |
+| Which of the two true-or-false deadlines the test catches | `nexus/infrastructure/praxis_connector/trade_command.py` 195 asks for a whole number and a true-or-false counts as one, so without 194 the true of the pair would pass, where 196 refuses anything at or below nought and turns back the false of the pair on its own. N11-01 has the test being there and needed; that it saves only one of the two is nowhere |
+
+Two candidates, and both are the far half of a fact an article already carries
+the near half of. The sealing is written and what it leaves alone is not; the
+true-or-false test is written and which of the pair it catches is not. In both
+the evidence was in front of the writing — N11-03 already cites the line that
+proves the first — and in both the article stopped at the half its claims stated.
+
+Two further findings were written down here and struck out. That a record of this
+name on the Praxis side is checked differently is already written, with its four
+required names and its zone-and-offset rule, and the module carrying it is marked
+covered in full. That a new order is free to carry the seven things a change and
+a cancel are refused does not hold as a freedom: the checks every command makes
+still apply to it, what sends an entry requires three of the seven before a
+command is built at all, and the record's own notes say which are populated for
+which kind. Neither survived its first reading.
+
 ### Re-seed, after writing package 10
 
 What eight rounds of verifying the six articles turned up that none of them
@@ -2006,4 +2032,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 01:40 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 02:32 UTC
