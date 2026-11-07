@@ -206,7 +206,7 @@ the others where it appears.
 - [When the store writes without its locks](atoms/when-the-store-writes-without-its-locks.md) — the part that saves state is handed the locks covering what it reads only after the start has already saved once, so that early save runs with none of them held.
 - [Which of the store's writes take which locks](atoms/which-of-the-stores-writes-take-which-locks.md) — the saves it makes differ in what they lock: a save of the whole state holds the locks over what it reads, while a save of a single event holds none itself and leans on its caller to hold part of them.
 - [What the walk that lets marks go cannot reach](atoms/what-the-walk-that-lets-marks-go-cannot-reach.md) — the notes saying an instruction's figures are unsaved are cleared from a list copied before the save begins, so a note added while that save runs is not looked at by it; that clearing is the only thing anywhere that removes a note.
-- [When the money's lock is given back](atoms/when-the-moneys-lock-is-given-back.md) — where a sale frees money that had been set aside, the lock covering the account's money is handed back as that freeing finishes, which happens before the line recording the sale is written, so the writer is not holding it at the time.
+- [What the money's lock is doing when a result is written](atoms/what-the-moneys-lock-is-doing-when-a-result-is-written.md) — the line recording what a sale came to is written with that lock held by no one, reached two ways: where the sale frees money set aside, the lock is handed back as the freeing finishes; where it frees none, nothing reaches for the lock at all.
 - [What a write of the whole state waits on](atoms/what-a-write-of-the-whole-state-waits-on.md) — once the locks covering the account have been handed over, saving the whole picture takes whichever of them the money works under, so it waits on whichever of the money's own jobs is holding it; the job that sets money aside holds it from the moment it takes it until it answers.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
@@ -331,4 +331,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-07 00:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-07 00:35 UTC

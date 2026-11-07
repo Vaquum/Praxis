@@ -482,18 +482,29 @@ entry outcome changes. What remained was a consequence of those two with nothing
 of its own to cite, and the brief refuses a page built that way. The finding
 stands in this register and in no article.
 
-When the money's lock is given back came through the same reading reduced to one
-claim, and was renamed at the writing for it. Of the five rows merged into it,
-four state what a road does to the money or the position, which N2-01, N3-07,
-N3-03 and P5-07 already carry; the one left is what no article has, that the lock
-over the money is given back before the write rather than held across it. The
-two-histories shape the Merge promoted it for could not be written: the other
-history is N3-07's, so the contrast is pointed at rather than stated.
+What the money's lock is doing when a result is written was renamed twice at the
+writing, as what it could carry was settled. Of the five rows behind it,
+three state what a road does to the money or the position, which N2-01 and N3-07
+carry between them, and a fourth states what the write itself takes and what its
+caller holds, which P5-07 and N3-03 carry apart from the one clause neither has,
+that the lock held is the pair's own first half; that clause is re-seeded below
+rather than written here. The fifth is what no article has, in
+two parts: that the lock over the money is given back before the write rather
+than held across it, and that the roads working out no release reach that write
+with it never taken. So the two-histories shape the Merge promoted it for
+stands.
+
+It was nearly lost. A reading partway through the writing struck the second of
+those two parts as N3-07's and cut the article to the first alone. N2-01 has the
+roads that work out no release, and N3-07 has the roads that raise instead and so
+never arrive at all; neither names the write the first of those reaches, and
+the two articles that had cited that call before this package, N3-03 and N1-07, name neither of those roads as reaching it. The claim
+was the article's all along, and is back.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
 | P6-01 | What the walk that lets marks go cannot reach | written | [what-the-walk-that-lets-marks-go-cannot-reach.md](atoms/what-the-walk-that-lets-marks-go-cannot-reach.md) |
-| P6-03 | When the money's lock is given back | written | [when-the-moneys-lock-is-given-back.md](atoms/when-the-moneys-lock-is-given-back.md) |
+| P6-03 | What the money's lock is doing when a result is written | written | [what-the-moneys-lock-is-doing-when-a-result-is-written.md](atoms/what-the-moneys-lock-is-doing-when-a-result-is-written.md) |
 | P6-04 | What a write of the whole state waits on | written | [what-a-write-of-the-whole-state-waits-on.md](atoms/what-a-write-of-the-whole-state-waits-on.md) |
 
 ## Considered and rejected
@@ -1793,4 +1804,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 00:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 01:35 UTC
