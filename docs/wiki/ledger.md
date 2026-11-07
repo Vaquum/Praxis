@@ -114,7 +114,7 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/core/domain/risk_state.py` | partial | N2-04, N3-03, N7-08, N7-09 |
 | `nexus/core/validator/pipeline_executor.py` | partial | N1-03, N1-04, N1-08, N2-06, N3-08, N4-07 |
 | `nexus/core/validator/pipeline_models.py` | partial | N1-02, N1-03, N1-04, N3-05, N4-07, N5-06, N6-10 |
-| `nexus/core/outcome_loop.py` | partial | N1-05, N1-07, N3-07, N6-05, N6-07, N6-09, N6-11 |
+| `nexus/core/outcome_loop.py` | partial | N1-05, N1-07, N3-07, N6-05, N6-07, N6-09, N6-11, N10-02, N10-06 |
 | `nexus/core/health_evaluator.py` | partial | cited, not traced |
 | `nexus/core/validator/capital_stage.py` | partial | N1-03, N2-03, N3-08, P6-04 |
 | `nexus/core/validator/health_stage.py` | partial | N2-03 |
@@ -147,23 +147,23 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | partial | N1-07, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | partial | cited, not traced |
 | `nexus/instance_config.py` | partial | cited, not traced |
-| `nexus/startup/sequencer.py` | partial | N3-02, N3-08, N3-10, N3-11, N4-03, N5-05, N7-07, N7-08, N9-01, N9-02, N9-05, P3-04, P4-06, P5-03, P5-04, P5-06 |
-| `nexus/startup/shutdown_sequencer.py` | partial | N1-08, N3-02, N4-02, N4-07, N5-04, N5-06, N6-01, N6-02, N6-03, N6-04, N6-05, N6-07, N6-08, N6-10, N7-01, N7-02, N7-08, N7-12, N9-01 |
+| `nexus/startup/sequencer.py` | partial | N3-02, N3-08, N3-10, N3-11, N4-03, N5-05, N7-07, N7-08, N9-01, N9-02, N9-05, P3-04, P4-06, P5-03, P5-04, P5-06, N10-01, N10-02, N10-06 |
+| `nexus/startup/shutdown_sequencer.py` | partial | N1-08, N3-02, N4-02, N4-07, N5-04, N5-06, N6-01, N6-02, N6-03, N6-04, N6-05, N6-07, N6-08, N6-10, N7-01, N7-02, N7-08, N7-12, N9-01, N10-02 |
 | `nexus/strategy/action.py` | partial | N1-08, N6-03, N6-05, N7-03, N7-11 |
 | `nexus/strategy/action_submit.py` | partial | N1-02, N1-08, N2-05, N4-01, N4-02, N5-02, N5-04, N5-06, N6-08, N6-09, N6-10, N7-03, N7-04, N7-05 |
 | `nexus/strategy/loader.py` | partial | cited, not traced |
-| `nexus/strategy/predict_loop.py` | partial | N7-06, P3-04, P4-39 |
-| `nexus/strategy/runner.py` | partial | cited, not traced |
-| `nexus/strategy/executor.py` | partial | cited, not traced |
-| `nexus/strategy/base.py` | partial | cited, not traced |
-| `nexus/strategy/timer_loop.py` | partial | cited, not traced |
-| `nexus/strategy/context.py` | partial | cited, not traced |
+| `nexus/strategy/predict_loop.py` | partial | N7-06, P3-04, P4-39, N10-02, N10-06 |
+| `nexus/strategy/runner.py` | partial | N10-01, N10-04 |
+| `nexus/strategy/executor.py` | partial | N10-01 |
+| `nexus/strategy/base.py` | partial | N10-03 |
+| `nexus/strategy/timer_loop.py` | partial | N10-02, N10-05, N10-06 |
+| `nexus/strategy/context.py` | partial | N10-06 |
 | the other 17 | uncovered | — |
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-16 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 37 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 33 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
+11 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 42 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 28 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 02:12 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 04:30 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 223 not.**
+**6 of them reviewed, 229 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 53 are named and 17 untouched. Of the 53, 37 carry a row of their own and 16 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 53 are named and 17 untouched. Of the 53, 42 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -743,6 +743,15 @@ what the router refuses follow, both standing before any road arrives — the on
 contract on the strategy itself, the other a lookup every dispatch runs before it
 reaches the wrapper at all. The timer road and what a strategy is handed come
 last, and can be read in either order.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N10-01 | The wrapper every strategy sits behind | written | [the-wrapper-every-strategy-sits-behind.md](atoms/the-wrapper-every-strategy-sits-behind.md) |
+| N10-02 | Which roads reach a strategy | written | [which-roads-reach-a-strategy.md](atoms/which-roads-reach-a-strategy.md) |
+| N10-03 | What a strategy must provide | written | [what-a-strategy-must-provide.md](atoms/what-a-strategy-must-provide.md) |
+| N10-04 | What the router refuses | written | [what-the-router-refuses.md](atoms/what-the-router-refuses.md) |
+| N10-05 | What a turn of a timer does | written | [what-a-turn-of-a-timer-does.md](atoms/what-a-turn-of-a-timer-does.md) |
+| N10-06 | What a strategy is handed | written | [what-a-strategy-is-handed.md](atoms/what-a-strategy-is-handed.md) |
 
 ## Nexus package 9 — which hosts checkpoint, and the roads into the log nothing takes
 
@@ -1898,7 +1907,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-334 | The write waits on that lock only once the pair is attached; before then the guard takes nothing. | `nexus/infrastructure/state_store.py` 219 leaving 220-221 unreached, the pair attached at `praxis/launcher.py` 4141-4143 | Praxis package six | folds into P6-04 |
 | H-338 | Each strategy sits behind a wrapper holding a lock of its own, and every one of the eight ways in takes that lock before the strategy sees anything. | `nexus/strategy/executor.py` 33 made per wrapper, taken at 56, 76, 96, 116, 134, 144, 154 and 164 | Nexus package ten | is N10-01 |
 | H-339 | Because that lock is made one per wrapper, two strategies' callbacks can run at the same moment where one strategy's cannot. | `nexus/strategy/executor.py` 27-33 against `nexus/strategy/runner.py` 52, which holds a wrapper per name | Nexus package ten | folds into N10-01 |
-| H-340 | Outside the tests, each of the eight ways in is reached from exactly one line, and nothing under `praxis/` reaches any of them. | `nexus/startup/sequencer.py` 728, 555 and 592, `nexus/strategy/predict_loop.py` 337, `nexus/core/outcome_loop.py` 420, `nexus/strategy/timer_loop.py` 117, and `nexus/startup/shutdown_sequencer.py` 326 and 818, with no mention of any of the eight anywhere under `praxis/`, and each called again on a real router at `tests/test_strategy_runner.py` 182, 192, 201, 209, 217, 225, 233 and 242 | Nexus package ten | is N10-02 |
+| H-340 | Outside the tests, each of the eight ways in is reached from exactly one line, and nothing under `praxis/` reaches any of them. | `nexus/startup/sequencer.py` 728, 555 and 592, `nexus/strategy/predict_loop.py` 337, `nexus/core/outcome_loop.py` 420, `nexus/strategy/timer_loop.py` 117, and `nexus/startup/shutdown_sequencer.py` 326 and 818, with no mention of any of the eight anywhere under `praxis/` | Nexus package ten | is N10-02 |
 | H-341 | A strategy must provide seven callbacks and may leave the eighth alone, the replay one carrying a body that does nothing with what it is handed. | `nexus/strategy/base.py` 51-52, 64-65, 77-78, 98-99, 120-121, 142-143 and 164-165 against 196, the whole body of the eighth, which discards what it is handed | Nexus package ten | is N10-03 |
 | H-342 | The thing that routes to a strategy refuses three things at the door: a name that is not a string, one that is empty once trimmed, and one it holds no wrapper for. | `nexus/strategy/runner.py` 57-59, or else 63-65, or else 69-71 | Nexus package ten | is N10-04 |
 | H-343 | It is built refusing five more: a mapping that is not one, a key that is not a usable name, a value that is not a wrapper, a wrapper whose own name disagrees with its key, and two keys that trim to one name. | `nexus/strategy/runner.py` 25-27, or 32-34, or 38-40, or 42-44, or 46-48 | Nexus package ten | folds into N10-04 |
@@ -1916,4 +1925,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 04:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-07 04:30 UTC
