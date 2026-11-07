@@ -216,7 +216,7 @@ the others where it appears.
 - [What a strategy is handed](atoms/what-a-strategy-is-handed.md) — the thing a strategy is given on the roads that hand it one is refused if the holdings are not a fixed run of them, if anything in that run is not a holding, if the money figure is not a finite decimal at or above nought, or if the mode is not a named one; once built, nothing on it can be swapped for something else.
 - [What a command is checked for](atoms/what-a-command-is-checked-for.md) — the instruction Nexus hands the trading side checks itself as it is made: what must be present and usable, what may be left out but is rejected when present and wrong, and the deadline given as a true-or-false, which a test placed ahead of the whole-number test catches.
 - [The marker a command's moment must carry](atoms/the-marker-a-commands-moment-must-carry.md) — the timestamp on that instruction is rejected unless it was built with the standard universal-time marker, so a zone that sits at the same offset is turned away, while the other handoffs the same connector makes accept it.
-- [The settings a command rewrites](atoms/the-settings-a-command-rewrites.md) — where mode-specific settings are supplied, the instruction takes a locked copy and keeps that instead of what it was given, so altering the original afterwards changes nothing it carries.
+- [The settings a command rewrites](atoms/the-settings-a-command-rewrites.md) — where mode-specific settings are supplied, the instruction takes a locked copy and keeps that instead of what it was given, and nothing can afterwards be added to that copy, taken out of it, or put in place of what a key already holds.
 - [What each kind of command must carry](atoms/what-each-kind-of-command-must-carry.md) — a new order must name a side, a self-trade setting and either a size or a spend but not both, while a change and a cancel must carry none of those nor any of the execution details, each kind checked against its own copy of the list.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
@@ -333,12 +333,12 @@ made longer, which is why some titles are narrow.
 
 Both sides are the subject, and Praxis is the side that has been written. 234
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
-part and 4 not at all; of the 70 in Nexus, 54 are named and 16
-untouched — 44 carry a row of their own, and 10 are reached by an article or a
+part and 4 not at all; of the 70 in Nexus, 55 are named and 15
+untouched — 44 carry a row of their own, and 11 are reached by an article or a
 recorded finding that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 01:05 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 01:40 UTC

@@ -2,8 +2,10 @@
 row: N11-04
 baseline: 49aa659
 created: 2026-11-08 01:05 UTC
-modified: 2026-11-08 01:05 UTC
+modified: 2026-11-08 01:40 UTC
 evidence:
+  - claim: "The checks each kind makes are reached only once the checks every command makes have passed"
+    source: "`nexus/infrastructure/praxis_connector/trade_command.py` 221, standing after the last of them at 215-219"
   - claim: "A new order must carry a side, a self-trade setting, and exactly one of a size or a spend"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 227-229, or 230-232, or 233-235, or 236-238, all under the test at 226"
   - claim: "A change must carry none of the eleven things beyond the common ones, each refused on its own"
@@ -21,7 +23,7 @@ It must carry a side, a self-trade setting, and exactly one of a size or a spend
 
 ## A change, and a cancel
 
-Neither may carry any of the eleven things a new order may: no side, no size, no spend, no self-trade setting, no way of executing, no kind of order, no settings, no deadline, no maker preference, no reference price, no strategy name.
+Each is refused for carrying any of eleven things: no side, no size, no spend, no self-trade setting, no [way of executing](ways-of-working-a-host-may-drive.md), no [kind of order](order-types.md), no [settings](the-settings-a-command-rewrites.md), no [deadline](deadlines.md), no maker preference, no reference price, no strategy name.
 
 ## Written twice over
 

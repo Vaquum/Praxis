@@ -2,7 +2,7 @@
 row: N11-02
 baseline: 49aa659
 created: 2026-11-08 01:05 UTC
-modified: 2026-11-08 01:05 UTC
+modified: 2026-11-08 01:40 UTC
 evidence:
   - claim: "A command refuses its moment unless that moment carries the UTC marker itself, so a zone standing at UTC is refused"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 133-135, which tests the marker rather than the offset"
@@ -11,11 +11,11 @@ evidence:
 ---
 # The marker a command's moment must carry
 
-A command's moment must carry the UTC marker itself, and a zone that merely stands at UTC is refused.
+[A command's](what-a-command-is-checked-for.md) moment must carry the UTC marker itself, and a zone that merely stands at UTC is refused.
 
-## What the test asks
+## The marker the test reads
 
-Not what the moment comes to, but which marker it was built with. Two moments naming the same instant are treated differently where one was built with the marker and the other with a zone that happens to sit at the same offset.
+Which marker the moment was built with. Two moments naming the same instant are treated differently where one was built with the marker and the other with a zone that happens to sit at the same offset.
 
 ## Where the same connector asks otherwise
 

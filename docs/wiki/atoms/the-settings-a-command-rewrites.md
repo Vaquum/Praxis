@@ -2,7 +2,7 @@
 row: N11-03
 baseline: 49aa659
 created: 2026-11-08 01:05 UTC
-modified: 2026-11-08 01:05 UTC
+modified: 2026-11-08 01:40 UTC
 evidence:
   - claim: "Where a command is handed settings, it refuses anything that is not a mapping"
     source: "`nexus/infrastructure/praxis_connector/trade_command.py` 183 into 184-186"
@@ -11,15 +11,15 @@ evidence:
 ---
 # The settings a command rewrites
 
-Where a command is handed settings it keeps a sealed copy of its own making.
+Where [a command](what-a-command-is-checked-for.md) is handed settings it keeps a sealed copy of its own making.
 
-## What it refuses, and what it does instead
+## The mapping test, and the copy after it
 
-Anything that is not a mapping is refused. A mapping is accepted — and then copied and sealed, and the copy written over the command's own field in place of what arrived.
+Where settings are there at all, anything that is not a mapping is refused. A mapping is accepted — and then copied and sealed, and the copy written over the command's own field in place of what arrived.
 
-## Why that is worth knowing
+## The sealed copy
 
-Every other check this command makes on itself refuses or passes. This one changes what the command holds. A caller that keeps the mapping it handed over and alters it afterwards changes nothing the command carries.
+Its own copy, sealed: nothing can be added to it, taken out of it, or put in place of what one of its keys already holds.
 
 ## Related
 
