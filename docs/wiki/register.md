@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 349 not.**
+**6 of them reviewed, 351 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 46 — the two figures a replay works out for itself
+
+Scope: the module building a replay's report, which the ledger marks `partial`
+with forty-four of its hundred and twenty-five statements uncited. Articles have
+where the figures come from and what the report carries. Two figures the module
+works out itself — the worst fall and the risk-adjusted return — are in no
+article, and the second answers nothing in four different ways.
+
+### Merge and promote, package 46
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-669 | The worst fall takes its first peak from the series' own first value, keeps the largest drop from a running peak as a share of that peak, and answers nought for an empty series. | Promote. The worst fall is in no article, and where its peak begins is the opposite of where the training side's begins |
+| Row H-670 | A peak at or below nought is passed over rather than divided by, so a series starting at nought reports no fall until it rises. | Merge with H-669, the one case the division is skipped for |
+| Row H-671 | The risk-adjusted figure answers nothing where the interval is at or below nought, where fewer than two returns can be formed, or where the spread of those returns is nought. | Promote. A figure with four ways of being absent is a subject of its own, and nothing states any of them |
+| Row H-672 | A step whose previous value is at or below nought forms no return, so a series passing through nought has gaps the figure never sees. | Merge with H-671, the fourth absence and the quietest |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P46-01 | The worst fall a replay reports | written | [the-worst-fall-a-replay-reports.md](atoms/the-worst-fall-a-replay-reports.md) |
+| P46-02 | When the risk-adjusted figure is absent | written | [when-the-risk-adjusted-figure-is-absent.md](atoms/when-the-risk-adjusted-figure-is-absent.md) |
+
+### Re-seed, after writing package 46
+
+The reader had both articles before they were committed. The worst fall came back
+clean; the risk-adjusted figure had five reports, and four of them were arithmetic.
+
+| What it found | What came of it |
+|---|---|
+| The scaling is the square root of how many intervals fit a year, not the count. | Corrected |
+| The spread in the ratio is the square root of the variance, and it is the variance that is divided by one fewer than the count. | Corrected, and said in those terms |
+| A zero variance is not every step moving by the same amount: the returns are proportional, so equal money steps give unequal returns and a steadily compounding series gives equal ones. | The gloss is replaced with every return being exactly the mean |
+| The step that forms no return does not make the figure absent on its own. There are three ways to empty it, not four; the fourth can only starve the count until the second answers. | The article is rebuilt around three, with the step as its own section |
+| A constant named in the module was cited at the wrong line. | Corrected |
+
+Four arithmetic errors in one article is the worst showing of this run, and they
+share a cause: each was written from what the figure is called rather than from
+the expression. A risk-adjusted return is conventionally the mean over the
+standard deviation times the square root of the periods, which is what the code
+computes — but it was written down from the convention rather than read off the
+lines, and the one place the code departs from convention was described as though
+it did not.
 
 ## Nexus package 45 — what the risk records refuse, and the figures they do not store
 
@@ -4919,8 +4964,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-666 | The account's record holds eleven figures to being finite and at or above nought, and three to being finite alone. | `nexus/core/domain/risk_state.py` 175-177 and 179-195, or 197-201 | Nexus package forty-five | folds into N45-01 |
 | H-667 | Its mapping of strategies refuses a value of the wrong kind, and a key differing from the name inside its value. | `nexus/core/domain/risk_state.py` 203-206, or 207-209 | Nexus package forty-five | folds into N45-01 |
 | H-668 | Four of the account's figures are not stored at all: the three rolling losses and the realized total are summed over the strategies each time they are read. | `nexus/core/domain/risk_state.py` 215, or 221, or 227, or 233 | Nexus package forty-five | is N45-02 |
+| H-669 | The worst fall takes its first peak from the series' own first value, keeps the largest drop from a running peak as a share of that peak, and answers nought for an empty series. | `praxis/replay/build_replay_report.py` 391-392, or 394-395 into 397-404 | Praxis package forty-six | is P46-01 |
+| H-670 | A peak at or below nought is passed over rather than divided by, so a series starting at nought reports no fall until it rises. | `praxis/replay/build_replay_report.py` 401-402 | Praxis package forty-six | folds into P46-01 |
+| H-671 | The risk-adjusted figure answers nothing where the interval is at or below nought, where fewer than two returns can be formed, or where the spread of those returns is nought. | `praxis/replay/build_replay_report.py` 409-410, or 418-419, or 424-425 | Praxis package forty-six | is P46-02 |
+| H-672 | A step whose previous value is at or below nought forms no return, so a series passing through nought has gaps the figure never sees. | `praxis/replay/build_replay_report.py` 412-416 | Praxis package forty-six | folds into P46-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 03:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 04:00 UTC
