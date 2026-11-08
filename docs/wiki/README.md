@@ -229,6 +229,13 @@ the others where it appears.
 - [What a note for an outcome is checked for](atoms/what-a-note-for-an-outcome-is-checked-for.md) — the note carried alongside an order is rejected unless its two required identifiers are usable text, its direction is a recognised one, its two true-or-false fields really are, and its money amount and expected fee are real numbers with the amount above zero.
 - [The size a note may leave out](atoms/the-size-a-note-may-leave-out.md) — the quantity may be omitted only when the order adds to a holding, an omission clearing that one check; a quantity that is supplied must be a real number above zero, and those two tests ignore the field that allowed the omission.
 - [The flag saying an order grows a position](atoms/the-flag-saying-an-order-grows-a-position.md) — that metadata states whether the order adds to a holding, nothing compares the statement with the buy-or-sell direction, the opposite reading is worked out on demand, and a record setting both that statement and the other true-or-false field it carries is rejected by that check, which either of them standing false clears.
+- [What a strategy event is checked for](atoms/what-a-strategy-event-is-checked-for.md) — the record logged so a running loss tally can be rebuilt is rejected unless its strategy identifier and its kind are usable text and its timestamp carries the standard universal-time marker, and its profit-or-loss figure must be a decimal rather than a plain whole number, with no check comparing that figure against zero.
+- [The empty reference a strategy event allows](atoms/the-empty-reference-a-strategy-event-allows.md) — one field of that record is rejected when it is blank but accepted when it is empty, because the test asks whether there is any content before trimming, and empty is the only way the record can say the field was not filled in.
+- [What a predictor's signal is checked for](atoms/what-a-predictors-signal-is-checked-for.md) — the output of a prediction is rejected unless its identifier is usable text, its payload is a dictionary with text keys, and its timestamp carries the standard universal-time marker, where whole, floating and decimal payload entries must be finite and entries of any other kind are not examined at all.
+- [The sealing three records do](atoms/the-sealing-three-records-do.md) — three records each copy a mapping they were given and lock the copy by one statement apiece, so the caller can no longer change which entries the record has, but the copy points at the same objects, so changing one of those objects in place does change what the record holds; shipping one of these records between processes unlocks and relocks it, running its checks a second time.
+- [What a strategy's settings ask and answer](atoms/what-a-strategys-settings-ask-and-answer.md) — user-supplied configuration is rejected unless it is a dictionary, nothing inside it is examined, and asking for a setting it lacks returns whatever default the caller named.
+- [What a lost protection is reported with](atoms/what-a-lost-protection-is-reported-with.md) — the notice that a bracket's safety orders could not be restored walks its account, its own identifier, the entry's identifier and the reason by name requiring usable text in each, requires a timestamp with the standard universal-time marker, and requires a whole number of one or more for the attempt count, with a true-or-false caught by a test placed ahead of the whole-number test.
+- [The limits that may be left out](atoms/the-limits-that-may-be-left-out.md) — three configured risk limits may each be omitted and an omitted one is skipped before its own value is examined, while a limit that is supplied must be a finite decimal above zero, so zero is rejected and omission is the only way to leave one unset.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -342,14 +349,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 245
+Both sides are the subject, and Praxis is the side that has been written. 252
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 63 are named and 7
-untouched — 47 carry a row of their own, and 16 are reached by an article or a
+untouched — 52 carry a row of their own, and 11 are reached by an article or a
 recorded finding that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 20:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 23:20 UTC

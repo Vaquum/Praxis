@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 244 not.**
+**6 of them reviewed, 251 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 63 are named and 7 untouched. Of the 63, 47 carry a row of their own and 16 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 63 are named and 7 untouched. Of the 63, 52 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -710,7 +710,7 @@ line, and a third record on this side already has an article for doing the same.
 | Row H-392 | Its moment must be a moment, and must carry the UTC marker itself. | Merge with H-390, the same subject read on past the reference and the kind |
 | Row H-393 | The outcome's reference must be text, and empty text is allowed where text with nothing left in it once trimmed is refused. | Promote. A field whose empty value is allowed and whose blank value is refused is a subject of its own: the record has no way of saying the field is missing except by that empty text, and no article reaches it |
 | Row H-394 | That field cannot be left as a none at all: empty text is what stands for its absence, and the record names that empty text as its own default. | Merge with H-393. The reason the empty text has to be allowed is that nothing else can stand for the field being missing, which is the half that makes the first worth reading |
-| Row H-395 | Every signal is refused unless the predictor's reference is text with something left in it once trimmed, and unless what it was handed for its values is a mapping. | Promote. What the signal a predictor hands back is checked for is in no article |
+| Row H-395 | Every signal is refused unless the predictor's reference is text with something left in it once trimmed, and unless what it was handed for its values is a dictionary. | Promote. What the signal a predictor hands back is checked for is in no article |
 | Row H-396 | Every key in those values must be text. | Merge with H-395, the first of the two things asked of what the mapping holds |
 | Row H-397 | A value that is a whole number or a floating one must be finite, and so must a decimal one, where a value of any other kind is weighed in no way at all. | Merge with H-395. That the checks reach only the numbers and let everything else by is the sharpest of them and reads only beside the rest |
 | Row H-398 | Its moment must be a moment, and must carry the UTC marker itself. | Merge with H-395, the same subject read on past the values |
@@ -719,7 +719,7 @@ line, and a third record on this side already has an article for doing the same.
 | Row H-403 | That mapping is copied and sealed over the field it arrived in, by the same line the signal beside it uses. | Merge with H-399. The settings a strategy is configured with are sealed by the same line, so the same thing holds and the same thing is left alone |
 | Row H-410 | The command's settings are sealed by the same line, so the same thing holds there: a caller reaching into one of the objects its entries hold alters what the command holds. | Merge with H-399. This is the candidate package eleven's re-seed left open, and it is the same line in a third module, so it is written here rather than left standing |
 | Row H-401 | A signal shipped across a process boundary is rebuilt from three parts with its values unsealed, and the rebuilding runs every one of its checks again. | Merge with H-399. The rebuilding hands the values over unsealed and the rebuilt record seals them again, so it exists to undo and redo exactly what the sealing did, and the two read together |
-| Row H-402 | A parameter set is refused unless what it was handed is a mapping, and nothing else about it is weighed. | Promote. The settings a strategy is configured with are the thinnest record on this side, asking one thing and answering one, and no article reaches them |
+| Row H-402 | A parameter set is refused unless what it was handed is a dictionary, and nothing else about it is weighed. | Promote. The settings a strategy is configured with are the thinnest record on this side, asking one thing and answering one, and no article reaches them |
 | Row H-404 | Asking a parameter set for something it does not hold answers with whatever the asking named as its default. | Merge with H-402, the one thing it answers beside the one thing it asks |
 | Row H-405 | Four of its fields are walked by name, and each is refused unless it is text with something left in it once trimmed. | Promote. What the word that a bracket's protection was lost and dealt with is checked for is in no article |
 | Row H-406 | Its moment must be a moment and must carry the UTC marker itself, both weighed by one test rather than two. | Merge with H-405, the same subject read on past the four |
@@ -739,6 +739,16 @@ rather than inside any of them: the sealing of a mapping, which is the same line
 all three, and whose two halves — what it reaches, and what it leaves shared — only
 read together. The crossing of a process boundary goes with it because what
 crosses is the sealing undone and then done again.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N14-01 | What a strategy event is checked for | written | [what-a-strategy-event-is-checked-for.md](atoms/what-a-strategy-event-is-checked-for.md) |
+| N14-02 | The empty reference a strategy event allows | written | [the-empty-reference-a-strategy-event-allows.md](atoms/the-empty-reference-a-strategy-event-allows.md) |
+| N14-03 | What a predictor's signal is checked for | written | [what-a-predictors-signal-is-checked-for.md](atoms/what-a-predictors-signal-is-checked-for.md) |
+| N14-04 | The sealing three records do | written | [the-sealing-three-records-do.md](atoms/the-sealing-three-records-do.md) |
+| N14-05 | What a strategy's settings ask and answer | written | [what-a-strategys-settings-ask-and-answer.md](atoms/what-a-strategys-settings-ask-and-answer.md) |
+| N14-06 | What a lost protection is reported with | written | [what-a-lost-protection-is-reported-with.md](atoms/what-a-lost-protection-is-reported-with.md) |
+| N14-07 | The limits that may be left out | written | [the-limits-that-may-be-left-out.md](atoms/the-limits-that-may-be-left-out.md) |
 
 ## Nexus package 13 — what a capital lock and an order's context refuse
 
@@ -2305,14 +2315,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-392 | Its moment must be a moment, and must carry the UTC marker itself. | `nexus/infrastructure/strategy_event.py` 71-73, or 75-77 | Nexus package fourteen | folds into N14-01 |
 | H-393 | The outcome's reference must be text, and empty text is allowed where text with nothing left in it once trimmed is refused. | `nexus/infrastructure/strategy_event.py` 79-81, or else 83-89 | Nexus package fourteen | is N14-02 |
 | H-394 | That field cannot be left as a none at all: empty text is what stands for its absence, and the record names that empty text as its own default. | `nexus/infrastructure/strategy_event.py` 79-81, which refuses a none, with the default at 51 | Nexus package fourteen | folds into N14-02 |
-| H-395 | Every signal is refused unless the predictor's reference is text with something left in it once trimmed, and unless what it was handed for its values is a mapping. | `nexus/strategy/signal.py` 32-34, or 36-38 | Nexus package fourteen | is N14-03 |
+| H-395 | Every signal is refused unless the predictor's reference is text with something left in it once trimmed, and unless what it was handed for its values is a dictionary. | `nexus/strategy/signal.py` 32-34, or 36-38 | Nexus package fourteen | is N14-03 |
 | H-396 | Every key in those values must be text. | `nexus/strategy/signal.py` 40 into 41-43 | Nexus package fourteen | folds into N14-03 |
 | H-397 | A value that is a whole number or a floating one must be finite, and so must a decimal one, where a value of any other kind is weighed in no way at all. | `nexus/strategy/signal.py` 45-47, or 49-51, with 40-51 weighing nothing else | Nexus package fourteen | folds into N14-03 |
 | H-398 | Its moment must be a moment, and must carry the UTC marker itself. | `nexus/strategy/signal.py` 53-55, or 57-59 | Nexus package fourteen | folds into N14-03 |
 | H-399 | The values are copied and sealed over the field they arrived in, so a caller altering which entries its own mapping holds changes nothing the signal's mapping holds. | `nexus/strategy/signal.py` 61 | Nexus package fourteen | is N14-04 |
 | H-400 | Sealing a copy of the entries leaves the object each entry holds shared, so a caller reaching into one of those and altering it alters what the signal holds. | `nexus/strategy/signal.py` 61, which copies the mapping and not the objects its entries hold | Nexus package fourteen | folds into N14-04 |
 | H-401 | A signal shipped across a process boundary is rebuilt from three parts with its values unsealed, and the rebuilding runs every one of its checks again. | `nexus/strategy/signal.py` 78-81 into 29-59 | Nexus package fourteen | folds into N14-04 |
-| H-402 | A parameter set is refused unless what it was handed is a mapping, and nothing else about it is weighed. | `nexus/strategy/params.py` 27-29, with 24-31 weighing nothing else | Nexus package fourteen | is N14-05 |
+| H-402 | A parameter set is refused unless what it was handed is a dictionary, and nothing else about it is weighed. | `nexus/strategy/params.py` 27-29, with 24-31 weighing nothing else | Nexus package fourteen | is N14-05 |
 | H-403 | That mapping is copied and sealed over the field it arrived in, by the same line the signal beside it uses. | `nexus/strategy/params.py` 31, the same at `nexus/strategy/signal.py` 61 | Nexus package fourteen | folds into N14-04 |
 | H-404 | Asking a parameter set for something it does not hold answers with whatever the asking named as its default. | `nexus/strategy/params.py` 44 | Nexus package fourteen | folds into N14-05 |
 | H-405 | Four of its fields are walked by name, and each is refused unless it is text with something left in it once trimmed. | `nexus/infrastructure/praxis_connector/protection_remediation.py` 41-42 over the four names, into 45-47 | Nexus package fourteen | is N14-06 |
@@ -2325,4 +2335,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 23:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 23:20 UTC
