@@ -803,6 +803,37 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 9 — the health report's own record, and the bucket of permissions
+
+Scope: two modules the ledger marks `full` with nothing of their own behaviour
+cited. The record of how the venue is answering has every statement of its checks
+uncited; the bucket that paces calls to the venue has ten of nineteen.
+
+The first is the same record the Nexus side carries, written out a second time. The
+second reserves what it is about to spend before it waits, and gives it back where
+the wait is cut short.
+
+### Merge and promote, package 9
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-504 | The report of how the venue is answering holds four of its figures to being finite numbers at or above nought, a true-or-false refused outright. | Promote. What this record refuses is in no article, where the article on health has what the figures mean and who reads them |
+| Row H-505 | Two of those four are then held to a ceiling of one. | Merge with H-504, the two shares and the only ceiling the record puts on anything |
+| Row H-506 | The count of failures in a row is held apart from the four: a whole number, a true-or-false refused, and at or above nought. | Merge with H-504, the one figure of the five the first walk does not reach |
+| Row H-507 | The record on the Nexus side holds the same five figures to the same rules, written out separately, and nothing compares the two. | Promote. A record written twice across the seam, with no check that the copies agree, is the third such pair the wiki has found, and the second where logic rather than a list of names is written out twice |
+| Row H-508 | A bucket of permissions refuses a rate at or below nought and a capacity at or below nought. | Promote. What the bucket that paces calls to the venue refuses, and how it refills, is in no article |
+| Row H-509 | It starts with as many tokens as its capacity. | Merge with H-508, what the record is before anything is taken |
+| Row H-510 | A take refills by the time elapsed times the rate, capped at the capacity, and notes the moment it refilled at. | Merge with H-508. The refilling is the whole of what the bucket does besides refuse, and it reads with what it refuses |
+| Row H-511 | The wait is worked out where fewer than one token is left, and the token is taken whether one was there or not, so the count can fall below nought and the next wait grow longer. | Promote. A count that can stand below nought, and a wait that lengthens because of it, is a subject of its own: it is how the bucket paces rather than blocks |
+| Row H-512 | The waiting happens after the lock is let go. | Merge with H-511. Taking before waiting is what lets the lock go early, so the two read together |
+| Row H-513 | A cancellation during the wait puts one token back, capped at the capacity, and raises on. | Merge with H-511. The refund exists because the take came first, so it belongs with the taking |
+
+Four subjects promote and six rows merge, with nothing declined.
+
+The record comes first with what it refuses, and the copy across the seam second.
+The bucket follows: what it refuses and how it refills, then the taking that
+happens before the waiting and what is put back when the waiting is cut short.
+
 ## Package 8 — what the records answer, and the checks nothing reached
 
 Scope: the behaviour left uncited in modules the ledger already marks `full`, found
@@ -2980,8 +3011,18 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-501 | A replay clock refuses a start carrying no zone, and keeps the one it is given. | `praxis/replay/replay_clock.py` 29-31, or else 33 | Praxis package eight | is P8-03 |
 | H-502 | An alert gives back the severity it actually used, and the telling that posts takes that answer rather than what it was handed. | `praxis/infrastructure/alert_sink.py` 53, read at 58 | Praxis package eight | is P8-04 |
 | H-503 | A price store asked for no clock of its own uses one answering the current moment in UTC. | `praxis/arrow_price_store.py` 34-37 | Praxis package eight | folds into P8-03 |
+| H-504 | The report of how the venue is answering holds four of its figures to being finite numbers at or above nought, a true-or-false refused outright. | `praxis/core/domain/health_snapshot.py` 43-48 into 50-57 | Praxis package nine | is P9-01 |
+| H-505 | Two of those four are then held to a ceiling of one. | `praxis/core/domain/health_snapshot.py` 59-61 into 62-63 | Praxis package nine | folds into P9-01 |
+| H-506 | The count of failures in a row is held apart from the four: a whole number, a true-or-false refused, and at or above nought. | `praxis/core/domain/health_snapshot.py` 65-68 into 69-70, or 72-74 | Praxis package nine | folds into P9-01 |
+| H-507 | The record on the Nexus side holds the same five figures to the same rules, written out separately, and nothing compares the two. | `praxis/core/domain/health_snapshot.py` 43-74, against `nexus/core/health_evaluator.py` 40-58 | Praxis package nine | is P9-02 |
+| H-508 | A bucket of permissions refuses a rate at or below nought and a capacity at or below nought. | `praxis/infrastructure/token_bucket.py` 45-47, or 49-51 | Praxis package nine | is P9-03 |
+| H-509 | It starts with as many tokens as its capacity. | `praxis/infrastructure/token_bucket.py` 55 | Praxis package nine | folds into P9-03 |
+| H-510 | A take refills by the time elapsed times the rate, capped at the capacity, and notes the moment it refilled at. | `praxis/infrastructure/token_bucket.py` 75-80 | Praxis package nine | folds into P9-03 |
+| H-511 | The wait is worked out where fewer than one token is left, and the token is taken whether one was there or not, so the count can fall below nought and the next wait grow longer. | `praxis/infrastructure/token_bucket.py` 82 into 83 | Praxis package nine | is P9-04 |
+| H-512 | The waiting happens after the lock is let go. | `praxis/infrastructure/token_bucket.py` 85-87, the lock opened at 74 | Praxis package nine | folds into P9-04 |
+| H-513 | A cancellation during the wait puts one token back, capped at the capacity, and raises on. | `praxis/infrastructure/token_bucket.py` 88-94, then 95 | Praxis package nine | folds into P9-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 03:10 UTC
