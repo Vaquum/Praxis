@@ -113,16 +113,16 @@ Every Praxis module is named here: 49 are `full` and 39 `partial`, with none `un
 | `nexus/core/domain/capital_state.py` | partial | N1-01, N2-02, N3-02, N3-04, N3-05, N3-06, N3-08, N3-09, N4-01, N4-06, N7-10, P5-04 |
 | `nexus/core/domain/position.py` | partial | N2-01, N2-06, N3-01, N4-03, N4-05, N6-02 |
 | `nexus/core/domain/instance_state.py` | partial | N3-01, N3-02, N7-08, P5-04 |
-| `nexus/core/domain/risk_state.py` | partial | N2-04, N3-03, N7-09, P18-01 |
+| `nexus/core/domain/risk_state.py` | partial | N19-01, N2-04, N3-03, N7-09, P18-01 |
 | `nexus/core/validator/pipeline_executor.py` | partial | N1-03, N1-04, N1-08, N2-06, N3-08, N4-07 |
 | `nexus/core/validator/pipeline_models.py` | partial | N1-02, N1-03, N1-04, N3-05, N4-07, N5-06, N6-10, N16-01 |
 | `nexus/core/outcome_loop.py` | partial | N1-05, N1-07, N3-07, N6-05, N6-07, N6-09, N6-11, N10-02, N10-06 |
 | `nexus/core/health_evaluator.py` | full | N15-01, N15-02, N15-03, N15-04, N15-05, P3-15, P9-02 |
 | `nexus/core/validator/capital_stage.py` | partial | N1-03, N2-03, N3-08, P6-04 |
-| `nexus/core/validator/health_stage.py` | partial | N2-03 |
+| `nexus/core/validator/health_stage.py` | partial | N19-02, N2-03 |
 | `nexus/core/validator/intake_stage.py` | partial | N2-03, N2-06, N3-05, N4-02, N4-07, N5-06, N6-01, N6-10, N7-03, N7-10, N8-06, N8-07 |
 | `nexus/core/validator/platform_limits_stage.py` | partial | N2-03, N2-06 |
-| `nexus/core/validator/risk_stage.py` | partial | N2-03, N2-04 |
+| `nexus/core/validator/risk_stage.py` | partial | N19-01, N19-02, N2-03, N2-04 |
 | `nexus/core/validator/price_stage.py` | partial | N2-03, N2-07, P2-26 |
 | `nexus/core/health_loop.py` | partial | N6-01, N6-11, N15-05, N15-06, P3-15 |
 | `nexus/core/mode_controller.py` | partial | N2-04, N6-01, N7-09, N8-03, P3-20, P4-43, N15-06 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 22:30 UTC

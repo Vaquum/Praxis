@@ -296,6 +296,8 @@ the others where it appears.
 - [What an even split refuses](atoms/what-an-even-split-refuses.md) — the quantity is checked for being an exact finite positive Decimal and the child count only for being at least two, so a fractional count slips past and is rejected by the arithmetic instead, and where the venue's lot size is unknown the children are the quantity over the count with no minimum child size at all, the last taking the remainder of what the division produced rather than restoring digits the division dropped.
 - [What a start reads back from a checkpoint](atoms/what-a-start-reads-back-from-a-checkpoint.md) — the stored state is read first and then overlaid by whatever state-change records the log still holds, a missing snapshot file reading as nothing at all rather than as an error, while the per-strategy loss figures are recomputed from the surviving events and the peak figures kept at whichever is larger, stored or recomputed.
 - [What a weighted split asks of its weights](atoms/what-a-weighted-split-refuses.md) — the quantity and the number of weights are checked exactly as in the even split while the weight values are used untested, their type, sign and sum being enforced instead by whichever parameter record supplies them, and the final weight is never read at all because the final child is simply the quantity's remainder.
+- [What a risk limit must be](atoms/what-a-risk-limit-must-be.md) — each configured limit may be omitted, and one that is supplied has to be a finite Decimal of zero or more; omitting a limit skips only its comparison, since every metric is computed and paired with its limit beforehand, and the comparison is strict, so a metric sitting exactly on its limit is allowed.
+- [The levels the risk stage never reaches](atoms/the-levels-the-risk-stage-never-reaches.md) — the walk over the account's losses returns either a breach or nothing, never a warning or a halt, so the branch that converts a breach or a halt into a rejection has one arm that cannot fire here, though the identically written branch in the health stage has both live.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -409,7 +411,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 312
+Both sides are the subject, and Praxis is the side that has been written. 314
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -420,4 +422,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 21:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 22:30 UTC

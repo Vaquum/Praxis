@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 311 not.**
+**6 of them reviewed, 313 not.**
 
 ## Package 1
 
@@ -1621,6 +1621,11 @@ Two subjects promote and two rows merge, with nothing declined.
 
 What a limit must be comes first, since the walk cannot say anything until a limit
 is set. What the stage can answer with comes second.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N19-01 | What a risk limit must be | written | [what-a-risk-limit-must-be.md](atoms/what-a-risk-limit-must-be.md) |
+| N19-02 | The levels the risk stage never reaches | written | [the-levels-the-risk-stage-never-reaches.md](atoms/the-levels-the-risk-stage-never-reaches.md) |
 
 ## Nexus package 18 — the last corners of the small records
 
@@ -3807,4 +3812,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:45 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 22:30 UTC
