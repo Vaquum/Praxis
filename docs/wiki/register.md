@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 361 not.**
+**6 of them reviewed, 363 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 53 — what each action is submitted inside, and what never reaches capital
+
+Scope: the submitting of a strategy's actions, which the ledger marks `partial`
+with fifty-eight of its hundred and eighteen statements uncited. Articles have the
+roads around the checks and what a pending sale is. What is bound around each
+action, and the three reasons a submission never reaches the capital side, are in
+no article.
+
+### Merge and promote, Nexus package 53
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-697 | Each action is submitted inside a bound context naming the strategy and the kind of action, with the trade and the command named too where the action carries them. | Promote. What is bound around an action is in no article, and it is why every line written inside can be read back to one action |
+| Row H-698 | An abort is answered inside that context before any context for the checks is built. | Merge with H-697, the first fork inside it |
+| Row H-699 | A builder of that context that raises is caught, the action answered as a failed submission carrying the builder's words, and the rest of the actions go on. | Merge with H-697. One action's failure not ending the turn is the half a reader would get wrong |
+| Row H-700 | A submission becomes a tracked order only where it was submitted, carries a command name, and carries a decision with money set aside — three skips, three kinds of action reaching the third without failing. | Promote. What becomes a tracked order is in no article. The seeding called these three reasons a submission never reaches capital, which the reader's pass showed to be the wrong direction: the money is set aside before the send |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N53-01 | What each action is submitted inside | written | [what-each-action-is-submitted-inside.md](atoms/what-each-action-is-submitted-inside.md) |
+| N53-02 | When a submission does not reach capital | written | [when-a-submission-does-not-reach-capital.md](atoms/when-a-submission-does-not-reach-capital.md) |
+
+### Re-seed, after writing Nexus package 53
+
+The reader had both articles before they were committed and returned eight
+reports. Five of them are one mistake, and it is the largest of this run.
+
+| What it found | What came of it |
+|---|---|
+| The money is set aside before the command is sent. So the three skips are not three reasons a submission never reaches the capital side: they are three reasons no tracked order is made from an answer, and in one of them — a send that timed out — the setting aside has already happened and the handover is already registered. | N53-02 is rebuilt around that. Its lead says none of the three means the money was left alone, and its close says what a skip does and does not mean |
+| Three kinds of action reach the third skip without failing, not two: an abort, an exit and a change. | Counted again and corrected |
+| A status that is not submitted includes one that is unknown after a handover, which is not a failure. | The characterisation of the first skip as a failure is gone |
+| Nothing in the bound context names the action itself, so two entries from one strategy are told apart only by what else they carry. | N53-01 says so |
+| The catch around the context builder reaches ordinary failures, and the answers go to the submitting's caller rather than to the strategy. | Both corrected |
+
+The large mistake is a direction-of-travel error. The article was written from the
+name of the thing it described — a bridge to capital — and read that as the place
+capital is reached. Capital is reached earlier, by a different call, and this one
+only converts the answer afterwards. Reading the order of the calls would have
+shown it; reading the one function did not.
 
 ## Nexus package 52 — the lock the marking insists on, and the mark that ends a turn
 
@@ -5238,8 +5281,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-694 | A turn reads the symbols under the lock, fetches the marks outside it, and reads the positions under it again. | `nexus/core/mtm_loop.py` 218 into 224-227, then 230-231 outside, then 248 into 254 | Nexus package fifty-two | is N52-02 |
 | H-695 | One mark that is missing, or not a finite figure of the exact kind, ends the whole turn rather than that symbol's part of it. | `nexus/core/mtm_loop.py` 232-237, or 239-244 | Nexus package fifty-two | folds into N52-02 |
 | H-696 | A turn finding no positions zeroes every strategy's unrealized figure and the account's, where either stood at something. | `nexus/core/mtm_loop.py` 256-267 | Nexus package fifty-two | folds into N52-02 |
+| H-697 | Each action is submitted inside a bound context naming the strategy and the kind of action, with the trade and the command named too where the action carries them. | `nexus/strategy/action_submit.py` 191-198 into 200 | Nexus package fifty-three | is N53-01 |
+| H-698 | An abort is answered inside that context before any context for the checks is built. | `nexus/strategy/action_submit.py` 201-203 | Nexus package fifty-three | folds into N53-01 |
+| H-699 | A builder of that context that raises is caught, the action answered as a failed submission carrying the builder's words, and the rest of the actions go on. | `nexus/strategy/action_submit.py` 205-222 | Nexus package fifty-three | folds into N53-01 |
+| H-700 | A submission reaches the capital side only where it was submitted, carries a command name, and carries a decision with money set aside. | `nexus/strategy/action_submit.py` 552-557, or 559-564, or 566-571 | Nexus package fifty-three | is N53-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 10:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 11:00 UTC
