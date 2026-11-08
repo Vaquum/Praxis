@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 322 not.**
+**6 of them reviewed, 324 not.**
 
 ## Package 1
 
@@ -856,6 +856,44 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 26 — what the translator remembers, and the words an ending carries
+
+Scope: the thing that turns a Praxis outcome into the shape Nexus reads, which the
+ledger marks `partial` with fourteen of its eighty-four statements uncited. Three
+articles reach it. How many finished commands it remembers, what remembering one
+does, and the words a refusal and an ending carry are in no article.
+
+### Merge and promote, package 26
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-606 | The cap on remembered finished commands must be a whole number above nought, and a true-or-false of true passes as a cap of one. | Promote. What the translator remembers is in no article, and this is the first record on either side where a true-or-false passes a whole-number test with nothing standing in its way |
+| Row H-607 | Marking a command finished sets its flag, files its name, moves that name to the end, drops the oldest names past the cap, and forgets the command's own record. | Merge with H-606. The cap means nothing without the dropping it bounds, and the forgetting is what the remembering replaces |
+| Row H-608 | A refusal with no reason of its own is given the word for being refused. | Promote. The words an ending carries across the seam are in no article |
+| Row H-609 | An ending that is an expiry carries no reason at all, and any other ending carries its own where it has one. | Merge with H-608, the other ending the same step builds |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P26-01 | What the translator remembers | written | [what-the-translator-remembers.md](atoms/what-the-translator-remembers.md) |
+| P26-02 | The words an ending carries | written | [the-words-an-ending-carries.md](atoms/the-words-an-ending-carries.md) |
+
+### Re-seed, after writing package 26
+
+The reader had both articles before they were committed and returned four reports,
+one of which turned into the better half of an article.
+
+| What it found | What came of it |
+|---|---|
+| A reason of blank space is not replaced. It counts as something to the test here, so it is kept and passed to a record that asks for something left once the blank space is trimmed — which refuses it, so translating such an outcome raises. | P26-02 has a section of its own for it. This is where the leniency the register has recorded on the Praxis side, of names tested for truth rather than content, meets a record across the seam that will not have it |
+| A cap of true bounds the filing at one rather than holding one. | P26-01 says bounds |
+| The running and the finished are not an exhaustive pair: an outcome for a command whose name has been dropped for age is given a fresh record and translated on its own terms. | P26-01 has that as what a dropped name costs, which is a better close than the pairing it replaced |
+| The lead promised words for every refusal and ending, where a cancellation may carry none. | The lead now says may |
+
+The first of those is recorded as a finding rather than a candidate, since it is
+written: a blank-space reason reaching the seam raises inside the translation.
 
 ## Package 25 — the interval each scheduler is built with
 
@@ -4141,8 +4179,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-603 | The interval must be a number above nought, with a true-or-false refused outright, and is kept as a plain number. | `nexus/infrastructure/snapshot_scheduler.py` 51-57, kept at 61 | Nexus package twenty-five | is N25-01 |
 | H-604 | Starting takes the lock and does nothing where the timer is already running. | `nexus/infrastructure/snapshot_scheduler.py` 75-77, or else 79-80 | Nexus package twenty-five | folds into N25-01 |
 | H-605 | Scheduling the next tick does nothing once the running mark has gone, so a stop between ticks ends the chain. | `nexus/infrastructure/snapshot_scheduler.py` 111-112 | Nexus package twenty-five | folds into N25-01 |
+| H-606 | The cap on remembered finished commands must be a whole number above nought, and a true-or-false of true passes as a cap of one. | `praxis/outcome_translator.py` 126-128, kept at 133 and read at 259-260 | Praxis package twenty-six | is P26-01 |
+| H-607 | Marking a command finished sets its flag, files its name, moves that name to the end, drops the oldest names past the cap, and forgets the command's own record. | `praxis/outcome_translator.py` 256-261 | Praxis package twenty-six | folds into P26-01 |
+| H-608 | A refusal with no reason of its own is given the word for being refused. | `praxis/outcome_translator.py` 329 into 336 | Praxis package twenty-six | is P26-02 |
+| H-609 | An ending that is an expiry carries no reason at all, and any other ending carries its own where it has one. | `praxis/outcome_translator.py` 341-343, or else 344-346 | Praxis package twenty-six | folds into P26-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 08:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 09:30 UTC

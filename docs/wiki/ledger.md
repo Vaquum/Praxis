@@ -78,7 +78,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/trading_config.py` | partial | P2-24, P3-22, P4-25, P4-42 |
 | `praxis/infrastructure/binance_urls.py` | full | P4-03 |
 | `praxis/command_translator.py` | partial | P4-04, P4-28 |
-| `praxis/outcome_translator.py` | partial | N3-12, N4-02, P2-39, P2-41, P2-43, P4-05, P4-29, P4-30 |
+| `praxis/outcome_translator.py` | partial | N3-12, N4-02, P2-39, P2-41, P2-43, P26-01, P26-02, P4-05, P4-29, P4-30 |
 | `praxis/reconciliation_translate.py` | full | P4-06 |
 | `praxis/core/domain/trade_command.py` | full | P2-23, P2-24, P2-43, P4-07, P4-08, P4-29, P4-33, P4-36, P8-01 |
 | `praxis/core/domain/_require_str.py` | full | P4-07, P4-09, P4-10, P4-11, P4-12, P4-33, P7-01, P8-02 |
@@ -150,7 +150,7 @@ Every Praxis module is named here: 52 are `full` and 36 `partial`, with none `un
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | full | N16-05, P4-06 |
 | `nexus/infrastructure/praxis_connector/trade_command_type.py` | full | N11-01, N16-02 |
 | `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04, N14-04, N15-08, N16-02, P8-02 |
-| `nexus/infrastructure/praxis_connector/trade_outcome.py` | full | N12-01, N12-02, N12-03, N12-04, N15-08, P8-02 |
+| `nexus/infrastructure/praxis_connector/trade_outcome.py` | full | N12-01, N12-02, N12-03, N12-04, N15-08, P26-02, P8-02 |
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | full | N1-07, N18-03, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | full | N16-01, N16-02, N16-03, N5-04, N5-06, P4-04 |
 | `nexus/instance_config.py` | full | N17-01, N17-02, N17-03, N17-04, N17-05, P4-04 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 08:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 09:30 UTC

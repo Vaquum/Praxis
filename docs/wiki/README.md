@@ -307,6 +307,8 @@ the others where it appears.
 - [What the mark sampler is built with](atoms/what-the-mark-sampler-is-built-with.md) — the account and symbol are tested for truthiness only, so a whitespace name is kept, and the interval is rejected at or below zero without any check of its type, so a not-a-number interval makes the inter-sample wait expire immediately and a Decimal one makes that wait raise, ending the loop's task.
 - [Starting and stopping the sampler](atoms/starting-and-stopping-the-sampler.md) — starting raises while a task is still running and otherwise clears the stop flag and launches the loop, while stopping sets the flag, cancels, and awaits, suppressing only the error a cancelled task raises, so a task that failed another way re-raises out of the stop and is still held afterwards.
 - [The interval a checkpoint timer takes](atoms/the-interval-a-checkpoint-timer-takes.md) — the interval is rejected unless it is an int or float above zero, with a boolean caught by a test of its own, while finiteness is never required, so a not-a-number interval is stored; starting is ignored while the timer runs, and the running flag is read again both at each tick and at each rescheduling.
+- [What the translator remembers](atoms/what-the-translator-remembers.md) — the ceiling on remembered finished commands must be a positive integer and a boolean true passes it, bounding the list at one; finishing a command files its id, evicts the oldest ids past the ceiling and discards its own record, and an outcome for an id already evicted is treated as a brand-new command.
+- [The words an ending carries](atoms/the-words-an-ending-carries.md) — a rejection supplies a stock word where Praxis recorded nothing or an empty string, but a whitespace-only reason is truthy here and is passed through to a record that requires something after stripping, so building it raises; an expiry crosses with no reason and any other ending carries whatever Praxis had.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -420,7 +422,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 323
+Both sides are the subject, and Praxis is the side that has been written. 325
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -431,4 +433,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 08:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 09:30 UTC
