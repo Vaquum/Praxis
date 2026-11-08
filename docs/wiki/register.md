@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 64 are named and 6 untouched. Of the 64, 53 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope. All 70 of its modules are named, none untouched. 53 carry a row of their own, and 17 are reached by an article, a recorded finding, or a recorded exclusion: 11 cited by something that needed them, and 6 recorded as shapes with no behaviour to trace.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -603,6 +603,7 @@ do.
 | Row H-418 | A bracket's protective exit is named by joining one letter to the entry's name with a dash. | Promote. The name is in no article, and the module's own note that both sides must work it out the same way is not borne out: only one side works it out at all |
 | Row H-419 | Nothing is asked of the name handed in, so an empty one yields a name that is a dash and that letter. | Merge with H-418. A derivation both sides must agree on, with nothing checked on the way in, is one subject |
 | Row H-427 | Nothing in the Nexus checkout works that name out, where the module's own note says both sides must work it out the same way. | Merge with H-418. A derivation called a contract between two repositories, kept by one, is the point of the subject rather than a finding beside it |
+| Row H-428 | Six Nexus modules make no check of their own: five sets of named values, two shapes a connector must answer to, a record of how a lifecycle call went, and two error types that only keep what they were handed. | Recorded as an exclusion. There is no behaviour to trace in any of the six, so the ledger marks them `full` as shapes rather than leaving them counted as work outstanding; a value outside one of those sets is refused by the machinery the set is built on, not by anything in the module |
 | Row H-425 | The Nexus arrangement carries a second way of binding context that the Praxis one does not: it binds for the length of a block and puts back whatever stood before, on the way out through a raise as much as the way out through the end. | Promote. The Praxis arrangement is written up in two articles; the Nexus copy of it differs in exactly one thing, and that one thing is in neither of them |
 | Row H-423 | Three Praxis records refuse nothing: the one projecting a running scheme's state, the one holding a closed round-trip, and the one holding a replay's summary. | Promote. Three records that refuse nothing are worth a page saying so, because the ledger marked two of them uncovered and a reader looking for their rules needs to be told there are none |
 | Row H-424 | The scheme's record answers whether it has ended by weighing its state against three named ones. | Merge with H-423, the one thing any of the three does answer |
@@ -612,7 +613,7 @@ do.
 | Row H-421 | The standing in happens only where no such name is found, so a name that is on that library but is not a level is taken as one. | Recorded; `what-a-host-writes-about-itself.md` states it, in the same section |
 | Row H-422 | Setting up logging empties the root of every handler already on it before adding its own. | Recorded; `what-the-logging-arrangement-misses.md` states it, with what the emptying does and does not reach |
 
-Six subjects promote, seven rows merge, and four are recorded as already written, as
+Six subjects promote, seven rows merge, four are recorded as already written, and one is recorded as an exclusion, as
 package 6 did with two. All four are the same shape: a statement identical on the
 two sides, or identical between a record and the event carrying it, with an article
 already holding one copy.
@@ -633,6 +634,53 @@ three records that refuse nothing get one between them.
 | P7-04 | The name a bracket's protective exit is given | written | [the-name-a-brackets-exit-is-given.md](atoms/the-name-a-brackets-exit-is-given.md) |
 | P7-05 | What the Nexus logging adds | written | [what-the-nexus-logging-adds.md](atoms/what-the-nexus-logging-adds.md) |
 | P7-06 | The records that refuse nothing | written | [the-records-that-refuse-nothing.md](atoms/the-records-that-refuse-nothing.md) |
+
+### Re-seed, after writing package 7
+
+What seven rounds of verifying the six articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here.
+
+| Candidate | What proves it |
+|---|---|
+| What the figures a fill carries are refused for, and what gets past by raising instead | `praxis/core/domain/fill.py` 74, 77 and 80 compare three figures with nought and ask nothing else of them, so a figure standing at infinity is kept. A figure that is not a number at all does not leave by the same door: under the context Python traps that comparison in by default, the comparison itself raises rather than answering, so the record is turned back by a different error than every other refusal it makes, and from a line written to catch something else. Where that trap is lifted, the comparison answers false and the figure is kept. P7-02 has what the three checks ask; that one class of bad figure leaves by another door is in no article |
+
+One candidate, where three were drafted. The other two were struck on reading the
+articles they were supposed to extend. That a fill's own record and the event
+standing for the same fill require different sets of names is already in P7-01,
+which permits the empty venue trade name in one and requires every name in the
+other, citing both. Which keys the scoped binding puts back is already in P7-05,
+which has the key rebound inside restored and the key bound inside under another
+name left standing. Both had been drafted from the same citations the articles
+carry, which is what makes this kind of candidate easy to write and worthless: the
+evidence was already spent.
+
+Verifying this package cost nine rounds, and the familiar class accounted for most
+of them: prose outrunning its citations. A claim about the
+event record's names that the article's own citations did not carry. A handover to
+the other side that nothing cited. Three statements of what a figure must be,
+written as an inequality the code does not make.
+
+That last is a class worth naming: a comparison written as a requirement. "Must
+stand above nought" and "is refused at or below nought" turn the same figures away,
+so the first is not wrong about what gets in. It is wrong about the statement doing
+the work. The line compares and does not require, and for a figure that is not a
+number it raises rather than answering under the default trapping context, so such
+a record is turned back by a different error and from a line written to catch
+something else. Three statements of
+three figures' rules were written the first way and had to be written the second.
+The reviewer found it by running the pinned record on such a figure, which is the
+second package in a row where executing the class rather than reading it is what
+found the defect.
+
+One finding was misplaced and then put back. The note that a module's docstring
+claims a contract the code does not keep was taken out of its article, because the
+gate refuses a docstring as evidence, and recorded in the merge disposition
+instead. That was wrong about the gate: `scripts/check_wiki.py` 5269-5270 accepts a
+docstring citation where the claim itself says it is about a docstring, which is
+`_claims_a_docstring` at 4643. The finding belongs in the article, cites the
+docstring, and is back there. A rule the gate carries is worth reading before
+working around it.
 
 ## Nexus package 1 — Seed output
 
@@ -2453,8 +2501,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-425 | The Nexus arrangement carries a second way of binding context that the Praxis one does not: it binds for the length of a block and puts back whatever stood before, on the way out through a raise as much as the way out through the end. | `nexus/infrastructure/observability.py` 121-122, against `praxis/infrastructure/observability.py` 98, which binds with no scope to put anything back at | Praxis package seven | is P7-05 |
 | H-426 | A fill's own record is built nowhere in Praxis outside the tests, so every refusal it makes — the shared check over seven of its fields as well as the four it writes out — runs only when a test builds one. | `praxis/core/domain/fill.py` 65-82, reached from `tests/test_domain_core.py` 35 by way of 196, and from no statement in Praxis | Praxis package seven | is P7-03 |
 | H-427 | Nothing in the Nexus checkout works that name out, where the module's own note says both sides must work it out the same way. | `praxis/core/bracket_exit_command_id.py` 17 and 31, called at `praxis/launcher.py` 1574 and `praxis/core/execution_manager.py` 4915, with no statement in the Nexus checkout deriving it | Praxis package seven | folds into P7-04 |
+| H-428 | Six Nexus modules make no check of their own: five sets of named values, two shapes a connector must answer to, a record of how a lifecycle call went, and two error types that only keep what they were handed. | `nexus/core/domain/enums.py` 22-24, 30-31 and 41, or `nexus/core/stp_mode.py` 22-24, or `nexus/infrastructure/praxis_connector/inbound_connector.py` 26, or `nexus/infrastructure/praxis_connector/outbound_connector.py` 26, or `nexus/core/capital_controller/lifecycle_result.py` 18-19 and 32-34, or `nexus/startup/error.py` 17-19 and 31-33 | Praxis package seven | recorded as an exclusion; the ledger marks all six `full` as shapes |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 07:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 10:30 UTC

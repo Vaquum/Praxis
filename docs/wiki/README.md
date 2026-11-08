@@ -239,7 +239,7 @@ the others where it appears.
 - [What a fill's own record requires](atoms/what-a-fills-own-record-requires.md) — a loop holds most of its identifiers to a shared non-empty check, its timestamp must carry a zone that reports an offset, and the venue's own trade identifier is absent from that loop, so it may be empty — which switches the duplicate-detection key from that identifier alone to four other fields combined.
 - [What a fill's own record never asks](atoms/what-a-fills-own-record-never-asks.md) — its quantity and price are rejected at or below zero and its fee below zero, with no check requiring either figure or the fee to be a real number rather than an infinity, and the direction and the maker flag are never examined.
 - [The record nothing builds](atoms/the-record-nothing-builds.md) — that record is named once, where the package hands its types onward, and nothing in the production code constructs it, so every rule it enforces runs only under test; the production code reports a fill as the event record instead.
-- [The name a bracket's protective exit is given](atoms/the-name-a-brackets-exit-is-given.md) — the protective order's identifier is the entry's with a dash and one letter appended, nothing checks what is passed in, callers on both sides of the code share the single helper, and nothing in the other repository derives the identifier at all, so the side that reads it is handed it rather than working it out.
+- [The name a bracket's protective exit is given](atoms/the-name-a-brackets-exit-is-given.md) — the protective order's identifier is the entry's with a dash and one letter appended, nothing checks what is passed in, callers on both sides of the code share the single helper, and nothing in the other repository derives the identifier at all — so the comment calling this a computation both sides must perform identically is out of date, and the side that reads it is handed it instead.
 - [What the Nexus logging adds](atoms/what-the-nexus-logging-adds.md) — Nexus can bind correlation fields for the duration of a block and put those same fields back on exit, including when an exception leaves the block, where the other side has only the unscoped bind; the level lookup and the handler replacement are identical on both sides.
 - [The records that refuse nothing](atoms/the-records-that-refuse-nothing.md) — three records declare their fields and validate none of them, so no rule constrains any value they hold; one of them can say whether its lifecycle has finished, by testing its state against the finished ones.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
@@ -357,12 +357,13 @@ made longer, which is why some titles are narrow.
 
 Both sides are the subject, and Praxis is the side that has been written. 258
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
-part, with none left untouched; of the 70 in Nexus, 64 are named and 6
-untouched — 53 carry a row of their own, and 11 are reached by an article or a
-recorded finding that needed them. How Nexus decides what to send is the work that
-remains. [The file ledger](ledger.md) names every file on both sides, so a
+part, with none left untouched; and all 70 in Nexus are named, none
+untouched — 53 carry a row of their own, and 17 are reached by an article, a
+recorded finding, or a recorded exclusion: 11 cited by something that needed them,
+and 6 recorded as shapes with no behaviour to trace. Deepening those 11 is the work
+that remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 07:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 08:30 UTC
