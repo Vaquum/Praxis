@@ -857,6 +857,35 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 22 — three Nexus records near the line
+
+Scope: three Nexus modules the ledger marks `partial`, each left with one or two
+statements that carry behaviour and a tail of declarations that carry none. The
+stage that sets money aside has fourteen of its twenty-two statements uncited; the
+base every strategy inherits from, sixteen of seventeen; the thing that routes to a
+strategy, eleven of thirty-nine.
+
+### Merge and promote, package 22
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-591 | A life-span given to the capital stage must be a whole number above nought, with a true-or-false refused outright. | Promote. What the capital stage refuses before it reaches the money is in no article, and this is another record asking after the kind of a figure where its neighbours compare |
+| Row H-592 | A denial carrying no words of its own is given a standing message. | Merge with H-591, the other end of the same stage |
+| Row H-593 | The base keeps a strategy's name trimmed, refusing one that is not text and one left empty by the trimming. | Promote. The name a strategy answers to is kept trimmed here, where the shared check on the Praxis side keeps a name of blank space as it stands |
+| Row H-594 | Every one of the eight ways in looks the name up and hands the call to that name's wrapper, and nothing else. | Merge with H-593. What the routing does once the name is good belongs beside what the name is |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+What the stage refuses comes first. The name, and what is done with it, comes
+second.
+
+What is left is recorded as an exclusion. In the base, the lines left uncited are
+the property handing the kept name back and eight bodies that stand empty, each a
+declaration of something a strategy must provide. In the routing, they are the
+lookup's own two lines and the eight bodies that hand on. In the stage, they are
+the two figures read before the weighing. No behaviour hangs on any of these, so
+the three cells go to `full`.
+
 ## Package 21 — the logging arrangement's other side, and the estimator's silence
 
 Scope: two modules the ledger marks `partial`, each left with statements that are
@@ -3935,8 +3964,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-588 | Shares that do not match the new prices in number raise what is committed, and otherwise the weighted sums are compared, a side with no shares giving each of its own rungs an equal share. | `praxis/core/validate_trade_modify.py` 74-75, or 77-79, the shares at 43-45 | Praxis package twenty | folds into P20-02 |
 | H-589 | The stamping in universal time, the writer on standard output, the plain binding of context and the serializer that renders to text are each the same statement on the two sides. | `nexus/infrastructure/observability.py` 50, 77-83, 93 and 35, against `praxis/infrastructure/observability.py` 49-50, 77-82, 98 and 30 | Praxis package twenty-one | added to what the Nexus logging adds |
 | H-590 | Neither estimator makes an estimate where the book lacks a bid or an ask. | `praxis/core/estimate_slippage.py` 106-109, or 166-169 | Praxis package twenty-one | added to how the likely price is worked out |
+| H-591 | A life-span given to the capital stage must be a whole number above nought, with a true-or-false refused outright. | `nexus/core/validator/capital_stage.py` 30-33, or 34-36 | Nexus package twenty-two | is N22-01 |
+| H-592 | A denial carrying no words of its own is given a standing message. | `nexus/core/validator/capital_stage.py` 63-65 | Nexus package twenty-two | folds into N22-01 |
+| H-593 | The base keeps a strategy's name trimmed, refusing one that is not text and one left empty by the trimming. | `nexus/strategy/base.py` 33-35, or 37 into 39-41, kept at 43 | Nexus package twenty-two | is N22-02 |
+| H-594 | Every one of the eight ways in looks the name up and hands the call to that name's wrapper, and nothing else. | `nexus/strategy/runner.py` 95, 119, 143, 167, 189, 204, 217 and 230, each through 67-73 | Nexus package twenty-two | folds into N22-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 02:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 02:30 UTC
