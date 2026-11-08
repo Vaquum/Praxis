@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 304 not.**
+**6 of them reviewed, 307 not.**
 
 ## Package 1
 
@@ -830,6 +830,12 @@ Three subjects promote, two rows merge, and one candidate is declined as false.
 What the series are read as comes first, since every later figure rests on it.
 What the falls are measured from comes second, and the day a bar is filed under
 third.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P15-01 | What the series are read as | written | [what-the-series-are-read-as.md](atoms/what-the-series-are-read-as.md) |
+| P15-02 | Where the peak begins | written | [where-the-peak-begins.md](atoms/where-the-peak-begins.md) |
+| P15-03 | The day a bar is filed under | written | [the-day-a-bar-is-filed-under.md](atoms/the-day-a-bar-is-filed-under.md) |
 
 ## Package 14 — the moments a replay request names, and what stopping the listener does
 
@@ -3457,4 +3463,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 14:30 UTC
