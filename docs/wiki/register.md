@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 332 not.**
+**6 of them reviewed, 334 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 35 — the health loop's interval, and the turn that ignores its mark
+
+Scope: the loop that reads health and moves the mode, which the ledger marks
+`partial` with twenty-three of its sixty statements uncited. Articles have what a
+turn does with its answer and what its stop leaves running. What it is built with,
+and the one way in that ignores the mark its own ticks respect, are in no article.
+
+### Merge and promote, Nexus package 35
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-631 | Its interval is held to being a number above nought with a true-or-false refused outright, finiteness never asked, and is kept as a plain number. | Promote. What this loop is built with is in no article, and it is the same gate the checkpoint timer makes, in a third place |
+| Row H-632 | Starting takes the lock and returns at once where the loop already runs, and the mark is read again at each tick and at each scheduling. | Merge with H-631. The pair reads together, and this loop answers a second start as the checkpoint timer does |
+| Row H-633 | A turn driven by hand applies the mode whether or not the loop is running, by asking the applying not to respect the mark. | Promote. A way in that steps around the mark every other way in respects is a subject of its own |
+| Row H-634 | A turn whose mode and reason both match what stood before returns without writing or reporting anything. | Merge with H-633. What a turn does where nothing changed belongs beside the turn that runs unasked |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N35-01 | The health loop's interval and mark | written | [the-health-loops-interval-and-mark.md](atoms/the-health-loops-interval-and-mark.md) |
+| N35-02 | The turn that ignores the mark | written | [the-turn-that-ignores-the-mark.md](atoms/the-turn-that-ignores-the-mark.md) |
+
+### Re-seed, after writing Nexus package 35
+
+The reader had both articles before they were committed and returned nine reports,
+five of them on one article. Every one is acted on.
+
+| What it found | What came of it |
+|---|---|
+| The interval article had said above nought where the line compares with nought, which is the correction the package before this had already made to the checkpoint timer's article. The same sentence was written again a package later. | N35-01 now reads as N25-01 does. The repeat is the reason this is recorded as a finding rather than a fix |
+| The mark is read three times per tick, not twice: the applying reads it again after the reading is taken and weighed, before anything is written. So a stop reaches this loop one place further in than it reaches the checkpoint timer. | N35-01 has that as its own section, and the comparison with the timer is corrected |
+| The hand-driven turn differs in two ways, not one: it skips the mark, and it schedules nothing. | N35-02 says both |
+| The mode written is not the mode read. Where a controller is wired, the reading is handed to it and the state ends up with the controller's answer, which weighs holds and risk. | N35-02 has a section for what the turn applies, with both roads |
+| The comparison at the end of a turn reaches the record of a transition alone; the writing has already happened. | N35-02 says so outright, in place of the claim that nothing is written |
+
+The first is the one that matters: the same overclaim, in the same words, two
+packages apart. The rule it breaks is the register's own — a comparison is not a
+requirement — and a rule that has to be relearned per package is a candidate for a
+check. It cannot be written as one: the gate would have to know which comparisons
+stand in for which demands, and the phrase "above nought" is right wherever a
+record does ask for it.
 
 ## Nexus package 34 — what the platform's ceilings and figures must be
 
@@ -4470,8 +4513,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-628 | The ceiling that is a share must also stand at or below one, by a test that runs after the walk. | `nexus/core/validator/platform_limits_stage.py` 69-74 | Nexus package thirty-four | folds into N34-01 |
 | H-629 | The record of figures makes the same walk over its four, and holds its own share to one the same way. | `nexus/core/validator/platform_limits_stage.py` 85-103, or 105-112 | Nexus package thirty-four | folds into N34-01 |
 | H-630 | A refusal is kept rather than returned as it is found, and the allowance comes only where none was kept. | `nexus/core/validator/platform_limits_stage.py` 207-210 | Nexus package thirty-four | folds into N34-01 |
+| H-631 | Its interval is held to being a number above nought with a true-or-false refused outright, finiteness never asked, and is kept as a plain number. | `nexus/core/health_loop.py` 62-68, kept at 73 | Nexus package thirty-five | is N35-01 |
+| H-632 | Starting takes the lock and returns at once where the loop already runs, and the mark is read again at each tick and at each scheduling. | `nexus/core/health_loop.py` 89-93, read again at 123-125 and at 116-117 | Nexus package thirty-five | folds into N35-01 |
+| H-633 | A turn driven by hand applies the mode whether or not the loop is running, by asking the applying not to respect the mark. | `nexus/core/health_loop.py` 113 against 127 | Nexus package thirty-five | is N35-02 |
+| H-634 | A turn whose mode and reason both match what stood before returns without writing or reporting anything. | `nexus/core/health_loop.py` 188-189 | Nexus package thirty-five | folds into N35-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 16:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 17:30 UTC
