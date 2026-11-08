@@ -18,6 +18,13 @@ the others where it appears.
 - [What an account is](atoms/what-an-account-is.md) — a name that groups the requests, orders, holdings and queues kept about it.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to: one per host, called by name, so a live exchange and a simulator run the same code.
 - [What a fill is](atoms/what-a-fill-is.md) — a report from a venue that some of an order has traded: an amount, at a price, at a time.
+- [What every event is held to](atoms/what-every-event-is-held-to.md) — all forty-two kinds of recorded fact are built on one shared record, and each runs its two questions before its own: that the account be named, and that the time carry a zone that answers.
+- [The names a record may leave out](atoms/the-names-a-record-may-leave-out.md) — a record can declare a name allowed to be missing, and the shared check then lets a missing one through while still turning away one written as an empty value.
+- [The grounds a figure is weighed on](atoms/the-grounds-a-figure-is-weighed-on.md) — a number in a recorded fact may be asked what kind of thing it is, whether it is a real quantity, and which side of zero it falls on; most are asked only the last, which lets an unbounded value through.
+- [The two noughts a figure is compared with](atoms/the-two-noughts-a-figure-is-compared-with.md) — the zero a number is compared against is written two different ways in one file, and which way it is decides whether a not-a-number value is quietly accepted or stops the record being built.
+- [The records that weigh their own fields against each other](atoms/the-records-that-weigh-their-own-fields-against-each-other.md) — a handful of the records reject a combination their fields would each pass alone, among them a reported balance disagreement whose two figures agree, and an order asking to be sized in coin and in money at once.
+- [The rule a bracket borrows](atoms/the-rule-a-bracket-borrows.md) — the record of a bracket starting builds a second record out of its own fields, keeps nothing of it, and gets its rule about the protective legs from the checks that second record runs.
+- [What the shared checks pass over](atoms/what-the-shared-checks-pass-over.md) — the checks written once and used across the records are narrower than they look: an empty list of figures passes, and asking whether a value is one of the named ones is done three different ways that disagree.
 - [Outcomes](atoms/what-an-outcome-is.md) — what Praxis reports back about a request: where it has got to, how much filled, and at what average.
 - [Order types](atoms/order-types.md) — the kinds of order Praxis can send — at the market, at a named price, waiting on a trigger, and a linked pair where one filling cancels the other.
 - [The prices an order must name](atoms/the-prices-an-order-must-name.md) — which kinds of order need a price, a trigger, or both.
@@ -476,7 +483,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 379
+Both sides are the subject, and Praxis is the side that has been written. 386
 articles exist. Of Praxis's own source files 70 are accounted for in full and 18 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -487,4 +494,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 18:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 19:30 UTC

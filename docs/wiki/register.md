@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 378 not.**
+**6 of them reviewed, 385 not.**
 
 ## Package 1
 
@@ -856,6 +856,71 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 61 — what the forty-two event records are held to
+
+Scope: the records the trading side keeps its facts in, which the ledger marks
+`partial` with three hundred and forty-eight of its three hundred and eighty
+statements uncited. Eleven claims across the corpus reach the module, each about
+one record it happened to need. The checks the forty-two share, the two forms
+their figure tests take, the four that weigh their own fields against each other,
+and what the three shared checks pass over are in no article.
+
+Writing one article per record would give forty of the same shape. The subjects
+below are the patterns across them and the places those patterns break.
+
+### Merge and promote, package 61
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-732 | All forty-two event records are built on one shared record and each calls its check before making its own, so the account name and the moment are asked of every event. | Promote. What every event is held to is in no article, and that all forty-two reach it is a fact about forty-two paths rather than about one function |
+| Row H-733 | Ninety names beyond the account's go through the shared test for emptiness, which asks nothing about kind. | Merge with H-732, the most-used check in the module and the one asking least |
+| Row H-734 | A figure is weighed on up to three grounds — kind, finiteness and sign — with two records dropping the kind and eighteen fields across eight records keeping the sign alone. | Promote. The forms look alike and let different things through, and no article says which fields get which grounds |
+| Row H-735 | An endless figure passes the sign alone where finiteness among the grounds refuses it, and a figure that is no number raises on the comparison rather than being refused. | Merge with H-734, what the difference between the forms costs |
+| Row H-736 | Twelve of the eighteen compare against a decimal nought and six against a plain one, which decides whether a floating-point figure that is no number passes or raises. | Merge with H-734. The same-looking test has two behaviours inside one module, and the nought is what separates them |
+| Row H-737 | Four records weigh one of their own fields against another, and every other test in the module reads one field. | Promote. Which records compare their own fields is in no article, and the count being four out of forty-two is what makes it worth saying |
+| Row H-738 | The shared check on a run of figures holds each entry to being a finite figure of the exact kind above nought, and a run with nothing in it passes. | Promote. What the three shared checks pass over is in no article |
+| Row H-739 | A replanned scheme refuses an empty run of sizes by a test of its own while the ladder's runs carry no such test. | Merge with H-738, where the empty run is caught and where it is not |
+| Row H-740 | The named things are declared plainly, so matching a field against a frozen set of their values refuses the named thing and accepts the bare word, while the one record asking by kind does the opposite. | Merge with H-738. Three ways of asking one question, two of them refusing the named thing itself |
+
+Four subjects promote and five rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P61-01 | What every event is held to | written | [what-every-event-is-held-to.md](atoms/what-every-event-is-held-to.md) |
+| P61-02 | The grounds a figure is weighed on | written | [the-grounds-a-figure-is-weighed-on.md](atoms/the-grounds-a-figure-is-weighed-on.md) |
+| P61-03 | The records that weigh their own fields against each other | written | [the-records-that-weigh-their-own-fields-against-each-other.md](atoms/the-records-that-weigh-their-own-fields-against-each-other.md) |
+| P61-04 | What the shared checks pass over | written | [what-the-shared-checks-pass-over.md](atoms/what-the-shared-checks-pass-over.md) |
+| P61-05 | The two noughts a figure is compared with | written | [the-two-noughts-a-figure-is-compared-with.md](atoms/the-two-noughts-a-figure-is-compared-with.md) |
+| P61-06 | The rule a bracket borrows | written | [the-rule-a-bracket-borrows.md](atoms/the-rule-a-bracket-borrows.md) |
+| P61-07 | The names a record may leave out | written | [the-names-a-record-may-leave-out.md](atoms/the-names-a-record-may-leave-out.md) |
+
+### Re-seed, after writing package 61
+
+Four subjects were promoted and seven articles came of them. Three of the seven are
+splits made under the word cap, and one correction was found before the reader saw
+the articles at all.
+
+| What it found | What came of it |
+|---|---|
+| Classifying every uncited line of the module, rather than reading the ones the gap map listed, showed two records weighing a figure on finiteness and sign while leaving out the kind. The article had said there were two forms where there are three. | P61-02 is written as a ladder of three grounds, each form dropping one. Found by the classification, not by the reader |
+| The forty-two call the shared name test ninety times, and ninety-four names go through it, one call walking five field names at once. | Corrected. The claim had counted calls and said names |
+| The test for a moment reads its zone and asks for an offset in one line, the second half reached only where a zone is there. | Corrected. The source note had said both were read before anything was compared |
+| An endless figure above nought passes a test of sign alone; one below nought is refused by it. | Corrected. The claim had said an endless figure stands neither side of nought, which is true of a not-a-number and not of an endless one |
+| A not-a-number raises on the comparison under the arithmetic settings a host runs with, and a host that turned the signal off would see it pass. | Qualified |
+| A fifth record weighs two of its own fields against each other, by building a protective-settings record out of five of them and keeping nothing of it. | P61-06. The claim that four were the whole of it was made from the module's own tests and missed the rule it borrows |
+| The shared name test takes a flag allowing a name to be absent, set by seven of the ninety calls, and a name written as an empty value is still refused where it is set. | P61-07 |
+| The test of kind accepts anything built on the figure kind rather than that kind alone, so "of the exact kind" overstates it. | Rebutted. Neither checkout declares anything built on that kind, so nothing in either system can exercise the difference; the corpus keeps the phrase. Recorded here because the phrase stands in thirty places across fifteen articles, and a checkout that ever declares such a thing makes all thirty wrong at once |
+
+Three articles outgrew the cap as the corrections went in, and the subject that
+grew each became its own: the two noughts, the borrowed rule, and the flag on the
+shared name test.
+
+Two hundred and twenty statements of the module are left uncited and are an
+exclusion rather than work outstanding: each is another instance of an idiom these
+articles state — a call to the shared name test, a reading of the record's own
+name, a call to the shared record's check, a complaint's text, or the raising of
+it. What is left over is listed as the scope of the package after this.
 
 ## Nexus package 60 — what the manifest's records and its file are held to
 
@@ -5640,8 +5705,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-729 | The helper reading each of those three refuses only what will not convert to a figure, and words its complaint as though the field came from that block even when it is reading a strategy's collar. | `nexus/infrastructure/manifest.py` 299-306, worded at 305, called for the collar at 543-546 | Nexus package sixty | folds into N60-02 |
 | H-730 | A path that is not a file refuses the reading with a missing-file failure, the one refusal in the reading that does not raise the ordinary kind. | `nexus/infrastructure/manifest.py` 382-384, every other refusal raising at 389-391 onwards | Nexus package sixty | is N60-03 |
 | H-731 | The file is opened under UTF-8 and read by the YAML reader in the form that runs no code the file names, and what comes back must be a mapping. | `nexus/infrastructure/manifest.py` 386, then 387, then 389-391 | Nexus package sixty | folds into N60-03 |
+| H-732 | All forty-two event records are built on one shared record and each calls its check before making its own, so the account name and the moment are asked of every event. | `events.py` 96-117, called at 185, 249, 286 and 1709 among all forty-two | package sixty-one | is P61-01 |
+| H-733 | Ninety names beyond the account's go through the shared test for emptiness, which asks nothing about kind. | `events.py` 113, and as at 188-191, 1712-1713 and 1959-1961, with seven saying the name may be absent into `_require_str.py` 25-26 | package sixty-one | folds into P61-01 |
+| H-734 | A figure is weighed on up to three grounds — kind, finiteness and sign — with two records dropping the kind and eighteen fields across eight records keeping the sign alone. | `events.py` 197-203 against 213, 217, 221, 429, 585, 589, 593, 783, 787, 791, 876, 1567, 1818, 1822, 1826, 1975, 1979 and 1983 | package sixty-one | is P61-02 |
+| H-735 | An endless figure passes the sign alone where finiteness among the grounds refuses it, and a figure that is no number raises on the comparison rather than being refused. | `events.py` 585 against 775-781 | package sixty-one | folds into P61-02 |
+| H-736 | Twelve of the eighteen compare against a decimal nought and six against a plain one, which decides whether a floating-point figure that is no number passes or raises. | `events.py` 75, with a plain nought at 429, 783, 787, 791, 876 and 1567 | package sixty-one | folds into P61-02 |
+| H-737 | Four records weigh one of their own fields against another, and every other test in the module reads one field. | `events.py` 193-195, or 949-951, or 1421-1423, or 1721-1723 | package sixty-one | is P61-03 |
+| H-738 | The shared check on a run of figures holds each entry to being a finite figure of the exact kind above nought, and a run with nothing in it passes. | `events.py` 1316-1319 | package sixty-one | is P61-04 |
+| H-739 | A replanned scheme refuses an empty run of sizes by a test of its own while the ladder's runs carry no such test. | `events.py` 433-435, against 1364-1377 and 1409-1431 | package sixty-one | folds into P61-04 |
+| H-740 | The named things are declared plainly, so matching a field against a frozen set of their values refuses the named thing and accepts the bare word, while the one record asking by kind does the opposite. | `praxis/core/domain/enums.py` 41-46 matched against `events.py` 1639 and 1674, with the test by kind at 1963-1965 | package sixty-one | folds into P61-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 18:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 19:30 UTC
