@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 351 not.**
+**6 of them reviewed, 352 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 47 — how a call across the seam is made and waited on
+
+Scope: the connector Nexus calls Praxis through, which the ledger marks `partial`
+with forty-four of its seventy-five statements uncited. Articles have the name an
+order comes back with, the marker a moment must carry, and the last record a
+stopping host writes. The shape every call shares — what it refuses before
+calling, how it reaches the other side, and what a wait that runs out does — is in
+no article.
+
+### Merge and promote, Nexus package 47
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-673 | Each way across refuses before calling where the function it would call was never configured. | Promote. The shape every call shares is in no article, and this is the first thing each of them does |
+| Row H-674 | Most of them hand the call to the host's loop from another thread and wait on it for one span, cancelling and raising on where the wait runs out. | Merge with H-673, the shape itself |
+| Row H-675 | Two of them call straight through instead — registering an account, and pulling its positions — with no loop and no wait. | Merge with H-673. Which calls cross by which road is the half a reader would get wrong, and the seeding had the pair wrong until the reader's pass: taking an account out does use the loop |
+| Row H-676 | A wait that runs out cancels the pending call, reports it, and raises on, so the caller sees the same failure whether the far side was slow or absent. | Merge with H-673, what the cancelling leaves behind |
+
+One subject promotes and three rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N47-01 | How a call across the seam is made | written | [how-a-call-across-the-seam-is-made.md](atoms/how-a-call-across-the-seam-is-made.md) |
+
+### Re-seed, after writing Nexus package 47
+
+The reader had the article before it was committed and returned seven reports,
+and the two that matter both come from the same mistake: naming which calls take
+which road from memory of the pattern rather than from the lines.
+
+| What it found | What came of it |
+|---|---|
+| Taking an account out does use the loop and the span. The two that cross directly are registering an account and pulling its positions. | Corrected, and the pair named from the lines |
+| Asking a pending call to cancel neither waits for the cancelling nor reads whether it took, so the far side may still be working on a call its caller has given up on. | The article says that, which is the sharpest thing in it |
+| The shape was stated of every call where two of the six do not take it. | The lead now says each begins the same way and most then cross the same road |
+| A response arriving inside the span returns normally, so only one later than the span is indistinguishable from none. | Narrowed |
+
+The register's rule about paths says to check where a subject is routed before
+writing that every one of it does something. This article did that for five of the
+six and assumed the sixth, because taking an account out sits beside putting one
+in and reads as its mirror. It is not one: the pair that crosses directly is not
+the pair that looks like a pair.
 
 ## Package 46 — the two figures a replay works out for itself
 
@@ -4968,8 +5011,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-670 | A peak at or below nought is passed over rather than divided by, so a series starting at nought reports no fall until it rises. | `praxis/replay/build_replay_report.py` 401-402 | Praxis package forty-six | folds into P46-01 |
 | H-671 | The risk-adjusted figure answers nothing where the interval is at or below nought, where fewer than two returns can be formed, or where the spread of those returns is nought. | `praxis/replay/build_replay_report.py` 409-410, or 418-419, or 424-425 | Praxis package forty-six | is P46-02 |
 | H-672 | A step whose previous value is at or below nought forms no return, so a series passing through nought has gaps the figure never sees. | `praxis/replay/build_replay_report.py` 412-416 | Praxis package forty-six | folds into P46-02 |
+| H-673 | Each way across refuses before calling where the function it would call was never configured. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 248-250, or 303-305, or 343-345, or 361-363, or 400-402, or 434-436 | Nexus package forty-seven | is N47-01 |
+| H-674 | Most of them hand the call to the host's loop from another thread and wait on it for one span, cancelling and raising on where the wait runs out. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 256-264 into 266-271, or 311-321 into 323-328, or 404-409 into 411-416 | Nexus package forty-seven | folds into N47-01 |
+| H-675 | Two of them call straight through instead — registering an account, and pulling its positions — with no loop and no wait. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 347-348, or 438 | Nexus package forty-seven | folds into N47-01 |
+| H-676 | A wait that runs out cancels the pending call, reports it, and raises on. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 268-271, or 326-328, or 413-416 | Nexus package forty-seven | folds into N47-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 04:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 05:00 UTC
