@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 315 not.**
+**6 of them reviewed, 317 not.**
 
 ## Package 1
 
@@ -872,12 +872,17 @@ strategy, eleven of thirty-nine.
 | Row H-591 | A life-span given to the capital stage must be a whole number above nought, with a true-or-false refused outright. | Promote. What the capital stage refuses before it reaches the money is in no article, and this is another record asking after the kind of a figure where its neighbours compare |
 | Row H-592 | A denial carrying no words of its own is given a standing message. | Merge with H-591, the other end of the same stage |
 | Row H-593 | The base keeps a strategy's name trimmed, refusing one that is not text and one left empty by the trimming. | Promote. The name a strategy answers to is kept trimmed here, where the shared check on the Praxis side keeps a name of blank space as it stands |
-| Row H-594 | Every one of the eight ways in looks the name up and hands the call to that name's wrapper, and nothing else. | Merge with H-593. What the routing does once the name is good belongs beside what the name is |
+| Row H-594 | Every one of the eight ways in goes through one lookup, which trims the name as the filing did, so a name given with blank space around it finds its wrapper. | Merge with H-593. What the routing does once the name is good belongs beside what the name is. The reader's pass corrected this row: it had said the ways in do nothing but hand on, where the lookup they share trims and refuses as well |
 
 Two subjects promote and two rows merge, with nothing declined.
 
 What the stage refuses comes first. The name, and what is done with it, comes
 second.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N22-01 | What the capital stage refuses | written | [what-the-capital-stage-refuses.md](atoms/what-the-capital-stage-refuses.md) |
+| N22-02 | The name a strategy answers to | written | [the-name-a-strategy-answers-to.md](atoms/the-name-a-strategy-answers-to.md) |
 
 What is left is recorded as an exclusion. In the base, the lines left uncited are
 the property handing the kept name back and eight bodies that stand empty, each a
@@ -3967,9 +3972,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-591 | A life-span given to the capital stage must be a whole number above nought, with a true-or-false refused outright. | `nexus/core/validator/capital_stage.py` 30-33, or 34-36 | Nexus package twenty-two | is N22-01 |
 | H-592 | A denial carrying no words of its own is given a standing message. | `nexus/core/validator/capital_stage.py` 63-65 | Nexus package twenty-two | folds into N22-01 |
 | H-593 | The base keeps a strategy's name trimmed, refusing one that is not text and one left empty by the trimming. | `nexus/strategy/base.py` 33-35, or 37 into 39-41, kept at 43 | Nexus package twenty-two | is N22-02 |
-| H-594 | Every one of the eight ways in looks the name up and hands the call to that name's wrapper, and nothing else. | `nexus/strategy/runner.py` 95, 119, 143, 167, 189, 204, 217 and 230, each through 67-73 | Nexus package twenty-two | folds into N22-02 |
+| H-594 | Every one of the eight ways in goes through one lookup, which trims the name as the filing did, so a name given with blank space around it finds its wrapper. | `nexus/strategy/runner.py` 36 and 61 into 67, each way in at 95, or 119, or 143, or 167, or 189, or 204, or 217, or 230 | Nexus package twenty-two | folds into N22-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 02:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 03:30 UTC

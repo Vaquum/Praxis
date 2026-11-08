@@ -300,6 +300,8 @@ the others where it appears.
 - [The levels the risk stage never reaches](atoms/the-levels-the-risk-stage-never-reaches.md) — the walk over the account's losses returns either a breach or nothing, never a warning or a halt, so the branch that converts a breach or a halt into a rejection has one arm that cannot fire here, though the identically written branch in the health stage has both live.
 - [What counts as raising what a buy commits](atoms/what-counts-as-raising-what-a-buy-commits.md) — a sell amendment is cleared immediately, a ladder is routed elsewhere, and everything else is judged on the commitment prices listed for its execution mode, which only a single order and an iceberg have; a named price above the original, or one with no original to bound it, is rejected, while a stop-limit price and a row-of-rungs comparison sit in the deciding as paths nothing can reach.
 - [How a ladder's change is weighed](atoms/how-a-ladders-change-is-weighed.md) — a buy's ladder amendment is compared as one quantity-weighted price total against another, each side taking amended values where amended and original ones otherwise, a side with no weights giving every rung an equal share, and shares that do not match the new price count being rejected outright.
+- [What the capital stage refuses](atoms/what-the-capital-stage-refuses.md) — a reservation lifetime supplied to the stage has to be an integer above zero, with a boolean caught by a test of its own because the integer test would accept it, an omitted lifetime passing nothing on so the controller's default stands, and a denial whose reason is empty or blank being given a standing message.
+- [The name a strategy answers to](atoms/the-name-a-strategy-answers-to.md) — the base keeps the identifier stripped of surrounding whitespace and rejects a whitespace-only one, unlike the shared helper Praxis names its records by, and the router strips when filing and when looking up, so a call naming a strategy with padding still finds it.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -413,7 +415,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 316
+Both sides are the subject, and Praxis is the side that has been written. 318
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -424,4 +426,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 01:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 03:30 UTC
