@@ -73,6 +73,14 @@ the others where it appears.
 ## Ways an order can be worked
 
 - [Ways of working a host may drive](atoms/ways-of-working-a-host-may-drive.md) — a host is given the list of ways it may work an order, and work naming one outside that list is turned away.
+- [How the mode is recomputed](atoms/how-the-mode-is-recomputed.md) — every change to what an account is allowed to do comes from one calculation over the holds placed on it and the latest health reading, and a hold can only make matters worse.
+- [Which hold the mode is blamed on](atoms/which-hold-the-mode-is-blamed-on.md) — several reasons for a halt can stand at once and the record names one of them, chosen by rank rather than by which arrived first.
+- [What setting a hold that already stands does](atoms/what-setting-a-hold-that-already-stands-does.md) — placing a hold that is already in place leaves its recorded reason and time untouched, so what a reason says is why the hold first went on.
+- [What the two risk breakers do](atoms/what-the-two-risk-breakers-do.md) — the loss breaker lifts itself as losses decay and the drawdown breaker never lifts at all, so one halt clears by itself and the other waits for somebody.
+- [The two reduce-only holds](atoms/the-two-reduce-only-holds.md) — besides the holds that stop an account outright, two ask only that it stop opening new positions, and both are outranked by every halting hold.
+- [Why the health tick commits in one hold of the lock](atoms/why-the-health-tick-commits-in-one-hold-of-the-lock.md) — the regular check writes its reading and re-tests the loss limits without letting go in between, so no reader sees a half-settled answer that the same check then overwrites.
+- [The halt notification that is dropped](atoms/the-halt-notification-that-is-dropped.md) — an alert about a halt is left as a note to be sent later, and a halt lifted before the note is read loses its alert rather than having it delayed.
+- [What a restart re-derives](atoms/what-a-restart-re-derives.md) — a host coming back up throws away the hold its own shutdown placed, keeps the rest, and works out afresh what the account is allowed to do.
 - [The settings each way of working takes](atoms/the-settings-each-way-of-working-takes.md) — what each way of working an order asks to be told, and the mistakes in it that get the order refused.
 - [Work fed out over time](atoms/work-fed-out-over-time.md) — an amount broken into slices that go out one at a time with a gap between them.
 - [Orders at several prices](atoms/orders-at-several-prices.md) — spreading an amount across named prices, an order each, sent one after another in one pass.
@@ -527,15 +535,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 430
+Both sides are the subject, and Praxis is the side that has been written. 438
 articles exist. Of Praxis's own source files 74 are accounted for in full and 14 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 49 are accounted for in full and 15 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 50 are accounted for in full and 14 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 01:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 01:30 UTC

@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 429 not.**
+**6 of them reviewed, 437 not.**
 
 ## Package 1
 
@@ -856,6 +856,75 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 69 — how an account's mode is settled
+
+Scope: the controller that settles an account's mode, which the ledger marks
+`partial` with eighty-one of its hundred and forty statements uncited. Articles have
+the records the mode is kept in, what they refuse, and which of a host's changes
+reach the log. How the mode is recomputed from the holds and the health reading,
+which hold it is blamed on, what setting a hold that already stands does, why the
+health tick commits in one hold of the lock, and the halt notification that is
+dropped are in no article.
+
+### Merge and promote, Nexus package 69
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-804 | The recomputing gives halted for any halting hold or a halted health reading, reduce-only for any reduce-only hold or that health reading, and otherwise the health reading itself. | Promote. How the mode is arrived at is in no article, and that a hold can only make it worse than the health reading is the shape of the whole thing |
+| Row H-805 | Where neither the mode nor the blame has changed nothing is written, otherwise a record is written whole with the moment carried over where the mode did not change, and the answer is whether the mode changed rather than whether anything was written. | Merge with H-804. A caller told nothing changed while the record was rewritten is the part that matters |
+| Row H-806 | For halted, five grounds are weighed in a fixed order and the first standing is the blame, the risk ground covering two holds under one name; for reduce-only, two grounds; otherwise health. | Promote. Which of several standing holds is named is in no article, and two holds sharing one name means the record cannot say which tripped |
+| Row H-807 | Setting a hold that already stands, or clearing one that does not, touches the hold at all and recomputes anyway, so the reason and the moment stay as the first setting left them. | Promote. That a second setting keeps the first reason is in no article, and a reader of a reason needs to know it is the oldest rather than the newest |
+| Row H-808 | The daily-loss breaker clears its own hold where the loss has fallen back under the limit, and the drawdown breaker has no such clearing. | Merge with H-807. One breaker lifting itself and the other never doing so is the same subject one level out |
+| Row H-809 | The health tick writes the health reading, evaluates both breakers and recomputes under one hold of the lock, and decides what changed by comparing the mode before with the mode after rather than by any one recompute. | Promote. Why the two roads answer differently is in no article, and the comparison is there because each breaker recomputes as it goes |
+| Row H-810 | The reads of the risk figures run under the risk record's own lock, or under none where that lock is this one, and both roads take a flag deferring the notification for a caller holding a lock of its own. | Merge with H-809, the locks either side of it |
+| Row H-811 | Draining a waiting halt notification clears the blame before any of the three reasons to do nothing is read, so a halt lifted first loses its alert altogether, and the field holds one blame so a second halt overwrites the first. | Promote. An alert that is dropped rather than delayed is in no article |
+| Row H-812 | A restart's re-deriving empties the recovered shutdown hold outright by writing its fields, leaves every other recovered hold as found, evaluates both breakers from the recovered risk record and recomputes once. | Promote. What a restart does to the mode is in no article, and one recovered hold being thrown away while the rest are kept is the part a reader needs |
+| Row H-813 | Two holds ask for reduce-only alone, either giving it only where no halting hold stands, each set and cleared with one recompute after the conditional rather than inside both arms. | Promote. The lesser kind of hold is in no article, and being outranked by every halting hold is what decides when one shows |
+| Row H-814 | The daily-loss breaker does nothing where no limit is set, places its hold strictly above the limit and lifts it at or below, while the drawdown breaker weighs two limits and never lifts, both moving their holds directly rather than through the roads that drain the notification. | Promote. The two breakers differing in whether they lift themselves is in no article, and it decides whether a halt clears by itself or waits for somebody |
+
+Eight subjects promote and three rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N69-01 | How the mode is recomputed | written | [how-the-mode-is-recomputed.md](atoms/how-the-mode-is-recomputed.md) |
+| N69-02 | Which hold the mode is blamed on | written | [which-hold-the-mode-is-blamed-on.md](atoms/which-hold-the-mode-is-blamed-on.md) |
+| N69-03 | What setting a hold that already stands does | written | [what-setting-a-hold-that-already-stands-does.md](atoms/what-setting-a-hold-that-already-stands-does.md) |
+| N69-04 | Why the health tick commits in one hold of the lock | written | [why-the-health-tick-commits-in-one-hold-of-the-lock.md](atoms/why-the-health-tick-commits-in-one-hold-of-the-lock.md) |
+| N69-05 | The halt notification that is dropped | written | [the-halt-notification-that-is-dropped.md](atoms/the-halt-notification-that-is-dropped.md) |
+| N69-06 | What a restart re-derives | written | [what-a-restart-re-derives.md](atoms/what-a-restart-re-derives.md) |
+| N69-07 | The two reduce-only holds | written | [the-two-reduce-only-holds.md](atoms/the-two-reduce-only-holds.md) |
+| N69-08 | What the two risk breakers do | written | [what-the-two-risk-breakers-do.md](atoms/what-the-two-risk-breakers-do.md) |
+
+### Re-seed, after writing Nexus package 69
+
+The reader returned eleven reports and all eleven were valid. One of them is a
+docstring's reasoning repeated as fact, which is the third time this corpus has
+recorded that.
+
+| What it found | What came of it |
+|---|---|
+| The stamp carries over whatever the record began with, so before any change of mode it marks no change at all. | N69-01 says so, where it had said the stamp always marks the last change |
+| A health reading of halted with a hold standing as well is blamed on the hold, so a halted mode blamed on health is not the only way health halts. | N69-02 says so |
+| Lifting the last halting hold moves the mode to reduce-only where a reduce-only hold stands, so it does change the mode. | N69-02 says so, where it had said lifting the highest does not lift the mode |
+| The risk breakers move their holds directly rather than through the roads that drain the notification, and their callers may put the draining off. | N69-08 carries it |
+| The daily-loss hold is lifted at or below the limit, not only below it. | N69-08 says so. A loss landing exactly on the limit lifts the hold |
+| Taking nothing further where the risk lock is the one already held is not the same as reading under no lock: the held lock protects the reads either way. | N69-04 says what varies is whether a second lock is needed |
+| A note is left only where the mode changed into halted, so a further hold on an account already halted leaves the first note standing, and a second note needs the mode to leave halted and return. | N69-05 was rewritten. The claim that two halts in quick succession raise one alert naming the second was wrong in both halves |
+| The breakers that follow a restart's clearing can move both risk holds, so not every other recovered hold is left as found. | N69-06 says which are kept and which are not |
+| A recovered shutdown hold can be lifted by the step that lifts it, so a host recovering one would not come up halted with nothing able to lift it. | Corrected. That sentence was the module's own reasoning about why the hold is thrown away, restated as a fact about the code. The behaviour — the hold is thrown away — stands; the justification was not mine to assert |
+| A restart's recompute is not the only one, each hold the breakers move recomputing as it moves. | N69-06 says so |
+| Placing a reduce-only hold answers that nothing changed only where the inputs still require halted; against a record out of step with the holds it answers that the mode changed. | N69-07 says both cases |
+
+The docstring failure is worth naming for the third time because it was not a
+behavioural claim this time but a reason: the module explains why it throws the
+shutdown hold away, and the explanation names a consequence that the module itself
+contradicts a hundred lines down. A reason given in prose is a claim like any other.
+
+Eighteen statements of the module are left uncited and are an exclusion rather than
+work outstanding: the clock's one reading, eight one-line roads that hand straight
+on to the moving these articles state, the handing back of each answer, and four
+readings of a record into a local name.
 
 ## Package 68 — the connection the venue speaks over
 
@@ -6188,8 +6257,19 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-801 | The unsubscribe names the subscription only where one was recorded, and nothing in the closing is raised to the caller. | `binance_ws.py` 289-290, with every step at 273-293 either swallowed or unable to raise | package sixty-eight | folds into P68-04 |
 | H-802 | A failure of the reading is logged and the loop carries on whatever it was, but the catch names the ordinary kind and a cancelling is of another, so the cancelling a closing causes ends the loop. | `binance_ws.py` 336-339, the cancelling raised at 274 | package sixty-eight | is P68-05 |
 | H-803 | A failed attempt to set up again is caught for three named kinds alone, so a failure of another kind leaves the loop, and each of the two callbacks runs inside a catch of its own with an unset one passed over. | `binance_ws.py` 358-363, and 379-385 called at 341 and 356 | package sixty-eight | folds into P68-05 |
+| H-804 | The recomputing gives halted for any halting hold or a halted health reading, reduce-only for any reduce-only hold or that health reading, and otherwise the health reading itself. | `nexus/core/mode_controller.py` 488-493 | Nexus package sixty-nine | is N69-01 |
+| H-805 | Where neither the mode nor the blame has changed nothing is written, otherwise a record is written whole with the moment carried over where the mode did not change, and the answer is whether the mode changed rather than whether anything was written. | `nexus/core/mode_controller.py` 495-499, then 501-508, answered at 513 | Nexus package sixty-nine | folds into N69-01 |
+| H-806 | For halted, five grounds are weighed in a fixed order and the first standing is the blame, the risk ground covering two holds under one name; for reduce-only, two grounds; otherwise health. | `nexus/core/mode_controller.py` 528-537, or 540-546, or 548 | Nexus package sixty-nine | is N69-02 |
+| H-807 | Setting a hold that already stands, or clearing one that does not, touches the hold at all and recomputes anyway, so the reason and the moment stay as the first setting left them. | `nexus/core/mode_controller.py` 433-434, and 445-446, against the writing at 436-438 | Nexus package sixty-nine | is N69-03 |
+| H-808 | The daily-loss breaker clears its own hold where the loss has fallen back under the limit, and the drawdown breaker has no such clearing. | `nexus/core/mode_controller.py` 392-396, against 398-412 | Nexus package sixty-nine | folds into N69-03 |
+| H-809 | The health tick writes the health reading, evaluates both breakers and recomputes under one hold of the lock, and decides what changed by comparing the mode before with the mode after rather than by any one recompute. | `nexus/core/mode_controller.py` 118-123, then 119 and 124 | Nexus package sixty-nine | is N69-04 |
+| H-810 | The reads of the risk figures run under the risk record's own lock, or under none where that lock is this one, and both roads take a flag deferring the notification for a caller holding a lock of its own. | `nexus/core/mode_controller.py` 302-305, and 92-93, and 126-127 | Nexus package sixty-nine | folds into N69-04 |
+| H-811 | Draining a waiting halt notification clears the blame before any of the three reasons to do nothing is read, so a halt lifted first loses its alert altogether, and the field holds one blame so a second halt overwrites the first. | `nexus/core/mode_controller.py` 371-374, then 376-377, the field written at 511 | Nexus package sixty-nine | is N69-05 |
+| H-812 | A restart's re-deriving empties the recovered shutdown hold outright by writing its fields, leaves every other recovered hold as found, evaluates both breakers from the recovered risk record and recomputes once. | `nexus/core/mode_controller.py` 351-354, then 356-358, then 360-362 | Nexus package sixty-nine | is N69-06 |
+| H-813 | Two holds ask for reduce-only alone, either giving it only where no halting hold stands, each set and cleared with one recompute after the conditional rather than inside both arms. | `nexus/core/mode_controller.py` 540-542, and 490 past 488, and 455-467, and 470-482 | Nexus package sixty-nine | is N69-07 |
+| H-814 | The daily-loss breaker does nothing where no limit is set, places its hold strictly above the limit and lifts it at or below, while the drawdown breaker weighs two limits and never lifts, both moving their holds directly rather than through the roads that drain the notification. | `nexus/core/mode_controller.py` 385-396, and 398-412, against 415-426 | Nexus package sixty-nine | is N69-08 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 01:30 UTC
