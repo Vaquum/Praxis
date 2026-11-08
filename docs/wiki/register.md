@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 353 not.**
+**6 of them reviewed, 355 not.**
 
 ## Package 1
 
@@ -856,6 +856,44 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 49 — the five re-keyings, and the builder that stands apart
+
+Scope: the translator turning a decision into a command, which the two packages
+before this left ten statements short. What is left is the five ways in to the
+shared re-keying, and the one way of working whose settings have a builder of
+their own.
+
+### Merge and promote, package 49
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-679 | Each of the five fields re-keyed across the seam is one call into the shared re-keying, naming the field so the complaint names it too. | Promote. What the five share is in no article, and the field's name reaching the complaint is why a refusal can be read |
+| Row H-680 | Two of the five answer before that call: a maker preference left out becomes no preference, and a self-trade setting left out becomes none. | Merge with H-679. Which fields may be left out is the half a reader needs, and the answers differ |
+| Row H-681 | The plain single order's settings have a builder of their own, reached before the table every other way of working goes through. | Promote. That one way of working does not come from the table is in no article |
+| Row H-682 | A change's settings are built from the table alone, with no way of working standing apart. | Merge with H-681. The asymmetry between a command's settings and a change's is the subject, though why it is there is not something the lines carry |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P49-01 | The five re-keyings | written | [the-five-re-keyings.md](atoms/the-five-re-keyings.md) |
+| P49-02 | The builder that stands apart | written | [the-builder-that-stands-apart.md](atoms/the-builder-that-stands-apart.md) |
+
+### Re-seed, after writing package 49
+
+The reader had both articles before they were committed. The re-keyings came back
+clean; the builder had three reports.
+
+| What it found | What came of it |
+|---|---|
+| Both roads hand back a settings object already of the right kind without looking inside it, so the difference between them is about what arrives as a mapping. | P49-02 has a section for what the two roads share, which the article had not had |
+| The table's road does test values — in the record it fills, as that record is built. The article had said it did neither. | Corrected: the difference is where the testing happens, not whether |
+| That the separate builder exists because of the payload the plain single order may leave out is not something the lines support. | The causal claim is gone. The article says where the omission is answered and stops there |
+
+The third is worth the record. A reason why code is shaped as it is reads like an
+explanation and cannot be cited: the lines show the omission answered in that
+builder, and nothing shows which came first.
 
 ## Nexus package 48 — the two ways the signed figures change
 
@@ -5057,8 +5095,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-676 | A wait that runs out cancels the pending call, reports it, and raises on. | `nexus/infrastructure/praxis_connector/praxis_outbound.py` 268-271, or 326-328, or 413-416 | Nexus package forty-seven | folds into N47-01 |
 | H-677 | The account's two signed figures each have a call that refuses a figure which is not finite, sets it, and works the falls out again, while both fields can also be written straight. | `nexus/core/domain/risk_state.py` 276-281, or 286-291, against 98-99 and 144-145 | Nexus package forty-eight | is N48-01 |
 | H-678 | The mapping of what to do when protection fails is checked as the credentials mapping is: keys text with something left once trimmed, values of the one kind. | `praxis/trading_config.py` 182-187, or 189-194 | Nexus package forty-eight | added to what the host's configuration record refuses |
+| H-679 | Each of the five fields re-keyed across the seam is one call into the shared re-keying, naming the field so the complaint names it too. | `praxis/command_translator.py` 181, or 187, or 193, or 214, or 234 | Praxis package forty-nine | is P49-01 |
+| H-680 | Two of the five answer before that call: a maker preference left out becomes no preference, and a self-trade setting left out becomes none. | `praxis/command_translator.py` 212-213, or 232-233 | Praxis package forty-nine | folds into P49-01 |
+| H-681 | The plain single order's settings have a builder of their own, reached before the table every other way of working goes through. | `praxis/command_translator.py` 378-379 ahead of 381-389 | Praxis package forty-nine | is P49-02 |
+| H-682 | A change's settings are built from the table alone, with no way of working standing apart. | `praxis/command_translator.py` 415-424 | Praxis package forty-nine | folds into P49-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 06:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 07:00 UTC
