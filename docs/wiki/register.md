@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 331 not.**
+**6 of them reviewed, 332 not.**
 
 ## Package 1
 
@@ -856,6 +856,44 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 34 — what the platform's ceilings and figures must be
+
+Scope: the stage weighing the platform's own ceilings, which the ledger marks
+`partial` with twenty-three of its forty-nine statements uncited. Two articles have
+what it weighs, which figures it needs and what a missing one costs. What the two
+records it is handed — the ceilings and the figures — must each hold is in no
+article.
+
+### Merge and promote, Nexus package 34
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-627 | Each of the five ceilings may be left out, and one given must be a finite figure of the exact kind at or above nought. | Promote. What the two records must hold is in no article, and both make the same walk over their own fields |
+| Row H-628 | The ceiling that is a share must also stand at or below one, by a test that runs after the walk. | Merge with H-627. The share's own ceiling is the one thing the walk does not cover, and it sits in both records |
+| Row H-629 | The record of figures makes the same walk over its four, and holds its own share to one the same way. | Merge with H-627. The two records are one subject: the same gate on both sides of every comparison |
+| Row H-630 | A refusal is kept rather than returned as it is found, and the allowance comes only where none was kept. | Merge with H-627, the shape the stage answers in |
+
+One subject promotes and three rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N34-01 | What the platform's ceilings must be | written | [what-the-platforms-ceilings-must-be.md](atoms/what-the-platforms-ceilings-must-be.md) |
+
+### Re-seed, after writing Nexus package 34
+
+The reader had the article before it was committed and returned three reports.
+Two of the three are rebutted; the third is acted on.
+
+| What it found | What came of it |
+|---|---|
+| A share above one does not always reach the test that holds it to one: a share without end fails the walk's demand for finiteness first. | Acted on. The article now says a finite share above one, and names where one without end is stopped |
+| Twice, that "a figure of the exact kind" overstates the test, since the test admits anything built on that kind rather than that kind alone. | Rebutted. The phrase names which kind of figure is wanted — the exact kind rather than the floating-point kind — and is used that way in some ninety articles across both sides. Reading it as a demand for that type and no other is a reading of the phrase, not of the line. Changing it here would leave this one article saying something the rest say differently |
+
+The rebuttal is the first in this run, and worth the record: a reader that checks
+every sentence against the lines will sometimes read the corpus's own vocabulary
+as a claim. The answer is to keep the vocabulary and say why, rather than to bend
+one article to one reading.
 
 ## Package 33 — the last statements in the book and the store
 
@@ -4428,8 +4466,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-624 | Anything else the record holds is ignored. | `praxis/infrastructure/secret_store.py` 161-162 and 172, which read two keys and carry two | Praxis package thirty-two | folds into P32-01 |
 | H-625 | The file road reads and decodes every record once and keeps them, so a file changed afterwards is not read again. | `praxis/infrastructure/secret_store.py` 288-289 against 307-311 | Praxis package thirty-two | is P32-02 |
 | H-626 | A replacement of binsim's book with nothing on either side is refused before any level is looked at. | `praxis/binsim/book.py` 75-76, or 78-79 | Praxis package thirty-three | added to binsim's book |
+| H-627 | Each of the five ceilings may be left out, and one given must be a finite figure of the exact kind at or above nought. | `nexus/core/validator/platform_limits_stage.py` 48-62 into 63-67 | Nexus package thirty-four | is N34-01 |
+| H-628 | The ceiling that is a share must also stand at or below one, by a test that runs after the walk. | `nexus/core/validator/platform_limits_stage.py` 69-74 | Nexus package thirty-four | folds into N34-01 |
+| H-629 | The record of figures makes the same walk over its four, and holds its own share to one the same way. | `nexus/core/validator/platform_limits_stage.py` 85-103, or 105-112 | Nexus package thirty-four | folds into N34-01 |
+| H-630 | A refusal is kept rather than returned as it is found, and the allowance comes only where none was kept. | `nexus/core/validator/platform_limits_stage.py` 207-210 | Nexus package thirty-four | folds into N34-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 15:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 16:30 UTC
