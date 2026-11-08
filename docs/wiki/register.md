@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 337 not.**
+**6 of them reviewed, 339 not.**
 
 ## Package 1
 
@@ -856,6 +856,45 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 38 — what a recovery takes before it rebuilds
+
+Scope: the store a host's state is written to and read back from, which the ledger
+marks `partial` with twenty-five of its eighty-one statements uncited. Articles
+have the checkpoint, what a start reads back, and the thirty-day cut. What a
+recovery checks and takes before it rebuilds anything, and what it does at the
+end, are in no article.
+
+### Merge and promote, Nexus package 38
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-643 | A recovery checks the log's marker before it reads anything, and so does a plain reading of the events. | Promote. What a recovery takes before it rebuilds is in no article, and the marker is the first thing either road touches |
+| Row H-644 | The number the next record will carry is taken from the last record in the log, where the log held any. | Merge with H-643. What a recovery takes from the log besides its contents belongs beside the marker |
+| Row H-645 | The moment the rolling losses are measured back from is read off the clock as the recovery runs. | Merge with H-643, the third thing taken before anything is rebuilt |
+| Row H-646 | A recovery ends by handing the realized figure back to the risk record, which recomputes the fall from it. | Promote. What a recovery does after the figures are rebuilt is in no article, and it is the one write a recovery makes that nothing in the log asked for |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N38-01 | What a recovery takes before it rebuilds | written | [what-a-recovery-takes-before-it-rebuilds.md](atoms/what-a-recovery-takes-before-it-rebuilds.md) |
+| N38-02 | What a recovery writes at the end | written | [what-a-recovery-writes-at-the-end.md](atoms/what-a-recovery-writes-at-the-end.md) |
+
+### Re-seed, after writing Nexus package 38
+
+The reader had both articles before they were committed and returned three
+reports, two of them against the second article's close.
+
+| What it found | What came of it |
+|---|---|
+| The numbering does not pick up where the last run left off. It continues from the last record the log still holds, and a checkpoint drops every record of a state change while keeping only recent events — so it can sit far behind, and a log the cut emptied starts the numbering over. | N38-01 says that, with the cut's own article linked |
+| The fall a recovered host reports is not measured from rebuilt figures alone. The peak is kept at whichever is largest of the peak restored from the snapshot, what the account started with, and the total just handed back; the worst fall ever is kept at whichever is larger of stored and new. | N38-02 is rebuilt around that: what the handing back moves, and what it leaves standing |
+| A log thinned by the cut does not necessarily recover a smaller total. Dropping a loss raises the total and dropping a gain lowers it. | That sentence is gone |
+
+The last two are one habit: writing the consequence a figure's name suggests
+rather than the one its arithmetic gives. A thinner log sounds like a smaller
+total, and a rebuilt total sounds like a rebuilt fall. Neither follows.
 
 ## Nexus package 37 — what the capital record refuses
 
@@ -4604,8 +4643,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-640 | The per-strategy mapping must be a mapping, each key text with something left once trimmed, and each value a finite figure of the exact kind at or above nought. | `nexus/core/domain/capital_state.py` 60-62, or 66-70, or 72-77, or 84-95 | Nexus package thirty-seven | folds into N37-01 |
 | H-641 | A key differing from its own trimmed form is refused outright, by a test of its own after the trimming. | `nexus/core/domain/capital_state.py` 78-83 | Nexus package thirty-seven | is N37-02 |
 | H-642 | The mapping is rebuilt as the record is built and put back over the field it arrived in. | `nexus/core/domain/capital_state.py` 64 and 97 into 99 | Nexus package thirty-seven | folds into N37-01 |
+| H-643 | A recovery checks the log's marker before it reads anything, and so does a plain reading of the events. | `nexus/infrastructure/state_store.py` 259, and 344 | Nexus package thirty-eight | is N38-01 |
+| H-644 | The number the next record will carry is taken from the last record in the log, where the log held any. | `nexus/infrastructure/state_store.py` 271-272 | Nexus package thirty-eight | folds into N38-01 |
+| H-645 | The moment the rolling losses are measured back from is read off the clock as the recovery runs. | `nexus/infrastructure/state_store.py` 286, used at 287 | Nexus package thirty-eight | folds into N38-01 |
+| H-646 | A recovery ends by handing the realized figure back to the risk record, which recomputes the fall from it. | `nexus/infrastructure/state_store.py` 333 | Nexus package thirty-eight | is N38-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 19:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 20:30 UTC
