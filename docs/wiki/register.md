@@ -857,6 +857,24 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 23 — starting and stopping the timers, and what the walk is built from
+
+Scope: two Nexus modules the ledger marks `partial`. The timer loop has sixteen of
+its thirty-nine statements uncited: one article has what a turn of a timer does,
+and nothing has the starting and stopping around it. The walk that runs the checks
+has thirteen of forty-nine uncited, all but one of them plumbing.
+
+### Merge and promote, package 23
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-595 | Starting takes the lock, does nothing where the loop is already running, and otherwise schedules one timer for every timer a strategy declares. | Promote. What starting and stopping the timers does is in no article, and the article on a turn of a timer begins after this |
+| Row H-596 | Stopping takes the same lock, clears the running mark, cancels every live timer and forgets them all. | Merge with H-595, the other half of the same pair |
+| Row H-597 | The timers a loop was handed are copied as it is built, so a caller changing its own mapping afterwards changes nothing the loop will schedule. | Merge with H-595. What the loop holds is settled at the build, which is what makes starting schedule a fixed set |
+| Row H-598 | The walk refuses a mapping of checks that is not a mapping, and refuses any entry that cannot be called. | Promote. What the walk is built from is in no article, and these two refusals stand beside the missing-check refusal that is already written |
+
+Two subjects promote and two rows merge, with nothing declined.
+
 ## Package 22 — three Nexus records near the line
 
 Scope: three Nexus modules the ledger marks `partial`, each left with one or two
@@ -3994,8 +4012,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-592 | A denial carrying no words of its own is given a standing message. | `nexus/core/validator/capital_stage.py` 63-65 | Nexus package twenty-two | folds into N22-01 |
 | H-593 | The base keeps a strategy's name trimmed, refusing one that is not text and one left empty by the trimming. | `nexus/strategy/base.py` 33-35, or 37 into 39-41, kept at 43 | Nexus package twenty-two | is N22-02 |
 | H-594 | Every one of the eight ways in goes through one lookup, which trims the name as the filing did, so a name given with blank space around it finds its wrapper. | `nexus/strategy/runner.py` 36 and 61 into 67, each way in at 95, or 119, or 143, or 167, or 189, or 204, or 217, or 230 | Nexus package twenty-two | folds into N22-02 |
+| H-595 | Starting takes the lock, does nothing where the loop is already running, and otherwise schedules one timer for every timer a strategy declares. | `nexus/strategy/timer_loop.py` 68-70, or else 72 into 74-76 | Nexus package twenty-three | is N23-01 |
+| H-596 | Stopping takes the same lock, clears the running mark, cancels every live timer and forgets them all. | `nexus/strategy/timer_loop.py` 81-87 | Nexus package twenty-three | folds into N23-01 |
+| H-597 | The timers a loop was handed are copied as it is built, so a caller changing its own mapping afterwards changes nothing the loop will schedule. | `nexus/strategy/timer_loop.py` 52 against 74 | Nexus package twenty-three | folds into N23-01 |
+| H-598 | The walk refuses a mapping of checks that is not a mapping, and refuses any entry that cannot be called. | `nexus/core/validator/pipeline_executor.py` 106-108, or 117-121 | Nexus package twenty-three | is N23-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 04:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 04:30 UTC
