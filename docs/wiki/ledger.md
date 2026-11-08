@@ -108,6 +108,7 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/core/domain/order_types.py` | partial | cited, not traced |
 | `nexus/core/capital_controller/capital_controller.py` | partial | N1-01, N1-02, N1-06, N2-01, N2-02, N2-05, N3-02, N3-04, N3-05, N3-06, N3-07, N3-08, N3-09, N3-10, N3-11, N3-12, N4-01, N4-02, N4-05, N4-06, N5-01, N5-02, N7-02, N7-10, P6-03, P6-04 |
 | `nexus/core/capital_controller/reservation.py` | partial | N13-01, N13-02, N13-03, N13-07 |
+| `nexus/core/domain/risk_breaker_thresholds.py` | partial | cited, not traced |
 | `nexus/core/capital_controller/tracked_order.py` | partial | N4-01, N5-02 |
 | `nexus/core/domain/capital_state.py` | partial | N1-01, N2-02, N3-02, N3-04, N3-05, N3-06, N3-08, N3-09, N4-01, N4-06, N7-10, P5-04 |
 | `nexus/core/domain/position.py` | partial | N2-01, N2-06, N3-01, N4-03, N4-05, N6-02 |
@@ -145,6 +146,7 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/infrastructure/praxis_connector/praxis_outbound.py` | partial | N11-02, N6-06, N6-08, N6-09, N7-02, N7-05, P4-04, P4-06 |
 | `nexus/infrastructure/praxis_connector/process_result.py` | partial | N9-04 |
 | `nexus/infrastructure/praxis_connector/order_context.py` | partial | N13-04, N13-05, N13-06 |
+| `nexus/infrastructure/praxis_connector/protection_remediation.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/trade_command_type.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04 |
@@ -160,15 +162,18 @@ Every Praxis module is named here: 46 are `full`, 38 `partial` and 4 `uncovered`
 | `nexus/strategy/predict_loop.py` | partial | N7-06, P3-04, P4-39, N10-02, N10-06 |
 | `nexus/strategy/runner.py` | partial | N10-01, N10-04 |
 | `nexus/strategy/executor.py` | partial | N10-01 |
+| `nexus/infrastructure/strategy_event.py` | partial | cited, not traced |
 | `nexus/strategy/base.py` | partial | N10-03 |
+| `nexus/strategy/params.py` | partial | cited, not traced |
+| `nexus/strategy/signal.py` | partial | cited, not traced |
 | `nexus/strategy/timer_loop.py` | partial | N10-02, N10-05, N10-06 |
 | `nexus/strategy/context.py` | partial | N10-06 |
-| the other 12 | uncovered | — |
+| the other 7 | uncovered | — |
 
 Modules are listed individually as tracing reaches them. Every untouched one stays `uncovered`. That visibility is the pressure.
 
-11 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 47 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 23 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
+16 of the modules listed above are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 47 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 23 with no row are the work the packages turn to next, not an exclusion: the brief covers both sides.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 15:40 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 20:00 UTC

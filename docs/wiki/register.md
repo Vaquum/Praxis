@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 58 are named and 12 untouched. Of the 58, 47 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 63 are named and 7 untouched. Of the 63, 47 carry a row of their own and 16 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -686,6 +686,20 @@ Paths are under `nexus/`.
 The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
+
+## Nexus package 14 — what five small records refuse
+
+Scope: the five records left on the Nexus side with refusals in them, and the
+checks each makes on itself — the event written down so a count of losses can be
+rebuilt, the signal a predictor hands back, the settings a strategy is configured
+with, the word that a bracket's protection was lost and dealt with, and the limits
+that trip the breakers. Five modules, nineteen refusals between them, and no
+article cites any of the five. The event the first of them holds is reached
+all the same, through the line that builds it and the one that reads it back,
+by two articles citing neither of its own checks.
+
+Two of the five seal a copy of a mapping over the field it arrived in, by the same
+line, and a third record on this side already has an article for doing the same.
 
 ## Nexus package 13 — what a capital lock and an order's context refuse
 
@@ -2247,8 +2261,28 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-387 | The flag saying an exit was meant to close the trade outright is refused on an order that grows a position. | `nexus/infrastructure/praxis_connector/order_context.py` 137-139 | Nexus package thirteen | folds into N13-06 |
 | H-388 | Whether the order reduces a position is the growing flag turned round, worked out on each reading rather than kept. | `nexus/infrastructure/praxis_connector/order_context.py` 145 | Nexus package thirteen | folds into N13-06 |
 | H-389 | The flag saying the order grows a position is never weighed against the side, each being checked on its own, so a buy may be marked as reducing and a sell as growing. | `nexus/infrastructure/praxis_connector/order_context.py` 87-89 and 91-93, with 70-139 comparing the two nowhere | Nexus package thirteen | is N13-06 |
+| H-390 | Every strategy event is refused unless the strategy's reference and the kind it names are each text with something left in them once trimmed. | `nexus/infrastructure/strategy_event.py` 56-58, or 60-62 | Nexus package fourteen |  |
+| H-391 | The result it carries must be a finite figure, and no check of the record's own weighs that figure against nought, so a decimal loss, a decimal gain and a decimal nought are all let in. | `nexus/infrastructure/strategy_event.py` 64-69, with 53-89 comparing it with nought nowhere | Nexus package fourteen |  |
+| H-392 | Its moment must be a moment, and must carry the UTC marker itself. | `nexus/infrastructure/strategy_event.py` 71-73, or 75-77 | Nexus package fourteen |  |
+| H-393 | The outcome's reference must be text, and empty text is allowed where text with nothing left in it once trimmed is refused. | `nexus/infrastructure/strategy_event.py` 79-81, or else 83-89 | Nexus package fourteen |  |
+| H-394 | That field cannot be left as a none at all: empty text is what stands for its absence, and the record names that empty text as its own default. | `nexus/infrastructure/strategy_event.py` 79-81, which refuses a none, with the default at 51 | Nexus package fourteen |  |
+| H-395 | Every signal is refused unless the predictor's reference is text with something left in it once trimmed, and unless what it was handed for its values is a mapping. | `nexus/strategy/signal.py` 32-34, or 36-38 | Nexus package fourteen |  |
+| H-396 | Every key in those values must be text. | `nexus/strategy/signal.py` 40 into 41-43 | Nexus package fourteen |  |
+| H-397 | A value that is a whole number or a floating one must be finite, and so must a decimal one, where a value of any other kind is weighed in no way at all. | `nexus/strategy/signal.py` 45-47, or 49-51, with 40-51 weighing nothing else | Nexus package fourteen |  |
+| H-398 | Its moment must be a moment, and must carry the UTC marker itself. | `nexus/strategy/signal.py` 53-55, or 57-59 | Nexus package fourteen |  |
+| H-399 | The values are copied and sealed over the field they arrived in, so a caller altering which entries its own mapping holds changes nothing the signal's mapping holds. | `nexus/strategy/signal.py` 61 | Nexus package fourteen |  |
+| H-400 | Sealing a copy of the entries leaves the object each entry holds shared, so a caller reaching into one of those and altering it alters what the signal holds. | `nexus/strategy/signal.py` 61, which copies the mapping and not the objects its entries hold | Nexus package fourteen |  |
+| H-401 | A signal shipped across a process boundary is rebuilt from three parts with its values unsealed, and the rebuilding runs every one of its checks again. | `nexus/strategy/signal.py` 78-81 into 29-59 | Nexus package fourteen |  |
+| H-402 | A parameter set is refused unless what it was handed is a mapping, and nothing else about it is weighed. | `nexus/strategy/params.py` 27-29, with 24-31 weighing nothing else | Nexus package fourteen |  |
+| H-403 | That mapping is copied and sealed over the field it arrived in, by the same line the signal beside it uses. | `nexus/strategy/params.py` 31, the same at `nexus/strategy/signal.py` 61 | Nexus package fourteen |  |
+| H-404 | Asking a parameter set for something it does not hold answers with whatever the asking named as its default. | `nexus/strategy/params.py` 44 | Nexus package fourteen |  |
+| H-405 | Four of its fields are walked by name, and each is refused unless it is text with something left in it once trimmed. | `nexus/infrastructure/praxis_connector/protection_remediation.py` 41-42 over the four names, into 45-47 | Nexus package fourteen |  |
+| H-406 | Its moment must be a moment and must carry the UTC marker itself, both weighed by one test rather than two. | `nexus/infrastructure/praxis_connector/protection_remediation.py` 49-54 | Nexus package fourteen |  |
+| H-407 | The attempt number must be a whole number at or above one, and a true-or-false is refused by a test of its own set ahead of the one for whole numbers, which would otherwise count such a thing as one. | `nexus/infrastructure/praxis_connector/protection_remediation.py` 57 before 58, raising at 61-62, with the lower bound at 59 | Nexus package fourteen |  |
+| H-408 | Three limits may each be left out, and leaving one out is passed over before any figure is looked at rather than refused. | `nexus/core/domain/risk_breaker_thresholds.py` 32 over the three names, with 35 into 36 | Nexus package fourteen |  |
+| H-409 | A limit that is given must be a finite figure above nought, so a limit of nought is refused rather than let in as a limit. | `nexus/core/domain/risk_breaker_thresholds.py` 38-40 | Nexus package fourteen |  |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 19:25 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 20:55 UTC
