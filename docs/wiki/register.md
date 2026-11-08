@@ -840,6 +840,36 @@ walk with it, because the bound on that walk is what waiting for each poller cos
 | P11-02 | The gap between polls | written | [the-gap-between-polls.md](atoms/the-gap-between-polls.md) |
 | P11-03 | The stop that waits for its pollers | written | [the-stop-that-waits-for-its-pollers.md](atoms/the-stop-that-waits-for-its-pollers.md) |
 
+### Re-seed, after writing package 11
+
+What verifying the three articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The fifth place a comparison stands in for a check on a figure | `praxis/infrastructure/book_poller.py` 34 refuses an interval at or below nought by comparison and asks nothing of its type. Running the poller with an interval that is not a number keeps it, and the loop then hands that figure to the bounded wait at 88-89 as its limit. This is the fifth record the wiki has found refusing a figure by comparing, after the three the package 15 re-seed named and the bucket of permissions in package 9, and the second where what is kept is then used in the arithmetic that paces the work. P11-01 states the refusal and that it asks no type; what the kept figure does to the waiting is in no article |
+| What the host's one limit means for the poller stopped last | `praxis/launcher.py` 3848-3850 waits for each poller in turn and 3855 bounds the whole walk at ten seconds, so the time any one poller gets is ten seconds less whatever the ones before it took. A host with enough pollers, or one poller slow to end its turn, leaves the last of them no time at all — and 3856-3857 then keeps the whole list rather than the part that did not stop. P11-03 has the single limit and what a failed walk keeps; that the limit falls unevenly across the pollers, and that a walk failing late keeps even the pollers it did stop, is in no article |
+
+Two candidates. The first continues a class the register has now found five times;
+the second is what sharing one limit costs, which the article states as a fact
+about the walk and does not follow to the poller at the end of it.
+
+A note on a mistake made and corrected while committing this package. The gate
+wrapper used all session lifts another session's uncommitted release section out of
+the changelog, runs the check, and puts it back. Staging the changelog straight
+after a gate run therefore captured that section, and one commit carried eight
+lines of another branch's work. The commit after it removes them, and the staging
+path is now a wrapper that lifts the section, refuses outright if it is still
+staged, commits, and restores — so the mistake cannot be made again rather than
+being remembered against.
+
+A note on verification, as for the seven packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the pinned poller on the cases each claim turns on.
+Running it is what established that an interval which is not a number is kept, that
+four ticks follow four failures with the loop still going, and that a stop part way
+through a gap of a twentieth of a second returns in a time too small to measure.
+The articles carry status `written`, as 296 of the 297 do.
+
 ## Package 10 — what a ladder insists on, and what a lot step leaves behind
 
 Scope: the settings for orders spread across several prices, of which one check is
@@ -3183,4 +3213,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 07:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 08:00 UTC
