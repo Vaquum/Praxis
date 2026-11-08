@@ -803,6 +803,38 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 18 — the last statements in the six modules next nearest the line
+
+Scope: the six modules the ledger marks `partial` with the fewest statements left
+uncited after the seventeenth package — between four and eight each. Five belong
+to Nexus and one to Praxis. As in that package, no subject promotes: what is left
+is a handful of statements each, and in two modules nothing but lines carrying a
+value found or made along to the line that uses it.
+
+### Merge and promote, package 18
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-570 | A start reading the checkpoint where no snapshot file is there answers nothing at all rather than failing. | Add to the article on what a checkpoint holds, which has the start reading that snapshot and not what it reads where there is none |
+| Row H-571 | The push to the directory opens the directory itself, pushes it, and lets the handle go whatever happens. | Extend the citation on the claim already naming that push, which stopped at the call and never reached what it does |
+| Row H-572 | The wrapper refuses anything that is not a strategy. | Add to the article on the wrapper every strategy sits behind, which has the lock it makes and not the one thing it refuses |
+| Row H-573 | The name the wrapper answers to is the wrapped strategy's own. | Add to the same article. The wrapper carrying no name of its own is why one name reaches one lock |
+| Row H-574 | The moment the rolling windows are measured back from must carry a zone. | Add to the article on what the thirty-day cut leaves, which has every other test these windows make |
+| Row H-575 | A command carries the name of the money set aside for it, where any was set aside. | Add to the article on how a decision becomes a command, which carries what else the command is filled from |
+| Row H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | Add to the article on what an even split refuses, the two splits being the pair that article already holds one half of |
+
+Nothing promotes and nothing is declined. Six statements are added to five
+articles and one citation is extended.
+
+What is left is recorded as an exclusion. In the strategy loader, the lines left
+uncited are 29, 76, 82, 96 and 117, each carrying a value found or built along to
+the line that uses it, every test around them already stated. In the translation,
+83 to 85 look the kind up by the action and take two answers from it, and the
+lines either side of them are stated. The same holds for 115 and 153 in the loss
+figures and 64 and 85 in the weighted split, which are the returns of what the
+lines above them worked out. No behaviour hangs on any of these, so the six cells
+go to `full`.
+
 ## Package 17 — the last statements in the five modules nearest the line
 
 Scope: the five modules the ledger marks `partial` with the fewest statements
@@ -3613,8 +3645,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-567 | A weigher built with no policy of its own takes the built-in thresholds. | `nexus/core/health_evaluator.py` 153, the defaults at 81-93 | Praxis package seventeen | added to what the health policy refuses |
 | H-568 | The two measures of execution quality are checked before the choice between the two lists, so that check is made whatever the kind. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 112 before 114-117 | Praxis package seventeen | added to what an outcome is checked for |
 | H-569 | Each of the two shutdown waits is refused unless it is a finite number above nought. | `nexus/instance_config.py` 275-278 into 279-287 | Praxis package seventeen | citation extended to the raise |
+| H-570 | A start reading the checkpoint where no snapshot file is there answers nothing at all rather than failing. | `nexus/infrastructure/snapshot.py` 66-68 | Praxis package eighteen | added to what a checkpoint holds |
+| H-571 | The push to the directory opens the directory itself, pushes it, and lets the handle go whatever happens. | `nexus/infrastructure/snapshot.py` 23-30 | Praxis package eighteen | citation extended to what the push does |
+| H-572 | The wrapper refuses anything that is not a strategy. | `nexus/strategy/executor.py` 28-30 | Praxis package eighteen | added to the wrapper every strategy sits behind |
+| H-573 | The name the wrapper answers to is the wrapped strategy's own. | `nexus/strategy/executor.py` 39 | Praxis package eighteen | added to the wrapper every strategy sits behind |
+| H-574 | The moment the rolling windows are measured back from must carry a zone. | `nexus/infrastructure/loss_derivation.py` 80-85 | Praxis package eighteen | added to what the thirty-day cut leaves |
+| H-575 | A command carries the name of the money set aside for it, where any was set aside. | `nexus/infrastructure/praxis_connector/translate.py` 87-89 | Praxis package eighteen | added to how a decision becomes a command |
+| H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | `praxis/core/plan_weighted_slices.py` 50-52, or 54-56 | Praxis package eighteen | added to what an even split refuses |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 18:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 18:30 UTC
