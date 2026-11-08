@@ -803,6 +803,37 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 11 — the poller that keeps the book, and the stop that waits for it
+
+Scope: the poller that keeps the order book fresh, of which the tick and the
+swallowed failure are cited and nothing else is, together with the path the host
+takes to stop its pollers.
+
+Four articles reach this module for what a tick does and for the failure it
+swallows. What it refuses, what it answers about itself, how the gap between polls
+is actually waited out, and that its stop waits for the work in hand are in no
+article.
+
+### Merge and promote, package 11
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-522 | A poller refuses an empty symbol and an interval at or below nought, both by comparison and neither by type. | Promote. What the poller refuses and what it answers about itself are in no article, and both are read by the host that drives it |
+| Row H-523 | It answers that it is running where its task exists and has not finished. | Merge with H-522. The answer is what the refusal below turns on, so the two read together |
+| Row H-524 | Starting one that is already running is refused. | Merge with H-522, the refusal that reads the answer above |
+| Row H-525 | Starting clears the stop signal and makes a task named for the symbol. | Merge with H-522. Clearing the signal before the task exists is what lets a stopped poller be started again, which the refusal alone would not show |
+| Row H-526 | The gap between polls is a wait on the stop signal bounded by the interval, so the waiting ends either when the signal comes or when the interval runs out. | Promote. The gap is written as a bounded wait rather than a sleep, which means a stop is noticed at once instead of after the interval, and no article says so |
+| Row H-527 | Stopping sets the signal, cancels the task, waits for it while swallowing the cancellation, and then forgets it. | Promote. The article on what a loop's stop leaves running has four stops that wait for nothing and one that waits; this is a second that waits, and its own shape is in no article |
+| Row H-528 | The host stops its pollers one after another, each waited for, the whole bounded at ten seconds. | Merge with H-527. The poller's own stop and the host's walk over all of them are one subject: the bound on the whole is what the waiting costs |
+| Row H-529 | A stop that fails or runs out of time keeps the pollers recorded for another attempt, where one that finishes forgets them. | Merge with H-527. What a failed stop leaves behind is the far side of a stop that waits, since a stop that waited for nothing would have nothing to leave |
+
+Three subjects promote and five rows merge, with nothing declined.
+
+What the poller refuses and answers comes first, because the host reads both. The
+gap between polls comes second, as the one thing about this loop that differs from
+the others in shape rather than in detail. The stop comes last and takes the host's
+walk with it, because the bound on that walk is what waiting for each poller costs.
+
 ## Package 10 — what a ladder insists on, and what a lot step leaves behind
 
 Scope: the settings for orders spread across several prices, of which one check is
@@ -3134,8 +3165,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-519 | Each weight must be a positive finite decimal. | `praxis/core/domain/ladder_dca_params.py` 69 into 70-72 | Praxis package ten | folds into P10-02 |
 | H-520 | The weights must come to exactly one, so a set short by a hundredth is refused. | `praxis/core/domain/ladder_dca_params.py` 74-76 | Praxis package ten | folds into P10-02 |
 | H-521 | Where a lot step is known the last slice is floored to it as the others are, so the slices can come to less than the total asked for and the remainder is never sent. | `praxis/core/plan_even_slices.py` 69 into 78, against 56-58, which lose nothing | Praxis package ten | is P10-03 |
+| H-522 | A poller refuses an empty symbol and an interval at or below nought, both by comparison and neither by type. | `praxis/infrastructure/book_poller.py` 31-32, or 34-35 | Praxis package eleven | is P11-01 |
+| H-523 | It answers that it is running where its task exists and has not finished. | `praxis/infrastructure/book_poller.py` 46-47 | Praxis package eleven | folds into P11-01 |
+| H-524 | Starting one that is already running is refused. | `praxis/infrastructure/book_poller.py` 52-53 | Praxis package eleven | folds into P11-01 |
+| H-525 | Starting clears the stop signal and makes a task named for the symbol. | `praxis/infrastructure/book_poller.py` 55 into 56-58 | Praxis package eleven | folds into P11-01 |
+| H-526 | The gap between polls is a wait on the stop signal bounded by the interval, so the waiting ends either when the signal comes or when the interval runs out. | `praxis/infrastructure/book_poller.py` 88-89, the running out at 90-91 | Praxis package eleven | is P11-02 |
+| H-527 | Stopping sets the signal, cancels the task, waits for it while swallowing the cancellation, and then forgets it. | `praxis/infrastructure/book_poller.py` 63 into 65-69, then 71 | Praxis package eleven | is P11-03 |
+| H-528 | The host stops its pollers one after another, each waited for, the whole bounded at ten seconds. | `praxis/launcher.py` 3848-3850, bounded at 3855 | Praxis package eleven | folds into P11-03 |
+| H-529 | A stop that fails or runs out of time keeps the pollers recorded for another attempt, where one that finishes forgets them. | `praxis/launcher.py` 3856-3858, or else 3860 | Praxis package eleven | folds into P11-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 06:15 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 07:00 UTC
