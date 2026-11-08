@@ -242,6 +242,14 @@ the others where it appears.
 - [The name a bracket's protective exit is given](atoms/the-name-a-brackets-exit-is-given.md) — the protective order's identifier is the entry's with a dash and one letter appended, nothing checks what is passed in, callers on both sides of the code share the single helper, and nothing in the other repository derives the identifier at all — so the comment calling this a computation both sides must perform identically is out of date, and the side that reads it is handed it instead.
 - [What the Nexus logging adds](atoms/what-the-nexus-logging-adds.md) — Nexus can bind correlation fields for the duration of a block and put those same fields back on exit, including when an exception leaves the block, where the other side has only the unscoped bind; the level lookup and the handler replacement are identical on both sides.
 - [The records that refuse nothing](atoms/the-records-that-refuse-nothing.md) — three records declare their fields and validate none of them, so no rule constrains any value they hold; one of them can say whether its lifecycle has finished, by testing its state against the finished ones.
+- [What a health snapshot refuses](atoms/what-a-health-snapshot-refuses.md) — the record of how the trading side is faring rejects a measurement that is not a real number of zero or more, caps each proportion it carries at one, and holds the consecutive-failure tally to a separate rule, where the latency and clock-drift figures have no upper bound at all.
+- [What the health policy refuses](atoms/what-the-health-policy-refuses.md) — the configured limits are each rejected unless they are real numbers of zero or more, each measurement's limits must not decrease across alert, act and halt, equal limits are accepted, and the proportions are capped at one by a test that runs after the ordering ones.
+- [How the mode is settled](atoms/how-the-mode-is-settled.md) — the measurements are compared with their halting limits first and then with their acting limits, a measurement exactly at a limit counts as past it, and the answer is whichever measurement is doing worst rather than any combination of them.
+- [The thresholds nothing weighs against](atoms/the-thresholds-nothing-weighs-against.md) — the alerting limit of each measurement is validated when the configuration is built and read by the ordering test, and then compared with no measurement anywhere, so changing one alters what configuration is accepted and nothing about what gets decided.
+- [What stops a health turn](atoms/what-stops-a-health-turn.md) — the interval between ticks is rejected at zero or below but let through for infinity or a not-a-number, because the test compares instead of asking for a real number; a failed loss refresh is logged and the tick continues, while a failed fetch or a failed evaluation abandons it and leaves the mode alone.
+- [The two roads a turn's answer takes](atoms/the-two-roads-a-turns-answer-takes.md) — without a controller the tick writes its answer straight through, doing nothing when the answer matches and otherwise replacing the whole record; with one, the answer is stored and the mode recomputed over every standing hold, so the result can differ from what the tick asked for.
+- [What the records of the mode refuse](atoms/what-the-records-of-the-mode-refuse.md) — a single hold needs a true-or-false flag, text for its reason and a timestamp or nothing, and may claim to be holding without saying since when; the mode record needs a recognised mode and a usable driver name; and the records that gather holds validate nothing at all.
+- [The moments with no marker](atoms/the-moments-with-no-marker.md) — the timestamp on the mode record and a hold’s own timestamp are each checked only for being timestamps, with no zone required and the mode record defaulting to the earliest possible instant, where the records crossing to the other side are rejected without the standard universal-time marker.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -355,15 +363,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 258
+Both sides are the subject, and Praxis is the side that has been written. 266
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
-untouched — 53 carry a row of their own, and 17 are reached by an article, a
-recorded finding, or a recorded exclusion: 11 cited by something that needed them,
-and 6 recorded as shapes with no behaviour to trace. Deepening those 11 is the work
+untouched — 56 carry a row of their own, and 14 are reached by an article, a
+recorded finding, or a recorded exclusion: 8 cited by something that needed them,
+and 6 recorded as shapes with no behaviour to trace. Deepening those 8 is the work
 that remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 08:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 14:00 UTC

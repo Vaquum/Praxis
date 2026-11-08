@@ -107,7 +107,7 @@ Every Praxis module is named here: 46 are `full` and 42 `partial`, with none `un
 |---|---|---|
 | `nexus/core/domain/order_types.py` | partial | cited, not traced |
 | `nexus/core/capital_controller/capital_controller.py` | partial | N1-01, N1-02, N1-06, N2-01, N2-02, N2-05, N3-02, N3-04, N3-05, N3-06, N3-07, N3-08, N3-09, N3-10, N3-11, N3-12, N4-01, N4-02, N4-05, N4-06, N5-01, N5-02, N7-02, N7-10, P6-03, P6-04 |
-| `nexus/core/capital_controller/reservation.py` | partial | N13-01, N13-02, N13-03, N13-07 |
+| `nexus/core/capital_controller/reservation.py` | partial | N13-01, N13-02, N13-03, N13-07, N15-08 |
 | `nexus/core/domain/risk_breaker_thresholds.py` | partial | N14-07 |
 | `nexus/core/capital_controller/tracked_order.py` | partial | N4-01, N5-02 |
 | `nexus/core/domain/capital_state.py` | partial | N1-01, N2-02, N3-02, N3-04, N3-05, N3-06, N3-08, N3-09, N4-01, N4-06, N7-10, P5-04 |
@@ -117,16 +117,16 @@ Every Praxis module is named here: 46 are `full` and 42 `partial`, with none `un
 | `nexus/core/validator/pipeline_executor.py` | partial | N1-03, N1-04, N1-08, N2-06, N3-08, N4-07 |
 | `nexus/core/validator/pipeline_models.py` | partial | N1-02, N1-03, N1-04, N3-05, N4-07, N5-06, N6-10 |
 | `nexus/core/outcome_loop.py` | partial | N1-05, N1-07, N3-07, N6-05, N6-07, N6-09, N6-11, N10-02, N10-06 |
-| `nexus/core/health_evaluator.py` | partial | cited, not traced |
+| `nexus/core/health_evaluator.py` | partial | N15-01, N15-02, N15-03, N15-04, N15-05, P3-15 |
 | `nexus/core/validator/capital_stage.py` | partial | N1-03, N2-03, N3-08, P6-04 |
 | `nexus/core/validator/health_stage.py` | partial | N2-03 |
 | `nexus/core/validator/intake_stage.py` | partial | N2-03, N2-06, N3-05, N4-02, N4-07, N5-06, N6-01, N6-10, N7-03, N7-10, N8-06, N8-07 |
 | `nexus/core/validator/platform_limits_stage.py` | partial | N2-03, N2-06 |
 | `nexus/core/validator/risk_stage.py` | partial | N2-03, N2-04 |
 | `nexus/core/validator/price_stage.py` | partial | N2-03, N2-07, P2-26 |
-| `nexus/core/health_loop.py` | partial | cited, not traced |
-| `nexus/core/mode_controller.py` | partial | N2-04, N6-01, N7-09, N8-03, P3-20, P4-43 |
-| `nexus/core/domain/operational_mode.py` | partial | cited, not traced |
+| `nexus/core/health_loop.py` | partial | N6-01, N6-11, N15-05, N15-06, P3-15 |
+| `nexus/core/mode_controller.py` | partial | N2-04, N6-01, N7-09, N8-03, P3-20, P4-43, N15-06 |
+| `nexus/core/domain/operational_mode.py` | partial | N6-01, N15-07, N15-08 |
 | `nexus/core/domain/bracket_protection_failure_response.py` | full | P4-43 |
 | `nexus/core/domain/reconciliation_mismatch_response.py` | full | P4-43 |
 | `nexus/reconciler/protection_remediation_handler.py` | full | P4-43 |
@@ -149,8 +149,8 @@ Every Praxis module is named here: 46 are `full` and 42 `partial`, with none `un
 | `nexus/infrastructure/praxis_connector/protection_remediation.py` | partial | N14-06 |
 | `nexus/infrastructure/praxis_connector/reconciliation_mismatch.py` | partial | cited, not traced |
 | `nexus/infrastructure/praxis_connector/trade_command_type.py` | partial | cited, not traced |
-| `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04, N14-04 |
-| `nexus/infrastructure/praxis_connector/trade_outcome.py` | partial | N12-01, N12-02, N12-03, N12-04 |
+| `nexus/infrastructure/praxis_connector/trade_command.py` | partial | N11-01, N11-02, N11-03, N11-04, N14-04, N15-08 |
+| `nexus/infrastructure/praxis_connector/trade_outcome.py` | partial | N12-01, N12-02, N12-03, N12-04, N15-08 |
 | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` | partial | N1-07, N7-05 |
 | `nexus/infrastructure/praxis_connector/translate.py` | partial | cited, not traced |
 | `nexus/instance_config.py` | partial | cited, not traced |
@@ -178,8 +178,8 @@ Every Praxis module is named here: 46 are `full` and 42 `partial`, with none `un
 
 Modules are listed individually as tracing reaches them, and every one of Nexus's 70 is now listed. Six are marked `full` as shapes: five sets of named values across three of them, two shapes a connector must answer to, a record of how a lifecycle call went, and two error types. Each declares names or a shape, or keeps what it was handed, and makes no check of its own, so there is no behaviour for an article to trace; a value outside one of those sets is refused by the machinery the set is built on rather than by anything in the module. Package 7 recorded that, and it is an exclusion rather than work outstanding.
 
-17 of the modules listed above carry no row of their own. 11 are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 6 are the shapes recorded below. The other 53 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 17 with no row divide into the 11 above, reached only by citation and the work the packages turn to next, and the 6 shapes below, which are an exclusion rather than work outstanding.
+14 of the modules listed above carry no row of their own. 8 are `partial` by citation rather than by tracing: a Praxis article or a recorded finding reaches into them for what it needs and cites that, while no row owns the module. The other 6 are the shapes recorded below. The other 56 carry a row — the validator's six stages and the walk that runs them, the money set aside for a trade and what becomes of it, the outcomes that move it on, and the record of how far down the account is. The 14 with no row divide into the 8 above, reached only by citation and the work the packages turn to next, and the 6 shapes below, which are an exclusion rather than work outstanding.
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 10:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 14:00 UTC

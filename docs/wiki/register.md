@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 257 not.**
+**6 of them reviewed, 265 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope. All 70 of its modules are named, none untouched. 53 carry a row of their own, and 17 are reached by an article, a recorded finding, or a recorded exclusion: 11 cited by something that needed them, and 6 recorded as shapes with no behaviour to trace.
+Nexus is in scope. All 70 of its modules are named, none untouched. 56 carry a row of their own, and 14 are reached by an article, a recorded finding, or a recorded exclusion: 8 cited by something that needed them, and 6 recorded as shapes with no behaviour to trace.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -851,6 +851,17 @@ snapshot is weighed against; the weighing third, and what it ignores fourth. The
 turn follows, then the two roads its answer takes, then the records that hold the
 answer. One subject is held out of the records: the moments with no marker, because the
 records around them on this side demand one.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N15-01 | What a health snapshot refuses | written | [what-a-health-snapshot-refuses.md](atoms/what-a-health-snapshot-refuses.md) |
+| N15-02 | What the health policy refuses | written | [what-the-health-policy-refuses.md](atoms/what-the-health-policy-refuses.md) |
+| N15-03 | How the mode is settled | written | [how-the-mode-is-settled.md](atoms/how-the-mode-is-settled.md) |
+| N15-04 | The thresholds nothing weighs against | written | [the-thresholds-nothing-weighs-against.md](atoms/the-thresholds-nothing-weighs-against.md) |
+| N15-05 | What stops a health turn | written | [what-stops-a-health-turn.md](atoms/what-stops-a-health-turn.md) |
+| N15-06 | The two roads a turn's answer takes | written | [the-two-roads-a-turns-answer-takes.md](atoms/the-two-roads-a-turns-answer-takes.md) |
+| N15-07 | What the records of the mode refuse | written | [what-the-records-of-the-mode-refuse.md](atoms/what-the-records-of-the-mode-refuse.md) |
+| N15-08 | The moments with no marker | written | [the-moments-with-no-marker.md](atoms/the-moments-with-no-marker.md) |
 
 ## Nexus package 14 — what five small records refuse
 
@@ -2576,4 +2587,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 13:25 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 14:00 UTC
