@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 359 not.**
+**6 of them reviewed, 361 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 52 — the lock the marking insists on, and the mark that ends a turn
+
+Scope: the loop marking open positions to the market, which the ledger marks
+`partial` with fifty-eight of its eighty-nine statements uncited. Articles have
+what its stop leaves running and which of its changes reach the log. What it
+refuses as it is built, and what one unusable mark does to a turn, are in no
+article.
+
+### Merge and promote, Nexus package 52
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-692 | Where a positions lock is given, it must be the very lock the risk record holds, and the loop refuses to be built otherwise. | Promote. A record insisting on the identity of a lock rather than on having one is in no article, and this is the only such check on either side |
+| Row H-693 | Its interval is held to being a number above nought with a true-or-false refused outright, the same gate the health loop and the checkpoint timer make. | Merge with H-692, the other thing the building checks |
+| Row H-694 | A turn reads the symbols under the lock, fetches the marks outside it, and reads the positions under it again. | Promote. What a turn holds the lock across is in no article, and the fetching is deliberately outside it |
+| Row H-695 | One mark that is missing, or not a finite figure of the exact kind, ends the whole turn rather than that symbol's part of it. | Merge with H-694. One symbol ending the turn for all of them is what a reader would get wrong |
+| Row H-696 | A turn finding no positions zeroes every strategy's unrealized figure and the account's, where either stood at something. | Merge with H-694, what the turn does where there is nothing to mark |
+
+Two subjects promote and three rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N52-01 | The lock the marking insists on | written | [the-lock-the-marking-insists-on.md](atoms/the-lock-the-marking-insists-on.md) |
+| N52-02 | The mark that ends a turn | written | [the-mark-that-ends-a-turn.md](atoms/the-mark-that-ends-a-turn.md) |
+
+### Re-seed, after writing Nexus package 52
+
+The reader had both articles before they were committed and returned five
+reports.
+
+| What it found | What came of it |
+|---|---|
+| A turn locks nothing where no lock was given: the guard it enters is the lock or an empty stand-in, chosen as the turn begins. | N52-02 says what the guard is, rather than calling it the lock |
+| The reason given for fetching outside the guard — that a fetch reaches outside the host — is not what the wired fetch does: it reads a file on the same machine. And a lock held blocks others taking that lock, not every touch of a position. | The reason is gone. The article says where the fetching happens and stops there |
+| A turn does not retry the previous set: it builds the symbols afresh, and can stop before asking for all of them. | Corrected, with the stopping at the first bad mark stated as its own claim |
+| What a stopped turn leaves standing is whatever each position already held, which for a position opened since the last finished turn is the nought it was created with. | Corrected; the claim about the last whole turn is gone |
+| The interval article said above nought where the test compares with nought. | Corrected again, as in the two packages before it |
+
+The second report is the one to keep. A reason is not a finding, and this one was
+doubly wrong: wrong about what the fetch does, and wrong about what a lock holds
+out. The sentence read as the obvious explanation for a structure that has one —
+the fetching is outside the guard — and the structure was all the lines supported.
 
 ## Package 51 — what the depth poller is built with, and the one poll
 
@@ -5190,8 +5233,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-689 | The interval is kept as a figure in seconds, and the timeout as the thing the session reads. | `praxis/binsim/feed.py` 126-127 | Praxis package fifty-one | folds into P51-01 |
 | H-690 | Starting raises where the poller is already running, and otherwise clears the stop signal, opens a session and sets the loop going. | `praxis/binsim/feed.py` 152-153, or else 155-157 | Praxis package fifty-one | is P51-02 |
 | H-691 | A poll made before a session exists raises, a non-OK answer raises, and the body is read as JSON whatever kind the answer says it is. | `praxis/binsim/feed.py` 185-186, or 191-197, or 205 | Praxis package fifty-one | folds into P51-02 |
+| H-692 | Where a positions lock is given, it must be the very lock the risk record holds, and the loop refuses to be built otherwise. | `nexus/core/mtm_loop.py` 87-90 into 107 | Nexus package fifty-two | is N52-01 |
+| H-693 | Its interval is held to being a number above nought with a true-or-false refused outright. | `nexus/core/mtm_loop.py` 79-85, kept at 111 | Nexus package fifty-two | folds into N52-01 |
+| H-694 | A turn reads the symbols under the lock, fetches the marks outside it, and reads the positions under it again. | `nexus/core/mtm_loop.py` 218 into 224-227, then 230-231 outside, then 248 into 254 | Nexus package fifty-two | is N52-02 |
+| H-695 | One mark that is missing, or not a finite figure of the exact kind, ends the whole turn rather than that symbol's part of it. | `nexus/core/mtm_loop.py` 232-237, or 239-244 | Nexus package fifty-two | folds into N52-02 |
+| H-696 | A turn finding no positions zeroes every strategy's unrealized figure and the account's, where either stood at something. | `nexus/core/mtm_loop.py` 256-267 | Nexus package fifty-two | folds into N52-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 10:00 UTC

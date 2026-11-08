@@ -131,7 +131,7 @@ Every Praxis module is named here: 60 are `full` and 28 `partial`, with none `un
 | `nexus/core/domain/reconciliation_mismatch_response.py` | full | P4-43 |
 | `nexus/reconciler/protection_remediation_handler.py` | full | P4-43 |
 | `nexus/reconciler/reconciliation_handler.py` | full | P4-43 |
-| `nexus/core/mtm_loop.py` | partial | N6-01, N6-11, N8-03 |
+| `nexus/core/mtm_loop.py` | partial | N52-01, N52-02, N6-01, N6-11, N8-03 |
 | `nexus/infrastructure/loss_derivation.py` | full | N15-08, N2-03, N7-09 |
 | `nexus/infrastructure/manifest.py` | partial | N3-02, N37-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43 |
 | `nexus/infrastructure/wal_codec.py` | partial | N2-02, N3-01, N3-02, N38-02, N48-01, N7-08, N8-03, N9-04 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 10:00 UTC
