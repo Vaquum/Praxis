@@ -7339,6 +7339,146 @@ def _open_candidates(cited: dict[str, set[str]]) -> list[str]:
     ]
 
 
+def _statement_lines(path: Path) -> set[int]:
+
+    """Return the lines holding a statement inside a function body.
+
+    A declaration carries no behaviour to account for, so the lines a
+    module has to have cited are the statements its functions run. A
+    docstring and a bare annotation are declarations standing where a
+    statement would.
+
+    Args:
+        path (Path): The module, read at its pinned commit.
+
+    Returns:
+        set[int]: Those line numbers.
+    """
+
+    source = _source_text(path)
+    lines = source.splitlines()
+    found: set[int] = set()
+
+    for node in ast.walk(ast.parse(source)):
+
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+
+        for statement in node.body:
+
+            for inner in ast.walk(statement):
+
+                if not isinstance(inner, ast.stmt) or isinstance(inner, ast.AnnAssign):
+                    continue
+
+                if (
+                    isinstance(inner, ast.Expr)
+                    and isinstance(inner.value, ast.Constant)
+                    and isinstance(inner.value.value, str)
+                ):
+                    continue
+
+                found.add(inner.lineno)
+
+    return {
+        line for line in found
+        if line <= len(lines) and lines[line - 1].strip()
+    }
+
+
+def _cited_lines() -> dict[str, set[int]]:
+
+    """Return which lines the articles cite in each file, by ledger path.
+
+    Returns:
+        dict[str, set[int]]: Path to the lines cited in it.
+    """
+
+    cited: dict[str, set[int]] = {}
+
+    for article in sorted((WIKI / 'atoms').glob('*.md')):
+
+        meta = _split_front_matter(article.read_text(encoding='utf-8'))[0]
+
+        for whole in _evidence_rows(meta):
+            source = whole.split(' | ', 1)[1] if ' | ' in whole else ''
+            numbers: set[int] = set()
+
+            for match in LINE_REF.finditer(source):
+                first, last = match.group(1), match.group(2)
+                numbers.update(
+                    range(int(first), int(last) + 1) if last else (int(first),),
+                )
+
+            for _, name in _row_sources(source):
+                path = _resolve_source(name)
+
+                if path is None:
+                    continue
+
+                key = _identity(name) or _tree_relative(path)
+                cited.setdefault(key, set()).update(numbers)
+
+    return cited
+
+
+def _lagging_cells(found: dict[str, set[str]]) -> list[str]:
+
+    """Check that no module read in full is left reading `partial`.
+
+    A cell is written when a package first reaches a module and keeps
+    that reading unless a later package returns to the cell, so a
+    module finished later keeps the reading the first package gave it.
+    Sixteen cells were found standing that way at once. A module with
+    no statement left uncited and no finding still called a candidate
+    has nothing left for `partial` to mean, so the reading is the
+    ledger lagging the corpus rather than work outstanding.
+
+    Args:
+        found (dict[str, set[str]]): Which findings cite each file.
+
+    Returns:
+        list[str]: One failure per cell left behind.
+    """
+
+    text = REGISTER.read_text(encoding='utf-8')
+    hanging = _unresolved_questions(text)
+    open_rows = {
+        row for row, _, disposition in FINDING_ROW_CELLS_RE.findall(text)
+        if 'candidate' in disposition.lower()
+        or hanging & set(UNRESOLVED_RE.findall(disposition))
+    }
+    cited = _cited_lines()
+    failures = []
+
+    for name, state, cell in LEDGER_ROW_RE.findall(
+        LEDGER.read_text(encoding='utf-8'),
+    ):
+
+        if state != 'partial' or 'shape only' in cell:
+            continue
+
+        path = _resolve_source(name)
+
+        if path is None:
+            continue
+
+        try:
+            statements = _statement_lines(path)
+        except (BaselineReadError, SyntaxError):
+            continue
+
+        if statements - cited.get(name, set()) or open_rows & found.get(name, set()):
+            continue
+
+        failures.append(
+            f'{LEDGER}: `{name}` is `partial` with every statement cited '
+            'and no candidate left on it',
+        )
+
+    return failures
+
+
 def _ledger_rows() -> list[str]:
 
     '''Check each Praxis ledger row against the rows that cite its file.
@@ -7359,7 +7499,11 @@ def _ledger_rows() -> list[str]:
         return [f'{LEDGER}: {error}']
 
     found = _finding_file_citations()
-    failures = _nexus_ledger_rows(cited, found) + _open_candidates(found)
+    failures = (
+        _nexus_ledger_rows(cited, found)
+        + _open_candidates(found)
+        + _lagging_cells(found)
+    )
     body = _ledger_sections(LEDGER.read_text(encoding='utf-8')).get('Praxis', '')
     named = {name for name, _, _ in LEDGER_ROW_RE.findall(body)}
     failures += [

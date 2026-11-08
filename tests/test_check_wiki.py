@@ -1885,10 +1885,11 @@ class TestLedgerCoverage:
     def test_a_row_naming_a_module_outside_the_tree_is_reported(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        name, state, column = self._a_praxis_cell()
         failures = self._doctored(
             tmp_path, monkeypatch,
-            '| `praxis/core/health_tracker.py` | full | P3-15 |',
-            '| `praxis/core/nonesuch.py` | full | P3-15 |',
+            f'| `{name}` | {state} | {column} |',
+            f'| `praxis/core/nonesuch.py` | {state} | {column} |',
         )
 
         assert any('which is not in the tree' in f for f in failures)
@@ -1907,12 +1908,26 @@ class TestLedgerCoverage:
     def test_a_module_neither_named_nor_grouped_is_reported(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        name, state, column = self._a_praxis_cell()
         failures = self._doctored(
             tmp_path, monkeypatch,
-            '| `praxis/core/health_tracker.py` | full | P3-15 |\n', '',
+            f'| `{name}` | {state} | {column} |\n', '',
         )
 
         assert any('unaccounted for' in f for f in failures)
+
+    @staticmethod
+    def _a_praxis_cell() -> tuple[str, str, str]:
+        body = check_wiki._ledger_sections(
+            check_wiki.LEDGER.read_text(encoding='utf-8'),
+        ).get('Praxis', '')
+
+        for name, state, column in check_wiki.LEDGER_ROW_RE.findall(body):
+            if check_wiki._ledger_listed(column):
+                return name, state, column.strip()
+
+        pytest.skip('no Praxis cell names a row')
+        raise AssertionError
 
     @staticmethod
     def _doctored(
@@ -1986,13 +2001,15 @@ class TestTheLedgerRows:
     def test_a_cell_naming_a_row_that_does_not_cite_it_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        name, state, column = self._a_full_praxis_cell()
+        stranger = self._a_row_citing_nothing_in(name)
         failures = self._doctored(
             tmp_path, monkeypatch,
-            '| `praxis/core/health_tracker.py` | full | P3-15 |',
-            '| `praxis/core/health_tracker.py` | full | P2-15, P3-15 |',
+            f'| `{name}` | {state} | {column} |',
+            f'| `{name}` | {state} | {stranger}, {column} |',
         )
 
-        assert any('health_tracker.py` names' in f for f in failures)
+        assert any(f'`{name}` names' in f for f in failures)
 
     @_NEEDS_BASELINE
     def test_a_cell_omitting_a_row_that_cites_it_is_refused(
@@ -2008,6 +2025,30 @@ class TestTheLedgerRows:
         )
 
         assert any(f'`{name}` names' in f for f in failures)
+
+    @staticmethod
+    def _a_full_praxis_cell() -> tuple[str, str, str]:
+        body = check_wiki._ledger_sections(
+            check_wiki.LEDGER.read_text(encoding='utf-8'),
+        ).get('Praxis', '')
+
+        for name, state, column in check_wiki.LEDGER_ROW_RE.findall(body):
+            if state == 'full' and check_wiki._ledger_listed(column):
+                return name, state, column.strip()
+
+        pytest.skip('no Praxis cell reads `full` with a row named')
+        raise AssertionError
+
+    @staticmethod
+    def _a_row_citing_nothing_in(name: str) -> str:
+        cited = check_wiki._row_file_citations()
+        every = {row for rows in cited.values() for row in rows}
+
+        for row in sorted(every - cited.get(name, set())):
+            return row
+
+        pytest.skip(f'every register row cites `{name}`')
+        raise AssertionError
 
     @staticmethod
     def _a_praxis_cell_with_two_rows() -> tuple[str, str, str]:
@@ -2045,21 +2086,23 @@ class TestTheLedgerRows:
     def test_a_cited_module_with_no_row_of_its_own_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        name, state, column = self._a_full_praxis_cell()
         failures = self._doctored(
             tmp_path, monkeypatch,
-            '| `praxis/core/health_tracker.py` | full | P3-15 |\n', '',
+            f'| `{name}` | {state} | {column} |\n', '',
         )
 
-        assert any('nothing names `praxis/core/health_tracker.py`' in f for f in failures)
+        assert any(f'nothing names `{name}`' in f for f in failures)
 
     @_NEEDS_BASELINE
     def test_a_cited_file_marked_uncovered_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        name, state, column = self._a_full_praxis_cell()
         failures = self._doctored(
             tmp_path, monkeypatch,
-            '| `praxis/core/health_tracker.py` | full | P3-15 |',
-            '| `praxis/core/health_tracker.py` | uncovered | P3-15 |',
+            f'| `{name}` | {state} | {column} |',
+            f'| `{name}` | uncovered | {column} |',
         )
 
         assert any('is `uncovered` while' in f for f in failures)
@@ -4808,26 +4851,115 @@ class TestOpenCandidates:
             check_wiki._finding_file_citations(),
         ) == []
 
+    @staticmethod
+    def _an_open_row(wanted: str) -> str:
+        text = check_wiki.REGISTER.read_text(encoding='utf-8')
+        hanging = check_wiki._unresolved_questions(text)
+
+        for row, _, disposition in check_wiki.FINDING_ROW_CELLS_RE.findall(text):
+            named = hanging & set(check_wiki.UNRESOLVED_RE.findall(disposition))
+
+            if wanted == 'candidate' and 'candidate' in disposition.lower():
+                return row
+
+            if wanted == 'question' and named:
+                return row
+
+        pytest.skip(f'no finding leaves a {wanted} hanging')
+        raise AssertionError
+
+    @staticmethod
+    def _a_full_praxis_module() -> str:
+        body = check_wiki._ledger_sections(
+            check_wiki.LEDGER.read_text(encoding='utf-8'),
+        ).get('Praxis', '')
+
+        for name, state, _ in check_wiki.LEDGER_ROW_RE.findall(body):
+            if state == 'full':
+                return name
+
+        pytest.skip('no Praxis cell reads `full`')
+        raise AssertionError
+
     @_NEEDS_BASELINE
     def test_a_full_module_under_an_unanswered_question_is_caught(self) -> None:
-        failures = check_wiki._open_candidates(
-            {'praxis/core/health_tracker.py': {'H-050'}},
-        )
+        name = self._a_full_praxis_module()
+        row = self._an_open_row('question')
 
-        assert failures == [
-            "docs/wiki/ledger.md: `praxis/core/health_tracker.py` is `full` "
-            "while ['H-050'] leave a question on it",
+        assert check_wiki._open_candidates({name: {row}}) == [
+            f'{check_wiki.LEDGER}: `{name}` is `full` '
+            f"while ['{row}'] leave a question on it",
         ]
 
     @_NEEDS_BASELINE
     def test_a_full_module_with_a_candidate_is_caught(self) -> None:
-        failures = check_wiki._open_candidates(
-            {'praxis/core/health_tracker.py': {'H-064'}},
-        )
-        assert failures == [
-            "docs/wiki/ledger.md: `praxis/core/health_tracker.py` is `full` "
-            "while ['H-064'] leave a question on it",
+        name = self._a_full_praxis_module()
+        row = self._an_open_row('candidate')
+
+        assert check_wiki._open_candidates({name: {row}}) == [
+            f'{check_wiki.LEDGER}: `{name}` is `full` '
+            f"while ['{row}'] leave a question on it",
         ]
+
+
+def _lagged_ledger(tmp_path: Path) -> Path:
+    lagged = tmp_path / 'ledger.md'
+    lagged.write_text(
+        check_wiki.LEDGER.read_text(encoding='utf-8').replace(
+            '| `nexus/strategy/context.py` | full |',
+            '| `nexus/strategy/context.py` | partial |',
+        ),
+        encoding='utf-8',
+    )
+
+    return lagged
+
+
+class TestLaggingCells:
+
+    @_NEEDS_BASELINE
+    def test_no_fully_cited_module_reads_partial(self) -> None:
+        assert check_wiki._lagging_cells(
+            check_wiki._finding_file_citations(),
+        ) == []
+
+    @_NEEDS_BASELINE
+    def test_a_fully_cited_partial_cell_is_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        lagged = _lagged_ledger(tmp_path)
+        monkeypatch.setattr(check_wiki, 'LEDGER', lagged)
+
+        assert check_wiki._lagging_cells(
+            check_wiki._finding_file_citations(),
+        ) == [
+            f'{lagged}: `nexus/strategy/context.py` is `partial` '
+            'with every statement cited and no candidate left on it',
+        ]
+
+    @_NEEDS_BASELINE
+    def test_a_partial_cell_with_a_candidate_on_it_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        lagged = _lagged_ledger(tmp_path)
+        monkeypatch.setattr(check_wiki, 'LEDGER', lagged)
+
+        found = check_wiki._finding_file_citations()
+        found['nexus/strategy/context.py'] = {'H-071'}
+
+        assert check_wiki._lagging_cells(found) == []
+
+    @staticmethod
+    def test_a_declaration_is_no_statement(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = (
+            "class C:\n    a: int\n\n    def f(self) -> None:\n        '''Doc.'''\n\n"
+            "        self.a = 1\n"
+        )
+        monkeypatch.setattr(check_wiki, '_source_text', lambda _: source)
+
+        assert check_wiki._statement_lines(tmp_path / 'm.py') == {7}
 
 
 class TestMatchStatements:
