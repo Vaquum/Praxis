@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 357 not.**
+**6 of them reviewed, 359 not.**
 
 ## Package 1
 
@@ -856,6 +856,47 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 51 — what the depth poller is built with, and the one poll
+
+Scope: the poller fetching the real venue's depth for the simulated one, which the
+ledger marks `partial` with forty-nine of its seventy-eight statements uncited.
+Articles have what a snapshot is turned away for and that the book is replaced
+whole. What the poller refuses as it is built, and what one poll does, are in no
+article.
+
+### Merge and promote, package 51
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-688 | Six things are checked as the poller is built: two spans above nought, two names tested for truth alone, a depth floor held to being a finite figure above nought, and a count of repeats held to a floor of its own. | Promote. What the poller is built with is in no article, and the six are checked six different ways |
+| Row H-689 | The interval is kept as a figure in seconds, and the timeout is kept as the thing the session reads. | Merge with H-688, what the record keeps of what it was given |
+| Row H-690 | Starting raises where the poller is already running, and otherwise clears the stop signal, opens a session and sets the loop going. | Promote. What starting and stopping do is in no article, and the pair differs again from the sampler's and the timers' |
+| Row H-691 | A poll made before a session exists raises, a non-OK answer raises, and the body is read as JSON whatever kind the answer says it is. | Merge with H-690, the one poll the start and the loop both reach |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P51-01 | What the depth poller is built with | written | [what-the-depth-poller-is-built-with.md](atoms/what-the-depth-poller-is-built-with.md) |
+| P51-02 | Starting and stopping the depth poller | written | [starting-and-stopping-the-depth-poller.md](atoms/starting-and-stopping-the-depth-poller.md) |
+
+### Re-seed, after writing package 51
+
+The reader had both articles before they were committed and returned five
+reports.
+
+| What it found | What came of it |
+|---|---|
+| The depth floor's check calls for finiteness and compares, and asks nothing about the kind at all — no test of type stands behind it, unlike the records this run has called exact-kind checks. | P51-01 says what the two asks are, and that anything not answering to them fails at the asking |
+| The threshold counts the first poll as one of its own, so a floor of two turns a snapshot away on the first repeat rather than the second. | Corrected, and said in those terms |
+| Nothing asks that threshold to be a whole number. One that is no number by value passes, and the counting can then never reach it, so the turning away never happens. | Stated as a claim of its own — the sharpest thing in the article |
+| The detector compares the snapshot's own number and nothing else, and a snapshot turned away for thinness never reaches the counting. | The gloss reaching into that detector is gone; it belongs to the article that owns it |
+| The stopping suppresses a cancellation and nothing else, and its steps are not guarded, so another failure leaves the task held and the session open. | P51-02 says so, which is the same shape the sampler's stopping has |
+
+The first is worth separating from the rebuttal this run recorded earlier. There,
+"a figure of the exact kind" named a real test of type. Here there is none: the
+phrase would have claimed a check the module does not make.
 
 ## Package 50 — the portfolio basis, beside the bar basis
 
@@ -5145,8 +5186,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-685 | The windows are cut by truncating each step's moment to a named span, a day unless another is asked for. | `praxis/metrics/snapshot_metrics.py` 115-117, the span named by the caller at 49 | Praxis package fifty | is P50-02 |
 | H-686 | A window's exposure is the share of its steps holding a position, and the return for each unit of exposure is nothing at all where that share is nought. | `praxis/metrics/snapshot_metrics.py` 120 into 124-129 | Praxis package fifty | folds into P50-02 |
 | H-687 | Its falls are counted as the bar basis counts them, from a peak seeded at one, with a fall still open recording a depth and no length. | `praxis/metrics/snapshot_metrics.py` 139-170 against `praxis/metrics/limen_snapshot.py` 250-277 | Praxis package fifty | recorded; how a fall from a peak is recorded and the falls that never ended state both |
+| H-688 | Six things are checked as the poller is built: two spans above nought, two names tested for truth alone, a depth floor held to being a finite figure above nought, and a count of repeats held to a floor of its own. | `praxis/binsim/feed.py` 100-101, or 103-104, or 106-107, or 109-110, or 112-115, or 117-120 | Praxis package fifty-one | is P51-01 |
+| H-689 | The interval is kept as a figure in seconds, and the timeout as the thing the session reads. | `praxis/binsim/feed.py` 126-127 | Praxis package fifty-one | folds into P51-01 |
+| H-690 | Starting raises where the poller is already running, and otherwise clears the stop signal, opens a session and sets the loop going. | `praxis/binsim/feed.py` 152-153, or else 155-157 | Praxis package fifty-one | is P51-02 |
+| H-691 | A poll made before a session exists raises, a non-OK answer raises, and the body is read as JSON whatever kind the answer says it is. | `praxis/binsim/feed.py` 185-186, or 191-197, or 205 | Praxis package fifty-one | folds into P51-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 08:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 09:00 UTC
