@@ -803,6 +803,35 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 8 — what the records answer, and the checks nothing reached
+
+Scope: the behaviour left uncited in modules the ledger already marks `full`, found
+by parsing each module and comparing the statements inside its function bodies
+against the lines the articles cite. Twenty-nine modules carry such a gap. This
+package takes the eight smallest, where the whole module can be read at once and
+the gap is a question the record answers or a check nothing reached.
+
+### Merge and promote, package 8
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-495 | Three of the five accounts increase on the debit side and two do not. | Promote. Four records on the Praxis side answer a question about themselves that no article states, and which way an account leans is the one that decides the sign of every entry written against it |
+| Row H-496 | A command answers whether it was sized in quote units by whether it carries a quote amount at all. | Merge with H-495, the second of the four and the first of two asking it the same way |
+| Row H-497 | An order answers that same question the same way. | Merge with H-495. The command and the order answer by the same one-line test, which is what makes the pair worth reading together |
+| Row H-498 | A position answers that it is closed where its amount stands equal to nought. | Merge with H-495, the fourth, and the one whose test is an equality rather than a presence |
+| Row H-499 | The shared check for a name lets a none through where the caller asked for optional, and otherwise refuses a none and an empty text alike. | Promote. Every name on the Praxis side goes through this one check, and what it lets through is in no article |
+| Row H-500 | That check never trims, so a name of blank space alone is kept, where the records on the Nexus side trim before refusing. | Merge with H-499. The two sides of the seam hold a name to different rules, and the difference is in what this one check does not do |
+| Row H-501 | A replay clock refuses a start carrying no zone, and keeps the one it is given. | Promote. What a clock refuses, and what one stands in where none was given, is in no article |
+| Row H-503 | A price store asked for no clock of its own uses one answering the current moment in UTC. | Merge with H-501, the other clock and the far side of the same question |
+| Row H-502 | An alert gives back the severity it actually used, and the telling that posts takes that answer rather than what it was handed. | Promote. The article on alerts has the normalising and the logging; that the answer is handed back and read again is in no article |
+
+Four subjects promote and five rows merge, with nothing declined.
+
+The questions the records answer come first, because four records share the shape
+and nothing states any of them. The shared check for a name follows, with what it
+does not do and what that costs at the seam. The clocks come next, one refusing and
+one standing in. The severity handed back comes last.
+
 ## Nexus package 18 — the last corners of the small records
 
 Scope: the behaviour left uncited in thirteen small records on the Nexus side, found
@@ -2898,8 +2927,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-492 | Asking a signal for a value it does not hold answers with whatever the asking named as its default. | `nexus/strategy/signal.py` 94 | Nexus package eighteen | is N18-04 |
 | H-493 | Two of the six kinds of outcome count as a fill and four as an ending, one kind belonging to both groups and one to neither. | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` 48, and 37-42, the six at 26-31 | Nexus package eighteen | is N18-03 |
 | H-494 | All three limits that trip the breakers are absent unless set, so a policy built with none given turns every breaker off. | `nexus/core/domain/risk_breaker_thresholds.py` 25-27 | Nexus package eighteen | folds into N18-04 |
+| H-495 | Three of the five accounts increase on the debit side and two do not. | `praxis/core/domain/chart_of_accounts.py` 27 into 43, the five at 20-24 | Praxis package eight | is P8-01 |
+| H-496 | A command answers whether it was sized in quote units by whether it carries a quote amount at all. | `praxis/core/domain/trade_command.py` 77 | Praxis package eight | folds into P8-01 |
+| H-497 | An order answers that same question the same way. | `praxis/core/domain/order.py` 84 | Praxis package eight | folds into P8-01 |
+| H-498 | A position answers that it is closed where its amount stands equal to nought. | `praxis/core/domain/position.py` 78 | Praxis package eight | folds into P8-01 |
+| H-499 | The shared check for a name lets a none through where the caller asked for optional, and otherwise refuses a none and an empty text alike. | `praxis/core/domain/_require_str.py` 25-26, or else 28-30 | Praxis package eight | is P8-02 |
+| H-500 | That check never trims, so a name of blank space alone is kept, where the records on the Nexus side trim before refusing. | `praxis/core/domain/_require_str.py` 28, against `nexus/infrastructure/praxis_connector/trade_command.py` 101-103 | Praxis package eight | folds into P8-02 |
+| H-501 | A replay clock refuses a start carrying no zone, and keeps the one it is given. | `praxis/replay/replay_clock.py` 29-31, or else 33 | Praxis package eight | is P8-03 |
+| H-502 | An alert gives back the severity it actually used, and the telling that posts takes that answer rather than what it was handed. | `praxis/infrastructure/alert_sink.py` 53, read at 58 | Praxis package eight | is P8-04 |
+| H-503 | A price store asked for no clock of its own uses one answering the current moment in UTC. | `praxis/arrow_price_store.py` 34-37 | Praxis package eight | folds into P8-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 00:10 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 01:00 UTC
