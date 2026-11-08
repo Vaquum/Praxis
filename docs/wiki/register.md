@@ -590,6 +590,41 @@ say what they are rather than leaving them counted. Twelve Nexus modules stay
 `partial` by citation after that, and the ledger goes on calling those work to
 do.
 
+### Merge and promote, package 7
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-411 | Seven of a fill's fields are walked by name and each held to one rule in a shared helper. | Promote. What this record requires is in no article: which names it demands, which it leaves out, and what its moment must carry. The name it leaves out is the one the rest of it turns on |
+| Row H-412 | The field the key for spotting a repeat is taken from is not among those seven, so it may be left empty. | Merge with H-411. The seven and the one left out are the same subject read from either end, and the article that covers the record beside this one says every name must have something in it, which is true there and not here |
+| Row H-413 | Where that field has something in it the key is that field alone, or else the key is four other fields taken together. | Merge with H-411. What the empty field costs is the whole reason the omission matters, so it reads with the omission |
+| Row H-416 | No check of the record's own asks those three figures to be finite, or to be decimals at all. | Promote. What this record does not ask is a subject of its own: the three figures are compared with nought and never weighed for being numbers at all |
+| Row H-417 | Neither its side nor the flag saying which side of the trade it made is weighed in any way. | Merge with H-416, two more fields the record carries and never looks at |
+| Row H-426 | A fill's own record is built nowhere outside the tests: the module is imported once, to be handed on, and every refusal it makes runs only when a test builds one. | Promote. A record whose refusals never run in the running system is a subject of its own, and it is what the ledger's "written around" was standing in front of |
+| Row H-418 | A bracket's protective exit is named by joining one letter to the entry's name with a dash. | Promote. The name is in no article, and the module's own note that both sides must work it out the same way is not borne out: only one side works it out at all |
+| Row H-419 | Nothing is asked of the name handed in, so an empty one yields a name that is a dash and that letter. | Merge with H-418. A derivation both sides must agree on, with nothing checked on the way in, is one subject |
+| Row H-427 | Nothing in the Nexus checkout works that name out, where the module's own note says both sides must work it out the same way. | Merge with H-418. A derivation called a contract between two repositories, kept by one, is the point of the subject rather than a finding beside it |
+| Row H-425 | The Nexus arrangement carries a second way of binding context that the Praxis one does not: it binds for the length of a block and puts back whatever stood before, on the way out through a raise as much as the way out through the end. | Promote. The Praxis arrangement is written up in two articles; the Nexus copy of it differs in exactly one thing, and that one thing is in neither of them |
+| Row H-423 | Three Praxis records refuse nothing: the one projecting a running scheme's state, the one holding a closed round-trip, and the one holding a replay's summary. | Promote. Three records that refuse nothing are worth a page saying so, because the ledger marked two of them uncovered and a reader looking for their rules needs to be told there are none |
+| Row H-424 | The scheme's record answers whether it has ended by weighing its state against three named ones. | Merge with H-423, the one thing any of the three does answer |
+| Row H-414 | Its moment must carry a zone, and must give an offset for it. | Merge with H-411. The zone half is already written for the event record, where the article says the time must carry one; the offset half is in no article, and the two are one test, so the row stays for the half that is new |
+| Row H-415 | Its amount and its price must stand above nought, where its fee need only be at or above it. | Recorded; `what-a-fill-is.md` states it, the same way |
+| Row H-420 | The level logging is set up at is looked up as a name on the logging library, upper-cased, with the ordinary level standing in where no such name is found. | Recorded; `what-a-host-writes-about-itself.md` states it. The statement is the same on both sides, and the article has the Praxis one |
+| Row H-421 | The standing in happens only where no such name is found, so a name that is on that library but is not a level is taken as one. | Recorded; `what-a-host-writes-about-itself.md` states it, in the same section |
+| Row H-422 | Setting up logging empties the root of every handler already on it before adding its own. | Recorded; `what-the-logging-arrangement-misses.md` states it, with what the emptying does and does not reach |
+
+Six subjects promote, seven rows merge, and four are recorded as already written, as
+package 6 did with two. All four are the same shape: a statement identical on the
+two sides, or identical between a record and the event carrying it, with an article
+already holding one copy.
+
+A fill's own record comes first and takes three subjects, because it is the only
+one of the five with refusals of its own: what it requires, what it never asks, and
+that none of it runs. The name a bracket's exit is given comes next, for the
+derivation its own module calls a contract between the two repositories while only
+one of them carries it. The Nexus logging gets one subject,
+for its single difference from the Praxis arrangement already written up, and the
+three records that refuse nothing get one between them.
+
 ## Nexus package 1 — Seed output
 
 Approved for tracing, not a claim of completeness. The reviewer challenged the
@@ -2392,24 +2427,25 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-408 | Three limits may each be left out, and leaving one out is passed over before that limit's own figure is looked at rather than refused. | `nexus/core/domain/risk_breaker_thresholds.py` 32 over the three names, with 35 into 36 | Nexus package fourteen | is N14-07 |
 | H-409 | A limit that is given must be a finite figure above nought, so a limit of nought is refused rather than let in as a limit. | `nexus/core/domain/risk_breaker_thresholds.py` 38-40 | Nexus package fourteen | folds into N14-07 |
 | H-410 | The command's settings are sealed by the same line, so the same thing holds there: a caller reaching into one of the objects its entries hold alters what the command holds. | `nexus/infrastructure/praxis_connector/trade_command.py` 190, which copies the mapping and not the objects its entries hold | Nexus package fourteen | folds into N14-04 |
-| H-411 | Seven of a fill's fields are walked by name and each held to one rule in a shared helper. | `praxis/core/domain/fill.py` 65-68 over the seven names, into 69 | Praxis package seven |  |
-| H-412 | The field the key for spotting a repeat is taken from is not among those seven, so it may be left empty. | `praxis/core/domain/fill.py` 65-68, which names it nowhere, the field itself at 46 | Praxis package seven |  |
-| H-413 | Where that field has something in it the key is that field alone, or else the key is four other fields taken together. | `praxis/core/domain/fill.py` 94 into 95, or else 96 | Praxis package seven |  |
-| H-414 | Its moment must carry a zone, and must give an offset for it — the same test, word for word, that the event record carrying a fill is held to, which an article already has from that other module. | `praxis/core/domain/fill.py` 71-73 | Praxis package seven |  |
-| H-415 | Its amount and its price must stand above nought, where its fee need only be at or above it — the same three rules the event record carrying a fill is held to, which an article already has from that other module. | `praxis/core/domain/fill.py` 74-76, or 77-79, against 80-82 | Praxis package seven |  |
-| H-416 | No check of the record's own asks those three figures to be finite, or to be decimals at all. | `praxis/core/domain/fill.py` 65-82, which tests none of the three for either | Praxis package seven |  |
-| H-417 | Neither its side nor the flag saying which side of the trade it made is weighed in any way. | `praxis/core/domain/fill.py` 65-82, which names neither | Praxis package seven |  |
-| H-418 | A bracket's protective exit is named by joining one letter to the entry's name with a dash. | `praxis/core/bracket_exit_command_id.py` 31, the letter at 17 | Praxis package seven |  |
-| H-419 | Nothing is asked of the name handed in, so an empty one yields a name that is a dash and that letter. | `praxis/core/bracket_exit_command_id.py` 31, the one statement the function has, which tests it nowhere | Praxis package seven |  |
-| H-420 | The level logging is set up at is looked up as a name on the logging library, upper-cased, with the ordinary level standing in where no such name is found. | `nexus/infrastructure/observability.py` 45, the same statement at `praxis/infrastructure/observability.py` 45 | Praxis package seven |  |
-| H-421 | The standing in happens only where no such name is found, so a name that is on that library but is not a level is taken as one. | `nexus/infrastructure/observability.py` 45, the same statement at `praxis/infrastructure/observability.py` 45 | Praxis package seven |  |
-| H-422 | Setting up logging empties the root of every handler already on it before adding its own. | `nexus/infrastructure/observability.py` 81 before 82, the same statements at `praxis/infrastructure/observability.py` 81 before 82 | Praxis package seven |  |
-| H-423 | Three Praxis records refuse nothing: the one projecting a running scheme's state, the one holding a closed round-trip, and the one holding a replay's summary. | `praxis/core/domain/execution_scheme.py` 50-61, or `praxis/replay/replay_report.py` 29-38, or 89-110 | Praxis package seven |  |
-| H-424 | The scheme's record answers whether it has ended by weighing its state against three named ones. | `praxis/core/domain/execution_scheme.py` 68, the three named at 22-26 | Praxis package seven |  |
-| H-425 | The Nexus arrangement carries a second way of binding context that the Praxis one does not: it binds for the length of a block and puts back whatever stood before, on the way out through a raise as much as the way out through the end. | `nexus/infrastructure/observability.py` 121-122, against `praxis/infrastructure/observability.py` 98, which binds with no scope to put anything back at | Praxis package seven |  |
-| H-426 | A fill's own record is built nowhere outside the tests: the module is imported once, to be handed on, and every refusal it makes — the shared check over seven of its fields as well as the four it writes out — runs only when a test builds one. | `praxis/core/domain/__init__.py` 39, with no statement in `praxis/` building one, against `tests/test_domain_core.py` 35, which builds one, reached from 196 | Praxis package seven |  |
+| H-411 | Seven of a fill's fields are walked by name and each held to one rule in a shared helper. | `praxis/core/domain/fill.py` 65-68 over the seven names, into 69 | Praxis package seven | is P7-01 |
+| H-412 | The field the key for spotting a repeat is taken from is not among those seven, so it may be left empty. | `praxis/core/domain/fill.py` 65-68, which names it nowhere, the field itself at 46 | Praxis package seven | folds into P7-01 |
+| H-413 | Where that field has something in it the key is that field alone, or else the key is four other fields taken together. | `praxis/core/domain/fill.py` 94 into 95, or else 96 | Praxis package seven | folds into P7-01 |
+| H-414 | Its moment must carry a zone, and must give an offset for it — the same test, word for word, that the event record carrying a fill is held to, which an article already has from that other module. | `praxis/core/domain/fill.py` 71-73 | Praxis package seven | folds into P7-01 |
+| H-415 | Its amount and its price must stand above nought, where its fee need only be at or above it — the same three rules the event record carrying a fill is held to, which an article already has from that other module. | `praxis/core/domain/fill.py` 74-76, or 77-79, against 80-82 | Praxis package seven | recorded; what-a-fill-is.md states it |
+| H-416 | No check of the record's own asks those three figures to be finite, or to be decimals at all. | `praxis/core/domain/fill.py` 65-82, which tests none of the three for either | Praxis package seven | is P7-02 |
+| H-417 | Neither its side nor the flag saying which side of the trade it made is weighed in any way. | `praxis/core/domain/fill.py` 65-82, which names neither | Praxis package seven | folds into P7-02 |
+| H-418 | A bracket's protective exit is named by joining one letter to the entry's name with a dash. | `praxis/core/bracket_exit_command_id.py` 31, the letter at 17 | Praxis package seven | is P7-04 |
+| H-419 | Nothing is asked of the name handed in, so an empty one yields a name that is a dash and that letter. | `praxis/core/bracket_exit_command_id.py` 31, the one statement the function has, which tests it nowhere | Praxis package seven | folds into P7-04 |
+| H-420 | The level logging is set up at is looked up as a name on the logging library, upper-cased, with the ordinary level standing in where no such name is found. | `nexus/infrastructure/observability.py` 45, the same statement at `praxis/infrastructure/observability.py` 45 | Praxis package seven | recorded; what-a-host-writes-about-itself.md states it |
+| H-421 | The standing in happens only where no such name is found, so a name that is on that library but is not a level is taken as one. | `nexus/infrastructure/observability.py` 45, the same statement at `praxis/infrastructure/observability.py` 45 | Praxis package seven | recorded; what-a-host-writes-about-itself.md states it |
+| H-422 | Setting up logging empties the root of every handler already on it before adding its own. | `nexus/infrastructure/observability.py` 81 before 82, the same statements at `praxis/infrastructure/observability.py` 81 before 82 | Praxis package seven | recorded; what-the-logging-arrangement-misses.md states it |
+| H-423 | Three Praxis records refuse nothing: the one projecting a running scheme's state, the one holding a closed round-trip, and the one holding a replay's summary. | `praxis/core/domain/execution_scheme.py` 50-61, or `praxis/replay/replay_report.py` 29-38, or 89-110 | Praxis package seven | is P7-06 |
+| H-424 | The scheme's record answers whether it has ended by weighing its state against three named ones. | `praxis/core/domain/execution_scheme.py` 68, the three named at 22-26 | Praxis package seven | folds into P7-06 |
+| H-425 | The Nexus arrangement carries a second way of binding context that the Praxis one does not: it binds for the length of a block and puts back whatever stood before, on the way out through a raise as much as the way out through the end. | `nexus/infrastructure/observability.py` 121-122, against `praxis/infrastructure/observability.py` 98, which binds with no scope to put anything back at | Praxis package seven | is P7-05 |
+| H-426 | A fill's own record is built nowhere outside the tests: the module is imported once, to be handed on, and every refusal it makes — the shared check over seven of its fields as well as the four it writes out — runs only when a test builds one. | `praxis/core/domain/__init__.py` 39, with no statement in `praxis/` building one, against `tests/test_domain_core.py` 35, which builds one, reached from 196 | Praxis package seven | is P7-03 |
+| H-427 | Nothing in the Nexus checkout works that name out, where the module's own note says both sides must work it out the same way. | `praxis/core/bracket_exit_command_id.py` 17 and 31, called at `praxis/launcher.py` 1574 and `praxis/core/execution_manager.py` 4915, with no statement in the Nexus checkout deriving it | Praxis package seven | folds into P7-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 05:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 07:00 UTC
