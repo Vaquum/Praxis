@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 465 not.**
+**6 of them reviewed, 471 not.**
 
 ## Package 1
 
@@ -856,6 +856,77 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 75 — the venue a replay trades against
+
+Scope: the adapter a replay fills its orders through, which the ledger marks
+`partial` with seventy-one of its hundred and thirteen statements uncited. Articles
+have what a replay is, what one is given, and what one reports back. What this venue
+refuses before it fills, how it settles a fill, what it snaps a quantity to, what it
+answers when asked, how it narrows its trades, and what it declines outright are in
+no article.
+
+### Merge and promote, package 75
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-855 | Submitting refuses a kind other than a market order, a venue with no current price, an unheld account, a size and a sum together, and a sum on anything but a buy, in that order, every refusal carrying one venue code. | Promote. The order is in no article, and the price being in hand before the account is looked for is the part a reader cannot guess |
+| Row H-856 | Four more refusals stand past those five — no size and no sum, a size resolving to nought or below, and either balance too small — and a pair not ending in the quote asset is raised as a different kind of failure. | Merge with H-855. Where the refusals stop being about the request and start being about the money is the shape of the whole thing |
+| Row H-857 | A buy's cost is the notional with the fee added and credits the resolved size, a sell gives up the size and takes the notional with the fee subtracted, so the fee falls on the quote balance either way. | Promote. How this venue settles is in no article, and the fee landing in one asset whichever way the order goes is what separates it from the other simulated venue |
+| Row H-858 | A balance not yet held reads as nought wherever it is read, and the other simulated venue takes its fee out of whatever the side receives instead. | Merge with H-857. The contrast is worth drawing and must cite both venues to be checkable |
+| Row H-859 | Snapping passes a quantity through unchanged where no rules are held, refuses one below the smallest size, floors onto the step, refuses a snapped quantity at or below nought or below the smallest with the same reason, and weighs the value only where a reference price is given. | Promote. What a quantity is brought to is in no article, and one reason covering both a quantity too small and one the snapping made too small is the finding |
+| Row H-860 | A sum of money is turned into a size by dividing by the price and floored onto the step where rules are held, and a size resolving to nought or below is refused after either road. | Merge with H-859, the other road into the same refusal |
+| Row H-861 | An order is looked up by the caller's name first and by the venue's name through a walk that stops at the first match, a linked pair and the open orders and the money moved each answering fixedly, and a symbol's rules raising where none are held. | Promote. What this venue answers when asked is in no article, and the same absence answering with none in one place and raising in another is worth stating |
+| Row H-862 | Balances answer one entry per asset asked for with nothing locked and an unheld asset read as nought. | Merge with H-861 |
+| Row H-863 | Narrowing the trades refuses a cursor given with either end of a window, narrows to the symbol, then by cursor, then by each end, then by a limit keeping the earliest recorded, and an account with no trades answers with none. | Promote. The order of the narrowings is in no article, and a limit keeping the earliest rather than the latest is what a caller asking for a few would not expect |
+| Row H-864 | Taking an account back removes its balances and leaves its trades, so one no longer registered still answers with them while an order for it is refused as unknown. | Merge with H-863. One half of an account surviving its own removal is the sharpest thing here |
+| Row H-865 | Two methods raise a not-supported, two cancels raise a not-found outright, fetching the rules does nothing, closing does nothing, the health answers with the record's defaults, and the clock answers as whole milliseconds. | Promote. What this venue declines is in no article, and declining is most of what several of its methods do |
+| Row H-866 | Registering an account seeds a balance book with a copy of the starting balances one level deep, and the fill price is given through a step refusing anything not finite and above nought. | Merge with H-865, the two things it does rather than declines |
+
+Six subjects promote and six rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P75-01 | What the replay venue refuses before it fills | written | [what-the-replay-venue-refuses-before-it-fills.md](atoms/what-the-replay-venue-refuses-before-it-fills.md) |
+| P75-02 | How the replay venue settles a fill | written | [how-the-replay-venue-settles-a-fill.md](atoms/how-the-replay-venue-settles-a-fill.md) |
+| P75-03 | What the replay venue snaps a quantity to | written | [what-the-replay-venue-snaps-a-quantity-to.md](atoms/what-the-replay-venue-snaps-a-quantity-to.md) |
+| P75-04 | What the replay venue answers when asked | written | [what-the-replay-venue-answers-when-asked.md](atoms/what-the-replay-venue-answers-when-asked.md) |
+| P75-05 | How the replay venue narrows its trades | written | [how-the-replay-venue-narrows-its-trades.md](atoms/how-the-replay-venue-narrows-its-trades.md) |
+| P75-06 | What the replay venue will not do | written | [what-the-replay-venue-will-not-do.md](atoms/what-the-replay-venue-will-not-do.md) |
+
+### Re-seed, after writing Nexus package 75
+
+The reader returned ten reports and all ten were valid. Three are the cluster named
+two packages ago, which has now appeared in four packages running.
+
+| What it found | What came of it |
+|---|---|
+| "Answers the whole of the interface" cannot be shown from a module that implements methods without defining the interface. | The article says it carries the adapter methods |
+| "Set from outside between bars" says when a caller acts. | The article says the price is given through a step of its own and names where that timing is settled |
+| The contrast with the other simulated venue's fee had no evidence in this module. | Kept and made checkable: the claim now cites the other venue's own lines beside this one's. A contrast worth drawing is worth citing both sides of |
+| Five refusals stand first and four more follow, so "refuses five things before it gets there" accounted for half of them. | The article has both groups, and says that getting past the first five means only that the figures have been taken |
+| A buy credits the resolved size, which a sum of money has already had floored onto the step. | The article says so rather than "the whole size asked for" |
+| The lookup by the venue's name walks the records kept under the caller's name and stops at the first match, so a reused name loses the earlier record from both roads. | The article says so |
+| A symbol's rules are not the only asking that raises; an order, a linked pair and a book can too. | The article says so |
+| A limit keeps the earliest recorded, the trades being appended as made and never sorted by moment. | The article says so, where it had said "the oldest" as though the order were by time |
+| Taking an account back removes its balances and leaves its trades. | The article says so. It is the sharpest thing in the module and the draft had it as a gloss about defaults |
+| The two unsupported methods take an account's name and a venue's frame, not credentials and a stream. | Corrected |
+
+The cluster's repair in this package is worth recording because it is not a cut. The
+contrast between the two simulated venues' fees is a real and useful thing to say,
+and the reader was right that nothing in this module shows the other half of it. The
+answer was to cite the other half — an article may cross a module boundary as long
+as its claims carry the lines on both sides. Cutting would have lost a true
+statement; citing kept it and made it checkable.
+
+Nine statements of the module are left uncited and are an exclusion rather than work
+outstanding: the fields set as the venue is built, three readings of a value into a
+local name, two calls whose behaviour these articles state, a branch head, and two
+handings back of what was gathered.
+
+Two of its methods — fetching the rules and closing — have no statement in them at
+all, and so can carry no claim: the gate refuses a citation that names no statement,
+which is the right rule and leaves an empty body describable only here.
 
 ## Package 74 — what a venue must offer, and what its answers must hold
 
@@ -6638,8 +6709,20 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-852 | A trade is held to one thing as it is built, a record of money moving to three, and a quantization to carrying exactly one of a snapped quantity and a reason. | `venue_adapter.py` 248-250, and 322-333, and 399-406 | package seventy-four | is P74-03 |
 | H-853 | The fill-scoped part of a trade is six fields copied across with none read from anywhere else and none weighed again. | `venue_adapter.py` 99-106 | package seventy-four | folds into P74-03 |
 | H-854 | The interface declares twenty-one things, each with a description and a placeholder where a body would be, and is marked so a thing can be asked at runtime whether it answers to it. | `venue_adapter.py` 731, and the placeholders at 754, and 1204 | package seventy-four | is P74-04 |
+| H-855 | Submitting refuses a kind other than a market order, a venue with no current price, an unheld account, a size and a sum together, and a sum on anything but a buy, in that order, every refusal carrying one venue code. | `replay_venue_adapter.py` 179-214, the code at 182, or 190, or 198, or 205, or 212 | package seventy-five | is P75-01 |
+| H-856 | Four more refusals stand past those five — no size and no sum, a size resolving to nought or below, and either balance too small — and a pair not ending in the quote asset is raised as a different kind of failure. | `replay_venue_adapter.py` 463-474, and 491-505, and 513-515 | package seventy-five | folds into P75-01 |
+| H-857 | A buy's cost is the notional with the fee added and credits the resolved size, a sell gives up the size and takes the notional with the fee subtracted, so the fee falls on the quote balance either way. | `replay_venue_adapter.py` 490-498, or 500-507 | package seventy-five | is P75-02 |
+| H-858 | A balance not yet held reads as nought wherever it is read, and the other simulated venue takes its fee out of whatever the side receives instead. | `replay_venue_adapter.py` 491, or 497, or 498, or 500, or 506, or 507, against `ledger.py` 138 into 707, or 709 | package seventy-five | folds into P75-02 |
+| H-859 | Snapping passes a quantity through unchanged where no rules are held, refuses one below the smallest size, floors onto the step, refuses a snapped quantity at or below nought or below the smallest with the same reason, and weighs the value only where a reference price is given. | `replay_venue_adapter.py` 139-141, then 143-146, then 148, then 149-152, then 154-157 | package seventy-five | is P75-03 |
+| H-860 | A sum of money is turned into a size by dividing by the price and floored onto the step where rules are held, and a size resolving to nought or below is refused after either road. | `replay_venue_adapter.py` 455-459, and 460-461, then 469-474 | package seventy-five | folds into P75-03 |
+| H-861 | An order is looked up by the caller's name first and by the venue's name through a walk that stops at the first match, a linked pair and the open orders and the money moved each answering fixedly, and a symbol's rules raising where none are held. | `replay_venue_adapter.py` 295-306, and 317-320, and 329, and 393, and 398-400 | package seventy-five | is P75-04 |
+| H-862 | Balances answer one entry per asset asked for with nothing locked and an unheld asset read as nought. | `replay_venue_adapter.py` 338-343 | package seventy-five | folds into P75-04 |
+| H-863 | Narrowing the trades refuses a cursor given with either end of a window, narrows to the symbol, then by cursor, then by each end, then by a limit keeping the earliest recorded, and an account with no trades answers with none. | `replay_venue_adapter.py` 357-359, then 361-380, the recording appending at 253 | package seventy-five | is P75-05 |
+| H-864 | Taking an account back removes its balances and leaves its trades, so one no longer registered still answers with them while an order for it is refused as unknown. | `replay_venue_adapter.py` 121, against 253 and 194-200 | package seventy-five | folds into P75-05 |
+| H-865 | Two methods raise a not-supported, two cancels raise a not-found outright, the health answers with the record's defaults, and the clock answers as whole milliseconds. | `replay_venue_adapter.py` 126-127, and 440-441, and 271, and 283, and 427, and 422 | package seventy-five | is P75-06 |
+| H-866 | Registering an account seeds a balance book with a copy of the starting balances one level deep, and the fill price is given through a step refusing anything not finite and above nought. | `replay_venue_adapter.py` 116, and 107-111 read at 186 | package seventy-five | folds into P75-06 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 06:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 07:00 UTC

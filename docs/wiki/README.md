@@ -496,6 +496,12 @@ the others where it appears.
 ## Replaying recorded bars
 
 - [Replay](atoms/replay.md) — running the ordinary path over bars that already happened.
+- [What the replay venue refuses before it fills](atoms/what-the-replay-venue-refuses-before-it-fills.md) — five refusals stand before the simulated venue works anything out and four more after, so getting past the first five means only that the figures have been taken.
+- [How the replay venue settles a fill](atoms/how-the-replay-venue-settles-a-fill.md) — the commission lands on the money balance whichever way the order goes, which is the opposite arrangement from the other simulated venue.
+- [What the replay venue snaps a quantity to](atoms/what-the-replay-venue-snaps-a-quantity-to.md) — a quantity is floored onto the venue's step, and a quantity the flooring made too small is refused with the same reason as one that was too small to begin with.
+- [What the replay venue answers when asked](atoms/what-the-replay-venue-answers-when-asked.md) — several answers are fixed, and the same missing information gives nothing in one place and an error in another.
+- [How the replay venue narrows its trades](atoms/how-the-replay-venue-narrows-its-trades.md) — asking for a limited number of trades gives the earliest recorded rather than the most recent, and an account that has been removed still answers with everything it traded.
+- [What the replay venue will not do](atoms/what-the-replay-venue-will-not-do.md) — several of the things a venue must offer are answered here by declining, since nothing ever rests unfilled and there is no real exchange behind it.
 - [What a replay is given](atoms/what-a-replay-is-given.md) — the bars, the money and the strategy text a replay run is handed before it starts.
 - [Where a replay's bars come from](atoms/where-a-replays-bars-come-from.md) — a run over real history takes its bars from a prediction frame and a price frame, filtered before use.
 - [The frames a replay writes](atoms/the-frames-a-replay-writes.md) — every run writes a price frame and a prediction frame of its own before each bar goes out.
@@ -563,8 +569,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 466
-articles exist. Of Praxis's own source files 76 are accounted for in full and 12 in
+Both sides are the subject, and Praxis is the side that has been written. 472
+articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -574,4 +580,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 06:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 07:00 UTC
