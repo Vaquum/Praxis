@@ -803,6 +803,31 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 13 — what the tracker refuses, and what its lock covers
+
+Scope: the tracker keeping the figures a health report is made from, which the
+ledger marks `full` with sixteen of its thirty-three statements uncited. The
+article on health has what the figures are worth and how each is worked out. What
+recording one request refuses, and which of the tracker's work the lock covers, are
+in no article.
+
+### Merge and promote, package 13
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-541 | Recording a request refuses a latency unless it is a finite number at or above nought, with a true-or-false refused outright. | Promote. What recording refuses is in no article, and this record asks for finiteness where five others on these two sides only compare |
+| Row H-542 | It refuses a success flag that is not a true-or-false, where a whole number of one is turned back as well. | Merge with H-541. Asking a flag for its type is the other half of what makes this record stricter than its neighbours, and the two read together |
+| Row H-545 | A report copies the two stores and the run under the lock, lets it go, and works out the two figures afterwards. | Promote. Which of the tracker's work the lock covers is in no article, and the copying is what lets the arithmetic sit outside it |
+| Row H-544 | The two stores and the run of failures are changed under the lock. | Merge with H-545, the writing side of the same lock |
+| Row H-543 | The run of failures starts at nought and the lock is made as the tracker is. | Merge with H-545. The run the lock protects and the lock itself are made together, which is where the subject begins |
+
+Two subjects promote and three rows merge, with nothing declined.
+
+What recording refuses comes first, because nothing reaches the stores without
+passing it. What the lock covers comes second, and takes the writing and the
+reading of the stores together because the point is which of the two the lock is
+held across and which it is not.
+
 ## Package 12 — how a replay's figures are counted
 
 Scope: the three helpers inside the module that reproduces the training side's own
@@ -3291,8 +3316,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-538 | A peak is kept that only rises, and each fall is measured against it. | `praxis/metrics/limen_snapshot.py` 256-257 | Praxis package twelve | folds into P12-03 |
 | H-539 | An episode opens on the first fall below the peak, deepens while the fall continues, and closes on the first recovery, recording its depth in basis points and its length in days. | `praxis/metrics/limen_snapshot.py` 260-263, or 265-266, or else 268-272 | Praxis package twelve | is P12-03 |
 | H-540 | An episode still open at the end records its depth and no length, so the depths and the lengths need not come to the same number. | `praxis/metrics/limen_snapshot.py` 274-275, against 270 | Praxis package twelve | is P12-04 |
+| H-541 | Recording a request refuses a latency unless it is a finite number at or above nought, with a true-or-false refused outright. | `praxis/core/health_tracker.py` 61-68 | Praxis package thirteen | is P13-01 |
+| H-542 | It refuses a success flag that is not a true-or-false, where a whole number of one is turned back as well. | `praxis/core/health_tracker.py` 70-72 | Praxis package thirteen | folds into P13-01 |
+| H-543 | The run of failures starts at nought and the lock is made as the tracker is. | `praxis/core/health_tracker.py` 46-47 | Praxis package thirteen | folds into P13-02 |
+| H-544 | The two stores and the run of failures are changed under the lock. | `praxis/core/health_tracker.py` 74 into 75-80 | Praxis package thirteen | folds into P13-02 |
+| H-545 | A report copies the two stores and the run under the lock, lets it go, and works out the two figures afterwards. | `praxis/core/health_tracker.py` 102-105, then 107-108 | Praxis package thirteen | is P13-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 10:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 11:00 UTC
