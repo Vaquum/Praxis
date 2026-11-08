@@ -803,6 +803,32 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 14 — the moments a replay request names, and what stopping the listener does
+
+Scope: the service that takes a replay request over HTTP, which the ledger marks
+`full` with seventeen of its seventy-three statements uncited and is the widest
+such module left. Three articles reach it: what the request must carry, what a run
+reports back, and where its bars come from. How the two edges of the window are
+read, and what becomes of a queued run when the listener stops, are in no article.
+
+### Merge and promote, package 14
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-546 | A moment ending in a capital Z is rewritten to a zero offset and any other text goes to the reader as it stands, so a moment with no zone is kept and a lower-case z is refused. | Promote. What a request's two edges may say is in no article, and the rewriting of one letter is the whole of what the service does to them |
+| Row H-547 | One edge carrying a zone and one not is refused by the comparison between them, before the bars are asked for. | Merge with H-546. Which refusal catches a mixed pair is the half a reader would get wrong, since the refusal they would expect sits further on |
+| Row H-549 | Every failure in building the scenario comes back as a bad-request answer carrying the raiser's own words. | Merge with H-546. How these refusals reach the asker is what makes the distinction between them visible from outside |
+| Row H-548 | Both edges without a zone are refused by the loader that reads the frames. | Recorded; the article on where a replay's bars come from states it |
+| Row H-551 | On the app's cleanup the worker pool is shut down, waiting for the replay still running and cancelling those queued behind it. | Promote. What stopping the listener does to work already accepted is in no article, and the two halves of that one call pull in opposite directions |
+| Row H-552 | A record is set to running where the work is queued, and only the worker's own function ever writes it again. | Merge with H-551. A cancelled run's record standing at running for good is what the shutdown leaves behind, and it reads only beside the shutdown |
+| Row H-550 | Runs go to a pool of one worker, made as the app is. | Recorded; the article on what a run reports back states it |
+
+Two subjects promote, two rows merge into each, and two are recorded as already
+stated.
+
+The moments come first, because a request is read before anything is queued.
+Stopping comes second.
+
 ## Package 13 — what the tracker refuses, and what its lock covers
 
 Scope: the tracker keeping the figures a health report is made from, which the
@@ -3353,8 +3379,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-543 | The run of failures starts at nought and the lock is made as the tracker is. | `praxis/core/health_tracker.py` 46-47 | Praxis package thirteen | folds into P13-02 |
 | H-544 | The two stores and the run of failures are changed under the lock. | `praxis/core/health_tracker.py` 74 into 75-80 | Praxis package thirteen | folds into P13-02 |
 | H-545 | A report copies the two stores and the run under the lock, lets it go, and works out the two figures afterwards. | `praxis/core/health_tracker.py` 102-105, then 107-108 | Praxis package thirteen | is P13-02 |
+| H-546 | A moment ending in a capital Z is rewritten to a zero offset, and any other text goes to the reader as it stands, so a moment with no zone is kept and a lower-case z is refused. | `praxis/replay/replay_api.py` 260-262 | Praxis package fourteen | is P14-01 |
+| H-547 | One edge carrying a zone and one not is refused by the comparison between them, before the bars are asked for. | `praxis/replay/replay_api.py` 207-209, the two read at 204-205 | Praxis package fourteen | folds into P14-01 |
+| H-548 | Both edges without a zone are refused by the loader that reads the frames. | `praxis/replay/load_replay_bars.py` 58-60, called at `praxis/replay/replay_api.py` 211-218 | Praxis package fourteen | recorded; where a replay's bars come from states it |
+| H-549 | Every failure in building the scenario comes back as a bad-request answer carrying the raiser's own words. | `praxis/replay/replay_api.py` 127-130 | Praxis package fourteen | folds into P14-01 |
+| H-550 | Runs go to a pool of one worker, made as the app is. | `praxis/replay/replay_api.py` 105 | Praxis package fourteen | recorded; what a replay run reports back states it |
+| H-551 | On the app's cleanup the worker pool is shut down, waiting for the replay still running and cancelling those queued behind it. | `praxis/replay/replay_api.py` 168-169, attached at 174 | Praxis package fourteen | is P14-02 |
+| H-552 | A record is set to running where the work is queued, and only the worker's own function ever writes it again. | `praxis/replay/replay_api.py` 150-151 against 107-116 | Praxis package fourteen | folds into P14-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 12:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 12:30 UTC
