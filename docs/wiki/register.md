@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 251 not.**
+**6 of them reviewed, 257 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 64 are named and 6 untouched. Of the 64, 52 carry a row of their own and 12 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 64 are named and 6 untouched. Of the 64, 53 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -599,7 +599,7 @@ do.
 | Row H-413 | Where that field has something in it the key is that field alone, or else the key is four other fields taken together. | Merge with H-411. What the empty field costs is the whole reason the omission matters, so it reads with the omission |
 | Row H-416 | No check of the record's own asks those three figures to be finite, or to be decimals at all. | Promote. What this record does not ask is a subject of its own: the three figures are compared with nought and never weighed for being numbers at all |
 | Row H-417 | Neither its side nor the flag saying which side of the trade it made is weighed in any way. | Merge with H-416, two more fields the record carries and never looks at |
-| Row H-426 | A fill's own record is built nowhere outside the tests: the module is imported once, to be handed on, and every refusal it makes runs only when a test builds one. | Promote. A record whose refusals never run in the running system is a subject of its own, and it is what the ledger's "written around" was standing in front of |
+| Row H-426 | A fill's own record is built nowhere in Praxis outside the tests, so every refusal it makes runs only when a test builds one. | Promote. A record whose refusals never run in the running system is a subject of its own, and it is what the ledger's "written around" was standing in front of |
 | Row H-418 | A bracket's protective exit is named by joining one letter to the entry's name with a dash. | Promote. The name is in no article, and the module's own note that both sides must work it out the same way is not borne out: only one side works it out at all |
 | Row H-419 | Nothing is asked of the name handed in, so an empty one yields a name that is a dash and that letter. | Merge with H-418. A derivation both sides must agree on, with nothing checked on the way in, is one subject |
 | Row H-427 | Nothing in the Nexus checkout works that name out, where the module's own note says both sides must work it out the same way. | Merge with H-418. A derivation called a contract between two repositories, kept by one, is the point of the subject rather than a finding beside it |
@@ -624,6 +624,15 @@ derivation its own module calls a contract between the two repositories while on
 one of them carries it. The Nexus logging gets one subject,
 for its single difference from the Praxis arrangement already written up, and the
 three records that refuse nothing get one between them.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P7-01 | What a fill's own record requires | written | [what-a-fills-own-record-requires.md](atoms/what-a-fills-own-record-requires.md) |
+| P7-02 | What a fill's own record never asks | written | [what-a-fills-own-record-never-asks.md](atoms/what-a-fills-own-record-never-asks.md) |
+| P7-03 | The record nothing builds | written | [the-record-nothing-builds.md](atoms/the-record-nothing-builds.md) |
+| P7-04 | The name a bracket's protective exit is given | written | [the-name-a-brackets-exit-is-given.md](atoms/the-name-a-brackets-exit-is-given.md) |
+| P7-05 | What the Nexus logging adds | written | [what-the-nexus-logging-adds.md](atoms/what-the-nexus-logging-adds.md) |
+| P7-06 | The records that refuse nothing | written | [the-records-that-refuse-nothing.md](atoms/the-records-that-refuse-nothing.md) |
 
 ## Nexus package 1 — Seed output
 
@@ -2442,10 +2451,10 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-423 | Three Praxis records refuse nothing: the one projecting a running scheme's state, the one holding a closed round-trip, and the one holding a replay's summary. | `praxis/core/domain/execution_scheme.py` 50-61, or `praxis/replay/replay_report.py` 29-38, or 89-110 | Praxis package seven | is P7-06 |
 | H-424 | The scheme's record answers whether it has ended by weighing its state against three named ones. | `praxis/core/domain/execution_scheme.py` 68, the three named at 22-26 | Praxis package seven | folds into P7-06 |
 | H-425 | The Nexus arrangement carries a second way of binding context that the Praxis one does not: it binds for the length of a block and puts back whatever stood before, on the way out through a raise as much as the way out through the end. | `nexus/infrastructure/observability.py` 121-122, against `praxis/infrastructure/observability.py` 98, which binds with no scope to put anything back at | Praxis package seven | is P7-05 |
-| H-426 | A fill's own record is built nowhere outside the tests: the module is imported once, to be handed on, and every refusal it makes — the shared check over seven of its fields as well as the four it writes out — runs only when a test builds one. | `praxis/core/domain/__init__.py` 39, with no statement in `praxis/` building one, against `tests/test_domain_core.py` 35, which builds one, reached from 196 | Praxis package seven | is P7-03 |
+| H-426 | A fill's own record is built nowhere in Praxis outside the tests, so every refusal it makes — the shared check over seven of its fields as well as the four it writes out — runs only when a test builds one. | `praxis/core/domain/fill.py` 65-82, reached from `tests/test_domain_core.py` 35 by way of 196, and from no statement in Praxis | Praxis package seven | is P7-03 |
 | H-427 | Nothing in the Nexus checkout works that name out, where the module's own note says both sides must work it out the same way. | `praxis/core/bracket_exit_command_id.py` 17 and 31, called at `praxis/launcher.py` 1574 and `praxis/core/execution_manager.py` 4915, with no statement in the Nexus checkout deriving it | Praxis package seven | folds into P7-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 07:30 UTC

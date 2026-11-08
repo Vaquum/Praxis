@@ -236,6 +236,12 @@ the others where it appears.
 - [What a strategy's settings ask and answer](atoms/what-a-strategys-settings-ask-and-answer.md) — user-supplied configuration is rejected unless it is a dictionary, nothing inside it is examined, and asking for a setting it lacks returns whatever default the caller named.
 - [What a lost protection is reported with](atoms/what-a-lost-protection-is-reported-with.md) — the notice that a bracket's safety orders could not be restored walks its account, its own identifier, the entry's identifier and the reason by name requiring usable text in each, requires a timestamp with the standard universal-time marker, and requires a whole number of one or more for the attempt count, with a true-or-false caught by a test placed ahead of the whole-number test.
 - [The limits that may be left out](atoms/the-limits-that-may-be-left-out.md) — three configured risk limits may each be omitted and an omitted one is skipped before its own value is examined, while a limit that is supplied must be a finite decimal above zero, so zero is rejected and omission is the only way to leave one unset.
+- [What a fill's own record requires](atoms/what-a-fills-own-record-requires.md) — a loop holds most of its identifiers to a shared non-empty check, its timestamp must carry a zone that reports an offset, and the venue's own trade identifier is absent from that loop, so it may be empty — which switches the duplicate-detection key from that identifier alone to four other fields combined.
+- [What a fill's own record never asks](atoms/what-a-fills-own-record-never-asks.md) — its quantity and price are rejected at or below zero and its fee below zero, with no check requiring either figure or the fee to be a real number rather than an infinity, and the direction and the maker flag are never examined.
+- [The record nothing builds](atoms/the-record-nothing-builds.md) — that record is named once, where the package hands its types onward, and nothing in the production code constructs it, so every rule it enforces runs only under test; the production code reports a fill as the event record instead.
+- [The name a bracket's protective exit is given](atoms/the-name-a-brackets-exit-is-given.md) — the protective order's identifier is the entry's with a dash and one letter appended, nothing checks what is passed in, callers on both sides of the code share the single helper, and nothing in the other repository derives the identifier at all, so the side that reads it is handed it rather than working it out.
+- [What the Nexus logging adds](atoms/what-the-nexus-logging-adds.md) — Nexus can bind correlation fields for the duration of a block and put those same fields back on exit, including when an exception leaves the block, where the other side has only the unscoped bind; the level lookup and the handler replacement are identical on both sides.
+- [The records that refuse nothing](atoms/the-records-that-refuse-nothing.md) — three records declare their fields and validate none of them, so no rule constrains any value they hold; one of them can say whether its lifecycle has finished, by testing its state against the finished ones.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -349,14 +355,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 252
-articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
-part and 4 not at all; of the 70 in Nexus, 64 are named and 6
-untouched — 52 carry a row of their own, and 12 are reached by an article or a
+Both sides are the subject, and Praxis is the side that has been written. 258
+articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
+part, with none left untouched; of the 70 in Nexus, 64 are named and 6
+untouched — 53 carry a row of their own, and 11 are reached by an article or a
 recorded finding that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 02:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-09 07:30 UTC
