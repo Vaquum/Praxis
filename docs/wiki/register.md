@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 302 not.**
+**6 of them reviewed, 304 not.**
 
 ## Package 1
 
@@ -828,6 +828,11 @@ stated.
 
 The moments come first, because a request is read before anything is queued.
 Stopping comes second.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P14-01 | The moments a replay request names | written | [the-moments-a-replay-request-names.md](atoms/the-moments-a-replay-request-names.md) |
+| P14-02 | What stopping the replay listener does | written | [what-stopping-the-replay-listener-does.md](atoms/what-stopping-the-replay-listener-does.md) |
 
 ## Package 13 — what the tracker refuses, and what its lock covers
 
@@ -3390,4 +3395,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 12:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 13:00 UTC
