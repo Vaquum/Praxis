@@ -1600,6 +1600,28 @@ That is how the blank-space finding was found at all: the shared check was read 
 trimming, as the records across the seam do, and running it on three spaces showed
 it does not. The articles carry status `written`, as 286 of the 287 do.
 
+## Nexus package 19 — the levels the risk stage never reaches
+
+Scope: the stage weighing the account's losses, which the ledger marks `partial`
+with eleven of its seventeen statements uncited. One article has the seven figures
+it walks, the order it walks them in, and a figure with no limit being passed over.
+What a limit must be, and what the stage can and cannot answer with, are in no
+article.
+
+### Merge and promote, Nexus package 19
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-577 | The walk answers with a breach or with nothing, and never with either of the other two levels, though the test its answer meets names one of them. | Promote. A level a test names and the thing tested can never carry is a subject of its own, and the same test beside it on the health side has both arms live |
+| Row H-578 | A limit given must be a finite figure of the exact kind at or above nought, and one left out is skipped rather than read as nought. | Promote. What a limit must be is in no article, and the record asks after its kind where the figures it weighs are compared alone |
+| Row H-579 | The comparison is strictly above, so a figure standing exactly at its limit passes. | Merge with H-578. Where the edge falls is half of what a limit means, and a limit of nought is where it shows |
+| Row H-580 | The figures weighed are taken from the account's own risk record, converted as the stage begins. | Merge with H-577. Where the figures come from belongs beside what the stage does with them |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+What a limit must be comes first, since the walk cannot say anything until a limit
+is set. What the stage can answer with comes second.
+
 ## Nexus package 18 — the last corners of the small records
 
 Scope: the behaviour left uncited in thirteen small records on the Nexus side, found
@@ -3777,8 +3799,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-574 | The moment the rolling windows are measured back from must carry a zone. | `nexus/infrastructure/loss_derivation.py` 80-85 | Praxis package eighteen | added to the moments with no marker |
 | H-575 | A command carries the name of the money set aside for it, where any was set aside. | `nexus/infrastructure/praxis_connector/translate.py` 87-89 | Praxis package eighteen | added to what an exit is given where it asked for nothing |
 | H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | `praxis/core/plan_weighted_slices.py` 50-52, or 54-56 | Praxis package eighteen | is P18-02 |
+| H-577 | The walk answers with a breach or with nothing, and never with either of the other two levels, though the test its answer meets names one of them. | `nexus/core/validator/risk_stage.py` 115-119 and 121 against 133, the four levels at `nexus/core/domain/enums.py` 41-44, a halt produced at `nexus/core/validator/health_stage.py` 257 under the same test at 359 | Nexus package nineteen | is N19-02 |
+| H-578 | A limit given must be a finite figure of the exact kind at or above nought, and one left out is skipped rather than read as nought. | `nexus/core/validator/risk_stage.py` 36-53, skipped at 112-113 | Nexus package nineteen | is N19-01 |
+| H-579 | The comparison is strictly above, so a figure standing exactly at its limit passes. | `nexus/core/validator/risk_stage.py` 114 | Nexus package nineteen | folds into N19-01 |
+| H-580 | The figures weighed are taken from the account's own risk record, converted as the stage begins. | `nexus/core/validator/risk_stage.py` 130-131 | Nexus package nineteen | folds into N19-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 21:30 UTC
