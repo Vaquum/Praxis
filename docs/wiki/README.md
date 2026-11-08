@@ -242,6 +242,8 @@ the others where it appears.
 - [The name a bracket's protective exit is given](atoms/the-name-a-brackets-exit-is-given.md) — the protective order's identifier is the entry's with a dash and one letter appended, nothing checks what is passed in, callers on both sides of the code share the single helper, and nothing in the other repository derives the identifier at all — so the comment calling this a computation both sides must perform identically is out of date, and the side that reads it is handed it instead.
 - [What the Nexus logging adds](atoms/what-the-nexus-logging-adds.md) — Nexus can bind correlation fields for the duration of a block and put those same fields back on exit, including when an exception leaves the block, where the other side has only the unscoped bind; the level lookup and the handler replacement are identical on both sides.
 - [The records that refuse nothing](atoms/the-records-that-refuse-nothing.md) — three records declare their fields and validate none of them, so no rule constrains any value they hold; one of them can say whether its lifecycle has finished, by testing its state against the finished ones.
+- [The order the health stage's checks stand in](atoms/the-order-the-health-stages-checks-stand-in.md) — a figure offered to the checks on the trading side's condition is turned away for what kind of thing it is before its size is ever looked at, and a whole field is turned away for its shape before anything inside it is read.
+- [The orderings the health stage's policy insists on](atoms/the-orderings-the-health-stages-policy-insists-on.md) — each measurement's alert, act and halt limits have to run one way, and which way depends on the measurement; leaving the middle limit out means the outer two are never put side by side.
 - [What a health snapshot refuses](atoms/what-a-health-snapshot-refuses.md) — the record of how the trading side is faring rejects a measurement that is not a real number of zero or more, caps each proportion it carries at one, and holds the consecutive-failure tally to a separate rule, where the latency and clock-drift figures have no upper bound at all.
 - [What the health policy refuses](atoms/what-the-health-policy-refuses.md) — the configured limits are each rejected unless they are real numbers of zero or more, each measurement's limits must not decrease across alert, act and halt, equal limits are accepted, and the proportions are capped at one by a test that runs after the ordering ones.
 - [How the mode is settled](atoms/how-the-mode-is-settled.md) — the measurements are compared with their halting limits first and then with their acting limits, a measurement exactly at a limit counts as past it, and the answer is whichever measurement is doing worst rather than any combination of them.
@@ -466,15 +468,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 369
-articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
+Both sides are the subject, and Praxis is the side that has been written. 371
+articles exist. Of Praxis's own source files 60 are accounted for in full and 28 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
-behaviour to trace. Depth is the work that remains: no Nexus module is yet
-accounted for in full. [The file ledger](ledger.md) names every file on both sides, so a
+behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
+carrying a row, 40 are accounted for in full and 24 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 14:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 15:30 UTC

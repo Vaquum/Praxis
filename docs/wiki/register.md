@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 368 not.**
+**6 of them reviewed, 370 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 57 — the order the health stage's checks stand in
+
+Scope: the stage weighing a health report, which the ledger marks `partial` with
+sixty-three of its hundred and three statements uncited. One article has what it
+weighs and that an unset threshold is skipped. What its three records refuse as
+they are built, and the order those refusals stand in, are in no article.
+
+### Merge and promote, Nexus package 57
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-714 | A set of thresholds for one measure refuses a figure that is not a finite figure of the exact kind, and then one below nought, each level checked in turn and an unset level passed over. | Promote. What these three records refuse is in no article, and the two tests stand in an order that decides which complaint a bad figure gets |
+| Row H-715 | The policy refuses a field that is not a set of thresholds, then holds the two that are shares between nought and one, and only then checks the orderings. | Merge with H-714, the same order one level up |
+| Row H-716 | The snapshot holds its five figures to being finite first, and then to their own bounds one by one. | Merge with H-714, the third record |
+
+One subject promotes and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N57-01 | The order the health stage's checks stand in | written | [the-order-the-health-stages-checks-stand-in.md](atoms/the-order-the-health-stages-checks-stand-in.md) |
+| N57-02 | The orderings the health stage's policy insists on | written | [the-orderings-the-health-stages-policy-insists-on.md](atoms/the-orderings-the-health-stages-policy-insists-on.md) |
+
+### Re-seed, after writing Nexus package 57
+
+The ordering question was asked of these articles as they were written, and the
+reader's three reports were all about something else. All three were facts the
+first draft had wrong, and one of them is the second sighting of a failure
+recorded eighteen packages ago.
+
+| What it found | What came of it |
+|---|---|
+| The snapshot bounds three of its figures at or above nought and two between nought and one. The first draft said two and one, having read only as far as the gap map's last listed line rather than to the end of the checking, which continues to 180. | Corrected. This is the same failure as package 40's: reading to the end of the gap instead of to the end of the function |
+| The share of the allowance used is passed to the ordering helper as a measure where a lower figure is the worse, so its levels must fall. The first draft had every measure's levels rising. | N57-02 is written around which way each measure runs |
+| Each ordering compares two named levels and is reached only where both are set, so a policy leaving the acting level out has the alerting and halting ones never compared — a reversed pair among them passes. | N57-02 says so |
+
+The subject outgrew the word cap once the second and third corrections were in, so
+the orderings became N57-02 rather than a trimmed section of N57-01.
+
+Five statements of the module are left uncited and are an exclusion rather than
+work outstanding: three read a record's three levels into local names before the
+comparing starts, and two return the verdict that nothing is wrong, which is what
+the refusals already written are the complement of.
 
 ## Nexus package 56 — the order the intake hooks stand in, and what an exit is asked
 
@@ -5428,8 +5471,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-711 | A cap named with the request stands in place of the one the configuration carries. | `nexus/core/validator/intake_stage.py` 74-76 | Nexus package fifty-six | folds into N56-01 |
 | H-712 | Each of the two hooks built from a figure refuses a figure that is not a whole number, with a true-or-false refused outright, and one at or below nought. | `nexus/core/validator/intake_stage.py` 89-91, or 93-95, or 132-137, or 139-141 | Nexus package fifty-six | folds into N56-01 |
 | H-713 | An exit must be a sell, must name a trade the state holds a position for, and that position must belong to the strategy asking. | `nexus/core/validator/intake_stage.py` 238-244, or 245-254, or 255-262 | Nexus package fifty-six | is N56-02 |
+| H-714 | A set of thresholds for one measure refuses a figure that is not a finite figure of the exact kind, and then one below nought, each level checked in turn and an unset level passed over. | `nexus/core/validator/health_stage.py` 53-56, then 57-62, then 63-68 | Nexus package fifty-seven | is N57-01 |
+| H-715 | The policy refuses a field that is not a set of thresholds, then holds the two that are shares between nought and one, and only then checks the orderings. | `nexus/core/validator/health_stage.py` 86-96, then 98-109, then 111 onwards | Nexus package fifty-seven | folds into N57-01 |
+| H-716 | The snapshot holds its five figures to being finite first, and then to their own bounds one by one. | `nexus/core/validator/health_stage.py` 147-157, then 159-161, or 163-165, or 167-169 | Nexus package fifty-seven | folds into N57-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 14:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 15:30 UTC
