@@ -193,6 +193,10 @@ the others where it appears.
 - [What becomes of money set aside](atoms/what-becomes-of-money-set-aside.md) — money held back for a trade that never happens stays held back until something else comes along and asks.
 - [How far down the account is](atoms/how-far-down-the-account-is.md) — losses are measured both from the best the account has ever been worth and from the best its closed trades have ever added up to, and those are different numbers.
 - [What the price check weighs](atoms/what-the-price-check-weighs.md) — the check that looks at the market stops a trade for a number being absent as readily as for one being out of bounds.
+- [What the price records refuse](atoms/what-the-price-records-refuse.md) — the reading of the market and the record of limits each refuse what they are built from, and every field of the reading may be left out entirely.
+- [The per-strategy caps, trimmed and sealed](atoms/the-per-strategy-caps-trimmed-and-sealed.md) — a limit set for one strategy is filed under its name with the padding removed, and two names that become the same once trimmed are refused rather than one quietly winning.
+- [How the price limits are built from the configuration](atoms/how-the-price-limits-are-built-from-the-configuration.md) — one field is converted from seconds to milliseconds, the rest are passed through unexamined, and the record they are handed to is what weighs them.
+- [Who is told about a price refusal](atoms/who-is-told-about-a-price-refusal.md) — a refusal is sorted into one of three groups that mark who should hear about it, and a reason nobody has sorted yet lands in the middle group by default.
 - [What the platform ceilings weigh](atoms/what-the-platform-ceilings-weigh.md) — the last check before an order goes out asks for five numbers and is handed one, and the limits it offers on the rest cannot be used.
 - [What each check weighs](atoms/what-each-check-weighs.md) — six checks stand between a strategy's decision and the venue, and they look at quite different things: the order itself, what the account has lost, and whether the venue is answering.
 - [The roads around the checks](atoms/the-roads-around-the-checks.md) — some orders go out to the venue without passing a single one of the checks the rest pass.
@@ -555,15 +559,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 458
+Both sides are the subject, and Praxis is the side that has been written. 462
 articles exist. Of Praxis's own source files 75 are accounted for in full and 13 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 52 are accounted for in full and 12 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 53 are accounted for in full and 11 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 04:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 05:00 UTC

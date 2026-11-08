@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 457 not.**
+**6 of them reviewed, 461 not.**
 
 ## Package 1
 
@@ -856,6 +856,66 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 73 — the records and the routing around a price check
+
+Scope: the stage weighing a price, which the ledger marks `partial` with sixty-seven
+of its ninety statements uncited. One article has what the checking weighs, in what
+order, and which limits leave a figure unread. What the two records refuse as they
+are built, how the per-strategy caps are trimmed and sealed, how the limits are
+built from a configuration, and how a refusal is sorted for routing are in no
+article.
+
+### Merge and promote, Nexus package 73
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-842 | The reading of the market holds each of its two moments to a whole number at or above nought with a true-or-false refused beside the test for kind, its two figures to finite figures of the exact kind at or above nought, and its named source to text with something left once trimmed, every field able to be absent. | Promote. What the records refuse is in no article, and every field being absent-able is what makes the checking's own guards the whole of the protection |
+| Row H-843 | The record of limits holds its staleness and its two caps on the same terms, and its named source to the same rule, neither record trimming a source as it stores one while the checking trims and lowers both before comparing. | Merge with H-842. Where the tidying happens is the part a reader needs |
+| Row H-844 | The per-strategy caps must be a mapping, each key text with something left once trimmed, a trimmed key already gathered refused with one wording however the collision arose, and each value a finite figure of the exact kind at or above nought weighed after its key. | Promote. A collision made by trimming, refused rather than resolved, is in no article |
+| Row H-845 | What is gathered is keyed by the trimmed name and written over the field behind a view that can only be read, by the means that goes round the sealing. | Merge with H-844, what the record ends up holding |
+| Row H-846 | Building the limits from a configuration refuses one that is not of its own kind, turns the staleness from seconds into milliseconds or leaves it absent, passes the caps and the source through, and copies the per-strategy mapping one level deep. | Promote. The one conversion on the way in is in no article, and that nothing is weighed here is what sends every complaint to the record instead |
+| Row H-847 | A price refusal is sorted into three groups: three reasons marking both the owner and the operators at the gravest level, two marking the owner alone at the mildest, and everything else marking both at a middle level, the answer being a record of flags and a level. | Promote. How a refusal is sorted is in no article, and the fall-through sorting a reason added later is the part that matters |
+| Row H-848 | The gravest group's first reason is also raised for a configured source that is absent and for a request carrying no reference price where a cap applies. | Merge with H-847. One reason covering a configuration and a request as well as missing data is what makes the group's name misleading |
+
+Four subjects promote and three rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N73-01 | What the price records refuse | written | [what-the-price-records-refuse.md](atoms/what-the-price-records-refuse.md) |
+| N73-02 | The per-strategy caps, trimmed and sealed | written | [the-per-strategy-caps-trimmed-and-sealed.md](atoms/the-per-strategy-caps-trimmed-and-sealed.md) |
+| N73-03 | How the price limits are built from the configuration | written | [how-the-price-limits-are-built-from-the-configuration.md](atoms/how-the-price-limits-are-built-from-the-configuration.md) |
+| N73-04 | Who is told about a price refusal | written | [who-is-told-about-a-price-refusal.md](atoms/who-is-told-about-a-price-refusal.md) |
+
+### Re-seed, after writing Nexus package 73
+
+The reader returned seven reports and all seven were valid. Three of them are the
+cluster the package before this named, repeated one package later.
+
+| What it found | What came of it |
+|---|---|
+| A cap's trimming is contrasted with how strategies are built at startup and what the manifest prevents — neither establishable from this module. | Cut. That comparison was the point of the sentence, and the sentence had no business being here |
+| Whether a configuration carrying a negative cap can reach this step is settled by what the configuration itself refuses, which is another module. | The article now says nothing is weighed here and names where that is settled |
+| The routing answer is a record of flags and a level; who is actually told depends on the caller. | The article says what the answer marks rather than who hears, throughout |
+| The two records keep a named source untrimmed, and the checking trims and lowers both before comparing them. | Corrected. The claim had been that the storing leaves them comparable as they are |
+| A key repeated exactly cannot reach the collision test, a mapping holding one entry per key, and the wording is the same however a collision arose. | The article says what that test can catch and what it cannot see |
+| The gravest group's first reason is also raised for an absent configured source and for a request with no reference price, so it is not only about missing data. | The article says so, and drops the gloss about whose fault it is |
+| That a spread or deviation above its cap is "the market being unfavourable, which is nobody's fault to fix" is an editorial reading of two comparisons. | Cut |
+
+Three of the seven repeat the failure named one package earlier: a sentence about
+what happens outside this module. Naming it in the register did not prevent it. It
+cannot become a check either — the gate reads citations and prose, and has no way to
+know that a sentence is about another module.
+
+What it can become is a question asked of every sentence before the reader sees it:
+which line of this module shows that? Three of these seven would not have survived
+it, and the review prompt now carries it as a standing instruction rather than a
+per-package one.
+
+Six statements of the module are left uncited and are an exclusion rather than work
+outstanding: one reading of a reason into a local name, one comparison of a spread
+against its cap whose behaviour another article states, and the handing back of
+whatever was decided.
 
 ## Nexus package 72 — what starting a host asks of its strategies
 
@@ -6510,8 +6570,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-839 | One binding is made per strategy from the manifest's own fields with nothing read from disk, timers are gathered per strategy with a strategy having none left out, and each is offered through a reading of its own with no loop built here. | `nexus/startup/sequencer.py` 605-616, and 634-641 into 650, offered at 130 and 136 | Nexus package seventy-two | is N72-05 |
 | H-840 | Every strategy is built inside one attempt naming the ordinary kind of failure, filed under its own name trimmed where the manifest has already refused a padded one, and the runner written over the field only once the whole collection is built. | `nexus/startup/sequencer.py` 506-516, trimmed at 510 against `nexus/infrastructure/manifest.py` 136-142 | Nexus package seventy-two | is N72-06 |
 | H-841 | Reading the manifest wraps each ordinary failure as one complaint, recovering the state lets a complaint of the starting's own kind through while wrapping an ordinary one, and registering with the trading side is skipped with a warning written on each attempt where a dependency is absent. | `nexus/startup/sequencer.py` 495-498, and 238-250, and 255-262 | Nexus package seventy-two | is N72-07 |
+| H-842 | The reading of the market holds each of its two moments to a whole number at or above nought with a true-or-false refused beside the test for kind, its two figures to finite figures of the exact kind at or above nought, and its named source to text with something left once trimmed, every field able to be absent. | `nexus/core/validator/price_stage.py` 43-57, and 59-72, and 74-82 | Nexus package seventy-three | is N73-01 |
+| H-843 | The record of limits holds its staleness and its two caps on the same terms, and its named source to the same rule, neither record trimming a source as it stores one while the checking trims and lowers both before comparing. | `nexus/core/validator/price_stage.py` 100-117, and 171-179, against 351-354 | Nexus package seventy-three | folds into N73-01 |
+| H-844 | The per-strategy caps must be a mapping, each key text with something left once trimmed, a trimmed key already gathered refused with one wording however the collision arose, and each value a finite figure of the exact kind at or above nought weighed after its key. | `nexus/core/validator/price_stage.py` 123-128, then 132-145, then 146-151, then 152-161 | Nexus package seventy-three | is N73-02 |
+| H-845 | What is gathered is keyed by the trimmed name and written over the field behind a view that can only be read, by the means that goes round the sealing. | `nexus/core/validator/price_stage.py` 163, then 165-169 | Nexus package seventy-three | folds into N73-02 |
+| H-846 | Building the limits from a configuration refuses one that is not of its own kind, turns the staleness from seconds into milliseconds or leaves it absent, passes the caps and the source through, and copies the per-strategy mapping one level deep. | `nexus/core/validator/price_stage.py` 193-195, then 197-199, then 201-209 | Nexus package seventy-three | is N73-03 |
+| H-847 | A price refusal is sorted into three groups: three reasons marking both the owner and the operators at the gravest level, two marking the owner alone at the mildest, and everything else marking both at a middle level, the answer being a record of flags and a level. | `nexus/core/validator/price_stage.py` 217-221, then 224-233, then 235-240, then 242-246, into 182-188 | Nexus package seventy-three | is N73-04 |
+| H-848 | The gravest group's first reason is also raised for a configured source that is absent and for a request carrying no reference price where a cap applies. | `nexus/core/validator/price_stage.py` 317-326, and 327-336 | Nexus package seventy-three | folds into N73-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 04:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 05:00 UTC
