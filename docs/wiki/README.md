@@ -313,6 +313,7 @@ the others where it appears.
 - [How a replay settles a bar](atoms/how-a-replay-settles-a-bar.md) — each bar ends by waiting for the account's command queue to empty and then draining outcomes until a round drains none, with eight rounds allowed before it raises, and the wait covers only the queue, so a scheme whose next slice is due later has already left it and arrives during a later bar.
 - [The mode a replay gives itself](atoms/the-mode-a-replay-gives-itself.md) — a replay writes the ACTIVE mode into the account state itself, under the positions lock and before the first bar, because no health loop runs to move it; the trigger is recorded as the replay and the moment comes from the replay's own clock.
 - [Registering an account, and undoing it](atoms/registering-an-account-and-undoing-it.md) — an empty account id and an account with no configured credentials are both refused, an already-registered account only has its venue credentials reapplied, and a new one is registered at the venue before the trading side, with the venue registration rolled back for two named failure kinds and left standing for any other.
+- [What a simulated walk refuses](atoms/what-a-simulated-walk-hands-back.md) — both walks over binsim's book reject a non-finite or non-positive figure and answer an empty side with a different error naming the book as never filled, and the spend walk's second return value reports the unspent budget only when the book ran out, being forced to zero when a partial level was taken.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -426,7 +427,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 329
+Both sides are the subject, and Praxis is the side that has been written. 330
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -437,4 +438,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 12:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 14:00 UTC

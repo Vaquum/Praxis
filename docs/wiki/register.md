@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 328 not.**
+**6 of them reviewed, 329 not.**
 
 ## Package 1
 
@@ -856,6 +856,43 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 31 — what a simulated walk hands back
+
+Scope: the book the simulated venue fills against, which the ledger marks
+`partial` with twenty-two of its sixty-five statements uncited. One article has
+what a snapshot of it is turned away for. The two walks it offers, and what each
+hands back where the book is too thin, are in no article.
+
+### Merge and promote, package 31
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-620 | Each walk refuses a figure that is not finite and one at or below nought, and raises a different kind of error where its side of the book is empty. | Promote. The seeding had this as a merge under the walks themselves; the walks are already written, in the article on binsim's book, and what is left uncited is the gate they share and what the spend walk reports |
+| Row H-619 | The walk for a spend hands back the spend left over, which is the figure still unspent where the book ran out and nought where a partial level was taken, so the rounding's sliver goes unreported. | Merge with H-620. What that second figure means, and where it is set aside, is the half a reader would get wrong |
+| Row H-618 | The walk for a size hands back fills that can come to less than the size, in an answer of the same shape as one filled exactly. | Recorded; the article on binsim's book states it, and the reader's pass corrected the seeding's claim that the answer is shorter |
+| Row H-621 | The two sides are handed out as copies, so a caller changing what it was given changes nothing the book holds. | Merge with H-620. What a reader can do with the book's own sides belongs beside what the walks refuse |
+
+One subject promotes, two rows merge, and one is recorded as already written.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P31-01 | What a simulated walk refuses | written | [what-a-simulated-walk-hands-back.md](atoms/what-a-simulated-walk-hands-back.md) |
+
+### Re-seed, after writing package 31
+
+The reader had the article in its first shape and reported three times, and the
+third report sent the package back to its scope.
+
+| What it found | What came of it |
+|---|---|
+| The spend walk does not report what the rounding left unspent: on the partial-level road the figure it hands back is set to nought. | P31-01 says so, with the figure a spend of one against a price of three leaves behind |
+| A book too thin for a size does not hand back a shorter answer. A book of one level answers a size it can fill and a size it cannot with one fill either way; the shortfall is in the sum, not the length. | That sentence is gone |
+| Checking the citations against the corpus while fixing those showed the walks themselves already written, in the article on binsim's book, which states both of them and that the answer can come to less than was asked. | The package is re-scoped to what is genuinely uncited: the gate both walks share, the empty book's own error, what the spend walk's second figure means, and the sides handed out as copies. The article is retitled for that |
+
+The third is the first scoping error of this run, and it came from trusting the
+gap map's list of uncited lines as a list of unwritten behaviour. The lines were
+uncited; the behaviour around them was not.
 
 ## Package 30 — two modules whose remainder is declaration
 
@@ -4323,8 +4360,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-615 | The venue is registered before the trading side, and a failure on the trading side undoes the venue registration before raising on. | `praxis/trading_inbound.py` 132 into 133-138 | Praxis package twenty-nine | folds into P29-01 |
 | H-616 | Unregistering removes the venue credentials whatever the trading side did, including where it raised. | `praxis/trading_inbound.py` 157-161 | Praxis package twenty-nine | folds into P29-01 |
 | H-617 | The credentials it was handed are copied as it is built. | `praxis/trading_inbound.py` 94 | Praxis package twenty-nine | folds into P29-01 |
+| H-618 | The walk for a size takes what each level offers until the size is met, and hands back the fills alone. | `praxis/binsim/book.py` 158-164 into 166 | Praxis package thirty-one | is P31-01 |
+| H-619 | The walk for a spend takes whole levels while the spend covers them, takes the spend over the price rounded down at the level it cannot, and hands back the fills with whatever spend is left. | `praxis/binsim/book.py` 226-239 into 241 | Praxis package thirty-one | folds into P31-01 |
+| H-620 | Each walk refuses a figure that is not finite and one at or below nought, and raises a different kind of error where its side of the book is empty. | `praxis/binsim/book.py` 144-148 and 152-153, or 214-218 and 220-221 | Praxis package thirty-one | folds into P31-01 |
+| H-621 | The two sides are handed out as copies, so a caller changing what it was given changes nothing the book holds. | `praxis/binsim/book.py` 48, or 53, against the lists kept at 115-116 | Praxis package thirty-one | folds into P31-01 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 13:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 14:00 UTC
