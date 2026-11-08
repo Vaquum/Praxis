@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 307 not.**
+**6 of them reviewed, 309 not.**
 
 ## Package 1
 
@@ -825,6 +825,11 @@ of nineteen uncited.
 Two subjects promote and four rows merge, with nothing declined.
 
 The window comes first, as the earlier of the two in a day's work.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P16-01 | The window a backfill opens | written | [the-window-a-backfill-opens.md](atoms/the-window-a-backfill-opens.md) |
+| P16-02 | What an even split refuses | written | [what-an-even-split-refuses.md](atoms/what-an-even-split-refuses.md) |
 
 ## Package 15 — what the figures are measured from, and what the series are read as
 
@@ -3520,4 +3525,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 15:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 16:00 UTC

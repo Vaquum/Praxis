@@ -292,6 +292,8 @@ the others where it appears.
 - [What the series are read as](atoms/what-the-series-are-read-as.md) — the predictions and the price columns are converted to floating-point numbers before anything examines them, so a boolean or a numeric string satisfies the check that a prediction be zero or one, while a value that converts to no number at all aborts the entire call when it arrives as a prediction and merely discards that one bar when it arrives as a price.
 - [Where the peak begins](atoms/where-the-peak-begins.md) — the high-water mark a drawdown is measured against is seeded at the stake the equity curve starts from rather than at the curve's own opening value, so a curve already below that stake at its first evaluated bar is recorded as being in a drawdown right there.
 - [The day a bar is filed under](atoms/the-day-a-bar-is-filed-under.md) — bars are grouped by the calendar date of each timestamp exactly as supplied, with no conversion to a common timezone, so one instant expressed in two offsets lands on two different dates and the per-day figures depend on the offset the caller happened to pass.
+- [The window a backfill opens](atoms/the-window-a-backfill-opens.md) — with no stored cursor the first page is requested by timestamp and no upper bound is ever sent, so the request covers that instant through to the venue's newest trade; the first answer sets a cursor, and every later page is requested by cursor instead.
+- [What an even split refuses](atoms/what-an-even-split-refuses.md) — the quantity is checked for being an exact finite positive Decimal and the child count only for being at least two, so a fractional count slips past and is rejected by the arithmetic instead, and where the venue's lot size is unknown the children divide the quantity exactly with no minimum child size at all.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -405,7 +407,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 308
+Both sides are the subject, and Praxis is the side that has been written. 310
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -416,4 +418,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 14:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 16:00 UTC
