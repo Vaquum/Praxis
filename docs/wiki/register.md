@@ -840,6 +840,40 @@ corrects because it is a consequence of two facts that article already carries.
 | P10-02 | What a ladder's weights must come to | written | [what-a-ladders-weights-must-come-to.md](atoms/what-a-ladders-weights-must-come-to.md) |
 | P10-03 | The quantity a lot step leaves behind | written | [the-quantity-a-lot-step-leaves-behind.md](atoms/the-quantity-a-lot-step-leaves-behind.md) |
 
+### Re-seed, after writing package 10
+
+What verifying the three articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The count of weights a change is held to, against the count the settings are | `praxis/core/domain/ladder_dca_params.py` 62-67 ties the number of weights to the number of prices, and the prices are not optional there, so a set of weights is always counted against a set of prices. `praxis/core/domain/ladder_dca_modify.py` 65 asks only that there be at least two, and 78-84 ties the two counts only where both were given. So a change carrying weights and no prices has its weights counted against nothing but that minimum, where the same weights in the settings would have to match the prices one for one. Both records require the weights to come to exactly one, at 74-76 each. P10-02 has what the settings insist on and `the-change-each-way-of-working-accepts.md` has what the change insists on; that the counting is the one place the two differ, and which way, is in no article |
+
+One candidate. It is the fourth pair of duplicated rules the wiki has found — the
+first three across the seam, this one within the Praxis side — and the first where
+the two copies differ in what they require rather than only in how they are
+written. The difference was not what it first looked like: the change was read as
+requiring neither the matching count nor the sum, and reading its lines showed it
+requires the sum outright and the count conditionally. The candidate names the one
+real difference rather than the two it appeared to have.
+
+A note on method. The gap map was run again after this package and reports
+seventeen modules marked `full` with an uncited statement, from nineteen before it.
+The two taken here were chosen for being small enough to read whole; the ones left
+are larger and will each need reading before anything is written, because the map
+says only that a line is uncited and not whether what it does is behaviour or
+plumbing. Of the seventeen, `praxis/metrics/limen_snapshot.py` at 48 of 100 and
+`praxis/infrastructure/book_poller.py` at 17 of 25 are the widest.
+
+A note on verification, as for the six packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the pinned records on the cases each claim turns on.
+Running the splitter is what gave the shortfall its exact shape: ten split three
+ways with a step of three sends nine, where the same split with a step of one sends
+ten, so the loss depends on the step and not on the division. Running the ladder is
+what showed a descending set of prices accepted and a repeated pair refused by the
+ordering test rather than by a check of its own. The articles carry status
+`written`, as 293 of the 294 do.
+
 ## Package 9 — the health report's own record, and the bucket of permissions
 
 Scope: two modules the ledger marks `full` with nothing of their own behaviour
@@ -3104,4 +3138,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 05:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 06:15 UTC
