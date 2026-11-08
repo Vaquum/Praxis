@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 370 not.**
+**6 of them reviewed, 374 not.**
 
 ## Package 1
 
@@ -856,6 +856,54 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 59 — how a manifest is read
+
+Scope: the reading of a host's manifest, which the ledger marks `partial` with two
+hundred and ten of its two hundred and forty-five statements uncited. Articles
+have the two response words it may name, the padded strategy name it refuses, and
+the figures a pool is held to. How the loader and the record built from it divide
+the checking, the order a strategy entry is read in, and what a strategy file is
+held to are in no article.
+
+### Merge and promote, Nexus package 59
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-717 | Every check the manifest record makes on the account name, the two money figures and the shape of the strategies is settled by the loader before the record is reached, so none of them can refuse a manifest read from a file. | Promote. How the loader and the record divide the checking is in no article, and the division turns out to be one-sided |
+| Row H-718 | A strategy name used twice, and shares adding to more than a hundred, are refused by the record and compared nowhere in the loader. | Merge with H-717. These two are what the record adds, and naming them is what makes the rest's unreachability worth stating |
+| Row H-719 | The account's name is trimmed by the loader and trimmed again by the record. | Merge with H-717, the doubling at its plainest |
+| Row H-720 | Each strategy entry has its name and the file it points at asked only to be present, being text asked by the record built at the end of the entry. | Promote. The order an entry is read in is in no article, and it is what decides which complaint a bad entry gets |
+| Row H-721 | A timer's interval is asked its kind before its name is asked to be text. | Merge with H-720, the ordering again one level in |
+| Row H-722 | A missing staleness answer becomes the one word that is accepted. | Merge with H-720, what the reading supplies rather than refuses |
+| Row H-723 | The strategy files are checked once the manifest has been built whole, against the folder the manifest file itself sits in. | Promote. When the files are reached, and against what, is in no article |
+| Row H-724 | A strategy file must be written relative, must resolve inside that folder, must be a file that is there, and must parse as Python. | Merge with H-723, what the holding consists of |
+
+Three subjects promote and five rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N59-01 | The two refusals the manifest record adds | written | [the-two-refusals-the-manifest-record-adds.md](atoms/the-two-refusals-the-manifest-record-adds.md) |
+| N59-02 | The order a strategy entry is read in | written | [the-order-a-strategy-entry-is-read-in.md](atoms/the-order-a-strategy-entry-is-read-in.md) |
+| N59-03 | What a strategy's file must be | written | [what-a-strategys-file-must-be.md](atoms/what-a-strategys-file-must-be.md) |
+| N59-04 | What a money figure loses on the way in | written | [what-a-money-figure-loses-on-the-way-in.md](atoms/what-a-money-figure-loses-on-the-way-in.md) |
+
+### Re-seed, after writing Nexus package 59
+
+The reader was given the three articles and returned three reports, all valid, and
+the first of them turned into a fourth article rather than a correction.
+
+| What it found | What came of it |
+|---|---|
+| The conversion to a figure is made from the value the YAML reader produced, written back out as text, rather than from the characters the file holds. A bare decimal becomes a machine fraction on the way, so one written with more digits than such a fraction holds arrives rounded. | N59-04. The claim said the figures convert from the words the file wrote them as, which named the wrong input |
+| The signal and the timers are read between the name and the record that asks the name to be text, and both have refusals of their own, so an entry naming a number where a name belongs can be turned back for its signal first. | N59-02 now says what stands in between. The error was a claim about the path rather than about the function, the path being longer than the two ends named |
+| Reading the file's bytes as UTF-8 is asked for inside the statement that parses, so it comes first, and a file in another encoding fails there even where it declares that encoding in the way Python itself accepts. | N59-03 carries five holdings rather than four. The decoding sat inside the call whose outer name is the parsing |
+
+The third is the same shape as package fifty-seven's and package forty's: a
+statement read to the end of what was listed rather than to the end of what runs.
+Here the unread part was inside a single line, not past the last line cited, so the
+whole-function reading added to the gap map after fifty-seven would not have caught
+it. What catches it is reading the expression rather than the call's name.
 
 ## Package 58 — sixteen modules the ledger had left behind
 
@@ -5520,10 +5568,18 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-712 | Each of the two hooks built from a figure refuses a figure that is not a whole number, with a true-or-false refused outright, and one at or below nought. | `nexus/core/validator/intake_stage.py` 89-91, or 93-95, or 132-137, or 139-141 | Nexus package fifty-six | folds into N56-01 |
 | H-713 | An exit must be a sell, must name a trade the state holds a position for, and that position must belong to the strategy asking. | `nexus/core/validator/intake_stage.py` 238-244, or 245-254, or 255-262 | Nexus package fifty-six | is N56-02 |
 | H-714 | A set of thresholds for one measure refuses a figure that is not a finite figure of the exact kind, and then one below nought, each level checked in turn and an unset level passed over. | `nexus/core/validator/health_stage.py` 53-56, then 57-62, then 63-68 | Nexus package fifty-seven | is N57-01 |
-| H-715 | The policy refuses a field that is not a set of thresholds, then holds the two that are shares between nought and one, and only then checks the orderings. | `nexus/core/validator/health_stage.py` 86-96, then 98-109, then 111 onwards | Nexus package fifty-seven | folds into N57-01 |
-| H-716 | The snapshot holds its five figures to being finite first, and then to their own bounds one by one. | `nexus/core/validator/health_stage.py` 147-157, then 159-161, or 163-165, or 167-169 | Nexus package fifty-seven | folds into N57-01 |
+| H-715 | The policy refuses a field that is not a set of thresholds, then holds the two that are shares between nought and one, and only then checks the orderings. | `nexus/core/validator/health_stage.py` 86-96, then 98-109, then 111 onwards | Nexus package fifty-seven | folds into N57-01, the orderings into N57-02 |
+| H-716 | The snapshot holds its five figures to being finite first, and then to their own bounds one by one. | `nexus/core/validator/health_stage.py` 147-157, then 159-161, or 163-165, or 167-169, or 171-176, or 178-180 | Nexus package fifty-seven | folds into N57-01 |
+| H-717 | Every check the manifest record makes on the account name, the two money figures and the shape of the strategies is settled by the loader before the record is reached, so none of them can refuse a manifest read from a file. | `nexus/infrastructure/manifest.py` 393-446 ahead of the build at 559-569 | Nexus package fifty-nine | is N59-01 |
+| H-718 | A strategy name used twice, and shares adding to more than a hundred, are refused by the record and compared nowhere in the loader. | `nexus/infrastructure/manifest.py` 273-275, and 278 into 280-282, with no comparison between entries in the loop at 450-557 | Nexus package fifty-nine | folds into N59-01 |
+| H-719 | The account's name is trimmed by the loader and trimmed again by the record. | `nexus/infrastructure/manifest.py` 398, then 230 | Nexus package fifty-nine | folds into N59-01 |
+| H-720 | Each strategy entry has its name and the file it points at asked only to be present, being text asked by the record built at the end of the entry. | `nexus/infrastructure/manifest.py` 455-458, and 460-463, against 549-556 into 135-145 | Nexus package fifty-nine | is N59-02 |
+| H-721 | A timer's interval is asked its kind before its name is asked to be text. | `nexus/infrastructure/manifest.py` 520-522, then 524-526 | Nexus package fifty-nine | folds into N59-02 |
+| H-722 | A missing staleness answer becomes the one word that is accepted. | `nexus/infrastructure/manifest.py` 488, the one word insisted on at 68-70 | Nexus package fifty-nine | folds into N59-02 |
+| H-723 | The strategy files are checked once the manifest has been built whole, against the folder the manifest file itself sits in. | `nexus/infrastructure/manifest.py` 559-569, then 571, resolved at 587 | Nexus package fifty-nine | is N59-03 |
+| H-724 | A strategy file must be written relative, must resolve inside that folder, must be a file that is there, and must parse as Python. | `nexus/infrastructure/manifest.py` 592-594, or 596-602, or 604-606, or 608-612 | Nexus package fifty-nine | folds into N59-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 16:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 17:30 UTC

@@ -393,6 +393,10 @@ the others where it appears.
 ## The settings a host runs on
 
 - [The settings a host is given](atoms/the-settings-a-host-is-given.md) — what a host reads from its environment and its manifests before it starts anything.
+- [The two refusals the manifest record adds](atoms/the-two-refusals-the-manifest-record-adds.md) — an account's settings file is checked as it is read and checked over again by the record made from it, and that second round can turn the file back only for a strategy name used twice, or for allocations adding to more than the whole.
+- [What a money figure loses on the way in](atoms/what-a-money-figure-loses-on-the-way-in.md) — a sum of money written in the settings file passes through a reader that holds about seventeen digits before it becomes a number, so one written longer than that arrives rounded, and quoting it in the file is what keeps it whole.
+- [The order a strategy entry is read in](atoms/the-order-a-strategy-entry-is-read-in.md) — a strategy's name and the file it points at are asked only to be present while the settings are being read, and asked to be text afterwards; a timer's schedule is asked what kind of value it is before the timer's own name is.
+- [What a strategy's file must be](atoms/what-a-strategys-file-must-be.md) — the file named for a strategy has to sit inside the folder the settings file sits in, be there, read back as UTF-8, and parse as Python, and none of that is looked at until everything else about the settings has passed.
 - [Which settings are refused](atoms/which-settings-are-refused.md) — the checks a host's settings are read through, any one of which failing ends the start.
 - [The deployment caps](atoms/the-deployment-caps.md) — the ceilings a host's settings can put on what it may do, from an order's worth to a book's age.
 - [Which accounts are refused](atoms/which-accounts-are-refused.md) — the checks each account faces as its manifest is read.
@@ -468,7 +472,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 371
+Both sides are the subject, and Praxis is the side that has been written. 375
 articles exist. Of Praxis's own source files 70 are accounted for in full and 18 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -479,4 +483,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 16:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 17:30 UTC

@@ -133,7 +133,7 @@ Every Praxis module is named here: 70 are `full` and 18 `partial`, with none `un
 | `nexus/reconciler/reconciliation_handler.py` | full | P4-43 |
 | `nexus/core/mtm_loop.py` | partial | N52-01, N52-02, N6-01, N6-11, N8-03 |
 | `nexus/infrastructure/loss_derivation.py` | full | N15-08, N2-03, N7-09 |
-| `nexus/infrastructure/manifest.py` | partial | N3-02, N37-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43 |
+| `nexus/infrastructure/manifest.py` | partial | N3-02, N37-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43, N59-01, N59-02, N59-03, N59-04 |
 | `nexus/infrastructure/wal_codec.py` | partial | N2-02, N3-01, N3-02, N38-02, N48-01, N7-08, N8-03, N9-04 |
 | `nexus/infrastructure/state_store.py` | partial | N3-03, N38-01, N38-02, N44-02, N45-02, N7-02, N7-08, N7-09, N8-01, N8-03, N9-02, N9-04, P18-01, P5-01, P5-06, P5-07, P6-01, P6-04 |
 | `nexus/infrastructure/snapshot.py` | full | N7-08, N7-09, N8-03, N8-04, N9-04, P18-01 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 16:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 17:30 UTC
