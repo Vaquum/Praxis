@@ -40,10 +40,10 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/validate_trade_command.py` | partial | P2-14, P2-22, P2-24, P2-27, P2-28, P4-04, P4-08, P4-33 |
 | `praxis/core/domain/enums.py` | partial | P2-14, P2-18, P2-21, P3-21, P4-04, P4-09, P4-28, N16-06 |
 | `praxis/core/domain/execution_scheme.py` | partial | P7-06 |
-| `praxis/core/domain/ladder_dca_params.py` | full | P2-20 |
+| `praxis/core/domain/ladder_dca_params.py` | full | P10-01, P10-02, P2-20 |
 | `praxis/core/domain/bracket_params.py` | partial | P4-08 |
 | `praxis/core/domain/iceberg_params.py` | full | P2-22 |
-| `praxis/core/plan_even_slices.py` | full | P2-19 |
+| `praxis/core/plan_even_slices.py` | full | P10-03, P2-19 |
 | `praxis/core/plan_weighted_slices.py` | partial | P2-19, P4-08, P4-52 |
 | `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32, P2-35, P2-36, P2-37, P3-17, P4-06, P4-30, P4-61 |
 | `praxis/infrastructure/book_cache.py` | full | N2-07, P2-26 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 03:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 05:30 UTC

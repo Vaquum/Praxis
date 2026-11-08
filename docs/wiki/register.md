@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 290 not.**
+**6 of them reviewed, 293 not.**
 
 ## Package 1
 
@@ -833,6 +833,12 @@ the sum the weights must reach held inside the weights rather than apart from th
 because it is the reason the other three do not suffice. The quantity a step leaves
 behind comes last, and belongs to this package rather than to the article it
 corrects because it is a consequence of two facts that article already carries.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P10-01 | What a ladder's prices must be | written | [what-a-ladders-prices-must-be.md](atoms/what-a-ladders-prices-must-be.md) |
+| P10-02 | What a ladder's weights must come to | written | [what-a-ladders-weights-must-come-to.md](atoms/what-a-ladders-weights-must-come-to.md) |
+| P10-03 | The quantity a lot step leaves behind | written | [the-quantity-a-lot-step-leaves-behind.md](atoms/the-quantity-a-lot-step-leaves-behind.md) |
 
 ## Package 9 — the health report's own record, and the bucket of permissions
 
@@ -3098,4 +3104,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 05:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 05:30 UTC

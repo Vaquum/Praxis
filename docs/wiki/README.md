@@ -275,6 +275,9 @@ the others where it appears.
 - [The same record written twice](atoms/the-same-record-written-twice.md) — that report exists as separate code on each side of the boundary, holding the same measurements to the same rules; running both gives the same answers, neither names the other, and nothing compares them, so a rule changed on one side alone would show only when a report accepted on one side was rejected on the other.
 - [What the bucket of permissions refuses](atoms/what-the-bucket-of-permissions-refuses.md) — the pacer for venue calls rejects a rate or a capacity at or below zero, starts out holding its capacity so early calls go straight through, and on every take adds the elapsed time times the rate while capping the total at the capacity, so a long idle spell buys no unlimited burst.
 - [The token taken before the waiting](atoms/the-token-taken-before-the-waiting.md) — a take computes its wait, subtracts its token whether one was available or not, then releases the lock and waits, so the count can go negative and lengthen later waits; a wait cut short part way adds the token back so nobody pays for a call never made.
+- [What a ladder's prices must be](atoms/what-a-ladders-prices-must-be.md) — each price must be a positive real decimal, and the prices must rise throughout or fall throughout, which allows a descending ladder and rejects a repeated price without any check looking for duplicates.
+- [What a ladder's weights must come to](atoms/what-a-ladders-weights-must-come-to.md) — weights are optional and the checking stops where they are absent; supplied, they must match the prices in count, each be a positive real decimal, and together come to exactly one, which is the only test that reads them as a set.
+- [The quantity a lot step leaves behind](atoms/the-quantity-a-lot-step-leaves-behind.md) — an even split reaches the total exactly when no trading step is known, because the final part takes the remainder whole; where a step is known the final part is rounded down like the rest, so the parts can come to less than was asked for, bounded by one step since a final part rounding to zero is rejected.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -388,7 +391,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 291
+Both sides are the subject, and Praxis is the side that has been written. 294
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -399,4 +402,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 03:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 05:30 UTC
