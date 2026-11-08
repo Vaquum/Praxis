@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 334 not.**
+**6 of them reviewed, 335 not.**
 
 ## Package 1
 
@@ -856,6 +856,45 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 36 — how a settings field is known to want a tuple
+
+Scope: the translator turning a decision's settings into the records Praxis keeps,
+which the ledger marks `partial` with twenty-four of its seventy-seven statements
+uncited. The article on the payload a mode's settings arrive in has the building,
+the keys allowed, and that a field wanting a tuple takes a list. How such a field
+is recognised, and the second table the change builders come from, are in no
+article.
+
+### Merge and promote, package 36
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-635 | A field is taken to want a tuple where its declared kind is a tuple, or where a union it declares holds one, with any annotation stripped off first. | Promote. How the fields that take a list are found is in no article, and what the walk will and will not look inside is the whole of it |
+| Row H-636 | The walk follows unions alone, so a tuple inside another kind of generic is not taken for one. | Merge with H-635, the limit that makes the walk safe |
+| Row H-637 | The fields that take a list are read off each record once, as the module is loaded, and only those a record is built with are considered. | Merge with H-635. When the reading happens is why a record's own declarations settle this rather than any payload |
+| Row H-638 | A change's settings come from a second table, and a mode with no entry there refuses the change. | Add to the article on the payload a mode's settings arrive in, which already holds the table a command's settings come from. The article on the change each way of working accepts was named at merge and has no room against the word cap |
+
+One subject promotes, two rows merge, and one is added to an existing article.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P36-01 | How a settings field is known to want a tuple | written | [how-a-settings-field-is-known-to-want-a-tuple.md](atoms/how-a-settings-field-is-known-to-want-a-tuple.md) |
+
+### Re-seed, after writing package 36
+
+The reader had the article before it was committed and returned four reports.
+
+| What it found | What came of it |
+|---|---|
+| The two tables are joined without dropping a repeat, so a record both of them name is read twice and one answer kept. The claim that each record is read once was wrong on the only records that appear twice — the one two schedules share, and its change counterpart. | P36-01 says so, and names the joining |
+| Every field's declaration is resolved before the filter runs, so a field the record works out for itself is read and then passed over rather than never looked at. | The article says read and then passed over |
+| Settings need not arrive as a mapping at all, and the coercion does not reach every list in one that does. | The lead now says settings arriving as a mapping have some of their lists made into tuples |
+
+The row for the change's own table was to go to the article on the change each way
+of working accepts, which turned out to have eight words of room against the cap.
+It went instead to the article on the payload a mode's settings arrive in, where
+the command's table is already stated — the two tables being the same subject.
 
 ## Nexus package 35 — the health loop's interval, and the turn that ignores its mark
 
@@ -4517,8 +4556,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-632 | Starting takes the lock and returns at once where the loop already runs, and the mark is read again at each tick and at each scheduling. | `nexus/core/health_loop.py` 89-93, read again at 123-125 and at 116-117 | Nexus package thirty-five | folds into N35-01 |
 | H-633 | A turn driven by hand applies the mode whether or not the loop is running, by asking the applying not to respect the mark. | `nexus/core/health_loop.py` 113 against 127 | Nexus package thirty-five | is N35-02 |
 | H-634 | A turn whose mode and reason both match what stood before returns without writing or reporting anything. | `nexus/core/health_loop.py` 188-189 | Nexus package thirty-five | folds into N35-02 |
+| H-635 | A field is taken to want a tuple where its declared kind is a tuple, or where a union it declares holds one, with any annotation stripped off first. | `praxis/command_translator.py` 94 into 96-97, or 99-100, the stripping at 109-112 | Praxis package thirty-six | is P36-01 |
+| H-636 | The walk follows unions alone, so a tuple inside another kind of generic is not taken for one. | `praxis/command_translator.py` 99-100 against 102 | Praxis package thirty-six | folds into P36-01 |
+| H-637 | The fields that take a list are read off each record once, as the module is loaded, and only those a record is built with are considered. | `praxis/command_translator.py` 123-129, called at 139-144 | Praxis package thirty-six | folds into P36-01 |
+| H-638 | A change's settings come from a second table, and a mode with no entry there refuses the change. | `praxis/command_translator.py` 415-419 | Praxis package thirty-six | added to the payload a mode's settings arrive in |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 17:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 18:30 UTC

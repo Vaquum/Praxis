@@ -319,6 +319,7 @@ the others where it appears.
 - [What the platform's ceilings must be](atoms/what-the-platforms-ceilings-must-be.md) — the ceilings record and the figures record each walk their own fields, every one optional and any supplied one required to be a finite non-negative Decimal, with the utilization field in each held to a further ceiling of one by a test that runs after the walk.
 - [The health loop's interval and mark](atoms/the-health-loops-interval-and-mark.md) — the interval must be an int or float and is compared against zero without ever being required to be finite, so a not-a-number interval is stored; starting is ignored while it runs, and the running flag is read three times per tick: at entry, again before anything is written, and again before the next countdown.
 - [The turn that ignores the mark](atoms/the-turn-that-ignores-the-mark.md) — a hand-driven turn skips the running-flag guard and schedules nothing, so a stopped loop still reads and applies; where a mode controller is wired the reading is arbitrated against holds and risk rather than written, and the comparison at the end suppresses only the transition log.
+- [How a settings field is known to want a tuple](atoms/how-a-settings-field-is-known-to-want-a-tuple.md) — a field is classed as wanting a tuple when its annotation is a tuple or a union containing one, with Annotated wrappers stripped first and no other generic walked into, so a list-of-tuples field keeps its list; the classification runs over both settings registries at import, before any payload exists.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -432,7 +433,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 335
+Both sides are the subject, and Praxis is the side that has been written. 336
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -443,4 +444,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 17:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 18:30 UTC
