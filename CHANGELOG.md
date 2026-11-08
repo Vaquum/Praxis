@@ -1799,11 +1799,3 @@
 - State the wiki's scope as both repositories, which is what [issue #185](https://github.com/Vaquum/Praxis/issues/185) asks for. The index and the register had come to say the wiki was about Praxis and that Nexus was not in the package — a narrowing that was never asked for and does not match the brief, which puts Nexus's 81 files in scope and requires boundary articles written from both ends. Seed the seven Nexus subjects a reader of the Praxis side is left needing, as candidates for their own Seed stage
 
 - Name six Nexus modules in [the ledger](docs/wiki/ledger.md) with a row of their own rather than a passing citation, taking the modules it names from 17 to 21 of the 70: the two reactions a reported finding runs into, the two lists of answers they choose from, and the mode controller and manifest those answers reach. Praxis stands at 46 `full`, 38 `partial` and 4 `uncovered`, `bracket_params.py` having moved off the uncovered list
-## v0.101.1 on 6th of November, 2026
-
-- Add the state-machine inventory, transition tables, confirmed issue groups and regression evidence in [State Machines](docs/State-Machines.md).
-- Fix canceled Event Spine appends leaving unfinished transactions that suppress retries.
-- Fix order and scheme cancellation finalizing before terminal venue state and final fills are confirmed.
-- Fix rejected sells consuming inventory lots before reporting insufficient holdings.
-- Fix startup and shutdown racing or abandoning cleanup on cancellation.
-
