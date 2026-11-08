@@ -745,6 +745,55 @@ ever asks whether it agrees with the side.
 | N13-05 | The size a note may leave out | written | [the-size-a-note-may-leave-out.md](atoms/the-size-a-note-may-leave-out.md) |
 | N13-06 | The flag saying an order grows a position | written | [the-flag-saying-an-order-grows-a-position.md](atoms/the-flag-saying-an-order-grows-a-position.md) |
 
+### Re-seed, after writing package 13
+
+What six rounds of verifying the seven articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The way of asking whether a lock has run out that nothing calls | `nexus/core/capital_controller/reservation.py` 92 defines a way of asking whether a lock has run out, and the only calls to it in either repository are the five in `tests/test_reservation.py` at 62, 66, 70, 174 and 180. It answers yes at the expiry moment itself, at 103. The running system asks the question twice without it, and the two draw the line differently: `what-becomes-of-money-set-aside.md` already has that difference, citing `nexus/core/capital_controller/capital_controller.py` 480 against 563. That the record carries a third answer to the same question, agreeing with the sweep and not with the claim, and called by neither, is in no article |
+| The road that leaves the note's second flag at its default | Four roads in the two systems' own code build a note, with tests building it too. Three supply its second yes-or-no — `praxis/launcher.py` 1531 from the decision's own context, 1587 fixed true, and 1648 from the event it rebuilds from — and the fourth, `nexus/startup/shutdown_sequencer.py` 518-527, names it nowhere, so it takes the false at `nexus/infrastructure/praxis_connector/order_context.py` 68. `what-praxis-works-out-for-an-exit.md` already has the fixed-true road, citing 1587. That the road on the Nexus side never marks a full close at all is in no article |
+| The worth the note is given where the command for the same exit is given nought | `nexus/startup/shutdown_sequencer.py` 508 works out a worth from the position's entry price and the size asked for, and 524 puts that on the note, where 564 puts nought on the context the command is built from and `nexus/infrastructure/praxis_connector/translate.py` 120 copies that nought into the command. So one exit is described by two records carrying different worths. `the-sale-a-host-sends-as-it-stops.md` already has the command's nought, citing 564-565, and already has the building refused for a worth at or below nought, citing 499-516; that the note is given a worth at all on that road, and that it is the entry price times the size, is in neither it nor any other article |
+
+Three candidates. All three are about a road rather than a record: the records were
+read end to end for this package, and what reads them or fills them in was not.
+That is the shape of what a package on a record leaves behind.
+
+Verifying this package found one class of defect seven times, in four articles and
+twice over in the index and the changelog: a sentence that is true of one check
+and stated of the whole record. A check refusing a figure below nought and not one
+at it does not make a record holding nothing acceptable; an absent size clearing
+the test that allows it does not make the note valid. Each instance read as a
+harmless summary of the paragraph above it, and each was false by a
+counterexample the reviewer could build and run. The fix in every case was to
+name the check the sentence is about.
+
+A blocking check was drafted for that class and measured against the clean corpus
+first, as the rule requires, and it was not written. Refusing an acceptance verb —
+passes, is allowed, clears, goes through — in a page's prose fires on 57 of the
+245 pages, and nearly all of those are sound: one article's subject is the checks
+a decision passes, several use the word transitively, and others name the check in
+the same sentence. The class is semantic, as the one package 12 found was. What the two
+surveys show is narrower than a limit: a check matching the verb alone cannot
+separate these, and the cases it fires on wrongly are distinguishable — several
+name the check in the same sentence — so a narrower check may yet be worth
+measuring. Neither survey found one, and until one is measured the class is caught
+by reading.
+
+The second of the two reviewers went offline partway through this package, its
+account out of credit. Of the thirteen defects found in package 12 it had found
+nine, including every instance of prose outrunning its citations. Running the one
+remaining reviewer twice, the second time under an adversarial brief naming the
+class to hunt, recovered some of that: on the merge it returned nothing and then
+found three real defects on the second pass, and on the articles it returned
+nothing and then found three more. The adversarial brief also over-corrected once,
+returning eleven findings of which eight demanded that every field's plain-English
+name be derivable from a check — a standard the whole corpus is written against,
+and one the committed and twice-reviewed article on what a command is checked for
+would fail. Two readers disagreeing is worth more than one reader pushed harder.
+
 ## Nexus package 12 — what an outcome refuses
 
 Scope: the record Praxis hands back for an instruction it worked through, on the
@@ -2202,4 +2251,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 16:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 19:25 UTC
