@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 471 not.**
+**6 of them reviewed, 475 not.**
 
 ## Package 1
 
@@ -856,6 +856,61 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 76 — the walks over the log, and what a recovery fills in
+
+Scope: the log a host writes its state through and the store that reads it back,
+which the ledger marks `partial` with eighteen of the log's hundred and forty-five
+statements and seventeen of the store's eighty-one uncited. Articles have how a
+record reaches the log, the two readings of it, what a recovery takes before it
+rebuilds and what it writes at the end. How a record is taken off the file, what a
+record is packed as, what a recovery inserts for a strategy the saved state has
+forgotten, and what a refresh of the loss windows reads are in no article.
+
+### Merge and promote, package 76
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-867 | Every strategy named by the derived losses or the derived signed figures is looked for in the state's own risk records, and one the state does not name has an empty record put in for it under its own name. | Promote. The insertion is in no article, and a recovery adding a strategy the saved state never held is the kind of thing a reader would assume cannot happen |
+| Row H-868 | The rebuilding that follows walks the state's own risk records, so a strategy absent from them is never reached, and outside a recovery a record is made only on a realized figure or on a mark for a held position. | Merge with H-867. Without where else a record comes from, the insertion reads as redundant |
+| Row H-869 | Each event is unpacked as the records are walked and gathered into a list, and a recovery finding neither a snapshot nor a record of a state change answers with nothing and drops them. | Merge with H-867, the walk the insertion stands at the end of |
+| Row H-870 | A record is packed as four named fields — its place in the order, its moment as text, its kind as that kind's own value, and its payload — and the packing's answer is taken as bytes outright. | Promote. What a record is made of is in no article, and the place in the order travelling inside the record is what lets a reading number what it finds |
+| Row H-871 | Forcing a folder opens it for reading alone and closes the handle in a clause that runs however the forcing ended. | Merge with H-870. Both are the log's own small routines and neither fills an article |
+| Row H-872 | All three walks over the file measure its size before opening it, read the marker off the front, then take each record by reading a head of a fixed size and unpacking a length and a check from it. | Promote. The shape every walk shares is in no article; the article on the two readings has only what separates them |
+| Row H-873 | Every ending inside the truncation scan's loop is an answer, so the answer standing after that loop cannot be reached whatever the file holds. | Merge with H-872. It is a property of the walk's shape and belongs beside it |
+| Row H-874 | A refresh of the loss windows reads the log itself from inside the lock it holds, takes its own moment off the clock, and sets all three windows to nought for a strategy the derived losses do not name. | Promote. The refresh reading the log afresh rather than being handed events is in no article, and a refresh that can only lower a window is worth stating |
+
+Four subjects promote and four rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N76-01 | What a recovery inserts for a strategy the state forgot | written | [what-a-recovery-inserts-for-a-strategy-the-state-forgot.md](atoms/what-a-recovery-inserts-for-a-strategy-the-state-forgot.md) |
+| N76-02 | What packs a record and what forces a folder | written | [what-packs-a-record-and-what-forces-a-folder.md](atoms/what-packs-a-record-and-what-forces-a-folder.md) |
+| N76-03 | How a record is taken off the file | written | [how-a-record-is-taken-off-the-file.md](atoms/how-a-record-is-taken-off-the-file.md) |
+| N76-04 | What a refresh of the loss windows reads | written | [what-a-refresh-of-the-loss-windows-reads.md](atoms/what-a-refresh-of-the-loss-windows-reads.md) |
+
+### Re-seed, after writing Nexus package 76
+
+The reader's run ended on its summary twice and never listed what it had found, so
+the checks it was given were worked through here instead. Two were defects.
+
+| What it found | What came of it |
+|---|---|
+| A risk record is made in the mark-to-market loop as well, for a strategy holding a position and having no record, so "otherwise made only where a strategy realizes a figure" was wrong. | The article names both places, and the reason the insertion is still needed now rests on the rebuilding walking the state's own records rather than on there being nowhere else a record comes from |
+| "The cost of one grows with the log" is an inference about cost, which no statement of the module shows. | Cut. The article says the refresh walks every record the log still holds after the last cut, which is what the lines show |
+| The walk's four endings omitted a length over the cap, which one reading raises on rather than ends quietly. | The article has all four and points at the article that separates raising from ending |
+| A checkpoint and the marker check look like further walks over the file. | Neither walks records: a checkpoint reads through the tolerant reading, and the marker check reads the marker alone. Three walks is right |
+
+The question the reader was asked that mattered most was whether the word "only"
+could be shown, and it could not. A count or an "only" that reaches outside the
+module being written about has to be searched for across the whole tree, not read
+off the module in hand — the same error as the cluster recorded in packages 72 to
+75, in its narrowest form.
+
+Five statements across the two modules are left uncited and are an exclusion rather
+than work outstanding: two handings back of a stored path, the holder the lock guard
+makes and hands back, whose contents these articles state, and the handing back of
+the state a recovery has just rebuilt.
 
 ## Package 75 — the venue a replay trades against
 
@@ -6721,8 +6776,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-864 | Taking an account back removes its balances and leaves its trades, so one no longer registered still answers with them while an order for it is refused as unknown. | `replay_venue_adapter.py` 121, against 253 and 194-200 | package seventy-five | folds into P75-05 |
 | H-865 | Two methods raise a not-supported, two cancels raise a not-found outright, the health answers with the record's defaults, and the clock answers as whole milliseconds. | `replay_venue_adapter.py` 126-127, and 440-441, and 271, and 283, and 427, and 422 | package seventy-five | is P75-06 |
 | H-866 | Registering an account seeds a balance book with a copy of the starting balances one level deep, and the fill price is given through a step refusing anything not finite and above nought. | `replay_venue_adapter.py` 116, and 107-111 read at 186 | package seventy-five | folds into P75-06 |
+| H-867 | Every strategy named by the derived losses or the derived signed figures is looked for in the state's own risk records, and one the state does not name has an empty record put in for it under its own name. | `state_store.py` 308, then 309 into 310-312 | package seventy-six | is N76-01 |
+| H-868 | The rebuilding that follows walks the state's own risk records, so a strategy absent from them is never reached; outside a recovery a record is made on a realized figure or on a mark for a held position. | `state_store.py` 314, against `outcome_processor.py` 806-810 and `mtm_loop.py` 297-300 | package seventy-six | folds into N76-01 |
+| H-869 | Each event is unpacked as the records are walked and gathered into a list, and a recovery finding neither a snapshot nor a record of a state change answers with nothing and drops them. | `state_store.py` 268-269 into 263, and 274-275 against 260 and 267 | package seventy-six | folds into N76-01 |
+| H-870 | A record is packed as four named fields — its place in the order, its moment as text, its kind as that kind's own value, and its payload — and the packing's answer is taken as bytes outright. | `wal.py` 319-324, then 325 | package seventy-six | is N76-02 |
+| H-871 | Forcing a folder opens it for reading alone and closes the handle in a clause that runs however the forcing ended. | `wal.py` 309, then 310-313 | package seventy-six | folds into N76-02 |
+| H-872 | All three walks over the file measure its size before opening it, read the marker off the front, then take each record by reading a head of a fixed size and unpacking a length and a check from it. | `wal.py` 94 and 96-97 and 102 then 105, or 129 and 131-132 and 143 then 148, or 193 and 195-196 and 202 then 205-208 | package seventy-six | is N76-03 |
+| H-873 | Every ending inside the truncation scan's loop is an answer, so the answer standing after that loop cannot be reached whatever the file holds. | `wal.py` 117, against 104, or 110, or 113, or 116 | package seventy-six | folds into N76-03 |
+| H-874 | A refresh of the loss windows reads the log itself from inside the lock it holds, takes its own moment off the clock, and sets all three windows to nought for a strategy the derived losses do not name. | `state_store.py` 378 inside 377, and 379 used at 380, and 387 then 388-390 | package seventy-six | is N76-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 09:00 UTC

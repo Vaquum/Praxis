@@ -237,6 +237,8 @@ the others where it appears.
 - [How a value is made safe to log](atoms/how-a-value-is-made-safe-to-log.md) — a run of tests turns anything in a prediction into something a log line can carry, and what this loop actually sends it reaches only one of those tests.
 - [Starting the loop, and one turn by hand](atoms/starting-the-loop-and-one-turn-by-hand.md) — nothing is served at the moment of starting, and the same turn asked for directly reports a failure to its caller where the scheduled one only logs it.
 - [How a record reaches the log](atoms/how-a-record-reaches-the-log.md) — every line added to the log carries a short head saying how long it is and a number worked out from its contents, is forced out to the disk before the write is called done, and a file whose end was left torn is trimmed back to the last sound line before anything new goes on.
+- [How a record is taken off the file](atoms/how-a-record-is-taken-off-the-file.md) — the file's length is noted before it is opened, the opening marker is read off the front, and each line is then found by reading a short fixed-size head that says how far the line runs; the scan that decides where to trim can leave its loop only by answering from inside it.
+- [What packs a record and what forces a folder](atoms/what-packs-a-record-and-what-forces-a-folder.md) — a line going into the log is first turned into bytes as a set of named parts, among them its own position in the sequence, so a line read back says where it belongs; and the routine that makes a folder's own change stick keeps hold of nothing once it is done.
 - [The version a saved record is read at](atoms/the-version-a-saved-record-is-read-at.md) — every saved record says which version of the writing made it, and one arriving without that marking is read as the oldest rather than turned away.
 - [What happens to an event's version on the way in](atoms/what-happens-to-an-events-version-on-the-way-in.md) — an event's version marking is rounded down before anything looks at it, so a damaged marking is read by whichever reader the whole part names.
 - [Which version an event is written at](atoms/which-version-an-event-is-written-at.md) — whether an event is written in the newer form turns on one field being filled in, and the newer reader insists on that field so firmly it can only ever be refusing something this code did not write.
@@ -386,6 +388,8 @@ the others where it appears.
 - [What the capital record refuses](atoms/what-the-capital-record-refuses.md) — the pool must be finite and above zero, five further figures finite and zero or more, and the per-strategy mapping must be a mapping whose keys are non-blank strings and whose values are finite non-negative Decimals, the mapping being rebuilt and written back over the field it arrived in.
 - [The key this record will not trim for you](atoms/the-key-this-record-will-not-trim-for-you.md) — a strategy id with surrounding whitespace is rejected by the capital record and by the strategy declaration, stripped and kept by the strategy base and the router, and carried as supplied by a command crossing the seam, so which record a padded name meets first decides its fate.
 - [What a recovery takes before it rebuilds](atoms/what-a-recovery-takes-before-it-rebuilds.md) — the WAL's magic bytes are checked before anything is read on either road into it, the next sequence number continues from the last record the log still holds rather than the last one written, and the rolling-loss windows are measured back from the clock as recovery runs.
+- [What a recovery inserts for a strategy the state forgot](atoms/what-a-recovery-inserts-for-a-strategy-the-state-forgot.md) — a crash can leave the log holding a line about a strategy the saved state has never heard of, so a recovery puts a blank entry in for it before the sums are redone; without that, the pass that redoes them walks only what the saved state already named and the strategy's first result is lost.
+- [What a refresh of the loss windows reads](atoms/what-a-refresh-of-the-loss-windows-reads.md) — the periodic re-reckoning of recent losses reads the log itself rather than being given anything, times its windows from the clock at the moment it runs, and zeroes a strategy whose losses have all aged out.
 - [What a recovery writes at the end](atoms/what-a-recovery-writes-at-the-end.md) — recovery finishes by setting the cumulative realized figure from the risk record's own per-strategy total, which recomputes the current drawdown while the high-water mark and the worst-ever drawdown are each kept at whichever is larger, restored or recomputed.
 - [The keys that must match what they hold](atoms/the-keys-that-must-match-what-they-hold.md) — the positions and per-strategy-mode mappings each reject a value of the wrong type and a key that disagrees with the identifier inside its value, while the dust mapping and both processed-id sets are checked for shape alone and the remaining fields arrive already self-checked.
 - [What a tracked order must be](atoms/what-a-tracked-order-must-be.md) — its three identifiers must be strings with content after stripping, though it stores them unstripped; its three amounts must be finite non-negative Decimals with the unfilled part never exceeding the whole; its state must be either sent-and-unacknowledged or acknowledged-and-resting; and its timestamp must carry the UTC marker itself.
@@ -569,15 +573,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 472
+Both sides are the subject, and Praxis is the side that has been written. 476
 articles exist. Of Praxis's own source files 77 are accounted for in full and 11 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 53 are accounted for in full and 11 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 55 are accounted for in full and 9 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 07:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 09:00 UTC
