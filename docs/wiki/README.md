@@ -221,7 +221,7 @@ the others where it appears.
 - [What an outcome is checked for](atoms/what-an-outcome-is-checked-for.md) — the report the trading side sends back is rejected unless both its references are usable text, its type is a recognised one and its timestamp carries the standard universal-time marker, with the amount still working checked for every type after the report has already been sorted by whether anything filled.
 - [What a fill must carry](atoms/what-a-fill-must-carry.md) — a report saying something filled must give the quantity, the price, the money value and the fee charged, each a finite figure and the first three above zero where the fee may be zero, and a report of any other kind must give none of the four.
 - [The reason an outcome may carry](atoms/the-reason-an-outcome-may-carry.md) — a rejection has to explain itself in words that are not just blank space, a report saying the order was called off may explain itself or stay silent, and either explanation on a report of any other type is turned away.
-- [The two measures an outcome reports](atoms/the-two-measures-an-outcome-reports.md) — two numbers reporting how the execution went may each be supplied or omitted, an omitted one is passed over before the number is examined, and a supplied one is turned away on a report of any other kind.
+- [The two measures an outcome reports](atoms/the-two-measures-an-outcome-reports.md) — two further numbers may each be supplied or omitted, an omitted one is passed over before the number is examined, and a supplied one is turned away unless the report says something filled, where it must be a finite number.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -345,4 +345,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 08:20 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 10:10 UTC

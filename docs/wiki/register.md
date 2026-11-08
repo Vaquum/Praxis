@@ -737,6 +737,41 @@ other than nought.
 | N12-03 | The reason an outcome may carry | written | [the-reason-an-outcome-may-carry.md](atoms/the-reason-an-outcome-may-carry.md) |
 | N12-04 | The two measures an outcome reports | written | [the-two-measures-an-outcome-reports.md](atoms/the-two-measures-an-outcome-reports.md) |
 
+### Re-seed, after writing package 12
+
+What six rounds of verifying the four articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| What an outcome's figures are never weighed against each other | `nexus/infrastructure/praxis_connector/trade_outcome.py` 92-148, 166-178, 180-235 and 240-254 hold every check the record makes, and no line in any of them compares two of the record's own fields. So a fill may report a size, a price and an amount that do not multiply out, and a size still working that stands above the size filled. N12-01 and N12-02 each say what one figure must be on its own; that no two are ever put side by side is in no article, and the same subject on the Praxis side is a different module |
+| The six kinds of outcome, and the two cuts across them that overlap in one | `nexus/infrastructure/praxis_connector/trade_outcome_type.py` 26-31 names six, 37-42 answers for four of them and 48 for two, so one kind answers to both cuts and one answers to neither. The second cut is the test N12-02's whole choice turns on. The ledger marks the module reached by N1-07 and N7-05, and each of those cites it in passing for one group; the six and the two cuts are in no article |
+
+Two candidates. The first is the shape the Praxis side already has an article for,
+found absent on this side only because the module was read end to end for the
+figures rather than for what joins them. The second is a module the ledger has
+shown reached since the first package, by two articles that each needed one of its
+groupings in passing, which is how a module can be marked reached and still have
+nothing said about it.
+
+Verifying this package found the same defect twice, in two different articles, and
+then a third time in a package already committed: a lead sentence that places the
+subject in the system — who hands the record over, and when the checks run —
+where the article's own claims establish neither, both coming from the module's
+docstring. The sections were sound in every case. A lead is read as scene-setting
+rather than as a claim, by the writer and the reviewer both, which is what lets an
+unsourced sentence sit in the one place every reader starts. The eleventh
+package's lead was corrected for it.
+
+A blocking check was drafted for that class and measured against the clean corpus
+first, as the rule requires, and it was not written. Refusing a verb of handing
+over in a lead fires on 17 of the 238 pages, nearly all of them pages where the
+handing over is what the subject is. Narrowing it to pages whose claims cite a
+single source file leaves four to inspect and misses the known defective lead,
+whose claims cite two. The class is semantic and the check would have to read
+whether a sentence stands on a claim, which the gate cannot do.
+
 ## Nexus package 11 — what a command refuses
 
 Scope: the record Nexus hands Praxis on the roads that build one, and the checks
@@ -2093,4 +2128,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 06:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 10:10 UTC
