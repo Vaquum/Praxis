@@ -47,7 +47,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/plan_weighted_slices.py` | partial | P2-19, P4-08, P4-52 |
 | `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32, P2-35, P2-36, P2-37, P3-17, P4-06, P4-30, P4-61 |
 | `praxis/infrastructure/book_cache.py` | full | N2-07, P2-26 |
-| `praxis/infrastructure/book_poller.py` | full | N2-07, P2-13, P2-26 |
+| `praxis/infrastructure/book_poller.py` | full | N2-07, P11-01, P11-02, P11-03, P2-13, P2-26 |
 | `praxis/core/estimate_slippage.py` | partial | P1-06, P3-03 |
 | `praxis/replay/run_replay.py` | partial | N9-01, N9-02, N9-05, P3-01, P3-02, P3-04, P3-22, P3-24, P4-13, P4-17, P4-39 |
 | `praxis/replay/replay_clock.py` | full | P3-02, P8-03 |
@@ -74,7 +74,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/paper/paper_report.py` | partial | P3-08, P4-19 |
 | `praxis/paper/mark_sampler.py` | partial | P3-09, P4-19 |
 | `praxis/paper/paper_metrics.py` | full | P4-18, P4-19 |
-| `praxis/launcher.py` | partial | N1-02, N1-03, N1-06, N2-03, N2-05, N2-06, N2-07, N3-01, N3-02, N3-05, N3-06, N3-07, N3-10, N3-12, N4-01, N4-02, N4-05, N4-07, N5-02, N6-01, N6-04, N6-05, N6-06, N6-08, N6-09, N6-11, N7-02, N7-03, N7-04, N7-05, N7-07, N7-10, N7-11, N7-12, N8-03, N8-05, N8-06, N8-07, N9-01, N9-02, N9-04, N9-05, P2-11, P2-13, P2-18, P2-26, P2-32, P2-39, P2-41, P2-43, P2-44, P3-04, P3-08, P3-10, P3-15, P3-16, P3-18, P3-19, P3-20, P3-22, P4-01, P4-02, P4-03, P4-04, P4-06, P4-14, P4-17, P4-20, P4-21, P4-23, P4-25, P4-26, P4-27, P4-30, P4-37, P4-39, P4-43, P5-01, P5-02, P5-05, P5-06, P5-07, P6-01, P6-04, P7-04, S-04 |
+| `praxis/launcher.py` | partial | N1-02, N1-03, N1-06, N2-03, N2-05, N2-06, N2-07, N3-01, N3-02, N3-05, N3-06, N3-07, N3-10, N3-12, N4-01, N4-02, N4-05, N4-07, N5-02, N6-01, N6-04, N6-05, N6-06, N6-08, N6-09, N6-11, N7-02, N7-03, N7-04, N7-05, N7-07, N7-10, N7-11, N7-12, N8-03, N8-05, N8-06, N8-07, N9-01, N9-02, N9-04, N9-05, P11-03, P2-11, P2-13, P2-18, P2-26, P2-32, P2-39, P2-41, P2-43, P2-44, P3-04, P3-08, P3-10, P3-15, P3-16, P3-18, P3-19, P3-20, P3-22, P4-01, P4-02, P4-03, P4-04, P4-06, P4-14, P4-17, P4-20, P4-21, P4-23, P4-25, P4-26, P4-27, P4-30, P4-37, P4-39, P4-43, P5-01, P5-02, P5-05, P5-06, P5-07, P6-01, P6-04, P7-04, S-04 |
 | `praxis/trading_config.py` | partial | P2-24, P3-22, P4-25, P4-42 |
 | `praxis/infrastructure/binance_urls.py` | full | P4-03 |
 | `praxis/command_translator.py` | partial | P4-04, P4-28 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 05:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 07:30 UTC

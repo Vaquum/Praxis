@@ -278,6 +278,9 @@ the others where it appears.
 - [What a ladder's prices must be](atoms/what-a-ladders-prices-must-be.md) — each price must be a positive real decimal, and the prices must rise throughout or fall throughout, which allows a descending ladder and rejects a repeated price without any check looking for duplicates.
 - [What a ladder's weights must come to](atoms/what-a-ladders-weights-must-come-to.md) — weights are optional and the checking stops where they are absent; supplied, they must match the prices in count, each be a positive real decimal, and together come to exactly one, which is the only test that reads them as a set.
 - [The quantity a lot step leaves behind](atoms/the-quantity-a-lot-step-leaves-behind.md) — an even split reaches the total exactly when no trading step is known, because the final part takes the remainder whole; where a step is known the final part is rounded down like the rest, so the parts can come to less than was asked for, bounded by one step since a final part rounding to zero is rejected.
+- [What a book poller refuses and answers](atoms/what-a-book-poller-refuses-and-answers.md) — the poller keeping the kept prices fresh rejects an empty symbol and an interval at or below zero by comparison rather than by type, reports itself running while its task exists and has not finished, refuses a second start by reading that report, and clears its stop signal before making the task so a stopped poller can start again.
+- [The gap between polls](atoms/the-gap-between-polls.md) — the pause between polls is a bounded wait on the stop signal rather than a sleep, so the interval is the longest the pause can be and a stop is noticed immediately instead of after it, which is how this loop differs in shape from the others.
+- [The stop that waits for its pollers](atoms/the-stop-that-waits-for-its-pollers.md) — stopping one poller waits for the turn in hand and swallows the interruption it caused, and the host walks all of them waiting for each under a single ten-second limit shared between them, keeping the list when the walk fails or runs out and emptying it only when the walk finishes.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -391,7 +394,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 294
+Both sides are the subject, and Praxis is the side that has been written. 297
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -402,4 +405,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 05:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 07:30 UTC

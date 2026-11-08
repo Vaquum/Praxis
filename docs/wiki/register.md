@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 293 not.**
+**6 of them reviewed, 296 not.**
 
 ## Package 1
 
@@ -833,6 +833,12 @@ What the poller refuses and answers comes first, because the host reads both. Th
 gap between polls comes second, as the one thing about this loop that differs from
 the others in shape rather than in detail. The stop comes last and takes the host's
 walk with it, because the bound on that walk is what waiting for each poller costs.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P11-01 | What a book poller refuses and answers | written | [what-a-book-poller-refuses-and-answers.md](atoms/what-a-book-poller-refuses-and-answers.md) |
+| P11-02 | The gap between polls | written | [the-gap-between-polls.md](atoms/the-gap-between-polls.md) |
+| P11-03 | The stop that waits for its pollers | written | [the-stop-that-waits-for-its-pollers.md](atoms/the-stop-that-waits-for-its-pollers.md) |
 
 ## Package 10 — what a ladder insists on, and what a lot step leaves behind
 
@@ -3177,4 +3183,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 07:30 UTC
