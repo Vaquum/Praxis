@@ -700,6 +700,35 @@ What every outcome is checked for is split either side of the choice between the
 two lists. Two names, a kind, a moment and the two measures are checked before
 it; a reason and the size still working are checked after it.
 
+### Merge and promote, package 12
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-363 | Every outcome is refused unless its own reference and the reference of the command it answers are each text with something left in them once trimmed. | Promote. What an outcome is checked for whatever its kind is in no article, and it is what the two lists are reached on top of |
+| Row H-364 | Its kind must be one of the named ones, its moment must be a moment, and that moment must carry the UTC marker itself. | Merge with H-363, the same subject read on past the two references |
+| Row H-365 | A size left over, where one is given at all, must be a finite figure at or above nought. | Merge with H-363. It is checked after the choice between the two lists rather than before it, and it is still asked of every kind, so it belongs with the rest of what every outcome answers |
+| Row H-366 | One test on the kind sends an outcome to the list for a fill or the list for anything else, so it is held to one of the two and never to both. | Promote. What a fill must carry and anything else must not is the subject the scope puts second, and no article reaches it |
+| Row H-367 | A fill must carry four figures: a size, a price, an amount, and the fees paid. | Merge with H-366, the near side of the same choice |
+| Row H-368 | Each of the four must be a finite figure, and the first three must stand above nought where the fees need only be at or above it. | Merge with H-366. That the fees alone may be nought is the sharpest of the four and the one a reader would otherwise get wrong |
+| Row H-369 | An outcome carrying no fill must carry none of those four. | Merge with H-366, the far side of the same choice |
+| Row H-370 | A refusal must carry a reason with something left in it once trimmed, and no other kind may carry a refusal's reason. | Promote. Which kinds may carry a reason is in no article, and the two reasons are held to different rules that only read together |
+| Row H-371 | A cancellation may carry a reason or leave it out, but not one with nothing left in it once trimmed, and no other kind may carry a cancellation's reason. | Merge with H-370. One reason is required and the other optional, and each is refused on every kind but its own, so the pair is one subject |
+| Row H-372 | Two measures of how an execution went may each be left out, and leaving one out is passed over rather than refused. | Promote. The two measures are in no article, and what they mean absent and at nought is the one place this record carries a figure it does not weigh against anything |
+| Row H-373 | A measure given on an outcome carrying no fill is refused, or else a measure given on an outcome carrying a fill must be a finite figure. | Merge with H-372, what a measure must be once it is there |
+
+Four subjects promote and seven rows merge, with nothing declined: the module no
+article reaches leaves nothing to collide with, and every row traced for it was
+new.
+
+What an outcome is checked for whatever its kind comes first, and the two lists
+second, because the choice between them is made partway through those checks. The
+size left over is checked last of all and could have gone with the kind's own
+list; it stays with the first subject because it is asked of every kind, which is
+the thing that subject is. The reasons and the measures are each held out because
+each turns on a distinction the first two cannot carry — one kind's reason
+required where another's is optional, and a figure whose absence says something
+other than nought.
+
 ## Nexus package 11 — what a command refuses
 
 Scope: the record Nexus hands Praxis on the roads that build one, and the checks
@@ -2041,19 +2070,19 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-360 | A new order must carry a side, a self-trade setting, and exactly one of a size or a spend. | `nexus/infrastructure/praxis_connector/trade_command.py` 227-229, or 230-232, or 233-235, or 236-238, all under the test at 226 | Nexus package eleven | is N11-04 |
 | H-361 | A change must carry none of the eleven things beyond the common ones, each refused on its own. | `nexus/infrastructure/praxis_connector/trade_command.py` 241-273 under the test at 240 | Nexus package eleven | folds into N11-04 |
 | H-362 | A cancel must carry none of those eleven either, refused the same way. | `nexus/infrastructure/praxis_connector/trade_command.py` 276-308 under the test at 275 | Nexus package eleven | folds into N11-04 |
-| H-363 | Every outcome is refused unless its own reference and the reference of the command it answers are each text with something left in them once trimmed. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 92-94, or 96-98 | Nexus package twelve |  |
-| H-364 | Its kind must be one of the named ones, its moment must be a moment, and that moment must carry the UTC marker itself. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 100-102, or 104-106, or 108-110 | Nexus package twelve |  |
-| H-365 | A size left over, where one is given at all, must be a finite figure at or above nought. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 138 into 139-144, or 146-148 | Nexus package twelve |  |
-| H-366 | One test on the kind sends an outcome to the list for a fill or the list for anything else, so it is held to one of the two and never to both. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 114 into 115, or else 117 | Nexus package twelve |  |
-| H-367 | A fill must carry four figures: a size, a price, an amount, and the fees paid. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 183-185, or 195-197, or 207-209, or 222-224 | Nexus package twelve |  |
-| H-368 | Each of the four must be a finite figure, and the first three must stand above nought where the fees need only be at or above it. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 187-189, or 199-201, or 211-216, or 226-231, against 191-193, or 203-205, or 218-220, or 233-235 | Nexus package twelve |  |
-| H-369 | An outcome carrying no fill must carry none of those four. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 117 into 240-242, or 244-246, or 248-250, or 252-254 | Nexus package twelve |  |
-| H-370 | A refusal must carry a reason with something left in it once trimmed, and no other kind may carry a refusal's reason. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 119 into 120-122, against 123-125 | Nexus package twelve |  |
-| H-371 | A cancellation may carry a reason or leave it out, but not one with nothing left in it once trimmed, and no other kind may carry a cancellation's reason. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 127 into 128-133, against 134-136 | Nexus package twelve |  |
-| H-372 | Two measures of how an execution went may each be left out, and leaving one out is passed over rather than refused. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 166 over the two names, with 169 into 170 letting an absent one by | Nexus package twelve |  |
-| H-373 | A measure given on an outcome carrying no fill is refused, or else a measure given on an outcome carrying a fill must be a finite figure. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 172-174, or 176-178 | Nexus package twelve |  |
+| H-363 | Every outcome is refused unless its own reference and the reference of the command it answers are each text with something left in them once trimmed. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 92-94, or 96-98 | Nexus package twelve | is N12-01 |
+| H-364 | Its kind must be one of the named ones, its moment must be a moment, and that moment must carry the UTC marker itself. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 100-102, or 104-106, or 108-110 | Nexus package twelve | folds into N12-01 |
+| H-365 | A size left over, where one is given at all, must be a finite figure at or above nought. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 138 into 139-144, or 146-148 | Nexus package twelve | folds into N12-01 |
+| H-366 | One test on the kind sends an outcome to the list for a fill or the list for anything else, so it is held to one of the two and never to both. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 114 into 115, or else 117 | Nexus package twelve | is N12-02 |
+| H-367 | A fill must carry four figures: a size, a price, an amount, and the fees paid. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 183-185, or 195-197, or 207-209, or 222-224 | Nexus package twelve | folds into N12-02 |
+| H-368 | Each of the four must be a finite figure, and the first three must stand above nought where the fees need only be at or above it. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 187-189, or 199-201, or 211-216, or 226-231, against 191-193, or 203-205, or 218-220, or 233-235 | Nexus package twelve | folds into N12-02 |
+| H-369 | An outcome carrying no fill must carry none of those four. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 117 into 240-242, or 244-246, or 248-250, or 252-254 | Nexus package twelve | folds into N12-02 |
+| H-370 | A refusal must carry a reason with something left in it once trimmed, and no other kind may carry a refusal's reason. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 119 into 120-122, against 123-125 | Nexus package twelve | is N12-03 |
+| H-371 | A cancellation may carry a reason or leave it out, but not one with nothing left in it once trimmed, and no other kind may carry a cancellation's reason. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 127 into 128-133, against 134-136 | Nexus package twelve | folds into N12-03 |
+| H-372 | Two measures of how an execution went may each be left out, and leaving one out is passed over rather than refused. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 166 over the two names, with 169 into 170 letting an absent one by | Nexus package twelve | is N12-04 |
+| H-373 | A measure given on an outcome carrying no fill is refused, or else a measure given on an outcome carrying a fill must be a finite figure. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 172-174, or 176-178 | Nexus package twelve | folds into N12-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 05:50 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 06:15 UTC
