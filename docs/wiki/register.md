@@ -841,6 +841,33 @@ happens before the waiting and what is put back when the waiting is cut short.
 | P9-03 | What the bucket of permissions refuses | written | [what-the-bucket-of-permissions-refuses.md](atoms/what-the-bucket-of-permissions-refuses.md) |
 | P9-04 | The token taken before the waiting | written | [the-token-taken-before-the-waiting.md](atoms/the-token-taken-before-the-waiting.md) |
 
+### Re-seed, after writing package 9
+
+What verifying the four articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The fourth place a comparison stands in for a check on a figure | `praxis/infrastructure/token_bucket.py` 45 and 49 refuse a rate and a capacity at or below nought by comparison, and ask nothing of their type. Running the bucket with a rate that is not a number, a capacity that is not a number, and a rate of infinity keeps all three: the comparison answers false and the figure is stored. A bucket made that way then refills and waits on arithmetic with it. This is the fourth record the wiki has found refusing a figure by comparing where its neighbours ask for finiteness, and the first where what is kept is then used in arithmetic that paces every later call. The register's package 15 re-seed has the three answers one path gives a bad figure; this is a fourth answer on a fourth path, and P9-03 states the two refusals without saying what they let by |
+| The report that reads as perfect health before anyone measures | `praxis/core/domain/health_snapshot.py` 33-37 gives all five figures a default of nought, so a report built with nothing set carries no latency, no failures, no failed share, no allowance in use and no drift. `health.md` already has that a replay's venue hands back a report of all noughts and that the decision side reads that as an account in good health. What it does not have is that the record's own defaults are the same noughts, so any caller building one and setting nothing gets the same reading — the all-nought report is not special to a replay |
+
+Two candidates, and both are what a record lets through rather than what it
+refuses, which is where this package's own work kept landing.
+
+A note on something the comparison turned up and the articles do not claim. The
+two copies of the health report differ in the order of the two conditions in the
+failure-count check: one asks for a true-or-false first and the other for a whole
+number first. Either order turns a true-or-false back, because the test is an
+or-chain satisfied by whichever condition holds, so the difference changes nothing
+and the article says so rather than presenting it as a divergence.
+
+A note on verification, as for the five packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the pinned records on the cases each claim turns on.
+Running the bucket is what established the negative count and the lengthening
+waits exactly — four takes from a bucket of two leave it at minus two, with waits
+of one second and two — and what showed the refund returning the count to nought
+rather than to one. The articles carry status `written`, as 290 of the 291 do.
+
 ## Package 8 — what the records answer, and the checks nothing reached
 
 Scope: the behaviour left uncited in modules the ledger already marks `full`, found
@@ -3032,4 +3059,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 03:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 04:00 UTC
