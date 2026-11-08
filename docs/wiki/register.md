@@ -839,6 +839,43 @@ one standing in. The severity handed back comes last.
 | P8-03 | What a clock refuses and what stands in | written | [what-a-clock-refuses-and-what-stands-in.md](atoms/what-a-clock-refuses-and-what-stands-in.md) |
 | P8-04 | The severity an alert gives back | written | [the-severity-an-alert-gives-back.md](atoms/the-severity-an-alert-gives-back.md) |
 
+### Re-seed, after writing package 8
+
+What verifying the four articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| The name of blank space that crosses the seam | `praxis/core/domain/_require_str.py` 28 keeps a name of blank space alone, and `nexus/infrastructure/praxis_connector/trade_command.py` 101-103 refuses one. Running both on a name of three spaces shows it kept on the Praxis side and refused on the Nexus side. What happens to a record built with such a name is therefore settled at the seam rather than where the record was made: it exists, it is written down, and the instruction built from it is turned back. P8-02 has the two rules and that they differ; where the difference lands, and that the refusal comes after the record is already real, is in no article |
+
+One candidate. It is what the difference in P8-02 costs, which the article states
+as a difference and does not follow to its end.
+
+A note on the method, and on something it turned up about the ledger itself.
+The gap map was rebuilt for this package to parse each module and take only the
+statements inside its function bodies, which cut the list of modules marked `full`
+with an uncited statement from fifty to twenty-nine: the earlier count was
+inflated by multi-line field declarations, type unions, signatures and the
+continuation lines of `__all__`, none of which an article should have to cite.
+Twenty-two remain after this package. The next ones by size are
+`praxis/core/generate_client_order_id.py` at 5 of 30, `praxis/infrastructure/book_cache.py`
+at 6 of 41, `praxis/core/domain/bracket_modify.py` at 7 of 23, and
+`praxis/core/domain/health_snapshot.py` with every one of its 29 uncited.
+
+Resyncing the ledger's own cells against the rows that cite each file corrected
+nineteen of them. Those had fallen behind as packages 15 to 18 added articles
+citing files whose cells nobody updated — the gate catches a cell naming a row
+that does not cite the file, and catches a cell omitting a row, but only for the
+files a package touches, so a cell can drift while every package passes. That is a
+defect class worth a check of its own, and the check already exists: it simply was
+not run over every row until now.
+
+A note on verification, as for the four packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the pinned records on the cases each claim turns on.
+That is how the blank-space finding was found at all: the shared check was read as
+trimming, as the records across the seam do, and running it on three spaces showed
+it does not. The articles carry status `written`, as 286 of the 287 do.
+
 ## Nexus package 18 — the last corners of the small records
 
 Scope: the behaviour left uncited in thirteen small records on the Nexus side, found
@@ -2947,4 +2984,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 01:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 02:00 UTC
