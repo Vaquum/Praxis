@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 300 not.**
+**6 of them reviewed, 302 not.**
 
 ## Package 1
 
@@ -827,6 +827,11 @@ What recording refuses comes first, because nothing reaches the stores without
 passing it. What the lock covers comes second, and takes the writing and the
 reading of the stores together because the point is which of the two the lock is
 held across and which it is not.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P13-01 | What recording a request refuses | written | [what-recording-a-request-refuses.md](atoms/what-recording-a-request-refuses.md) |
+| P13-02 | What the lock covers | written | [what-the-lock-covers.md](atoms/what-the-lock-covers.md) |
 
 ## Package 12 — how a replay's figures are counted
 
@@ -3325,4 +3330,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 11:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 11:30 UTC

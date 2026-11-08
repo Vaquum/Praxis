@@ -17,7 +17,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/validate_trade_modify.py` | partial | P3-13, P4-09, S-03 |
 | `praxis/infrastructure/binance_ws.py` | partial | N7-02, P3-16 |
 | `praxis/infrastructure/mytrades_backfill.py` | full | P3-17 |
-| `praxis/core/health_tracker.py` | full | P3-15 |
+| `praxis/core/health_tracker.py` | full | P13-01, P13-02, P3-15 |
 | `praxis/infrastructure/token_bucket.py` | full | P3-18, P9-03, P9-04 |
 | `praxis/core/classify_submit_failure.py` | full | P3-21 |
 | `praxis/infrastructure/secret_store.py` | partial | P3-19, P4-03, P4-26 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 09:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 11:30 UTC
