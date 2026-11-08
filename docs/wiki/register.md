@@ -888,6 +888,37 @@ reached from inside the first.
 | P20-01 | What counts as raising what a buy commits | written | [what-counts-as-raising-what-a-buy-commits.md](atoms/what-counts-as-raising-what-a-buy-commits.md) |
 | P20-02 | How a ladder's change is weighed | written | [how-a-ladders-change-is-weighed.md](atoms/how-a-ladders-change-is-weighed.md) |
 
+### Re-seed, after writing package 20
+
+The reader had the two articles before they were committed. Six reports came back,
+four of them on what the deciding reaches.
+
+| What it found | What came of it |
+|---|---|
+| The deciding turns on the shares as well as the prices: a change naming shares alone can raise what is committed. | P20-01's lead now says what the change names rather than naming prices only |
+| The branch comparing a row of figures rung by rung cannot be reached. Both fields the deciding lists are refused unless they are single exact figures, and a ladder's rows go down the ladder's own road. | P20-01 now carries it as a second path nothing reaches, beside the stop-limit price. The harvest row is rewritten to say so, since it had been promoted as live behaviour |
+| A rung above its old one does not raise the figure on the ladder's road: the rungs are added up against their shares, so one rung rising is offset where others fall. | That sentence is gone from P20-01, which no longer describes the rung-by-rung comparison as live at all |
+| A ladder's change must name prices or shares; naming neither is refused by the record itself. | P20-02 says so, and cites the record |
+| A change of rung count on an unweighted ladder is not caught by the count test. Each side with no shares gives its own rungs an equal share, so two sides of different counts compare as averages, and a cheaper three-rung ladder replacing two is accepted. | P20-02 now has a section for it. This was the article's worst error: it had the count test catching a case the code accepts |
+| A sell's ladder change reaches none of this, the sell answer coming before the ladder road. | P20-02's lead now says a buy's ladder, and that a sell's never reaches it |
+
+Four of the six are the same thing again: a claim about a path, written from the
+function that would run if the path were taken. Two of those four would have been
+caught by running the code on the case — the unweighted rung count especially,
+which the repository's own tests assert the acceptance of.
+
+So the method gains a step, from this package on: where an article says a path
+refuses something, run the pinned code on that case before writing it. The gate
+cannot see a dead branch, and reading alone has now missed one in three successive
+packages.
+
+Nothing else is left open on this module. Its last four uncited statements are the
+answer where nothing raises the commitment, now stated in P20-01, and three lines
+carrying a value found or looked up to the check that uses it — the command found
+by its name, the kind of change expected for the command's mode, and the answer
+that the change is good. Those three are recorded as an exclusion, and the cell
+moves to `full`.
+
 ## Package 18 — the last statements in the six modules next nearest the line
 
 Scope: the six modules the ledger marks `partial` with the fewest statements left
@@ -3881,4 +3912,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:30 UTC

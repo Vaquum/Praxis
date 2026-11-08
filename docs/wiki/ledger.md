@@ -14,7 +14,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/fill.py` | partial | P7-01, P7-02, P7-03 |
 | `praxis/core/account_ledger.py` | partial | N3-12, P2-29, P2-30, P3-11, P3-12, P4-06, P4-12, P4-51 |
 | `praxis/core/generate_client_order_id.py` | full | P1-01, P2-24, P3-14, P4-07, P4-33 |
-| `praxis/core/validate_trade_modify.py` | partial | P20-01, P20-02, P3-13, P4-09, S-03 |
+| `praxis/core/validate_trade_modify.py` | full | P20-01, P20-02, P3-13, P4-09, S-03 |
 | `praxis/infrastructure/binance_ws.py` | partial | N7-02, P3-16 |
 | `praxis/infrastructure/mytrades_backfill.py` | full | P16-01, P3-17 |
 | `praxis/core/health_tracker.py` | full | P13-01, P13-02, P3-15 |
@@ -99,7 +99,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/infrastructure/observability.py` | full | P3-20, P4-14, P4-37, P7-05 |
 | `praxis/arrow_price_store.py` | full | N7-11, P3-04, P4-15, P4-38, P8-03 |
 
-Every Praxis module is named here: 49 are `full` and 39 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
+Every Praxis module is named here: 50 are `full` and 38 `partial`, with none `uncovered`. A `partial` module has behaviour an article accounts for and behaviour no article reaches yet, or has a question still hanging over it — `execution_manager.py`, at 10,899 lines, is `partial` by the widest margin even with the rows above. The four that were `uncovered` are now reached by package 7: the bracket exit identifier, the scheme projection and the replay report had their behaviour traced through a caller and now carry rows of their own, and a fill's own type — which has no caller, nothing outside the tests building one — carries three.
 
 ## Nexus — 70 modules
 
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 01:30 UTC

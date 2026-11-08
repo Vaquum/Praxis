@@ -2,7 +2,7 @@
 row: P20-01
 baseline: 49aa659
 created: 2026-11-11 00:00 UTC
-modified: 2026-11-11 01:00 UTC
+modified: 2026-11-11 01:30 UTC
 evidence:
   - claim: "A sell's change is answered no before anything else is read"
     source: "`validate_trade_modify.py` 97-98"
@@ -14,6 +14,8 @@ evidence:
     source: "`validate_trade_modify.py` 127-128"
   - claim: "A named price with no original to weigh against raises"
     source: "`validate_trade_modify.py` 117-118"
+  - claim: "A change that trips none of this is answered no, and the change goes on to be queued"
+    source: "`validate_trade_modify.py` 130, the answer read at 220"
   - claim: "The second price listed for a single order cannot be reached, a change naming it being refused earlier"
     source: "`validate_trade_modify.py` 27 against 200-203, raising at 204-208 before 220"
   - claim: "The branch for a price that arrives as a row of figures cannot be reached either, since both listed fields are refused unless they are single exact figures"
@@ -34,6 +36,8 @@ A way of working with no commitment prices listed for it. Only two have any list
 A named price above the original raises it.
 
 So does a named price with no original to weigh it against: there is nothing to bound it by, and the change is turned back rather than let through.
+
+A change that trips none of this is answered no, and goes on to be queued.
 
 ## The two paths nothing reaches
 
