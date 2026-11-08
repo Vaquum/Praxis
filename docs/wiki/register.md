@@ -821,7 +821,7 @@ from `partial` to `full`.
 |---|---|---|
 | Row H-565 | An entry's moment must carry a zone. | Add to the article on the money ledger, which holds the other refusals of an entry and of its lines |
 | Row H-566 | The mean is the closed trades' profits summed over their count, and each side's volume is its own trades' entry notional summed, the whole being the two added together. | Add to the article on the metrics, which has the rounding of these four figures and what they come to where nothing closed, but not how they are reached |
-| Row H-567 | An evaluator built with no policy of its own weighs against the built-in thresholds. | Add to the article on health, which already names those thresholds where it says what an all-zero report is read as |
+| Row H-567 | A weigher built with no policy of its own takes the built-in thresholds. | Add to the article on what the health policy refuses, which holds the checks on those same thresholds. The article on health was tried first and would have outgrown the word cap, which the cap says is a reason to place the statement with its subject rather than to shorten it |
 | Row H-568 | The two measures of execution quality are checked before the choice between the two lists, so that check is made whatever the kind. | Add to the article on what an outcome is checked for, which states of the leftover size that it is checked after that choice; this is the one checked before it |
 | Row H-569 | Each of the two shutdown waits is refused unless it is a finite number above nought. | Extend the citation already carrying this, which stopped on the line before the raise |
 
@@ -3579,11 +3579,11 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-564 | Where no lot size is known the children divide the total exactly, with no size below which a child is refused. | `praxis/core/plan_even_slices.py` 54-56 | Praxis package sixteen | folds into P16-02 |
 | H-565 | An entry's moment must carry a zone. | `praxis/core/domain/journal_entry.py` 73-75 | Praxis package seventeen | added to the money ledger |
 | H-566 | The mean is the closed trades' profits summed over their count, and each side's volume is its own trades' entry notional summed, the whole being the two added together. | `praxis/metrics/ledger_metrics.py` 62-65, the whole at 71 | Praxis package seventeen | added to the metrics |
-| H-567 | An evaluator built with no policy of its own weighs against the built-in thresholds. | `nexus/core/health_evaluator.py` 153, the defaults at 81-93 | Praxis package seventeen | added to health |
+| H-567 | A weigher built with no policy of its own takes the built-in thresholds. | `nexus/core/health_evaluator.py` 153, the defaults at 81-93 | Praxis package seventeen | added to what the health policy refuses |
 | H-568 | The two measures of execution quality are checked before the choice between the two lists, so that check is made whatever the kind. | `nexus/infrastructure/praxis_connector/trade_outcome.py` 112 before 114-117 | Praxis package seventeen | added to what an outcome is checked for |
 | H-569 | Each of the two shutdown waits is refused unless it is a finite number above nought. | `nexus/instance_config.py` 275-278 into 279-287 | Praxis package seventeen | citation extended to the raise |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 17:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 17:30 UTC

@@ -2,7 +2,7 @@
 row: N17-01
 baseline: 49aa659
 created: 2026-11-09 20:00 UTC
-modified: 2026-11-09 20:00 UTC
+modified: 2026-11-10 17:30 UTC
 evidence:
   - claim: "The account and the venue must each be text with something left in them once trimmed"
     source: "`nexus/instance_config.py` 89-91, or 93-95"
@@ -15,7 +15,7 @@ evidence:
   - claim: "The self-trade setting must be one of the named ones"
     source: "`nexus/instance_config.py` 229-231"
   - claim: "Two shutdown timeouts are walked and each refused unless it is a finite number above nought, a true-or-false refused"
-    source: "`nexus/instance_config.py` 275-278 into 279-285"
+    source: "`nexus/instance_config.py` 275-278 into 279-287"
 ---
 # What an instance's configuration refuses
 

@@ -2,7 +2,7 @@
 row: N15-02
 baseline: 49aa659
 created: 2026-11-09 14:00 UTC
-modified: 2026-11-09 14:00 UTC
+modified: 2026-11-10 17:30 UTC
 evidence:
   - claim: "Ten thresholds are walked by name and each refused unless it is a finite number at or above nought, with a true-or-false refused outright"
     source: "`nexus/core/health_evaluator.py` 98-103 into 105-107"
@@ -12,12 +12,16 @@ evidence:
     source: "`nexus/core/health_evaluator.py` 115-117, or 119-121, or 123-125, or 127-129"
   - claim: "Those orderings are the only checks the policy makes that put two of its own fields side by side"
     source: "`nexus/core/health_evaluator.py` 98-138, which compares two of its fields at 115, 119, 123 and 127 and nowhere else"
+  - claim: "A weigher built with no policy of its own takes the built-in thresholds"
+    source: "`nexus/core/health_evaluator.py` 153, the defaults at 81-93"
   - claim: "Six of the thresholds are held to a ceiling of one by a walk that runs after the orderings"
     source: "`nexus/core/health_evaluator.py` 131-134 into 136-138"
 ---
 # What the health policy refuses
 
 The policy a snapshot is weighed against carries thirteen thresholds, and is refused for failing any one of a fixed list of checks on them.
+
+A policy is optional. A weigher built without one takes the built-in thresholds, which are the ones these checks guard.
 
 ## The two walks over single fields
 
