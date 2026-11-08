@@ -803,6 +803,34 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 15 — what the figures are measured from, and what the series are read as
+
+Scope: the module reproducing the training side's own distribution figures, which
+the ledger marks `full` with sixteen of its hundred statements uncited and is now
+the widest such module left. Four articles reach it. What the falls are measured
+from, what the four series are turned into before anything is checked, and which
+day a bar is filed under are in no article.
+
+The package also settles the two candidates the twelfth package's re-seed left
+open, one of which does not survive being read again.
+
+### Merge and promote, package 15
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-553 | The peak the falls are measured against starts at one, so a curve whose first evaluated bar sits below the starting capital is already in a fall. | Promote. What the falls are measured from is in no article, and the article on how a fall is recorded says the peak only rises without saying where it begins |
+| Row H-554 | The opening moment is set before the walk, with no episode open, and every episode writes its own as it opens. | Merge with H-553. A figure the walk can never read belongs beside the one it always reads, both being set in the same breath before the walk begins |
+| Row H-555 | The four series are turned into arrays of floating-point numbers before anything is checked, so a true-or-false becomes one or nought and text reading as a number is taken as one. | Promote. What the series are read as is in no article, and every later check works on what the conversion produced rather than on what the caller passed |
+| Row H-556 | A value that is no number at all becomes not-a-number: as a prediction it refuses the call, as any of the three prices it marks that bar's price unknown and the bar is passed over. | Merge with H-555. The same conversion answering a missing value two ways is what makes the conversion worth stating |
+| Row H-557 | Each bar is filed under the calendar day of its own moment, so which bars share a day follows the zone the moments arrived in. | Promote. This is one of the two candidates the twelfth package's re-seed named, and it joins a fact written three packages earlier about the clock keeping whatever zone it is given |
+| Row H-558 | On the module's one path a held bar's run number is never nought, the entry marks being derived from the held bars themselves. | Decline, and correct the record. This is the other candidate the twelfth package's re-seed named, stated there as a trade counted before the first mark. Reading 142 again shows the mark mask is the held mask with the previous bar's held state taken off it, so the first held bar is always a mark. The two trades came from calling the helper with a held mask and a mark mask that disagree, which the module's one caller never produces. The twelfth package's re-seed row is corrected in place |
+
+Three subjects promote, two rows merge, and one candidate is declined as false.
+
+What the series are read as comes first, since every later figure rests on it.
+What the falls are measured from comes second, and the day a bar is filed under
+third.
+
 ## Package 14 — the moments a replay request names, and what stopping the listener does
 
 Scope: the service that takes a replay request over HTTP, which the ledger marks
@@ -968,7 +996,7 @@ What verifying the four articles turned up that none of them reaches.
 
 | Candidate | What proves it |
 |---|---|
-| The trade that begins before the first entry mark | `praxis/metrics/limen_snapshot.py` 194 numbers the bars by a running count of the entry marks, so every bar before the first mark carries the number nought, and 198 walks the numbers found among the held bars without leaving that one out. Running the helper over a position held through the first two bars and marked only at the fourth gives two trades, not one: the held bars before any mark are counted as a trade of their own. P12-01 has the numbering and what a trade is; that the number nought is a trade like any other, so a position already open when the bars begin is counted as one, is in no article |
+| The trade that begins before the first entry mark | `praxis/metrics/limen_snapshot.py` 194 numbers the bars by a running count of the entry marks, so every bar before the first mark carries the number nought, and 198 walks the numbers found among the held bars without leaving that one out. Running the helper over a position held through the first two bars and marked only at the fourth gives two trades, not one: the held bars before any mark are counted as a trade of their own. P12-01 has the numbering and what a trade is. Corrected by package fifteen, which found this false: the entry marks are themselves derived from the held bars at 142, so the first held bar is always a mark and a held bar's number is never nought. The two trades came from calling the helper with a held mask and a mark mask that disagree, which the module's one caller never produces |
 | The day a bar is filed under follows the zone its moment carries | `praxis/metrics/limen_snapshot.py` 220 files each bar under the calendar day of its own moment, and nothing before it puts the moments into one zone. The same two instants filed in universal time and in a zone nine hours ahead take different days — their ordinals differ by one — so which bars share a day, and therefore every day figure, depends on the zone the moments arrived in. `praxis/replay/replay_clock.py` 33 keeps whatever zone it is given, which P8-03 states, so the two facts meet here. P12-02 has the filing by day; that the day is the moment's own and not a fixed one is in no article |
 
 Two candidates. Both are what the grouping admits rather than what it computes,
@@ -3419,8 +3447,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-550 | Runs go to a pool of one worker, made as the app is. | `praxis/replay/replay_api.py` 105 | Praxis package fourteen | recorded; what a replay run reports back states it |
 | H-551 | On the app's cleanup the worker pool is shut down, waiting for the replay still running and cancelling those queued behind it. | `praxis/replay/replay_api.py` 168-169, attached at 174 | Praxis package fourteen | is P14-02 |
 | H-552 | A record is set to running where the work is queued, and only the worker's own function ever writes it again. | `praxis/replay/replay_api.py` 150-151 against 107-116 | Praxis package fourteen | folds into P14-02 |
+| H-553 | The peak the falls are measured against starts at one, so a curve whose first evaluated bar sits below the starting capital is already in a fall. | `praxis/metrics/limen_snapshot.py` 250, against 256-257 and 260-263 | Praxis package fifteen | is P15-02 |
+| H-554 | The opening moment is set before the walk, with no episode open, and every episode writes its own as it opens. | `praxis/metrics/limen_snapshot.py` 251-253 against 262 | Praxis package fifteen | folds into P15-02 |
+| H-555 | The four series are turned into arrays of floating-point numbers before anything is checked, so a true-or-false becomes one or nought and text reading as a number is taken as one. | `praxis/metrics/limen_snapshot.py` 96-99, against 119-120 | Praxis package fifteen | is P15-01 |
+| H-556 | A value that is no number at all becomes not-a-number: as a prediction it refuses the call, as any of the three prices it marks that bar's price unknown and the bar is passed over. | `praxis/metrics/limen_snapshot.py` 96-99 into 119-120, or into 122 and 133 | Praxis package fifteen | folds into P15-01 |
+| H-557 | Each bar is filed under the calendar day of its own moment, so which bars share a day follows the zone the moments arrived in. | `praxis/metrics/limen_snapshot.py` 220, the zone kept at `praxis/replay/replay_clock.py` 33 | Praxis package fifteen | is P15-03 |
+| H-558 | On the module's one path a held bar's run number is never nought, the entry marks being derived from the held bars themselves. | `praxis/metrics/limen_snapshot.py` 142 into 194 and 198 | Praxis package fifteen | declined; the twelfth package's re-seed row is corrected |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 13:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 14:00 UTC
