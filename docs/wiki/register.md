@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 422 not.**
+**6 of them reviewed, 429 not.**
 
 ## Package 1
 
@@ -856,6 +856,69 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 68 — the connection the venue speaks over
+
+Scope: the stream Praxis keeps open per account, which the ledger marks `partial`
+with eighty-two of its hundred and sixteen statements uncited. One article has what
+arrives on it, what is passed over, and that the waiting before a fresh attempt
+grows and is drawn at random. What opening it does where one is already open, which
+addresses it will accept, how the subscription is signed and acknowledged, the order
+closing does things in, and which failures the reconnect loop survives are in no
+article.
+
+### Merge and promote, package 68
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-794 | Opening the stream answers at once where a socket is already open and again where a reconnect loop is already running, and the loop is started only where a handler for arriving messages has been set. | Promote. What a second opening does is in no article, and a stream with no handler never reconnecting is not something a reader would guess |
+| Row H-795 | The setting up runs before the loop is started, so a failure to connect or subscribe leaves no loop behind, and the reading asserts both the socket and the handler are there. | Merge with H-794, what the order leaves behind |
+| Row H-796 | An address is allowed where it begins with the secured form, or where it begins with the plain form and the setting naming a simulator holds something once trimmed, and anything else is refused by name. | Promote. Which addresses are allowed is in no article, and the trimming is what keeps a blank setting from opening the unsecured allowance |
+| Row H-797 | That check reads the beginning of the address alone and stands before the credentials are fetched or any connection is opened. | Merge with H-796, what it does not ask and where it stands |
+| Row H-798 | The subscribing joins the key, the window and the moment in the order their names sort, signs that text with the secret, and adds the signature only afterwards so it never signs itself. | Promote. How the asking is signed is in no article, and the sorting is what makes one set of values give one text |
+| Row H-799 | The answer is waited for with a limit and a running out raised again naming the account, an answer arriving as anything but text refused by the kind of frame, and a failure of the subscribing closing the socket just opened before raising on. | Merge with H-798, the answer and what a refusal leaves |
+| Row H-800 | Closing stops the reconnect loop first and swallows the cancelling, then clears the socket and the subscription's name into local names before sending anything, then sends an unsubscribe and closes the socket, swallowing a failure of each. | Promote. The order is in no article, and clearing the fields before sending is what lets a fresh opening run alongside a closing |
+| Row H-801 | The unsubscribe names the subscription only where one was recorded, and nothing in the closing is raised to the caller. | Merge with H-800, what the venue is told and what the caller is |
+| Row H-802 | A failure of the reading is logged and the loop carries on whatever it was, but the catch names the ordinary kind and a cancelling is of another, so the cancelling a closing causes ends the loop. | Promote. Which failures keep the loop alive is in no article, and the one kind it does not catch is how closing the stream stops it |
+| Row H-803 | A failed attempt to set up again is caught for three named kinds alone, so a failure of another kind leaves the loop, and each of the two callbacks runs inside a catch of its own with an unset one passed over. | Merge with H-802, the other two catches |
+
+Five subjects promote and five rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P68-01 | What opening the stream does and does not do | written | [what-opening-the-stream-does-and-does-not-do.md](atoms/what-opening-the-stream-does-and-does-not-do.md) |
+| P68-02 | The address the stream will accept | written | [the-address-the-stream-will-accept.md](atoms/the-address-the-stream-will-accept.md) |
+| P68-03 | How a subscription is signed and acknowledged | written | [how-a-subscription-is-signed-and-acknowledged.md](atoms/how-a-subscription-is-signed-and-acknowledged.md) |
+| P68-04 | The order closing the stream does things in | written | [the-order-closing-the-stream-does-things-in.md](atoms/the-order-closing-the-stream-does-things-in.md) |
+| P68-05 | The failures the reconnect loop swallows | written | [the-failures-the-reconnect-loop-swallows.md](atoms/the-failures-the-reconnect-loop-swallows.md) |
+| P68-06 | What setting up tears down first | written | [what-setting-up-tears-down-first.md](atoms/what-setting-up-tears-down-first.md) |
+| P68-07 | What a closing can raise | written | [what-a-closing-can-raise.md](atoms/what-a-closing-can-raise.md) |
+
+### Re-seed, after writing package 68
+
+The reader returned ten reports and all ten were valid. Nine of them are one
+mistake made nine times.
+
+| What it found | What came of it |
+|---|---|
+| Every passing-over in this module names the kind of failure it expects, and the two catches name the ordinary kind. The articles had said "swallowed" and "whatever the failure was", which turns a named kind into all kinds. | Every such sentence across five articles now names what is passed over. The error was reading a suppression's purpose instead of its argument |
+| Waiting on a stopped reconnect loop hands out a failure the loop had already died of, so a closing can raise, and the clearing of its fields stands after that waiting. | P68-07. The claim that a closing always answers was the plainest casualty of the same reading |
+| A failure outside the three named kinds during the subscribing leaves the newly opened socket neither closed nor recorded. | P68-03 says so |
+| The closing of that socket passes over a transport failure alone, so another kind there replaces the failure being reported. | P68-03 says so |
+| The old socket's fields are cleared after its closing is waited on, not before, so they still hold what they held during the wait. | P68-06 says so |
+| A failure of another kind while closing the old socket escapes before the clearing runs, leaving the stream holding the socket it was trying to be rid of. | P68-06 says so |
+| A refused address is met after the tearing down, so it costs the connection the stream had. | P68-02 says so, where it had said a wrong address costs nothing but the complaint |
+| An opening arriving while the loop is still being waited on answers at once for the second of its two reasons, whatever the socket field says. | P68-01 and P68-04 say so |
+| A callback failing outside the ordinary kind ends the loop. | P68-05 says so |
+
+The one mistake is worth naming plainly: a passing-over has an argument, and the
+argument is the claim. Writing "swallowed" for `suppress(one kind)` is the same
+error as citing a docstring — taking what a construct is for as what it does.
+
+Thirteen statements of the module are left uncited and are an exclusion rather than
+work outstanding: the fetching of the shared session, two openings of an attempt,
+the loop's counter and its sleeping and its calls, whose behaviour these articles
+and the article on the feed state, and the branch for a text frame.
 
 ## Nexus package 67 — what a strategy's action is held to
 
@@ -6115,8 +6178,18 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-791 | The parameters for the way of working may be a mapping with nothing in it and the parameters for a change may not, the latter refused by a test the former has no counterpart for. | `nexus/strategy/action.py` 111-119 asking nothing of the size, against 125-127 | Nexus package sixty-seven | folds into N67-02 |
 | H-792 | An entry gathers five missing fields into one complaint naming all of them, then refuses both a size and an amount of money together, then holds an entry carrying money to being a buy and a market order. | `nexus/strategy/action.py` 176-189, then 191-193, then 200-212 | Nexus package sixty-seven | is N67-03 |
 | H-793 | An exit gathers two and then refuses an amount of money outright, a change gathers three, and an abandonment asks for one named directly rather than gathered. | `nexus/strategy/action.py` 215-226, or 229-238, or 241-243 | Nexus package sixty-seven | folds into N67-03 |
+| H-794 | Opening the stream answers at once where a socket is already open and again where a reconnect loop is already running, and the loop is started only where a handler for arriving messages has been set. | `binance_ws.py` 128-131, then 134-135 | package sixty-eight | is P68-01 |
+| H-795 | The setting up runs before the loop is started, so a failure to connect or subscribe leaves no loop behind, and the reading asserts both the socket and the handler are there. | `binance_ws.py` 133 ahead of 135, the assertions at 396-397 | package sixty-eight | folds into P68-01 |
+| H-796 | An address is allowed where it begins with the secured form, or where it begins with the plain form and the setting naming a simulator holds something once trimmed, and anything else is refused by name. | `binance_ws.py` 166-168, then 170-172 | package sixty-eight | is P68-02 |
+| H-797 | That check reads the beginning of the address alone and stands before the credentials are fetched or any connection is opened. | `binance_ws.py` 167 and 168, with 170-172 ahead of 174 and 177 | package sixty-eight | folds into P68-02 |
+| H-798 | The subscribing joins the key, the window and the moment in the order their names sort, signs that text with the secret, and adds the signature only afterwards so it never signs itself. | `binance_ws.py` 206-211, then 212, then 213, then 214 | package sixty-eight | is P68-03 |
+| H-799 | The answer is waited for with a limit and a running out raised again naming the account, an answer arriving as anything but text refused by the kind of frame, and a failure of the subscribing closing the socket just opened before raising on. | `binance_ws.py` 223-229, then 231-236, and 181-184 | package sixty-eight | folds into P68-03 |
+| H-800 | Closing stops the reconnect loop first and swallows the cancelling, then clears the socket and the subscription's name into local names before sending anything, then sends an unsubscribe and closes the socket, swallowing a failure of each. | `binance_ws.py` 273-277, then 280-283, then 284-291, then 292-293 | package sixty-eight | is P68-04 |
+| H-801 | The unsubscribe names the subscription only where one was recorded, and nothing in the closing is raised to the caller. | `binance_ws.py` 289-290, with every step at 273-293 either swallowed or unable to raise | package sixty-eight | folds into P68-04 |
+| H-802 | A failure of the reading is logged and the loop carries on whatever it was, but the catch names the ordinary kind and a cancelling is of another, so the cancelling a closing causes ends the loop. | `binance_ws.py` 336-339, the cancelling raised at 274 | package sixty-eight | is P68-05 |
+| H-803 | A failed attempt to set up again is caught for three named kinds alone, so a failure of another kind leaves the loop, and each of the two callbacks runs inside a catch of its own with an unset one passed over. | `binance_ws.py` 358-363, and 379-385 called at 341 and 356 | package sixty-eight | folds into P68-05 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 00:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 01:00 UTC

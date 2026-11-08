@@ -135,6 +135,13 @@ the others where it appears.
 ## What the venue tells Praxis
 
 - [The venue feed](atoms/the-venue-feed.md) — a connection kept open per account, over which the venue says what happened to that account's orders unasked.
+- [What opening the stream does and does not do](atoms/what-opening-the-stream-does-and-does-not-do.md) — asking for the connection twice is harmless and silent, and the part that reconnects after a break is only started where somebody is listening for messages.
+- [What setting up tears down first](atoms/what-setting-up-tears-down-first.md) — setting the connection up lets go of whatever it already had before it checks anything, so a bad address costs the working connection as well as the complaint.
+- [The address the stream will accept](atoms/the-address-the-stream-will-accept.md) — a secured address is always allowed and an unsecured one only where the setting naming the simulator holds something, and a setting holding only blank space counts as holding nothing.
+- [How a subscription is signed and acknowledged](atoms/how-a-subscription-is-signed-and-acknowledged.md) — the request's values are put in a fixed order before being signed so one set of values gives one text, and the signature is added only afterwards.
+- [The order closing the stream does things in](atoms/the-order-closing-the-stream-does-things-in.md) — the reconnecting is stopped, the connection is let go of before anything is sent, and only then is the venue told and the connection closed.
+- [What a closing can raise](atoms/what-a-closing-can-raise.md) — each step of a close ignores the kind of problem it expects and passes anything else on, so some closes stop partway and leave the connection open.
+- [The failures the reconnect loop swallows](atoms/the-failures-the-reconnect-loop-swallows.md) — the loop is built to survive the venue being unreachable for as long as it takes, and the interruption it cannot survive is exactly what stops it when the connection is closed on purpose.
 - [The kept book](atoms/the-kept-book.md) — Praxis's own copy of the latest offers for a pair, held with the time it arrived so a check need not wait on the venue.
 - [Backfilling missed trades](atoms/backfilling-missed-trades.md) — asking the venue for trades Praxis did not hear about, after the feed was away or at a start.
 - [How an order is brought back into step](atoms/how-an-order-is-brought-back-into-step.md) — the venue asked what became of each working order, fills taken in before any ending is concluded.
@@ -520,8 +527,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 423
-articles exist. Of Praxis's own source files 73 are accounted for in full and 15 in
+Both sides are the subject, and Praxis is the side that has been written. 430
+articles exist. Of Praxis's own source files 74 are accounted for in full and 14 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -531,4 +538,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 00:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 01:00 UTC
