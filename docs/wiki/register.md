@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 345 not.**
+**6 of them reviewed, 347 not.**
 
 ## Package 1
 
@@ -856,6 +856,49 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 44 — the two readings of the log, and the check that stands apart
+
+Scope: the write-ahead log, which the ledger marks `partial` with thirty-one of
+its hundred and forty-five statements uncited. Articles have how a record reaches
+the log and how a checkpoint rewrites it. That the log has two readings, which
+answer the same damaged file differently, is in no article — nor is the check a
+boot makes before either of them.
+
+### Merge and promote, Nexus package 44
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-661 | The strict reading raises on a marker that is wrong, on a record longer than the cap, and on a record whose check does not match, while ending quietly at a tail cut short. | Promote. That the log has two readings is in no article, and what each does with the same damage is the subject |
+| Row H-662 | The tolerant reading answers nothing for a wrong marker and stops quietly at every one of those three, keeping what it read up to there. | Merge with H-661, the other half of the pair |
+| Row H-663 | Both answer nothing for a file that is not there, and for one whose marker is too short to be one. | Merge with H-661, the cases where the two agree |
+| Row H-664 | A check that stands apart from both raises on a file holding a wrong marker, and answers nothing for a file too small to hold one. | Promote. The check a boot makes before reading is in no article, and it exists because the tolerant reading would boot past the damage |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N44-01 | The two readings of the log | written | [the-two-readings-of-the-log.md](atoms/the-two-readings-of-the-log.md) |
+| N44-02 | The check a boot makes before reading | written | [the-check-a-boot-makes-before-reading.md](atoms/the-check-a-boot-makes-before-reading.md) |
+
+### Re-seed, after writing Nexus package 44
+
+The reader had both articles before they were committed and returned five
+reports.
+
+| What it found | What came of it |
+|---|---|
+| A torn record whose claimed length is also past the cap raises on the strict reading rather than ending it, the cap being tested first. | N44-01 says so, after the agreement it qualifies |
+| The check does not stand before both readings. The strict reading tests the marker itself and calls nothing; the check exists for the roads that read tolerantly. | N44-02 says where it is made and why those roads need it |
+| The check is made as the store is built, before the store's own first reading — not only by a recovery. | N44-02 names that first, which is the earliest place the failure can surface |
+| The story about what a host would do without the check was wrong twice over: a recovery with no records keeps the snapshot's state rather than rebuilding nothing, and the constructor already makes the check. | That paragraph is replaced with what the code does: the tolerant reading answers nothing, a write into such a file is refused, and the check moves that refusal to the building |
+| A file too small to hold a marker is not necessarily a fresh start: a log truncated to nothing looks the same. | The gloss calling both a first start is gone |
+
+The fourth is the one to keep: a sentence of the form "without this, X would
+happen" is a claim about a program that does not exist, and nothing in the file
+can support it. The register's rules have no line for that yet. The line this
+package adds is that a consequence must be read off the code as it stands, not off
+the code with a check imagined away.
 
 ## Package 43 — what the host's configuration record refuses
 
@@ -4826,8 +4869,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-658 | Three spans are each refused at or below nought by comparison, with nothing asked of their kind, so one that is no number is kept. | `praxis/trading_config.py` 131-133, or 135-137, or 139-144 | Praxis package forty-three | folds into P43-01 |
 | H-659 | The credentials mapping's keys must be text with something left once trimmed, its values must be of the credentials kind, and each key and secret is tested for truth alone. | `praxis/trading_config.py` 148-150, or 152-154, or 156-161 | Praxis package forty-three | folds into P43-01 |
 | H-660 | The two mappings are copied and sealed over the fields they arrived in, and the ways of working are frozen into a set. | `praxis/trading_config.py` 146 into 163-167, or 180 into 196-200, or 174-178 | Praxis package forty-three | is P43-02 |
+| H-661 | The strict reading raises on a marker that is wrong, on a record longer than the cap, and on a record whose check does not match, while ending quietly at a tail cut short. | `nexus/infrastructure/wal.py` 137-139, or 149-154, or 161-163, ending quietly at 155-156, or 158-159 | Nexus package forty-four | is N44-01 |
+| H-662 | The tolerant reading answers nothing for a wrong marker and stops quietly at every one of those three, keeping what it read up to there. | `nexus/infrastructure/wal.py` 197-198, or 209-210, or 211-212, or 214-215, or 217-218, returning what it has at 220 | Nexus package forty-four | folds into N44-01 |
+| H-663 | Both answer nothing for a file that is not there, and for one whose marker is too short to be one. | `nexus/infrastructure/wal.py` 126-127 and 133-136, against 190-191 and 197-198 | Nexus package forty-four | folds into N44-01 |
+| H-664 | A check that stands apart from both raises on a file holding a wrong marker, and answers nothing for a file too small to hold one. | `nexus/infrastructure/wal.py` 239-240, or 242-243, or 245-250 | Nexus package forty-four | is N44-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 02:00 UTC

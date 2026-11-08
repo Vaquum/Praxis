@@ -330,6 +330,8 @@ the others where it appears.
 - [The stop that blocks a restart](atoms/the-stop-that-blocks-a-restart.md) — a worker still alive when the join expires keeps its slot, which blocks a restart for exactly as long as it runs; the slot is cleared only if it still holds that same worker, while the single shared stop flag means a stop entering after a restart signals the new worker instead.
 - [What the host's configuration record refuses](atoms/what-the-hosts-configuration-record-refuses.md) — each venue URL is tested for truthiness alone so a whitespace one is kept, each timeout is compared against zero with no type check so a NaN passes while a string raises from the comparison itself, and the credentials mapping's keys along with the keys and secrets inside its values are all truthiness-tested.
 - [What the configuration record holds afterwards](atoms/what-the-configuration-record-holds-afterwards.md) — the record is frozen, so its own construction writes through a call that bypasses that in order to seal copies of its mappings and freeze its mode set; the seal stops a caller mutating the mapping it handed in, while that same bypass stays open for replacing a field entirely.
+- [The two readings of the log](atoms/the-two-readings-of-the-log.md) — both walk the WAL from the start and both treat a missing file, an unreadably short header and a torn tail alike, but a header that is present and wrong raises on the strict read and reads as no records on the tolerant one, as do an over-cap length and a CRC mismatch.
+- [The check a boot makes before reading](atoms/the-check-a-boot-makes-before-reading.md) — a separate check raises when the file is large enough to hold the magic bytes and does not hold them; it runs as the store is built and again before each tolerant read, while the strict read tests the header itself, and without it a wrong header would surface only at the first write.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -443,7 +445,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 346
+Both sides are the subject, and Praxis is the side that has been written. 348
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -454,4 +456,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 01:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 02:00 UTC

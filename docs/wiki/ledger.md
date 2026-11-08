@@ -135,9 +135,9 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/infrastructure/loss_derivation.py` | full | N15-08, N2-03, N7-09 |
 | `nexus/infrastructure/manifest.py` | partial | N3-02, N37-02, N6-02, N7-03, N7-10, P3-04, P4-26, P4-43 |
 | `nexus/infrastructure/wal_codec.py` | partial | N2-02, N3-01, N3-02, N38-02, N7-08, N8-03, N9-04 |
-| `nexus/infrastructure/state_store.py` | partial | N3-03, N38-01, N38-02, N7-02, N7-08, N7-09, N8-01, N8-03, N9-02, N9-04, P18-01, P5-01, P5-06, P5-07, P6-01, P6-04 |
+| `nexus/infrastructure/state_store.py` | partial | N3-03, N38-01, N38-02, N44-02, N7-02, N7-08, N7-09, N8-01, N8-03, N9-02, N9-04, P18-01, P5-01, P5-06, P5-07, P6-01, P6-04 |
 | `nexus/infrastructure/snapshot.py` | full | N7-08, N7-09, N8-03, N8-04, N9-04, P18-01 |
-| `nexus/infrastructure/wal.py` | partial | N38-01, N7-08, N7-09, N8-01, N8-02, N8-03, N8-04, N8-08, N9-03 |
+| `nexus/infrastructure/wal.py` | partial | N38-01, N44-01, N44-02, N7-08, N7-09, N8-01, N8-02, N8-03, N8-04, N8-08, N9-03 |
 | `nexus/infrastructure/wal_entry.py` | full | N18-02, N8-08 |
 | `nexus/infrastructure/snapshot_scheduler.py` | full | N25-01, N6-01, N6-11, N7-08, N7-12, N8-05, N9-01 |
 | `nexus/infrastructure/praxis_connector/fund_transaction.py` | full | N16-04, P4-06 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 01:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 02:00 UTC
