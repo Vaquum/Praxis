@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 296 not.**
+**6 of them reviewed, 300 not.**
 
 ## Package 1
 
@@ -838,6 +838,13 @@ second, as the other way the same bars are cut. The episodes come third. The
 unequal lists are held out of the episodes because a reader pairing a depth with a
 length is the one who is misled, and that reader may never read as far as how an
 episode opens.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P12-01 | What counts as one trade | written | [what-counts-as-one-trade.md](atoms/what-counts-as-one-trade.md) |
+| P12-02 | How the bars are cut into days | written | [how-the-bars-are-cut-into-days.md](atoms/how-the-bars-are-cut-into-days.md) |
+| P12-03 | How a fall from a peak is recorded | written | [how-a-fall-from-a-peak-is-recorded.md](atoms/how-a-fall-from-a-peak-is-recorded.md) |
+| P12-04 | The falls that never ended | written | [the-falls-that-never-ended.md](atoms/the-falls-that-never-ended.md) |
 
 ## Package 11 — the poller that keeps the book, and the stop that waits for it
 
@@ -3260,4 +3267,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 09:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 09:30 UTC

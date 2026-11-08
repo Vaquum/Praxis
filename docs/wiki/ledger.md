@@ -67,7 +67,7 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/metrics/metric_conventions.py` | full | P3-10, P4-18 |
 | `praxis/metrics/ledger_metrics.py` | partial | P3-10 |
 | `praxis/metrics/percentiles.py` | partial | P3-10, P4-18, P4-40 |
-| `praxis/metrics/limen_snapshot.py` | full | P4-18, P4-41 |
+| `praxis/metrics/limen_snapshot.py` | full | P12-01, P12-02, P12-03, P12-04, P4-18, P4-41 |
 | `praxis/metrics/snapshot_metrics.py` | partial | P3-10, P4-18 |
 | `praxis/metrics/metric_step.py` | full | P4-18 |
 | `praxis/metrics/snapshot_result.py` | full | P3-10, P4-18, P4-40 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 07:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 09:30 UTC

@@ -281,6 +281,10 @@ the others where it appears.
 - [What a book poller refuses and answers](atoms/what-a-book-poller-refuses-and-answers.md) — the poller keeping the kept prices fresh rejects an empty symbol and an interval at or below zero by comparison rather than by type, reports itself running while its task exists and has not finished, refuses a second start by reading that report, and clears its stop signal before making the task so a stopped poller can start again.
 - [The gap between polls](atoms/the-gap-between-polls.md) — the pause between polls is a bounded wait on the stop signal rather than a sleep, so the interval is the longest the pause can be and a stop is noticed immediately instead of after it, which is how this loop differs in shape from the others.
 - [The stop that waits for its pollers](atoms/the-stop-that-waits-for-its-pollers.md) — stopping one poller waits for the turn in hand and swallows the interruption it caused, and the host walks all of them waiting for each under a single ten-second limit shared between them, keeping the list when the walk fails or runs out and emptying it only when the walk finishes.
+- [What counts as one trade](atoms/what-counts-as-one-trade.md) — a replay's per-trade figures rest on bars grouped by a running count of the entry marks, with one trade being the held bars sharing a number and its return reached by multiplying its bars' returns rather than adding them, so two bars of a tenth give just over a fifth.
+- [How the bars are cut into days](atoms/how-the-bars-are-cut-into-days.md) — the same bars are also filed by calendar day and reported oldest first, each day carrying its compounded return in basis points and that return divided by the share of its bars holding a position, which is given as nothing at all for a day that held none.
+- [How a fall from a peak is recorded](atoms/how-a-fall-from-a-peak-is-recorded.md) — a running peak that only rises measures each bar's fall, and one test with three arms opens an episode on the first fall, deepens it while the fall worsens, and closes it on recovery with a depth in basis points and a length in days.
+- [The falls that never ended](atoms/the-falls-that-never-ended.md) — a fall still open when the walk ends records its depth and no length, so the list of depths and the list of lengths need not come to the same size and cannot be paired off position by position past that point.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -394,7 +398,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 297
+Both sides are the subject, and Praxis is the side that has been written. 301
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -405,4 +409,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 07:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-10 09:30 UTC
