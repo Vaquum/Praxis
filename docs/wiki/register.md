@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 385 not.**
+**6 of them reviewed, 389 not.**
 
 ## Package 1
 
@@ -856,6 +856,62 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 62 — what the event records do beyond their checks
+
+Scope: the records the trading side keeps its facts in again, which the ledger
+still marks `partial` after the package before this. The remainder was classified
+statement by statement rather than read where the gap map pointed, and six
+behaviours came out of it that are no instance of an idiom already written: the
+records that rewrite their own fields, two counts held to different floors under
+one name, the fields asked to be a true-or-false, and a way of working refused by
+name rather than chosen from a list.
+
+### Merge and promote, package 62
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-741 | Seven records reseal a run of their own as they are built, eleven fields between them, written by the means that goes round the sealing, with the resealing the first reading of that field. | Promote. A sealed record altering itself is in no article, and the walk standing ahead of every check decides what a bad run fails as |
+| Row H-742 | Three of those seven then walk the run and put every entry through the shared test for a name. | Merge with H-741, what becomes of the entries once the run is resealed |
+| Row H-743 | The count of slices is refused below one on a replan and below nought at a beginning, and the gap between slices at or below nought on a replan and below nought at a beginning, the two records naming both fields alike. | Promote. Two records holding one field name to two floors is in no article, and which record carries a figure decides whether it is a fact |
+| Row H-744 | Neither of those records asks either count to be a whole number, and the shared check that would reaches neither. | Merge with H-743, what the floors leave unasked |
+| Row H-745 | One record asks two of its fields to be a true-or-false while four such fields are declared across the forty-two, and four places refuse a true-or-false outright. | Promote. One kind required in one place and forbidden in three is in no article, and the reason the refusals are written at all is what ties them together |
+| Row H-746 | A scheme beginning refuses one named way of working by identity and asks nothing else of the field, so a value that is no way of working passes. | Promote. Every other test for a named value names what is allowed; this one names what is not, and no article has it |
+| Row H-747 | A reported disagreement over a balance offers one reading, which subtracts the expected figure from the found one and weighs nothing. | Recorded. The record is P61-03's subject and the subtraction carries no check, so it is a fact about the record rather than a subject of its own |
+
+Four subjects promote, two rows merge and one is recorded, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P62-01 | The records that reseal their own fields | written | [the-records-that-reseal-their-own-fields.md](atoms/the-records-that-reseal-their-own-fields.md) |
+| P62-02 | The floors a count is held to | written | [the-floors-a-count-is-held-to.md](atoms/the-floors-a-count-is-held-to.md) |
+| P62-03 | The fields asked to be a true-or-false | written | [the-fields-asked-to-be-a-true-or-false.md](atoms/the-fields-asked-to-be-a-true-or-false.md) |
+| P62-04 | The mode a scheme may not begin with | written | [the-mode-a-scheme-may-not-begin-with.md](atoms/the-mode-a-scheme-may-not-begin-with.md) |
+
+### Re-seed, after writing package 62
+
+The reader returned six reports and all six were valid. Two of them are the same
+failure the package was written to repair, repeated one level in: a count taken
+from the gap rather than from the module.
+
+| What it found | What came of it |
+|---|---|
+| Eleven resealings stand across seven records, not six. The two in a beginning ladder and the three in a planned one were already cited by the package before this, so they never appeared in the gap the classification was made from. | Corrected throughout. Counting from what is uncited counts what is unwritten, and the two are not the same thing |
+| A true-or-false is refused in four places, not three: every entry in a planned ladder's run of places is refused one as well. | Corrected, and from the same cause |
+| The shared check runs ahead of every resealing, and one record weighs a name ahead of its own, so a run that cannot be read through is not the first thing that can fail. | P62-01 says what comes before |
+| Sealing a run reaches the run and not what it holds, and the entry check asks for emptiness alone, so an entry that is itself a run stays shared with the caller. | P62-01 says so. The claim had promised the caller more than a shallow sealing gives |
+| Resealing a run that is already sealed keeps the very thing handed in rather than copying it. | P62-01 separates the two cases |
+| Dropping the separate test for a true-or-false from the two shared checks would let true through and go on refusing false, each also asking for a figure at or above one. | P62-03 says what the separate test actually adds. The claim had said both values would pass |
+
+The lesson recorded here is narrow and sharp: the gap map answers which lines no
+article cites, and a count of behaviours taken from it is a count of behaviours
+nobody has cited — never a count of what the module does. Counts for an article
+come from walking the module.
+
+What is left uncited in the module is an exclusion rather than work outstanding:
+every remaining statement is another instance of an idiom these two packages
+state — a call to the shared name test, a reading of the record's own name, a call
+to the shared record's check, a complaint's text, or the raising of it.
 
 ## Package 61 — what the forty-two event records are held to
 
@@ -5714,8 +5770,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-738 | The shared check on a run of figures holds each entry to being a finite figure of the exact kind above nought, and a run with nothing in it passes. | `events.py` 1316-1319 | package sixty-one | is P61-04 |
 | H-739 | A replanned scheme refuses an empty run of sizes by a test of its own while the ladder's runs carry no such test. | `events.py` 433-435, against 1364-1377 and 1409-1431 | package sixty-one | folds into P61-04 |
 | H-740 | The named things are declared plainly, so matching a field against a frozen set of their values refuses the named thing and accepts the bare word, while the one record asking by kind does the opposite. | `praxis/core/domain/enums.py` 41-46 matched against `events.py` 1639 and 1674, with the test by kind at 1963-1965 | package sixty-one | folds into P61-04 |
+| H-741 | Seven records reseal a run of their own as they are built, eleven fields between them, written by the means that goes round the sealing, with the resealing the first reading of that field. | `events.py` 251-253, or 423, or 763, or 764, or 1155-1157, or 1368, or 1369, or 1413, or 1414, or 1415, or 1562 | package sixty-two | is P62-01 |
+| H-742 | Three of those seven then walk the run and put every entry through the shared test for a name. | `events.py` 259-260, and 1164-1165, and 1585-1586 | package sixty-two | folds into P62-01 |
+| H-743 | The count of slices is refused below one on a replan and below nought at a beginning, and the gap between slices at or below nought on a replan and below nought at a beginning, the two records naming both fields alike. | `events.py` 425-427 and 429-431, against 783-785 and 787-789 | package sixty-two | is P62-02 |
+| H-744 | Neither of those records asks either count to be a whole number, and the shared check that would reaches neither. | `events.py` 425, and 429, and 783, and 787, against 1322-1328 | package sixty-two | folds into P62-02 |
+| H-745 | One record asks two of its fields to be a true-or-false while four such fields are declared across the forty-two, and four places refuse a true-or-false outright. | `events.py` 1967-1969 and 1971-1973, against 91-93, or 330-335, or 1326-1328, or 1425-1428 | package sixty-two | is P62-03 |
+| H-746 | A scheme beginning refuses one named way of working by identity and asks nothing else of the field, so a value that is no way of working passes. | `events.py` 771-773 | package sixty-two | is P62-04 |
+| H-747 | A reported disagreement over a balance offers one reading, which subtracts the expected figure from the found one and weighs nothing. | `events.py` 1700-1705 | package sixty-two | recorded; the record is P61-03 and the subtraction carries no check of its own |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 19:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 20:30 UTC

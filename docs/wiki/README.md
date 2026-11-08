@@ -19,6 +19,10 @@ the others where it appears.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to: one per host, called by name, so a live exchange and a simulator run the same code.
 - [What a fill is](atoms/what-a-fill-is.md) — a report from a venue that some of an order has traded: an amount, at a price, at a time.
 - [What every event is held to](atoms/what-every-event-is-held-to.md) — all forty-two kinds of recorded fact are built on one shared record, and each runs its two questions before its own: that the account be named, and that the time carry a zone that answers.
+- [The records that reseal their own fields](atoms/the-records-that-reseal-their-own-fields.md) — a record that cannot be changed once made still rewrites its own lists as it is built, which protects the record from the caller's list but not from a list inside that list.
+- [The floors a count is held to](atoms/the-floors-a-count-is-held-to.md) — two records carry the same two counts under the same names and disagree about the lowest value each may take, so whether zero is a fact one of them will carry depends on which one is carrying it.
+- [The fields asked to be a true-or-false](atoms/the-fields-asked-to-be-a-true-or-false.md) — a yes-or-no value is demanded of two fields, turned away in four places because it also answers as a number, and left unexamined in two more.
+- [The mode a scheme may not begin with](atoms/the-mode-a-scheme-may-not-begin-with.md) — the record of a scheme starting names one way of working it refuses and allows everything else, where every similar test names what it allows instead.
 - [The names a record may leave out](atoms/the-names-a-record-may-leave-out.md) — a record can declare a name allowed to be missing, and the shared check then lets a missing one through while still turning away one written as an empty value.
 - [The grounds a figure is weighed on](atoms/the-grounds-a-figure-is-weighed-on.md) — a number in a recorded fact may be asked what kind of thing it is, whether it is a real quantity, and which side of zero it falls on; most are asked only the last, which lets an unbounded value through.
 - [The two noughts a figure is compared with](atoms/the-two-noughts-a-figure-is-compared-with.md) — the zero a number is compared against is written two different ways in one file, and which way it is decides whether a not-a-number value is quietly accepted or stops the record being built.
@@ -483,7 +487,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 386
+Both sides are the subject, and Praxis is the side that has been written. 390
 articles exist. Of Praxis's own source files 70 are accounted for in full and 18 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -494,4 +498,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 19:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 20:30 UTC
