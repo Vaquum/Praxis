@@ -17,6 +17,10 @@ the others where it appears.
 - [Trades, requests and orders](atoms/what-a-trade-is.md) — a trade, a request and an order: work from outside, one piece of it, and one send to the venue.
 - [What an account is](atoms/what-an-account-is.md) — a name that groups the requests, orders, holdings and queues kept about it.
 - [What a venue is](atoms/what-a-venue-is.md) — whatever Praxis sends orders to: one per host, called by name, so a live exchange and a simulator run the same code.
+- [What a venue must offer](atoms/what-a-venue-must-offer.md) — Praxis writes down what it needs of any exchange as a list of named things with no code behind them, so the file says what must be answered to and nothing about how.
+- [What an execution report is held to](atoms/what-an-execution-report-is-held-to.md) — a report that claims a trade must carry the numbers proving it, and a report of anything else has those numbers taken away.
+- [What a non-trade report loses quietly](atoms/what-a-non-trade-report-loses-quietly.md) — the fields cleared from such a report and the fields worth complaining about are two lists that differ by one, so one field is changed with nothing said.
+- [What the venue's own records are held to](atoms/what-the-venues-own-records-are-held-to.md) — a trade is checked for its timestamp alone while a record of money moving is checked three ways, and one record insists on exactly one of its two fields.
 - [What a fill is](atoms/what-a-fill-is.md) — a report from a venue that some of an order has traded: an amount, at a price, at a time.
 - [What every event is held to](atoms/what-every-event-is-held-to.md) — all forty-two kinds of recorded fact are built on one shared record, and each runs its two questions before its own: that the account be named, and that the time carry a zone that answers.
 - [The records that reseal their own fields](atoms/the-records-that-reseal-their-own-fields.md) — a record that cannot be changed once made still rewrites its own lists as it is built, which protects the record from the caller's list but not from a list inside that list.
@@ -559,8 +563,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 462
-articles exist. Of Praxis's own source files 75 are accounted for in full and 13 in
+Both sides are the subject, and Praxis is the side that has been written. 466
+articles exist. Of Praxis's own source files 76 are accounted for in full and 12 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -570,4 +574,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 05:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 06:00 UTC

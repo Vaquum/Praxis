@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 461 not.**
+**6 of them reviewed, 465 not.**
 
 ## Package 1
 
@@ -856,6 +856,61 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 74 — what a venue must offer, and what its answers must hold
+
+Scope: the interface every venue answers to and the records its answers arrive in,
+which the ledger marks `partial` with sixty-six of its seventy-five statements
+uncited. Articles have what a venue is and what a fill is. What an execution report
+is held to, what a report carrying no execution loses, what the venue's own records
+refuse, and what the interface declares are in no article.
+
+### Merge and promote, package 74
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-849 | A report holds both its moments to carrying a zone that gives an offset, then requires the fill on a report of a trade and clears the fill fields on a report of anything else, answering as soon as a trade's fill is proved. | Promote. What a report must hold turns on its kind, and no article has either branch |
+| Row H-850 | A trade's fill must name the asset a fee was taken in and carry a quantity and a price finite and above nought, with the fee held to finiteness alone and the field naming the venue's trade refused only for being absent. | Merge with H-849. The fee's sign going unasked, and an empty trade name passing, are the two places this is looser than it reads |
+| Row H-851 | Six fill fields are listed with the value each should hold, five of them listed again as worth reporting, and the clearing walks all six while the reporting walks only the five. | Promote. A field cleared without being named is in no article, and the two lists differing by one is the whole of why |
+| Row H-852 | A trade is held to one thing as it is built, a record of money moving to three, and a quantization to carrying exactly one of a snapped quantity and a reason. | Promote. What these three refuse is in no article, and a trade being held to its moment alone is what leaves its figures to be weighed elsewhere |
+| Row H-853 | The fill-scoped part of a trade is six fields copied across with none read from anywhere else and none weighed again. | Merge with H-852, the one conversion between two of these records |
+| Row H-854 | The interface declares twenty-one things, each with a description and a placeholder where a body would be, and is marked so a thing can be asked at runtime whether it answers to it. | Promote. What a venue must offer is in no article, and that this file declares rather than does is what bounds every claim about it |
+
+Four subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P74-01 | What an execution report is held to | written | [what-an-execution-report-is-held-to.md](atoms/what-an-execution-report-is-held-to.md) |
+| P74-02 | What a non-trade report loses quietly | written | [what-a-non-trade-report-loses-quietly.md](atoms/what-a-non-trade-report-loses-quietly.md) |
+| P74-03 | What the venue's own records are held to | written | [what-the-venues-own-records-are-held-to.md](atoms/what-the-venues-own-records-are-held-to.md) |
+| P74-04 | What a venue must offer | written | [what-a-venue-must-offer.md](atoms/what-a-venue-must-offer.md) |
+
+### Re-seed, after writing package 74
+
+The question the package before this ended on — which line of this module shows
+that? — was asked of every sentence before the reader saw it, and caught one error
+on its own: a count of the interface's twenty-one declarations that added to twenty,
+one group having been left out while another was miscounted in the prose.
+
+The reader returned six reports and all six were valid. Four are the same cluster
+again, in its sharpest form yet.
+
+| What it found | What came of it |
+|---|---|
+| A protocol's declarations establish nothing about behaviour, so "one brings a command's quantity to what the venue will take" and "nine ask something and change nothing" describe what the names say rather than what happens. | P74-04 was rewritten to say what the interface declares, and ends by saying the grouping is read off the names and the declared answers |
+| "Each is declared with no body at all" is wrong: each has a description and a placeholder. What they lack is an implementation. | Corrected |
+| "Praxis speaks to every venue through one interface" cannot be shown from a file that declares one. | The article says Praxis describes what it needs in one interface |
+| That a venue settling its own orders knows each fully, and states a fill once, is the module's own explanation of a six-field copy. | Cut. The article now says six fields are copied and none read from elsewhere |
+| The field naming the venue's own trade is refused only for being absent, so an empty name passes and nothing asks where it came from. | P74-01 says so |
+
+The cluster has now appeared in three packages running. Its sharpest form is this
+one: a file of declarations invites a writer to describe a system, because there is
+nothing else in the file to describe. The discipline that works is to write what the
+file states and then say so — the article's last section exists to mark the boundary
+rather than to hide it.
+
+One statement of the module is left uncited and is an exclusion rather than work
+outstanding: a failure's handing of its message to the failure it is built on.
 
 ## Nexus package 73 — the records and the routing around a price check
 
@@ -6577,8 +6632,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-846 | Building the limits from a configuration refuses one that is not of its own kind, turns the staleness from seconds into milliseconds or leaves it absent, passes the caps and the source through, and copies the per-strategy mapping one level deep. | `nexus/core/validator/price_stage.py` 193-195, then 197-199, then 201-209 | Nexus package seventy-three | is N73-03 |
 | H-847 | A price refusal is sorted into three groups: three reasons marking both the owner and the operators at the gravest level, two marking the owner alone at the mildest, and everything else marking both at a middle level, the answer being a record of flags and a level. | `nexus/core/validator/price_stage.py` 217-221, then 224-233, then 235-240, then 242-246, into 182-188 | Nexus package seventy-three | is N73-04 |
 | H-848 | The gravest group's first reason is also raised for a configured source that is absent and for a request carrying no reference price where a cap applies. | `nexus/core/validator/price_stage.py` 317-326, and 327-336 | Nexus package seventy-three | folds into N73-04 |
+| H-849 | A report holds both its moments to carrying a zone that gives an offset, then requires the fill on a report of a trade and clears the fill fields on a report of anything else, answering as soon as a trade's fill is proved. | `venue_adapter.py` 504-512, then 514-515, or 519 | package seventy-four | is P74-01 |
+| H-850 | A trade's fill must name the asset a fee was taken in and carry a quantity and a price finite and above nought, with the fee held to finiteness alone and the field naming the venue's trade refused only for being absent. | `venue_adapter.py` 533-535, and 537-545, and 547-549, and 529-531 | package seventy-four | folds into P74-01 |
+| H-851 | Six fill fields are listed with the value each should hold, five of them listed again as worth reporting, and the clearing walks all six while the reporting walks only the five. | `venue_adapter.py` 279-286, and 291-297, then 554-558 against 569-571 | package seventy-four | is P74-02 |
+| H-852 | A trade is held to one thing as it is built, a record of money moving to three, and a quantization to carrying exactly one of a snapped quantity and a reason. | `venue_adapter.py` 248-250, and 322-333, and 399-406 | package seventy-four | is P74-03 |
+| H-853 | The fill-scoped part of a trade is six fields copied across with none read from anywhere else and none weighed again. | `venue_adapter.py` 99-106 | package seventy-four | folds into P74-03 |
+| H-854 | The interface declares twenty-one things, each with a description and a placeholder where a body would be, and is marked so a thing can be asked at runtime whether it answers to it. | `venue_adapter.py` 731, and the placeholders at 754, and 1204 | package seventy-four | is P74-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 05:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 06:00 UTC
