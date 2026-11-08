@@ -857,6 +857,26 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Nexus package 39 — three modules whose remainder is plumbing
+
+Scope: the three Nexus modules the packages before this left close to the line.
+Nothing promotes; the remainder is recorded as an exclusion and all three cells
+move to `full`.
+
+The record of what an account's money is doing has one statement left: the walk
+over the mapping's own entries, whose every test N37-01 states.
+
+The stage weighing the platform's ceilings has two: the opening of a small helper
+that builds the refusal for a figure it needed and did not have, which the article
+on what each check weighs already states.
+
+The loop that reads health has eight: the two stores it keeps for its countdown
+and its mark, the property handing the mark back, the three lines building and
+starting a countdown whose interval N35-01 states, the reporting of a transition,
+and the answer a write gives back to nobody who reads it.
+
+No behaviour hangs on any of these.
+
 ## Nexus package 38 — what a recovery takes before it rebuilds
 
 Scope: the store a host's state is written to and read back from, which the ledger
@@ -4651,4 +4671,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 20:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 21:00 UTC
