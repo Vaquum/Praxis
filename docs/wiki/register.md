@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 233 not.**
+**6 of them reviewed, 237 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 56 are named and 14 untouched. Of the 56, 44 carry a row of their own and 12 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 56 are named and 14 untouched. Of the 56, 45 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -728,6 +728,14 @@ the thing that subject is. The reasons and the measures are each held out becaus
 each turns on a distinction the first two cannot carry — one kind's reason
 required where another's is optional, and a figure whose absence says something
 other than nought.
+
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N12-01 | What an outcome is checked for | written | [what-an-outcome-is-checked-for.md](atoms/what-an-outcome-is-checked-for.md) |
+| N12-02 | What a fill must carry | written | [what-a-fill-must-carry.md](atoms/what-a-fill-must-carry.md) |
+| N12-03 | The reason an outcome may carry | written | [the-reason-an-outcome-may-carry.md](atoms/the-reason-an-outcome-may-carry.md) |
+| N12-04 | The two measures an outcome reports | written | [the-two-measures-an-outcome-reports.md](atoms/the-two-measures-an-outcome-reports.md) |
 
 ## Nexus package 11 — what a command refuses
 
@@ -2085,4 +2093,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 06:15 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 06:30 UTC

@@ -218,6 +218,10 @@ the others where it appears.
 - [The marker a command's moment must carry](atoms/the-marker-a-commands-moment-must-carry.md) — the timestamp on that instruction is rejected unless it was built with the standard universal-time marker, so a zone that sits at the same offset is turned away, while the other handoffs the same connector makes accept it.
 - [The settings a command rewrites](atoms/the-settings-a-command-rewrites.md) — where mode-specific settings are supplied, the instruction takes a locked copy and keeps that instead of what it was given, and nothing can afterwards be added to that copy, taken out of it, or put in place of what a key already holds.
 - [What each kind of command must carry](atoms/what-each-kind-of-command-must-carry.md) — a new order must name a side, a self-trade setting and either a size or a spend but not both, while a change and a cancel must carry none of those nor any of the execution details, each kind checked against its own copy of the list.
+- [What an outcome is checked for](atoms/what-an-outcome-is-checked-for.md) — the report the trading side sends back is rejected unless both its references are usable text, its type is a recognised one and its timestamp carries the standard universal-time marker, with the amount still working checked for every type after the report has already been sorted by whether anything filled.
+- [What a fill must carry](atoms/what-a-fill-must-carry.md) — a report saying something filled must give the quantity, the price, the money value and the fee charged, each a finite figure and the first three above zero where the fee may be zero, and a report of any other kind must give none of the four.
+- [The reason an outcome may carry](atoms/the-reason-an-outcome-may-carry.md) — a rejection has to explain itself in words that are not just blank space, a report saying the order was called off may explain itself or stay silent, and either explanation on a report of any other type is turned away.
+- [The two measures an outcome reports](atoms/the-two-measures-an-outcome-reports.md) — two numbers reporting how the execution went may each be supplied or omitted, an omitted one is passed over before the number is examined, and a supplied one is turned away on a report of any other kind.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -331,14 +335,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 234
+Both sides are the subject, and Praxis is the side that has been written. 238
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 56 are named and 14
-untouched — 44 carry a row of their own, and 12 are reached by an article or a
+untouched — 45 carry a row of their own, and 11 are reached by an article or a
 recorded finding that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 02:55 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 08:20 UTC
