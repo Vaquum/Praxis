@@ -803,6 +803,37 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Package 10 — what a ladder insists on, and what a lot step leaves behind
+
+Scope: the settings for orders spread across several prices, of which one check is
+cited and six are not, and one consequence of how an even split rounds that the
+article on timed work states the halves of without joining.
+
+The article on orders at several prices has that there must be at least two and
+that weights split the amount. What those prices must be, and what those weights
+must come to, is in no article.
+
+### Merge and promote, package 10
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-514 | A ladder's prices must rise throughout or fall throughout, so a repeat among them is refused by that same test. | Promote. What a ladder's prices must be is in no article, and the rule that orders them is the same rule that forbids a repeat |
+| Row H-515 | Each price must be a positive finite decimal. | Merge with H-514, the check made of each price before the order among them is weighed |
+| Row H-516 | A ladder may descend as well as rise, either answer satisfying the test. | Merge with H-514. That the test takes either direction is what makes it an ordering rule rather than a rising one, and it reads only beside the rule itself |
+| Row H-517 | Weights may be left out, and the checking stops there where they are. | Promote. What a ladder's weights must come to is in no article, and the sum they must reach is the sharpest of the four checks on them |
+| Row H-518 | Weights given must be a tuple of the same length as the prices. | Merge with H-517, the first of the three checks made where weights were given |
+| Row H-519 | Each weight must be a positive finite decimal. | Merge with H-517, the second |
+| Row H-520 | The weights must come to exactly one, so a set short by a hundredth is refused. | Merge with H-517. It is the one check reading the weights together rather than one at a time, and the reason the others are not enough |
+| Row H-521 | Where a lot step is known the last slice is floored to it as the others are, so the slices can come to less than the total asked for and the remainder is never sent. | Promote. The article on timed work has the last slice taking what is left and has each slice floored to the step; that the two together mean the total sent can fall short is in no article |
+
+Three subjects promote and five rows merge, with nothing declined.
+
+The prices come first and the weights second, in the order the checks run, with
+the sum the weights must reach held inside the weights rather than apart from them
+because it is the reason the other three do not suffice. The quantity a step leaves
+behind comes last, and belongs to this package rather than to the article it
+corrects because it is a consequence of two facts that article already carries.
+
 ## Package 9 — the health report's own record, and the bucket of permissions
 
 Scope: two modules the ledger marks `full` with nothing of their own behaviour
@@ -3055,8 +3086,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-511 | The wait is worked out where fewer than one token is left, and the token is taken whether one was there or not, so the count can fall below nought and the next wait grow longer. | `praxis/infrastructure/token_bucket.py` 82 into 83 | Praxis package nine | is P9-04 |
 | H-512 | The waiting happens after the lock is let go. | `praxis/infrastructure/token_bucket.py` 85-87, the lock opened at 74 | Praxis package nine | folds into P9-04 |
 | H-513 | A cancellation during the wait puts one token back, capped at the capacity, and raises on. | `praxis/infrastructure/token_bucket.py` 88-94, then 95 | Praxis package nine | folds into P9-04 |
+| H-514 | A ladder’s prices must rise throughout or fall throughout, so a repeat among them is refused by that same test. | `praxis/core/domain/ladder_dca_params.py` 52-54 into 55-57 | Praxis package ten | is P10-01 |
+| H-515 | Each price must be a positive finite decimal. | `praxis/core/domain/ladder_dca_params.py` 47 into 48-50 | Praxis package ten | folds into P10-01 |
+| H-516 | A ladder may descend as well as rise, either answer satisfying the test. | `praxis/core/domain/ladder_dca_params.py` 53 or 54, either satisfying 55 | Praxis package ten | folds into P10-01 |
+| H-517 | Weights may be left out, and the checking stops there where they are. | `praxis/core/domain/ladder_dca_params.py` 59-60 | Praxis package ten | is P10-02 |
+| H-518 | Weights given must be a tuple of the same length as the prices. | `praxis/core/domain/ladder_dca_params.py` 62-67 | Praxis package ten | folds into P10-02 |
+| H-519 | Each weight must be a positive finite decimal. | `praxis/core/domain/ladder_dca_params.py` 69 into 70-72 | Praxis package ten | folds into P10-02 |
+| H-520 | The weights must come to exactly one, so a set short by a hundredth is refused. | `praxis/core/domain/ladder_dca_params.py` 74-76 | Praxis package ten | folds into P10-02 |
+| H-521 | Where a lot step is known the last slice is floored to it as the others are, so the slices can come to less than the total asked for and the remainder is never sent. | `praxis/core/plan_even_slices.py` 69 into 78, against 56-58, which lose nothing | Praxis package ten | is P10-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 04:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 05:00 UTC
