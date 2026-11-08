@@ -857,6 +857,54 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 58 — sixteen modules the ledger had left behind
+
+Scope: the sixteen modules the ledger marks `partial` with no statement of theirs
+left uncited. Nothing promotes and no article is written. Each was read against
+the claims that cite it, and in each the citing rows account for what the module
+does, so sixteen cells move to `full`.
+
+The eighteen such modules were found by comparing the ledger's cells against the
+corpus's own citations rather than by reading the ledger, which is why they had
+gone unnoticed: a cell reaches `partial` when a package first touches a module and
+stays there unless a later package says otherwise, and sixteen of these were
+finished by packages that never came back to the cell.
+
+Two of the eighteen stay `partial`, each carrying a finding still called a
+candidate: the outcome record, and the records the validator's stages pass between
+them.
+
+### What each of the sixteen was read against
+
+| Module | What accounts for it |
+|---|---|
+| `praxis/core/domain/fill.py` | P7-01, P7-02 and P7-03 carry the walk over seven fields, the test on the moment, the three on the figures, what no check asks, and both forms of the key for spotting a repeat |
+| `praxis/core/bracket_exit_command_id.py` | P7-04 and P27-01 carry the one derivation, what it asks of the name handed in, and that nothing on the Nexus side works it out |
+| `praxis/core/domain/trade_pnl.py` | P3-11 carries the one reading it offers, the gross figure less the fees |
+| `praxis/core/domain/enums.py` | Eight rows name every set it declares, and it declares nothing else |
+| `praxis/core/domain/execution_scheme.py` | P7-06 carries that it refuses nothing and that its one question weighs the state against three named ones |
+| `praxis/core/domain/bracket_params.py` | P4-08 carries the two exactly-one tests and the walk holding all five figures to being positive finite decimals |
+| `praxis/replay/replay_report.py` | P7-06 carries that it refuses nothing, and it declares nothing else |
+| `praxis/metrics/percentiles.py` | P3-10, P4-18 and P4-40 carry the stripping of the unreadable figures, the three points, the rounding, and the three nothings where no figure is left |
+| `praxis/paper/paper_report.py` | P3-08 and P4-19 carry what it reads, what it passes over, the sorting, and what comes back |
+| `praxis/core/domain/scheduled_vwap_params.py` | P2-19, P4-08, P4-35 and P18-02 carry the gap, the count, the kind and sign of each weight, and the sum that must be exactly one |
+| `nexus/core/capital_controller/reservation.py` | N13-01, N13-02, N13-03, N13-07 and N15-08 carry both records' checks, the sum worked out on each reading, and the running-out question |
+| `nexus/core/domain/position.py` | Six rows carry what it holds, what it refuses at the making and on assignment, and the question it answers about itself |
+| `nexus/core/domain/operational_mode.py` | N6-01, N15-07 and N15-08 carry all three records' checks, the pair that forces entries blocked, and that neither gatherer checks anything of its own |
+| `nexus/infrastructure/praxis_connector/order_context.py` | N13-04, N13-05 and N13-06 carry every field's check, the size that may be left out, and the flag read backwards for the opposite question |
+| `nexus/infrastructure/praxis_connector/trade_command.py` | Nine rows carry fifty-one claims over it: the common checks, the thirteen optional ones, what each kind must and must not carry, and what the checks let through |
+| `nexus/strategy/context.py` | N10-06 carries the five refusals and the sealing |
+
+### Re-seed, after writing package 58
+
+No reader was asked, there being no prose to read. The check is the comparison
+itself, and it is the one that found the sixteen.
+
+| What it found | What came of it |
+|---|---|
+| A ledger cell is set when a package touches a module and is never revisited, so a module finished later keeps the cell the first package gave it. Sixteen had been finished without the cell moving. | The sixteen cells move to `full`. The comparison that found them is worth running after every package rather than once |
+| Four of the sixteen carry fewer claims than statements, which is where a lagging cell and a real gap look alike. Each was read in full against its claims, and in each the claims account for the whole module. | Recorded. Counting claims against statements is a way of finding candidates, not a way of judging one |
+
 ## Nexus package 57 — the order the health stage's checks stand in
 
 Scope: the stage weighing a health report, which the ledger marks `partial` with
@@ -5478,4 +5526,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 15:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 16:00 UTC
