@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 355 not.**
+**6 of them reviewed, 357 not.**
 
 ## Package 1
 
@@ -856,6 +856,47 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 50 — the portfolio basis, beside the bar basis
+
+Scope: the module working the distribution figures out on the whole-account basis,
+which the ledger marks `partial` with fifty-two of its fifty-five statements
+uncited. One article names the unit its drawdown lengths are given in. Everything
+it counts is in no article — and each of its counts has a counterpart on
+[the bar basis](atoms/what-counts-as-one-trade.md) that counts differently.
+
+### Merge and promote, package 50
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-683 | A trade here is a run of consecutive steps holding a position, closed by the first step that holds none, with a run still open at the end recorded as it stands. | Promote. What this basis counts as one trade is in no article, and it is a different rule from the bar basis's numbering by entry marks |
+| Row H-684 | Its returns are compounded within the run, net and gross kept side by side, each run reported as what a stake of one came to. | Merge with H-683, the figure the run gives |
+| Row H-685 | The windows are cut by truncating each step's moment to a named span, a day unless another is asked for. | Promote. How this basis cuts its windows is in no article, and the span is a caller's to name where the bar basis has none to name |
+| Row H-686 | A window's exposure is the share of its steps holding a position, and the return for each unit of exposure is nothing at all where that share is nought. | Merge with H-685, the second figure each window carries |
+| Row H-687 | Its falls are counted as the bar basis counts them, from a peak seeded at one, with a fall still open recording a depth and no length. | Recorded; the articles on how a fall from a peak is recorded and the falls that never ended state both, and the lines here are the same statements |
+
+Two subjects promote, two rows merge, and one is recorded as already stated.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P50-01 | What a trade is on the portfolio basis | written | [what-a-trade-is-on-the-portfolio-basis.md](atoms/what-a-trade-is-on-the-portfolio-basis.md) |
+| P50-02 | How the portfolio windows are cut | written | [how-the-portfolio-windows-are-cut.md](atoms/how-the-portfolio-windows-are-cut.md) |
+
+### Re-seed, after writing package 50
+
+The reader had both articles before they were committed and returned five
+reports, four of them on one phrase.
+
+| What it found | What came of it |
+|---|---|
+| Four times over, "the returns multiplied together" describes multiplying the returns, which is not what the lines do. They multiply one plus each return and take one off the end, which gives the gain over the run or the window. | Both articles now say compounded, and say what is reported — the gain or loss over the run — with the figure two steps of a tenth give |
+| The bar basis treats a number as a trade only where it occurs on a held bar, which the comparison had flattened. | Corrected |
+
+The phrase came from an article written eight packages earlier, which used it with
+the figure beside it — two bars of a tenth giving just over a fifth — and so could
+not be misread. Carried across without the figure, it says something false. A
+phrase that needs its example to be true is not a phrase to reuse.
+
 
 ## Package 49 — the five re-keyings, and the builder that stands apart
 
@@ -5099,8 +5140,13 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-680 | Two of the five answer before that call: a maker preference left out becomes no preference, and a self-trade setting left out becomes none. | `praxis/command_translator.py` 212-213, or 232-233 | Praxis package forty-nine | folds into P49-01 |
 | H-681 | The plain single order's settings have a builder of their own, reached before the table every other way of working goes through. | `praxis/command_translator.py` 378-379 ahead of 381-389 | Praxis package forty-nine | is P49-02 |
 | H-682 | A change's settings are built from the table alone, with no way of working standing apart. | `praxis/command_translator.py` 415-424 | Praxis package forty-nine | folds into P49-02 |
+| H-683 | A trade here is a run of consecutive steps holding a position, closed by the first step that holds none, with a run still open at the end recorded as it stands. | `praxis/metrics/snapshot_metrics.py` 71-83, or 85-87 | Praxis package fifty | is P50-01 |
+| H-684 | Each step holding a position multiplies its return into the run, and what is recorded is the gain or loss over the run rather than the sum of its steps. | `praxis/metrics/snapshot_metrics.py` 74-75, with the recording at 86-87, or else at 79-80 | Praxis package fifty | folds into P50-01 |
+| H-685 | The windows are cut by truncating each step's moment to a named span, a day unless another is asked for. | `praxis/metrics/snapshot_metrics.py` 115-117, the span named by the caller at 49 | Praxis package fifty | is P50-02 |
+| H-686 | A window's exposure is the share of its steps holding a position, and the return for each unit of exposure is nothing at all where that share is nought. | `praxis/metrics/snapshot_metrics.py` 120 into 124-129 | Praxis package fifty | folds into P50-02 |
+| H-687 | Its falls are counted as the bar basis counts them, from a peak seeded at one, with a fall still open recording a depth and no length. | `praxis/metrics/snapshot_metrics.py` 139-170 against `praxis/metrics/limen_snapshot.py` 250-277 | Praxis package fifty | recorded; how a fall from a peak is recorded and the falls that never ended state both |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 07:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 08:00 UTC
