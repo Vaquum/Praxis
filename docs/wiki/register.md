@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 325 not.**
+**6 of them reviewed, 327 not.**
 
 ## Package 1
 
@@ -856,6 +856,45 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 28 — how a replay settles a bar, and the mode it gives itself
+
+Scope: the module that runs a replay end to end, which the ledger marks `partial`
+with nineteen of its sixty-seven statements uncited. The article on replay has the
+bar loop, the price it sets and the prediction it ticks. How each bar is settled
+before the next, and what mode a replay puts the account into, are in no article.
+
+### Merge and promote, package 28
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-610 | Each bar is settled by waiting for the account's queue of commands to empty and then draining outcomes, over and over, until a round drains none. | Promote. How a bar is settled is in no article, and the article on replay has one call of the three. The reader's pass corrected the row's wording: the waiting is on the queue, not on the work |
+| Row H-611 | A settling that never reaches a round draining nothing raises after a fixed number of rounds, ending the run. | Merge with H-610. Where the loop stops is half of what the loop is |
+| Row H-612 | A replay sets the account's mode to active itself, under the positions lock, with the replay named as what moved it. | Promote. What mode a replay runs in is in no article, and nothing else in a replay would set one |
+| Row H-613 | A run raises where the launcher left it without a trading side, a loop or a record. | Merge with H-612, the other thing the run settles before it drives anything |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P28-01 | How a replay settles a bar | written | [how-a-replay-settles-a-bar.md](atoms/how-a-replay-settles-a-bar.md) |
+| P28-02 | The mode a replay gives itself | written | [the-mode-a-replay-gives-itself.md](atoms/the-mode-a-replay-gives-itself.md) |
+
+### Re-seed, after writing package 28
+
+The reader had both articles before they were committed. One came back clean; the
+other had four reports, and three of them were the same mistake.
+
+| What it found | What came of it |
+|---|---|
+| Quiescing waits for the account's queue of commands to empty, and nothing more. A command taken off that queue counts as done by it, so a scheme whose next slice is due later has already left the queue. | P28-01 now says what the wait covers, and has a section for what it does not: a bar can settle with work still to come |
+| Draining an outcome does not itself start the next slice or the protection. Those are timed from the account loop's own clock; what draining can do is have the strategy ask for more work. | The sentence naming the slice and the protection is gone, replaced with what the reading can actually set off |
+| The round's test is whether it drained nothing, not whether work remains, so a settling whose eighth round drained the last outcome there was still raises. | P28-01 says that outright, as the sharpest thing about the loop |
+
+The three are one thing: a word used as though it meant what it sounds like.
+Quiesce sounds like coming to rest; the line it reaches waits on a queue. This is
+the identifier trap the register's rule names, met through a method name rather
+than through a docstring.
 
 ## Package 27 — the command that ends twice
 
@@ -4220,8 +4259,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-607 | Marking a command finished sets its flag, files its name, moves that name to the end, drops the oldest names past the cap, and forgets the command's own record. | `praxis/outcome_translator.py` 256-261 | Praxis package twenty-six | folds into P26-01 |
 | H-608 | A refusal with no reason of its own is given the word for being refused. | `praxis/outcome_translator.py` 329 into 336 | Praxis package twenty-six | is P26-02 |
 | H-609 | An ending that is an expiry carries no reason at all, and any other ending carries its own where it has one. | `praxis/outcome_translator.py` 341-343, or else 344-346 | Praxis package twenty-six | folds into P26-02 |
+| H-610 | Each bar is settled by quiescing the account's commands and then draining outcomes, over and over, until a round drains none. | `praxis/replay/run_replay.py` 252 into 263-273 | Praxis package twenty-eight | is P28-01 |
+| H-611 | A settling that never reaches a round draining nothing raises after a fixed number of rounds, ending the run. | `praxis/replay/run_replay.py` 275-276, the count at 263 | Praxis package twenty-eight | folds into P28-01 |
+| H-612 | A replay sets the account's mode to active itself, under the positions lock, with the replay named as what moved it. | `praxis/replay/run_replay.py` 161 into 205-210 | Praxis package twenty-eight | is P28-02 |
+| H-613 | A run raises where the launcher left it without a trading side, a loop or a record. | `praxis/replay/run_replay.py` 153-159 | Praxis package twenty-eight | folds into P28-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 10:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 11:30 UTC

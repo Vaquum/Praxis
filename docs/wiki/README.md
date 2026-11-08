@@ -310,6 +310,8 @@ the others where it appears.
 - [What the translator remembers](atoms/what-the-translator-remembers.md) — the ceiling on remembered finished commands must be a positive integer and a boolean true passes it, bounding the list at one; finishing a command files its id, evicts the oldest ids past the ceiling and discards its own record, and an outcome for an id already evicted is treated as a brand-new command.
 - [The words an ending carries](atoms/the-words-an-ending-carries.md) — a rejection supplies a stock word where Praxis recorded nothing or an empty string, but a whitespace-only reason is truthy here and is passed through to a record that requires something after stripping, so building it raises; an expiry crosses with no reason and any other ending carries whatever Praxis had.
 - [The command that ends twice](atoms/the-command-that-ends-twice.md) — when the venue reports a bracket's protective order cancelled, that bracket's exit command is ended and dropped, and the flatten following an unprotected remainder derives the same command id, reinstalls it, and reports its fill with no check that the id already ended.
+- [How a replay settles a bar](atoms/how-a-replay-settles-a-bar.md) — each bar ends by waiting for the account's command queue to empty and then draining outcomes until a round drains none, with eight rounds allowed before it raises, and the wait covers only the queue, so a scheme whose next slice is due later has already left it and arrives during a later bar.
+- [The mode a replay gives itself](atoms/the-mode-a-replay-gives-itself.md) — a replay writes the ACTIVE mode into the account state itself, under the positions lock and before the first bar, because no health loop runs to move it; the trigger is recorded as the replay and the moment comes from the replay's own clock.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -423,7 +425,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 326
+Both sides are the subject, and Praxis is the side that has been written. 328
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -434,4 +436,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 10:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 11:30 UTC
