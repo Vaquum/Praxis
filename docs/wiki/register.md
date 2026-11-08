@@ -803,6 +803,21 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 15 — health, and the mode it settles
+
+Scope: the three modules that decide whether an account may trade — the snapshot of
+how the trading side is faring and the policy it is weighed against, the turn that
+pulls one and acts on it, and the records holding the mode and the reasons it is
+held there. Three modules the ledger reaches only by citation, and twenty refusals
+between them.
+
+What a stop leaves running on this loop, which of its work sits inside the lock,
+the five measures a report carries, and that the report is read to restrict or halt
+an account are already written. The policy itself is not: what each of the five
+checking records refuses, which measures are weighed against which threshold, which
+thresholds no chain weighs a measure against, and what a turn does when one of the
+steps before its write fails.
+
 ## Nexus package 14 — what five small records refuse
 
 Scope: the five records left on the Nexus side with refusals in them, and the
@@ -2502,8 +2517,29 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-426 | A fill's own record is built nowhere in Praxis outside the tests, so every refusal it makes — the shared check over seven of its fields as well as the four it writes out — runs only when a test builds one. | `praxis/core/domain/fill.py` 65-82, reached from `tests/test_domain_core.py` 35 by way of 196, and from no statement in Praxis | Praxis package seven | is P7-03 |
 | H-427 | Nothing in the Nexus checkout works that name out, where the module's own note says both sides must work it out the same way. | `praxis/core/bracket_exit_command_id.py` 17 and 31, called at `praxis/launcher.py` 1574 and `praxis/core/execution_manager.py` 4915, with no statement in the Nexus checkout deriving it | Praxis package seven | folds into P7-04 |
 | H-428 | Six Nexus modules make no check of their own: five sets of named values, two shapes a connector must answer to, a record of how a lifecycle call went, and two error types that only keep what they were handed. | `nexus/core/domain/enums.py` 22-24, 30-31 and 41, or `nexus/core/stp_mode.py` 22-24, or `nexus/infrastructure/praxis_connector/inbound_connector.py` 26, or `nexus/infrastructure/praxis_connector/outbound_connector.py` 26, or `nexus/core/capital_controller/lifecycle_result.py` 18-19 and 32-34, or `nexus/startup/error.py` 17-19 and 31-33 | Praxis package seven | recorded as an exclusion; the ledger marks all six `full` as shapes |
+| H-429 | Four of a health snapshot's figures are walked by name and each refused unless it is a finite number at or above nought, with a true-or-false refused outright. | `nexus/core/health_evaluator.py` 40-42 over the four names, into 43-44 | Nexus package fifteen |  |
+| H-430 | Two of those four are then held to a ceiling of one, by a second walk over the pair. | `nexus/core/health_evaluator.py` 46-48 into 49-50 | Nexus package fifteen |  |
+| H-431 | The count of failures in a row is held apart from the four: a whole number, a true-or-false refused, and at or above nought. | `nexus/core/health_evaluator.py` 52-54, or 56-58 | Nexus package fifteen |  |
+| H-432 | Ten thresholds are walked and each refused unless it is a finite number at or above nought, with three more walked for being whole numbers on the same terms. | `nexus/core/health_evaluator.py` 98-103 into 105-107, or 109-111 into 112-113 | Nexus package fifteen |  |
+| H-433 | Four orderings are each checked as one chain of two comparisons, so a middle threshold below the first or above the last is refused. | `nexus/core/health_evaluator.py` 115-117, or 119-121, or 123-125, or 127-129 | Nexus package fifteen |  |
+| H-434 | Six of the thresholds are held to a ceiling of one by a walk that runs after the orderings. | `nexus/core/health_evaluator.py` 131-134 into 136-138 | Nexus package fifteen |  |
+| H-435 | The mode is settled by two chains in turn: five measures against their halt thresholds, then four against their breach thresholds, with the active mode answered where neither fires. | `nexus/core/health_evaluator.py` 167-174, or else 176-182, or else 184 | Nexus package fifteen |  |
+| H-436 | The four warn thresholds are checked as the policy is built and read by neither chain. | `nexus/core/health_evaluator.py` 98-129, which check them, against 165-184, which name none of the four | Nexus package fifteen |  |
+| H-437 | The drift from the exchange's clock has a halt threshold and no breach one, so drift either halts or counts for nothing. | `nexus/core/health_evaluator.py` 172 within the halt chain, with 176-181 naming it nowhere | Nexus package fifteen |  |
+| H-438 | The seconds between turns must be a number, with a true-or-false refused outright and anything at or below nought refused, where a figure that is not a number is let by because the comparison answers false for it. | `nexus/core/health_loop.py` 62-68 | Nexus package fifteen |  |
+| H-439 | Before the mode is written, a turn does two things, or three where a refresher was supplied, and only the refresh may fail without ending the turn: a failed refresh is logged and passed over, where a failed fetch or a failed evaluation abandons the turn. | `nexus/core/health_loop.py` 151-155, against 157-161, or 163-167 | Nexus package fifteen |  |
+| H-440 | Where the mode is written through the controller, the pending halt is told afterwards and outside the lock. | `nexus/core/health_loop.py` 176-177 inside the lock opened at 169, with 185-186 after it | Nexus package fifteen |  |
+| H-441 | The direct write does nothing where the mode is unchanged, and otherwise puts a whole new mode state in place with a fresh moment carrying the UTC marker. | `nexus/core/health_loop.py` 201-202, or else 204-207 | Nexus package fifteen |  |
+| H-442 | The transition is told only where the mode or the driver changed, each read before the write and again after. | `nexus/core/health_loop.py` 173-174 and 182-183 into 188-189, which answers rather than going on | Nexus package fifteen |  |
+| H-443 | A hold is refused unless its flag is a true-or-false and its reason is text, and its moment, where one is given, a moment. | `nexus/core/domain/operational_mode.py` 44-46, or 48-50, or 52-54 | Nexus package fifteen |  |
+| H-444 | A hold may stand active with no moment at all, nothing weighing the two against each other. | `nexus/core/domain/operational_mode.py` 52, which lets a none by, against 44-46 | Nexus package fifteen |  |
+| H-445 | Six holds force a halt, any one of them standing being enough. | `nexus/core/domain/operational_mode.py` 77-82 into 87-94 | Nexus package fifteen |  |
+| H-446 | A mode state is refused unless its mode is one of the named ones, its driver text with something left in it once trimmed, and its moment a moment. | `nexus/core/domain/operational_mode.py` 143-145, or 147-149, or 151-153 | Nexus package fifteen |  |
+| H-447 | That moment is asked for nothing beyond being a moment: no zone is demanded of it, where the record's own default is the earliest moment there is, which carries none. | `nexus/core/domain/operational_mode.py` 151-153, with the default at 138 | Nexus package fifteen |  |
+| H-448 | A strategy's mode state is refused unless its reference is text with something left in it once trimmed and what it holds is a mode state. | `nexus/core/domain/operational_mode.py` 171-173, or 175-177 | Nexus package fifteen |  |
+| H-449 | Two holds force entries blocked, and neither record gathering the holds makes a check of its own: each declares what it holds and answers whether any of them is standing. | `nexus/core/domain/operational_mode.py` 113-114 into 119, with 77-82 and 113-114 checking nothing | Nexus package fifteen |  |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 10:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 12:40 UTC
