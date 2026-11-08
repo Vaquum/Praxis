@@ -2,7 +2,7 @@
 row: P26-01
 baseline: 49aa659
 created: 2026-11-11 09:00 UTC
-modified: 2026-11-11 09:30 UTC
+modified: 2026-11-11 10:30 UTC
 evidence:
   - claim: "The cap on remembered finished commands must be a whole number above nought"
     source: "`outcome_translator.py` 126-128"
@@ -16,6 +16,8 @@ evidence:
     source: "`outcome_translator.py` 261"
   - claim: "An outcome arriving for a command whose name has been dropped is given a fresh record"
     source: "`outcome_translator.py` 156 finding no name, then 166"
+  - claim: "The far side's own reader turns back an outcome whose name it has already worked through"
+    source: "`nexus/infrastructure/praxis_connector/outcome_processor.py` 130-140"
 ---
 # What the translator remembers
 
@@ -39,7 +41,9 @@ The command's own record goes at the same moment.
 
 An outcome for a command whose name is still filed is dropped, and nothing crosses.
 
-An outcome for a command whose name has been dropped for age is treated as the first anyone has heard of it: a fresh record is made and the outcome is translated on its own terms. So the cap is the length of the translator's memory, and past it a finished command can start again.
+An outcome for a command whose name has been dropped for age is treated as the first anyone has heard of it: a fresh record is made and the outcome is translated on its own terms. So the cap is the length of the translator's memory, and past it [a command that has already ended](the-command-that-ends-twice.md) can report again.
+
+The far side keeps its own guard against that. Its reader turns back any outcome whose name it has already worked through, so what the translator lets by a second time is still read once.
 
 ## Related
 

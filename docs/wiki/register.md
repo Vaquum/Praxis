@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 324 not.**
+**6 of them reviewed, 325 not.**
 
 ## Package 1
 
@@ -531,7 +531,7 @@ Found while answering package 1, not answered by it. These enter the next packag
 | Does the venue feed actually repair a record written off after an unanswerable lookup? | H-025 shows the claim lives only in a docstring. | unassigned |
 | Is the deferred ladder-cancel report (U-03) worth raising against Praxis? | A caller waiting on that cancellation hears nothing until a restart, and then hears "rejected as a boot orphan" rather than "cancelled". Weaker than first recorded, since the report is not lost. | unassigned |
 | Is the hardcoded base asset in the holdings fee-netting (U-04) a live defect? | Holdings net a buy's commission only when the fee asset is `'BTC'`. On any other symbol the record sits above the wallet by the commission on every buy — the compounding error the netting exists to prevent. Prod trades one symbol today, so the reach depends on whether a second is ever added. | unassigned |
-| Are two terminal outcomes for one command id a live defect (U-05)? | H-050 traces `CANCELED` then `FILLED` for one exit command id through bracket protection recovery. A caller that treats the first terminal report as final would have the trade's end wrong. Needs a decision on whether the second report is intended, and whether the exit command should carry a fresh id. | unassigned |
+| Are two terminal outcomes for one command id a live defect (U-05)? | H-050 traces `CANCELED` then `FILLED` for one exit command id through bracket protection recovery. A caller that treats the first terminal report as final would have the trade's end wrong. Needs a decision on whether the second report is intended, and whether the exit command should carry a fresh id. Answered as far as the wiki can: the path is written in P27-01, and what remains is a decision for Praxis about whether the second report is intended. | P27-01 |
 | Does a schedule change survive a restart? | Answered: H-040 traces the write, the fold and the restore. It does; the docstring saying otherwise is stale, and TD-135 already records the fix. | H-040 |
 
 ## Spines
@@ -856,6 +856,43 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 27 — the command that ends twice
+
+Scope: the one question the register has carried since its first package that the
+wiki can answer by writing it. Row H-050 traced a path on which one command id
+reports an ending twice, and the question beside it asks whether that is a defect.
+Nothing in the wiki says the path exists. Until it does, a question hangs over the
+translator, which is why that module stayed `partial` through the package before
+this one.
+
+### Merge and promote, package 27
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-050 | One command id reports an ending twice: a protective pair's cancellation ends the bracket's exit command, and the flatten that follows a naked remainder re-installs that same command and reports its fill. | Promote. The path is traced and confirmed and in no article. What the wiki can say is what happens; whether the second report is intended is a decision for Praxis, and the question beside the row is re-pointed at the article rather than left hanging |
+
+One subject promotes. Nothing merges and nothing is declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P27-01 | The command that ends twice | written | [the-command-that-ends-twice.md](atoms/the-command-that-ends-twice.md) |
+
+### Re-seed, after writing package 27
+
+The reader had the article before it was committed and corrected the trace in
+three places, two of which the row itself had carried since the first package.
+
+| What it found | What came of it |
+|---|---|
+| The first ending does not come from the abort builder the article cited. It comes from the step that turns venue news into an outcome: the venue reports the protective order cancelled, that step finds the exit command not yet ended, and builds the cancellation there. | The citation is corrected to that step, with the guard it passes and the lines that mark the command ended |
+| The flatten is not assured of flattening the remainder. Missing filters, a live protective leg, a quantity below the lot or the smallest notional each turn it back before the send. | The article says this is the path rather than the rule |
+| Past the translator's memory the second ending is new to the translator alone. The far side's own reader turns back an outcome whose name it has already worked through. | That guard is now stated in P26-01, where the translator's memory is the subject |
+
+The question row for U-05 is answered as far as the wiki can answer it: the path
+is written, and what remains is the decision Praxis has to make about the second
+report. The row's owner is P27-01, and nothing hangs over the translator any
+longer, so that cell moves to `full`.
 
 ## Package 26 — what the translator remembers, and the words an ending carries
 
@@ -3623,7 +3660,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-047 | A first BUY whose fee asset is `'BTC'` and whose fee equals the filled quantity exactly creates a holding of zero. `Position` permits zero, and the branch that drops an emptied record runs only for a reducing fill, so the empty record stands; a later same-side fill delivering zero against it divides zero by zero. A larger such fee makes the quantity negative and `Position` refuses construction. A sell, or any other fee asset, keeps the gross quantity and is unaffected. The money ledger refuses the same fill, and that refusal is swallowed. | `trading_state.py` 483 into 487-498, permitted by `praxis/core/domain/position.py` 52-54, dropped only at `trading_state.py` 518-522, divided at 500-503; ledger refusal at `account_ledger.py` 305-307 swallowed by `execution_manager.py` 2092-2098 | P2-16 | recorded; P2-33 states the landings, including the second zero-delivery fill failing on the empty record |
 | H-048 | Truncating the event spine is not detected. `verify_chain` walks the rows present, checking each backward link and recomputing each hash, and finishes without comparing the final row against any recorded tip or count. `spine_meta` stores the chain version, the genesis anchor and a legacy dedup symbol, and no expected tip. Removing a suffix of rows therefore leaves a chain that verifies, with no mark recomputed. | walked at `event_spine.py` 1254-1291 with no tip comparison; the meta keys at 100-102, written at 593-595 | P2-37 | recorded; P2-37 states truncation among the escapes |
 | H-049 | Clearing the `hash` column on every row makes `verify_chain` treat the whole spine as the legacy prefix and skip it entirely. `in_legacy_prefix` starts true and is only cleared by the first hashed row, so an all-unhashed spine passes every check without one being run, and the contents can be changed freely with no mark recomputed and no row removed. Cheaper than the truncation of H-048, which at least leaves the surviving rows sealed. | `event_spine.py` 1255 into 1261-1269, with 1271 never reached | P2-37 | recorded; P2-37 states it among the escapes |
-| H-050 | Two terminal outcomes for one `command_id` are reachable, refuting the universal uniqueness `TradeOutcome`'s module docstring claims is enforced upstream. A protective pair's cancellation produces `CANCELED` for the bracket's exit command; dispatch then hands the surviving bracket to protection recovery, which on a confirmed naked remainder under `FLATTEN_THEN_HALT` submits a flatten under the same exit command id, derived deterministically from the bracket's own, and re-installs that command after it was dropped as terminal. A closing order finished with something filled as that send returns then reaches `_build_outcome` with no guard, giving `CANCELED` then `FILLED` for one id. A fill arriving later on the feed instead meets the terminal-command guard at 10663 and is turned back, so it is specifically the immediate fill that does it. | claimed at `praxis/core/domain/trade_outcome.py` 6-7; `CANCELED` at `execution_manager.py` 10662-10741; recovery at 3863-3865 into 4680-4696; the shared id derived at 7608 and the flatten submitted at 7707-7709; re-installed at 7814; unguarded at 7859-7883 against the four guards at 4786, 8482, 8622 and 10663 | P3-23 | confirmed by review as a reachable path, not a missing guard; raised as U-05. Replay is separately affected: its translation drops a row for a command it considers ended (`outcome_translator.py` 156-164), returning nothing, so that row contributes no piece to the plan and no later start finds it owed. This does not establish non-delivery live, where the composed callback still passes the original outcome on after translation returns empty (`launcher.py` 3001-3003) |
+| H-050 | Two terminal outcomes for one `command_id` are reachable, refuting the universal uniqueness `TradeOutcome`'s module docstring claims is enforced upstream. A protective pair's cancellation produces `CANCELED` for the bracket's exit command; dispatch then hands the surviving bracket to protection recovery, which on a confirmed naked remainder under `FLATTEN_THEN_HALT` submits a flatten under the same exit command id, derived deterministically from the bracket's own, and re-installs that command after it was dropped as terminal. A closing order finished with something filled as that send returns then reaches `_build_outcome` with no guard, giving `CANCELED` then `FILLED` for one id. A fill arriving later on the feed instead meets the terminal-command guard at 10663 and is turned back, so it is specifically the immediate fill that does it. | claimed at `praxis/core/domain/trade_outcome.py` 6-7; `CANCELED` at `execution_manager.py` 10662-10741; recovery at 3863-3865 into 4680-4696; the shared id derived at 7608 and the flatten submitted at 7707-7709; re-installed at 7814; unguarded at 7859-7883 against the four guards at 4786, 8482, 8622 and 10663 | P3-23 | confirmed by review as a reachable path, not a missing guard; raised as U-05, and written in P27-01, which leaves the decision about the second report with Praxis. Replay is separately affected: its translation drops a row for a command it considers ended (`outcome_translator.py` 156-164), returning nothing, so that row contributes no piece to the plan and no later start finds it owed. This does not establish non-delivery live, where the composed callback still passes the original outcome on after translation returns empty (`launcher.py` 3001-3003) |
 | H-051 | The outcome row and its replay builder lose slice progress, though the spine keeps it elsewhere. `TradeOutcomeProduced` carries no slice counts, so an outcome rebuilt from it substitutes one of one — while `SchemeStateChanged` does persist the cursor and a resumed scheme restores it, so the progress itself survives. No misreport follows the placeholder: every translated piece is built without slice counts, so it goes no further than the rebuilt object. Separately the live count is of slices **sent**, not finished. On the ordinary path the cursor advances once a slice goes out while its order may still be resting, so a slice sent and unfilled still counts. Ladder replacement does not accumulate: it places the new rungs without advancing, then sets cursor and total to the replacement plan's length, so a replacement stopping part way leaves the previous cursor standing. | row built without them at `execution_manager.py` 10817-10829; placeholder at `launcher.py` 1688-1689; pieces built without them at `outcome_translator.py` 265-270, 289-301, 314-325, 331-340 and 354-366; cursor persisted at `execution_manager.py` 6311-6322 and restored at 1970-1979; advanced past a still-active child at 5920-5923 and copied at 6515-6516; ladder replacement resetting both at 9315-9317 past the loop at 9301-9313 | P2-43 | recorded; P2-43 states the reporting limits |
 | H-052 | The replay venue's order book carries a price but no amount on either side, so the likely-price working-out can price nothing against it. A replay run with a maximum deviation configured therefore refuses every **plain single** market order, since the guard rejects one whose estimate is absent. A market slice of work fed out over time submits directly and never reaches that guard, so it trades as normal — confirmed by review, which reproduced a scheduled VWAP fill of 0.5 BTC at 50,000 against the real replay adapter with a maximum of 1. Calling the estimator with a zero-amount book reports depth insufficient and returns nothing. | `replay_venue_adapter.py` 415-417; refused at `execution_manager.py` 4064-4079 reached at 4230, with the estimate attempted at 4194-4197; bypassed at 5979 | P3-03 | recorded; P3-03 states both halves |
 | H-053 | `_consume_lots` takes from the lots and removes emptied ones before testing whether the sell exceeded them. On that failure the `ValueError` is raised with the lots already consumed and nothing restored, so an immediate retry of the same sell finds no lots left and fails again. The caller's failure is caught and logged by `_project_to_ledger`, so trading continues with the ledger's lots reduced by a sell that was refused. | confirmed by review, reproducing a buy of one then a sell of two under both ways of costing: the lots end empty while balances, journal and profit are unchanged. Taken at `account_ledger.py` 364-373 before the test at 375-377; the failure swallowed at `execution_manager.py` 2092-2098 | P3-12 | recorded; P3-12 states the ordering |
@@ -4187,4 +4224,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 09:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 10:30 UTC
