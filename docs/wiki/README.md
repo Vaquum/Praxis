@@ -393,6 +393,10 @@ the others where it appears.
 ## The settings a host runs on
 
 - [The settings a host is given](atoms/the-settings-a-host-is-given.md) — what a host reads from its environment and its manifests before it starts anything.
+- [What the strategy records refuse](atoms/what-the-strategy-records-refuse.md) — the records a strategy's entry turns into check what the reading of the file let through, and the schedule is one place where the record asks something the reading never did: that the number of seconds be above zero.
+- [What the risk-controls block is held to](atoms/what-the-risk-controls-block-is-held-to.md) — the block of loss limits for an account is barely checked at all: three keys are read out of it, anything written under any other key is passed over in silence, and a limit that is no real quantity gets through to be refused a step later.
+- [The complaint that names the wrong block](atoms/the-complaint-that-names-the-wrong-block.md) — one helper reads every optional number in the settings file and stamps the same block's name on every complaint it makes, so a strategy's own price limit is objected to under a block it was never written in.
+- [What a manifest file must be](atoms/what-a-manifest-file-must-be.md) — before any setting is looked for, the path must lead to a file rather than a folder, the bytes must read back as UTF-8, and what the reader makes of them must be a set of keys and values.
 - [The two refusals the manifest record adds](atoms/the-two-refusals-the-manifest-record-adds.md) — an account's settings file is checked as it is read and checked over again by the record made from it, and that second round can turn the file back only for a strategy name used twice, or for allocations adding to more than the whole.
 - [What a money figure loses on the way in](atoms/what-a-money-figure-loses-on-the-way-in.md) — a sum of money written in the settings file passes through a reader that holds about seventeen digits before it becomes a number, so one written longer than that arrives rounded, and quoting it in the file is what keeps it whole.
 - [The order a strategy entry is read in](atoms/the-order-a-strategy-entry-is-read-in.md) — a strategy's name and the file it points at are asked only to be present while the settings are being read, and asked to be text afterwards; a timer's schedule is asked what kind of value it is before the timer's own name is.
@@ -472,15 +476,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 375
+Both sides are the subject, and Praxis is the side that has been written. 379
 articles exist. Of Praxis's own source files 70 are accounted for in full and 18 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 46 are accounted for in full and 18 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 47 are accounted for in full and 17 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 17:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 18:30 UTC

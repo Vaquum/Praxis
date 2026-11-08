@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 374 not.**
+**6 of them reviewed, 378 not.**
 
 ## Package 1
 
@@ -856,6 +856,61 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 60 — what the manifest's records and its file are held to
+
+Scope: the reading of a host's manifest again, which the ledger still marks
+`partial` with sixty-seven of its two hundred and forty-five statements uncited
+after the package before this. What the three records a strategy entry becomes
+refuse, what the block of account limits is held to, and what the file itself must
+be before any field is looked for are in no article.
+
+### Merge and promote, Nexus package 60
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-725 | The signal's record asks its series to be text equalling itself trimmed, its interval to be a whole number with a true-or-false refused outright, and that interval to stand above nought, which the reading never asked. | Promote. What these records refuse is in no article, and here the record adds a check the reading did not make, which is the opposite of what the manifest's own figures showed |
+| Row H-726 | A timer's record asks the same three in the same order and asks nothing else. | Merge with H-725, the same three one record over |
+| Row H-727 | A strategy's record asks its share to be a finite figure of the exact kind standing above nought and at or under a hundred, its collar the same but at or above nought, and no two timers under one name. | Merge with H-725, the third of the three records |
+| Row H-728 | A risk-controls block left out becomes an empty mapping, one that is not a mapping is refused, and three named figures are read out of it with everything else passed over. | Promote. What this block is held to is in no article, and a limit written under a misspelled key is read by nothing |
+| Row H-729 | The helper reading each of those three refuses only what will not convert to a figure, and words its complaint as though the field came from that block even when it is reading a strategy's collar. | Merge with H-728. What the helper asks and what its complaint says are one subject |
+| Row H-730 | A path that is not a file refuses the reading with a missing-file failure, the one refusal in the reading that does not raise the ordinary kind. | Promote. What the file must be before any field is looked for is in no article, and this refusal is sorted apart from every other by its kind |
+| Row H-731 | The file is opened under UTF-8 and read by the YAML reader in the form that runs no code the file names, and what comes back must be a mapping. | Merge with H-730, the rest of what the file is held to |
+
+Three subjects promote and four rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N60-01 | What the strategy records refuse | written | [what-the-strategy-records-refuse.md](atoms/what-the-strategy-records-refuse.md) |
+| N60-02 | What the risk-controls block is held to | written | [what-the-risk-controls-block-is-held-to.md](atoms/what-the-risk-controls-block-is-held-to.md) |
+| N60-03 | What a manifest file must be | written | [what-a-manifest-file-must-be.md](atoms/what-a-manifest-file-must-be.md) |
+| N60-04 | The complaint that names the wrong block | written | [the-complaint-that-names-the-wrong-block.md](atoms/the-complaint-that-names-the-wrong-block.md) |
+
+### Re-seed, after writing Nexus package 60
+
+The reader returned six reports and all six were valid. Four of them are one shape:
+a statement true of the ordinary case written as though it covered every case.
+
+| What it found | What came of it |
+|---|---|
+| A strategy entry becomes one signal record, one strategy record, and a timer record for each timer, of which there may be none. | Corrected. The opening had counted three where it meant three kinds |
+| A block written with its key and no value under it is substituted for an empty mapping before the shape is tested, so it is not refused for being no mapping. | N60-02 names the three ways of saying nothing, and says the substitution stands ahead of the test |
+| The helper answers nothing for a key written with no value under it as well as for one absent. | N60-02 says both |
+| A malformed file comes back as the YAML reader's own failure, so a caller sorting failures by kind sees a third sort beyond the two named. | N60-03 says so. The claim had been about every failure the reading can produce while the evidence was only about the refusals written in it |
+| A file saved under another encoding whose bytes are valid UTF-8 passes the decoding, which is every file written in plain ASCII. | N60-03 now turns on the bytes rather than on the encoding they were saved under |
+| The safe reader refuses a tag asking for an object to be built, rather than reading it as text. | Corrected. The claim had described what the reader refuses to do as though it described what it does |
+
+The second article outgrew the word cap once the corrections were in, so the
+helper's complaint became N60-04 rather than a trimmed section of N60-02.
+
+The recurring shape is a universal claim resting on evidence for one case. Four of
+the six were of it, and in each the evidence cited was sound while the sentence
+built on it reached further than the evidence went.
+
+Ten statements of the module are left uncited and are an exclusion rather than work
+outstanding: three loop headers, three readings of a key into a local name, two
+additions to a set used for spotting repeats, the setting of a running total to
+nought, and the handing back of the finished manifest.
 
 ## Nexus package 59 — how a manifest is read
 
@@ -5578,8 +5633,15 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-722 | A missing staleness answer becomes the one word that is accepted. | `nexus/infrastructure/manifest.py` 488, the one word insisted on at 68-70 | Nexus package fifty-nine | folds into N59-02 |
 | H-723 | The strategy files are checked once the manifest has been built whole, against the folder the manifest file itself sits in. | `nexus/infrastructure/manifest.py` 559-569, then 571, resolved at 587 | Nexus package fifty-nine | is N59-03 |
 | H-724 | A strategy file must be written relative, must resolve inside that folder, must be a file that is there, and must parse as Python. | `nexus/infrastructure/manifest.py` 592-594, or 596-602, or 604-606, or 608-612 | Nexus package fifty-nine | folds into N59-03 |
+| H-725 | The signal's record asks its series to be text equalling itself trimmed, its interval to be a whole number with a true-or-false refused outright, and that interval to stand above nought, which the reading never asked. | `nexus/infrastructure/manifest.py` 53-59, then 61-63, then 65-67, the reading asking only the kind at 484-486 | Nexus package sixty | is N60-01 |
+| H-726 | A timer's record asks the same three in the same order and asks nothing else. | `nexus/infrastructure/manifest.py` 93-99, then 101-103, then 105-107 | Nexus package sixty | folds into N60-01 |
+| H-727 | A strategy's record asks its share to be a finite figure of the exact kind standing above nought and at or under a hundred, its collar the same but at or above nought, and no two timers under one name. | `nexus/infrastructure/manifest.py` 152-161, or 163-172, or 185-187 | Nexus package sixty | folds into N60-01 |
+| H-728 | A risk-controls block left out becomes an empty mapping, one that is not a mapping is refused, and three named figures are read out of it with everything else passed over. | `nexus/infrastructure/manifest.py` 350-353, then 355-357, then 359-363 | Nexus package sixty | is N60-02 |
+| H-729 | The helper reading each of those three refuses only what will not convert to a figure, and words its complaint as though the field came from that block even when it is reading a strategy's collar. | `nexus/infrastructure/manifest.py` 299-306, worded at 305, called for the collar at 543-546 | Nexus package sixty | folds into N60-02 |
+| H-730 | A path that is not a file refuses the reading with a missing-file failure, the one refusal in the reading that does not raise the ordinary kind. | `nexus/infrastructure/manifest.py` 382-384, every other refusal raising at 389-391 onwards | Nexus package sixty | is N60-03 |
+| H-731 | The file is opened under UTF-8 and read by the YAML reader in the form that runs no code the file names, and what comes back must be a mapping. | `nexus/infrastructure/manifest.py` 386, then 387, then 389-391 | Nexus package sixty | folds into N60-03 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 17:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 18:30 UTC
