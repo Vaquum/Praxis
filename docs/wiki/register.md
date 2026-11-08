@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 343 not.**
+**6 of them reviewed, 345 not.**
 
 ## Package 1
 
@@ -856,6 +856,46 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 43 — what the host's configuration record refuses
+
+Scope: the record a host's settings are gathered into, which the ledger marks
+`partial` with forty-one of its forty-eight statements uncited. Two articles have
+what the settings are refused for as they are read, and that the plain single
+order is always among the ways of working. What the record itself refuses, once
+those settings reach it, is in no article.
+
+### Merge and promote, package 43
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-657 | The three venue addresses are each tested for truth alone, so an address of blank space is kept. | Promote. What this record refuses is in no article, and it is a sixth and seventh place on this side where blank space passes for a name |
+| Row H-658 | Three spans are each refused at or below nought by comparison, with nothing asked of their kind, so one that is no number is kept. | Merge with H-657, the same building's figures |
+| Row H-659 | The credentials mapping's keys must be text with something left once trimmed, its values must be of the credentials kind, and each key and secret is tested for truth alone. | Merge with H-657. A key of blank space is kept and so is a secret of blank space, which is the same leniency the store's own reading leaves |
+| Row H-660 | The two mappings are copied and sealed over the fields they arrived in, and the ways of working are frozen into a set. | Promote. What the record holds afterwards is in no article, and the sealing is what makes the checks final |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P43-01 | What the host's configuration record refuses | written | [what-the-hosts-configuration-record-refuses.md](atoms/what-the-hosts-configuration-record-refuses.md) |
+| P43-02 | What the configuration record holds afterwards | written | [what-the-configuration-record-holds-afterwards.md](atoms/what-the-configuration-record-holds-afterwards.md) |
+
+### Re-seed, after writing package 43
+
+The reader had both articles before they were committed and returned six reports,
+four of them against one claim about what sealing a field is worth.
+
+| What it found | What came of it |
+|---|---|
+| A span the comparison lets by is a number with no value. Something that is no number at all makes the comparison itself raise. The article had run the two together. | P43-01 now separates them, which is the first time this run has had to: every earlier record of the kind compares figures that are at least numbers |
+| The record's refusal to be written to holds from the moment it is made, so the three writes in its building go round it rather than preceding it. | P43-02 says that outright, and says the call it uses is what the building needs |
+| The sealing does not make the refusals final. The same call that sealed a field can replace it, and the record has a writable store of its own besides, so a replacement mapping can carry a key the checks would have refused. | P43-02 has a section for what the sealing is not, which is the better half of the article: what it guarantees is about the caller's mapping, not about the record |
+
+The last is a lesson in what a guarantee is about. A sealed mapping sounds like a
+sealed record; what it actually promises is that the caller's own mapping cannot
+reach in afterwards. Writing the stronger claim would have told a reader the
+record could be trusted against later writes, which it cannot.
 
 ## Nexus package 42 — the pool asked for twice, and the whole an order locks
 
@@ -4782,8 +4822,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-654 | A worker that did exit has its place cleared, and only where the place still holds that same worker. | `nexus/core/outcome_loop.py` 187-189 | Nexus package forty-one | folds into N41-02 |
 | H-655 | A state built fresh asks the pool to be finite and of the exact kind, then to be above nought, before handing it to the record that asks both again. | `nexus/core/domain/instance_state.py` 148-150, or 152-154, ahead of 156-157 | Nexus package forty-two | added to what the capital record refuses |
 | H-656 | What a tracked order locks in all is the amount plus the fee estimate. | `nexus/core/capital_controller/tracked_order.py` 117 | Nexus package forty-two | added to what a tracked order must be |
+| H-657 | The three venue addresses are each tested for truth alone, so an address of blank space is kept. | `praxis/trading_config.py` 119-121, or 123-125, or 127-129 | Praxis package forty-three | is P43-01 |
+| H-658 | Three spans are each refused at or below nought by comparison, with nothing asked of their kind, so one that is no number is kept. | `praxis/trading_config.py` 131-133, or 135-137, or 139-144 | Praxis package forty-three | folds into P43-01 |
+| H-659 | The credentials mapping's keys must be text with something left once trimmed, its values must be of the credentials kind, and each key and secret is tested for truth alone. | `praxis/trading_config.py` 148-150, or 152-154, or 156-161 | Praxis package forty-three | folds into P43-01 |
+| H-660 | The two mappings are copied and sealed over the fields they arrived in, and the ways of working are frozen into a set. | `praxis/trading_config.py` 146 into 163-167, or 180 into 196-200, or 174-178 | Praxis package forty-three | is P43-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 00:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 01:00 UTC

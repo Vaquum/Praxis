@@ -328,6 +328,8 @@ the others where it appears.
 - [What a tracked order must be](atoms/what-a-tracked-order-must-be.md) — its three identifiers must be strings with content after stripping, though it stores them unstripped; its three amounts must be finite non-negative Decimals with the unfilled part never exceeding the whole; its state must be either sent-and-unacknowledged or acknowledged-and-resting; and its timestamp must carry the UTC marker itself.
 - [Starting and stopping the outcome loop](atoms/starting-and-stopping-the-outcome-loop.md) — starting returns at once while a live worker is held and otherwise clears the stop flag and spawns one, stopping takes the worker under the lock, sets the flag, releases the lock and then waits five seconds unless told otherwise, and stopping a loop holding no worker returns before the flag is even set.
 - [The stop that blocks a restart](atoms/the-stop-that-blocks-a-restart.md) — a worker still alive when the join expires keeps its slot, which blocks a restart for exactly as long as it runs; the slot is cleared only if it still holds that same worker, while the single shared stop flag means a stop entering after a restart signals the new worker instead.
+- [What the host's configuration record refuses](atoms/what-the-hosts-configuration-record-refuses.md) — each venue URL is tested for truthiness alone so a whitespace one is kept, each timeout is compared against zero with no type check so a NaN passes while a string raises from the comparison itself, and the credentials mapping's keys along with the keys and secrets inside its values are all truthiness-tested.
+- [What the configuration record holds afterwards](atoms/what-the-configuration-record-holds-afterwards.md) — the record is frozen, so its own construction writes through a call that bypasses that in order to seal copies of its mappings and freeze its mode set; the seal stops a caller mutating the mapping it handed in, while that same bypass stays open for replacing a field entirely.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -441,7 +443,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 344
+Both sides are the subject, and Praxis is the side that has been written. 346
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -452,4 +454,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 23:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 01:00 UTC
