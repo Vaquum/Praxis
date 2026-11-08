@@ -750,6 +750,43 @@ crosses is the sealing undone and then done again.
 | N14-06 | What a lost protection is reported with | written | [what-a-lost-protection-is-reported-with.md](atoms/what-a-lost-protection-is-reported-with.md) |
 | N14-07 | The limits that may be left out | written | [the-limits-that-may-be-left-out.md](atoms/the-limits-that-may-be-left-out.md) |
 
+### Re-seed, after writing package 14
+
+What five rounds of verifying the seven articles turned up that none of them
+reaches. Each was checked against the index and the ledger before it was written
+down here. Paths are under `nexus/` except where named otherwise.
+
+| Candidate | What proves it |
+|---|---|
+| The hold that lifts itself, and the hold beside it that does not | `nexus/core/mode_controller.py` 387-388 leaves the daily-loss check where no limit is set, and 392-393 places a hold where the loss is past the limit while 395-396 lifts that same hold where it is not. The drawdown check beside it, 398-412, places a hold under one name from either of two limits at 402-405 and 409-412, and lifts it nowhere. So one of the two breakers stands down of its own accord when the figure recovers and the other does not, and the drawdown hold is placed under one name by two limits, so leaving one of them out does not take the hold away while the other is set. N2-04 has the two limits and the holding; which of the two holds ever lifts itself is in no article |
+| The infinite value a signal keeps | `nexus/strategy/signal.py` 45-47 refuses an infinite whole or floating value and 49-51 an infinite decimal one, and 40-51 tests a value for nothing else. A number carrying an imaginary part is none of those three, so an infinite one is kept: running the pinned record with such a value built it and held the value unchanged, where the same infinity as a plain floating number was refused. N14-03 has which values are reached and that the rest are not weighed; that one of the kinds not reached can carry the very thing the checks exist to refuse is in no article |
+
+Two candidates, and both are the far half of a fact an article already carries the
+near half of. The two limits and the holding are written and which hold lifts
+itself is not; which values are checked for being finite is written and what an
+unchecked kind can smuggle through is not. In both the evidence sat beside what was
+written, one function along in the first and one line along in the second.
+
+Verifying this package found the same class package 13 found, again, and a second
+class twice. The first is a sentence true of one check stated of the record: a
+signal's values "kept exactly as handed over" when a bad key refuses the record
+outright, a parameter set "taken as it comes" when it is not. The second is a type
+drafted looser than the test allows: the rows and the articles for two records
+were drafted saying a mapping, where the test names one concrete kind, so a
+mapping that is not of that kind is refused and a kind built on it is allowed.
+Both were corrected to say a dictionary before either was committed, which is why
+the rows above read as they do. Both were caught by a reviewer running the pinned
+record rather than reading it, which is how each was pinned down, though a close
+enough reading of the checks would have shown either.
+
+That is the third package in a row whose defects were all semantic, and the first
+of the three in which no check was drafted at all, the two before it each having
+drafted one and lost it in survey. Neither class here was drafted against: a type claim's looseness is not visible in the text at all, and the
+first class was already surveyed and found unmatched in package 13. What has
+worked instead, twice now, is a reviewer told to build the counterexample and run
+the pinned class against it rather than argue from the text — a reviewing
+instruction rather than a gate, and recorded here as one.
+
 ## Nexus package 13 — what a capital lock and an order's context refuse
 
 Scope: the two records Nexus keeps around an order — the money held for it from
@@ -2335,4 +2372,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 23:20 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 01:00 UTC
