@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 310 not.**
+**6 of them reviewed, 311 not.**
 
 ## Package 1
 
@@ -803,6 +803,44 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Reader's pass over packages thirteen to eighteen
+
+One of the two external readers came back after fourteen packages written without
+one. It was given the ten articles those packages added, the pinned revisions of
+both repositories, and one instruction: report statements that are false,
+overclaimed or unsupported, and nothing else. It returned fourteen reports over
+eight of the ten articles; two came back clean. Every report held up on reading
+the pinned source again, and every one is acted on below.
+
+| What it found | What came of it |
+|---|---|
+| The day a bar is filed under rested on a zone no caller can supply. The one thing that works these figures out builds every moment in universal time from the bar's own stamp, so the zone the article turned on is fixed before the figures see it. | P15-03 is rewritten around what is true: which of a bar's two moments the day is taken from, the stamp rather than the close, and the window having been filtered on the close. The candidate the twelfth package's re-seed raised is corrected in place |
+| A bar with an unknown price is not left out of everything. It keeps its place, so a held run it falls inside is counted as two trades, each charged for an opening and a closing. | P15-01 is rewritten with a section of its own for what an unknown price still does. Running the pinned masks confirms two openings and two closings where one bar's price is missing |
+| Reading the series turns back text that is no number at all, rather than making it not-a-number. Only a value with no numeric form of its own becomes that. | P15-01 now separates the two: the reading refuses the first before any check runs, and the second parts company between the predictions and the prices |
+| Cancelling at shutdown reaches what is still queued at that moment, not everything accepted while a replay ran. | P14-02 now says so, and turns on where the worker has got to |
+| A pair of edges with no zone in reverse order is refused by the ordering, not by the frames. | P14-01 now says a pair in order goes on to the frames |
+| A backfill with no mark sends a starting moment only where it was given one, the window's far edge is open but the pass still ends where the pages run out, and a mark is set only by a full page of readable names. | P16-01 carries all three corrections |
+| An even split with a count carrying a fraction is refused by the arithmetic, which may be the division or the building of the list; a lot size given as a whole number is not refused at all; and the children do not divide a total exactly where the total carries more digits than the exact kind's precision. | P16-02 carries all three corrections |
+| A comparison with nought does not let an infinity or a figure that is no number through where the figure is of the exact kind, since such a comparison raises. | P13-01 now says where the figure is an ordinary number |
+| Swept from the last of those: one other article claimed an even split comes to its total exactly. | P10-03 carries the same correction, with the precision that bounds it, and is where P16-02 now sends a reader for what the division leaves over |
+
+What the classes say about the method. Two of the eight are the class the
+register's own rule names — a claim true of a function and false on the only path
+that reaches it — and both were written by a session that had read the function
+and not its caller. The rest are a step past the citation: a word stronger than
+the line supports, or a second clause the first clause does not carry.
+
+No blocking check comes out of this. The path class would need the gate to know
+which callers a module has and which claims speak about inputs, and neither is
+expressible in what the gate reads; the overclaiming class was measured against
+the clean corpus twice before and both candidate checks died there. What is
+expressible is already written: the gate's refusal of a citation that stops before
+the raise, and its refusal of two mutually exclusive branches paired as a
+sequence, both of which held through this pass.
+
+The packages written without a reader are therefore no longer unread. The second
+reader is still unavailable, its balance exhausted.
+
 ## Package 18 — the last statements in the six modules next nearest the line
 
 Scope: the six modules the ledger marks `partial` with the fewest statements left
@@ -821,7 +859,7 @@ value found or made along to the line that uses it.
 | Row H-573 | The name the wrapper answers to is the wrapped strategy's own. | Add to the same article. The wrapper carrying no name of its own is why one name reaches one lock |
 | Row H-574 | The moment the rolling windows are measured back from must carry a zone. | Add to the article on the moments with no marker, which holds the other strengths of this rule on the Nexus side. The article on what the thirty-day cut leaves was named at merge and would have outgrown the word cap |
 | Row H-575 | A command carries the name of the money set aside for it, where any was set aside. | Add to the article on what an exit is given where it asked for nothing, which holds the rest of this same filling-in. The article on how a decision becomes a command was named at merge and is the wrong home: its subject is the re-keying across the seam, not what the command is filled from |
-| Row H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | Add to the article on what an even split refuses, the two splits being the pair that article already holds one half of |
+| Row H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | Add to the article on what an even split refuses. The reader's pass later carried that article past the word cap, so the weighted half is split out as P18-02, which also takes what the weights are not asked and what a weight below nought does on each road |
 
 Nothing promotes and nothing is declined. Six statements are added to five
 articles and one citation is extended.
@@ -844,6 +882,7 @@ and how it is written.
 | ID | Topic | Status | Article |
 |---|---|---|---|
 | P18-01 | What a start reads back from a checkpoint | written | [what-a-start-reads-back-from-a-checkpoint.md](atoms/what-a-start-reads-back-from-a-checkpoint.md) |
+| P18-02 | What a weighted split refuses | written | [what-a-weighted-split-refuses.md](atoms/what-a-weighted-split-refuses.md) |
 
 ### Re-seed, after writing package 18
 
@@ -1039,7 +1078,7 @@ open, one of which does not survive being read again.
 | Row H-554 | The opening moment is set before the walk, with no episode open, and every episode writes its own as it opens. | Merge with H-553. A figure the walk can never read belongs beside the one it always reads, both being set in the same breath before the walk begins |
 | Row H-555 | The four series are turned into arrays of floating-point numbers before anything is checked, so a true-or-false becomes one or nought and text reading as a number is taken as one. | Promote. What the series are read as is in no article, and every later check works on what the conversion produced rather than on what the caller passed |
 | Row H-556 | A value that is no number at all becomes not-a-number: as a prediction it refuses the call, as any of the three prices it marks that bar's price unknown and the bar is passed over. | Merge with H-555. The same conversion answering a missing value two ways is what makes the conversion worth stating |
-| Row H-557 | Each bar is filed under the calendar day of its own moment, so which bars share a day follows the zone the moments arrived in. | Promote. This is one of the two candidates the twelfth package's re-seed named, and it joins a fact written three packages earlier about the clock keeping whatever zone it is given |
+| Row H-557 | Each bar is filed under the calendar day of the moment handed in for it, which the one caller builds in universal time from the bar's own stamp rather than from its close. | Promote. This is one of the two candidates the twelfth package's re-seed named, though not in the form that re-seed gave it: the reader's pass after package 18 found the zone it rested on fixed by the caller, and what remains is which of a bar's two moments the day is taken from |
 | Row H-558 | On the module's one path a held bar's run number is never nought, the entry marks being derived from the held bars themselves. | Decline, and correct the record. This is the other candidate the twelfth package's re-seed named, stated there as a trade counted before the first mark. Reading 142 again shows the mark mask is the held mask with the previous bar's held state taken off it, so the first held bar is always a mark. The two trades came from calling the helper with a held mask and a mark mask that disagree, which the module's one caller never produces. The twelfth package's re-seed row is corrected in place |
 
 Three subjects promote, two rows merge, and one candidate is declined as false.
@@ -1077,7 +1116,7 @@ were still unavailable, so this package was checked by the gate, a reading of th
 pinned source, and running the module on the cases each claim turns on. Running it
 is what showed a curve beginning at nine tenths recording a fall of a thousand
 basis points, a true-or-false passing the test for a prediction, and a missing
-price dropping one bar where a missing prediction refuses the call. It is also
+price making one bar untradable where a missing prediction refuses the call. It is also
 what overturned the candidate the twelfth package's re-seed had recorded, by
 deriving the marks the way the module's own caller derives them rather than
 handing the helper a pair of masks that disagree.
@@ -1248,7 +1287,7 @@ What verifying the four articles turned up that none of them reaches.
 | Candidate | What proves it |
 |---|---|
 | The trade that begins before the first entry mark | `praxis/metrics/limen_snapshot.py` 194 numbers the bars by a running count of the entry marks, so every bar before the first mark carries the number nought, and 198 walks the numbers found among the held bars without leaving that one out. Running the helper over a position held through the first two bars and marked only at the fourth gives two trades, not one: the held bars before any mark are counted as a trade of their own. P12-01 has the numbering and what a trade is. Corrected by package fifteen, which found this false: the entry marks are themselves derived from the held bars at 142, so the first held bar is always a mark and a held bar's number is never nought. The two trades came from calling the helper with a held mask and a mark mask that disagree, which the module's one caller never produces |
-| The day a bar is filed under follows the zone its moment carries | `praxis/metrics/limen_snapshot.py` 220 files each bar under the calendar day of its own moment, and nothing before it puts the moments into one zone. The same two instants filed in universal time and in a zone nine hours ahead take different days — their ordinals differ by one — so which bars share a day, and therefore every day figure, depends on the zone the moments arrived in. `praxis/replay/replay_clock.py` 33 keeps whatever zone it is given, which P8-03 states, so the two facts meet here. P12-02 has the filing by day; that the day is the moment's own and not a fixed one is in no article |
+| The day a bar is filed under, and which moment it is taken from | `praxis/metrics/limen_snapshot.py` 220 files each bar under the calendar day of its own moment, and nothing before it puts the moments into one zone. The same two instants filed in universal time and in a zone nine hours ahead take different days — their ordinals differ by one — so which bars share a day, and therefore every day figure, depends on the zone the moments arrived in. `praxis/replay/replay_clock.py` 33 keeps whatever zone it is given, which P8-03 states, so the two facts meet here. P12-02 has the filing by day. Corrected by the reader's pass after package 18: the one thing that calls these figures builds every moment in universal time from the bar's own stamp at `build_replay_report.py` 82 into 94-96, so no caller's zone can show through and the zone was never the finding. What survives is which moment the day is taken from — the bar's stamp rather than its close — which P15-03 now states |
 
 Two candidates. Both are what the grouping admits rather than what it computes,
 and the second joins a fact this session wrote three packages earlier about the
@@ -3702,7 +3741,7 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-554 | The opening moment is set before the walk, with no episode open, and every episode writes its own as it opens. | `praxis/metrics/limen_snapshot.py` 251-253 against 262 | Praxis package fifteen | folds into P15-02 |
 | H-555 | The four series are turned into arrays of floating-point numbers before anything is checked, so a true-or-false becomes one or nought and text reading as a number is taken as one. | `praxis/metrics/limen_snapshot.py` 96-99, against 119-120 | Praxis package fifteen | is P15-01 |
 | H-556 | A value that is no number at all becomes not-a-number: as a prediction it refuses the call, as any of the three prices it marks that bar's price unknown and the bar is passed over. | `praxis/metrics/limen_snapshot.py` 96-99 into 119-120, or into 122 and 133 | Praxis package fifteen | folds into P15-01 |
-| H-557 | Each bar is filed under the calendar day of its own moment, so which bars share a day follows the zone the moments arrived in. | `praxis/metrics/limen_snapshot.py` 220, the zone kept at `praxis/replay/replay_clock.py` 33 | Praxis package fifteen | is P15-03 |
+| H-557 | Each bar is filed under the calendar day of the moment handed in for it, which the one caller builds in universal time from the bar's own stamp rather than from its close. | `praxis/metrics/limen_snapshot.py` 220, the moments built at `praxis/replay/build_replay_report.py` 82 into 94-96, the close worked out at `praxis/replay/load_replay_bars.py` 74 and 82 | Praxis package fifteen | is P15-03 |
 | H-558 | On the module's one path a held bar's run number is never nought, the entry marks being derived from the held bars themselves. | `praxis/metrics/limen_snapshot.py` 142 into 194 and 198 | Praxis package fifteen | declined; the twelfth package's re-seed row is corrected |
 | H-559 | Where there is no mark, the first page is asked by time with no latest time ever sent, so the pass walks from that moment forward to the newest trade the venue holds. | `praxis/infrastructure/mytrades_backfill.py` 88-90, leaving `praxis/infrastructure/binance_adapter.py` 1911-1912 unreached | Praxis package sixteen | is P16-01 |
 | H-560 | The choice between asking by mark and asking by time is made afresh for each page, and the time is reachable only while no mark is held. | `praxis/infrastructure/mytrades_backfill.py` 82-83, the mark moved at 112 | Praxis package sixteen | folds into P16-01 |
@@ -3721,9 +3760,9 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-573 | The name the wrapper answers to is the wrapped strategy's own. | `nexus/strategy/executor.py` 39 | Praxis package eighteen | added to the wrapper every strategy sits behind |
 | H-574 | The moment the rolling windows are measured back from must carry a zone. | `nexus/infrastructure/loss_derivation.py` 80-85 | Praxis package eighteen | added to the moments with no marker |
 | H-575 | A command carries the name of the money set aside for it, where any was set aside. | `nexus/infrastructure/praxis_connector/translate.py` 87-89 | Praxis package eighteen | added to what an exit is given where it asked for nothing |
-| H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | `praxis/core/plan_weighted_slices.py` 50-52, or 54-56 | Praxis package eighteen | added to what an even split refuses |
+| H-576 | The weighted split makes the same two checks as the even one, its count being the number of weights. | `praxis/core/plan_weighted_slices.py` 50-52, or 54-56 | Praxis package eighteen | is P18-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 19:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 20:00 UTC

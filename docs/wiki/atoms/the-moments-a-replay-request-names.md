@@ -2,7 +2,7 @@
 row: P14-01
 baseline: 49aa659
 created: 2026-11-10 13:00 UTC
-modified: 2026-11-10 13:00 UTC
+modified: 2026-11-10 20:00 UTC
 evidence:
   - claim: "A moment ending in a capital Z is rewritten to a zero offset, and any other text is handed to the reader as it stands"
     source: "`replay_api.py` 260-262"
@@ -31,7 +31,7 @@ An edge without a zone is refused, but where depends on the other edge.
 
 Where one edge carries a zone and the other does not, comparing the two for order is itself what raises: the pair never reaches the test that comparison was written for, nor [the frames](where-a-replays-bars-come-from.md).
 
-Where neither carries a zone, the two compare without complaint, and the refusal comes later, from the reading of the frames.
+Where neither carries a zone, nothing in that comparison objects to it, and a pair in order goes on to the frames — where the refusal comes instead.
 
 ## What the asker is told
 

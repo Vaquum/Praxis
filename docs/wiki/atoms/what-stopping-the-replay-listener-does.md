@@ -2,9 +2,9 @@
 row: P14-02
 baseline: 49aa659
 created: 2026-11-10 13:00 UTC
-modified: 2026-11-10 13:00 UTC
+modified: 2026-11-10 20:00 UTC
 evidence:
-  - claim: "Stopping the listener shuts the worker pool down, waiting for the replay in progress and cancelling those queued behind it"
+  - claim: "Stopping the listener shuts the worker pool down, waiting for the replay in progress and cancelling whatever is still queued when it runs"
     source: "`replay_api.py` 168-169, attached to the app's cleanup at 174"
   - claim: "Runs go to a pool of one worker, made as the app is"
     source: "`replay_api.py` 105"
@@ -17,9 +17,9 @@ Bringing the [replay service](asking-for-a-replay-from-outside.md) down shuts th
 
 ## Waiting, and cancelling
 
-The shutdown is attached to the app's cleanup, so it runs as the server comes down. It waits for the replay already under way to finish, and it cancels every run still queued.
+The shutdown is attached to the app's cleanup, so it runs as the server comes down. It waits for the replay already under way to finish, and it cancels whatever is still queued at that moment.
 
-Runs go to one worker, so everything accepted while a replay is running is queued, and all of it is dropped.
+Runs go to one worker, so a run accepted while another is running waits its turn. Whether it is dropped turns on where the worker has got to by the time the server comes down: one the worker has already begun is waited for, one still waiting is cancelled.
 
 ## What a dropped run's record says
 

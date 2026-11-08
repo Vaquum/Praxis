@@ -44,18 +44,18 @@ A module reaches `full` only when no unresolved candidate is attached to it. Pen
 | `praxis/core/domain/bracket_params.py` | partial | P4-08 |
 | `praxis/core/domain/iceberg_params.py` | full | P2-22 |
 | `praxis/core/plan_even_slices.py` | full | P10-03, P16-02, P2-19 |
-| `praxis/core/plan_weighted_slices.py` | full | P16-02, P2-19, P4-08, P4-52 |
+| `praxis/core/plan_weighted_slices.py` | full | P18-02, P2-19, P4-08, P4-52 |
 | `praxis/infrastructure/event_spine.py` | partial | P2-17, P2-32, P2-35, P2-36, P2-37, P3-17, P4-06, P4-30, P4-61 |
 | `praxis/infrastructure/book_cache.py` | full | N2-07, P2-26 |
 | `praxis/infrastructure/book_poller.py` | full | N2-07, P11-01, P11-02, P11-03, P2-13, P2-26 |
 | `praxis/core/estimate_slippage.py` | partial | P1-06, P3-03 |
 | `praxis/replay/run_replay.py` | partial | N9-01, N9-02, N9-05, P3-01, P3-02, P3-04, P3-22, P3-24, P4-13, P4-17, P4-39 |
-| `praxis/replay/replay_clock.py` | full | P15-03, P3-02, P8-03 |
+| `praxis/replay/replay_clock.py` | full | P3-02, P8-03 |
 | `praxis/replay/replay_venue_adapter.py` | partial | P2-12, P2-46, P3-03, P3-04, P3-15, P3-18, P4-13 |
 | `praxis/replay/replay_scenario.py` | full | P3-04 |
-| `praxis/replay/build_replay_report.py` | partial | P3-01, P3-04, P3-08, P3-10, P3-24, P4-18, P4-19 |
+| `praxis/replay/build_replay_report.py` | partial | P15-03, P3-01, P3-04, P3-08, P3-10, P3-24, P4-18, P4-19 |
 | `praxis/replay/replay_report.py` | partial | P7-06 |
-| `praxis/replay/load_replay_bars.py` | full | P14-01, P4-16, P4-17, P4-39 |
+| `praxis/replay/load_replay_bars.py` | full | P14-01, P15-03, P4-16, P4-17, P4-39 |
 | `praxis/replay/materialize_bar_frames.py` | full | P3-04, P4-39 |
 | `praxis/replay/replay_api.py` | full | P14-01, P14-02, P4-16, P4-17, P4-40 |
 | `praxis/replay/metrics_serialization.py` | full | P3-10, P4-40 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 19:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 20:00 UTC

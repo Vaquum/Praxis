@@ -2,7 +2,7 @@
 row: P13-01
 baseline: 49aa659
 created: 2026-11-10 11:30 UTC
-modified: 2026-11-10 11:30 UTC
+modified: 2026-11-10 20:00 UTC
 evidence:
   - claim: "Recording a request refuses a latency unless it is a finite number at or above nought, with a true-or-false refused outright"
     source: "`praxis/core/health_tracker.py` 61-68"
@@ -17,7 +17,7 @@ Nothing reaches the tracker's stores without passing two checks, and both are st
 
 A finite number at or above nought. A true-or-false is refused outright, though such a thing counts as a number.
 
-Asking for finiteness turns back an infinity and a figure that is not a number. Five records elsewhere on these two sides refuse a figure by comparing it with nought instead, and a comparison lets both of those through.
+Asking for finiteness turns back an infinity and a figure that is not a number. Five records elsewhere on these two sides refuse a figure by comparing it with nought instead, and where the figure is an ordinary number such a comparison turns back neither.
 
 ## The flag
 

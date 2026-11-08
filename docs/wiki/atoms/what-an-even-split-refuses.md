@@ -2,19 +2,17 @@
 row: P16-02
 baseline: 49aa659
 created: 2026-11-10 16:00 UTC
-modified: 2026-11-10 19:00 UTC
+modified: 2026-11-10 20:00 UTC
 evidence:
   - claim: "A total that is not a finite decimal above nought is refused, a figure of another kind among them"
     source: "`praxis/core/plan_even_slices.py` 46-48"
   - claim: "A count of children below two is refused, and nothing else is asked of it"
     source: "`praxis/core/plan_even_slices.py` 50-52"
-  - claim: "So a count carrying a fraction reaches the division, and the division is what raises"
-    source: "`praxis/core/plan_even_slices.py` 55, or else 60"
-  - claim: "A lot size of another kind of figure raises the same way"
+  - claim: "So a count carrying a fraction reaches the arithmetic, and the arithmetic is what raises"
+    source: "`praxis/core/plan_even_slices.py` 55 and 58, or else 60"
+  - claim: "A lot size given as an ordinary number raises the same way, where one given as a whole number divides as an exact figure would"
     source: "`praxis/core/plan_even_slices.py` 60"
-  - claim: "The weighted split makes the same two checks, its count being the number of weights"
-    source: "`praxis/core/plan_weighted_slices.py` 50-52, or 54-56"
-  - claim: "Where no lot size is known the children divide the total exactly, and no size is too small"
+  - claim: "Where no lot size is known the children are the total over the count and the last is what the others left, with no size too small"
     source: "`praxis/core/plan_even_slices.py` 54-56"
 ---
 # What an even split refuses
@@ -31,15 +29,11 @@ Five records elsewhere on these two sides compare a figure without asking its ki
 
 The count is refused below two. Nothing else is asked of it.
 
-A count carrying a fraction therefore passes, and the division that follows is what refuses it — by kind, with a complaint about the kinds of figure being divided rather than about the count. A lot size handed in as an ordinary number is refused the same way, by the division it reaches.
-
-## The split by weights
-
-[The split that weighs its children](when-a-weight-curve-plans-nothing.md) makes the same two checks, on the same terms. Its count is the number of weights given, and the weights themselves are asked nothing here.
+A count carrying a fraction and standing at two or more therefore passes, and the arithmetic that follows is what refuses it — by kind, complaining about the figures it was asked to work on rather than about the count. A lot size handed in as an ordinary number is refused the same way; one handed in as a whole number is not, since a whole number works on an exact figure as another exact figure would.
 
 ## The road with no lot size
 
-Where the venue's lot size is not known, the children divide the total exactly: each the same, the last carrying whatever the division left.
+Where the venue's lot size is not known, the children are the total over the count, each the same, and the last carries what the others left of it. [What that leaves over](the-quantity-a-lot-step-leaves-behind.md) is its own subject.
 
 There is no size below which a child is refused on that road. A total of a hundredth over ten children gives ten children of a thousandth each.
 
@@ -47,3 +41,4 @@ There is no size below which a child is refused on that road. A total of a hundr
 
 - [Work fed out over time](work-fed-out-over-time.md)
 - [The quantity a lot step leaves behind](the-quantity-a-lot-step-leaves-behind.md)
+- [What a weighted split refuses](what-a-weighted-split-refuses.md)
