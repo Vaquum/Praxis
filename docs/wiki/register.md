@@ -837,6 +837,34 @@ third.
 | P15-02 | Where the peak begins | written | [where-the-peak-begins.md](atoms/where-the-peak-begins.md) |
 | P15-03 | The day a bar is filed under | written | [the-day-a-bar-is-filed-under.md](atoms/the-day-a-bar-is-filed-under.md) |
 
+### Re-seed, after writing package 15
+
+What verifying the three articles turned up that none of them reaches.
+
+| Candidate | What proves it |
+|---|---|
+| A bar that both opens and closes a position pays for both | `praxis/metrics/limen_snapshot.py` 155 makes one multiplier per bar and 156 and 157 each multiply into it in place, the first where the bar opens a position and the second where it closes one. A bar doing both is reached by both lines, so its multiplier carries the opening cost and the closing cost together. A single-bar position returning a hundred basis points gross, charged ten basis points of fee, reports seventy-nine and eight tenths net: the gross less two charges, not one. Nothing in the wiki states that the costs are charged per edge of a position rather than per position |
+| Two roads to a snapshot that counts nothing, neither of them a refusal | `praxis/metrics/limen_snapshot.py` 136 marks bars as reachable from the lag onwards, taking the smaller of the lag and the number of bars, so a lag at or beyond that number leaves no bar reachable and every figure comes back as nothing at all. 122 and 133 do the same by a different road: a series whose every price is missing leaves no bar tradable. The only check on the lag is that it not be negative, at 116-117, and the test that the change equal the close less the open is skipped outright where no price is known, at 125. So a caller handing in a lag longer than the history, or bars with no prices in them, is answered rather than refused, and the answer is indistinguishable from a history in which nothing was ever held. P15-01 has the missing price dropping its own bar; neither that nor any other article has the whole series dropping out |
+
+Two candidates. Both are what the figures admit rather than what they refuse, and
+the second joins the shape this side has recorded before, of an answer given where
+a reader would expect a complaint.
+
+A note on method. The gap map still reports sixteen modules marked `full` with an
+uncited statement, this module having fallen from sixteen of a hundred to eight.
+The widest left is `praxis/infrastructure/mytrades_backfill.py` at nine of twenty,
+and no module now carries a gap above nine.
+
+A note on verification, as for the eleven packages before it. The external readers
+were still unavailable, so this package was checked by the gate, a reading of the
+pinned source, and running the module on the cases each claim turns on. Running it
+is what showed a curve beginning at nine tenths recording a fall of a thousand
+basis points, a true-or-false passing the test for a prediction, and a missing
+price dropping one bar where a missing prediction refuses the call. It is also
+what overturned the candidate the twelfth package's re-seed had recorded, by
+deriving the marks the way the module's own caller derives them rather than
+handing the helper a pair of masks that disagree.
+
 ## Package 14 — the moments a replay request names, and what stopping the listener does
 
 Scope: the service that takes a replay request over HTTP, which the ledger marks
@@ -3463,4 +3491,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 14:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 15:00 UTC
