@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 317 not.**
+**6 of them reviewed, 319 not.**
 
 ## Package 1
 
@@ -874,6 +874,33 @@ has thirteen of forty-nine uncited, all but one of them plumbing.
 | Row H-598 | The walk refuses a mapping of checks that is not a mapping, and refuses any entry that cannot be called. | Promote. What the walk is built from is in no article, and these two refusals stand beside the missing-check refusal that is already written |
 
 Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N23-01 | Starting and stopping the timers | written | [starting-and-stopping-the-timers.md](atoms/starting-and-stopping-the-timers.md) |
+| N23-02 | What the walk is built from | written | [what-the-walk-is-built-from.md](atoms/what-the-walk-is-built-from.md) |
+
+### Re-seed, after writing Nexus package 23
+
+The reader had both articles before they were committed, and reported on both.
+
+| What it found | What came of it |
+|---|---|
+| The loop is not started once and stopped once. Stopping only clears a mark, so a stopped loop can be started again and will schedule the same set over. | N23-01's lead now says what the two share — one lock and one mark — and a section says the restarting plainly |
+| A turn already firing is not guaranteed to give up. Both its readings of the mark happen before it calls the strategy, and the lock is let go between the second reading and the call. | N23-01 now has that as its own section, with what stopping does not reach |
+| The walk checks callability only for the stages its order names. An extra entry in the mapping is neither refused nor kept. | N23-02 now has a section for what the order leaves out |
+| The refusals of the order itself — a tuple, of the right length, holding each stage once — are refusals of the same building, which the article had left out while saying it refused three things. | N23-02 now carries them, and no longer counts |
+
+Two of the four are the same shape as the last package's: a sentence that said a
+thing does not happen, where the lines cited say only that something is checked.
+
+| Candidate | What proves it |
+|---|---|
+| A timer whose turn is already past its second reading of the mark | `nexus/strategy/timer_loop.py` 113-115 reads the mark under the lock and lets the lock go, and 117-122 then calls the strategy, with 124-126 submitting whatever it asked for. A stop that clears the mark between the two runs none of its own code against this turn: the actions reach the submitting function after the loop is stopped. N23-01 states that the readings both come before the call; what the actions of such a turn reach after a stop is in no article |
+
+One candidate, and it belongs with the stopping sequence rather than with the
+timers: what a strategy's actions meet where the host has begun to stop is a
+subject the Nexus side already has articles around.
 
 ## Package 22 — three Nexus records near the line
 
@@ -4020,4 +4047,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 04:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 05:30 UTC
