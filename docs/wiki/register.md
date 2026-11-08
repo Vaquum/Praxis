@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 363 not.**
+**6 of them reviewed, 365 not.**
 
 ## Package 1
 
@@ -856,6 +856,51 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 54 — what the ledger refuses, and what a rebuilt one carries
+
+Scope: the ledger booking one account's money, which the ledger of modules marks
+`partial` with sixty-one of its hundred and thirty statements uncited. Articles
+have the entries that must balance, the lots and what a sell costs, and the
+commission. The order the ledger's refusals stand in, and what survives being
+rebuilt from a snapshot, are in no article.
+
+### Merge and promote, package 54
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-701 | An event naming another account raises before the lock is taken, and every other refusal stands inside it. | Promote. The order these refusals stand in is in no article, and the first of them is the only one outside the lock |
+| Row H-702 | Anything but a registration arriving before one raises, and a second registration raises too, the way of costing being settled once. | Merge with H-701, the two refusals about registering |
+| Row H-703 | A fill naming any other trading pair raises as something the ledger does not do, reached only once the two before it have passed. | Merge with H-701, the third in the order |
+| Row H-704 | A closing for a trade the ledger never saw does nothing at all, once those refusals have passed. | Merge with H-701. One event answered by silence beside the others answered by raising is what a reader needs |
+| Row H-705 | The state a ledger can be rebuilt from holds the balances, the per-trade figures and the open lots, and leaves the journal out. | Promote. What a rebuilt ledger carries is in no article, and what it leaves behind is the posting history |
+| Row H-706 | A rebuilt ledger takes whether it was registered from the snapshot, falling back to whether a way of costing was recorded. | Merge with H-705, the one field the rebuilding falls back on |
+
+Two subjects promote and four rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P54-01 | What the ledger refuses to apply | written | [what-the-ledger-refuses-to-apply.md](atoms/what-the-ledger-refuses-to-apply.md) |
+| P54-02 | What a rebuilt ledger carries | written | [what-a-rebuilt-ledger-carries.md](atoms/what-a-rebuilt-ledger-carries.md) |
+
+### Re-seed, after writing package 54
+
+The reader had both articles before they were committed and returned nine
+reports. Six of them are one omission: that each refusal is reached only once the
+refusals before it have passed.
+
+| What it found | What came of it |
+|---|---|
+| The account check stands before the lock, so a non-registration event arriving before any registration can be refused outside the lock — for the account rather than for the registration. | Both articles' orderings are rewritten around the order the refusals stand in, which is now the subject rather than a detail |
+| The refusals are not three: a fee at or above the amount, and a fee asset the ledger does not take on either side, refuse a fill as well. | The count is gone. The article says what stands where and leaves the rest to the articles that own them |
+| A rebuilt ledger does know what each trade realized and paid; what it loses is the posting behind those figures. | P54-02 says that instead of saying it can say nothing |
+| Under average costing there is one lot per trade to restore, each purchase having been merged into it as it was booked. | P54-02 says how many there are to restore, and why |
+| The fallback for whether a ledger was registered is a fallback, not a proof that a registration was the only way the costing could have been set. | Stated as a fallback |
+
+The six-report omission is worth the record as a shape: an article listing what a
+thing refuses will describe each refusal in isolation, and the lines put them in
+an order where the earlier ones hide the later. Every such article this run has
+written needs the question asked of it — which refusal does an event meet first?
 
 ## Nexus package 53 — what each action is submitted inside, and what never reaches capital
 
@@ -5285,8 +5330,14 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-698 | An abort is answered inside that context before any context for the checks is built. | `nexus/strategy/action_submit.py` 201-203 | Nexus package fifty-three | folds into N53-01 |
 | H-699 | A builder of that context that raises is caught, the action answered as a failed submission carrying the builder's words, and the rest of the actions go on. | `nexus/strategy/action_submit.py` 205-222 | Nexus package fifty-three | folds into N53-01 |
 | H-700 | A submission reaches the capital side only where it was submitted, carries a command name, and carries a decision with money set aside. | `nexus/strategy/action_submit.py` 552-557, or 559-564, or 566-571 | Nexus package fifty-three | is N53-02 |
+| H-701 | An event naming another account raises before the lock is taken, and every other refusal stands inside it. | `praxis/core/account_ledger.py` 97-99, ahead of 101 | Praxis package fifty-four | is P54-01 |
+| H-702 | Anything but a registration arriving before one raises, and a second registration raises too. | `praxis/core/account_ledger.py` 108-110, or 235-237 | Praxis package fifty-four | folds into P54-01 |
+| H-703 | A fill naming any other trading pair raises as something the ledger does not do, reached only once the two before it have passed. | `praxis/core/account_ledger.py` 244-246, reached from 112-113 | Praxis package fifty-four | folds into P54-01 |
+| H-704 | A closing for a trade the ledger never saw does nothing at all, once those refusals have passed. | `praxis/core/account_ledger.py` 259-262, reached from 115-116 | Praxis package fifty-four | folds into P54-01 |
+| H-705 | The state a ledger can be rebuilt from holds the balances, the per-trade figures and the open lots, and leaves the journal out. | `praxis/core/account_ledger.py` 131-135, against the journal it does not name | Praxis package fifty-four | is P54-02 |
+| H-706 | A rebuilt ledger takes whether it was registered from the snapshot, falling back to whether a way of costing was recorded. | `praxis/core/account_ledger.py` 217 | Praxis package fifty-four | folds into P54-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 11:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 12:00 UTC

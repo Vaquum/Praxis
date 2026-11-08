@@ -348,6 +348,8 @@ the others where it appears.
 - [The mark that ends a turn](atoms/the-mark-that-ends-a-turn.md) — symbols are read inside whatever guard the loop was given and the marks fetched outside it, and a mark that is missing or not a finite Decimal ends the entire turn at that point, leaving every position's unrealized figure as it stood and the later symbols unasked.
 - [What each action is submitted inside](atoms/what-each-action-is-submitted-inside.md) — every action is handled inside a bound context carrying the strategy id and action type, plus trade and command ids where present but nothing naming the action itself; an abort forks away first, and a context builder raising an ordinary failure costs that action alone.
 - [When a submission does not reach capital](atoms/when-a-submission-does-not-reach-capital.md) — converting a submission into a tracked order is skipped for a non-submitted status, a missing command id, or no reservation, which is the ordinary course for aborts, exits and amendments; but the reservation is taken before the send, so a skip never means the account was left alone.
+- [What the ledger refuses to apply](atoms/what-the-ledger-refuses-to-apply.md) — an event for another account is rejected before the lock is even taken, then inside it a registration is handled first, anything arriving before one is rejected, a repeat registration is rejected, and only past those does a fill meet the symbol test; a close for an unknown trade is silently ignored.
+- [What a rebuilt ledger carries](atoms/what-a-rebuilt-ledger-carries.md) — the resumable state holds balances, per-trade realized and fee figures, and open lots, but no journal, so the posting history behind each figure is gone; lots return in the order the snapshot listed them, and under average costing there is one per trade to return.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -461,7 +463,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 364
+Both sides are the subject, and Praxis is the side that has been written. 366
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -472,4 +474,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 11:00 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 12:00 UTC
