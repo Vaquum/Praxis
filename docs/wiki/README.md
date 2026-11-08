@@ -197,6 +197,16 @@ the others where it appears.
 - [The watch over handovers that timed out](atoms/the-watch-over-handovers-that-timed-out.md) — an order whose handover ran out of time is flagged as unsettled, and a job reports the flags that have stood too long; a final reply the books cannot take in drops the order off the list with its flag still raised, while one that blows up on the way in leaves both standing.
 - [What the prediction loop's stop leaves running](atoms/what-the-prediction-loops-stop-leaves-running.md) — the job that reads predictions and hands them to the strategies gathers its work first and then carries it out, so work gathered before the switch-off is still carried out, and can still reach a strategy and put its answer up for the usual checks.
 - [How a record reaches the log](atoms/how-a-record-reaches-the-log.md) — every line added to the log carries a short head saying how long it is and a number worked out from its contents, is forced out to the disk before the write is called done, and a file whose end was left torn is trimmed back to the last sound line before anything new goes on.
+- [The version a saved record is read at](atoms/the-version-a-saved-record-is-read-at.md) — every saved record says which version of the writing made it, and one arriving without that marking is read as the oldest rather than turned away.
+- [What happens to an event's version on the way in](atoms/what-happens-to-an-events-version-on-the-way-in.md) — an event's version marking is rounded down before anything looks at it, so a damaged marking is read by whichever reader the whole part names.
+- [Which version an event is written at](atoms/which-version-an-event-is-written-at.md) — whether an event is written in the newer form turns on one field being filled in, and the newer reader insists on that field so firmly it can only ever be refusing something this code did not write.
+- [What a malformed saved record is refused as](atoms/what-a-malformed-saved-record-is-refused-as.md) — anything that goes wrong while a saved record is being rebuilt comes back as one message, with the original failure's own words on the end and the failure itself still attached underneath.
+- [The complaint folded into another](atoms/the-complaint-folded-into-another.md) — one reader writes a careful message about a bad field and the error handling around it swallows that message into a general one, and the case it was written for never reaches it.
+- [The figures a risk record falls back to](atoms/the-figures-a-risk-record-falls-back-to.md) — a record of how far down an account is can be rebuilt from almost nothing, with one figure standing in for five others, though the writing always fills them all in.
+- [What a snapshot from an earlier host is read as](atoms/what-a-snapshot-from-an-earlier-host-is-read-as.md) — a saved state gained fields over time, and reading an older one fills the gaps: some with nothing, some with a value that reads as all being well.
+- [The small negative snapped to nought](atoms/the-small-negative-snapped-to-nought.md) — money arithmetic can leave a remainder a shade below zero, which would make a saved state unreadable, so most of the money figures are nudged back to zero as they are read.
+- [The copies taken before a record is written](atoms/the-copies-taken-before-a-record-is-written.md) — the writing copies each list and mapping before walking it, which keeps each one whole but does not catch them all at a single moment.
+- [What two writings of one state give](atoms/what-two-writings-of-one-state-give.md) — the same state written twice gives matching bytes for the sets of handled names and not for the mappings, which keep whatever order they were built in, so the bytes are no fingerprint of what was saved.
 - [What a damaged record costs](atoms/what-a-damaged-record-costs.md) — reading the log stops at the first line that fails any of its checks, a short head, a length past the cap, a length past the file's end, a payload that runs out or a checksum that does not match and keeps only what came before it, so one bad line hides every good line written after it.
 - [When a read raises instead of stopping](atoms/when-a-read-raises-instead-of-stopping.md) — a line whose contents cannot be turned back into a record makes the read fail outright rather than stop, so the caller is handed nothing at all instead of the good lines before it.
 - [Which of a host's changes reach the log](atoms/which-of-a-hosts-changes-reach-the-log.md) — an operator halting or resuming the whole account is written down every time, and an outcome from the venue only where working it through succeeded and one of three marks is set, while the running valuations of what is held are written on nobody's account and ride along with whatever else is being saved.
@@ -487,15 +497,15 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 390
-articles exist. Of Praxis's own source files 70 are accounted for in full and 18 in
+Both sides are the subject, and Praxis is the side that has been written. 400
+articles exist. Of Praxis's own source files 71 are accounted for in full and 17 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
 behaviour to trace. Depth is the work that remains: of the 64 Nexus modules
-carrying a row, 47 are accounted for in full and 17 in part. [The file ledger](ledger.md) names every file on both sides, so a
+carrying a row, 48 are accounted for in full and 16 in part. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 20:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 22:00 UTC

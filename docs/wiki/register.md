@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 389 not.**
+**6 of them reviewed, 399 not.**
 
 ## Package 1
 
@@ -856,6 +856,76 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 63 — how a saved record is written and read back
+
+Scope: the codec that turns an account's state and its events into bytes and back,
+which the ledger marks `partial` with eighty-three of its ninety-one statements
+uncited. The corpus has how a record reaches the log and what the log's two
+readings are, and nothing about what the bytes hold. Which version a record is
+read at, which version an event is written at, what a malformed payload is refused
+as, what either record falls back to where a field is absent, and the small
+negative snapped to nought are in no article.
+
+### Merge and promote, Nexus package 63
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-748 | A saved record's version is read with the oldest standing in where none is written, one snapshot version and two event versions are read, and any other number is refused by name. | Promote. Which reader gets a payload is in no article, and a payload with no version being read as the oldest rather than refused is the part that matters |
+| Row H-749 | What a payload unpacked to must be a mapping, checked before any version is looked at, and that complaint names what arrived instead. | Merge with H-748, what stands before the version |
+| Row H-750 | An event carrying a name for its outcome is written at the second version and one without at the first, and the second version's reader refuses a name absent, not text, empty or only spaces. | Promote. Which version is chosen, and that the strict refusal can only answer a payload no writer here made, are in no article |
+| Row H-751 | Each reader wraps its whole build in one catch over five kinds of failure and raises one complaint, the careful refusal on a missing outcome name being caught and re-dressed by it. | Promote. What a caller can tell about a bad payload is in no article, and the careful refusal being swallowed by the catch around it is the finding |
+| Row H-752 | Reading a risk record works a standing figure out of whichever high-water name the payload carries, and five of its figures fall back along a chain to that one while ten fall back to nought. | Promote. The chain is in no article, and one figure standing for five is not something a reader would guess |
+| Row H-753 | A snapshot with no health mode is read as the running mode, with no block of holds as a block with none standing, and three of the six holds in a block that is there fall back to a hold not standing. | Promote. What an older snapshot is read as is in no article, and a missing mode being read as running is the one that decides whether a host comes back up trading |
+| Row H-754 | The writer puts every field and every figure into every payload it makes, so none of the fallbacks on either record can answer a payload this codec wrote. | Merge with H-752, and N63-05 states it too. Where a fallback can fire is what tells a reader whether it describes this system or an older one |
+| Row H-755 | Reading a capital record snaps five of its six figures and every per-strategy figure from a small negative to nought, leaving the pool alone and handing a larger negative through. | Promote. The snap is in no article, and which figure is left out of it is the part a reader cannot guess |
+
+Six subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N63-01 | The version a saved record is read at | written | [the-version-a-saved-record-is-read-at.md](atoms/the-version-a-saved-record-is-read-at.md) |
+| N63-02 | Which version an event is written at | written | [which-version-an-event-is-written-at.md](atoms/which-version-an-event-is-written-at.md) |
+| N63-03 | What a malformed saved record is refused as | written | [what-a-malformed-saved-record-is-refused-as.md](atoms/what-a-malformed-saved-record-is-refused-as.md) |
+| N63-04 | The figures a risk record falls back to | written | [the-figures-a-risk-record-falls-back-to.md](atoms/the-figures-a-risk-record-falls-back-to.md) |
+| N63-05 | What a snapshot from an earlier host is read as | written | [what-a-snapshot-from-an-earlier-host-is-read-as.md](atoms/what-a-snapshot-from-an-earlier-host-is-read-as.md) |
+| N63-06 | The small negative snapped to nought | written | [the-small-negative-snapped-to-nought.md](atoms/the-small-negative-snapped-to-nought.md) |
+| N63-07 | The copies taken before a record is written | written | [the-copies-taken-before-a-record-is-written.md](atoms/the-copies-taken-before-a-record-is-written.md) |
+| N63-08 | What happens to an event's version on the way in | written | [what-happens-to-an-events-version-on-the-way-in.md](atoms/what-happens-to-an-events-version-on-the-way-in.md) |
+| N63-09 | The complaint folded into another | written | [the-complaint-folded-into-another.md](atoms/the-complaint-folded-into-another.md) |
+| N63-10 | What two writings of one state give | written | [what-two-writings-of-one-state-give.md](atoms/what-two-writings-of-one-state-give.md) |
+
+### Re-seed, after writing Nexus package 63
+
+Six subjects were promoted, a seventh was found while checking what the remainder
+held, and the reader returned thirteen reports. All thirteen were valid. Five of
+them are claims of mine that reached past their evidence, which is the shape
+package sixty named and this package repeated at greater length.
+
+| What it found | What came of it |
+|---|---|
+| An event's version is cut down to a whole number before any reader is chosen, so a version written as a fraction is read as the whole number below it rather than refused. | N63-08. The claim had said any version but the two is refused by name |
+| The complaint for a version that will not convert answers two grounds, and a figure too large to be made whole escapes undressed on a third. | N63-08 says which it answers and which it misses |
+| The payload's shape and its version are settled outside the catch, so not everything that goes wrong comes back as one complaint. | N63-03's opening is scoped to the build. The claim had been about reading a record and the evidence only about building one |
+| The raising keeps the original failure attached as the cause, so the five grounds are told apart by more than the message's tail. | N63-03 says so |
+| An outcome name absent altogether fails on the reading of the key and never reaches the careful complaint written for a bad name. | N63-09. The claim had listed absence among the cases that complaint answers |
+| The health mode reading as the running one does not mean a host comes back up trading: the account's own mode and its holds are read from their own fields. | N63-05 says what the default settles and what it does not. This is a consequence asserted about a program rather than read off the code, which package forty-four's re-seed named |
+| The snap cannot compare a figure that is no number, so it raises rather than handing it back. | N63-06 says so |
+| The tolerance is declared in the capital record's module and the record applies it nowhere, its own checks refusing any negative. | N63-06 says that rather than claiming the two agree |
+| The nested collections are copied as their own writing is reached, not with the five at the start, and the copies are shallow, so the bytes are no single instant. | N63-07 says when each copy is taken and what that leaves |
+| Only the two sets are ordered on the way out; every mapping is written in the order it is held in, so two states alike in content give different bytes. | N63-10. The claim had said the ordering is what makes two writings agree |
+| The version is written as a number, and the readings that take the money figures back accept a number as readily as text. | N63-07 says which figures are text and what the readings accept |
+| A record arriving without a version is accepted rather than carrying one, so not every record in the log carries one. | N63-01's opening is scoped to the records this codec writes |
+| A snapshot's version is never converted, where an event's is. | N63-08 ends on the difference |
+
+Three articles outgrew the cap as the thirteen went in, and the subject that grew
+each became its own: the event version's conversion, the folded complaint, and
+what two writings give.
+
+Twenty-one statements of the module are left uncited and are an exclusion rather
+than work outstanding: each is the statement that holds an encoder's mapping or a
+decoder's record, or a reading of one key into a local name, around behaviour these
+articles state.
 
 ## Package 62 — what the event records do beyond their checks
 
@@ -5777,8 +5847,16 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-745 | One record asks two of its fields to be a true-or-false while four such fields are declared across the forty-two, and four places refuse a true-or-false outright. | `events.py` 1967-1969 and 1971-1973, against 91-93, or 330-335, or 1326-1328, or 1425-1428 | package sixty-two | is P62-03 |
 | H-746 | A scheme beginning refuses one named way of working by identity and asks nothing else of the field, so a value that is no way of working passes. | `events.py` 771-773 | package sixty-two | is P62-04 |
 | H-747 | A reported disagreement over a balance offers one reading, which subtracts the expected figure from the found one and weighs nothing. | `events.py` 1700-1705 | package sixty-two | recorded; the record is P61-03 and the subtraction carries no check of its own |
+| H-748 | A saved record's version is read with the oldest standing in where none is written, one snapshot version and two event versions are read, and any other number is refused by name. | `nexus/infrastructure/wal_codec.py` 114, then 116-120, and 616 into 621-628 | Nexus package sixty-three | is N63-01 |
+| H-749 | What a payload unpacked to must be a mapping, checked before any version is looked at, and that complaint names what arrived instead. | `nexus/infrastructure/wal_codec.py` 111-113, and 612-614 | Nexus package sixty-three | folds into N63-01 |
+| H-750 | An event carrying a name for its outcome is written at the second version and one without at the first, and the second version's reader refuses a name absent, not text, empty or only spaces. | `nexus/infrastructure/wal_codec.py` 581-597, against 677-683 | Nexus package sixty-three | is N63-02 |
+| H-751 | Each reader wraps its whole build in one catch over five kinds of failure and raises one complaint, the careful refusal on a missing outcome name being caught and re-dressed by it. | `nexus/infrastructure/wal_codec.py` 133 into 153-155, or 650 into 657-659, or 676 into 691-693, the refusal at 683 caught at 691 | Nexus package sixty-three | is N63-03 |
+| H-752 | Reading a risk record works a standing figure out of whichever high-water name the payload carries, and five of its figures fall back along a chain to that one while ten fall back to nought. | `nexus/infrastructure/wal_codec.py` 301 into 302, 303, 304, 311 and 313, with ten at 309, 310 and 314-321 | Nexus package sixty-three | is N63-04 |
+| H-753 | A snapshot with no health mode is read as the running mode, with no block of holds as a block with none standing, and three of the six holds in a block that is there fall back to a hold not standing. | `nexus/infrastructure/wal_codec.py` 142 into 502-503, and 143 into 438-439, with 446-448 required against 449-457 | Nexus package sixty-three | is N63-05 |
+| H-754 | The writer puts every field and every figure into every payload it makes, so none of the fallbacks on either record can answer a payload this codec wrote. | `nexus/infrastructure/wal_codec.py` 81-96, and 269-288 | Nexus package sixty-three | folds into N63-04, and N63-05 states it too |
+| H-755 | Reading a capital record snaps five of its six figures and every per-strategy figure from a small negative to nought, leaving the pool alone and handing a larger negative through. | `nexus/infrastructure/wal_codec.py` 199-205, the pool read at 198 without it, the snap at 52-55 | Nexus package sixty-three | is N63-06 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 20:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 22:00 UTC
