@@ -857,6 +857,24 @@ claim cited.
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
 
+## Package 24 — what the mark sampler is built with, and what starts and stops it
+
+Scope: the sampler that records what a paper account's holding is worth, which the
+ledger marks `partial` with seventeen of its thirty statements uncited. One article
+has the loop and what one sample carries. What the sampler is refused at the build,
+and what starting and stopping it do, are in no article.
+
+### Merge and promote, package 24
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-599 | The account and the pair are each tested for truth alone, so a name of blank space is kept and only an empty one is refused. | Promote. What the sampler is built with is in no article, and this is a third place on this side where a name is tested for truth rather than for content |
+| Row H-600 | The interval is refused at or below nought by comparison, nothing being asked of its kind, so an interval that is not a number and one without end are both kept. | Merge with H-599. The two checks are made in one breath, and the figure's is the sixth of its kind the register has found |
+| Row H-601 | Starting a sampler already running raises, and starting otherwise clears the stop signal and sets the loop going as a task named for the account and the pair. | Promote. What starting and stopping do is in no article, and the two differ from the timer loop's pair, which answers a second start by doing nothing |
+| Row H-602 | Stopping sets the stop signal, cancels the task, swallows the cancellation and forgets the task, so a sampler never started is stopped without complaint. | Merge with H-601, the other half of the pair |
+
+Two subjects promote and two rows merge, with nothing declined.
+
 ## Package 23 — starting and stopping the timers, and what the walk is built from
 
 Scope: two Nexus modules the ledger marks `partial`. The timer loop has sixteen of
@@ -4043,8 +4061,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-596 | Stopping takes the same lock, clears the running mark, cancels every live timer and forgets them all. | `nexus/strategy/timer_loop.py` 81-87 | Nexus package twenty-three | folds into N23-01 |
 | H-597 | The timers a loop was handed are copied as it is built, so a caller changing its own mapping afterwards changes nothing the loop will schedule. | `nexus/strategy/timer_loop.py` 52 against 74 | Nexus package twenty-three | folds into N23-01 |
 | H-598 | The walk refuses a mapping of checks that is not a mapping, and refuses any entry that cannot be called. | `nexus/core/validator/pipeline_executor.py` 106-108, or 117-121 | Nexus package twenty-three | is N23-02 |
+| H-599 | The account and the pair are each tested for truth alone, so a name of blank space is kept and only an empty one is refused. | `praxis/paper/mark_sampler.py` 50-51, or 53-54 | Praxis package twenty-four | is P24-01 |
+| H-600 | The interval is refused at or below nought by comparison, nothing being asked of its kind, so an interval that is not a number and one without end are both kept. | `praxis/paper/mark_sampler.py` 56-57, kept at 64 and used at 139 | Praxis package twenty-four | folds into P24-01 |
+| H-601 | Starting a sampler already running raises, and starting otherwise clears the stop signal and sets the loop going as a task named for the account and the pair. | `praxis/paper/mark_sampler.py` 77-78, or else 80-83, the test at 71 | Praxis package twenty-four | is P24-02 |
+| H-602 | Stopping sets the stop signal, cancels the task, swallows the cancellation and forgets the task, so a sampler never started is stopped without complaint. | `praxis/paper/mark_sampler.py` 94 into 96-102 | Praxis package twenty-four | folds into P24-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 05:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 06:00 UTC
