@@ -845,6 +845,48 @@ and how it is written.
 |---|---|---|---|
 | P18-01 | What a start reads back from a checkpoint | written | [what-a-start-reads-back-from-a-checkpoint.md](atoms/what-a-start-reads-back-from-a-checkpoint.md) |
 
+### Re-seed, after writing package 18
+
+What stating those last statements turned up.
+
+| Candidate | What proves it |
+|---|---|
+| Two kinds of absence, told apart by how the read is written | `nexus/infrastructure/snapshot.py` 66-68 asks whether the file is there and then reads it, rather than reading it and catching the failure. So a file that was never written answers nothing, and a file that goes away between those two steps raises instead. P18-01 has the first; that the two absences part company, and why, is in no article |
+
+One candidate. It is the shape of the read rather than anything the figures do,
+and the two steps are a start's own, taken one after the other on its own file.
+
+A note on the gate. One cell could not move until a row was settled: the gate
+holds a module short of `full` while any finding citing it carries a candidate in
+its disposition, and row H-064 had carried one since the fourth package. That rule
+did its work here — the row was not forgotten, it was found by the check at the
+moment it mattered — and settling it meant saying plainly that what the row still
+carried was a suggested change to Praxis rather than anything missing from the
+wiki.
+
+A note on method. The gap map now reports nineteen modules marked `full` with an
+uncited statement, against fifteen before this package, and sixty `partial`
+against sixty-six. The rise in the first figure is the point rather than a
+regression: four of the six cells moved reach `full` through the exclusion
+recorded above rather than through a citation of every line, so they now count as
+`full` with lines uncited. The ledger stands at forty-nine `full` against
+thirty-nine `partial` on the Praxis side, and thirty-one against thirty-nine on
+the Nexus side. The nearest to the line now are
+`praxis/core/estimate_slippage.py` at ten statements of forty-three and
+`nexus/infrastructure/observability.py` at ten of fourteen.
+
+A note on verification, as for the fourteen packages before it. The external
+readers were still unavailable, so this package was checked by the gate and a
+reading of the pinned source on both sides.
+
+One claim was dropped before it was written. The checkpoint's temporary file is
+named by replacing the snapshot's own suffix, so two snapshots in one directory
+differing only in suffix would share one temporary name. The one caller writes a
+fixed name into a directory of its own, so no second snapshot can arrive there and
+the collision cannot happen. True of the writer, false of the checkpoint, which is
+the distinction the register's rule about paths asks for — the second such claim
+these two packages have turned back.
+
 The statement about the moment behind the rolling windows found a different home
 for the same reason: the article on what the thirty-day cut leaves would have
 outgrown the cap, and the article on the moments with no marker holds the two
@@ -3684,4 +3726,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 19:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 19:30 UTC
