@@ -828,6 +828,37 @@ from `partial` to `full`.
 Nothing promotes and nothing is declined. Four statements are added to four
 articles, one citation is extended, and the five cells go to `full`.
 
+### Re-seed, after writing package 17
+
+What stating those last statements turned up.
+
+| Candidate | What proves it |
+|---|---|
+| The built-in policy is reached by truth rather than by absence | `nexus/core/health_evaluator.py` 153 takes the policy it was handed or builds the built-in one, choosing between them on the truth of what was handed in rather than on whether anything was. Nothing standing in for the policy can be false: the policy is a plain record with no answer of its own to being asked for its truth, so every instance of it is true and the two readings of that line come to the same thing. N15-02 on the policy's own checks now states that a weigher built without one takes the built-in thresholds; that the line would behave differently were the policy ever false is a shape the register has recorded elsewhere, and here it is harmless |
+
+One candidate, and it is harmless where it stands. It is recorded because the
+same line written over a record that can be empty — a mapping, a list, a figure of
+nought — would take the built-in thing while something was in fact handed in.
+
+A note on the ledger itself. Its summary of the Nexus side still read that of the
+sixty-four modules carrying a row, none was accounted for in full. That had been
+true when it was written and was not when it was read: seventeen carried `full`
+before this package and twenty do now. The line is corrected, and the counts it
+carries are now derived from the cells rather than described.
+
+A note on method. The gap map reports fifteen modules marked `full` with an
+uncited statement, unchanged by this package, and sixty-six marked `partial`
+against seventy-one before it. The five cells moved leave the Praxis side at
+forty-eight `full` against forty `partial`, and the Nexus side at twenty-six
+against forty-four. The nearest to the line now are `nexus/strategy/executor.py`
+at four statements of twenty-one and `nexus/infrastructure/loss_derivation.py` at
+five of thirty-two.
+
+A note on verification, as for the thirteen packages before it. The external
+readers were still unavailable, so this package was checked by the gate, a reading
+of the pinned source on both sides, and running the health weigher to see that a
+policy handed in is the one kept.
+
 ## Package 16 — the window a backfill opens, and what an even split refuses
 
 Scope: two small modules the ledger marks `full`, each left with a handful of
@@ -3586,4 +3617,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 17:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-10 18:00 UTC
