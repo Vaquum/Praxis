@@ -222,6 +222,13 @@ the others where it appears.
 - [What a fill must carry](atoms/what-a-fill-must-carry.md) — a report saying something filled must give the quantity, the price, the money value and the fee charged, each a finite figure and the first three above zero where the fee may be zero, and a report of any other kind must give none of the four.
 - [The reason an outcome may carry](atoms/the-reason-an-outcome-may-carry.md) — a rejection has to explain itself in words that are not just blank space, a report saying the order was called off may explain itself or stay silent, and either explanation on a report of any other type is turned away.
 - [The two measures an outcome reports](atoms/the-two-measures-an-outcome-reports.md) — two further numbers may each be supplied or omitted, an omitted one is passed over before the number is examined, and a supplied one is turned away unless the report says something filled, where it must be a finite number.
+- [What money held for an order is checked for](atoms/what-money-held-for-an-order-is-checked-for.md) — the record of capital set aside is rejected unless its own identifier and the requesting strategy's are both usable text, and unless each of its two amounts is a real number, with each amount check rejecting a figure below zero rather than one standing at it.
+- [The two moments a hold carries](atoms/the-two-moments-a-hold-carries.md) — that record stores when it was created and when it lapses, each needing the standard universal-time marker, and the lapse must fall strictly later, so a record cannot lapse at the instant it was created.
+- [What a hold is asked after it exists](atoms/what-a-hold-is-asked-after-it-exists.md) — once the record is built, two things are read off it: its amounts added together, worked out afresh each time and named by none of its own checks, and whether it has lapsed, which rejects a supplied time lacking the standard marker and answers yes exactly at the lapse.
+- [What the record of an attempt must carry](atoms/what-the-record-of-an-attempt-must-carry.md) — the result of a request for capital must pair a yes with a filled record field and an empty explanation, or a no with a filled explanation and an empty record field, as four separate checks, none of which examines the type of any of its three fields.
+- [What a note for an outcome is checked for](atoms/what-a-note-for-an-outcome-is-checked-for.md) — the note carried alongside an order is rejected unless its two required identifiers are usable text, its direction is a recognised one, its two true-or-false fields really are, and its money amount and expected fee are real numbers with the amount above zero.
+- [The size a note may leave out](atoms/the-size-a-note-may-leave-out.md) — the quantity may be omitted only when the order adds to a holding, an omission clearing that one check; a quantity that is supplied must be a real number above zero, and those two tests ignore the field that allowed the omission.
+- [The flag saying an order grows a position](atoms/the-flag-saying-an-order-grows-a-position.md) — that metadata states whether the order adds to a holding, nothing compares the statement with the buy-or-sell direction, the opposite reading is worked out on demand, and a record setting both that statement and the other true-or-false field it carries is rejected by that check, which either of them standing false clears.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -335,14 +342,14 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 238
+Both sides are the subject, and Praxis is the side that has been written. 245
 articles exist. Of Praxis's own source files 46 are accounted for in full, 38 in
 part and 4 not at all; of the 70 in Nexus, 58 are named and 12
-untouched — 45 carry a row of their own, and 13 are reached by an article or a
+untouched — 47 carry a row of their own, and 11 are reached by an article or a
 recorded finding that needed them. How Nexus decides what to send is the work that
 remains. [The file ledger](ledger.md) names every file on both sides, so a
 subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 10:40 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-08 17:30 UTC

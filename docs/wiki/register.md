@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 237 not.**
+**6 of them reviewed, 244 not.**
 
 ## Package 1
 
@@ -242,7 +242,7 @@ Thirty-three Praxis modules were named nowhere in [the ledger](ledger.md) when t
 
 Order follows dependency again. The host comes first because the settings it reads decide what every other subject is allowed to do, and because four written articles already cite it without a page to point at. The seams come next: a decision crossing into Praxis and an outcome crossing back are one subject each, and reconciliation is a third because it speaks a different vocabulary in each direction. The shapes follow the seams, since a command is what a crossing produces. The leaves come last; they are reached from pages that already exist.
 
-Nexus is in scope and is where the packages go next. Of its 70 modules, 58 are named and 12 untouched. Of the 58, 45 carry a row of their own and 13 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
+Nexus is in scope and is where the packages go next. Of its 70 modules, 58 are named and 12 untouched. Of the 58, 47 carry a row of their own and 11 are reached by an article or a recorded finding that needed them. The untouched are packages of their own, seeded below.
 
 | ID | Topic | Status | Article |
 |---|---|---|---|
@@ -734,6 +734,16 @@ record with its own four checks. Two are held out of the note: the size,
 because it is the one field held to one rule when it is there and another when it
 is not, and the flag saying the order grows a position, because nothing
 ever asks whether it agrees with the side.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N13-01 | What money held for an order is checked for | written | [what-money-held-for-an-order-is-checked-for.md](atoms/what-money-held-for-an-order-is-checked-for.md) |
+| N13-02 | The two moments a hold carries | written | [the-two-moments-a-hold-carries.md](atoms/the-two-moments-a-hold-carries.md) |
+| N13-07 | What a hold is asked after it exists | written | [what-a-hold-is-asked-after-it-exists.md](atoms/what-a-hold-is-asked-after-it-exists.md) |
+| N13-03 | What the record of an attempt must carry | written | [what-the-record-of-an-attempt-must-carry.md](atoms/what-the-record-of-an-attempt-must-carry.md) |
+| N13-04 | What a note for an outcome is checked for | written | [what-a-note-for-an-outcome-is-checked-for.md](atoms/what-a-note-for-an-outcome-is-checked-for.md) |
+| N13-05 | The size a note may leave out | written | [the-size-a-note-may-leave-out.md](atoms/the-size-a-note-may-leave-out.md) |
+| N13-06 | The flag saying an order grows a position | written | [the-flag-saying-an-order-grows-a-position.md](atoms/the-flag-saying-an-order-grows-a-position.md) |
 
 ## Nexus package 12 — what an outcome refuses
 
@@ -2192,4 +2202,4 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 15:15 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-08 16:20 UTC
