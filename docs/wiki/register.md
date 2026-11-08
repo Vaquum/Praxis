@@ -803,6 +803,19 @@ The exit subject is the one that must come first: two articles in this package
 say a figure waits for the exit, and until it is written those sentences point
 nowhere.
 
+## Nexus package 17 — what a host is configured with, and what loads a strategy
+
+Scope: the last two modules the ledger reaches only by citation — the record of
+how one instance is configured, which carries more refusals than anything else on
+either side, and the pair of calls that turn a line of a manifest into a running
+strategy. Thirty-eight refusals between them, and one line of the two cited by one
+article.
+
+The configuration record is the only one on this side that rewrites three of its
+own fields, weighs one field against another, and sums across the entries of a
+mapping. The loader is the only place on this side that reads a file named from
+outside and runs it.
+
 ## Nexus package 16 — the seam's remaining records
 
 Scope: the six modules left on the Nexus side of the seam that the ledger reaches
@@ -2696,8 +2709,27 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-463 | Three sets of named values mirror the trading side’s own: seven ways of working an order, eight kinds of order, and three preferences for who takes the other side. | `nexus/core/domain/order_types.py` 18-24, or 30-37, or 43-45 | Nexus package sixteen | is N16-06 |
 | H-464 | The record carrying outcomes in checks neither the queue nor the wait it is given, and the wait has a default of a tenth of a second. | `nexus/infrastructure/praxis_connector/praxis_inbound.py` 32-33, with 27-33 checking neither, the default at 16 | Nexus package sixteen | folds into N16-06 |
 | H-465 | The mapping names four kinds of action and reaches two kinds of command. The third kind — the one for amending an order — is named nowhere in the Nexus checkout but in the command record's own checks, so nothing on this side builds one, the change that would need it being refused instead. | `nexus/infrastructure/praxis_connector/translate.py` 20-25, with 75-81 refusing the change, the third kind declared at `nexus/infrastructure/praxis_connector/trade_command_type.py` 24 and weighed only at `nexus/infrastructure/praxis_connector/trade_command.py` 240 | Nexus package sixteen | is N16-02 |
+| H-466 | The account and the venue must each be text with something left in them once trimmed. | `nexus/instance_config.py` 89-91, or 93-95 | Nexus package seventeen |  |
+| H-467 | The window for spotting a duplicate must be a whole number above nought, a true-or-false refused outright. | `nexus/instance_config.py` 97-103, or 104-106 | Nexus package seventeen |  |
+| H-468 | Two further figures may each be left out; where one is given it must be a whole number above nought, a true-or-false refused. | `nexus/instance_config.py` 108 into 109-118, or 120 into 121-133 | Nexus package seventeen |  |
+| H-469 | Two more may each be left out; where one is given it must be a finite decimal at or above nought, both held by one walk. | `nexus/instance_config.py` 135-139 into 140-143 | Nexus package seventeen |  |
+| H-470 | The per-strategy caps must be a mapping of any kind, where two records on this side demand a dictionary and refuse any other mapping. | `nexus/instance_config.py` 145-150, against `nexus/strategy/signal.py` 36-38 | Nexus package seventeen |  |
+| H-471 | Its keys are trimmed, an empty one is refused, and a collision the trimming itself makes is refused. | `nexus/instance_config.py` 153 into 154-159, or 161-167, or 168-173 | Nexus package seventeen |  |
+| H-472 | Its values must each be a finite decimal at or above nought, and the trimmed mapping is sealed over the field it arrived in. | `nexus/instance_config.py` 174-178, with 183-187 | Nexus package seventeen |  |
+| H-473 | A reference price source may be left out; where given it is trimmed and lowered, refused empty, and refused unless it is the one name allowed, the lowered value written back over the field. | `nexus/instance_config.py` 189-193, or 194-199, or 201-210, with 212-216, the one name at 26 | Nexus package seventeen |  |
+| H-474 | A deviation cap of either kind with no reference price source is refused, and that is the only check this record makes weighing one field against another. | `nexus/instance_config.py` 218-226, with 89-285 comparing two of its fields nowhere else | Nexus package seventeen |  |
+| H-475 | The self-trade setting must be one of the named ones. | `nexus/instance_config.py` 229-231 | Nexus package seventeen |  |
+| H-476 | The capital shares must be a mapping, their keys held to the same two refusals as the caps, and their values finite decimals above nought and at or below a hundred. | `nexus/instance_config.py` 233-237, or 242-245, or 246-249, or 250-255, or 256-258, or 259-261 | Nexus package seventeen |  |
+| H-477 | The shares are added as they are walked and a total above a hundred is refused, the only check this record makes that sums across entries. | `nexus/instance_config.py` 262 into 265-267 | Nexus package seventeen |  |
+| H-478 | Two shutdown timeouts are walked and each refused unless it is a finite number above nought, a true-or-false refused. | `nexus/instance_config.py` 275-278 into 279-285 | Nexus package seventeen |  |
+| H-479 | A strategy's file must be given as a relative path, and must end in the usual suffix for a module. | `nexus/strategy/loader.py` 55-57, or 59-61 | Nexus package seventeen |  |
+| H-480 | The path is resolved against the base and refused where what it resolves to falls outside, so a link pointing out of the base is caught rather than followed. | `nexus/strategy/loader.py` 63-64 into 66-70 | Nexus package seventeen |  |
+| H-481 | The file must be there. | `nexus/strategy/loader.py` 72-74 | Nexus package seventeen |  |
+| H-482 | The file must carry something under the expected name, that something must be a class, it must inherit from the base, and it must not be the base itself. | `nexus/strategy/loader.py` 78-80, or 84-86, or 88-90, or 92-94 | Nexus package seventeen |  |
+| H-483 | A module whose loading plan cannot be made is refused, and a failure while running the module is wrapped as one error naming the path. | `nexus/strategy/loader.py` 105-107, or 111-115 | Nexus package seventeen |  |
+| H-484 | A failure building the strategy is wrapped as one error naming the strategy rather than the file. | `nexus/strategy/loader.py` 31-35 | Nexus package seventeen |  |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 18:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-09 19:10 UTC
