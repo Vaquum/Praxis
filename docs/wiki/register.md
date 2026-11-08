@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 413 not.**
+**6 of them reviewed, 418 not.**
 
 ## Package 1
 
@@ -856,6 +856,56 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Package 66 — how the simulated venue is started
+
+Scope: the way into the simulated venue, which the ledger marks `partial` with
+eighty-five of its ninety-three statements uncited. One claim of one article says
+registering against a directory a service holds is refused. What the settings must
+be, the order the service starts and stops in, what registering from the command
+line does, and what running the program plainly does are in no article.
+
+### Merge and promote, package 66
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-778 | Two settings are required and refused by name where nothing is left once trimmed, and seven fall back to built-in values, the host and the depth address falling back again where they hold only space. | Promote. What the settings must be is in no article, and a setting holding only space falling back twice over is the part a reader cannot guess |
+| Row H-779 | Four settings are read as whole numbers with bounds that differ by setting — the port from nought with a ceiling, two intervals from one, and the count of stuck polls from two — and the depth floor is read as a figure held to being finite and above nought. | Merge with H-778. One reader with bounds handed to it per setting is why the same figure passes for one setting and fails for another |
+| Row H-780 | The state directory is taken as written, nothing asking whether it exists or can be made. | Merge with H-778, what is not asked of the one setting everything else rests on |
+| Row H-781 | Handlers for the two stopping signals are put in place before any long-lived part is started, and each does one thing: it sets the event the run waits on. | Promote. The order of the starting is in no article, and the handlers standing before it is what makes a signal during startup land properly |
+| Row H-782 | The poller is started and then the server, the poller's own loop being what first fills the book, and the stopping runs however the attempt ended and stops the server before the poller. | Merge with H-781, the rest of the order |
+| Row H-783 | Registering is the one named command, takes the directory from the environment rather than an argument, holds the lock across reading the state and registering into it, and writes the minted key to the standard output. | Promote. What the command does is in no article, and the lock spanning the read and the write is what the one existing claim about it is really about |
+| Row H-784 | A money argument that will not convert ends the command with a message naming the argument, and nothing there asks either figure to be finite or at or above nought. | Merge with H-783. Which side checks what is the division worth stating |
+| Row H-785 | A run naming no command falls past the registering and reads the settings, so the service is what running the program plainly gives, and the lock is held around the whole of the running. | Promote. That the service is the default road is in no article |
+| Row H-786 | A held directory ends either road with that refusal's own message rather than a trace, while anything else going wrong is written out with its trace and answered as a failure. | Merge with H-785, what an operator sees for each kind of failure |
+
+Four subjects promote and five rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| P66-01 | What the simulated venue's settings must be | written | [what-the-simulated-venues-settings-must-be.md](atoms/what-the-simulated-venues-settings-must-be.md) |
+| P66-02 | The order the simulated venue starts and stops in | written | [the-order-the-simulated-venue-starts-and-stops-in.md](atoms/the-order-the-simulated-venue-starts-and-stops-in.md) |
+| P66-03 | Registering an account from the command line | written | [registering-an-account-from-the-command-line.md](atoms/registering-an-account-from-the-command-line.md) |
+| P66-04 | What running the simulated venue plainly does | written | [what-running-the-simulated-venue-plainly-does.md](atoms/what-running-the-simulated-venue-plainly-does.md) |
+| P66-05 | Which failures give a sentence and which a stack | written | [which-failures-give-a-sentence-and-which-a-stack.md](atoms/which-failures-give-a-sentence-and-which-a-stack.md) |
+
+### Re-seed, after writing package 66
+
+The reader returned five reports and all five were valid. The first came of taking a
+comment's claim for the behaviour beside it.
+
+| What it found | What came of it |
+|---|---|
+| Starting the poller sets its loop going and answers at once, so the server can begin answering while the book is still empty. | P66-02 says so. The draft had said there is no such moment, which is a stronger reading of the comment beside the starting than the comment makes: it denies a race between a manual priming and the loop, and says nothing about the book being full before the server opens |
+| The ready line names seven of the nine settings, leaving out the token and the directory. | Corrected |
+| A complaint about an argument is written by the argument reader straight to the error stream, not through the logging arranged a moment earlier. | Corrected |
+| An ending asked for outright is not the ordinary kind of failure, so the guard around the run does not catch one, and every road that ends with a message passes it untouched. | P66-05. The draft had said the guard catches anything else, which made the careful sentences look like a choice rather than a consequence |
+| The key is in the caller's hands before it is written out, so the writing is the one time it is shown rather than the one time it exists. | Corrected |
+
+Twelve statements of the module are left uncited and are an exclusion rather than
+work outstanding: the building of the settings record whose fields these articles
+state, the handing back of each reader's answer, the arranging of the argument
+reader, two log lines, and the opening of two attempts.
 
 ## Package 65 — what a fill and an order do to the simulated venue's balances
 
@@ -6004,8 +6054,17 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-775 | A name the account has already recorded refuses the order, and each fill takes a trade number of its own while the order takes one for itself. | `ledger.py` 534-537, then 560-571, then 573-574 | package sixty-five | folds into P65-04 |
 | H-776 | The three readings each take the lock, two of them refuse an unknown account and the third refuses nothing, and each answers with a copy whose records are sealed. | `ledger.py` 593-599, and 609-613, and 619-620, the record sealed at 161 | package sixty-five | is P65-05 |
 | H-777 | The ledger refuses a state directory that is not a path as it is built, and the asset a fee is taken in is chosen by side rather than fixed to one. | `ledger.py` 223-224, and 138 into 418-422 | package sixty-five | is P65-06, the one check on building recorded |
+| H-778 | Two settings are required and refused by name where nothing is left once trimmed, and seven fall back to built-in values, the host and the depth address falling back again where they hold only space. | `__main__.py` 83-93, then 95, and 97 | package sixty-six | is P66-01 |
+| H-779 | Four settings are read as whole numbers with bounds that differ by setting — the port from nought with a ceiling, two intervals from one, and the count of stuck polls from two — and the depth floor is read as a figure held to being finite and above nought. | `__main__.py` 96, and 98-109, the reading at 133-152, the figure at 161-176 | package sixty-six | folds into P66-01 |
+| H-780 | The state directory is taken as written, nothing asking whether it exists or can be made. | `__main__.py` 116 | package sixty-six | folds into P66-01 |
+| H-781 | Handlers for the two stopping signals are put in place before any long-lived part is started, and each does one thing: it sets the event the run waits on. | `__main__.py` 209-213 ahead of 219, the handler at 213 | package sixty-six | is P66-02 |
+| H-782 | The poller is started and then the server, the poller's own loop being what first fills the book, and the stopping runs however the attempt ended and stops the server before the poller. | `__main__.py` 219-220, then 236-239 | package sixty-six | folds into P66-02 |
+| H-783 | Registering is the one named command, takes the directory from the environment rather than an argument, holds the lock across reading the state and registering into it, and writes the minted key to the standard output. | `__main__.py` 275-287, then 250 around 252 and 254-256, then 304 | package sixty-six | is P66-03 |
+| H-784 | A money argument that will not convert ends the command with a message naming the argument, and nothing there asks either figure to be finite or at or above nought. | `__main__.py` 259-265, against `ledger.py` 287-297 | package sixty-six | folds into P66-03 |
+| H-785 | A run naming no command falls past the registering and reads the settings, so the service is what running the program plainly gives, and the lock is held around the whole of the running. | `__main__.py` 308 reached where 282 does not hold, the lock at 311 | package sixty-six | is P66-04 |
+| H-786 | A held directory ends either road with that refusal's own message rather than a trace, while anything else going wrong is written out with its trace and answered as a failure. | `__main__.py` 299-300, and 313-314, against 320-324 | package sixty-six | folds into P66-04 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-12 23:30 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-13 00:00 UTC

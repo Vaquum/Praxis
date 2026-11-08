@@ -461,6 +461,11 @@ the others where it appears.
 ## A simulated exchange on the real paths
 
 - [Binsim](atoms/binsim.md) — a simulated exchange Praxis can be pointed at, answering over the web on the real venue's paths.
+- [What the simulated venue's settings must be](atoms/what-the-simulated-venues-settings-must-be.md) — the service reads its settings from the environment, insists on a token and a folder for its books, and fills in the rest; the bounds on the numbers differ enough that the same value is fine for one setting and refused for another.
+- [The order the simulated venue starts and stops in](atoms/the-order-the-simulated-venue-starts-and-stops-in.md) — the shutdown handlers go in before anything is started, the price feed is started before the server without waiting for its first reading, and the stopping happens in reverse.
+- [Registering an account from the command line](atoms/registering-an-account-from-the-command-line.md) — the command that creates an account hands the operator a key, holding the folder lock across reading the saved balances and writing the new account into them.
+- [What running the simulated venue plainly does](atoms/what-running-the-simulated-venue-plainly-does.md) — leaving the command off is how the service itself is run, and the folder lock is held for as long as it stays up.
+- [Which failures give a sentence and which a stack](atoms/which-failures-give-a-sentence-and-which-a-stack.md) — some bad starts print one clear line and others print a full trace, and which you get follows from what kind of thing the failure is rather than from how serious it is.
 - [Binsim's book](atoms/binsims-book.md) — a list of prices handed to it, replaced whole, and filled against by walking.
 - [Binsim's ledger](atoms/binsims-ledger.md) — what the simulated venue keeps per account: the balances it holds and the fills it has been given.
 - [What settling a fill moves](atoms/what-settling-a-fill-moves.md) — both of an account's balances move at once, the fee comes out of what the side receives rather than being charged beside it, and a balance landing exactly on zero is allowed.
@@ -511,8 +516,8 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 414
-articles exist. Of Praxis's own source files 72 are accounted for in full and 16 in
+Both sides are the subject, and Praxis is the side that has been written. 419
+articles exist. Of Praxis's own source files 73 are accounted for in full and 15 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
 recorded finding, or a recorded exclusion, all six recorded as shapes with no
@@ -522,4 +527,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-12 23:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-13 00:00 UTC
