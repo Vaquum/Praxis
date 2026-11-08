@@ -109,10 +109,10 @@ Every Praxis module is named here: 57 are `full` and 31 `partial`, with none `un
 | `nexus/core/capital_controller/capital_controller.py` | partial | N1-01, N1-02, N1-06, N2-01, N2-02, N2-05, N3-02, N3-04, N3-05, N3-06, N3-07, N3-08, N3-09, N3-10, N3-11, N3-12, N4-01, N4-02, N4-05, N4-06, N5-01, N5-02, N7-02, N7-10, P6-03, P6-04 |
 | `nexus/core/capital_controller/reservation.py` | partial | N13-01, N13-02, N13-03, N13-07, N15-08 |
 | `nexus/core/domain/risk_breaker_thresholds.py` | full | N14-07, N18-04 |
-| `nexus/core/capital_controller/tracked_order.py` | partial | N4-01, N5-02 |
+| `nexus/core/capital_controller/tracked_order.py` | partial | N4-01, N40-02, N5-02 |
 | `nexus/core/domain/capital_state.py` | full | N1-01, N2-02, N3-02, N3-04, N3-05, N3-06, N3-08, N3-09, N37-01, N37-02, N4-01, N4-06, N7-10, P5-04 |
 | `nexus/core/domain/position.py` | partial | N2-01, N2-06, N3-01, N4-03, N4-05, N6-02 |
-| `nexus/core/domain/instance_state.py` | partial | N3-01, N3-02, N7-08, P5-04 |
+| `nexus/core/domain/instance_state.py` | partial | N3-01, N3-02, N40-01, N7-08, P5-04 |
 | `nexus/core/domain/risk_state.py` | partial | N19-01, N2-04, N3-03, N38-02, N7-09, P18-01 |
 | `nexus/core/validator/pipeline_executor.py` | full | N1-03, N1-04, N1-08, N2-06, N23-02, N3-08, N4-07 |
 | `nexus/core/validator/pipeline_models.py` | partial | N1-02, N1-03, N1-04, N3-05, N4-07, N5-06, N6-10, N16-01 |
@@ -182,4 +182,4 @@ Modules are listed individually as tracing reaches them, and every one of Nexus'
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 22:00 UTC

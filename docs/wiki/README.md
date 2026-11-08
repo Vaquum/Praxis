@@ -324,6 +324,8 @@ the others where it appears.
 - [The key this record will not trim for you](atoms/the-key-this-record-will-not-trim-for-you.md) — a strategy id with surrounding whitespace is rejected by the capital record and by the strategy declaration, stripped and kept by the strategy base and the router, and carried as supplied by a command crossing the seam, so which record a padded name meets first decides its fate.
 - [What a recovery takes before it rebuilds](atoms/what-a-recovery-takes-before-it-rebuilds.md) — the WAL's magic bytes are checked before anything is read on either road into it, the next sequence number continues from the last record the log still holds rather than the last one written, and the rolling-loss windows are measured back from the clock as recovery runs.
 - [What a recovery writes at the end](atoms/what-a-recovery-writes-at-the-end.md) — recovery finishes by setting the cumulative realized figure from the risk record's own per-strategy total, which recomputes the current drawdown while the high-water mark and the worst-ever drawdown are each kept at whichever is larger, restored or recomputed.
+- [The keys that must match what they hold](atoms/the-keys-that-must-match-what-they-hold.md) — the positions and per-strategy-mode mappings each reject a value of the wrong type and a key that disagrees with the identifier inside its value, while the dust mapping and both processed-id sets are checked for shape alone and the remaining fields arrive already self-checked.
+- [What a tracked order must be](atoms/what-a-tracked-order-must-be.md) — its three identifiers must be strings with content after stripping, though it stores them unstripped; its three amounts must be finite non-negative Decimals with the unfilled part never exceeding the whole; its state must be either sent-and-unacknowledged or acknowledged-and-resting; and its timestamp must carry the UTC marker itself.
 - [What a loop's stop leaves running](atoms/what-a-loops-stop-leaves-running.md) — switching off a repeating background job cancels its next run but lets the run already going finish, so a write can still land after the switch-off has returned.
 - [What the halted mode turns away](atoms/what-the-halted-mode-turns-away.md) — while the system is coming down, a strategy's request to open, close or alter is refused by the usual checks, yet two kinds of order still go out, one of them closing positions by a route that skips those checks.
 - [Stopping the loop that reads outcomes](atoms/stopping-the-loop-that-reads-outcomes.md) — the reader being switched off is asked to finish and given a while, and one still going when the while is up is left to complete the turn it is in, which can take one more message away from whoever reads next.
@@ -437,7 +439,7 @@ look one thing up.
 Each article has a word limit. One that outgrows it is split in two rather than
 made longer, which is why some titles are narrow.
 
-Both sides are the subject, and Praxis is the side that has been written. 340
+Both sides are the subject, and Praxis is the side that has been written. 342
 articles exist. Of Praxis's own source files 46 are accounted for in full and 42 in
 part, with none left untouched; and all 70 in Nexus are named, none
 untouched — 64 carry a row of their own, and 6 are reached by an article, a
@@ -448,4 +450,4 @@ subject with no article can be found there rather than guessed at.
 
 ---
 
-Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 20:30 UTC
+Created 2026-09-16 15:31 UTC · Last modified 2026-11-11 22:00 UTC

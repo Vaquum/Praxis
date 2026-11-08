@@ -102,7 +102,7 @@ of `supported` against a handful of corrections, and still read as not reviewed.
 A review that finds things, has them fixed, and is confirmed against the fixed
 text is a review. One that finds things nobody acts on is not.
 
-**6 of them reviewed, 339 not.**
+**6 of them reviewed, 341 not.**
 
 ## Package 1
 
@@ -856,6 +856,50 @@ claim cited.
 
 The packages written without a reader are therefore no longer unread. The other
 reader is still unavailable, its balance exhausted.
+
+## Nexus package 40 — the keys that must match, and what a tracked order must be
+
+Scope: two Nexus records the ledger marks `partial` with almost nothing cited —
+the state a host holds, twenty-eight of thirty-six, and the record of an order
+holding money, thirty-one of thirty-five. One article names the state's fields;
+nothing states what either record refuses.
+
+### Merge and promote, Nexus package 40
+
+| From | One concrete sentence | Disposition |
+|---|---|---|
+| Row H-647 | The state's two keyed mappings each refuse a value of the wrong kind, and each refuse a key differing from the identifier inside its value, while three further fields are checked for shape alone. | Promote. A key that disagrees with what it holds is refused in two places and in no article. The three fields checked for shape were added after the reader's pass, the seeding having read only as far as the keyed pair |
+| Row H-648 | A tracked order's three names must each be text with something left once trimmed, the trimming only testing them. | Promote. What the record of an order holding money refuses is in no article |
+| Row H-649 | Its three figures must each be finite and at or above nought, and what is left must not exceed the whole. | Merge with H-648, the same building |
+| Row H-650 | Its state must be one of the two named, and its moment must carry the universal-time marker itself. | Merge with H-648. The marker is the stricter half, matching the records crossing the seam rather than the ones inside the mode |
+
+Two subjects promote and two rows merge, with nothing declined.
+
+| ID | Topic | Status | Article |
+|---|---|---|---|
+| N40-01 | The keys that must match what they hold | written | [the-keys-that-must-match-what-they-hold.md](atoms/the-keys-that-must-match-what-they-hold.md) |
+| N40-02 | What a tracked order must be | written | [what-a-tracked-order-must-be.md](atoms/what-a-tracked-order-must-be.md) |
+
+### Re-seed, after writing Nexus package 40
+
+The reader had both articles before they were committed. One came back clean. The
+other was wrong in every sentence of one section, and the reason is worth the
+record.
+
+| What it found | What came of it |
+|---|---|
+| The state's checking does not stop where the article had stopped reading. Past the two keyed mappings it walks the dust per pair, refusing a blank key and a figure that is not finite, of the exact kind and at or above nought, and both sets of names already worked through, refusing an entry that is not text with something left. | The section claiming those fields were checked for nothing is replaced by what they are checked for, and the counts are corrected: five of eleven fields walked, not two of ten |
+| The state declares eleven fields, not ten. | Counted again and corrected |
+
+The article's "what is not checked" section was written from a reading that ended
+at the last line the uncited-line map had drawn attention to. The lines past it
+were uncited too, and they were the ones that refuted the section. An absence
+claimed from a partial reading is the oldest failure in the register's own rules,
+and this is the first time in forty packages it has been made about a function
+whose remaining lines were sitting in the same map.
+
+Reading to the end of the function, rather than to the end of the gap, is the
+practice this adds.
 
 ## Nexus package 39 — three modules whose remainder is plumbing
 
@@ -4667,8 +4711,12 @@ Behaviours met while tracing. Each ends as a row, a fold into a row, or an exclu
 | H-644 | The number the next record will carry is taken from the last record in the log, where the log held any. | `nexus/infrastructure/state_store.py` 271-272 | Nexus package thirty-eight | folds into N38-01 |
 | H-645 | The moment the rolling losses are measured back from is read off the clock as the recovery runs. | `nexus/infrastructure/state_store.py` 286, used at 287 | Nexus package thirty-eight | folds into N38-01 |
 | H-646 | A recovery ends by handing the realized figure back to the risk record, which recomputes the fall from it. | `nexus/infrastructure/state_store.py` 333 | Nexus package thirty-eight | is N38-02 |
+| H-647 | The state's two keyed mappings each refuse a value of the wrong kind, and each refuse a key differing from the identifier inside its value. | `nexus/core/domain/instance_state.py` 87-95, or 97-103 | Nexus package forty | is N40-01 |
+| H-648 | A tracked order's three names must each be text with something left once trimmed, the trimming only testing them. | `nexus/core/capital_controller/tracked_order.py` 59-61, or 63-65, or 67-69 | Nexus package forty | is N40-02 |
+| H-649 | Its three figures must each be finite and at or above nought, and what is left must not exceed the whole. | `nexus/core/capital_controller/tracked_order.py` 71-95, or 97-99 | Nexus package forty | folds into N40-02 |
+| H-650 | Its state must be one of the two named, and its moment must carry the universal-time marker itself. | `nexus/core/capital_controller/tracked_order.py` 101-103, or 105-110 | Nexus package forty | folds into N40-02 |
 | H-041 | Changing the weight curve of a Scheduled VWAP order is not supported. | `execution_manager.py` 10101-10107 | schedule change | folds into the schedule change |
 
 ---
 
-Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 21:00 UTC
+Created 2026-09-16 09:39 UTC · Last modified 2026-11-11 22:00 UTC
